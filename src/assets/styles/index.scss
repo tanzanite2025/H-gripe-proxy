@@ -1,6 +1,12 @@
-@use './layout.scss';
+.user-none {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+�(@use './layout.scss';
 @use './page.scss';
-@use './font.scss';
+�@use './font.scss';
 
 body {
   margin: 0;
@@ -58,4 +64,125 @@ body {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+}
+
+// ==========================================
+// ERP UDS 视觉系统规范 (v1.0) 样式定义
+// ==========================================
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&family=Inter:wght@400;600;900&display=swap');
+
+// 全局字体设置，优先 Outfit / Inter
+body, html {
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+// 1. 排版规范 (Typography)
+.uds-title-h1, h1.MuiTypography-root {
+  font-size: 1.125rem !important; // text-lg
+  font-weight: 900 !important; // font-black
+  letter-spacing: -0.05em !important; // tracking-tighter
+  font-style: italic !important; // italic
+  text-transform: uppercase !important; // uppercase
+}
+
+.uds-title-h2, h2.MuiTypography-root, h6.MuiTypography-root.uds-card-title {
+  font-size: 0.875rem !important; // text-sm
+  font-weight: 900 !important; // font-black
+  letter-spacing: -0.05em !important; // tracking-tighter
+  font-style: italic !important; // italic
+}
+
+// 强制所有标题级别必须使用斜体，正文绝对禁止斜体
+h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.uds-label, th.MuiTableCell-root, .MuiFormLabel-root {
+  font-size: 10px !important; // text-[10px]
+  font-weight: 900 !important; // font-black
+  text-transform: uppercase !important; // uppercase
+  letter-spacing: 0.15em !important; // tracking-widest
+  color: var(--text-secondary) !important;
+  opacity: 0.6;
+}
+
+.uds-desc {
+  font-size: 9px !important; // text-[9px]
+  font-weight: 900 !important; // font-black
+  text-transform: uppercase !important; // uppercase
+  letter-spacing: 0.15em !important; // tracking-widest
+  opacity: 0.6 !important;
+}
+
+.uds-mono, .MuiTypography-mono {
+  font-size: 8px !important; // text-[8px]
+  font-family: monospace, 'Courier New', Courier, monospace !important; // font-mono
+}
+
+// 2. 几何与容器 (Geometry)
+.uds-header-bar {
+  border-radius: 32px !important; // rounded-[32px]
+  border: 1px dashed var(--divider-color) !important; // border-dashed
+  background-color: rgba(0, 0, 0, 0.02) !important; // bg-muted/5
+  backdrop-filter: blur(10px);
+}
+
+.uds-card-container {
+  border-radius: 24px !important; // rounded-[24px]
+  border: 1px dashed var(--divider-color) !important; // border-dashed
+  box-shadow: none !important;
+  background-color: var(--card-bg) !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+
+  &:hover {
+    border-color: var(--primary-main-hover) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+.uds-toolbar {
+  border-radius: 24px !�important; // rounded-[24px]
+  border: 1px dashed var(--divider-color) !important;
+}
+
+.uds-dialog {
+  border-radius: 32px !important; // rounded-[32px]
+  border: none !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; // shadow-2xl
+}
+
+// 3. 边框与质感 (Aesthetics)
+.uds-border-dashed {
+  border: 1px dashed var(--divider-color) !important;
+}
+
+// 4. 状态语义 (Status)
+.uds-status-healthy {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  color: #059669 !important;
+}
+
+.uds-status-alert {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+  color: #d97706 !important;
+}
+
+.uds-status-critical {
+  background-color: rgba(244, 63, 94, 0.1) !important;
+  color: #e11d48 !important;
+  animation: uds-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+@keyframes uds-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+// 5. 极细进度条
+.uds-progress-thin {
+  height: 4px !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
 }

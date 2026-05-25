@@ -1,3 +1,4 @@
+import { restartCore } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 type NavigateFunction = (path: string, options?: any) => void
@@ -85,6 +86,14 @@ export const handleNoticeMessage = (
         'settings.feedback.notifications.clash.changeFailed',
         msg,
       ),
+    core_panic_recovered: () => {
+      showNotice.error(msg)
+      setTimeout(() => {
+        restartCore().catch((err) => {
+          console.error('自愈重启内核失败:', err)
+        })
+      }, 2000)
+    },
   }
 
   const handler = handlers[status]

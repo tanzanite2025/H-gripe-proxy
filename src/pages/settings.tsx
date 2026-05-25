@@ -70,39 +70,27 @@ const SettingPage = () => {
       <Grid container spacing={1.5} columns={{ xs: 6, sm: 6, md: 12 }}>
         <Grid size={6}>
           <Box
+            className="uds-card-container"
             sx={{
-              borderRadius: 2,
-              marginBottom: 1.5,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
+              marginBottom: 2,
             }}
           >
             <SettingSystem onError={onError} />
           </Box>
-          <Box
-            sx={{
-              borderRadius: 2,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
+          <Box className="uds-card-container">
             <SettingClash onError={onError} />
           </Box>
         </Grid>
         <Grid size={6}>
           <Box
+            className="uds-card-container"
             sx={{
-              borderRadius: 2,
-              marginBottom: 1.5,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
+              marginBottom: 2,
             }}
           >
             <SettingVergeBasic onError={onError} />
           </Box>
-          <Box
-            sx={{
-              borderRadius: 2,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
+          <Box className="uds-card-container">
             <SettingVergeAdvanced onError={onError} />
           </Box>
         </Grid>

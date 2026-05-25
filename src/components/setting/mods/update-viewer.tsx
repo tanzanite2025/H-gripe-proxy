@@ -1,15 +1,14 @@
 import { alpha, Box, Button, LinearProgress } from '@mui/material'
 import { relaunch } from '@tauri-apps/plugin-process'
-import { open as openUrl } from '@tauri-apps/plugin-shell'
 import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
 
 import { BaseDialog, DialogRef } from '@/components/base'
+import { openWebUrl } from '@/services/cmds'
 import { useUpdate } from '@/hooks/use-update'
 import { portableFlag } from '@/pages/_layout'
 import { showNotice } from '@/services/notice-service'
@@ -228,7 +227,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
             size="small"
             sx={{ whiteSpace: 'nowrap' }}
             onClick={() => {
-              openUrl(
+              void openWebUrl(
                 `https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/v${updateInfo?.version}`,
               )
             }}
@@ -369,7 +368,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       >
         <ReactMarkdown
           remarkPlugins={[remarkGitHubAlerts]}
-          rehypePlugins={[rehypeRaw]}
+          skipHtml
           components={{
             a: ({ ...props }) => {
               const { children } = props

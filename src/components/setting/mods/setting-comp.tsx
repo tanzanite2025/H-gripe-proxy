@@ -73,11 +73,22 @@ export const SettingList: React.FC<{
 }> = ({ title, children }) => (
   <List>
     <ListSubheader
+      className="uds-label"
       sx={[
-        { background: 'transparent', fontSize: '16px', fontWeight: '700' },
+        {
+          background: 'transparent',
+          fontSize: '10px !important',
+          fontWeight: '900 !important',
+          textTransform: 'uppercase',
+          letterSpacing: '0.12em !important',
+          paddingLeft: '16px',
+          paddingBottom: '4px',
+          fontStyle: 'italic',
+        },
         ({ palette }) => {
           return {
-            color: palette.text.primary,
+            color: palette.text.secondary,
+            opacity: 0.65,
           }
         },
       ]}

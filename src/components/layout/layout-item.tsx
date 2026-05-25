@@ -63,16 +63,20 @@ export const LayoutItem = (props: Props) => {
         {...(dragHandleProps ?? {})}
         sx={[
           {
-            borderRadius: 2,
+            borderRadius: '9999px !important',
             marginLeft: 1.25,
-            paddingLeft: 1,
-            paddingRight: 1,
+            paddingLeft: 2,
+            paddingRight: 2,
             marginRight: 1.25,
+            height: '44px !important',
             cursor: draggable ? 'grab' : 'pointer',
             '&:active': draggable ? { cursor: 'grabbing' } : {},
             '& .MuiListItemText-primary': {
               color: 'text.primary',
-              fontWeight: '700',
+              fontWeight: 900,
+              fontSize: '10px !important',
+              textTransform: 'uppercase',
+              letterSpacing: '0.15em !important',
             },
           },
           ({ palette: { mode, primary } }) => {

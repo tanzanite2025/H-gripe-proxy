@@ -75,7 +75,8 @@
   "feedback": {
     "errors": {
       "trafficStats": "流量统计错误",
-      "trafficStatsDescription": "流量统计组件发生错误，为防止崩溃已暂时停用。"
+      "trafficStatsDescription": "流量统计组件发生错误，为防止崩溃已暂时停用。",
+      "core_panic_recovered": "内核意外崩溃，已为您自动解除系统代理，防止电脑断网！"
     },
     "notices": {
       "raw": "{{message}}",

@@ -82,7 +82,7 @@ const SwitchRow = ({
       sx={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+	        justifyContent: 'space-between',
         p: 1,
         pr: 2,
         borderRadius: 1.5,

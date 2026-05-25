@@ -1,0 +1,29 @@
+# === 依赖 ===
+node_modules/
+
+# === Rust 编译产物 ===
+target/
+target_build/
+target_temp/
+cargo_home_temp/
+
+# === 前端构建产物 ===
+dist/
+
+# === IDE / 编辑器 ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === ESLint 缓存 ===
+.eslintcache
+
+# === 恢复工作临时文件（非项目代码） ===
+walkthrough.md
+implementation_plan.md
+
+# === OS 系统文件 ===
+Thumbs.db
+Desktop.ini
+.DS_Store

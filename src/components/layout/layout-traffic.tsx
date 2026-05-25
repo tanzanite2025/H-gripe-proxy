@@ -17,8 +17,11 @@ import parseTraffic from '@/utils/parse-traffic'
 
 import { TrafficGraph, type TrafficRef } from './traffic-graph'
 
-// setup the traffic
-export const LayoutTraffic = () => {
+interface LayoutTrafficProps {
+  horizontal?: boolean
+}
+
+export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
   const { t } = useTranslation()
   const { verge } = useVerge()
 
@@ -30,20 +33,20 @@ export const LayoutTraffic = () => {
 
   const {
     response: { data: traffic },
-  } = useTrafficData({ enabled: trafficGraph && pageVisible })
+  } = useTrafficData({ enabled: trafficGraph && pageVisible && !horizontal })
   const {
     response: { data: memory },
   } = useMemoryData()
 
   // 监听数据变化，为图表添加数据点
   useEffect(() => {
-    if (trafficRef.current) {
+    if (trafficRef.current && !horizontal) {
       trafficRef.current.appendData({
         up: traffic?.up || 0,
         down: traffic?.down || 0,
       })
     }
-  }, [traffic])
+  }, [traffic, horizontal])
 
   // 显示内存使用情况的设置
   const displayMemory = verge?.enable_memory_usage ?? true
@@ -52,6 +55,90 @@ export const LayoutTraffic = () => {
   const [up, upUnit] = parseTraffic(traffic?.up || 0)
   const [down, downUnit] = parseTraffic(traffic?.down || 0)
   const [inuse, inuseUnit] = parseTraffic(memory?.inuse || 0)
+
+  if (horizontal) {
+    return (
+      <LightweightTrafficErrorBoundary>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 2.0,
+            userSelect: 'none',
+          }}
+        >
+          {/* 上传速度 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ArrowUpwardRounded
+              sx={{
+                fontSize: '12px !important',
+                color: (traffic?.up || 0) > 0 ? 'secondary.main' : 'text.secondary',
+                opacity: (traffic?.up || 0) > 0 ? 1.0 : 0.4,
+              }}
+            />
+            <Typography
+              sx={{
+                fontFamily: 'monospace',
+                fontSize: '8px !important',
+                fontWeight: 900,
+                color: (traffic?.up || 0) > 0 ? 'secondary.main' : 'text.secondary',
+                opacity: (traffic?.up || 0) > 0 ? 1.0 : 0.6,
+              }}
+            >
+              {up}{upUnit}/s
+            </Typography>
+          </Box>
+
+          {/* 下载速度 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ArrowDownwardRounded
+              sx={{
+                fontSize: '12px !important',
+                color: (traffic?.down || 0) > 0 ? 'primary.main' : 'text.secondary',
+                opacity: (traffic?.down || 0) > 0 ? 1.0 : 0.4,
+              }}
+            />
+            <Typography
+              sx={{
+                fontFamily: 'monospace',
+                fontSize: '8px !important',
+                fontWeight: 900,
+                color: (traffic?.down || 0) > 0 ? 'primary.main' : 'text.secondary',
+                opacity: (traffic?.down || 0) > 0 ? 1.0 : 0.6,
+              }}
+            >
+              {down}{downUnit}/s
+            </Typography>
+          </Box>
+
+          {/* 内存占用 */}
+          {displayMemory && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <MemoryRounded
+                sx={{
+                  fontSize: '12px !important',
+                  color: 'text.secondary',
+                  opacity: 0.4,
+                }}
+              />
+              <Typography
+                sx={{
+                  fontFamily: 'monospace',
+                  fontSize: '8px !important',
+                  fontWeight: 900,
+                  color: 'text.secondary',
+                  opacity: 0.6,
+                }}
+              >
+                {inuse}{inuseUnit}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </LightweightTrafficErrorBoundary>
+    )
+  }
 
   const boxStyle: Pick<BoxProps, 'sx'> = {
     sx: {

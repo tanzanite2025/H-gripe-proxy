@@ -96,7 +96,7 @@ export const useCustomTheme = () => {
             setMode(systemTheme)
           }
         })
-        .catch((err) => {
+        .catch((err	) => {
           console.error('Failed to get initial system theme:', err)
         })
     }, 0)
@@ -212,7 +212,7 @@ export const useCustomTheme = () => {
       rootEle.style.setProperty('--scroller-color', scrollColor)
       rootEle.style.setProperty('--primary-main', muiTheme.palette.primary.main)
       rootEle.style.setProperty(
-        '--background-color-alpha',
+     	   '--background-color-alpha',
         alpha(muiTheme.palette.primary.main, 0.1),
       )
       rootEle.style.setProperty(
