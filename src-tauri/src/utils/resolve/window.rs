@@ -6,6 +6,15 @@ use tauri::{Theme, WebviewWindow};
 use crate::{config::Config, core::handle, utils::resolve::window_script::build_window_initial_script};
 use clash_verge_logging::{Type, logging_error};
 
+#[cfg(target_os = "windows")]
+use std::sync::{Arc, Mutex};
+
+#[cfg(target_os = "windows")]
+use windows_core_webview2::Interface;
+
+#[cfg(target_os = "windows")]
+use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings4;
+
 const DARK_BACKGROUND_COLOR: Color = Color(46, 48, 61, 255); // #2E303D
 const LIGHT_BACKGROUND_COLOR: Color = Color(245, 245, 245, 255); // #F5F5F5
 const DARK_BACKGROUND_HEX: &str = "#2E303D";
@@ -69,7 +78,6 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
     .min_inner_size(MINIMAL_WIDTH, MINIMAL_HEIGHT)
     .visible(false) // 等待主题色准备好后再展示，避免启动色差
     .initialization_script(&initial_script)
-    .general_autofill_enabled(false) // 禁用自动填充
     .on_page_load(move |window, payload| {
         if payload.event() != PageLoadEvent::Finished {
             return;
@@ -87,9 +95,43 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
 
     match builder.build() {
         Ok(window) => {
+            #[cfg(target_os = "windows")]
+            logging_error!(Type::Window, configure_windows_webview_autofill(&window));
             logging_error!(Type::Window, window.set_background_color(Some(background_color)));
             Ok(window)
         }
         Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn configure_windows_webview_autofill(window: &WebviewWindow) -> Result<(), String> {
+    let error = Arc::new(Mutex::new(None::<String>));
+    let error_ref = Arc::clone(&error);
+
+    window
+        .with_webview(move |webview| unsafe {
+            let result = (|| -> Result<(), String> {
+                let core_webview = webview
+                    .controller()
+                    .CoreWebView2()
+                    .map_err(|err| err.to_string())?;
+                let settings = core_webview.Settings().map_err(|err| err.to_string())?;
+                let settings4 = settings.cast::<ICoreWebView2Settings4>().map_err(|err| err.to_string())?;
+                settings4
+                    .SetIsGeneralAutofillEnabled(false)
+                    .map_err(|err| err.to_string())?;
+                Ok(())
+            })();
+
+            if let Err(err) = result {
+                *error_ref.lock().expect("lock windows webview autofill error") = Some(err);
+            }
+        })
+        .map_err(|err| err.to_string())?;
+
+    match error.lock().expect("lock windows webview autofill error").take() {
+        Some(err) => Err(err),
+        None => Ok(()),
     }
 }

@@ -285,7 +285,7 @@ pub struct IVergeTheme {
 
 impl IVerge {
     /// 有效的clash核心名称
-    pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
+    pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo"];
 
     /// 验证并修正配置文件中的clash_core值
     pub async fn validate_and_fix_config() -> Result<()> {
@@ -352,7 +352,10 @@ impl IVerge {
     }
 
     pub fn get_valid_clash_core(&self) -> String {
-        self.clash_core.clone().unwrap_or_else(|| "verge-mihomo".into())
+        match self.clash_core.as_deref().map(str::trim) {
+            Some(core) if Self::VALID_CLASH_CORES.contains(&core) => core.into(),
+            _ => "verge-mihomo".into(),
+        }
     }
 
     pub async fn new() -> Self {

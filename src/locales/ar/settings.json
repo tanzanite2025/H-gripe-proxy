@@ -289,8 +289,7 @@
     },
     "clashCore": {
       "variants": {
-        "release": "الإصدار المستقر",
-        "alpha": "الإصدار التجريبي"
+        "release": "الإصدار المستقر"
       }
     },
     "liteMode": {

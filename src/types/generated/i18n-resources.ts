@@ -790,7 +790,6 @@ export interface TranslationResources {
         }
         clashCore: {
           variants: {
-            alpha: string
             release: string
           }
         }
@@ -1253,6 +1252,7 @@ export interface TranslationResources {
       }
       feedback: {
         errors: {
+          core_panic_recovered: string
           trafficStats: string
           trafficStatsDescription: string
         }
