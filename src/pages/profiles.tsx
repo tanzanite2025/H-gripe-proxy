@@ -24,7 +24,6 @@ import { Box, Button, Divider, Grid, IconButton, Stack } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
-import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
 import {
@@ -50,7 +49,7 @@ import { ConfigViewer } from '@/components/setting/mods/config-viewer'
 import { useListen } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
-  createProfile,
+  createProfileFromLocalPath,
   deleteProfile,
   enhanceProfiles,
   getProfiles,
@@ -207,8 +206,7 @@ const ProfilePage = () => {
                 self_proxy: false,
               },
             } as IProfileItem
-            const data = await readTextFile(file)
-            await createProfile(item, data)
+            await createProfileFromLocalPath(item, file)
             await mutateProfiles()
           }
           await enhanceProfiles()

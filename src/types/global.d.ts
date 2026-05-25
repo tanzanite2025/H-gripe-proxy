@@ -389,6 +389,16 @@ interface GrpcOptions {
   'grpc-service-name'?: string
 }
 
+interface XHttpOptions {
+  path?: string
+  host?: string
+  mode?: string
+  headers?: {
+    [key: string]: string
+  }
+  'no-grpc-header'?: boolean
+}
+
 interface RealityOptions {
   'public-key'?: string
   'short-id'?: string
@@ -403,7 +413,7 @@ type ClientFingerprint =
   | '360'
   | 'qq'
   | 'random'
-type NetworkType = 'ws' | 'http' | 'h2' | 'grpc' | 'tcp'
+type NetworkType = 'ws' | 'http' | 'h2' | 'grpc' | 'xhttp' | 'tcp'
 type CipherType =
   | 'none'
   | 'auto'
@@ -634,6 +644,7 @@ interface IProxyVlessConfig extends IProxyBaseConfig {
   'http-opts'?: HttpOptions
   'h2-opts'?: H2Options
   'grpc-opts'?: GrpcOptions
+  'xhttp-opts'?: XHttpOptions
   'ws-opts'?: WsOptions
   'ws-path'?: string
   'ws-headers'?: {

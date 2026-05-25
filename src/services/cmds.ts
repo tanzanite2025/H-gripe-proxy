@@ -33,6 +33,13 @@ export async function createProfile(
   return invoke<void>('create_profile', { item, fileData })
 }
 
+export async function createProfileFromLocalPath(
+  item: Partial<IProfileItem>,
+  path: string,
+) {
+  return invoke<void>('create_profile_from_local_path', { item, path })
+}
+
 export async function viewProfile(index: string) {
   return invoke<void>('view_profile', { index })
 }
@@ -322,8 +329,8 @@ export async function restartApp() {
   return invoke<void>('restart_app')
 }
 
-export async function getAppDir() {
-  return invoke<string>('get_app_dir')
+export async function getTrayIconPath(name: 'common' | 'sysproxy' | 'tun') {
+  return invoke<string | null>('get_tray_icon_path', { name })
 }
 
 export async function openAppDir() {

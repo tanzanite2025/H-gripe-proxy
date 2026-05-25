@@ -7,6 +7,7 @@ import { URI_SOCKS } from './socks'
 import { URI_SS } from './ss'
 import { URI_SSR } from './ssr'
 import { URI_Trojan } from './trojan'
+import { URI_TrojanGo } from './trojan-go'
 import { URI_TUIC } from './tuic'
 import { URI_VLESS } from './vless'
 import { URI_VMESS } from './vmess'
@@ -20,6 +21,7 @@ const URI_PARSERS: Record<string, UriParser> = {
   vmess: URI_VMESS,
   vless: URI_VLESS,
   trojan: URI_Trojan,
+  'trojan-go': URI_TrojanGo,
   anytls: URI_AnyTLS,
   hysteria2: URI_Hysteria2,
   hy2: URI_Hysteria2,

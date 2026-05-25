@@ -1,7 +1,6 @@
 import {
   decodeAndTrim,
   decodeBase64OrOriginal,
-  getIfNotBlank,
   parseBool,
   parseBoolOrPresence,
   parseQueryStringNormalized,
@@ -12,6 +11,14 @@ import {
   stripUriScheme,
   trimStr,
 } from './helpers'
+import {
+  buildGrpcOptions,
+  buildH2Options,
+  buildHttpOptions,
+  buildWsOptions,
+  buildXHttpOptions,
+  resolveTlsServerName,
+} from './transport'
 
 /**
  * VLess URL Decode.
@@ -128,10 +135,11 @@ export function URI_VLESS(line: string): IProxyVlessConfig {
     let type = params.type
     if (type === 'websocket') type = 'ws'
     if (isShadowrocket && type === 'sw') type = 'ws'
+    if (type === 'splithttp') type = 'xhttp'
     if (type === 'httpupgrade') {
       network = 'ws'
       httpupgrade = true
-    } else if (type && ['tcp', 'ws', 'http', 'grpc', 'h2'].includes(type)) {
+    } else if (type && ['tcp', 'ws', 'http', 'grpc', 'h2', 'xhttp'].includes(type)) {
       network = type as NetworkType
     } else {
       network = 'tcp'
@@ -147,77 +155,62 @@ export function URI_VLESS(line: string): IProxyVlessConfig {
   if (proxy.network && !['tcp', 'none'].includes(proxy.network)) {
     const host = params.host ?? params.obfsParam
     const path = params.path
+    let wsOpts: WsOptions | undefined
+    let httpOpts: HttpOptions | undefined
+    let h2Opts: H2Options | undefined
+    let xhttpOpts: XHttpOptions | undefined
 
     switch (proxy.network) {
-      case 'grpc':
-        {
-          const serviceName = getIfNotBlank(path)
-          if (serviceName) {
-            proxy['grpc-opts'] = { 'grpc-service-name': serviceName }
-          }
+      case 'grpc': {
+        const grpcOpts = buildGrpcOptions(path)
+        if (grpcOpts) {
+          proxy['grpc-opts'] = grpcOpts
         }
         break
+      }
       case 'h2': {
-        const h2Opts: H2Options = {}
-        const hostVal = getIfNotBlank(host)
-        const pathVal = getIfNotBlank(path)
-        if (hostVal) h2Opts.host = hostVal
-        if (pathVal) h2Opts.path = pathVal
-        if (Object.keys(h2Opts).length > 0) {
+        h2Opts = buildH2Options(host, path)
+        if (h2Opts) {
           proxy['h2-opts'] = h2Opts
         }
         break
       }
       case 'http': {
-        const httpOpts: HttpOptions = {}
-        const hostVal = getIfNotBlank(host)
-        const pathVal = getIfNotBlank(path)
-        if (pathVal) httpOpts.path = [pathVal]
-        if (hostVal) httpOpts.headers = { Host: [hostVal] }
-        if (Object.keys(httpOpts).length > 0) {
+        httpOpts = buildHttpOptions(host, path)
+        if (httpOpts) {
           proxy['http-opts'] = httpOpts
         }
         break
       }
       case 'ws': {
-        const wsOpts: WsOptions = {}
-        if (host) {
-          if (params.obfsParam) {
-            try {
-              const parsedHeaders = JSON.parse(host)
-              wsOpts.headers = parsedHeaders
-            } catch (e) {
-              console.warn('[URI_VLESS] host JSON.parse failed:', e)
-              wsOpts.headers = { Host: host }
-            }
-          } else {
-            wsOpts.headers = { Host: host }
-          }
-        }
-        if (path) {
-          wsOpts.path = path
-        }
-        if (httpupgrade) {
-          wsOpts['v2ray-http-upgrade'] = true
-          wsOpts['v2ray-http-upgrade-fast-open'] = true
-        }
-        if (Object.keys(wsOpts).length > 0) {
+        wsOpts = buildWsOptions(host, path, {
+          preferJsonHeaders: Boolean(params.obfsParam),
+          httpupgrade,
+        })
+        if (wsOpts) {
           proxy['ws-opts'] = wsOpts
+        }
+        break
+      }
+      case 'xhttp': {
+        xhttpOpts = buildXHttpOptions(host, path, params.mode)
+        if (xhttpOpts) {
+          proxy['xhttp-opts'] = xhttpOpts
         }
         break
       }
       default:
         break
     }
-  }
 
-  if (proxy.tls && !proxy.servername) {
-    if (proxy.network === 'ws') {
-      proxy.servername = proxy['ws-opts']?.headers?.Host
-    } else if (proxy.network === 'http') {
-      proxy.servername = proxy['http-opts']?.headers?.Host?.[0]
-    } else if (proxy.network === 'h2') {
-      proxy.servername = proxy['h2-opts']?.host
+    if (proxy.tls && !proxy.servername) {
+      proxy.servername = resolveTlsServerName(proxy.network, {
+        host,
+        wsOpts,
+        httpOpts,
+        h2Opts,
+        xhttpOpts,
+      })
     }
   }
 

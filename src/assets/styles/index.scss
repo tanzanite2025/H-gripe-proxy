@@ -100,7 +100,7 @@ h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
 }
 
 .uds-label, th.MuiTableCell-root, .MuiFormLabel-root {
-  font-size: 10px !important; // text-[10px]
+  font-size: 12px !important; // UDS Level 3: 标签/表头
   font-weight: 900 !important; // font-black
   text-transform: uppercase !important; // uppercase
   letter-spacing: 0.15em !important; // tracking-widest
@@ -109,7 +109,7 @@ h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
 }
 
 .uds-desc {
-  font-size: 9px !important; // text-[9px]
+  font-size: 10px !important; // UDS Level 4: 辅助描述
   font-weight: 900 !important; // font-black
   text-transform: uppercase !important; // uppercase
   letter-spacing: 0.15em !important; // tracking-widest

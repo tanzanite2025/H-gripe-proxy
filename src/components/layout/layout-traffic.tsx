@@ -80,7 +80,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
             <Typography
               sx={{
                 fontFamily: 'monospace',
-                fontSize: '8px !important',
+                fontSize: '10px !important',
                 fontWeight: 900,
                 color: (traffic?.up || 0) > 0 ? 'secondary.main' : 'text.secondary',
                 opacity: (traffic?.up || 0) > 0 ? 1.0 : 0.6,
@@ -102,7 +102,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
             <Typography
               sx={{
                 fontFamily: 'monospace',
-                fontSize: '8px !important',
+                fontSize: '10px !important',
                 fontWeight: 900,
                 color: (traffic?.down || 0) > 0 ? 'primary.main' : 'text.secondary',
                 opacity: (traffic?.down || 0) > 0 ? 1.0 : 0.6,
@@ -125,7 +125,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
               <Typography
                 sx={{
                   fontFamily: 'monospace',
-                  fontSize: '8px !important',
+                  fontSize: '10px !important',
                   fontWeight: 900,
                   color: 'text.secondary',
                   opacity: 0.6,

@@ -1,6 +1,5 @@
 import {
   decodeBase64OrOriginal,
-  firstString,
   getCipher,
   getIfNotBlank,
   getIfPresent,
@@ -12,6 +11,16 @@ import {
   stripUriScheme,
   trimStr,
 } from './helpers'
+import {
+  buildGrpcOptions,
+  buildH2Options,
+  buildHttpOptions,
+  buildWsOptions,
+  getTransportHostFirst,
+  getTransportPathFirst,
+  parseHostFromMaybeJson,
+  resolveTlsServerName,
+} from './transport'
 
 function parseVmessShadowrocketParams(raw: string): Record<string, any> {
   const match = /(^[^?]+?)\/?\?(.*)$/.exec(raw)
@@ -169,21 +178,14 @@ export function URI_VMESS(line: string): IProxyVmessConfig {
 
   if (proxy.network) {
     let transportHost: any = params.host ?? params.obfsParam
-    if (typeof transportHost === 'string') {
-      try {
-        const parsedObfs = JSON.parse(transportHost)
-        const parsedHost = parsedObfs?.Host
-        if (parsedHost) {
-          transportHost = parsedHost
-        }
-      } catch (e) {
-        console.warn('[URI_VMESS] transportHost JSON.parse failed:', e)
-      }
-    }
+    transportHost = parseHostFromMaybeJson(transportHost)
 
     const transportPath: any = params.path
-    const hostFirst = getIfNotBlank(firstString(transportHost))
-    const pathFirst = getIfNotBlank(firstString(transportPath))
+    const hostFirst = getTransportHostFirst(transportHost)
+    const pathFirst = getTransportPathFirst(transportPath)
+    let wsOpts: WsOptions | undefined
+    let httpOpts: HttpOptions | undefined
+    let h2Opts: H2Options | undefined
 
     switch (proxy.network) {
       case 'grpc': {
@@ -191,9 +193,9 @@ export function URI_VMESS(line: string): IProxyVmessConfig {
           delete proxy.network
           break
         }
-        const serviceName = getIfNotBlank(pathFirst)
-        if (serviceName) {
-          proxy['grpc-opts'] = { 'grpc-service-name': serviceName }
+        const grpcOpts = buildGrpcOptions(pathFirst)
+        if (grpcOpts) {
+          proxy['grpc-opts'] = grpcOpts
         }
         break
       }
@@ -202,38 +204,19 @@ export function URI_VMESS(line: string): IProxyVmessConfig {
           delete proxy.network
           break
         }
-        const h2Opts: H2Options = {}
-        if (hostFirst) h2Opts.host = hostFirst
-        if (pathFirst) h2Opts.path = pathFirst
-        if (Object.keys(h2Opts).length > 0) {
+        h2Opts = buildH2Options(hostFirst, pathFirst)
+        if (h2Opts) {
           proxy['h2-opts'] = h2Opts
         }
         break
       }
       case 'http': {
-        const hosts = Array.isArray(transportHost)
-          ? transportHost
-              .map((h: any) => String(h).trim())
-              .filter((h: string) => h)
-          : hostFirst
-            ? [hostFirst]
-            : undefined
-
-        let paths = Array.isArray(transportPath)
-          ? transportPath
-              .map((p: any) => String(p).trim())
-              .filter((p: string) => p)
-          : pathFirst
-            ? [pathFirst]
-            : []
-
-        if (paths.length === 0) paths = ['/']
-
-        const httpOpts: HttpOptions = { path: paths }
-        if (hosts && hosts.length > 0) {
-          httpOpts.headers = { Host: hosts }
+        httpOpts = buildHttpOptions(transportHost, transportPath, {
+          defaultPath: ['/'],
+        })
+        if (httpOpts) {
+          proxy['http-opts'] = httpOpts
         }
-        proxy['http-opts'] = httpOpts
         break
       }
       case 'ws': {
@@ -241,23 +224,23 @@ export function URI_VMESS(line: string): IProxyVmessConfig {
           delete proxy.network
           break
         }
-        const wsOpts: WsOptions = {
-          path: pathFirst,
-          headers: hostFirst ? { Host: hostFirst } : undefined,
+        wsOpts = buildWsOptions(hostFirst, pathFirst, { httpupgrade })
+        if (wsOpts) {
+          proxy['ws-opts'] = wsOpts
         }
-        if (httpupgrade) {
-          wsOpts['v2ray-http-upgrade'] = true
-          wsOpts['v2ray-http-upgrade-fast-open'] = true
-        }
-        proxy['ws-opts'] = wsOpts
         break
       }
       default:
         break
     }
 
-    if (proxy.tls && !proxy.servername && hostFirst) {
-      proxy.servername = hostFirst
+    if (proxy.tls && !proxy.servername) {
+      proxy.servername = resolveTlsServerName(proxy.network, {
+        host: transportHost,
+        wsOpts,
+        httpOpts,
+        h2Opts,
+      })
     }
   }
 

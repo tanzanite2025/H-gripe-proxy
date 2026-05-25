@@ -50,7 +50,6 @@ mod app_init {
             .plugin(tauri_plugin_clipboard_manager::init())
             .plugin(tauri_plugin_process::init())
             .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-            .plugin(tauri_plugin_fs::init())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_deep_link::init())
@@ -181,7 +180,7 @@ mod app_init {
             cmd::get_verge_config,
             cmd::patch_verge_config,
             cmd::test_delay,
-            cmd::get_app_dir,
+            cmd::get_tray_icon_path,
             cmd::copy_icon_file,
             cmd::download_icon_cache,
             cmd::open_devtools,
@@ -193,6 +192,7 @@ mod app_init {
             cmd::view_profile,
             cmd::patch_profile,
             cmd::create_profile,
+            cmd::create_profile_from_local_path,
             cmd::import_profile,
             cmd::reorder_profile,
             cmd::update_profile,

@@ -19,8 +19,10 @@ use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+use tokio::fs;
 
 static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
 
@@ -140,6 +142,35 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
             _ => Err(format!("add profile error: {err}").into()),
         },
     }
+}
+
+/// 从本地文件导入配置文件
+#[tauri::command]
+pub async fn create_profile_from_local_path(item: PrfItem, path: String) -> CmdResult {
+    if item.itype.as_deref() != Some("local") {
+        return Err("only local profiles are supported".into());
+    }
+
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("file path is empty".into());
+    }
+
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase());
+    if !matches!(extension.as_deref(), Some("yaml" | "yml")) {
+        return Err("only yaml files are supported".into());
+    }
+
+    let metadata = fs::metadata(path).await.stringify_err()?;
+    if !metadata.is_file() {
+        return Err("file path is invalid".into());
+    }
+
+    let file_data = fs::read_to_string(path).await.stringify_err()?;
+    create_profile(item, Some(file_data.into())).await
 }
 
 /// 更新配置文件
