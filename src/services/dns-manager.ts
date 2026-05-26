@@ -1,18 +1,24 @@
 /**
  * DNS 管理器
- * 整合 DNS 缓存、预解析、健康检查等功能
+ * 整合 DNS 缓存、预解析、健康检查、智能分流等功能
  */
 
 import { dnsCacheService, type DnsCacheStats } from './dns-cache'
 import { dnsHealthCheckService, type DnsHealthStats } from './dns-health-check'
 import { dnsPrefetchService } from './dns-prefetch'
+import { dnsSmartRoutingService, type DnsRoutingMode } from './dns-smart-routing'
+import { torProxyService } from './tor-proxy'
+import { dnsQuery } from './dns-api'
 
 interface DnsManagerConfig {
   enableCache: boolean
   enablePrefetch: boolean
   enableHealthCheck: boolean
+  enableSmartRouting: boolean // 启用智能分流
+  enableTor: boolean // 启用 Tor 支持
   prefetchInterval: number // 预解析间隔（毫秒）
   healthCheckInterval: number // 健康检查间隔（毫秒）
+  routingMode: DnsRoutingMode // DNS 分流模式
 }
 
 interface DnsManagerStats {
@@ -22,6 +28,17 @@ interface DnsManagerStats {
     commonDomains: number
     accessHistory: number
   }
+  routing: {
+    mode: DnsRoutingMode
+    domesticDns: string
+    foreignDns: string
+    customRulesCount: number
+  }
+  tor: {
+    enabled: boolean
+    connected: boolean
+    socksProxy: string
+  }
 }
 
 class DnsManager {
@@ -29,8 +46,11 @@ class DnsManager {
     enableCache: true,
     enablePrefetch: true,
     enableHealthCheck: true,
+    enableSmartRouting: true,
+    enableTor: false,
     prefetchInterval: 300000, // 5 分钟
     healthCheckInterval: 60000, // 1 分钟
+    routingMode: 'balanced',
   }
 
   private initialized = false
@@ -51,6 +71,18 @@ class DnsManager {
 
     console.log('DNS Manager: initializing...', this.config)
 
+    // 初始化智能分流
+    if (this.config.enableSmartRouting) {
+      dnsSmartRoutingService.setMode(this.config.routingMode)
+      console.log('DNS Manager: smart routing enabled')
+    }
+
+    // 初始化 Tor
+    if (this.config.enableTor) {
+      torProxyService.enable()
+      console.log('DNS Manager: Tor proxy enabled')
+    }
+
     // 初始化 DNS 服务器列表
     if (this.config.enableHealthCheck) {
       this.initializeDnsServers()
@@ -59,6 +91,10 @@ class DnsManager {
 
     // 启动预解析
     if (this.config.enablePrefetch) {
+      // 如果启用智能分流，配置预解析使用 DoH（隐私优先）
+      if (this.config.enableSmartRouting && this.config.routingMode === 'privacy') {
+        dnsPrefetchService.setConfig({ useDoH: true })
+      }
       dnsPrefetchService.startAutoPrefetch(this.config.prefetchInterval)
     }
 
@@ -91,7 +127,7 @@ class DnsManager {
   }
 
   /**
-   * 解析域名（带缓存）
+   * 解析域名（带缓存和智能分流）
    */
   async resolve(domain: string): Promise<string> {
     // 检查缓存
@@ -108,19 +144,34 @@ class DnsManager {
       dnsPrefetchService.recordAccess(domain)
     }
 
-    // 实际解析（需要调用后端 API）
-    // const ip = await invoke('dns_query', { domain })
-
-    // 模拟解析（实际应该删除）
-    const ip = `192.168.1.${Math.floor(Math.random() * 255)}`
-
-    // 缓存结果
-    if (this.config.enableCache) {
-      dnsCacheService.set(domain, ip)
+    // 选择 DNS 配置（智能分流）
+    let dnsOptions = {}
+    if (this.config.enableSmartRouting) {
+      dnsOptions = dnsSmartRoutingService.selectDnsConfig(domain)
+      console.log(`DNS Manager: routing ${domain} ->`, dnsOptions)
     }
 
-    console.log(`DNS Manager: resolved ${domain} -> ${ip}`)
-    return ip
+    // 实际解析（调用后端 API）
+    try {
+      const result = await dnsQuery(domain, dnsOptions)
+      
+      if (result.success && result.ip) {
+        // 缓存结果
+        if (this.config.enableCache) {
+          dnsCacheService.set(domain, result.ip)
+        }
+
+        console.log(
+          `DNS Manager: resolved ${domain} -> ${result.ip} (${result.latency}ms, ${result.protocol})`,
+        )
+        return result.ip
+      } else {
+        throw new Error(result.error || 'DNS query failed')
+      }
+    } catch (err) {
+      console.error(`DNS Manager: failed to resolve ${domain}:`, err)
+      throw err
+    }
   }
 
   /**
@@ -137,12 +188,26 @@ class DnsManager {
    * 获取统计信息
    */
   getStats(): DnsManagerStats {
+    const routingStats = dnsSmartRoutingService.getStats()
+    const torStatus = torProxyService.getStatus()
+
     return {
       cache: dnsCacheService.getStats(),
       health: dnsHealthCheckService.getStats(),
       prefetch: {
         commonDomains: dnsPrefetchService.getCommonDomains().length,
         accessHistory: dnsPrefetchService.getAccessStats().length,
+      },
+      routing: {
+        mode: routingStats.mode,
+        domesticDns: routingStats.domesticDns,
+        foreignDns: routingStats.foreignDns,
+        customRulesCount: routingStats.customRulesCount,
+      },
+      tor: {
+        enabled: torStatus.enabled,
+        connected: torStatus.connected,
+        socksProxy: torProxyService.getSocksProxyUrl(),
       },
     }
   }
@@ -178,7 +243,33 @@ class DnsManager {
     const oldConfig = { ...this.config }
     this.config = { ...this.config, ...config }
 
-    // 处理配置变化
+    // 处理智能分流配置变化
+    if (oldConfig.enableSmartRouting !== this.config.enableSmartRouting) {
+      if (this.config.enableSmartRouting) {
+        dnsSmartRoutingService.setMode(this.config.routingMode)
+        console.log('DNS Manager: smart routing enabled')
+      } else {
+        console.log('DNS Manager: smart routing disabled')
+      }
+    }
+
+    if (oldConfig.routingMode !== this.config.routingMode) {
+      dnsSmartRoutingService.setMode(this.config.routingMode)
+      console.log(`DNS Manager: routing mode changed to ${this.config.routingMode}`)
+    }
+
+    // 处理 Tor 配置变化
+    if (oldConfig.enableTor !== this.config.enableTor) {
+      if (this.config.enableTor) {
+        torProxyService.enable()
+        console.log('DNS Manager: Tor proxy enabled')
+      } else {
+        torProxyService.disable()
+        console.log('DNS Manager: Tor proxy disabled')
+      }
+    }
+
+    // 处理健康检查配置变化
     if (oldConfig.enableHealthCheck !== this.config.enableHealthCheck) {
       if (this.config.enableHealthCheck) {
         this.initializeDnsServers()
@@ -188,6 +279,7 @@ class DnsManager {
       }
     }
 
+    // 处理预解析配置变化
     if (oldConfig.enablePrefetch !== this.config.enablePrefetch) {
       if (this.config.enablePrefetch) {
         dnsPrefetchService.startAutoPrefetch(this.config.prefetchInterval)
@@ -207,12 +299,68 @@ class DnsManager {
   }
 
   /**
+   * 设置 DNS 分流模式
+   */
+  setRoutingMode(mode: DnsRoutingMode): void {
+    this.config.routingMode = mode
+    dnsSmartRoutingService.setMode(mode)
+    console.log(`DNS Manager: routing mode set to ${mode}`)
+  }
+
+  /**
+   * 启用 Tor
+   */
+  enableTor(): void {
+    this.config.enableTor = true
+    torProxyService.enable()
+    console.log('DNS Manager: Tor enabled')
+  }
+
+  /**
+   * 禁用 Tor
+   */
+  disableTor(): void {
+    this.config.enableTor = false
+    torProxyService.disable()
+    console.log('DNS Manager: Tor disabled')
+  }
+
+  /**
+   * 获取 Tor 状态
+   */
+  getTorStatus() {
+    return torProxyService.getStatus()
+  }
+
+  /**
+   * 获取 Tor 配置
+   */
+  getTorConfig() {
+    return torProxyService.getConfig()
+  }
+
+  /**
+   * 获取智能分流服务
+   */
+  getSmartRoutingService() {
+    return dnsSmartRoutingService
+  }
+
+  /**
+   * 获取 Tor 服务
+   */
+  getTorService() {
+    return torProxyService
+  }
+
+  /**
    * 停止所有服务
    */
   shutdown(): void {
     dnsHealthCheckService.stopMonitoring()
     dnsPrefetchService.stopAutoPrefetch()
     dnsCacheService.stopCleanup()
+    torProxyService.disable()
 
     this.initialized = false
     console.log('DNS Manager: shutdown')
