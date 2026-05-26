@@ -3,9 +3,13 @@ import { normalizeUriAndGetScheme } from './helpers'
 import { URI_HTTP } from './http'
 import { URI_Hysteria } from './hysteria'
 import { URI_Hysteria2 } from './hysteria2'
+import { URI_Mieru } from './mieru'
+import { URI_Snell } from './snell'
 import { URI_SOCKS } from './socks'
 import { URI_SS } from './ss'
+import { URI_SSH } from './ssh'
 import { URI_SSR } from './ssr'
+import { URI_Sudoku } from './sudoku'
 import { URI_Trojan } from './trojan'
 import { URI_TrojanGo } from './trojan-go'
 import { URI_TUIC } from './tuic'
@@ -18,6 +22,11 @@ type UriParser = (uri: string) => IProxyConfig
 const URI_PARSERS: Record<string, UriParser> = {
   ss: URI_SS,
   ssr: URI_SSR,
+  ssh: URI_SSH,
+  mieru: URI_Mieru,
+  mierus: URI_Mieru,
+  snell: URI_Snell,
+  sudoku: URI_Sudoku,
   vmess: URI_VMESS,
   vless: URI_VLESS,
   trojan: URI_Trojan,

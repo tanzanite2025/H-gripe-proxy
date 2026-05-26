@@ -453,9 +453,13 @@ type MieruMultiplexing =
   | 'MULTIPLEXING_MIDDLE'
   | 'MULTIPLEXING_HIGH'
 type SudokuAeadMethod = 'chacha20-poly1305' | 'aes-128-gcm' | 'none'
-type SudokuTableType = 'prefer_ascii' | 'prefer_entropy'
-type SudokuHttpMaskMode = 'legacy' | 'stream' | 'poll' | 'auto'
-type SudokuHttpMaskStrategy = 'random' | 'post' | 'websocket'
+type SudokuTableType =
+  | 'prefer_ascii'
+  | 'prefer_entropy'
+  | 'up_ascii_down_entropy'
+  | 'up_entropy_down_ascii'
+type SudokuHttpMaskMode = 'legacy' | 'stream' | 'poll' | 'auto' | 'ws'
+type SudokuHttpMaskMultiplex = 'off' | 'auto' | 'on'
 // base
 interface IProxyBaseConfig {
   tfo?: boolean
@@ -514,8 +518,8 @@ interface IProxySshConfig extends IProxyBaseConfig {
   password?: string
   'private-key'?: string
   'private-key-passphrase'?: string
-  'host-key'?: string
-  'host-key-algorithms'?: string
+  'host-key'?: string[]
+  'host-key-algorithms'?: string[]
 }
 // trojan
 interface IProxyTrojanConfig extends IProxyBaseConfig {
@@ -608,7 +612,7 @@ interface IProxyMieruConfig extends IProxyBaseConfig {
   username?: string
   password?: string
   multiplexing?: MieruMultiplexing
-  'handshake-mode'?: string
+  'traffic-pattern'?: string
 }
 // masque
 interface IProxyMasqueConfig extends IProxyBaseConfig {
@@ -806,11 +810,14 @@ interface IProxySudokuConfig extends IProxyBaseConfig {
   'padding-max'?: number
   'table-type'?: SudokuTableType
   'enable-pure-downlink'?: boolean
-  'http-mask'?: boolean
-  'http-mask-mode'?: SudokuHttpMaskMode
-  'http-mask-tls'?: boolean
-  'http-mask-host'?: string
-  'http-mask-strategy'?: SudokuHttpMaskStrategy
+  httpmask?: {
+    disable?: boolean
+    mode?: SudokuHttpMaskMode
+    tls?: boolean
+    host?: string
+    'path-root'?: string
+    multiplex?: SudokuHttpMaskMultiplex
+  }
   'custom-table'?: string
   'custom-tables'?: string[]
 }
@@ -855,6 +862,10 @@ interface IProxySnellConfig extends IProxyBaseConfig {
   psk?: string
   udp?: boolean
   version?: number
+  'obfs-opts'?: {
+    mode?: 'http' | 'tls'
+    host?: string
+  }
 }
 interface IProxyConfig
   extends IProxyBaseConfig,
