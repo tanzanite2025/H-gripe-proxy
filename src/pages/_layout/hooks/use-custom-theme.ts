@@ -62,6 +62,84 @@ ${css}
   return scopedBlock
 }
 
+const hexColorToRgbString = (color: string) => {
+  const normalized = color.trim().replace('#', '')
+
+  if (!/^[\da-f]{3,8}$/i.test(normalized)) {
+    return null
+  }
+
+  const hex =
+    normalized.length === 3 || normalized.length === 4
+      ? normalized
+          .slice(0, 3)
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized.slice(0, 6)
+
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+
+  if ([r, g, b].some(Number.isNaN)) {
+    return null
+  }
+
+  return `${r}, ${g}, ${b}`
+}
+
+const rgbFunctionToRgbString = (color: string) => {
+  const channels = color.match(/\d+(?:\.\d+)?/g)
+
+  if (!channels || channels.length < 3) {
+    return null
+  }
+
+  return channels
+    .slice(0, 3)
+    .map((channel) => {
+      const value = Number.parseFloat(channel)
+      return String(Math.max(0, Math.min(255, Math.round(value))))
+    })
+    .join(', ')
+}
+
+const resolveCssColorToRgbString = (
+  color: string,
+  fallback = '91, 92, 157',
+) => {
+  const hexRgb = hexColorToRgbString(color)
+  if (hexRgb) {
+    return hexRgb
+  }
+
+  const rawRgb = rgbFunctionToRgbString(color)
+  if (rawRgb) {
+    return rawRgb
+  }
+
+  if (typeof document !== 'undefined') {
+    const probe = document.createElement('div')
+    probe.style.color = color
+    probe.style.position = 'absolute'
+    probe.style.visibility = 'hidden'
+    probe.style.pointerEvents = 'none'
+    document.documentElement.appendChild(probe)
+
+    const computedColor = window.getComputedStyle(probe).color
+
+    document.documentElement.removeChild(probe)
+
+    const computedRgb = rgbFunctionToRgbString(computedColor)
+    if (computedRgb) {
+      return computedRgb
+    }
+  }
+
+  return fallback
+}
+
 /**
  * custom theme
  */
@@ -683,13 +761,10 @@ export const useCustomTheme = () => {
       rootEle.style.setProperty('--selection-color', selectColor)
       rootEle.style.setProperty('--scroller-color', scrollColor)
       rootEle.style.setProperty('--primary-main', muiTheme.palette.primary.main)
-      
+
       // 计算 RGB 变量以供 SCSS 渐变使用
-      const primaryHex = muiTheme.palette.primary.main
-      const r = parseInt(primaryHex.slice(1, 3), 16)
-      const g = parseInt(primaryHex.slice(3, 5), 16)
-      const b = parseInt(primaryHex.slice(5, 7), 16)
-      rootEle.style.setProperty('--primary-main-rgb', `${r}, ${g}, ${b}`)
+      const primaryRgb = resolveCssColorToRgbString(muiTheme.palette.primary.main)
+      rootEle.style.setProperty('--primary-main-rgb', primaryRgb)
 
       rootEle.style.setProperty(
         '--background-color-alpha',

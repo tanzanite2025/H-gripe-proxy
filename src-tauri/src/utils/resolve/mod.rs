@@ -42,7 +42,9 @@ pub fn init_work_dir_and_logger() -> anyhow::Result<()> {
 pub fn resolve_setup_sync() {
     AsyncHandler::spawn(|| async {
         AsyncHandler::spawn_blocking(init_scheme);
-        AsyncHandler::spawn_blocking(init_embed_server);
+        if !(cfg!(debug_assertions) || cfg!(feature = "tauri-dev")) {
+            AsyncHandler::spawn_blocking(init_embed_server);
+        }
     });
 }
 
@@ -134,6 +136,11 @@ async fn init_silent_updater() {
     use crate::core::SilentUpdater;
     use crate::core::handle::Handle;
 
+    if cfg!(debug_assertions) || cfg!(feature = "tauri-dev") {
+        logging!(info, Type::Setup, "Silent updater skipped in dev mode");
+        return;
+    }
+
     logging!(info, Type::Setup, "Initializing silent updater...");
 
     let app_handle = Handle::app_handle();
@@ -203,12 +210,17 @@ pub(super) async fn refresh_tray_menu() {
 
 pub(super) async fn init_window() {
     let is_silent_start = Config::verge().await.data_arc().enable_silent_start.unwrap_or(false);
+    let should_create_window = if cfg!(debug_assertions) || cfg!(feature = "tauri-dev") {
+        true
+    } else {
+        !is_silent_start
+    };
     #[cfg(target_os = "macos")]
-    if is_silent_start {
+    if !should_create_window {
         use crate::core::handle::Handle;
         Handle::global().set_activation_policy_accessory();
     }
-    WindowManager::create_window(!is_silent_start).await;
+    WindowManager::create_window(should_create_window).await;
 }
 
 pub fn resolve_done() {

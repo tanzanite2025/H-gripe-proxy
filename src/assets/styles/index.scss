@@ -137,7 +137,7 @@ body, html {
 
 .uds-card-container {
   position: relative;
-  border-radius: 16px !important; // 重置圆角为 16px
+  border-radius: 24px !important; // 重置圆角为 24px 以符合 UDS 规范
   border: 1px dashed var(--divider-color) !important; // 虚线边框设为淡灰
   box-shadow: none !important;
   background-color: var(--card-bg) !important;
@@ -151,7 +151,7 @@ body, html {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.04) 0%, transparent 60%);
+    background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.06) 0%, transparent 60%);
     pointer-events: none;
     z-index: 1;
     transition: opacity 0.3s ease;
@@ -187,8 +187,9 @@ body, html {
 
 .uds-card-header {
   min-height: 64px;
-  background-color: color-mix(in srgb, var(--card-bg) 92%, transparent) !important;
+  background-color: transparent !important;
   backdrop-filter: blur(12px);
+  border-bottom: none !important;
 }
 
 .uds-card-content {
@@ -405,22 +406,8 @@ body, html {
 }
 
 // ==========================================
-// 首页拼色染色与深色模式细节适配
+// 首页与深色模式细节适配
 // ==========================================
-[data-theme='light'] {
-  .base-page {
-    // 首页的 Grid 第 1、3、4 卡片自动染色
-    .MuiGrid-root:nth-child(1) .uds-card-container {
-      background-color: #dbeafe !important; // 粉蓝 (pastel-blue)
-    }
-    .MuiGrid-root:nth-child(3) .uds-card-container {
-      background-color: #fef3c7 !important; // 粉黄 (pastel-orange/pastel-yellow)
-    }
-    .MuiGrid-root:nth-child(4) .uds-card-container {
-      background-color: #f3f4f6 !important; // 粉灰 (pastel-gray)
-    }
-  }
-}
 
 [data-theme='dark'] {
   .uds-card-container {

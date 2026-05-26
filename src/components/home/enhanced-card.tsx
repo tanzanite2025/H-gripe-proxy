@@ -56,8 +56,6 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: 1,
-            borderColor: 'divider',
           }}
         >
           <Box
@@ -69,22 +67,24 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
               overflow: 'hidden',
             }}
           >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 1.5,
-                width: 38,
-                height: 38,
-                mr: 1.5,
-                flexShrink: 0,
-                backgroundColor: alpha(theme.palette[iconColor].main, 0.12),
-                color: theme.palette[iconColor].main,
-              }}
-            >
-              {icon}
-            </Box>
+            {icon && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 1.5,
+                  width: 38,
+                  height: 38,
+                  mr: 1.5,
+                  flexShrink: 0,
+                  backgroundColor: alpha(theme.palette[iconColor].main, 0.12),
+                  color: theme.palette[iconColor].main,
+                }}
+              >
+                {icon}
+              </Box>
+            )}
             <Box sx={{ minWidth: 0, flex: 1 }}>
               {typeof title === 'string' ? (
                 <Typography

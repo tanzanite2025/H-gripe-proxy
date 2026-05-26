@@ -9,6 +9,7 @@
 
   // 顶部一体化导航页眉
   .layout-header {
+    position: relative;
     height: 52px;
     display: flex;
     flex-direction: row;
@@ -28,6 +29,14 @@
     .the-menu-wrapper,
     .layout-header__right {
       -webkit-app-region: no-drag;
+      position: relative;
+      z-index: 1;
+    }
+
+    .layout-header__drag-zone {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
     }
 
     .the-logo {

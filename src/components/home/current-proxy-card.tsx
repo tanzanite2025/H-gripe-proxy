@@ -931,11 +931,12 @@ export const CurrentProxyCard = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              p: 1,
-              mb: 2,
-              borderRadius: 1,
-              bgcolor: alpha(theme.palette.primary.main, 0.05),
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+              p: 1.5,
+              mb: 1.5,
+              borderRadius: 2,
+              bgcolor: alpha(theme.palette.action.hover, 0.02),
+              border: '1px dashed',
+              borderColor: 'divider',
             }}
           >
             <Box>
@@ -1013,6 +1014,23 @@ export const CurrentProxyCard = () => {
               onChange={handleGroupChange}
               label={t('home.components.currentProxy.labels.group')}
               disabled={isGlobalMode || isDirectMode}
+              sx={{
+                bgcolor: alpha(theme.palette.action.hover, 0.02),
+                borderRadius: '16px',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderStyle: 'dashed',
+                  borderColor: 'divider',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderStyle: 'dashed',
+                  borderColor: 'divider',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderStyle: 'dashed',
+                  borderWidth: '1px',
+                  borderColor: 'primary.main',
+                },
+              }}
             >
               {state.proxyData.groups.map((group) => (
                 <MenuItem key={group.name} value={group.name}>
@@ -1034,6 +1052,23 @@ export const CurrentProxyCard = () => {
               label={t('home.components.currentProxy.labels.proxy')}
               disabled={isDirectMode}
               renderValue={renderProxyValue}
+              sx={{
+                bgcolor: alpha(theme.palette.action.hover, 0.02),
+                borderRadius: '16px',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderStyle: 'dashed',
+                  borderColor: 'divider',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderStyle: 'dashed',
+                  borderColor: 'divider',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderStyle: 'dashed',
+                  borderWidth: '1px',
+                  borderColor: 'primary.main',
+                },
+              }}
               MenuProps={{
                 slotProps: {
                   paper: {

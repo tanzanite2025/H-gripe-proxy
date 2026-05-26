@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
-import { getRunningMode, isAdmin, isServiceAvailable } from '@/services/cmds'
+import { getRunningMode, isAdmin, isServiceAvailable, stopCore } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 import { useVerge } from './use-verge'
 
 export interface SystemState {
-  runningMode: 'Sidecar' | 'Service'
+  runningMode: 'Sidecar' | 'Service' | 'NotRunning'
   isAdminMode: boolean
   isServiceOk: boolean
 }
@@ -26,9 +26,10 @@ const STARTUP_GRACE_MS = 10_000
  * 包括运行模式、管理员状态、系统服务是否可用
  */
 export function useSystemState() {
-  const { verge, patchVerge } = useVerge()
-  const disablingTunRef = useRef(false)
+  const { verge } = useVerge()
+  const enforcingFailClosedRef = useRef(false)
   const [isStartingUp, setIsStartingUp] = useState(true)
+  const enable_tun_mode = verge?.enable_tun_mode
 
   useEffect(() => {
     const timer = setTimeout(() => setIsStartingUp(false), STARTUP_GRACE_MS)
@@ -49,43 +50,39 @@ export function useSystemState() {
       ])
       return { runningMode, isAdminMode, isServiceOk } as SystemState
     },
-    refetchInterval: isStartingUp ? 2000 : 30000,
+    refetchInterval: isStartingUp ? 2000 : enable_tun_mode ? 5000 : 30000,
   })
 
   const isSidecarMode = systemState.runningMode === 'Sidecar'
   const isServiceMode = systemState.runningMode === 'Service'
+  const isNotRunningMode = systemState.runningMode === 'NotRunning'
   const isTunModeAvailable = systemState.isAdminMode || systemState.isServiceOk
 
-  const enable_tun_mode = verge?.enable_tun_mode
   const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (enable_tun_mode === undefined) return
 
     if (
-      !disablingTunRef.current &&
+      !enforcingFailClosedRef.current &&
       enable_tun_mode &&
       !isTunModeAvailable &&
       !isLoading &&
-      !isStartingUp
+      !isStartingUp &&
+      !isNotRunningMode
     ) {
-      disablingTunRef.current = true
-      patchVerge({ enable_tun_mode: false })
-        .then(() => {
-          showNotice.info(
-            'settings.sections.system.notifications.tunMode.autoDisabled',
-          )
-        })
+      enforcingFailClosedRef.current = true
+      stopCore()
         .catch((err) => {
-          console.error('[useVerge] 自动关闭TUN模式失败:', err)
-          showNotice.error(
-            'settings.sections.system.notifications.tunMode.autoDisableFailed',
-          )
+          console.error('[useSystemState] TUN fail-closed stop core failed:', err)
         })
         .finally(() => {
-          // 避免 verge 数据更新不及时导致重复执行关闭 Tun 模式
+          showNotice.error(
+            'TUN protection unavailable. Core has been stopped to avoid traffic leaks. Repair the service or run as administrator.',
+          )
+          void mutateSystemState()
           cooldownTimerRef.current = setTimeout(() => {
-            disablingTunRef.current = false
+            enforcingFailClosedRef.current = false
             cooldownTimerRef.current = null
           }, 1000)
         })
@@ -95,10 +92,17 @@ export function useSystemState() {
       if (cooldownTimerRef.current != null) {
         clearTimeout(cooldownTimerRef.current)
         cooldownTimerRef.current = null
-        disablingTunRef.current = false
+        enforcingFailClosedRef.current = false
       }
     }
-  }, [enable_tun_mode, isTunModeAvailable, patchVerge, isLoading, isStartingUp])
+  }, [
+    enable_tun_mode,
+    isTunModeAvailable,
+    isLoading,
+    isStartingUp,
+    isNotRunningMode,
+    mutateSystemState,
+  ])
 
   return {
     runningMode: systemState.runningMode,
@@ -106,6 +110,7 @@ export function useSystemState() {
     isServiceOk: systemState.isServiceOk,
     isSidecarMode,
     isServiceMode,
+    isNotRunningMode,
     isTunModeAvailable,
     mutateSystemState,
     isLoading,

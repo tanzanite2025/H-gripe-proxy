@@ -79,22 +79,36 @@ impl CoreManager {
                         Logger::global().writer_sidecar_log(Level::Info, &message);
                         CLASH_LOGGER.clear_logs().await;
 
+                        let manager = crate::core::CoreManager::global();
+                        manager.set_running_mode(RunningMode::NotRunning);
+                        let app_handle = handle::Handle::app_handle();
+                        tauri_plugin_clash_verge_sysinfo::set_app_core_mode(
+                            app_handle,
+                            manager.get_running_mode().to_string(),
+                        );
+
                         let is_normal_exit = term.code == Some(0);
                         if !is_normal_exit {
                             logging!(error, Type::Core, "Core sidecar exited abnormally! Triggering Core Panic Recovery...");
+                            let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
 
-                            // 1. 自动重置系统代理，防止死锁断网
-                            if let Err(e) = crate::core::sysopt::Sysopt::global().reset_sysproxy().await {
-                                logging!(error, Type::Core, "Failed to reset sysproxy during recovery: {:?}", e);
+                            if tun_enabled {
+                                crate::core::handle::Handle::notice_message(
+                                    "core_panic_recovered",
+                                    "内核意外崩溃，已进入保护性停止状态以避免流量跑偏，正在尝试自动重启。"
+                                );
                             } else {
-                                logging!(info, Type::Core, "Successfully reset sysproxy to prevent network outage.");
-                            }
+                                if let Err(e) = crate::core::sysopt::Sysopt::global().reset_sysproxy().await {
+                                    logging!(error, Type::Core, "Failed to reset sysproxy during recovery: {:?}", e);
+                                } else {
+                                    logging!(info, Type::Core, "Successfully reset sysproxy to prevent network outage.");
+                                }
 
-                            // 2. 向前端发送弹窗警报
-                            crate::core::handle::Handle::notice_message(
-                                "core_panic_recovered",
-                                "内核意外崩溃，已为您自动解除系统代理，防止电脑断网！"
-                            );
+                                crate::core::handle::Handle::notice_message(
+                                    "core_panic_recovered",
+                                    "内核意外崩溃，已为您自动解除系统代理，防止电脑断网！"
+                                );
+                            }
                         }
                         break;
                     }

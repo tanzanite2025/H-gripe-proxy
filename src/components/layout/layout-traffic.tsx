@@ -2,6 +2,7 @@ import { Box, Typography } from '@mui/material'
 import type { BoxProps, TypographyProps } from '@mui/material'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { LightweightTrafficErrorBoundary } from '@/components/shared/traffic-error-boundary'
 import { useMemoryData } from '@/hooks/use-memory-data'
 import { useTrafficData } from '@/hooks/use-traffic-data'

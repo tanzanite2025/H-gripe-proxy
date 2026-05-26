@@ -220,7 +220,7 @@ mod app_init {
 }
 
 pub fn run() {
-    if app_init::init_singleton_check().is_err() {
+    if !(cfg!(debug_assertions) || cfg!(feature = "tauri-dev")) && app_init::init_singleton_check().is_err() {
         return;
     }
 

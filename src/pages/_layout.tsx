@@ -28,9 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
-import iconDark from '@/assets/image/icon_dark.svg?react'
-import iconLight from '@/assets/image/icon_light.svg?react'
-import LogoSvg from '@/assets/image/logo.svg?react'
+import AppIcon from '@/assets/image/icon_dark.svg?react'
 import { BaseErrorBoundary } from '@/components/base'
 import { LayoutItem } from '@/components/layout/layout-item'
 import { LayoutTraffic } from '@/components/layout/layout-traffic'
@@ -111,12 +109,10 @@ const OS = getSystem()
 
 const Layout = () => {
   const mode = useThemeMode()
-  const isDark = mode !== 'light'
   const { t } = useTranslation()
   const { theme } = useCustomTheme()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { language } = verge ?? {}
-  const navCollapsed = verge?.collapse_navbar ?? false
   const { switchLanguage } = useI18n()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -199,25 +195,6 @@ const Layout = () => {
     setMenuUnlocked(false)
     setMenuContextPosition(null)
   }, [])
-
-  const handleToggleNavCollapsed = useCallback(() => {
-    setMenuContextPosition(null)
-    void patchVerge({ collapse_navbar: !navCollapsed })
-  }, [navCollapsed, patchVerge])
-
-  const customTitlebar = useMemo(
-    () =>
-      !decorated ? (
-        <div className="the_titlebar">
-          <div
-            className="the_titlebar-drag-region"
-            data-tauri-drag-region="true"
-          />
-          <WindowControls ref={windowControlsRef} />
-        </div>
-      ) : null,
-    [decorated],
-  )
 
   useLoadingOverlay(themeReady)
 
@@ -308,23 +285,22 @@ const Layout = () => {
         ]}
       >
         {/* 顶部贯穿式页眉与导航控制台 */}
-        <div className="layout-header" data-tauri-drag-region="true">
+        <div className="layout-header">
+          <div className="layout-header__drag-zone" data-tauri-drag-region="true" />
           {/* 左侧 Logo */}
-          <div className="the-logo" data-tauri-drag-region="true">
+          <div className="the-logo">
             <SvgIcon
-              component={isDark ? iconDark : iconLight}
+              component={AppIcon}
               style={{
                 height: '22px',
                 width: '22px',
-                marginRight: '6px',
               }}
               inheritViewBox
             />
-            <LogoSvg fill={isDark ? 'white' : 'black'} style={{ height: '12px', width: 'auto' }} />
           </div>
 
           {/* 中间 Tab 导航 */}
-          <div className="the-menu-wrapper" data-tauri-drag-region="true">
+          <div className="the-menu-wrapper">
             {menuUnlocked ? (
               <DndContext
                 sensors={sensors}
@@ -375,7 +351,7 @@ const Layout = () => {
           </div>
 
           {/* 右侧：状态组件、升级按钮及窗口控件 */}
-          <div className="layout-header__right" data-tauri-drag-region="true">
+          <div className="layout-header__right">
             <div className="the-traffic">
               <LayoutTraffic horizontal />
             </div>

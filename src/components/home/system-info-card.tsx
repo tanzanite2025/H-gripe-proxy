@@ -29,7 +29,7 @@ export const SystemInfoCard = () => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
   const navigate = useNavigate()
-  const { isAdminMode, isSidecarMode } = useSystemState()
+  const { isAdminMode, isSidecarMode, isNotRunningMode } = useSystemState()
   const { installServiceAndRestartCore } = useServiceInstaller()
 
   // 自动检查更新逻辑（lastCheckUpdate 由 useUpdate 统一管理）
@@ -142,6 +142,15 @@ export const SystemInfoCard = () => {
 
   // 获取模式图标和文本
   const getModeIcon = () => {
+    if (isNotRunningMode) {
+      return (
+        <ExtensionOutlined
+          sx={{ color: 'warning.main', fontSize: 16 }}
+          titleAccess={t('shared.statuses.disabled')}
+        />
+      )
+    }
+
     if (isAdminMode) {
       // 判断是否为组合模式（管理员+服务）
       if (!isSidecarMode) {
@@ -183,6 +192,10 @@ export const SystemInfoCard = () => {
 
   // 获取模式文本
   const getModeText = () => {
+    if (isNotRunningMode) {
+      return t('shared.statuses.disabled')
+    }
+
     if (isAdminMode) {
       // 判断是否同时处于服务模式
       if (!isSidecarMode) {

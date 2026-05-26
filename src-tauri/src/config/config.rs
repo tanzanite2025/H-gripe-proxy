@@ -13,7 +13,7 @@ use crate::{
     utils::{dirs, help},
 };
 use anyhow::{Result, anyhow};
-use backon::{ExponentialBuilder, Retryable as _};
+use backon::{ConstantBuilder, ExponentialBuilder, Retryable as _};
 use clash_verge_draft::Draft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::{Mapping, Value};
@@ -22,6 +22,29 @@ use std::{collections::HashSet, path::PathBuf};
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 use tokio::sync::OnceCell;
 use tokio::time::sleep;
+
+async fn is_tun_runtime_available_at_startup() -> bool {
+    if is_current_app_handle_admin(Handle::app_handle()) {
+        return true;
+    }
+
+    let service_config = service::ServiceManager::config();
+    let backoff = ConstantBuilder::default()
+        .with_delay(service_config.retry_delay)
+        .with_max_times(service_config.max_retries);
+
+    (|| async {
+        if !service::is_service_ipc_path_exists() {
+            return Err(anyhow!("Service IPC not ready"));
+        }
+
+        service::is_service_available().await?;
+        Ok(())
+    })
+    .retry(backoff)
+    .await
+    .is_ok()
+}
 
 pub struct Config {
     clash_config: Draft<IClashTemp>,
@@ -67,12 +90,10 @@ impl Config {
 
         let verge = Self::verge().await.latest_arc();
         clash_verge_i18n::sync_locale(verge.language.as_deref());
+        let tun_enabled = verge.enable_tun_mode.unwrap_or(false);
 
-        // init Tun mode
-        let handle = Handle::app_handle();
-        let is_admin = is_current_app_handle_admin(handle);
-        let is_service_available = service::is_service_available().await.is_ok();
-        if !is_admin && !is_service_available {
+        if tun_enabled && !is_tun_runtime_available_at_startup().await {
+            logging!(warn, Type::Core, "TUN runtime unavailable during startup, disabling persisted TUN mode");
             let verge = Self::verge().await;
             verge.edit_draft(|d| {
                 d.enable_tun_mode = Some(false);

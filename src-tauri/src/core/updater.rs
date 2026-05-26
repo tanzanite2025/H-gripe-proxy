@@ -40,6 +40,8 @@ impl SilentUpdater {
 struct UpdateCacheMeta {
     version: String,
     downloaded_at: String,
+    #[serde(default)]
+    source_key: Option<String>,
 }
 
 impl SilentUpdater {
@@ -47,7 +49,28 @@ impl SilentUpdater {
         Ok(dirs::app_home_dir()?.join("update_cache"))
     }
 
-    fn write_cache(bytes: &[u8], version: &str) -> Result<()> {
+    fn current_cache_source_key(app_handle: &tauri::AppHandle) -> String {
+        let mut parts = vec![
+            format!("identifier={}", app_handle.config().identifier),
+            format!("repository={}", env!("CARGO_PKG_REPOSITORY")),
+        ];
+
+        if let Some(updater) = app_handle.config().plugins.0.get("updater") {
+            if let Some(endpoints) = updater.get("endpoints")
+                && let Ok(serialized) = serde_json::to_string(endpoints)
+            {
+                parts.push(format!("endpoints={serialized}"));
+            }
+
+            if let Some(pubkey) = updater.get("pubkey").and_then(|value| value.as_str()) {
+                parts.push(format!("pubkey={pubkey}"));
+            }
+        }
+
+        parts.join("\n")
+    }
+
+    fn write_cache(bytes: &[u8], version: &str, app_handle: &tauri::AppHandle) -> Result<()> {
         let cache_dir = Self::cache_dir()?;
         std::fs::create_dir_all(&cache_dir)?;
 
@@ -57,6 +80,7 @@ impl SilentUpdater {
         let meta = UpdateCacheMeta {
             version: version.to_string(),
             downloaded_at: Utc::now().to_rfc3339(),
+            source_key: Some(Self::current_cache_source_key(app_handle)),
         };
         let meta_path = cache_dir.join("pending_update.json");
         std::fs::write(&meta_path, serde_json::to_string_pretty(&meta)?)?;
@@ -142,6 +166,25 @@ impl SilentUpdater {
         };
 
         let cached_version = &meta.version;
+        let current_source_key = Self::current_cache_source_key(app_handle);
+
+        if meta.source_key.as_deref() != Some(current_source_key.as_str()) {
+            let source_state = if meta.source_key.is_some() {
+                "mismatch"
+            } else {
+                "missing"
+            };
+
+            logging!(
+                info,
+                Type::System,
+                "Update cache source marker is {}, cleaning up stale cache for version {}",
+                source_state,
+                cached_version
+            );
+            Self::delete_cache();
+            return false;
+        }
 
         if version_lte(cached_version, current_version) {
             logging!(
@@ -470,7 +513,7 @@ impl SilentUpdater {
             )
             .await?;
 
-        if let Err(e) = Self::write_cache(&bytes, &version) {
+        if let Err(e) = Self::write_cache(&bytes, &version, app_handle) {
             logging!(warn, Type::System, "Silent updater: failed to write cache: {e}");
         }
 

@@ -3,7 +3,6 @@ import { createHash } from 'crypto'
 import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
-import zlib from 'zlib'
 
 import AdmZip from 'adm-zip'
 import { glob } from 'glob'
@@ -168,13 +167,8 @@ async function updateHashCache(targetPath) {
 }
 
 // =======================
-// Meta maps (stable)
+// Mihomo target maps (local sidecar only)
 // =======================
-const META_VERSION_URL =
-  'https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt'
-const META_URL_PREFIX = `https://github.com/MetaCubeX/mihomo/releases/download`
-let META_VERSION
-
 const META_MAP = {
   'win32-x64': 'mihomo-windows-amd64-v2',
   'win32-ia32': 'mihomo-windows-386',
@@ -190,61 +184,40 @@ const META_MAP = {
 }
 
 // =======================
-// Fetch latest versions
-// =======================
-async function getLatestReleaseVersion() {
-  if (!FORCE) {
-    const cached = await getCachedVersion('META_VERSION')
-    if (cached) {
-      META_VERSION = cached
-      return
-    }
-  }
-  const options = {}
-  const httpProxy =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy
-  if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
-
-  try {
-    const response = await fetch(META_VERSION_URL, {
-      ...options,
-      method: 'GET',
-    })
-    if (!response.ok)
-      throw new Error(`Failed to fetch ${META_VERSION_URL}: ${response.status}`)
-    META_VERSION = (await response.text()).trim()
-    log_info(`Latest release version: ${META_VERSION}`)
-    await setCachedVersion('META_VERSION', META_VERSION)
-  } catch (err) {
-    log_error('Error fetching latest release version:', err.message)
-    process.exit(1)
-  }
-}
-
-// =======================
 // Validate availability
 // =======================
 if (!META_MAP[`${platform}-${arch}`]) {
-  throw new Error(`clash meta unsupported platform "${platform}-${arch}"`)
+  throw new Error(`verge-mihomo unsupported platform "${platform}-${arch}"`)
 }
 
 // =======================
 // Build meta objects
 // =======================
 function clashMeta() {
-  const name = META_MAP[`${platform}-${arch}`]
   const isWin = platform === 'win32'
-  const urlExt = isWin ? 'zip' : 'gz'
   return {
     name: 'verge-mihomo',
     targetFile: `verge-mihomo-${SIDECAR_HOST}${isWin ? '.exe' : ''}`,
-    exeFile: `${name}${isWin ? '.exe' : ''}`,
-    zipFile: `${name}-${META_VERSION}.${urlExt}`,
-    downloadURL: `${META_URL_PREFIX}/${META_VERSION}/${name}-${META_VERSION}.${urlExt}`,
   }
+}
+
+async function resolveLocalSidecar(binInfo) {
+  const { name, targetFile } = binInfo
+  const sidecarPath = path.join(SIDECAR_DIR, targetFile)
+
+  await fsp.mkdir(SIDECAR_DIR, { recursive: true })
+
+  if (!fs.existsSync(sidecarPath)) {
+    throw new Error(
+      `Missing local sidecar "${sidecarPath}". Please place your locally managed ${name} binary there before running prebuild.`,
+    )
+  }
+
+  if (platform !== 'win32') {
+    await fsp.chmod(sidecarPath, 0o755)
+  }
+
+  log_success(`Using local sidecar: "${sidecarPath}"`)
 }
 
 // =======================
@@ -297,99 +270,8 @@ async function downloadFile(url, outPath) {
 }
 
 // =======================
-// resolveSidecar (支持 zip / tgz / gz)
+// Other resource resolvers
 // =======================
-async function resolveSidecar(binInfo) {
-  const { name, targetFile, zipFile, exeFile, downloadURL } = binInfo
-  const sidecarPath = path.join(SIDECAR_DIR, targetFile)
-  await fsp.mkdir(SIDECAR_DIR, { recursive: true })
-
-  if (!FORCE && fs.existsSync(sidecarPath)) {
-    log_success(`"${name}" already exists, skipping download`)
-    return
-  }
-
-  const tempDir = path.join(TEMP_DIR, name)
-  const tempZip = path.join(tempDir, zipFile)
-  const tempExe = path.join(tempDir, exeFile)
-  await fsp.mkdir(tempDir, { recursive: true })
-
-  try {
-    if (!fs.existsSync(tempZip)) {
-      await downloadFile(downloadURL, tempZip)
-    }
-
-    if (zipFile.endsWith('.zip')) {
-      const zip = new AdmZip(tempZip)
-      zip.getEntries().forEach((entry) => {
-        log_debug(`"${name}" entry: ${entry.entryName}`)
-      })
-      zip.extractAllTo(tempDir, true)
-      // 尝试按 exeFile 重命名，否则找第一个可执行文件
-      if (fs.existsSync(tempExe)) {
-        await fsp.rename(tempExe, sidecarPath)
-      } else {
-        // 搜索候选
-        const files = await fsp.readdir(tempDir)
-        const candidate = files.find(
-          (f) =>
-            f === path.basename(exeFile) ||
-            f.endsWith('.exe') ||
-            !f.includes('.'),
-        )
-        if (!candidate)
-          throw new Error(`Expected binary not found in ${tempDir}`)
-        await fsp.rename(path.join(tempDir, candidate), sidecarPath)
-      }
-      if (platform !== 'win32') execSync(`chmod 755 ${sidecarPath}`)
-      log_success(`unzip finished: "${name}"`)
-    } else if (zipFile.endsWith('.tgz')) {
-      await extract({ cwd: tempDir, file: tempZip })
-      const files = await fsp.readdir(tempDir)
-      log_debug(`"${name}" extracted files:`, files)
-      // 优先寻找给定 exeFile 或已知前缀
-      let extracted = files.find(
-        (f) =>
-          f === path.basename(exeFile) ||
-          f.startsWith('虚空终端-') ||
-          !f.includes('.'),
-      )
-      if (!extracted) extracted = files[0]
-      if (!extracted) throw new Error(`Expected file not found in ${tempDir}`)
-      await fsp.rename(path.join(tempDir, extracted), sidecarPath)
-      execSync(`chmod 755 ${sidecarPath}`)
-      log_success(`tgz processed: "${name}"`)
-    } else {
-      // .gz
-      const readStream = fs.createReadStream(tempZip)
-      const writeStream = fs.createWriteStream(sidecarPath)
-      await new Promise((resolve, reject) => {
-        readStream
-          .pipe(zlib.createGunzip())
-          .on('error', (e) => {
-            log_error(`gunzip error for ${name}:`, e.message)
-            reject(e)
-          })
-          .pipe(writeStream)
-          .on('finish', () => {
-            if (platform !== 'win32') execSync(`chmod 755 ${sidecarPath}`)
-            resolve()
-          })
-          .on('error', (e) => {
-            log_error(`write stream error for ${name}:`, e.message)
-            reject(e)
-          })
-      })
-      log_success(`gz binary processed: "${name}"`)
-    }
-  } catch (err) {
-    await fsp.rm(sidecarPath, { recursive: true, force: true })
-    throw err
-  } finally {
-    await fsp.rm(tempDir, { recursive: true, force: true })
-  }
-}
-
 async function resolveResource(binInfo) {
   const { file, downloadURL, localPath, dir } = binInfo
   const baseDir = dir ?? RESOURCES_DIR
@@ -685,9 +567,8 @@ const resolveUnSetDnsScript = () =>
 const tasks = [
   {
     name: 'verge-mihomo',
-    func: () =>
-      getLatestReleaseVersion().then(() => resolveSidecar(clashMeta())),
-    retry: 5,
+    func: () => resolveLocalSidecar(clashMeta()),
+    retry: 1,
   },
   { name: 'plugin', func: resolvePlugin, retry: 5, winOnly: true },
   { name: 'service', func: resolveServiceBundle, retry: 5 },

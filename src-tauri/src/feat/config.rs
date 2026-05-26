@@ -120,7 +120,8 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || socks_port.is_some()
         || http_port.is_some()
         || mixed_port.is_some()
-        || enable_external_controller.is_some();
+        || enable_external_controller.is_some()
+        || tun_mode.is_some();
     #[cfg(not(target_os = "windows"))]
     let mut restart_core_needed = socks_enabled.is_some()
         || http_enabled.is_some()
@@ -142,6 +143,11 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     if restart_core_needed {
         update_flags.insert(UpdateFlags::RESTART_CORE);
     }
+    #[cfg(target_os = "windows")]
+    if tun_mode.is_some() {
+        update_flags.insert(UpdateFlags::GROUP_SYS_TRAY);
+    }
+    #[cfg(not(target_os = "windows"))]
     if tun_mode.is_some() {
         update_flags.insert(UpdateFlags::CLASH_CONFIG | UpdateFlags::GROUP_SYS_TRAY);
     }

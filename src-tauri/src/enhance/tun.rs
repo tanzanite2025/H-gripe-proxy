@@ -3,6 +3,8 @@ use serde_yaml_ng::{Mapping, Value};
 #[cfg(target_os = "macos")]
 use crate::process::AsyncHandler;
 
+use crate::constants::tun as tun_const;
+
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {
         let ret_key = Value::String($key.into());
@@ -29,6 +31,15 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     });
 
     if enable {
+        append!(tun_val, "stack", tun_const::DEFAULT_STACK);
+        append!(tun_val, "auto-route", true);
+        #[cfg(target_os = "windows")]
+        append!(tun_val, "strict-route", true);
+        #[cfg(not(target_os = "windows"))]
+        append!(tun_val, "strict-route", false);
+        append!(tun_val, "auto-detect-interface", true);
+        append!(tun_val, "dns-hijack", tun_const::DNS_HIJACK);
+
         // 读取DNS配置
         let dns_key = Value::from("dns");
         let dns_val = config.get(&dns_key);

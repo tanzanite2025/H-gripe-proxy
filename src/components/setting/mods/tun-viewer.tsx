@@ -49,7 +49,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     autoRedirect: false,
     autoDetectInterface: true,
     dnsHijack: ['any:53'],
-    strictRoute: false,
+    strictRoute: OS === 'windows',
     mtu: 1500,
   })
 
@@ -81,7 +81,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         autoRedirect: computedAutoRedirect,
         autoDetectInterface: clash?.tun['auto-detect-interface'] ?? true,
         dnsHijack: clash?.tun['dns-hijack'] ?? ['any:53'],
-        strictRoute: clash?.tun['strict-route'] ?? false,
+        strictRoute: clash?.tun['strict-route'] ?? (OS === 'windows'),
         mtu: clash?.tun.mtu ?? 1500,
       })
     },
@@ -159,7 +159,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 'auto-detect-interface': true,
                 'dns-hijack': ['any:53'],
                 'route-exclude-address': [],
-                'strict-route': false,
+                'strict-route': OS === 'windows',
                 mtu: 1500,
               }
               setValues({
@@ -170,7 +170,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 autoRedirect: false,
                 autoDetectInterface: true,
                 dnsHijack: ['any:53'],
-                strictRoute: false,
+                strictRoute: OS === 'windows',
                 mtu: 1500,
               })
               await patchClash({ tun })

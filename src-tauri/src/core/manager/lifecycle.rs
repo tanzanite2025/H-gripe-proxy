@@ -4,7 +4,7 @@ use crate::config::{Config, IVerge};
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
@@ -66,6 +66,9 @@ impl CoreManager {
         #[cfg(target_os = "windows")]
         self.wait_for_service_if_needed().await;
 
+        #[cfg(target_os = "windows")]
+        self.enforce_tun_fail_closed_if_needed().await?;
+
         let value = SERVICE_MANAGER.lock().await.current();
         let mode = match value {
             ServiceStatus::Ready => RunningMode::Service,
@@ -82,8 +85,31 @@ impl CoreManager {
     }
 
     #[cfg(target_os = "windows")]
+    async fn enforce_tun_fail_closed_if_needed(&self) -> Result<()> {
+        use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
+
+        let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+
+        if !tun_enabled || is_current_app_handle_admin(Handle::app_handle()) {
+            return Ok(());
+        }
+
+        let service_ready = matches!(SERVICE_MANAGER.lock().await.current(), ServiceStatus::Ready);
+
+        if service_ready {
+            return Ok(());
+        }
+
+        let message = "TUN protection unavailable: Clash Verge Service is not ready. Core start blocked to avoid traffic leaks. Repair the service or run as administrator.";
+        logging!(warn, Type::Core, "{}", message);
+        self.set_running_mode(RunningMode::NotRunning);
+        Handle::notice_message("update_failed", message);
+        Err(anyhow!(message))
+    }
+
+    #[cfg(target_os = "windows")]
     async fn wait_for_service_if_needed(&self) {
-        use crate::{config::Config, constants::timing, core::service};
+        use crate::{config::Config, core::service};
         use backon::{ConstantBuilder, Retryable as _};
 
         let needs_service = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
@@ -92,10 +118,10 @@ impl CoreManager {
             return;
         }
 
-        let max_times = timing::SERVICE_WAIT_MAX.as_millis() / timing::SERVICE_WAIT_INTERVAL.as_millis();
+        let service_config = service::ServiceManager::config();
         let backoff = ConstantBuilder::default()
-            .with_delay(timing::SERVICE_WAIT_INTERVAL)
-            .with_max_times(max_times as usize);
+            .with_delay(service_config.retry_delay)
+            .with_max_times(service_config.max_retries);
 
         let _ = (|| async {
             let mut manager = SERVICE_MANAGER.lock().await;
