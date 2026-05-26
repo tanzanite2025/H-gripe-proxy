@@ -1,7 +1,7 @@
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useReducer } from 'react'
 
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import delayManager, { type DelayUpdate } from '@/services/delay'
 
 const PRESET_PROXY_NAMES = [

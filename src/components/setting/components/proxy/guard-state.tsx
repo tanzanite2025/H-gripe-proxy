@@ -1,6 +1,6 @@
 import { createElement, isValidElement, ReactNode, useRef } from 'react'
 
-import noop from '@/utils/noop'
+import noop from '@/utils/misc/noop'
 
 interface Props<Value> {
   value?: Value

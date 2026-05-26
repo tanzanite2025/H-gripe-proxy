@@ -8,7 +8,7 @@ import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
   useClashConfigData,
@@ -18,7 +18,7 @@ import {
   patchClashMode,
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 const MODES = ['rule', 'global', 'direct'] as const
 type Mode = (typeof MODES)[number]

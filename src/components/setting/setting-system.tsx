@@ -2,8 +2,8 @@ import React, { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
-import ProxyControlSwitches from '@/components/shared/proxy-control-switches'
-import { useVerge } from '@/hooks/use-verge'
+import ProxyControlSwitches from '@/components/ui/proxy-control-switches'
+import { useVerge } from '@/hooks/system'
 
 import { GuardState } from './components/proxy/guard-state'
 import { SettingList, SettingItem } from './components/shared/setting-item'

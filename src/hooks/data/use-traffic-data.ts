@@ -1,7 +1,7 @@
 import { MihomoWebSocket, Traffic } from 'tauri-plugin-mihomo-api'
 
-import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
-import { useTrafficMonitorEnhanced } from './use-traffic-monitor'
+import { useMihomoWsSubscription } from '@/hooks/network'
+import { useTrafficMonitorEnhanced } from '@/hooks/network'
 
 const FALLBACK_TRAFFIC: Traffic = { up: 0, down: 0 }
 const DUPLICATE_TRAFFIC_WINDOW_MS = 50

@@ -25,7 +25,7 @@ import {
   ThemeModeProvider,
   UpdateStateProvider,
 } from './services/states'
-import { disableWebViewShortcuts } from './utils/disable-webview-shortcuts'
+import { disableWebViewShortcuts } from './utils/misc/disable-webview-shortcuts'
 
 if (!window.ResizeObserver) {
   window.ResizeObserver = ResizeObserver

@@ -5,7 +5,7 @@ import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
-import { useClash } from '@/hooks/use-clash'
+import { useClash } from '@/hooks/data'
 import { restartCore } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 

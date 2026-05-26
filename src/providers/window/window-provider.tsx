@@ -1,7 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
-import debounce from '@/utils/debounce'
+import debounce from '@/utils/misc/debounce'
 
 import { WindowContext } from './window-context'
 

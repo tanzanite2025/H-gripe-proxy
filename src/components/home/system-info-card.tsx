@@ -11,14 +11,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-import { useServiceInstaller } from '@/hooks/use-service-installer'
-import { useSystemState } from '@/hooks/use-system-state'
 import {
+  useServiceInstaller,
+  useSystemState,
   useUpdate,
-  updateLastCheckTime,
-  readLastCheckTime,
-} from '@/hooks/use-update'
-import { useVerge } from '@/hooks/use-verge'
+  useVerge,
+} from '@/hooks/system'
+import { updateLastCheckTime, readLastCheckTime } from '@/hooks/system/use-update'
 import { getSystemInfo } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { version as appVersion } from '@root/package.json'

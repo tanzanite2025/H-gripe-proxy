@@ -5,8 +5,8 @@ import { useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, BaseEmpty, DialogRef } from '@/components/base'
-import { useClashInfo } from '@/hooks/use-clash'
-import { useVerge } from '@/hooks/use-verge'
+import { useClashInfo } from '@/hooks/data'
+import { useVerge } from '@/hooks/system'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 

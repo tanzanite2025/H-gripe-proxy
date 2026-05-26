@@ -6,7 +6,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
 interface Props {

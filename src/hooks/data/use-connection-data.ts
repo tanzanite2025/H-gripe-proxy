@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
-import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
+import { useMihomoWsSubscription } from '@/hooks/network'
 
 const MAX_CLOSED_CONNS_NUM = 500
 

@@ -35,11 +35,10 @@ import { LayoutTraffic } from '@/components/layout/layout-traffic'
 import { NoticeManager } from '@/components/layout/notice-manager'
 import { UpdateButton } from '@/components/layout/update-button'
 import { WindowControls } from '@/components/layout/window-controller'
-import { useI18n } from '@/hooks/use-i18n'
-import { useVerge } from '@/hooks/use-verge'
-import { useWindowDecorations } from '@/hooks/use-window'
+import { useI18n, useWindowDecorations } from '@/hooks/ui'
+import { useVerge } from '@/hooks/system'
 import { useThemeMode } from '@/services/states'
-import getSystem from '@/utils/get-system'
+import getSystem from '@/utils/misc'
 
 import {
   useCustomTheme,

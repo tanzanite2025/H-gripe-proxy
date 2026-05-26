@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer } from 'react'
 
-import { useProfiles } from '@/hooks/use-profiles'
+import { useProfiles } from '@/hooks/data'
 
 import { ProxySortType } from './use-filter-sort'
 

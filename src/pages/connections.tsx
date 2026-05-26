@@ -32,9 +32,9 @@ import {
 } from '@/components/connection/connection-detail'
 import { ConnectionItem } from '@/components/connection/connection-item'
 import { ConnectionTable } from '@/components/connection/connection-table'
-import { useConnectionData } from '@/hooks/use-connection-data'
-import { useConnectionSetting } from '@/hooks/use-connection-setting'
-import parseTraffic from '@/utils/parse-traffic'
+import { useConnectionData } from '@/hooks/data'
+import { useConnectionSetting } from '@/hooks/system'
+import parseTraffic from '@/utils/format'
 
 type OrderFunc = (list: IConnectionsItem[]) => IConnectionsItem[]
 

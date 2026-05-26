@@ -10,7 +10,7 @@ import {
   styled,
 } from '@mui/material'
 
-import { useIconCache } from '@/hooks/use-icon-cache'
+import { useIconCache } from '@/hooks/system'
 interface Props {
   type: 'prepend' | 'original' | 'delete' | 'append'
   group: IProxyGroupConfig

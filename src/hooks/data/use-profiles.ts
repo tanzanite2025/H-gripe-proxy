@@ -8,7 +8,7 @@ import {
   patchProfilesConfig,
 } from '@/services/cmds'
 import { queryClient } from '@/services/query-client'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 export const useProfiles = () => {
   const {

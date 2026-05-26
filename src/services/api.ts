@@ -4,7 +4,7 @@ import { asyncRetry } from 'foxts/async-retry'
 import { extractErrorMessage } from 'foxts/extract-error-message'
 import { once } from 'foxts/once'
 
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 const getUserAgentPromise = once(async () => {
   try {

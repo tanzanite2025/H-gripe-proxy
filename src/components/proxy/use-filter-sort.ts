@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react'
 
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import delayManager from '@/services/delay'
-import { compileStringMatcher } from '@/utils/search-matcher'
+import { compileStringMatcher } from '@/utils/validation'
 
 // default | delay | alphabet
 export type ProxySortType = 0 | 1 | 2

@@ -16,9 +16,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSearchBox } from '@/components/base'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import delayManager from '@/services/delay'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 import type { ProxySortType } from './use-filter-sort'
 import type { HeadState } from './use-head-state'

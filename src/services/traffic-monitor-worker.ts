@@ -1,4 +1,4 @@
-import { TrafficDataSampler, formatTrafficName } from '../utils/traffic-sampler'
+import { TrafficDataSampler, formatTrafficName } from '../utils/network/traffic-sampler'
 
 const DEFAULT_CONFIG: ISamplingConfig & {
   snapshotIntervalMs: number

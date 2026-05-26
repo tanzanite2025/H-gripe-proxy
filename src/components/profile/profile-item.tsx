@@ -25,7 +25,7 @@ import { BaseDialog } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
-import { useEditorDocument } from '@/hooks/use-editor-document'
+import { useEditorDocument } from '@/hooks/ui'
 import {
   getNextUpdateTime,
   openWebUrl,
@@ -37,8 +37,8 @@ import {
 import { showNotice } from '@/services/notice-service'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
-import { debugLog } from '@/utils/debug'
-import parseTraffic from '@/utils/parse-traffic'
+import { debugLog } from '@/utils/misc'
+import parseTraffic from '@/utils/format'
 
 import { ProfileBox } from './profile-box'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'

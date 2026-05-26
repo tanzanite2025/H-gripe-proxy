@@ -12,7 +12,7 @@ import {
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { ProviderButton } from '@/components/rule/provider-button'
 import RuleItem from '@/components/rule/rule-item'
-import { useVisibility } from '@/hooks/use-visibility'
+import { useVisibility } from '@/hooks/ui'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 
 const RulesPage = () => {

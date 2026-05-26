@@ -15,7 +15,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
-import { useProfiles } from '@/hooks/use-profiles'
+import { useProfiles } from '@/hooks/data'
 import { createProfile, patchProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { version } from '@root/package.json'

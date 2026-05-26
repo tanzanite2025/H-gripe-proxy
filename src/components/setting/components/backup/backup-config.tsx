@@ -13,7 +13,7 @@ import { useState, useRef, memo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import { saveWebdavConfig, createWebdavBackup } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import {

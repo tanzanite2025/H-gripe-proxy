@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 
-import { useRuntimeConfig } from '@/hooks/use-clash'
-import { useVerge } from '@/hooks/use-verge'
+import { useRuntimeConfig } from '@/hooks/data/use-clash'
+import { useVerge } from '@/hooks/system'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 import { filterSort } from './use-filter-sort'
 import {

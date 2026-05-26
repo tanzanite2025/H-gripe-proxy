@@ -22,7 +22,7 @@ import google from '@/assets/image/test/google.svg?raw'
 import youtube from '@/assets/image/test/youtube.svg?raw'
 import { TestItem } from '@/components/test/test-item'
 import { TestViewer, TestViewerRef } from '@/components/test/test-viewer'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 
 import { EnhancedCard } from './enhanced-card'
 

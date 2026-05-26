@@ -3,7 +3,7 @@ import { Divider, Stack, Typography } from '@mui/material'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useClash } from '@/hooks/use-clash'
+import { useClash } from '@/hooks/data'
 import {
   useClashConfigData,
   useRulesData,

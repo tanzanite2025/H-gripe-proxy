@@ -5,8 +5,8 @@ import { MihomoWebSocket, type LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { getClashLogs } from '@/services/cmds'
 
-import { useClashLog } from './use-clash-log'
-import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
+import { useClashLog } from '@/hooks/system'
+import { useMihomoWsSubscription } from '@/hooks/network'
 
 const MAX_LOG_NUM = 1000
 const FLUSH_DELAY_MS = 50

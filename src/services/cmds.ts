@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 export async function copyClashEnv() {
   return invoke<void>('copy_clash_env')

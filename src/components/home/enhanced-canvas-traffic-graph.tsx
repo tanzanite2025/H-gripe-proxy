@@ -12,15 +12,15 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useTrafficGraphDataEnhanced } from '@/hooks/use-traffic-monitor'
-import { useVerge } from '@/hooks/use-verge'
-import { debugLog } from '@/utils/debug'
-import parseTraffic from '@/utils/parse-traffic'
+import { useTrafficGraphDataEnhanced } from '@/hooks/network'
+import { useVerge } from '@/hooks/system'
+import { debugLog } from '@/utils/misc'
+import parseTraffic from '@/utils/format'
 import {
   formatTrafficHourMinute,
   formatTrafficMinuteSecond,
   formatTrafficName,
-} from '@/utils/traffic-sampler'
+} from '@/utils/network/traffic-sampler'
 
 // 流量数据项接口
 interface ITrafficItem {

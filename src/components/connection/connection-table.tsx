@@ -27,8 +27,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import parseTraffic from '@/utils/parse-traffic'
-import { truncateStr } from '@/utils/truncate-str'
+import parseTraffic from '@/utils/format'
+import { truncateStr } from '@/utils/format'
 
 import { ConnectionColumnManager } from './connection-column-manager'
 

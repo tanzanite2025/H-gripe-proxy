@@ -22,8 +22,8 @@ import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
-import debounce from '@/utils/debounce'
-import getSystem from '@/utils/get-system'
+import debounce from '@/utils/misc/debounce'
+import getSystem from '@/utils/misc'
 
 const appWindow = getCurrentWebviewWindow()
 

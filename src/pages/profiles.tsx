@@ -46,8 +46,8 @@ import {
   ProfileViewerRef,
 } from '@/components/profile/profile-viewer'
 import { ConfigViewer } from '@/components/setting/components/misc/config-editor'
-import { useListen } from '@/hooks/use-listen'
-import { useProfiles } from '@/hooks/use-profiles'
+import { useListen } from '@/hooks/system'
+import { useProfiles } from '@/hooks/data'
 import {
   createProfileFromLocalPath,
   deleteProfile,
@@ -62,7 +62,7 @@ import {
 import { showNotice } from '@/services/notice-service'
 import { queryClient } from '@/services/query-client'
 import { useSetLoadingCache, useThemeMode } from '@/services/states'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 // 记录profile切换状态
 const debugProfileSwitch = (action: string, profile: string, extra?: any) => {

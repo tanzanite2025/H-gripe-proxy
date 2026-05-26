@@ -32,8 +32,7 @@ import {
   TooltipIcon,
 } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
-import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
-import { useVerge } from '@/hooks/use-verge'
+import { useSystemProxyState, useVerge } from '@/hooks/system'
 import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
 import {
   getAutotemProxy,
@@ -43,8 +42,8 @@ import {
   patchVergeConfig,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { debugLog } from '@/utils/debug'
-import getSystem from '@/utils/get-system'
+import { debugLog } from '@/utils/misc'
+import getSystem from '@/utils/misc'
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {

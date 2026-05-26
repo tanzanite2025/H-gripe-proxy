@@ -4,7 +4,7 @@ import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef, TooltipIcon } from '@/components/base'
-import { updateLastCheckTime } from '@/hooks/use-update'
+import { updateLastCheckTime } from '@/hooks/system/use-update'
 import {
   exitApp,
   exportDiagnosticInfo,

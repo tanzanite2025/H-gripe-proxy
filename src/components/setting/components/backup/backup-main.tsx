@@ -13,7 +13,7 @@ import { useCallback, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import {
   createLocalBackup,
   createWebdavBackup,

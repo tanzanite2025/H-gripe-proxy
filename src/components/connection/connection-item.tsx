@@ -12,7 +12,7 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
-import parseTraffic from '@/utils/parse-traffic'
+import parseTraffic from '@/utils/format'
 
 const Tag = styled('span')(({ theme }) => ({
   fontSize: '10px',

@@ -12,7 +12,7 @@ import {
 } from '@mui/material'
 
 import { BaseLoading } from '@/components/base'
-import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
+import { useProxyDelayState } from '@/hooks/network'
 import delayManager from '@/services/delay'
 
 interface Props {

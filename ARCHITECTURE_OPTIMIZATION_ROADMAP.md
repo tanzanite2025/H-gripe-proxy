@@ -14,6 +14,24 @@
    - 统一命名规范
    - 耗时：30 分钟
 
+3. **合并小目录** - 完成度 100%
+   - 合并 `components/shared/` 和 `components/uds/` 到 `components/ui/`
+   - 减少目录数量 17%
+   - 耗时：15 分钟
+
+4. **Hooks 分类** - 完成度 100% ✨
+   - 27 个 hooks 按功能分类到 4 个目录
+   - 更新 64 个文件的导入路径
+   - 创建 4 个 index 文件统一导出
+   - 耗时：45 分钟
+
+5. **Utils 分类** - 完成度 100% ✨
+   - 36 个工具文件按功能分类到 5 个目录
+   - 更新 50+ 个文件的导入路径
+   - 创建 5 个 index 文件统一导出
+   - 重组 URI 解析器（20个文件）
+   - 耗时：60 分钟
+
 ---
 
 ## 🎯 下一步优化计划
@@ -47,23 +65,14 @@ components/
 
 ---
 
-### 阶段 2：分类 Hooks（1周内）📦
+### 阶段 2：分类 Hooks（1周内）📦 ✅ 已完成
 
 **目标：** 将 27 个全局 hooks 按功能分类
 
-**当前状态：**
-```
-hooks/  # 27 个文件平铺 ⚠️
-├── use-clash-log.ts
-├── use-clash.ts
-├── use-connection-data.ts
-├── ... (24 more files)
-```
-
-**优化方案：**
+**完成状态：**
 ```
 hooks/
-├── data/            # 数据相关（8个）
+├── data/            # 数据相关（8个）✅
 │   ├── use-clash.ts
 │   ├── use-profiles.ts
 │   ├── use-connection-data.ts
@@ -71,13 +80,15 @@ hooks/
 │   ├── use-memory-data.ts
 │   ├── use-traffic-data.ts
 │   ├── use-current-proxy.ts
-│   └── use-proxy-selection.ts
-├── network/         # 网络相关（4个）
+│   ├── use-proxy-selection.ts
+│   └── index.ts
+├── network/         # 网络相关（4个）✅
 │   ├── use-network.ts
 │   ├── use-traffic-monitor.ts
 │   ├── use-mihomo-ws-subscription.ts
-│   └── use-proxy-delay-state.ts
-├── system/          # 系统相关（10个）
+│   ├── use-proxy-delay-state.ts
+│   └── index.ts
+├── system/          # 系统相关（10个）✅
 │   ├── use-system-state.ts
 │   ├── use-system-proxy-state.ts
 │   ├── use-verge.ts
@@ -87,8 +98,9 @@ hooks/
 │   ├── use-connection-setting.ts
 │   ├── use-clash-log.ts
 │   ├── use-listen.ts
-│   └── use-icon-cache.ts
-└── ui/              # UI 相关（5个）
+│   ├── use-icon-cache.ts
+│   └── index.ts
+└── ui/              # UI 相关（4个）✅
     ├── use-visibility.ts
     ├── use-window.ts
     ├── use-i18n.ts
@@ -96,65 +108,72 @@ hooks/
     └── index.ts
 ```
 
-**预计时间：** 2 小时  
-**风险等级：** 🟡 中
+**完成情况：**
+- ✅ 创建 4 个分类目录
+- ✅ 移动 27 个 hook 文件
+- ✅ 创建 4 个 index.ts 文件
+- ✅ 更新 64 个文件的导入路径
+- ✅ TypeScript 类型检查通过
+
+**实际时间：** 45 分钟  
+**风险等级：** 🟢 低（已完成）
+
+**详细文档：** [HOOKS_CATEGORIZATION_COMPLETE.md](./HOOKS_CATEGORIZATION_COMPLETE.md)
 
 ---
 
-### 阶段 3：分类 Utils（1周内）🔧
+### 阶段 3：分类 Utils（1周内）🔧 ✅ 已完成
 
 **目标：** 将 18 个工具函数 + 20 个 uri-parser 按功能分类
 
-**当前状态：**
-```
-utils/  # 18 个文件平铺 ⚠️
-├── data-validator.ts
-├── debounce.ts
-├── ... (16 more files)
-└── uri-parser/  # 20 个文件 ⚠️
-```
-
-**优化方案：**
+**完成状态：**
 ```
 utils/
-├── format/          # 格式化工具
+├── format/          # 格式化工具（3个）✅
 │   ├── parse-traffic.ts
 │   ├── truncate-str.ts
-│   └── parse-hotkey.ts
-├── parser/          # 解析器
-│   └── uri/         # URI 解析器（20个文件）
-│       ├── protocols/
-│       │   ├── ss.ts
-│       │   ├── ssr.ts
-│       │   ├── vmess.ts
-│       │   ├── vless.ts
-│       │   ├── trojan.ts
-│       │   ├── hysteria.ts
-│       │   ├── hysteria2.ts
-│       │   └── ... (13 more)
-│       ├── helpers.ts
-│       ├── transport.ts
+│   ├── parse-hotkey.ts
+│   └── index.ts
+├── parser/          # 解析器（20个）✅
+│   └── uri/         # URI 解析器
+│       ├── ss.ts, ssr.ts, vmess.ts, vless.ts
+│       ├── trojan.ts, trojan-go.ts
+│       ├── hysteria.ts, hysteria2.ts
+│       ├── tuic.ts, wireguard.ts
+│       ├── socks.ts, http.ts, ssh.ts
+│       ├── snell.ts, mieru.ts, sudoku.ts, anytls.ts
+│       ├── helpers.ts, transport.ts
 │       └── index.ts
-├── network/         # 网络工具
+├── network/         # 网络工具（3个）✅
 │   ├── network.ts
 │   ├── traffic-diagnostics.ts
-│   └── traffic-sampler.ts
-├── validation/      # 验证工具
+│   ├── traffic-sampler.ts
+│   └── index.ts
+├── validation/      # 验证工具（2个）✅
 │   ├── data-validator.ts
-│   └── search-matcher.ts
-└── misc/            # 其他工具
-    ├── debounce.ts
-    ├── noop.ts
-    ├── debug.ts
-    ├── get-system.ts
-    ├── ignore-case.ts
+│   ├── search-matcher.ts
+│   └── index.ts
+└── misc/            # 其他工具（8个）✅
+    ├── debounce.ts, noop.ts, debug.ts
+    ├── get-system.ts, ignore-case.ts
     ├── is-async-function.ts
     ├── disable-webview-shortcuts.ts
-    └── yaml.worker.ts
+    ├── yaml.worker.ts
+    └── index.ts
 ```
 
-**预计时间：** 2 小时  
-**风险等级：** 🟡 中
+**完成情况：**
+- ✅ 创建 5 个分类目录
+- ✅ 移动 36 个工具文件
+- ✅ 创建 5 个 index.ts 文件
+- ✅ 更新 50+ 个文件的导入路径
+- ✅ 处理默认导出和命名导出兼容性
+- ✅ TypeScript 类型检查通过
+
+**实际时间：** 60 分钟  
+**风险等级：** 🟢 低（已完成）
+
+**详细文档：** [UTILS_CATEGORIZATION_COMPLETE.md](./UTILS_CATEGORIZATION_COMPLETE.md)
 
 ---
 
@@ -259,12 +278,12 @@ src/
 
 - [x] **Day 1**: !important 优化（已完成）
 - [x] **Day 2**: Setting 模块重构（已完成）
-- [ ] **Day 3**: 合并小目录
-- [ ] **Day 4-5**: 分类 Hooks
+- [x] **Day 3**: 合并小目录（已完成）
+- [x] **Day 4-5**: 分类 Hooks（已完成）✨
 
 ### 第 2 周
 
-- [ ] **Day 1-2**: 分类 Utils
+- [x] **Day 1-2**: 分类 Utils（已完成）✨
 - [ ] **Day 3**: 优化 pages/_layout
 - [ ] **Day 4-5**: 测试和调整
 
@@ -277,13 +296,13 @@ src/
 
 ## 🎯 优先级矩阵
 
-| 任务 | 影响范围 | 难度 | 收益 | 优先级 |
-|------|---------|------|------|--------|
-| 合并小目录 | 小 | 低 | 中 | 🔴 高 |
-| 分类 Hooks | 中 | 中 | 高 | 🟡 中 |
-| 分类 Utils | 中 | 中 | 中 | 🟡 中 |
-| 优化 _layout | 小 | 低 | 低 | 🟢 低 |
-| 功能模块重组 | 大 | 高 | 非常高 | 🟢 低（长期）|
+| 任务 | 影响范围 | 难度 | 收益 | 优先级 | 状态 |
+|------|---------|------|------|--------|------|
+| 合并小目录 | 小 | 低 | 中 | 🔴 高 | ✅ 完成 |
+| 分类 Hooks | 中 | 中 | 高 | 🟡 中 | ✅ 完成 |
+| 分类 Utils | 中 | 中 | 中 | 🟡 中 | ✅ 完成 |
+| 优化 _layout | 小 | 低 | 低 | 🟢 低 | ⏭️ 下一步 |
+| 功能模块重组 | 大 | 高 | 非常高 | 🟢 低（长期）| ⏭️ 待定 |
 
 ---
 
@@ -300,11 +319,13 @@ src/
 ```
 ✅ Setting 模块（已完成）
   ↓
-⏭️ 合并小目录
+✅ 合并小目录（已完成）
   ↓
-⏭️ 分类 Hooks
+✅ 分类 Hooks（已完成）
   ↓
-⏭️ 分类 Utils
+✅ 分类 Utils（已完成）
+  ↓
+⏭️ 优化 pages/_layout（下一步）
   ↓
 ⏭️ 功能模块重组
 ```
@@ -403,16 +424,17 @@ git merge refactor/xxx
 
 ### 立即开始（今天）
 
-**任务：** 合并小目录
+**任务：** 优化 pages/_layout
 
 **步骤：**
-1. 创建 `components/ui/` 目录
-2. 移动 `shared/` 的 2 个文件
-3. 移动 `uds/icons.tsx` 到 `ui/icons/`
-4. 更新导入路径
-5. 运行类型检查
+1. 重命名 `_layout.tsx` 为 `_layout/layout.tsx`
+2. 创建 `_core/` 目录
+3. 移动 `_routers.tsx` 到 `_core/router.tsx`
+4. 移动 `_theme.tsx` 到 `_core/theme.tsx`
+5. 更新导入路径
+6. 运行类型检查
 
-**预计时间：** 15 分钟
+**预计时间：** 1 小时
 
 ---
 
@@ -421,9 +443,9 @@ git merge refactor/xxx
 ### 短期目标（1个月）
 
 - ✅ 完成 Setting 模块重构
-- ⏭️ 合并小目录
-- ⏭️ 分类 Hooks
-- ⏭️ 分类 Utils
+- ✅ 合并小目录
+- ✅ 分类 Hooks
+- ✅ 分类 Utils
 - ⏭️ 优化 pages/_layout
 
 ### 长期目标（3个月）
@@ -440,11 +462,15 @@ git merge refactor/xxx
 1. **ARCHITECTURE_ANALYSIS.md** - 架构分析报告
 2. **SETTING_MODULE_REFACTOR_PLAN.md** - Setting 重构方案
 3. **SETTING_MODULE_REFACTOR_COMPLETE.md** - Setting 重构完成报告
-4. **ARCHITECTURE_OPTIMIZATION_ROADMAP.md** - 架构优化路线图（本文档）
+4. **MERGE_SMALL_DIRS_COMPLETE.md** - 合并小目录完成报告
+5. **HOOKS_CATEGORIZATION_COMPLETE.md** - Hooks 分类完成报告
+6. **UTILS_CATEGORIZATION_COMPLETE.md** - Utils 分类完成报告
+7. **ARCHITECTURE_OPTIMIZATION_ROADMAP.md** - 架构优化路线图（本文档）
 
 ---
 
 **文档创建时间：** 2026-05-27 06:10  
-**当前阶段：** Setting 模块重构完成  
-**下一步：** 合并小目录  
-**文档版本：** v1.0
+**最后更新时间：** 2026-05-27 08:00  
+**当前阶段：** Utils 分类完成  
+**下一步：** 优化 pages/_layout  
+**文档版本：** v1.3

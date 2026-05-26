@@ -1,6 +1,6 @@
 import { KeyboardEvent } from 'react'
 
-import getSystem from './get-system'
+import getSystem from '../misc/get-system'
 
 const OS = getSystem()
 

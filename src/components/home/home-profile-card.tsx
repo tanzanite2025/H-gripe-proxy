@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router'
 import { useAppRefreshers } from '@/providers/app-data-context'
 import { openWebUrl, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import parseTraffic from '@/utils/parse-traffic'
+import parseTraffic from '@/utils/format'
 
 import { EnhancedCard } from './enhanced-card'
 

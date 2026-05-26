@@ -24,8 +24,8 @@ import { EnhancedCard } from '@/components/home/enhanced-card'
 import { EnhancedTrafficStats } from '@/components/home/enhanced-traffic-stats'
 import { HomeProfileCard } from '@/components/home/home-profile-card'
 import { ProxyTunCard } from '@/components/home/proxy-tun-card'
-import { useProfiles } from '@/hooks/use-profiles'
-import { useVerge } from '@/hooks/use-verge'
+import { useProfiles } from '@/hooks/data'
+import { useVerge } from '@/hooks/system'
 import { entry_lightweight_mode, openWebUrl } from '@/services/cmds'
 
 const LazyTestCard = lazy(() =>

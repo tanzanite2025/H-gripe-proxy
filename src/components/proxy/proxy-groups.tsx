@@ -29,12 +29,12 @@ import { useLocation } from 'react-router'
 import { delayGroup, healthcheckProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { BaseEmpty } from '@/components/base'
-import { useProxySelection } from '@/hooks/use-proxy-selection'
-import { useVerge } from '@/hooks/use-verge'
+import { useProxySelection } from '@/hooks/data'
+import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
 import { calcuProxies, updateProxyChainConfigInRuntime } from '@/services/cmds'
 import delayManager from '@/services/delay'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 import { ScrollTopButton } from '../layout/scroll-top-button'
 

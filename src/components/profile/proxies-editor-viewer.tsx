@@ -42,8 +42,8 @@ import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/get-system'
-import parseUri from '@/utils/uri-parser'
+import getSystem from '@/utils/misc'
+import parseUri from '@/utils/parser/uri'
 
 interface Props {
   profileUid: string

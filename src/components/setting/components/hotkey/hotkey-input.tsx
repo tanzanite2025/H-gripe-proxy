@@ -3,7 +3,7 @@ import { alpha, Box, IconButton, styled } from '@mui/material'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { parseHotkey } from '@/utils/parse-hotkey'
+import { parseHotkey } from '@/utils/format'
 
 const KeyWrapper = styled('div')(({ theme }) => ({
   position: 'relative',

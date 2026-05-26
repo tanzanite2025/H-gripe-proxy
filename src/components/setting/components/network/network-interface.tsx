@@ -6,7 +6,7 @@ import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { useNetworkInterfaces } from '@/hooks/use-network'
+import { useNetworkInterfaces } from '@/hooks/network/use-network'
 import { showNotice } from '@/services/notice-service'
 
 export function NetworkInterfaceViewer({ ref }: { ref?: Ref<DialogRef> }) {

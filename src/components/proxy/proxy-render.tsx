@@ -16,8 +16,7 @@ import {
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useIconCache } from '@/hooks/use-icon-cache'
-import { useVerge } from '@/hooks/use-verge'
+import { useIconCache, useVerge } from '@/hooks/system'
 import { useThemeMode } from '@/services/states'
 
 import { ProxyHead } from './proxy-head'

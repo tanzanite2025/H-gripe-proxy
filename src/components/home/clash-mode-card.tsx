@@ -9,7 +9,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
   useClashConfigData,

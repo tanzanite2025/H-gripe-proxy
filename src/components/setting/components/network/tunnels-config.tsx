@@ -15,7 +15,7 @@ import { forwardRef, useImperativeHandle, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
-import { useClash } from '@/hooks/use-clash'
+import { useClash } from '@/hooks/data'
 import { useProxiesData } from '@/providers/app-data-context'
 import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'

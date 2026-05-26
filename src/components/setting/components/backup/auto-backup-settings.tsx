@@ -10,7 +10,7 @@ import { Fragment, useMemo, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
 const MIN_INTERVAL_HOURS = 1

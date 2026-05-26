@@ -1,4 +1,4 @@
-import getSystem from '@/utils/get-system'
+import getSystem from '@/utils/misc'
 const OS = getSystem()
 
 // default theme setting

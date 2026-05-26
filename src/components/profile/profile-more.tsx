@@ -13,7 +13,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EditorViewer } from '@/components/profile/editor-viewer'
-import { useEditorDocument } from '@/hooks/use-editor-document'
+import { useEditorDocument } from '@/hooks/ui'
 import { viewProfile, readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 

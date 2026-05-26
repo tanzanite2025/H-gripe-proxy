@@ -27,12 +27,12 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, MonacoEditor, Switch } from '@/components/base'
-import { useClash } from '@/hooks/use-clash'
+import { useClash } from '@/hooks/data'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import { debugLog } from '@/utils/debug'
-import getSystem from '@/utils/get-system'
+import { debugLog } from '@/utils/misc'
+import getSystem from '@/utils/misc'
 
 const Item = styled(ListItem)(() => ({
   padding: '5px 2px',

@@ -19,10 +19,10 @@ import {
   DialogRef,
   Switch,
 } from '@/components/base'
-import { useClash } from '@/hooks/use-clash'
+import { useClash } from '@/hooks/data'
 import { enhanceProfiles } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import getSystem from '@/utils/get-system'
+import getSystem from '@/utils/misc'
 import { areValidIpCidrs } from '@/utils/network'
 
 import { StackModeSwitch } from '../misc/stack-mode-switch'

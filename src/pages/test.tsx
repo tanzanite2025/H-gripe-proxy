@@ -23,7 +23,7 @@ import { BasePage } from '@/components/base'
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { TestItem } from '@/components/test/test-item'
 import { TestViewer, TestViewerRef } from '@/components/test/test-viewer'
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 
 const TestPage = () => {
   const { t } = useTranslation()

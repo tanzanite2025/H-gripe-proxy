@@ -14,11 +14,13 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { SysproxyViewer } from '@/components/setting/components/proxy/system-proxy'
 import { TunViewer } from '@/components/setting/components/network/tun-config'
-import { useServiceInstaller } from '@/hooks/use-service-installer'
-import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
-import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
-import { useSystemState } from '@/hooks/use-system-state'
-import { useVerge } from '@/hooks/use-verge'
+import {
+  useServiceInstaller,
+  useServiceUninstaller,
+  useSystemProxyState,
+  useSystemState,
+  useVerge,
+} from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
 interface ProxySwitchProps {

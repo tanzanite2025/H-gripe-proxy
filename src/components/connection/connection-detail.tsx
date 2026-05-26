@@ -5,7 +5,7 @@ import { useImperativeHandle, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
-import parseTraffic from '@/utils/parse-traffic'
+import parseTraffic from '@/utils/format'
 
 export interface ConnectionDetailRef {
   open: (detail: IConnectionsItem, closed: boolean) => void

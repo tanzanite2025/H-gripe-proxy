@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from './use-verge'
 import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
 import { getAutotemProxy } from '@/services/cmds'
 import { queryClient } from '@/services/query-client'

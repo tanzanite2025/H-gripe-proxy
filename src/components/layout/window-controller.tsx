@@ -1,8 +1,8 @@
 import { Box } from '@mui/material'
 import { forwardRef, useImperativeHandle } from 'react'
 
-import { useWindowControls } from '@/hooks/use-window'
-import getSystem from '@/utils/get-system'
+import { useWindowControls } from '@/hooks/ui/use-window'
+import getSystem from '@/utils/misc'
 
 const controlButtonStyle = {
   width: 28,

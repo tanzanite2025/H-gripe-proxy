@@ -9,7 +9,7 @@ import {
 import CircularProgress from '@mui/material/CircularProgress'
 import React, { ReactNode, useState } from 'react'
 
-import isAsyncFunction from '@/utils/is-async-function'
+import isAsyncFunction from '@/utils/misc/is-async-function'
 
 interface ItemProps {
   label: ReactNode

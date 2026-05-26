@@ -7,7 +7,7 @@ import {
   getRules,
 } from 'tauri-plugin-mihomo-api'
 
-import { useVerge } from '@/hooks/use-verge'
+import { useVerge } from '@/hooks/system'
 import {
   calcuProxies,
   calcuProxyProviders,

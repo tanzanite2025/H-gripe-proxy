@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { useUpdate } from '@/hooks/use-update'
+import { useUpdate } from '@/hooks/system'
 import { portableFlag } from '@/pages/_layout'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'

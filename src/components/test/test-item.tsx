@@ -8,12 +8,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
-import { useIconCache } from '@/hooks/use-icon-cache'
-import { useListen } from '@/hooks/use-listen'
+import { useIconCache, useListen } from '@/hooks/system'
 import { cmdTestDelay } from '@/services/cmds'
 import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 import { TestBox } from './test-box'
 

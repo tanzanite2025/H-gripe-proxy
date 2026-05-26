@@ -7,7 +7,7 @@ import {
   supportedLanguages,
 } from '@/services/i18n'
 
-import { useVerge } from './use-verge'
+import { useVerge } from '@/hooks/system'
 
 export const useI18n = () => {
   const { i18n, t } = useTranslation()

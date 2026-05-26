@@ -17,8 +17,8 @@ import {
   type VirtualListHandle,
 } from '@/components/base'
 import LogItem from '@/components/log/log-item'
-import { useClashLog } from '@/hooks/use-clash-log'
-import { useLogData } from '@/hooks/use-log-data'
+import { useClashLog } from '@/hooks/system'
+import { useLogData } from '@/hooks/data'
 
 const LogPage = () => {
   const { t } = useTranslation()

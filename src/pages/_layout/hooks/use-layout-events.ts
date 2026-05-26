@@ -2,7 +2,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useEffect } from 'react'
 
-import { useListen } from '@/hooks/use-listen'
+import { useListen } from '@/hooks/system'
 import { queryClient } from '@/services/query-client'
 
 export const useLayoutEvents = (

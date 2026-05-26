@@ -17,11 +17,11 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { DEFAULT_HOVER_DELAY } from '@/components/proxy/proxy-group-navigator'
-import { useVerge } from '@/hooks/use-verge'
-import { useWindowDecorations } from '@/hooks/use-window'
+import { useVerge } from '@/hooks/system'
+import { useWindowDecorations } from '@/hooks/ui'
 import { copyIconFile, getTrayIconPath } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import getSystem from '@/utils/get-system'
+import getSystem from '@/utils/misc'
 
 import { GuardState } from '../proxy/guard-state'
 

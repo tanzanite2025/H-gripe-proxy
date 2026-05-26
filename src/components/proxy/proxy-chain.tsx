@@ -44,7 +44,7 @@ import {
 import { TooltipIcon } from '@/components/base'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { updateProxyChainConfigInRuntime } from '@/services/cmds'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '@/utils/misc'
 
 interface ProxyChainItem {
   id: string

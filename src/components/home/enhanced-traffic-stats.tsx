@@ -17,13 +17,11 @@ import {
 import { ReactNode, memo, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TrafficErrorBoundary } from '@/components/shared/traffic-error-boundary'
-import { useConnectionData } from '@/hooks/use-connection-data'
-import { useMemoryData } from '@/hooks/use-memory-data'
-import { useTrafficData } from '@/hooks/use-traffic-data'
-import { useVerge } from '@/hooks/use-verge'
-import { useVisibility } from '@/hooks/use-visibility'
-import parseTraffic from '@/utils/parse-traffic'
+import { TrafficErrorBoundary } from '@/components/ui/traffic-error-boundary'
+import { useConnectionData, useMemoryData, useTrafficData } from '@/hooks/data'
+import { useVerge } from '@/hooks/system'
+import { useVisibility } from '@/hooks/ui'
+import parseTraffic from '@/utils/format'
 
 import {
   EnhancedCanvasTrafficGraph,
