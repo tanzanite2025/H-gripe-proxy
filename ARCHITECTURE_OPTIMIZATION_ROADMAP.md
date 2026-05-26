@@ -32,6 +32,13 @@
    - 重组 URI 解析器（20个文件）
    - 耗时：60 分钟
 
+6. **Pages/_layout 优化** - 完成度 100% ✨
+   - 重组 pages 目录结构
+   - 创建 `_core/` 核心配置目录
+   - 移动和重命名 3 个文件
+   - 更新 6 个文件的导入路径
+   - 耗时：20 分钟
+
 ---
 
 ## 🎯 下一步优化计划
@@ -177,43 +184,35 @@ utils/
 
 ---
 
-### 阶段 4：优化 pages/_layout（2周内）📄
+### 阶段 4：优化 pages/_layout（2周内）📄 ✅ 已完成
 
 **目标：** 整理 pages/_layout 结构
 
-**当前状态：**
+**完成状态：**
 ```
 pages/
-├── _layout.tsx          # 布局组件
-├── _layout/             # 布局相关目录 ⚠️
-│   ├── hooks/           # 5 个 hooks
-│   └── utils/           # 3 个 utils
-├── _routers.tsx         # 路由配置
-├── _theme.tsx           # 主题配置
-└── xxx.tsx              # 页面组件
-```
-
-**优化方案：**
-```
-pages/
-├── _layout/
-│   ├── layout.tsx       # 重命名 _layout.tsx
-│   ├── hooks/
-│   │   ├── use-custom-theme.ts
-│   │   ├── use-layout-events.ts
-│   │   ├── use-loading-overlay.ts
-│   │   └── use-nav-menu-order.ts
-│   └── utils/
-│       ├── initial-loading-overlay.ts
-│       └── notification-handlers.ts
-├── _core/               # 核心配置
+├── _layout/             # 布局模块 ✅
+│   ├── layout.tsx       # 重命名并移入
+│   ├── hooks/           # 布局 hooks (4个)
+│   └── utils/           # 布局工具 (2个)
+├── _core/               # 核心配置（新建）✅
 │   ├── router.tsx       # 重命名 _routers.tsx
 │   └── theme.tsx        # 重命名 _theme.tsx
-└── xxx.tsx              # 页面组件
+└── *.tsx                # 页面组件
 ```
 
-**预计时间：** 1 小时  
-**风险等级：** 🟢 低
+**完成情况：**
+- ✅ 创建 `_core/` 目录
+- ✅ 移动 `_layout.tsx` → `_layout/layout.tsx`
+- ✅ 移动 `_routers.tsx` → `_core/router.tsx`
+- ✅ 移动 `_theme.tsx` → `_core/theme.tsx`
+- ✅ 更新 6 个文件的导入路径
+- ✅ TypeScript 类型检查通过
+
+**实际时间：** 20 分钟  
+**风险等级：** 🟢 低（已完成）
+
+**详细文档：** [LAYOUT_OPTIMIZATION_COMPLETE.md](./LAYOUT_OPTIMIZATION_COMPLETE.md)
 
 ---
 
@@ -284,7 +283,7 @@ src/
 ### 第 2 周
 
 - [x] **Day 1-2**: 分类 Utils（已完成）✨
-- [ ] **Day 3**: 优化 pages/_layout
+- [x] **Day 3**: 优化 pages/_layout（已完成）✨
 - [ ] **Day 4-5**: 测试和调整
 
 ### 第 3-4 周
@@ -301,7 +300,7 @@ src/
 | 合并小目录 | 小 | 低 | 中 | 🔴 高 | ✅ 完成 |
 | 分类 Hooks | 中 | 中 | 高 | 🟡 中 | ✅ 完成 |
 | 分类 Utils | 中 | 中 | 中 | 🟡 中 | ✅ 完成 |
-| 优化 _layout | 小 | 低 | 低 | 🟢 低 | ⏭️ 下一步 |
+| 优化 _layout | 小 | 低 | 低 | 🟢 低 | ✅ 完成 |
 | 功能模块重组 | 大 | 高 | 非常高 | 🟢 低（长期）| ⏭️ 待定 |
 
 ---
@@ -325,9 +324,9 @@ src/
   ↓
 ✅ 分类 Utils（已完成）
   ↓
-⏭️ 优化 pages/_layout（下一步）
+✅ 优化 pages/_layout（已完成）
   ↓
-⏭️ 功能模块重组
+⏭️ 功能模块重组（长期规划）
 ```
 
 ### 2. 测试驱动
@@ -422,19 +421,31 @@ git merge refactor/xxx
 
 ## 📝 下一步行动
 
-### 立即开始（今天）
+### 短期优化已完成 🎉
 
-**任务：** 优化 pages/_layout
+所有短期优化任务已完成！项目架构已得到显著改善。
 
-**步骤：**
-1. 重命名 `_layout.tsx` 为 `_layout/layout.tsx`
-2. 创建 `_core/` 目录
-3. 移动 `_routers.tsx` 到 `_core/router.tsx`
-4. 移动 `_theme.tsx` 到 `_core/theme.tsx`
-5. 更新导入路径
-6. 运行类型检查
+**已完成任务：**
+1. ✅ !important 优化
+2. ✅ Setting 模块重构
+3. ✅ 合并小目录
+4. ✅ 分类 Hooks
+5. ✅ 分类 Utils
+6. ✅ 优化 pages/_layout
 
-**预计时间：** 1 小时
+**总耗时：** 约 4.5 小时
+
+### 长期规划（可选）
+
+**任务：** 功能模块重组（Features 架构）
+
+这是一个更大规模的重构，建议在以下情况下考虑：
+- 团队规模扩大
+- 项目复杂度持续增长
+- 需要更好的模块隔离
+
+**预计时间：** 1-2 周  
+**风险等级：** 🔴 高
 
 ---
 
@@ -446,7 +457,9 @@ git merge refactor/xxx
 - ✅ 合并小目录
 - ✅ 分类 Hooks
 - ✅ 分类 Utils
-- ⏭️ 优化 pages/_layout
+- ✅ 优化 pages/_layout
+
+**🎉 所有短期目标已完成！**
 
 ### 长期目标（3个月）
 
@@ -465,12 +478,13 @@ git merge refactor/xxx
 4. **MERGE_SMALL_DIRS_COMPLETE.md** - 合并小目录完成报告
 5. **HOOKS_CATEGORIZATION_COMPLETE.md** - Hooks 分类完成报告
 6. **UTILS_CATEGORIZATION_COMPLETE.md** - Utils 分类完成报告
-7. **ARCHITECTURE_OPTIMIZATION_ROADMAP.md** - 架构优化路线图（本文档）
+7. **LAYOUT_OPTIMIZATION_COMPLETE.md** - Layout 优化完成报告
+8. **ARCHITECTURE_OPTIMIZATION_ROADMAP.md** - 架构优化路线图（本文档）
 
 ---
 
 **文档创建时间：** 2026-05-27 06:10  
-**最后更新时间：** 2026-05-27 08:00  
-**当前阶段：** Utils 分类完成  
-**下一步：** 优化 pages/_layout  
-**文档版本：** v1.3
+**最后更新时间：** 2026-05-27 08:30  
+**当前阶段：** 短期优化全部完成 🎉  
+**下一步：** 功能模块重组（长期规划）  
+**文档版本：** v2.0

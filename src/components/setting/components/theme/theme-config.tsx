@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { BaseDialog, DialogRef } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useVerge } from '@/hooks/system'
-import { defaultDarkTheme, defaultTheme } from '@/pages/_theme'
+import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
 import { showNotice } from '@/services/notice-service'
 
 export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {

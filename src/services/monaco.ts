@@ -31,7 +31,7 @@ export const loadMonacoEditor = () => {
     import('monaco-yaml'),
     import('meta-json-schema/schemas/meta-json-schema.json'),
     import('types-pac/pac.d.ts?raw'),
-    import('@/utils/yaml.worker?worker'),
+    import('@/utils/misc/yaml.worker?worker'),
   ]).then(
     ([
       editorModule,

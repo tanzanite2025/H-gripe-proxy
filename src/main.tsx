@@ -10,7 +10,7 @@ import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 import { BaseErrorBoundary } from './components/base'
 import { EmotionStyleChain } from './components/base/base-emotion-style-chain'
-import { router } from './pages/_routers'
+import { router } from './pages/_core/router'
 import { AppDataProvider } from './providers/app-data-provider'
 import { WindowProvider } from './providers/window'
 import { FALLBACK_LANGUAGE, initializeLanguage } from './services/i18n'

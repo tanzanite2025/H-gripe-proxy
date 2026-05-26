@@ -1,13 +1,13 @@
 import { createBrowserRouter, RouteObject } from 'react-router'
 
-import Layout from './_layout'
-import ConnectionsPage from './connections'
-import HomePage from './home'
-import ProfilesPage from './profiles'
-import ProxiesPage from './proxies'
-import RulesPage from './rules'
-import SettingsPage from './settings'
-import UnlockPage from './unlock'
+import Layout from '../_layout/layout'
+import ConnectionsPage from '../connections'
+import HomePage from '../home'
+import ProfilesPage from '../profiles'
+import ProxiesPage from '../proxies'
+import RulesPage from '../rules'
+import SettingsPage from '../settings'
+import UnlockPage from '../unlock'
 
 export const navItems = [
   {

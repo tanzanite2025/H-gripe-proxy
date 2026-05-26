@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.3",
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "bundle": {
     "active": true,
@@ -11,9 +11,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources"],
+    "resources": [
+      "resources"
+    ],
     "publisher": "tanzanite2025",
-    "externalBin": ["sidecar/verge-mihomo"],
+    "externalBin": [
+      "sidecar/verge-mihomo"
+    ],
     "copyright": "GNU General Public License v3.0",
     "category": "DeveloperTool",
     "shortDescription": "Clash Verge Optimized",
@@ -40,21 +44,31 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["clash", "clash-verge"]
+        "schemes": [
+          "clash",
+          "clash-verge"
+        ]
       }
     }
   },
   "app": {
     "security": {
-      "capabilities": ["desktop-capability", "migrated"],
+      "capabilities": [
+        "desktop-capability",
+        "migrated"
+      ],
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$APPDATA/**", "$APPCONFIG/**", "$CACHE/**"],
+          "allow": [
+            "$APPDATA/**",
+            "$APPCONFIG/**",
+            "$CACHE/**"
+          ],
           "requireLiteralLeadingDot": false
         }
       },
-      "csp": "default-src 'self'; connect-src 'self' 127.0.0.1 http://127.0.0.1:* ws://127.0.0.1:* https://* http://*; img-src 'self' asset: data: https://*; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+      "csp": "default-src 'self'; connect-src 'self' 127.0.0.1 http://127.0.0.1:* ws://127.0.0.1:* https://* http://*; img-src 'self' asset: data: https://*; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
     }
   }
 }

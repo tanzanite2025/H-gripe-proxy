@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
 import { useUpdate } from '@/hooks/system'
-import { portableFlag } from '@/pages/_layout'
+import { portableFlag } from '@/pages/_layout/layout'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useSetUpdateState, useUpdateState } from '@/services/states'

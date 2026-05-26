@@ -192,7 +192,7 @@ class TrafficWorkerClient {
     if (typeof Worker !== 'undefined') {
       try {
         this.worker = new Worker(
-          new URL('../services/traffic-monitor-worker.ts', import.meta.url),
+          new URL('../../services/traffic-monitor-worker.ts', import.meta.url),
           { type: 'module' },
         )
         this.mode = 'worker'

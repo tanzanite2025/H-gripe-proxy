@@ -45,10 +45,10 @@ import {
   useLayoutEvents,
   useLoadingOverlay,
   useNavMenuOrder,
-} from './_layout/hooks'
-import { handleNoticeMessage } from './_layout/utils'
-import { navItems } from './_routers'
-import LogsPage from './logs'
+} from './hooks'
+import { handleNoticeMessage } from './utils'
+import { navItems } from '@/pages/_core/router'
+import LogsPage from '../logs'
 
 import 'dayjs/locale/ru'
 import 'dayjs/locale/zh-cn'
