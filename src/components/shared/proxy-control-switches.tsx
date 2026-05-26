@@ -37,6 +37,7 @@ interface SwitchRowProps {
   onToggle: (value: boolean) => Promise<void>
   onError?: (err: Error) => void
   highlight?: boolean
+  compact?: boolean
 }
 
 /**
@@ -53,6 +54,7 @@ const SwitchRow = ({
   onToggle,
   onError,
   highlight,
+  compact,
 }: SwitchRowProps) => {
   const theme = useTheme()
   const [checked, setChecked] = useState(active)
@@ -77,49 +79,100 @@ const SwitchRow = ({
       })
   }
 
+  if (compact) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 1,
+          pr: 2,
+          borderRadius: 1.5,
+          bgcolor: highlight
+            ? alpha(theme.palette.success.main, 0.07)
+            : 'transparent',
+          opacity: disabled ? 0.6 : 1,
+          transition: 'background-color 0.3s',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {active ? (
+            <PlayCircleOutlineRounded sx={{ color: 'success.main', mr: 1 }} />
+          ) : (
+            <PauseCircleOutlineRounded sx={{ color: 'text.disabled', mr: 1 }} />
+          )}
+          <Typography
+            className="uds-card-title"
+            variant="subtitle1"
+            sx={{ fontWeight: 500, fontSize: '15px' }}
+          >
+            {label}
+          </Typography>
+          <TooltipIcon
+            title={infoTitle}
+            icon={SettingsRounded}
+            onClick={onInfoClick}
+            sx={{ ml: 1 }}
+          />
+          {extraIcons}
+        </Box>
+
+        <Switch
+          edge="end"
+          disabled={disabled}
+          checked={checked}
+          onChange={handleChange}
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box
+      className="uds-settings-item"
       sx={{
-        display: 'flex',
-        alignItems: 'center',
-	        justifyContent: 'space-between',
-        p: 1,
-        pr: 2,
-        borderRadius: 1.5,
-        bgcolor: highlight
-          ? alpha(theme.palette.success.main, 0.07)
-          : 'transparent',
         opacity: disabled ? 0.6 : 1,
-        transition: 'background-color 0.3s',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        {active ? (
-          <PlayCircleOutlineRounded sx={{ color: 'success.main', mr: 1 }} />
-        ) : (
-          <PauseCircleOutlineRounded sx={{ color: 'text.disabled', mr: 1 }} />
-        )}
-        <Typography
-          variant="subtitle1"
-          sx={{ fontWeight: 500, fontSize: '15px' }}
-        >
-          {label}
-        </Typography>
-        <TooltipIcon
-          title={infoTitle}
-          icon={SettingsRounded}
-          onClick={onInfoClick}
-          sx={{ ml: 1 }}
-        />
-        {extraIcons}
-      </Box>
+      <Box
+        className="uds-settings-item__body"
+        sx={{
+          bgcolor: highlight ? alpha(theme.palette.success.main, 0.07) : 'transparent',
+        }}
+      >
+        <Box className="uds-settings-item__main">
+          <Box className="uds-settings-item__label-row">
+            {active ? (
+              <PlayCircleOutlineRounded sx={{ color: 'success.main' }} />
+            ) : (
+              <PauseCircleOutlineRounded sx={{ color: 'text.disabled' }} />
+            )}
+            <Typography
+              className="uds-settings-item__label uds-card-title"
+              variant="subtitle1"
+              sx={{ fontWeight: 500, fontSize: '15px' }}
+            >
+              {label}
+            </Typography>
+            <TooltipIcon
+              title={infoTitle}
+              icon={SettingsRounded}
+              onClick={onInfoClick}
+            />
+            {extraIcons}
+          </Box>
+        </Box>
 
-      <Switch
-        edge="end"
-        disabled={disabled}
-        checked={checked}
-        onChange={handleChange}
-      />
+        <Box className="uds-settings-item__control">
+          <Switch
+            edge="end"
+            disabled={disabled}
+            checked={checked}
+            onChange={handleChange}
+          />
+        </Box>
+      </Box>
     </Box>
   )
 }
@@ -183,8 +236,8 @@ const ProxyControlSwitches = ({
     label === t('settings.sections.system.toggles.systemProxy') || !label
   const isTunMode = label === t('settings.sections.system.toggles.tunMode')
 
-  return (
-    <Box sx={{ width: '100%', pr: noRightPadding ? 1 : 2 }}>
+  const rows = (
+    <>
       {isSystemProxyMode && (
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.systemProxy')}
@@ -194,6 +247,7 @@ const ProxyControlSwitches = ({
           onToggle={(value) => toggleSystemProxy(value)}
           onError={onError}
           highlight={systemProxyIndicator}
+          compact={noRightPadding}
         />
       )}
 
@@ -207,6 +261,7 @@ const ProxyControlSwitches = ({
           onError={onError}
           disabled={!isTunModeAvailable}
           highlight={enable_tun_mode || false}
+          compact={noRightPadding}
           extraIcons={
             <>
               {!isTunModeAvailable && (
@@ -244,10 +299,25 @@ const ProxyControlSwitches = ({
           }
         />
       )}
+    </>
+  )
 
+  if (noRightPadding) {
+    return (
+      <Box sx={{ width: '100%', pr: 1 }}>
+        {rows}
+        <SysproxyViewer ref={sysproxyRef} />
+        <TunViewer ref={tunRef} />
+      </Box>
+    )
+  }
+
+  return (
+    <>
+      {rows}
       <SysproxyViewer ref={sysproxyRef} />
       <TunViewer ref={tunRef} />
-    </Box>
+    </>
   )
 }
 

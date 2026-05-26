@@ -121,6 +121,7 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
     >
       <Stack spacing={2}>
         <Stack
+          className="uds-card-container"
           spacing={1}
           sx={{
             border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -128,15 +129,16 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
             p: 2,
           }}
         >
-          <Typography variant="subtitle1">
+          <Typography variant="subtitle1" className="uds-card-title">
             {t('settings.modals.backup.auto.title')}
           </Typography>
-          <List disablePadding sx={{ '.MuiListItem-root': { px: 0 } }}>
+          <List disablePadding sx={{ '& > li': { px: 0 } }}>
             <AutoBackupSettings />
           </List>
         </Stack>
 
         <Stack
+          className="uds-card-container"
           spacing={1}
           sx={{
             border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -144,10 +146,10 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
             p: 2,
           }}
         >
-          <Typography variant="subtitle1">
+          <Typography variant="subtitle1" className="uds-card-title">
             {t('settings.modals.backup.manual.title')}
           </Typography>
-          <List disablePadding sx={{ '.MuiListItem-root': { px: 0 } }}>
+          <List disablePadding sx={{ '& > li': { px: 0 } }}>
             {(
               [
                 {
@@ -228,9 +230,9 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
               <ListItem key={item.key} disableGutters divider={idx === 0}>
                 <Stack spacing={1} sx={{ width: '100%' }}>
                   <ListItemText
-                    primary={item.title}
+                    primary={<span className="uds-card-title">{item.title}</span>}
                     slotProps={{ secondary: { component: 'span' } }}
-                    secondary={item.description}
+                    secondary={<span className="uds-desc">{item.description}</span>}
                   />
                   <Stack
                     direction="row"

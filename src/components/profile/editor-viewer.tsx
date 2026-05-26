@@ -255,6 +255,7 @@ export const EditorViewer = ({
         </div>
 
         <ButtonGroup
+          className="uds-toolbar uds-toolbar--icon"
           variant="contained"
           sx={{ position: 'absolute', left: '14px', bottom: '8px' }}
         >

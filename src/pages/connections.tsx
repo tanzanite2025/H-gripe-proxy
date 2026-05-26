@@ -188,7 +188,7 @@ const ConnectionsPage = () => {
           zIndex: 2,
         }}
       >
-        <ButtonGroup sx={{ mr: 1, flexBasis: 'content' }}>
+        <ButtonGroup className="uds-toolbar" sx={{ mr: 1, flexBasis: 'content' }}>
           <Button
             size="small"
             variant={connectionsType === 'active' ? 'contained' : 'outlined'}

@@ -9,7 +9,7 @@ export const StackModeSwitch = (props: Props) => {
   const { value, onChange } = props
 
   return (
-    <ButtonGroup size="small" sx={{ my: '4px' }}>
+    <ButtonGroup className="uds-toolbar" size="small" sx={{ my: '4px' }}>
       <Button
         variant={value?.toLowerCase() === 'system' ? 'contained' : 'outlined'}
         onClick={() => onChange?.('system')}

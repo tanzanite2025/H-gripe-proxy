@@ -1,5 +1,4 @@
 import { Typography } from '@mui/material'
-import { useTheme } from '@mui/material/styles'
 import React, { ReactNode } from 'react'
 
 import { BaseErrorBoundary } from './base-error-boundary'
@@ -14,34 +13,31 @@ interface Props {
 
 export const BasePage: React.FC<Props> = (props) => {
   const { title, header, contentStyle, full, children } = props
-  const theme = useTheme()
-
-  const isDark = theme.palette.mode === 'dark'
 
   return (
     <BaseErrorBoundary>
       <div className="base-page">
-        <header data-tauri-drag-region="true" style={{ userSelect: 'none' }}>
+        <header
+          className="base-page__header"
+          data-tauri-drag-region="true"
+          style={{ userSelect: 'none' }}
+        >
           <Typography
+            className="uds-title-h1 base-page__title"
             sx={{ fontSize: '18px', fontWeight: '700 ' }}
             data-tauri-drag-region="true"
           >
             {title}
           </Typography>
 
-          {header}
+          {header ? <div className="base-page__header-actions">{header}</div> : null}
         </header>
 
         <div
-          className={full ? 'base-container no-padding' : 'base-container'}
-          style={{ backgroundColor: isDark ? '#1e1f27' : '#ffffff' }}
+          className={full ? 'base-container no-padding uds-surface' : 'base-container uds-surface'}
         >
-          <section
-            style={{
-              backgroundColor: isDark ? '#1e1f27' : 'var(--background-color)',
-            }}
-          >
-            <div className="base-content" style={contentStyle}>
+          <section className="base-page__section">
+            <div className="base-content base-page__content" style={contentStyle}>
               {children}
             </div>
           </section>

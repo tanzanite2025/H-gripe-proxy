@@ -1,7 +1,7 @@
 import { context, getOctokit } from '@actions/github'
 import fetch from 'node-fetch'
 
-import { resolveUpdateLog } from './updatelog.mjs'
+import { resolveUpdateLog, resolveUpdateLogDefault } from './updatelog.mjs'
 
 const UPDATE_TAG_NAME = 'updater'
 const UPDATE_JSON_FILE = 'update-fixed-webview2.json'
@@ -24,7 +24,12 @@ async function resolveUpdater() {
   })
 
   // get the latest publish tag
-  const tag = tags.find((t) => t.name.startsWith('v'))
+  const stableTagRegex = /^v\d+\.\d+\.\d+$/
+  const tag = tags.find((t) => stableTagRegex.test(t.name))
+
+  if (!tag) {
+    throw new Error('No stable release tag found for fixed WebView2 updater generation')
+  }
 
   console.log(tag)
   console.log()
@@ -36,7 +41,9 @@ async function resolveUpdater() {
 
   const updateData = {
     name: tag.name,
-    notes: await resolveUpdateLog(tag.name), // use Changelog.md
+    notes: await resolveUpdateLog(tag.name).catch(() =>
+      resolveUpdateLogDefault().catch(() => 'No changelog available'),
+    ),
     pub_date: new Date().toISOString(),
     platforms: {
       'windows-x86_64': { signature: '', url: '' },
@@ -106,11 +113,28 @@ async function resolveUpdater() {
     }
   })
 
-  // update the update.json
-  const { data: updateRelease } = await github.rest.repos.getReleaseByTag({
-    ...options,
-    tag: UPDATE_TAG_NAME,
-  })
+  let updateRelease
+
+  try {
+    const response = await github.rest.repos.getReleaseByTag({
+      ...options,
+      tag: UPDATE_TAG_NAME,
+    })
+    updateRelease = response.data
+  } catch (error) {
+    if (error.status !== 404) {
+      throw error
+    }
+
+    const response = await github.rest.repos.createRelease({
+      ...options,
+      tag_name: UPDATE_TAG_NAME,
+      name: 'Auto-update Stable Channel',
+      body: 'This release contains the update information for the stable channel.',
+      prerelease: false,
+    })
+    updateRelease = response.data
+  }
 
   // delete the old assets
   for (const asset of updateRelease.assets) {
@@ -146,12 +170,29 @@ async function resolveUpdater() {
 
 // get the signature file content
 async function getSignature(url) {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/octet-stream' },
-  })
+  const maxAttempts = 5
 
-  return response.text()
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/octet-stream' },
+    })
+
+    if (response.ok) {
+      return response.text()
+    }
+
+    if (attempt === maxAttempts) {
+      throw new Error(
+        `Failed to fetch signature from ${url}: ${response.status} ${response.statusText}`,
+      )
+    }
+
+    console.warn(
+      `Signature asset not ready yet (${response.status}) for ${url}, retrying (${attempt}/${maxAttempts})...`,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 5000))
+  }
 }
 
 resolveUpdater().catch(console.error)

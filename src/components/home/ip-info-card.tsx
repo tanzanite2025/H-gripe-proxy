@@ -32,6 +32,7 @@ const IP_INFO_CACHE_KEY = 'cv_ip_info_cache'
 const InfoItem = memo(({ label, value }: { label: string; value?: string }) => (
   <Box sx={{ mb: 0.7, display: 'flex', alignItems: 'flex-start' }}>
     <Typography
+      className="uds-label"
       variant="body2"
       color="text.secondary"
       sx={{ minwidth: 60, mr: 0.5, flexShrink: 0, textAlign: 'right' }}
@@ -299,6 +300,7 @@ export const IpInfoCard = () => {
                   {getCountryFlag(ipInfo?.country_code)}
                 </Box>
                 <Typography
+                  className="uds-card-title"
                   variant="subtitle1"
                   sx={{
                     fontWeight: 'medium',
@@ -315,6 +317,7 @@ export const IpInfoCard = () => {
 
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <Typography
+                  className="uds-label"
                   variant="body2"
                   color="text.secondary"
                   sx={{ flexShrink: 0 }}
@@ -331,9 +334,9 @@ export const IpInfoCard = () => {
                   }}
                 >
                   <Typography
+                    className="uds-mono"
                     variant="body2"
                     sx={{
-                      fontFamily: 'monospace',
                       fontSize: '0.75rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -401,6 +404,7 @@ export const IpInfoCard = () => {
                 : '...'}
             </Typography>
             <Typography
+              className="uds-mono"
               variant="caption"
               sx={{
                 textOverflow: 'ellipsis',

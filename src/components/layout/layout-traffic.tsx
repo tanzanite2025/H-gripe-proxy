@@ -1,13 +1,7 @@
-import {
-  ArrowDownwardRounded,
-  ArrowUpwardRounded,
-  MemoryRounded,
-} from '@mui/icons-material'
 import { Box, Typography } from '@mui/material'
-import type { BoxProps, SvgIconProps, TypographyProps } from '@mui/material'
+import type { BoxProps, TypographyProps } from '@mui/material'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
 import { LightweightTrafficErrorBoundary } from '@/components/shared/traffic-error-boundary'
 import { useMemoryData } from '@/hooks/use-memory-data'
 import { useTrafficData } from '@/hooks/use-traffic-data'
@@ -70,16 +64,9 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
         >
           {/* 上传速度 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <ArrowUpwardRounded
-              sx={{
-                fontSize: '12px !important',
-                color: (traffic?.up || 0) > 0 ? 'secondary.main' : 'text.secondary',
-                opacity: (traffic?.up || 0) > 0 ? 1.0 : 0.4,
-              }}
-            />
             <Typography
+              className="uds-mono"
               sx={{
-                fontFamily: 'monospace',
                 fontSize: '10px !important',
                 fontWeight: 900,
                 color: (traffic?.up || 0) > 0 ? 'secondary.main' : 'text.secondary',
@@ -92,16 +79,9 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
 
           {/* 下载速度 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <ArrowDownwardRounded
-              sx={{
-                fontSize: '12px !important',
-                color: (traffic?.down || 0) > 0 ? 'primary.main' : 'text.secondary',
-                opacity: (traffic?.down || 0) > 0 ? 1.0 : 0.4,
-              }}
-            />
             <Typography
+              className="uds-mono"
               sx={{
-                fontFamily: 'monospace',
                 fontSize: '10px !important',
                 fontWeight: 900,
                 color: (traffic?.down || 0) > 0 ? 'primary.main' : 'text.secondary',
@@ -115,16 +95,9 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
           {/* 内存占用 */}
           {displayMemory && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <MemoryRounded
-                sx={{
-                  fontSize: '12px !important',
-                  color: 'text.secondary',
-                  opacity: 0.4,
-                }}
-              />
               <Typography
+                className="uds-mono"
                 sx={{
-                  fontFamily: 'monospace',
                   fontSize: '10px !important',
                   fontWeight: 900,
                   color: 'text.secondary',
@@ -146,9 +119,6 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
       alignItems: 'center',
       whiteSpace: 'nowrap',
     },
-  }
-  const iconStyle: Pick<SvgIconProps, 'sx'> = {
-    sx: { mr: '8px', fontSize: 16 },
   }
   const valStyle: Pick<TypographyProps, 'component' | 'sx'> = {
     component: 'span',
@@ -186,14 +156,10 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
               // opacity: traffic?.is_fresh ? 1 : 0.6,
             }}
           >
-            <ArrowUpwardRounded
-              {...iconStyle}
-              color={(traffic?.up || 0) > 0 ? 'secondary' : 'disabled'}
-            />
-            <Typography {...valStyle} color="secondary">
+            <Typography {...valStyle} className="uds-mono" color="secondary">
               {up}
             </Typography>
-            <Typography {...unitStyle}>{upUnit}/s</Typography>
+            <Typography {...unitStyle} className="uds-mono">{upUnit}/s</Typography>
           </Box>
 
           <Box
@@ -204,14 +170,10 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
               // opacity: traffic?.is_fresh ? 1 : 0.6,
             }}
           >
-            <ArrowDownwardRounded
-              {...iconStyle}
-              color={(traffic?.down || 0) > 0 ? 'primary' : 'disabled'}
-            />
-            <Typography {...valStyle} color="primary">
+            <Typography {...valStyle} className="uds-mono" color="primary">
               {down}
             </Typography>
-            <Typography {...unitStyle}>{downUnit}/s</Typography>
+            <Typography {...unitStyle} className="uds-mono">{downUnit}/s</Typography>
           </Box>
 
           {displayMemory && (
@@ -228,9 +190,8 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
                 // isDebug && (await gc());
               }}
             >
-              <MemoryRounded {...iconStyle} />
-              <Typography {...valStyle}>{inuse}</Typography>
-              <Typography {...unitStyle}>{inuseUnit}</Typography>
+              <Typography {...valStyle} className="uds-mono">{inuse}</Typography>
+              <Typography {...unitStyle} className="uds-mono">{inuseUnit}</Typography>
             </Box>
           )}
         </Box>

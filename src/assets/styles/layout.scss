@@ -1,3 +1,5 @@
+// Clash Verge Rev - Top Tabbed Layout Style (TANZANITE-GO 风格)
+
 .layout {
   width: 100%;
   height: 100vh;
@@ -5,578 +7,246 @@
   flex-direction: column;
   overflow: hidden;
 
-  .layout-content {
-    /* New container for the flex layout */
+  // 顶部一体化导航页眉
+  .layout-header {
+    height: 52px;
     display: flex;
-    flex: 1; /* Take remaining height */
-    overflow: hidden;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px dashed var(--divider-color);
+    background-color: var(--card-bg);
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-app-region: drag; // 允许整个顶栏拖拽窗口
 
-    &__left {
-      flex: 1 0 200px;
+    // 排除交互元素的拖拽属性
+    .the-logo,
+    .the-menu-wrapper,
+    .layout-header__right {
+      -webkit-app-region: no-drag;
+    }
+
+    .the-logo {
+      display: none !important;
+    }
+
+    .the-menu-wrapper {
+      flex: 0 1 auto;
       display: flex;
-      height: 100%;
-      width: 100%;
-      padding: 0 0 8px;
-      flex-direction: column;
-      align-self: stretch;
+      align-items: center;
+      overflow-x: auto;
+      scrollbar-width: none;
+      
+      background-color: rgba(243, 244, 246, 0.6);
+      backdrop-filter: blur(12px);
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+      padding: 4px 8px;
+      height: 46px; /* 提升高度 */
       box-sizing: border-box;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      overflow: hidden;
-      border-right: 1px solid var(--divider-color);
-
-      .the-logo {
-        position: relative;
-        flex: 1 0 58px;
-        display: flex;
-        height: 100%;
-        padding: 0 20px;
-        flex-direction: column;
-        justify-content: center;
-        align-items: flex-start;
-        align-self: stretch;
-        box-sizing: border-box;
-
-        img,
-        svg {
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
-        }
-
-        .the-newbtn {
-          position: absolute;
-          right: 10px;
-          top: 15px;
-          border-radius: 8px;
-          padding: 2qpx 4px;
-          transform: scale(0.8);
-        }
+      
+      &::-webkit-scrollbar {
+        width: 0;
+        height: 0;
       }
 
       .the-menu {
-        flex: 1 1 80%;
-        overflow-y: auto;
-        margin-bottom: 0px;
-        padding-top: 4px;
-        scrollbar-width: none;
-
-        &::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-        }
-      }
-
-      .the-traffic {
-        flex: 0 0 60px;
-
-        > div {
-          margin: 0 auto;
-          padding: 0 20px;
-        }
-      }
-    }
-
-    &__right {
-      position: relative;
-      flex: 1 1 100%;
-      height: 100%;
-
-      .the-bar {
-        height: 36px;
         display: flex;
-        justify-content: end;
-        box-sizing: border-box;
-        z-index: 2;
-
-        .the-dragbar {
-          margin-top: 5px;
-          app-region: drag;
-        }
-      }
-
-      .the-content {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 1px;
-        bottom: 0px;
-      }
-    }
-  }
-}
-
-.linux,
-.windows,
-.unknown {
-  &.layout {
-    .the_titlebar {
-      width: 100%;
-      display: flex;
-      justify-content: flex-end;
-      padding: 10px;
-      box-sizing: border-box;
-      height: 36px;
-      border-bottom: 1px solid var(--divider-color);
-
-      &-drag-region {
-        align-self: stretch;
-        flex: 1 1 auto;
-      }
-    }
-
-    .layout-content__left .the-logo {
-      flex: 1 0 58px;
-      margin-top: 10px;
-      margin-left: 10px;
-      padding-top: 5px;
-      padding-left: 10px;
-      padding-right: 20px;
-      padding-bottom: 16px;
-    }
-
-    .layout-content__right .the-content {
-      top: 5px;
-    }
-  }
-}
-
-.macos {
-  &.layout {
-    .the_titlebar {
-      width: 100%;
-      display: flex;
-      justify-content: flex-start;
-      padding: 10px;
-      box-sizing: border-box;
-      height: 36px;
-      border-bottom: 1px solid var(--divider-color);
-
-      &-drag-region {
-        align-self: stretch;
-        flex: 1 1 auto;
-        order: 1;
-      }
-    }
-
-    .layout-content__left {
-      padding-top: 5px;
-    }
-
-    .layout-content__right .the-content {
-      top: 5px;
-    }
-
-    .layout-content__left .the-newbtn {
-      right: 9px;
-      top: 2px;
-    }
-  }
-}
-
-.layout.layout--nav-collapsed {
-  --layout-nav-collapsed-width: 72px;
-  --layout-nav-item-size: 52px;
-  --layout-nav-item-radius: 12px;
-  --layout-nav-logo-size: 56px;
-
-  .layout-content {
-    &__left {
-      flex: 0 0 var(--layout-nav-collapsed-width) !important;
-      width: var(--layout-nav-collapsed-width) !important;
-      min-width: var(--layout-nav-collapsed-width) !important;
-      max-width: var(--layout-nav-collapsed-width) !important;
-      border-right: none !important;
-
-      .the-traffic {
-        display: none !important;
-      }
-
-      > .MuiBox-root {
-        display: none !important;
-      }
-
-      .the-logo {
-        flex: 0 0 var(--layout-nav-logo-size) !important;
-        height: var(--layout-nav-logo-size) !important;
-        margin: 8px 0 4px !important;
-        padding: 0 !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
-
-      .the-logo > div {
-        width: 100% !important;
-        height: 100% !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
-
-      .the-logo > div > svg:last-child {
-        display: none !important;
-      }
-
-      .the-logo .MuiSvgIcon-root {
-        margin: 0 !important;
-      }
-
-      .the-logo .the-newbtn {
-        display: none !important;
-      }
-
-      .the-menu {
-        width: var(--layout-nav-collapsed-width) !important;
-        overflow-x: hidden;
-
-        scrollbar-width: none;
-        &::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-        }
-
-        li:last-child {
-          border-bottom: none;
-        }
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
 
         .MuiListItem-root {
-          max-width: 100% !important;
+          width: auto !important;
+          max-width: none !important;
           padding: 0 !important;
-        }
-
-        .MuiListItemButton-root {
-          justify-conternt: center !important;
-          width: var(--layout-nav-item-size) !important;
-          height: var(--layout-nav-item-size) !important;
-          min-height: var(--layout-nav-item-size) !important;
-          max-width: var(--layout-nav-item-size) !important;
-          flex: 0 0 var(--layout-nav-item-size) !important;
-          flex-grow: 0 !important;
-          flex-shrink: 0 !important;
-          margin: 6px auto !important;
-          padding: 0 !important;
-          border-radius: var(--layout-nav-item-radius) !important;
-        }
-
-        .MuiListItemIcon-root {
-          min-width: auto !important;
           margin: 0 !important;
-          margin-left: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
         }
 
-        .MuiListItemText-root {
-          display: none !important;
-        }
-      }
-    }
-  }
-}
-�7.layout {
-  width: 100%;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+        .MuiListItemButton-root,
+        .layout-nav-item__button {
+          border-radius: 9999px !important; // 大物理胶囊圆角
+          height: 38px; /* 提升高度以适合外层 46px */
+          padding: 0 20px !important; /* 加宽内边距 */
+          margin: 0 1px !important;
+          transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+          white-space: nowrap;
 
-  .layout-content {
-    /* New container for the flex layout */
-    display: flex;
-    flex: 1; /* Take remaining height */
-    overflow: hidden;
+          // 核心 UDS 选项文字规范
+          .MuiListItemText-root,
+          .layout-nav-item__text {
+            margin: 0 !important;
+          }
 
-    &__left {
-      flex: 1 0 200px;
-      display: flex;
-      height: 100%;
-      width: 100%;
-      padding: 0 0 8px;
-      flex-direction: column;
-      align-self: stretch;
-      box-sizing: border-box;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      overflow: hidden;
-      border-right: 1px solid var(--divider-color);
+          .MuiListItemText-primary,
+          .layout-nav-item__primary {
+            font-family: 'Outfit', 'Inter', sans-serif !important;
+            font-size: 12px !important; /* 字体从 10px 提升至 12px */
+            font-weight: 900 !important; // font-black
+            text-transform: uppercase !important; // uppercase
+            letter-spacing: 0.12em !important;
+          }
 
-      .the-logo {
-        position: relative;
-        flex: 1 0 58px;
-        display: flex;
-        height: 100%;
-        padding: 0 20px;
-        flex-direction: column;
-        justify-content: center;
-        align-items: flex-start;
-        align-self: stretch;
-        box-sizing: border-box;
-
-        img,
-        svg {
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
-        }
-
-        .the-newbtn {
-          position: absolute;
-          right: 10px;
-          top: 15px;
-          border-radius: 8px;
-          padding: 2px 4px;
-          transform: scale(0.8);
-        }
-      }
-
-      .the-menu {
-        flex: 1 1 80%;
-        overflow-y: auto;
-        margin-bottom: 0px;
-        padding-top: 4px;
-        scrollbar-width: none;
-
-        &::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-        }
-
-        .MuiListItem-root {
-          padding: 4px 12px !important;
-          max-width: 100% !important;
-        }
-
-        .MuiListItemButton-root {
-          border-radius: 9999px !important; // UDS 大胶囊
-          height: 42px;
-          margin: 2px 0 !important;
-          transition: all 0.2s ease;
-          
-          &.Mui-selected {
-            background-color: var(--text-primary) !important; // 黑色/深色胶囊背景
-            color: #ffffff !important;
+          .MuiListItemIcon-root {
+            min-width: auto !important;
+            margin-right: 8px !important;
+            margin-left: 0 !important;
+            color: inherit !important;
             
+            svg {
+              font-size: 16px !important; /* 图标从 14px 提升至 16px */
+            }
+          }
+
+          // 选中胶囊状态
+          &.Mui-selected,
+          &.is-active {
+            background-color: var(--primary-main) !important; // 采用主色调激活胶囊
+            color: #ffffff !important;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(var(--primary-main-rgb), 0.3) !important;
+
             .MuiListItemIcon-root {
               color: #ffffff !important;
             }
-            .MuiListItemText-primary {
+            .MuiListItemText-primary,
+            .layout-nav-item__primary {
               color: #ffffff !important;
             }
+            
+            &:hover {
+              background-color: var(--primary-main) !important;
+            }
           }
-          
-          &:hover:not(.Mui-selected) {
-            background-color: rgba(0, 0, 0, 0.04) !important;
+
+          // 未选中 Hover 状态
+          &:hover:not(.Mui-selected):not(.is-active) {
+            background-color: rgba(255, 255, 255, 0.6) !important;
+            color: var(--text-primary) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
           }
-        }
-      }
-
-      .the-traffic {
-        flex: 0 0 60px;
-
-        > div {
-          margin: 0 auto;
-          padding: 0 20px;
         }
       }
     }
 
-    &__right {
-      position: relative;
-      flex: 1 1 100%;
-      height: 100%;
+    .layout-header__right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding-left: 16px;
 
-      .the-bar {
-        height: 36px;
+      .the-traffic {
         display: flex;
-        justify-content: end;
-        box-sizing: border-box;
-        z-index: 2;
-
-        .the-dragbar {
-          margin-top: 5px;
-          app-region: drag;
-        }
+        align-items: center;
       }
 
-      .the-content {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 1px;
-        bottom: 0px;
+      .the-newbtn {
+        border-radius: 9999px;
+        padding: 4px 12px;
+        font-size: 8px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+      }
+
+      .the-window-ctrls {
+        display: flex;
+        align-items: center;
+        height: 32px;
+        margin-left: 4px;
       }
     }
   }
-}
 
-.linux,
-.windows,
-.unknown {
-  &.layout {
-    .thse_titlebar {
-      width: 100%;
-      display: flex;
-      justify-content: flex-end;
-      padding: 10px;
+  // 主页面主体渲染区
+  .layout-body {
+    flex: 1;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--background-color);
+
+    // 子路由主容器
+    .base-page {
+      height: 100%;
       box-sizing: border-box;
-      height: 36px;
-      border-bottom: 1px solid var(--divider-color);
-
-      &-drag-region {
-        align-self: stretch;
-        flex: 1 1 auto;
-      }
-    }
-
-    .layout-content__left .the-logo {
-      flex: 1 0 58px;
-      margin-top: 10px;
-      margin-left: 10px;
-      padding-top: 5px;
-      padding-left: 10px;
-      padding-right: 20px;
-      padding-bottom: 16px;
-    }
-
-    .layout-content__right .the-content {
-      top: 5px;
+      overflow-y: auto;
     }
   }
 }
 
+// 跨平台特定偏置调优
 .macos {
-  &.layout {
-    .the_titlebar {
-      width: 100%;
-      display: flex;
-      justify-content: flex-start;
-      padding: 10px;
-      box-sizing: border-box;
-      height: 36px;
-      border-bottom: 1px solid var(--divider-color);
+  .layout-header {
+    padding-left: 80px; // 给 macOS 左侧原生红黄绿按钮预留出避让空间
+  }
+}
 
-      &-drag-region {
-        align-self: stretch;
-        flex: 1 1 auto;
-        order: 1;
-      }
+.windows,
+.linux,
+.unknown {
+  .layout-header {
+    // 确保与 Windows 控制键完美对齐
+    padding-right: 8px;
+  }
+}
+
+// 隐藏二级页面多余的大标题，并将操作栏隐形化，融入主背景中
+.base-page {
+  position: relative;
+
+  > header {
+    border-bottom: none !important;
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    overflow: visible;
+    
+    .base-page__title {
+      display: none !important;
     }
 
-    .layout-content__left {
-      padding-top: 5px;
-    }
-
-    .layout-content__right .the-content {
-      top: 5px;
-    }
-
-    .layout-content__left .the-newbtn {
-      right: 9px;
-      top: 2px;
+    .base-page__header-actions {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      z-index: 10;
     }
   }
 }
 
-.layout.layout--nav-collapsed {
-  --layout-nav-collapsed-width: 72px;
-  --layout-nav-item-size: 52px;
-  --layout-nav-item-radius: 12px;
-  --layout-nav-logo-size: 56px;
-
-  .layout-content {
-    &__left {
-      flex: 0 0 var(--layout-nav-collapsed-width) !important;
-      width: var(--layout-nav-collapsed-width) !important;
-      min-width: var(--layout-nav-collapsed-width) !important;
-      max-width: var(--layout-nav-collapsed-width) !important;
-      border-right: none !important;
-
-      .the-traffic {
-        display: none !important;
-      }
-
-      > .MuiBox-root {
-        display: none !important;
-      }
-
-      .the-logo {
-        flex: 0 0 var(--layout-nav-logo-size) !important;
-        height: var(--layout-nav-logo-size) !important;
-        margin: 8px 0 4px !important;
-        padding: 0 !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
-
-      .the-logo > div {
-        width: 100% !important;
-        height: 100% !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
-
-      .the-logo > div > svg:last-child {
-        display: none !important;
-      }
-
-      .the-logo .MuiSvgIcon-root {
-        margin: 0 !important;
-      }
-
-      .the-logo .the-newbtn {
-        display: none !important;
-      }
+// 深色模式对齐与调优
+[data-theme='dark'] {
+  .layout-header {
+    .the-menu-wrapper {
+      background-color: rgba(25, 27, 31, 0.6);
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.2);
 
       .the-menu {
-        width: var(--layout-nav-collapsed-width) !important;
-        overflow-x: hidden;
-
-        scrollbar-width: none;
-        &::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-        }
-
-        li:last-child {
-          border-bottom: none;
-        }
-
-        .MuiListItem-root {
-          max-width: 100% !important;
-          padding: 0 !important;
-        }
-
-        .MuiListItemButton-root {
-          justify-content: center !important;
-          width: var(--layout-nav-item-size) !important;
-          height: var(--layout-nav-item-size) !important;
-          min-height: var(--layout-nav-item-size) !important;
-          max-width: var(--layout-nav-item-size) !important;
-          flex: 0 0 var(--layout-nav-item-size) !important;
-          flex-grow: 0 !important;
-          flex-shrink: 0 !important;
-          margin: 6px auto !important;
-          padding: 0 !important;
-          border-radius: var(--layout-nav-item-radius) !important;
-        }
-
-        .MuiListItemIcon-root {
-          min-width: auto !important;
-          margin: 0 !important;
-          margin-left: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-        }
-
-        .MuiListItemText-root {
-          display: none !important;
+        .MuiListItemButton-root,
+        .layout-nav-item__button {
+          // 未选中 Hover 状态
+          &:hover:not(.Mui-selected):not(.is-active) {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            color: var(--text-primary) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+          }
         }
       }
     }
   }
 }
+

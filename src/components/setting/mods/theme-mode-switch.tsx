@@ -15,7 +15,7 @@ export const ThemeModeSwitch = (props: Props) => {
   const modes = ['light', 'dark', 'system'] as const
 
   return (
-    <ButtonGroup size="small" sx={{ my: '4px' }}>
+    <ButtonGroup className="uds-toolbar" size="small" sx={{ my: '4px' }}>
       {modes.map((mode) => (
         <Button
           key={mode}

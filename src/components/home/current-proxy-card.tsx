@@ -1004,7 +1004,7 @@ export const CurrentProxyCard = () => {
             size="small"
             sx={{ mb: 1.5 }}
           >
-            <InputLabel id="proxy-group-select-label">
+            <InputLabel id="proxy-group-select-label" className="uds-label">
               {t('home.components.currentProxy.labels.group')}
             </InputLabel>
             <Select
@@ -1024,7 +1024,7 @@ export const CurrentProxyCard = () => {
 
           {/* 代理节点选择器 */}
           <FormControl fullWidth variant="outlined" size="small" sx={{ mb: 0 }}>
-            <InputLabel id="proxy-select-label">
+            <InputLabel id="proxy-select-label" className="uds-label">
               {t('home.components.currentProxy.labels.proxy')}
             </InputLabel>
             <Select

@@ -5,7 +5,14 @@ export const TestBox = styled(Box)(({ theme, 'aria-selected': selected }) => {
   const key = `${mode}-${!!selected}`
 
   const backgroundColor =
-    mode === 'light' ? alpha(primary.main, 0.05) : alpha(primary.main, 0.08)
+    mode === 'light' 
+      ? alpha(primary.main, 0.05) 
+      : 'rgba(255, 255, 255, 0.02)'
+
+  const hoverBg =
+    mode === 'light'
+      ? alpha(primary.main, 0.1)
+      : 'rgba(255, 255, 255, 0.06)'
 
   const color = {
     'light-true': text.secondary,
@@ -27,18 +34,22 @@ export const TestBox = styled(Box)(({ theme, 'aria-selected': selected }) => {
     display: 'block',
     cursor: 'pointer',
     textAlign: 'left',
-    borderRadius: 8,
-    boxShadow: theme.shadows[1],
+    borderRadius: 12,
+    border: `1px dashed ${mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)'}`,
+    boxShadow: 'none',
     padding: '8px 16px',
     boxSizing: 'border-box',
     backgroundColor,
     color,
     '& h2': { color: h2color },
-    transition: 'background-color 0.3s, box-shadow 0.3s',
+    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
     '&:hover': {
-      backgroundColor:
-        mode === 'light' ? alpha(primary.main, 0.1) : alpha(primary.main, 0.15),
-      boxShadow: theme.shadows[2],
+      backgroundColor: hoverBg,
+      borderColor: primary.main,
+      transform: 'translateY(-2px)',
+      boxShadow: mode === 'light'
+        ? '0 6px 16px -4px rgba(0, 0, 0, 0.05)'
+        : '0 6px 20px -4px rgba(0, 0, 0, 0.3)',
     },
   }
 })

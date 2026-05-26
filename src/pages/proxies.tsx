@@ -157,7 +157,7 @@ const ProxyPage = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ProviderButton />
 
-          <ButtonGroup size="small">
+          <ButtonGroup className="uds-toolbar" size="small">
             {MODES.map((mode) => (
               <Button
                 key={mode}

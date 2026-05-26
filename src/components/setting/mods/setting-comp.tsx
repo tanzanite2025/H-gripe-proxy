@@ -4,7 +4,6 @@ import {
   List,
   ListItem,
   ListItemButton,
-  ListItemText,
   ListSubheader,
 } from '@mui/material'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -30,11 +29,16 @@ export const SettingItem: React.FC<ItemProps> = ({
   const clickable = !!onClick
 
   const primary = (
-    <Box sx={{ display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-      <span>{label}</span>
-      {extra ? extra : null}
+    <Box className="uds-settings-item__label-row">
+      <Box component="span" className="uds-settings-item__label uds-card-title">
+        {label}
+      </Box>
+      {extra ? <Box className="uds-settings-item__extra">{extra}</Box> : null}
     </Box>
   )
+  const secondaryContent = secondary ? (
+    <Box className="uds-settings-item__secondary uds-desc">{secondary}</Box>
+  ) : null
 
   const [isLoading, setIsLoading] = useState(false)
   const handleClick = () => {
@@ -49,20 +53,36 @@ export const SettingItem: React.FC<ItemProps> = ({
   }
 
   return clickable ? (
-    <ListItem disablePadding>
-      <ListItemButton onClick={handleClick} disabled={isLoading}>
-        <ListItemText primary={primary} secondary={secondary} />
-        {isLoading ? (
-          <CircularProgress color="inherit" size={20} />
-        ) : (
-          <ChevronRightRounded />
-        )}
+    <ListItem disablePadding className="uds-settings-item uds-settings-item--clickable">
+      <ListItemButton
+        className="uds-settings-item__button"
+        onClick={handleClick}
+        disabled={isLoading}
+      >
+        <Box className="uds-settings-item__body">
+          <Box className="uds-settings-item__main">
+            {primary}
+            {secondaryContent}
+          </Box>
+          <Box className="uds-settings-item__action">
+            {isLoading ? (
+              <CircularProgress color="inherit" size={20} />
+            ) : (
+              <ChevronRightRounded />
+            )}
+          </Box>
+        </Box>
       </ListItemButton>
     </ListItem>
   ) : (
-    <ListItem sx={{ pt: '5px', pb: '5px' }}>
-      <ListItemText primary={primary} secondary={secondary} />
-      {children}
+    <ListItem className="uds-settings-item" sx={{ p: 0 }}>
+      <Box className="uds-settings-item__body">
+        <Box className="uds-settings-item__main">
+          {primary}
+          {secondaryContent}
+        </Box>
+        {children ? <Box className="uds-settings-item__control">{children}</Box> : null}
+      </Box>
     </ListItem>
   )
 }
@@ -71,27 +91,10 @@ export const SettingList: React.FC<{
   title: string
   children: ReactNode
 }> = ({ title, children }) => (
-  <List>
+  <List disablePadding className="uds-settings-list">
     <ListSubheader
-      className="uds-label"
-      sx={[
-        {
-          background: 'transparent',
-          fontSize: '10px !important',
-          fontWeight: '900 !important',
-          textTransform: 'uppercase',
-          letterSpacing: '0.12em !important',
-          paddingLeft: '16px',
-          paddingBottom: '4px',
-          fontStyle: 'italic',
-        },
-        ({ palette }) => {
-          return {
-            color: palette.text.secondary,
-            opacity: 0.65,
-          }
-        },
-      ]}
+      className="uds-label uds-settings-list__header"
+      sx={{ background: 'transparent' }}
       disableSticky
     >
       {title}

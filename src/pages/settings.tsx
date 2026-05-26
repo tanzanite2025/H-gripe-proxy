@@ -10,7 +10,6 @@ import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 
 const SettingPage = () => {
   const { t } = useTranslation()
@@ -20,25 +19,26 @@ const SettingPage = () => {
   }
 
   const toGithubRepo = useLockFn(() => {
-    return openWebUrl('https://github.com/clash-verge-rev/clash-verge-rev')
+    return openWebUrl('https://github.com/tanzanite2025/clash-verge-optimized')
   })
 
   const toGithubDoc = useLockFn(() => {
-    return openWebUrl('https://clash-verge-rev.github.io/index.html')
+    return openWebUrl('https://github.com/tanzanite2025/clash-verge-optimized#readme')
   })
 
   const toTelegramChannel = useLockFn(() => {
     return openWebUrl('https://t.me/clash_verge_re')
   })
 
-  const mode = useThemeMode()
-  const isDark = mode === 'light' ? false : true
-
   return (
     <BasePage
       title={t('settings.page.title')}
       header={
-        <ButtonGroup variant="contained" aria-label="Basic button group">
+        <ButtonGroup
+          className="uds-toolbar uds-toolbar--icon"
+          variant="contained"
+          aria-label="Basic button group"
+        >
           <IconButton
             size="medium"
             color="inherit"
@@ -67,30 +67,25 @@ const SettingPage = () => {
         </ButtonGroup>
       }
     >
-      <Grid container spacing={1.5} columns={{ xs: 6, sm: 6, md: 12 }}>
-        <Grid size={6}>
-          <Box
-            className="uds-card-container"
-            sx={{
-              marginBottom: 2,
-            }}
-          >
+      <Grid
+        container
+        spacing={1.5}
+        columns={{ xs: 6, sm: 6, md: 12 }}
+        className="settings-page-grid"
+      >
+        <Grid size={6} className="settings-page-grid__column">
+          <Box className="uds-card-container settings-page-card">
             <SettingSystem onError={onError} />
           </Box>
-          <Box className="uds-card-container">
+          <Box className="uds-card-container settings-page-card">
             <SettingClash onError={onError} />
           </Box>
         </Grid>
-        <Grid size={6}>
-          <Box
-            className="uds-card-container"
-            sx={{
-              marginBottom: 2,
-            }}
-          >
+        <Grid size={6} className="settings-page-grid__column">
+          <Box className="uds-card-container settings-page-card">
             <SettingVergeBasic onError={onError} />
           </Box>
-          <Box className="uds-card-container">
+          <Box className="uds-card-container settings-page-card">
             <SettingVergeAdvanced onError={onError} />
           </Box>
         </Grid>

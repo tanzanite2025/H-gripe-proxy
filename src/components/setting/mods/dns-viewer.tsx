@@ -633,7 +633,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
             alignItems: 'center',
           }}
         >
-          {t('settings.modals.dns.dialog.title')}
+          <span className="uds-title-h2">
+            {t('settings.modals.dns.dialog.title')}
+          </span>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Button
               variant="outlined"
@@ -673,6 +675,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     >
       {/* Warning message */}
       <Typography
+        className="uds-desc"
         variant="body2"
         color="warning.main"
         sx={{ mb: 2, mt: 0, fontStyle: 'italic' }}
@@ -683,6 +686,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       {visualization ? (
         <List>
           <Typography
+            className="uds-card-title"
             variant="subtitle1"
             sx={{ mt: 1, mb: 1, fontWeight: 'bold' }}
           >
@@ -1044,6 +1048,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
           {/* Hosts 配置部分 */}
           <Typography
+            className="uds-card-title"
             variant="subtitle1"
             sx={{ mt: 3, mb: 0, fontWeight: 'bold' }}
           >

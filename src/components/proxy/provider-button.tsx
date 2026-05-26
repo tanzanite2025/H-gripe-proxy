@@ -149,8 +149,18 @@ export const ProviderButton = () => {
         {t('proxies.page.provider.title')}
       </Button>
 
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>
+      <Dialog
+        open={open}
+        onClose={handleClose}
+        maxWidth="sm"
+        fullWidth
+        slotProps={{
+          paper: {
+            className: 'uds-dialog',
+          },
+        }}
+      >
+        <DialogTitle className="uds-title-h2">
           <Box
             sx={{
               display: 'flex',
@@ -158,7 +168,7 @@ export const ProviderButton = () => {
               alignItems: 'center',
             }}
           >
-            <Typography variant="h6">
+            <Typography variant="h6" className="uds-title-h2">
               {t('proxies.page.provider.title')}
             </Typography>
             <Box>
@@ -203,6 +213,7 @@ export const ProviderButton = () => {
                 return (
                   <ListItem
                     key={key}
+                    className="uds-card-container"
                     sx={[
                       {
                         p: 0,
@@ -238,6 +249,7 @@ export const ProviderButton = () => {
                           }}
                         >
                           <Typography
+                            className="uds-card-title"
                             variant="subtitle1"
                             component="div"
                             noWrap
@@ -254,6 +266,7 @@ export const ProviderButton = () => {
                           </Typography>
 
                           <Typography
+                            className="uds-desc"
                             variant="body2"
                             color="text.secondary"
                             noWrap

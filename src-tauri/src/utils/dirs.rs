@@ -5,24 +5,49 @@ use clash_verge_logging::{Type, logging};
 use once_cell::sync::OnceCell;
 #[cfg(unix)]
 use std::iter;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tauri::Manager as _;
 
 #[cfg(not(feature = "verge-dev"))]
-pub static APP_ID: &str = "io.github.clash-verge-rev.clash-verge-rev";
+pub static LEGACY_APP_ID: &str = "io.github.clash-verge-rev.clash-verge-rev";
 #[cfg(not(feature = "verge-dev"))]
-pub static BACKUP_DIR: &str = "clash-verge-rev-backup";
+pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized";
+#[cfg(not(feature = "verge-dev"))]
+pub static LEGACY_BACKUP_DIR: &str = "clash-verge-rev-backup";
+#[cfg(not(feature = "verge-dev"))]
+pub static BACKUP_DIR: &str = "clash-verge-optimized-backup";
 
 #[cfg(feature = "verge-dev")]
-pub static APP_ID: &str = "io.github.clash-verge-rev.clash-verge-rev.dev";
+pub static LEGACY_APP_ID: &str = "io.github.clash-verge-rev.clash-verge-rev.dev";
 #[cfg(feature = "verge-dev")]
-pub static BACKUP_DIR: &str = "clash-verge-rev-backup-dev";
+pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized.dev";
+#[cfg(feature = "verge-dev")]
+pub static LEGACY_BACKUP_DIR: &str = "clash-verge-rev-backup-dev";
+#[cfg(feature = "verge-dev")]
+pub static BACKUP_DIR: &str = "clash-verge-optimized-backup-dev";
 
 pub static PORTABLE_FLAG: OnceCell<bool> = OnceCell::new();
 
 pub static CLASH_CONFIG: &str = "config.yaml";
 pub static VERGE_CONFIG: &str = "verge.yaml";
 pub static PROFILE_YAML: &str = "profiles.yaml";
+
+fn migrate_dir_if_needed(from: &Path, to: &Path, label: &str) -> Result<()> {
+    if to.exists() || !from.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::rename(from, to)?;
+    logging!(info, Type::File, "Migrated {label}: {:?} -> {:?}", from, to);
+    Ok(())
+}
 
 /// init portable flag
 pub fn init_portable_flag() -> Result<()> {
@@ -51,14 +76,27 @@ pub fn app_home_dir() -> Result<PathBuf> {
         let app_dir = app_exe
             .parent()
             .ok_or_else(|| anyhow::anyhow!("failed to get the portable app dir"))?;
-        return Ok(PathBuf::from(app_dir).join(".config").join(APP_ID));
+        let config_dir = PathBuf::from(app_dir).join(".config");
+        let app_dir = config_dir.join(APP_ID);
+        let legacy_app_dir = config_dir.join(LEGACY_APP_ID);
+        if let Err(e) = migrate_dir_if_needed(&legacy_app_dir, &app_dir, "app home directory") {
+            logging!(warn, Type::File, "Failed to migrate legacy app home directory: {e}");
+        }
+        return Ok(app_dir);
     }
 
     // 避免在Handle未初始化时崩溃
     let app_handle = handle::Handle::app_handle();
 
     match app_handle.path().data_dir() {
-        Ok(dir) => Ok(dir.join(APP_ID)),
+        Ok(dir) => {
+            let app_dir = dir.join(APP_ID);
+            let legacy_app_dir = dir.join(LEGACY_APP_ID);
+            if let Err(e) = migrate_dir_if_needed(&legacy_app_dir, &app_dir, "app home directory") {
+                logging!(warn, Type::File, "Failed to migrate legacy app home directory: {e}");
+            }
+            Ok(app_dir)
+        }
         Err(e) => {
             logging!(error, Type::File, "Failed to get the app home directory: {e}");
             Err(anyhow::anyhow!("Failed to get the app homedirectory"))
@@ -121,7 +159,12 @@ pub fn app_latest_log() -> Result<PathBuf> {
 
 /// local backups dir
 pub fn local_backup_dir() -> Result<PathBuf> {
-    let dir = app_home_dir()?.join(BACKUP_DIR);
+    let app_dir = app_home_dir()?;
+    let dir = app_dir.join(BACKUP_DIR);
+    let legacy_dir = app_dir.join(LEGACY_BACKUP_DIR);
+    if let Err(e) = migrate_dir_if_needed(&legacy_dir, &dir, "backup directory") {
+        logging!(warn, Type::File, "Failed to migrate legacy backup directory: {e}");
+    }
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }

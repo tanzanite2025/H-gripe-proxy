@@ -21,7 +21,7 @@ async function sendTelegramNotification() {
 
   const downloadUrl =
     process.env.DOWNLOAD_URL ||
-    `https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v${version}`
+    `https://github.com/tanzanite2025/clash-verge-optimized/releases/download/v${version}`
 
   const isAutobuild =
     process.env.BUILD_TYPE === 'autobuild' || version.includes('autobuild')
@@ -33,14 +33,16 @@ async function sendTelegramNotification() {
   log_info(`Download URL: ${downloadUrl}`)
 
   // 读取发布说明和下载地址
-  let releaseContent = ''
-  try {
-    releaseContent = readFileSync('release.txt', 'utf-8')
-    log_info('成功读取 release.txt 文件')
-  } catch (error) {
-    log_error('无法读取 release.txt，使用默认发布说明', error)
-    releaseContent = '更多新功能现已支持，详细更新日志请查看发布页面。'
-  }
+  const releaseContent = (() => {
+    try {
+      const content = readFileSync('release.txt', 'utf-8')
+      log_info('成功读取 release.txt 文件')
+      return content
+    } catch (error) {
+      log_error('无法读取 release.txt，使用默认发布说明', error)
+      return '更多新功能现已支持，详细更新日志请查看发布页面。'
+    }
+  })()
 
   // Markdown 转换为 HTML
   function convertMarkdownToTelegramHTML(content) {
@@ -104,15 +106,14 @@ async function sendTelegramNotification() {
     })
   }
 
-  releaseContent = normalizeDetailsTags(releaseContent)
   const formattedContent = sanitizeTelegramHTML(
-    convertMarkdownToTelegramHTML(releaseContent),
+    convertMarkdownToTelegramHTML(normalizeDetailsTags(releaseContent)),
   )
 
   const releaseTitle = isAutobuild ? '滚动更新版发布' : '正式发布'
   const encodedVersion = encodeURIComponent(version)
   const releaseTag = isAutobuild ? 'autobuild' : `v${version}`
-  const content = `<b>🎉 <a href="https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/${releaseTag}">Clash Verge Rev v${version}</a> ${releaseTitle}</b>\n\n${formattedContent}`
+  const content = `<b>🎉 <a href="https://github.com/tanzanite2025/clash-verge-optimized/releases/tag/${releaseTag}">Clash Verge Optimized v${version}</a> ${releaseTitle}</b>\n\n${formattedContent}`
 
   // 发送到 Telegram
   try {
@@ -123,7 +124,7 @@ async function sendTelegramNotification() {
         text: content,
         link_preview_options: {
           is_disabled: false,
-          url: `https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/v${encodedVersion}`,
+          url: `https://github.com/tanzanite2025/clash-verge-optimized/releases/tag/v${encodedVersion}`,
           prefer_large_media: true,
         },
         parse_mode: 'HTML',

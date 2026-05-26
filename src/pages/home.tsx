@@ -1,12 +1,4 @@
 import {
-  DnsOutlined,
-  HelpOutlineRounded,
-  HistoryEduOutlined,
-  RouterOutlined,
-  SettingsOutlined,
-  SpeedOutlined,
-} from '@mui/icons-material'
-import {
   Box,
   Button,
   Checkbox,
@@ -111,8 +103,20 @@ const HomeSettingsDialog = ({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{t('home.page.settings.title')}</DialogTitle>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      slotProps={{
+        paper: {
+          className: 'uds-dialog',
+        },
+      }}
+    >
+      <DialogTitle className="uds-title-h2">
+        {t('home.page.settings.title')}
+      </DialogTitle>
       <DialogContent>
         <FormGroup>
           <FormControlLabel
@@ -122,7 +126,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('profile')}
               />
             }
-            label={t('home.page.settings.cards.profile')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.profile')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -131,7 +139,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('proxy')}
               />
             }
-            label={t('home.page.settings.cards.currentProxy')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.currentProxy')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -140,7 +152,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('network')}
               />
             }
-            label={t('home.page.settings.cards.network')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.network')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -149,7 +165,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('mode')}
               />
             }
-            label={t('home.page.settings.cards.proxyMode')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.proxyMode')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -158,7 +178,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('traffic')}
               />
             }
-            label={t('home.page.settings.cards.traffic')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.traffic')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -167,7 +191,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('test')}
               />
             }
-            label={t('home.page.settings.cards.tests')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.tests')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -176,7 +204,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('ip')}
               />
             }
-            label={t('home.page.settings.cards.ip')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.ip')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -185,7 +217,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('clashinfo')}
               />
             }
-            label={t('home.page.settings.cards.clashInfo')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.clashInfo')}
+              </span>
+            }
           />
           <FormControlLabel
             control={
@@ -194,7 +230,11 @@ const HomeSettingsDialog = ({
                 onChange={() => handleToggle('systeminfo')}
               />
             }
-            label={t('home.page.settings.cards.systemInfo')}
+            label={
+              <span className="uds-label">
+                {t('home.page.settings.cards.systemInfo')}
+              </span>
+            }
           />
         </FormGroup>
       </DialogContent>
@@ -263,7 +303,7 @@ const HomePage = () => {
 
   // 文档链接函数
   const toGithubDoc = useLockFn(() => {
-    return openWebUrl('https://clash-verge-rev.github.io/index.html')
+    return openWebUrl('https://github.com/tanzanite2025/clash-verge-optimized#readme')
   })
 
   // 新增：打开设置弹窗
@@ -324,7 +364,7 @@ const HomePage = () => {
         'traffic',
         <EnhancedCard
           title={t('home.page.cards.trafficStats')}
-          icon={<SpeedOutlined />}
+          icon={null}
           iconColor="secondary"
         >
           <EnhancedTrafficStats />
@@ -373,19 +413,13 @@ const HomePage = () => {
               onClick={async () => await entry_lightweight_mode()}
               size="small"
               color="inherit"
-            >
-              <HistoryEduOutlined />
-            </IconButton>
+            />
           </Tooltip>
           <Tooltip title={t('home.page.tooltips.manual')} arrow>
-            <IconButton onClick={toGithubDoc} size="small" color="inherit">
-              <HelpOutlineRounded />
-            </IconButton>
+            <IconButton onClick={toGithubDoc} size="small" color="inherit" />
           </Tooltip>
           <Tooltip title={t('home.page.tooltips.settings')} arrow>
-            <IconButton onClick={openSettings} size="small" color="inherit">
-              <SettingsOutlined />
-            </IconButton>
+            <IconButton onClick={openSettings} size="small" color="inherit" />
           </Tooltip>
         </Box>
       }
@@ -414,7 +448,7 @@ const NetworkSettingsCard = () => {
   return (
     <EnhancedCard
       title={t('home.page.cards.networkSettings')}
-      icon={<DnsOutlined />}
+      icon={null}
       iconColor="primary"
       action={null}
     >
@@ -429,7 +463,7 @@ const ClashModeEnhancedCard = () => {
   return (
     <EnhancedCard
       title={t('home.page.cards.proxyMode')}
-      icon={<RouterOutlined />}
+      icon={null}
       iconColor="info"
       action={null}
     >

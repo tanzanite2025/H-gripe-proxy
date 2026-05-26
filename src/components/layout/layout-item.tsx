@@ -2,13 +2,7 @@ import type {
   DraggableAttributes,
   DraggableSyntheticListeners,
 } from '@dnd-kit/core'
-import {
-  alpha,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-} from '@mui/material'
+import { Box, ListItem, ListItemButton } from '@mui/material'
 import type { CSSProperties, ReactNode } from 'react'
 import { useMatch, useNavigate, useResolvedPath } from 'react-router'
 
@@ -30,16 +24,12 @@ interface Props {
   sortable?: SortableProps
 }
 export const LayoutItem = (props: Props) => {
-  const { to, children, icon, sortable } = props
+  const { to, children, sortable } = props
   const { verge } = useVerge()
-  const { menu_icon } = verge ?? {}
   const navCollapsed = verge?.collapse_navbar ?? false
   const resolved = useResolvedPath(to)
   const match = useMatch({ path: resolved.pathname, end: true })
   const navigate = useNavigate()
-
-  const effectiveMenuIcon =
-    navCollapsed && menu_icon === 'disable' ? 'monochrome' : menu_icon
 
   const { setNodeRef, attributes, listeners, style, isDragging, disabled } =
     sortable ?? {}
@@ -49,76 +39,25 @@ export const LayoutItem = (props: Props) => {
     ? { ...(attributes ?? {}), ...(listeners ?? {}) }
     : undefined
 
+  const itemClassName = isDragging ? 'layout-nav-item is-dragging' : 'layout-nav-item'
+  const buttonClassName = `layout-nav-item__button${match ? ' is-active' : ''}${draggable ? ' is-draggable' : ''}`
+
   return (
     <ListItem
       ref={setNodeRef}
       style={style}
-      sx={[
-        { py: 0.5, maxWidth: 250, mx: 'auto', padding: '4px 0px' },
-        isDragging ? { opacity: 0.78 } : {},
-      ]}
+      className={itemClassName}
     >
       <ListItemButton
-        selected={!!match}
         {...(dragHandleProps ?? {})}
-        sx={[
-          {
-            borderRadius: '9999px !important',
-            marginLeft: 1.25,
-            paddingLeft: 2,
-            paddingRight: 2,
-            marginRight: 1.25,
-            height: '44px !important',
-            cursor: draggable ? 'grab' : 'pointer',
-            '&:active': draggable ? { cursor: 'grabbing' } : {},
-            '& .MuiListItemText-primary': {
-              color: 'text.primary',
-              fontWeight: 900,
-              fontSize: '10px !important',
-              textTransform: 'uppercase',
-              letterSpacing: '0.15em !important',
-            },
-          },
-          ({ palette: { mode, primary } }) => {
-            const bgcolor =
-              mode === 'light'
-                ? alpha(primary.main, 0.15)
-                : alpha(primary.main, 0.35)
-            const color = mode === 'light' ? '#1f1f1f' : '#ffffff'
-            return {
-              '&.Mui-selected': { bgcolor },
-              '&.Mui-selected:hover': { bgcolor },
-              '&.Mui-selected .MuiListItemText-primary': { color },
-            }
-          },
-        ]}
+        className={buttonClassName}
         title={navCollapsed ? children : undefined}
         aria-label={navCollapsed ? children : undefined}
         onClick={() => navigate(to)}
       >
-        {(effectiveMenuIcon === 'monochrome' || !effectiveMenuIcon) && (
-          <ListItemIcon
-            sx={{
-              color: 'text.primary',
-              marginLeft: '6px',
-              cursor: draggable ? 'grab' : 'inherit',
-            }}
-          >
-            {icon[0]}
-          </ListItemIcon>
-        )}
-        {effectiveMenuIcon === 'colorful' && (
-          <ListItemIcon sx={{ cursor: draggable ? 'grab' : 'inherit' }}>
-            {icon[1]}
-          </ListItemIcon>
-        )}
-        <ListItemText
-          sx={{
-            textAlign: 'center',
-            marginLeft: effectiveMenuIcon === 'disable' ? '' : '-35px',
-          }}
-          primary={children}
-        />
+        <Box className="layout-nav-item__text">
+          <span className="layout-nav-item__primary">{children}</span>
+        </Box>
       </ListItemButton>
     </ListItem>
   )

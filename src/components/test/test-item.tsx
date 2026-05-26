@@ -229,7 +229,7 @@ export const TestItem = ({
 }
 const Widget = styled(Box)(({ theme: { typography } }) => ({
   padding: '3px 6px',
-  fontSize: 14,
+  fontSize: 12,
   fontFamily: typography.fontFamily,
-  borderRadius: '4px',
+  borderRadius: '8px',
 }))

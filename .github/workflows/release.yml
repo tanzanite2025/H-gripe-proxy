@@ -1,0 +1,185 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'alpha'
+      - 'beta'
+      - 'rc'
+      - 'pre'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows-standard:
+    name: Windows Standard (${{ matrix.label }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x64
+            rust_target: x86_64-pc-windows-msvc
+            tauri_args: -c src-tauri/tauri.windows.conf.json --target x86_64-pc-windows-msvc
+          - label: x86
+            rust_target: i686-pc-windows-msvc
+            tauri_args: -c src-tauri/tauri.windows.conf.json --target i686-pc-windows-msvc
+          - label: arm64
+            rust_target: aarch64-pc-windows-msvc
+            tauri_args: -c src-tauri/tauri.windows.conf.json --target aarch64-pc-windows-msvc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare bundled resources
+        run: pnpm prebuild
+
+      - name: Build and upload signed release assets
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Clash Verge Optimized ${{ github.ref_name }}
+          releaseBody: Signed release assets for Clash Verge Optimized.
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, '+') || github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'pre' }}
+          args: ${{ matrix.tauri_args }}
+
+  build-windows-fixed-webview2:
+    name: Windows Fixed WebView2 (${{ matrix.label }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x64
+            rust_target: x86_64-pc-windows-msvc
+            tauri_args: -c src-tauri/webview2.x64.json --target x86_64-pc-windows-msvc
+          - label: x86
+            rust_target: i686-pc-windows-msvc
+            tauri_args: -c src-tauri/webview2.x86.json --target i686-pc-windows-msvc
+          - label: arm64
+            rust_target: aarch64-pc-windows-msvc
+            tauri_args: -c src-tauri/webview2.arm64.json --target aarch64-pc-windows-msvc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare bundled resources
+        run: pnpm prebuild
+
+      - name: Build and upload signed fixed WebView2 assets
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Clash Verge Optimized ${{ github.ref_name }}
+          releaseBody: Signed release assets for Clash Verge Optimized.
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, '+') || github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'pre' }}
+          args: ${{ matrix.tauri_args }}
+
+  publish-updater-manifests:
+    name: Publish Updater Manifests
+    runs-on: ubuntu-latest
+    needs:
+      - build-windows-standard
+      - build-windows-fixed-webview2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate updater manifests
+        run: pnpm updater
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect stable tag
+        id: stable_tag
+        run: |
+          if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate fixed WebView2 updater manifests
+        if: steps.stable_tag.outputs.value == 'true'
+        run: pnpm updater-fixed-webview2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

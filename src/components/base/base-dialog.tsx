@@ -52,13 +52,20 @@ export const BaseDialog: React.FC<Props> = ({
       open={open}
       onClose={onClose}
       disableEnforceFocus={disableEnforceFocus}
+      slotProps={{
+        paper: {
+          className: 'uds-dialog',
+        },
+      }}
     >
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle className="uds-title-h2">{title}</DialogTitle>
 
-      <DialogContent sx={contentSx}>{children}</DialogContent>
+      <DialogContent className="uds-dialog__content" sx={contentSx}>
+        {children}
+      </DialogContent>
 
       {!disableFooter && (
-        <DialogActions>
+        <DialogActions className="uds-dialog__actions">
           {!disableCancel && (
             <Button variant="outlined" onClick={onCancel}>
               {cancelBtn}

@@ -49,12 +49,16 @@ async function resolveUpdater() {
 
   // More flexible tag detection with regex patterns
   const stableTagRegex = /^v\d+\.\d+\.\d+$/ // Matches vX.Y.Z format
-  // const preReleaseRegex = /^v\d+\.\d+\.\d+-(alpha|beta|rc|pre)/i; // Matches vX.Y.Z-alpha/beta/rc format
-  const preReleaseRegex = /^(alpha|beta|rc|pre)$/i // Matches exact alpha/beta/rc/pre tags
+  const versionedPreReleaseRegex =
+    /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z-.]+|\+[0-9A-Za-z-.]+)$/i
+  const channelTagRegex = /^(alpha|beta|rc|pre)$/i
 
   // Get the latest stable tag and pre-release tag
   const stableTag = tags.find((t) => stableTagRegex.test(t.name))
-  const preReleaseTag = tags.find((t) => preReleaseRegex.test(t.name))
+  const preReleaseTag = tags.find(
+    (t) =>
+      versionedPreReleaseRegex.test(t.name) || channelTagRegex.test(t.name),
+  )
 
   console.log('All tags:', tags.map((t) => t.name).join(', '))
   console.log('Stable tag:', stableTag ? stableTag.name : 'None found')
@@ -310,12 +314,29 @@ async function processRelease(github, options, tag, isAlpha) {
 
 // get the signature file content
 async function getSignature(url) {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/octet-stream' },
-  })
+  const maxAttempts = 5
 
-  return response.text()
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/octet-stream' },
+    })
+
+    if (response.ok) {
+      return response.text()
+    }
+
+    if (attempt === maxAttempts) {
+      throw new Error(
+        `Failed to fetch signature from ${url}: ${response.status} ${response.statusText}`,
+      )
+    }
+
+    console.warn(
+      `Signature asset not ready yet (${response.status}) for ${url}, retrying (${attempt}/${maxAttempts})...`,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 5000))
+  }
 }
 
 resolveUpdater().catch(console.error)

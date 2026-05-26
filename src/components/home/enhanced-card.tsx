@@ -27,7 +27,6 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
     ref,
   ) => {
     const theme = useTheme()
-    const isDark = theme.palette.mode === 'dark'
 
     // 统一的标题截断样式
     const titleTruncateStyle = {
@@ -41,16 +40,16 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
 
     return (
       <Box
+        className="uds-card-container uds-surface"
         sx={{
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          borderRadius: 2,
-          backgroundColor: isDark ? '#282a36' : '#ffffff',
         }}
         ref={ref}
       >
         <Box
+          className="uds-card-header"
           sx={{
             px: 2,
             py: 1,
@@ -89,11 +88,10 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
             <Box sx={{ minWidth: 0, flex: 1 }}>
               {typeof title === 'string' ? (
                 <Typography
+                  className="uds-card-title"
                   variant="h6"
                   sx={{
                     ...titleTruncateStyle,
-                    fontWeight: 'medium',
-                    fontSize: 18,
                   }}
                   title={title}
                 >
@@ -107,6 +105,7 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
           {action && <Box sx={{ ml: 2, flexShrink: 0 }}>{action}</Box>}
         </Box>
         <Box
+          className="uds-card-content"
           sx={{
             flex: 1,
             display: 'flex',

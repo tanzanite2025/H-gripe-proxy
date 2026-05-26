@@ -236,7 +236,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         control={control}
         render={({ field }) => (
           <FormControl size="small" fullWidth sx={{ mt: 1, mb: 1 }}>
-            <InputLabel>
+            <InputLabel className="uds-label">
               {t('profiles.modals.profileForm.fields.type')}
             </InputLabel>
             <Select
@@ -364,7 +364,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             control={control}
             render={({ field }) => (
               <StyledBox>
-                <InputLabel>
+                <InputLabel className="uds-label">
                   {t('profiles.modals.profileForm.fields.useSystemProxy')}
                 </InputLabel>
                 <Switch checked={field.value} {...field} color="primary" />
@@ -377,7 +377,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             control={control}
             render={({ field }) => (
               <StyledBox>
-                <InputLabel>
+                <InputLabel className="uds-label">
                   {t('profiles.modals.profileForm.fields.useClashProxy')}
                 </InputLabel>
                 <Switch checked={field.value} {...field} color="primary" />
@@ -390,7 +390,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             control={control}
             render={({ field }) => (
               <StyledBox>
-                <InputLabel>
+                <InputLabel className="uds-label">
                   {t('profiles.modals.profileForm.fields.acceptInvalidCerts')}
                 </InputLabel>
                 <Switch checked={field.value} {...field} color="primary" />
@@ -403,7 +403,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             control={control}
             render={({ field }) => (
               <StyledBox>
-                <InputLabel>
+                <InputLabel className="uds-label">
                   {t('profiles.modals.profileForm.fields.allowAutoUpdate')}
                 </InputLabel>
                 <Switch checked={field.value} {...field} color="primary" />

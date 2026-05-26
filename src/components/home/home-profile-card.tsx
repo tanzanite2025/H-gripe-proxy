@@ -1,13 +1,4 @@
 import {
-  CloudUploadOutlined,
-  DnsOutlined,
-  EventOutlined,
-  LaunchOutlined,
-  SpeedOutlined,
-  StorageOutlined,
-  UpdateOutlined,
-} from '@mui/icons-material'
-import {
   Box,
   Button,
   LinearProgress,
@@ -15,12 +6,11 @@ import {
   Stack,
   Typography,
   alpha,
-  keyframes,
   useTheme,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -30,12 +20,6 @@ import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 
 import { EnhancedCard } from './enhanced-card'
-
-// 定义旋转动画
-const round = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`
 
 // 辅助函数解析URL和过期时间
 const parseUrl = (url?: string) => {
@@ -79,11 +63,9 @@ interface HomeProfileCardProps {
 const ProfileDetails = ({
   current,
   onUpdateProfile,
-  updating,
 }: {
   current: ProfileItem
   onUpdateProfile: () => void
-  updating: boolean
 }) => {
   const { t } = useTranslation()
   const theme = useTheme()
@@ -104,7 +86,6 @@ const ProfileDetails = ({
       <Stack spacing={2}>
         {current.url && (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <DnsOutlined fontSize="small" color="action" />
             <Typography
               variant="body2"
               color="text.secondary"
@@ -138,15 +119,6 @@ const ProfileDetails = ({
                   >
                     {parseUrl(current.url)}
                   </Typography>
-                  <LaunchOutlined
-                    fontSize="inherit"
-                    sx={{
-                      ml: 0.5,
-                      fontSize: '0.8rem',
-                      opacity: 0.7,
-                      flexShrink: 0,
-                    }}
-                  />
                 </Link>
               ) : (
                 <Typography
@@ -171,15 +143,6 @@ const ProfileDetails = ({
 
         {current.updated && (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <UpdateOutlined
-              fontSize="small"
-              color="action"
-              sx={{
-                cursor: 'pointer',
-                animation: updating ? `${round} 1.5s linear infinite` : 'none',
-              }}
-              onClick={onUpdateProfile}
-            />
             <Typography
               variant="body2"
               color="text.secondary"
@@ -197,19 +160,19 @@ const ProfileDetails = ({
         {current.extra && (
           <>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <SpeedOutlined fontSize="small" color="action" />
               <Typography variant="body2" color="text.secondary">
                 {t('shared.labels.usedTotal')}:{' '}
                 <Box component="span" sx={{ fontWeight: 'medium' }}>
-                  {parseTraffic(usedTraffic)} /{' '}
-                  {parseTraffic(current.extra.total)}
+                  <span className="uds-mono">{parseTraffic(usedTraffic)}</span> /{' '}
+                  <span className="uds-mono">
+                    {parseTraffic(current.extra.total)}
+                  </span>
                 </Box>
               </Typography>
             </Stack>
 
             {current.extra.expire > 0 && (
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <EventOutlined fontSize="small" color="action" />
                 <Typography variant="body2" color="text.secondary">
                   {t('shared.labels.expireTime')}:{' '}
                   <Box component="span" sx={{ fontWeight: 'medium' }}>
@@ -221,6 +184,7 @@ const ProfileDetails = ({
 
             <Box sx={{ mt: 1 }}>
               <Typography
+                className="uds-mono"
                 variant="caption"
                 color="text.secondary"
                 sx={{ mb: 0.5, display: 'block' }}
@@ -262,10 +226,7 @@ const EmptyProfile = ({ onClick }: { onClick: () => void }) => {
       }}
       onClick={onClick}
     >
-      <CloudUploadOutlined
-        sx={{ fontSize: 60, color: 'primary.main', mb: 2 }}
-      />
-      <Typography variant="h6" gutterBottom>
+      <Typography variant="h6" className="uds-card-title" gutterBottom>
         {t('profiles.page.actions.import')} {t('profiles.page.title')}
       </Typography>
       <Typography variant="body2" color="text.secondary">
@@ -283,13 +244,9 @@ export const HomeProfileCard = ({
   const navigate = useNavigate()
   const { refreshAll } = useAppRefreshers()
 
-  // 更新当前订阅
-  const [updating, setUpdating] = useState(false)
-
   const onUpdateProfile = useLockFn(async () => {
     if (!current?.uid) return
 
-    setUpdating(true)
     try {
       await updateProfile(current.uid, current.option)
       onProfileUpdated?.()
@@ -298,8 +255,6 @@ export const HomeProfileCard = ({
       refreshAll()
     } catch (err) {
       showNotice.error(err, 3000)
-    } finally {
-      setUpdating(false)
     }
   })
 
@@ -316,6 +271,7 @@ export const HomeProfileCard = ({
 
     return (
       <Link
+        className="uds-card-title"
         component="button"
         variant="h6"
         onClick={() => current.home && openWebUrl(current.home)}
@@ -338,15 +294,6 @@ export const HomeProfileCard = ({
         title={current.name}
       >
         <span>{current.name}</span>
-        <LaunchOutlined
-          fontSize="inherit"
-          sx={{
-            ml: 0.5,
-            fontSize: '0.8rem',
-            opacity: 0.7,
-            flexShrink: 0,
-          }}
-        />
       </Link>
     )
   }, [current, t])
@@ -360,7 +307,6 @@ export const HomeProfileCard = ({
         variant="outlined"
         size="small"
         onClick={goToProfiles}
-        endIcon={<StorageOutlined fontSize="small" />}
         sx={{ borderRadius: 1.5 }}
       >
         {t('layout.components.navigation.tabs.profiles')}
@@ -371,16 +317,12 @@ export const HomeProfileCard = ({
   return (
     <EnhancedCard
       title={cardTitle}
-      icon={<CloudUploadOutlined />}
+      icon={null}
       iconColor="info"
       action={cardAction}
     >
       {current ? (
-        <ProfileDetails
-          current={current}
-          onUpdateProfile={onUpdateProfile}
-          updating={updating}
-        />
+        <ProfileDetails current={current} onUpdateProfile={onUpdateProfile} />
       ) : (
         <EmptyProfile onClick={goToProfiles} />
       )}

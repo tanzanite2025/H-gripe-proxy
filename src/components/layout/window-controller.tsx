@@ -1,9 +1,24 @@
-import { Close, CropSquare, FilterNone, Minimize } from '@mui/icons-material'
-import { Box, IconButton } from '@mui/material'
+import { Box } from '@mui/material'
 import { forwardRef, useImperativeHandle } from 'react'
 
 import { useWindowControls } from '@/hooks/use-window'
 import getSystem from '@/utils/get-system'
+
+const controlButtonStyle = {
+  width: 28,
+  height: 28,
+  border: 'none',
+  background: 'transparent',
+  color: 'inherit',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 8,
+  cursor: 'default',
+  padding: 0,
+  fontSize: 14,
+  lineHeight: 1,
+}
 
 export const WindowControls = forwardRef(function WindowControls(props, ref) {
   const OS = getSystem()
@@ -45,85 +60,55 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
         display: 'flex',
         gap: 1,
         alignItems: 'center',
-        '> button': {
-          cursor: 'default',
-        },
       }}
     >
       {OS === 'macos' && (
         <>
-          {/* macOS 风格：关闭 → 最小化 → 全屏 */}
-          <IconButton size="small" sx={{ fontSize: 14 }} onClick={close}>
-            <Close fontSize="inherit" color="inherit" />
-          </IconButton>
-          <IconButton size="small" sx={{ fontSize: 14 }} onClick={minimize}>
-            <Minimize fontSize="inherit" color="inherit" />
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 14 }}
-            onClick={toggleMaximize}
-          >
-            {maximized ? (
-              <FilterNone fontSize="inherit" color="inherit" />
-            ) : (
-              <CropSquare fontSize="inherit" color="inherit" />
-            )}
-          </IconButton>
+          <button type="button" style={controlButtonStyle} onClick={close}>
+            ×
+          </button>
+          <button type="button" style={controlButtonStyle} onClick={minimize}>
+            −
+          </button>
+          <button type="button" style={controlButtonStyle} onClick={toggleMaximize}>
+            {maximized ? '❐' : '□'}
+          </button>
         </>
       )}
 
       {OS === 'windows' && (
         <>
-          {/* Windows 风格：最小化 → 最大化 → 关闭 */}
-          <IconButton size="small" sx={{ fontSize: 16 }} onClick={minimize}>
-            <Minimize fontSize="inherit" color="inherit" />
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16 }}
-            onClick={toggleMaximize}
-          >
-            {maximized ? (
-              <FilterNone fontSize="inherit" color="inherit" />
-            ) : (
-              <CropSquare fontSize="inherit" color="inherit" />
-            )}
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16, ':hover': { bgcolor: 'red', color: 'white' } }}
+          <button type="button" style={controlButtonStyle} onClick={minimize}>
+            −
+          </button>
+          <button type="button" style={controlButtonStyle} onClick={toggleMaximize}>
+            {maximized ? '❐' : '□'}
+          </button>
+          <button
+            type="button"
+            style={{ ...controlButtonStyle, color: '#d32f2f' }}
             onClick={close}
           >
-            <Close fontSize="inherit" color="inherit" />
-          </IconButton>
+            ×
+          </button>
         </>
       )}
 
       {OS === 'linux' && (
         <>
-          {/* Linux 桌面常见布局（GNOME/KDE 多为：最小化 → 最大化 → 关闭） */}
-          <IconButton size="small" sx={{ fontSize: 16 }} onClick={minimize}>
-            <Minimize fontSize="inherit" color="inherit" />
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16 }}
-            onClick={toggleMaximize}
-          >
-            {maximized ? (
-              <FilterNone fontSize="inherit" color="inherit" />
-            ) : (
-              <CropSquare fontSize="inherit" color="inherit" />
-            )}
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16, ':hover': { bgcolor: 'red', color: 'white' } }}
+          <button type="button" style={controlButtonStyle} onClick={minimize}>
+            −
+          </button>
+          <button type="button" style={controlButtonStyle} onClick={toggleMaximize}>
+            {maximized ? '❐' : '□'}
+          </button>
+          <button
+            type="button"
+            style={{ ...controlButtonStyle, color: '#d32f2f' }}
             onClick={close}
           >
-            <Close fontSize="inherit" color="inherit" />
-          </IconButton>
+            ×
+          </button>
         </>
       )}
     </Box>

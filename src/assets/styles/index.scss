@@ -25,10 +25,13 @@ body {
 :root {
   --primary-main: #5b5c9d;
   --text-primary: #1f1f1f;
+  --text-secondary: #6b7280;
   --selection-color: #f5f5f5;
   --scroller-color: #8c8c8c;
   --background-color: #f5f5f5;
   --background-color-alpha: rgba(24, 103, 192, 0.1);
+  --card-bg: var(--background-color);
+  --primary-main-hover: var(--primary-main);
   --border-radius: 8px;
 }
 
@@ -75,10 +78,11 @@ body {
 // 全局字体设置，优先 Outfit / Inter
 body, html {
   font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-size: 12px !important;
 }
 
 // 1. 排版规范 (Typography)
-.uds-title-h1, h1.MuiTypography-root {
+.uds-title-h1 {
   font-size: 1.125rem !important; // text-lg
   font-weight: 900 !important; // font-black
   letter-spacing: -0.05em !important; // tracking-tighter
@@ -86,7 +90,8 @@ body, html {
   text-transform: uppercase !important; // uppercase
 }
 
-.uds-title-h2, h2.MuiTypography-root, h6.MuiTypography-root.uds-card-title {
+.uds-title-h2,
+.uds-card-title {
   font-size: 0.875rem !important; // text-sm
   font-weight: 900 !important; // font-black
   letter-spacing: -0.05em !important; // tracking-tighter
@@ -94,13 +99,13 @@ body, html {
 }
 
 // 强制所有标题级别必须使用斜体，正文绝对禁止斜体
-h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
+.uds-title-h3 {
   font-style: italic !important;
   font-weight: 900 !important;
   letter-spacing: -0.05em !important;
 }
 
-.uds-label, th.MuiTableCell-root, .MuiFormLabel-root {
+.uds-label {
   font-size: 12px !important; // UDS Level 3: 标签/表头
   font-weight: 900 !important; // font-black
   text-transform: uppercase !important; // uppercase
@@ -110,14 +115,14 @@ h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
 }
 
 .uds-desc {
-  font-size: 10px !important; // UDS Level 4: 辅助描述
+  font-size: 9px !important; // UDS Level 4: 辅助描述
   font-weight: 900 !important; // font-black
   text-transform: uppercase !important; // uppercase
   letter-spacing: 0.15em !important; // tracking-widest
   opacity: 0.6 !important;
 }
 
-.uds-mono, .MuiTypography-mono {
+.uds-mono {
   font-size: 8px !important; // text-[8px]
   font-family: monospace, 'Courier New', Courier, monospace !important; // font-mono
 }
@@ -131,16 +136,35 @@ h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
 }
 
 .uds-card-container {
-  border-radius: 24px !important; // rounded-[24px]
-  border: 1px dashed var(--divider-color) !important; // border-dashed
+  position: relative;
+  border-radius: 16px !important; // 重置圆角为 16px
+  border: 1px dashed var(--divider-color) !important; // 虚线边框设为淡灰
   box-shadow: none !important;
   background-color: var(--card-bg) !important;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.04) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.3s ease;
+  }
 
   &:hover {
-    border-color: var(--primary-main-hover) !important;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.3) !important;
+    border-color: var(--primary-main) !important;
+    transform: translateY(-4px) !important; // 悬浮向上位移 4px (hover:-translate-y-1)
+    box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -8px rgba(0, 0, 0, 0.04) !important; // 漫反射阴影 (hover:shadow-md)
+    
+    &::before {
+      background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.08) 0%, transparent 70%);
+    }
   }
 }
 
@@ -153,6 +177,198 @@ h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
   border-radius: 32px !important; // rounded-[32px]
   border: none !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; // shadow-2xl
+  background-color: var(--card-bg) !important;
+}
+
+.uds-surface {
+  background-color: var(--card-bg) !important;
+  border-color: var(--window-border-color) !important;
+}
+
+.uds-card-header {
+  min-height: 64px;
+  background-color: color-mix(in srgb, var(--card-bg) 92%, transparent) !important;
+  backdrop-filter: blur(12px);
+}
+
+.uds-card-content {
+  background-color: transparent;
+}
+
+.uds-dialog > .uds-title-h2 {
+  padding: 18px 22px 10px !important;
+}
+
+.uds-dialog > .uds-dialog__content {
+  padding: 12px 22px 20px !important;
+}
+
+.uds-dialog > .uds-dialog__actions {
+  padding: 0 22px 22px !important;
+  gap: 10px;
+}
+
+.uds-toolbar {
+  border-radius: 16px !important;
+  border: 1px dashed var(--divider-color) !important;
+  background-color: color-mix(in srgb, var(--card-bg) 90%, transparent) !important;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  box-shadow: none !important;
+}
+
+.uds-toolbar > * {
+  border-radius: 0 !important;
+}
+
+.uds-toolbar--icon > * {
+  min-width: 40px;
+}
+
+.settings-page-grid {
+  align-items: flex-start;
+}
+
+.settings-page-grid__column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-page-card {
+  width: 100%;
+  overflow: hidden;
+}
+
+.settings-page-card:hover {
+  transform: none;
+}
+
+.settings-page-card > .uds-settings-list {
+  padding: 20px 18px 16px;
+}
+
+.uds-settings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.uds-settings-list__header {
+  position: static !important;
+  margin: 0 0 8px;
+  padding: 0 4px 10px !important;
+  line-height: 1;
+}
+
+.uds-settings-list > .uds-settings-item {
+  margin: 0;
+}
+
+.uds-settings-list > .uds-settings-item + .uds-settings-item {
+  border-top: 1px dashed var(--divider-color);
+}
+
+.uds-settings-item__button {
+  padding: 0 !important;
+  border-radius: 18px !important;
+}
+
+.uds-settings-item__button:hover {
+  background-color: transparent !important;
+}
+
+.uds-settings-item__button:hover .uds-settings-item__body {
+  background-color: var(--background-color-alpha);
+}
+
+.uds-settings-item__body {
+  width: 100%;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.uds-settings-item__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.uds-settings-item__label-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.uds-settings-item__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.2;
+}
+
+.uds-settings-item__extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.uds-settings-item__secondary {
+  max-width: 52ch;
+  line-height: 1.4;
+}
+
+.uds-settings-item__control {
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.uds-settings-item__action {
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  opacity: 0.65;
+}
+
+.uds-settings-item__control > * {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .settings-page-grid__column {
+    gap: 12px;
+  }
+
+  .settings-page-card > .uds-settings-list {
+    padding: 18px 14px 14px;
+  }
+
+  .uds-settings-item__body {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .uds-settings-item__control,
+  .uds-settings-item__action {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
 }
 
 // 3. 边框与质感 (Aesthetics)
@@ -187,3 +403,90 @@ h3.MuiTypography-root, h4.MuiTypography-root, h5.MuiTypography-root {
   height: 4px !important;
   background-color: rgba(0, 0, 0, 0.05) !important;
 }
+
+// ==========================================
+// 首页拼色染色与深色模式细节适配
+// ==========================================
+[data-theme='light'] {
+  .base-page {
+    // 首页的 Grid 第 1、3、4 卡片自动染色
+    .MuiGrid-root:nth-child(1) .uds-card-container {
+      background-color: #dbeafe !important; // 粉蓝 (pastel-blue)
+    }
+    .MuiGrid-root:nth-child(3) .uds-card-container {
+      background-color: #fef3c7 !important; // 粉黄 (pastel-orange/pastel-yellow)
+    }
+    .MuiGrid-root:nth-child(4) .uds-card-container {
+      background-color: #f3f4f6 !important; // 粉灰 (pastel-gray)
+    }
+  }
+}
+
+[data-theme='dark'] {
+  .uds-card-container {
+    &:hover {
+      box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 4px 16px -8px rgba(0, 0, 0, 0.3) !important;
+    }
+  }
+}
+
+// ==========================================
+// 原生表单与按钮 UDS 大圆角兜底重置
+// ==========================================
+button, input:not([type='checkbox']):not([type='radio']), select {
+  &:not(.MuiButton-root):not(.MuiInputBase-input):not(.MuiSelect-select):not(.MuiOutlinedInput-input) {
+    border-radius: 16px;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+input[type='text'], input[type='password'], input[type='email'], input[type='search'], select, textarea {
+  &:not([class*='Mui']) {
+    border-radius: 16px !important;
+    border: none !important;
+    background-color: rgba(0, 0, 0, 0.04);
+    height: 48px;
+    padding: 0 16px;
+    font-size: 12px;
+    font-weight: 600;
+    box-sizing: border-box;
+    outline: none !important;
+
+    [data-theme='dark'] & {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: #ffffff;
+    }
+
+    &:focus {
+      background-color: rgba(0, 0, 0, 0.02);
+      box-shadow: 0 0 0 2px rgba(var(--primary-main-rgb), 0.2) !important;
+
+      [data-theme='dark'] & {
+        background-color: rgba(255, 255, 255, 0.02);
+      }
+    }
+  }
+}
+
+button:not([class*='Mui']) {
+  border-radius: 9999px !important;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  font-size: 10px;
+  height: 44px;
+  padding: 0 24px;
+  border: none;
+  background-color: var(--primary-main);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-main-rgb), 0.15);
+  }
+}
+
