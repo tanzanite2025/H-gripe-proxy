@@ -9,6 +9,7 @@ import { RouterProvider } from 'react-router'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 import { BaseErrorBoundary } from './components/base'
+import { EmotionStyleChain } from './components/base/base-emotion-style-chain'
 import { router } from './pages/_routers'
 import { AppDataProvider } from './providers/app-data-provider'
 import { WindowProvider } from './providers/window'
@@ -49,17 +50,19 @@ const initializeApp = (initialThemeMode: 'light' | 'dark') => {
   const root = createRoot(container)
   root.render(
     <React.StrictMode>
-      <ComposeContextProvider contexts={contexts}>
-        <BaseErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <WindowProvider>
-              <AppDataProvider>
-                <RouterProvider router={router} />
-              </AppDataProvider>
-            </WindowProvider>
-          </QueryClientProvider>
-        </BaseErrorBoundary>
-      </ComposeContextProvider>
+      <EmotionStyleChain>
+        <ComposeContextProvider contexts={contexts}>
+          <BaseErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+              <WindowProvider>
+                <AppDataProvider>
+                  <RouterProvider router={router} />
+                </AppDataProvider>
+              </WindowProvider>
+            </QueryClientProvider>
+          </BaseErrorBoundary>
+        </ComposeContextProvider>
+      </EmotionStyleChain>
     </React.StrictMode>,
   )
 }

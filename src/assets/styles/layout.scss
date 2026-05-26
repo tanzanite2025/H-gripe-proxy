@@ -97,7 +97,7 @@
 
           .MuiListItemText-primary,
           .layout-nav-item__primary {
-            font-family: 'Outfit', 'Inter', sans-serif !important;
+            font-family: var(--font-family);
             font-size: 12px !important; /* 字体从 10px 提升至 12px */
             font-weight: 900 !important; // font-black
             text-transform: uppercase !important; // uppercase

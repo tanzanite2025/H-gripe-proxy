@@ -1,10 +1,10 @@
-import { alpha, createTheme, Theme as MuiTheme, Shadows } from '@mui/material'
+import { alpha, createTheme, Shadows, type ThemeOptions } from '@mui/material'
 import {
   getCurrentWebviewWindow,
   WebviewWindow,
 } from '@tauri-apps/api/webviewWindow'
 import { Theme as TauriOsTheme } from '@tauri-apps/api/window'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo } from 'react'
 
 import { useVerge } from '@/hooks/use-verge'
 import { defaultDarkTheme, defaultTheme } from '@/pages/_theme'
@@ -149,7 +149,12 @@ export const useCustomTheme = () => {
   const { theme_mode, theme_setting } = verge ?? {}
   const mode = useThemeMode()
   const setMode = useSetThemeMode()
-  const userBackgroundImage = theme_setting?.background_image || ''
+  const setting = useMemo(() => theme_setting || {}, [theme_setting])
+  const dt = useMemo(
+    () => (mode === 'light' ? defaultTheme : defaultDarkTheme),
+    [mode],
+  )
+  const userBackgroundImage = setting.background_image || ''
   const hasUserBackground = !!userBackgroundImage
 
   useEffect(() => {
@@ -174,7 +179,7 @@ export const useCustomTheme = () => {
             setMode(systemTheme)
           }
         })
-        .catch((err	) => {
+        .catch((err) => {
           console.error('Failed to get initial system theme:', err)
         })
     }, 0)
@@ -220,37 +225,37 @@ export const useCustomTheme = () => {
   }, [mode, appWindow, theme_mode])
 
   const theme = useMemo(() => {
-    const setting = theme_setting || {}
-    const dt = mode === 'light' ? defaultTheme : defaultDarkTheme
-    let muiTheme: MuiTheme
+    const resolvedPrimaryColor = setting.primary_color || dt.primary_color
+    const resolvedSecondaryColor = setting.secondary_color || dt.secondary_color
+    const resolvedPrimaryText = setting.primary_text || dt.primary_text
+    const resolvedSecondaryText = setting.secondary_text || dt.secondary_text
+    const resolvedFontFamily = setting.font_family || dt.font_family
+    const flatShadows = Array(25).fill('none') as Shadows
 
-    try {
-      muiTheme = createTheme({
+    const createThemeOptions = (): ThemeOptions => {
+      const themeOptions: ThemeOptions = {
         breakpoints: {
           values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
         },
         palette: {
           mode,
-          primary: { main: setting.primary_color || dt.primary_color },
-          secondary: { main: setting.secondary_color || dt.secondary_color },
-          info: { main: setting.info_color || dt.info_color },
-          error: { main: setting.error_color || dt.error_color },
-          warning: { main: setting.warning_color || dt.warning_color },
-          success: { main: setting.success_color || dt.success_color },
+          primary: {
+            main: resolvedPrimaryColor,
+          },
+          secondary: {
+            main: resolvedSecondaryColor,
+          },
           text: {
-            primary: setting.primary_text || dt.primary_text,
-            secondary: setting.secondary_text || dt.secondary_text,
+            primary: resolvedPrimaryText,
+            secondary: resolvedSecondaryText,
           },
           background: {
             paper: dt.background_color,
             default: dt.background_color,
           },
         },
-        shadows: Array(25).fill('none') as Shadows,
         typography: {
-          fontFamily: setting.font_family
-            ? `${setting.font_family}, 'Outfit', 'Inter', ${dt.font_family}`
-            : `'Outfit', 'Inter', ${dt.font_family}`,
+          fontFamily: resolvedFontFamily,
           h1: {
             fontSize: '18px',
             fontWeight: 900,
@@ -320,22 +325,31 @@ export const useCustomTheme = () => {
                 transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
               },
               contained: {
-                backgroundColor: setting.primary_color || dt.primary_color,
+                backgroundColor: resolvedPrimaryColor,
                 color: '#ffffff',
                 '&:hover': {
-                  backgroundColor: setting.primary_color || dt.primary_color,
+                  backgroundColor: resolvedPrimaryColor,
                   opacity: 0.9,
                   transform: 'translateY(-1px)',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                 },
               },
               outlined: {
-                border: mode === 'light' ? '1px dashed rgba(0, 0, 0, 0.15)' : '1px dashed rgba(255, 255, 255, 0.15)',
+                border:
+                  mode === 'light'
+                    ? '1px dashed rgba(0, 0, 0, 0.15)'
+                    : '1px dashed rgba(255, 255, 255, 0.15)',
                 backgroundColor: 'transparent',
                 color: mode === 'light' ? '#111827' : '#ffffff',
                 '&:hover': {
-                  border: mode === 'light' ? '1px dashed rgba(0, 0, 0, 0.3)' : '1px dashed rgba(255, 255, 255, 0.3)',
-                  backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.05)',
+                  border:
+                    mode === 'light'
+                      ? '1px dashed rgba(0, 0, 0, 0.3)'
+                      : '1px dashed rgba(255, 255, 255, 0.3)',
+                  backgroundColor:
+                    mode === 'light'
+                      ? 'rgba(0, 0, 0, 0.03)'
+                      : 'rgba(255, 255, 255, 0.05)',
                   transform: 'translateY(-1px)',
                 },
               },
@@ -346,7 +360,10 @@ export const useCustomTheme = () => {
               root: {
                 borderRadius: '16px',
                 height: '48px',
-                backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.04)',
+                backgroundColor:
+                  mode === 'light'
+                    ? 'rgba(0, 0, 0, 0.03)'
+                    : 'rgba(255, 255, 255, 0.04)',
                 transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                 fontSize: '12px',
                 fontWeight: 600,
@@ -354,11 +371,17 @@ export const useCustomTheme = () => {
                   border: 'none',
                 },
                 '&:hover': {
-                  backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.07)',
+                  backgroundColor:
+                    mode === 'light'
+                      ? 'rgba(0, 0, 0, 0.05)'
+                      : 'rgba(255, 255, 255, 0.07)',
                 },
                 '&.Mui-focused': {
-                  backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.02)',
-                  boxShadow: `0 0 0 2px ${alpha(setting.primary_color || dt.primary_color, 0.2)}`,
+                  backgroundColor:
+                    mode === 'light'
+                      ? 'rgba(0, 0, 0, 0.02)'
+                      : 'rgba(255, 255, 255, 0.02)',
+                  boxShadow: `0 0 0 2px ${alpha(resolvedPrimaryColor, 0.2)}`,
                 },
               },
               input: {
@@ -395,9 +418,10 @@ export const useCustomTheme = () => {
               paper: {
                 borderRadius: '32px',
                 border: 'none',
-                boxShadow: mode === 'light' 
-                  ? '0 25px 50px -12px rgba(0, 0, 0, 0.15)' 
-                  : '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                boxShadow:
+                  mode === 'light'
+                    ? '0 25px 50px -12px rgba(0, 0, 0, 0.15)'
+                    : '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
                 backgroundImage: 'none',
               },
             },
@@ -432,12 +456,14 @@ export const useCustomTheme = () => {
             styleOverrides: {
               paper: {
                 borderRadius: '16px',
-                boxShadow: mode === 'light' 
-                  ? '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)' 
-                  : '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
-                border: mode === 'light' 
-                  ? '1px solid rgba(0, 0, 0, 0.06)' 
-                  : '1px solid rgba(255, 255, 255, 0.04)',
+                boxShadow:
+                  mode === 'light'
+                    ? '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)'
+                    : '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+                border:
+                  mode === 'light'
+                    ? '1px solid rgba(0, 0, 0, 0.06)'
+                    : '1px solid rgba(255, 255, 255, 0.04)',
               },
             },
           },
@@ -445,12 +471,14 @@ export const useCustomTheme = () => {
             styleOverrides: {
               paper: {
                 borderRadius: '16px',
-                boxShadow: mode === 'light' 
-                  ? '0 10px 25px -5px rgba(0, 0, 0, 0.08)' 
-                  : '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
-                border: mode === 'light' 
-                  ? '1px solid rgba(0, 0, 0, 0.06)' 
-                  : '1px solid rgba(255, 255, 255, 0.04)',
+                boxShadow:
+                  mode === 'light'
+                    ? '0 10px 25px -5px rgba(0, 0, 0, 0.08)'
+                    : '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+                border:
+                  mode === 'light'
+                    ? '1px solid rgba(0, 0, 0, 0.06)'
+                    : '1px solid rgba(255, 255, 255, 0.04)',
               },
             },
           },
@@ -479,276 +507,26 @@ export const useCustomTheme = () => {
                 borderRadius: '12px',
                 transition: 'background-color 0.2s ease',
                 '&:hover': {
-                  backgroundColor: mode === 'light' 
-                    ? 'rgba(0, 0, 0, 0.03)' 
-                    : 'rgba(255, 255, 255, 0.03)',
+                  backgroundColor:
+                    mode === 'light'
+                      ? 'rgba(0, 0, 0, 0.03)'
+                      : 'rgba(255, 255, 255, 0.03)',
                 },
               },
             },
           },
         },
-      })
-    } catch (e) {
-      console.error('Error creating MUI theme, falling back to defaults:', e)
-      muiTheme = createTheme({
-        breakpoints: {
-          values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
-        },
-        palette: {
-          mode,
-          primary: { main: dt.primary_color },
-          secondary: { main: dt.secondary_color },
-          info: { main: dt.info_color },
-          error: { main: dt.error_color },
-          warning: { main: dt.warning_color },
-          success: { main: dt.success_color },
-          text: { primary: dt.primary_text, secondary: dt.secondary_text },
-          background: {
-            paper: dt.background_color,
-            default: dt.background_color,
-          },
-        },
-        typography: {
-          fontFamily: `'Outfit', 'Inter', ${dt.font_family}`,
-          h1: {
-            fontSize: '18px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-            textTransform: 'uppercase',
-          },
-          h2: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h3: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h4: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h5: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h6: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          body1: {
-            fontSize: '12px',
-            fontWeight: 500,
-          },
-          body2: {
-            fontSize: '12px',
-            fontWeight: 500,
-          },
-          caption: {
-            fontSize: '10px',
-            fontWeight: 900,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-          },
-        },
-        components: {
-          MuiButton: {
-            defaultProps: {
-              disableElevation: true,
-            },
-            styleOverrides: {
-              root: {
-                borderRadius: '9999px',
-                textTransform: 'uppercase',
-                fontWeight: 900,
-                letterSpacing: '0.15em',
-                fontSize: '10px',
-                height: '44px',
-                padding: '0 24px',
-                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-              },
-              contained: {
-                backgroundColor: setting.primary_color || dt.primary_color,
-                color: '#ffffff',
-                '&:hover': {
-                  backgroundColor: setting.primary_color || dt.primary_color,
-                  opacity: 0.9,
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                },
-              },
-              outlined: {
-                border: mode === 'light' ? '1px dashed rgba(0, 0, 0, 0.15)' : '1px dashed rgba(255, 255, 255, 0.15)',
-                backgroundColor: 'transparent',
-                color: mode === 'light' ? '#111827' : '#ffffff',
-                '&:hover': {
-                  border: mode === 'light' ? '1px dashed rgba(0, 0, 0, 0.3)' : '1px dashed rgba(255, 255, 255, 0.3)',
-                  backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.05)',
-                  transform: 'translateY(-1px)',
-                },
-              },
-            },
-          },
-          MuiOutlinedInput: {
-            styleOverrides: {
-              root: {
-                borderRadius: '16px',
-                height: '48px',
-                backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.04)',
-                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                fontSize: '12px',
-                fontWeight: 600,
-                '& .MuiOutlinedInput-notchedOutline': {
-                  border: 'none',
-                },
-                '&:hover': {
-                  backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.07)',
-                },
-                '&.Mui-focused': {
-                  backgroundColor: mode === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.02)',
-                  boxShadow: `0 0 0 2px ${alpha(setting.primary_color || dt.primary_color, 0.2)}`,
-                },
-              },
-              input: {
-                padding: '0 16px',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-              },
-            },
-          },
-          MuiInputBase: {
-            styleOverrides: {
-              root: {
-                borderRadius: '16px',
-                fontSize: '12px',
-                fontWeight: 600,
-              },
-            },
-          },
-          MuiSelect: {
-            styleOverrides: {
-              select: {
-                height: '48px',
-                display: 'flex',
-                alignItems: 'center',
-                boxSizing: 'border-box',
-                paddingLeft: '16px',
-                paddingRight: '32px',
-              },
-            },
-          },
-          MuiDialog: {
-            styleOverrides: {
-              paper: {
-                borderRadius: '32px',
-                border: 'none',
-                boxShadow: mode === 'light' 
-                  ? '0 25px 50px -12px rgba(0, 0, 0, 0.15)' 
-                  : '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                backgroundImage: 'none',
-              },
-            },
-          },
-          MuiDialogTitle: {
-            styleOverrides: {
-              root: {
-                padding: '24px 24px 12px',
-                fontSize: '14px',
-                fontWeight: 900,
-                fontStyle: 'italic',
-                letterSpacing: '-0.05em',
-              },
-            },
-          },
-          MuiDialogContent: {
-            styleOverrides: {
-              root: {
-                padding: '12px 24px 20px',
-              },
-            },
-          },
-          MuiDialogActions: {
-            styleOverrides: {
-              root: {
-                padding: '0 24px 24px',
-                gap: '8px',
-              },
-            },
-          },
-          MuiMenu: {
-            styleOverrides: {
-              paper: {
-                borderRadius: '16px',
-                boxShadow: mode === 'light' 
-                  ? '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)' 
-                  : '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
-                border: mode === 'light' 
-                  ? '1px solid rgba(0, 0, 0, 0.06)' 
-                  : '1px solid rgba(255, 255, 255, 0.04)',
-              },
-            },
-          },
-          MuiPopover: {
-            styleOverrides: {
-              paper: {
-                borderRadius: '16px',
-                boxShadow: mode === 'light' 
-                  ? '0 10px 25px -5px rgba(0, 0, 0, 0.08)' 
-                  : '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
-                border: mode === 'light' 
-                  ? '1px solid rgba(0, 0, 0, 0.06)' 
-                  : '1px solid rgba(255, 255, 255, 0.04)',
-              },
-            },
-          },
-          MuiTooltip: {
-            styleOverrides: {
-              tooltip: {
-                borderRadius: '8px',
-                fontSize: '10px',
-                fontWeight: 900,
-                backgroundColor: '#111827',
-                color: '#ffffff',
-                letterSpacing: '0.05em',
-                padding: '6px 10px',
-              },
-              arrow: {
-                color: '#111827',
-              },
-            },
-          },
-          MuiFormControlLabel: {
-            styleOverrides: {
-              root: {
-                marginLeft: 0,
-                marginRight: 0,
-                padding: '4px 10px',
-                borderRadius: '12px',
-                transition: 'background-color 0.2s ease',
-                '&:hover': {
-                  backgroundColor: mode === 'light' 
-                    ? 'rgba(0, 0, 0, 0.03)' 
-                    : 'rgba(255, 255, 255, 0.03)',
-                },
-              },
-            },
-          },
-        },
-      })
+      }
+
+      themeOptions.shadows = flatShadows
+
+      return themeOptions
     }
 
+    return createTheme(createThemeOptions())
+  }, [dt, mode, setting])
+
+  useLayoutEffect(() => {
     const rootEle = document.documentElement
     if (rootEle) {
       const backgroundColor = dt.background_color
@@ -756,19 +534,24 @@ export const useCustomTheme = () => {
       const scrollColor = mode === 'light' ? '#90939980' : '#555555'
       const dividerColor =
         mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)' // 极淡灰色虚线
+      
+      // 设置字体 CSS 变量（唯一数据源）
+      const resolvedFontFamily = setting.font_family || dt.font_family
+      rootEle.style.setProperty('--font-family', resolvedFontFamily)
+      
       rootEle.style.setProperty('--divider-color', dividerColor)
       rootEle.style.setProperty('--background-color', backgroundColor)
       rootEle.style.setProperty('--selection-color', selectColor)
       rootEle.style.setProperty('--scroller-color', scrollColor)
-      rootEle.style.setProperty('--primary-main', muiTheme.palette.primary.main)
+      rootEle.style.setProperty('--primary-main', theme.palette.primary.main)
 
       // 计算 RGB 变量以供 SCSS 渐变使用
-      const primaryRgb = resolveCssColorToRgbString(muiTheme.palette.primary.main)
+      const primaryRgb = resolveCssColorToRgbString(theme.palette.primary.main)
       rootEle.style.setProperty('--primary-main-rgb', primaryRgb)
 
       rootEle.style.setProperty(
         '--background-color-alpha',
-        alpha(muiTheme.palette.primary.main, 0.1),
+        alpha(theme.palette.primary.main, 0.1),
       )
       rootEle.style.setProperty(
         '--window-border-color',
@@ -782,15 +565,24 @@ export const useCustomTheme = () => {
         '--scrollbar-thumb',
         mode === 'light' ? '#c1c1c1' : '#555555',
       )
-      
+
       // 浅色模式卡片为纯白 (#ffffff)，深色模式为钛金黑 (#16181d)
-      rootEle.style.setProperty('--card-bg', mode === 'light' ? '#ffffff' : '#16181d')
-      rootEle.style.setProperty('--text-primary', muiTheme.palette.text.primary)
-      rootEle.style.setProperty('--text-secondary', muiTheme.palette.text.secondary)
-      rootEle.style.setProperty('--primary-main-hover', muiTheme.palette.primary.main)
+      rootEle.style.setProperty(
+        '--card-bg',
+        mode === 'light' ? '#ffffff' : '#16181d',
+      )
+      rootEle.style.setProperty('--text-primary', theme.palette.text.primary)
+      rootEle.style.setProperty(
+        '--text-secondary',
+        theme.palette.text.secondary,
+      )
+      rootEle.style.setProperty(
+        '--primary-main-hover',
+        theme.palette.primary.main,
+      )
       rootEle.style.setProperty(
         '--layout-nav-active-bg',
-        alpha(muiTheme.palette.primary.main, mode === 'light' ? 0.15 : 0.35),
+        alpha(theme.palette.primary.main, mode === 'light' ? 0.15 : 0.35),
       )
       rootEle.style.setProperty(
         '--user-background-image',
@@ -810,20 +602,20 @@ export const useCustomTheme = () => {
       rootEle.setAttribute('data-theme', mode)
     }
 
-    let styleElement = document.querySelector('style#verge-theme')
+    let styleElement =
+      document.querySelector<HTMLStyleElement>('style#verge-theme')
     if (!styleElement) {
       styleElement = document.createElement('style')
       styleElement.id = 'verge-theme'
-      document.head.appendChild(styleElement!)
+      document.head.appendChild(styleElement)
     }
 
-    if (styleElement) {
-      let scopedCss: string | null = null
-      if (canUseCssScope() && setting.css_injection) {
-        scopedCss = wrapCssInjectionWithScope(setting.css_injection)
-      }
-      const effectiveInjectedCss = scopedCss ?? setting.css_injection ?? ''
-      const globalStyles = `
+    let scopedCss: string | null = null
+    if (canUseCssScope() && setting.css_injection) {
+      scopedCss = wrapCssInjectionWithScope(setting.css_injection)
+    }
+    const effectiveInjectedCss = scopedCss ?? setting.css_injection ?? ''
+    const globalStyles = `
         /* 修复滚动条样式 */
         ::-webkit-scrollbar {
           width: 8px;
@@ -862,11 +654,8 @@ export const useCustomTheme = () => {
         }
       `
 
-      styleElement.innerHTML = effectiveInjectedCss + globalStyles
-    }
-
-    return muiTheme
-  }, [mode, theme_setting, userBackgroundImage, hasUserBackground])
+    styleElement.textContent = effectiveInjectedCss + globalStyles
+  }, [dt, hasUserBackground, mode, setting, theme, userBackgroundImage])
 
   useEffect(() => {
     const id = setTimeout(() => {

@@ -207,10 +207,6 @@
           "secondaryColor": "Икенче төс",
           "primaryText": "Primary Text",
           "secondaryText": "Secondary Text",
-          "infoColor": "Мәгълүмат төсе",
-          "warningColor": "Кисәтү төсе",
-          "errorColor": "Хата төсе",
-          "successColor": "Уңыш төсе",
           "fontFamily": "Шрифтлар гаиләсе",
           "cssInjection": "CSS кертү"
         },

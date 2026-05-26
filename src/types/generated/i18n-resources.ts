@@ -674,15 +674,11 @@ export interface TranslationResources {
             }
             fields: {
               cssInjection: string
-              errorColor: string
               fontFamily: string
-              infoColor: string
               primaryColor: string
               primaryText: string
               secondaryColor: string
               secondaryText: string
-              successColor: string
-              warningColor: string
             }
             title: string
           }

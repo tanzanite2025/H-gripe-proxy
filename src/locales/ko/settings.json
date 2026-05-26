@@ -207,10 +207,6 @@
           "secondaryColor": "보조 색상",
           "primaryText": "기본 텍스트",
           "secondaryText": "보조 텍스트",
-          "infoColor": "정보 색상",
-          "warningColor": "경고 색상",
-          "errorColor": "오류 색상",
-          "successColor": "성공 색상",
           "fontFamily": "글꼴",
           "cssInjection": "CSS 삽입"
         },

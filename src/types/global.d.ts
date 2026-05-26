@@ -976,10 +976,6 @@ interface IVergeConfig {
     secondary_color?: string
     primary_text?: string
     secondary_text?: string
-    info_color?: string
-    error_color?: string
-    warning_color?: string
-    success_color?: string
     font_family?: string
     css_injection?: string
     background_image?: string

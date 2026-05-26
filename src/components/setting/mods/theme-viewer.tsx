@@ -92,22 +92,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
         labelKey: 'settings.components.verge.theme.fields.secondaryText',
         key: 'secondary_text',
       },
-      {
-        labelKey: 'settings.components.verge.theme.fields.infoColor',
-        key: 'info_color',
-      },
-      {
-        labelKey: 'settings.components.verge.theme.fields.warningColor',
-        key: 'warning_color',
-      },
-      {
-        labelKey: 'settings.components.verge.theme.fields.errorColor',
-        key: 'error_color',
-      },
-      {
-        labelKey: 'settings.components.verge.theme.fields.successColor',
-        key: 'success_color',
-      },
     ],
     [],
   )

@@ -207,10 +207,6 @@
           "secondaryColor": "Sekundärfarbe",
           "primaryText": "Haupttextfarbe",
           "secondaryText": "Sekundärtextfarbe",
-          "infoColor": "Informationsfarbe",
-          "warningColor": "Warnfarbe",
-          "errorColor": "Fehlerfarbe",
-          "successColor": "Erfolgsfarbe",
           "fontFamily": "Schriftfamilie",
           "cssInjection": "CSS-Einbindung"
         },

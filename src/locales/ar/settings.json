@@ -207,10 +207,6 @@
           "secondaryColor": "اللون الثانوي",
           "primaryText": "النص الأساسي",
           "secondaryText": "النص الثانوي",
-          "infoColor": "لون المعلومات",
-          "warningColor": "لون التحذير",
-          "errorColor": "لون الخطأ",
-          "successColor": "لون النجاح",
           "fontFamily": "عائلة الخط",
           "cssInjection": "حقن CSS"
         },

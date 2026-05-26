@@ -70,10 +70,10 @@ const SettingPage = () => {
       <Grid
         container
         spacing={1.5}
-        columns={{ xs: 6, sm: 6, md: 12 }}
+        columns={{ xs: 6, sm: 6, md: 12, lg: 18 }}
         className="settings-page-grid"
       >
-        <Grid size={6} className="settings-page-grid__column">
+        <Grid size={{ xs: 6, sm: 6, md: 6, lg: 6 }} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingSystem onError={onError} />
           </Box>
@@ -81,10 +81,12 @@ const SettingPage = () => {
             <SettingClash onError={onError} />
           </Box>
         </Grid>
-        <Grid size={6} className="settings-page-grid__column">
+        <Grid size={{ xs: 6, sm: 6, md: 6, lg: 6 }} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingVergeBasic onError={onError} />
           </Box>
+        </Grid>
+        <Grid size={{ xs: 6, sm: 6, md: 12, lg: 6 }} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingVergeAdvanced onError={onError} />
           </Box>

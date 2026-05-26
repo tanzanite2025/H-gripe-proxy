@@ -207,10 +207,6 @@
           "secondaryColor": "Вторичный цвет",
           "primaryText": "Основной текст",
           "secondaryText": "Дополнительный текст",
-          "infoColor": "Информационный цвет",
-          "warningColor": "Цвет предупреждения",
-          "errorColor": "Цвет ошибки",
-          "successColor": "Цвет успеха",
           "fontFamily": "Семейство шрифтов",
           "cssInjection": "Внедрение CSS"
         },

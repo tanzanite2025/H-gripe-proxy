@@ -207,10 +207,6 @@
           "secondaryColor": "次要色",
           "primaryText": "テキスト主要色",
           "secondaryText": "テキスト次要色",
-          "infoColor": "情報色",
-          "warningColor": "警告色",
-          "errorColor": "エラー色",
-          "successColor": "成功色",
           "fontFamily": "フォントファミリー",
           "cssInjection": "CSSインジェクション"
         },

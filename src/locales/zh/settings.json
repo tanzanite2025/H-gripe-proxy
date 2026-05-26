@@ -207,10 +207,6 @@
           "secondaryColor": "次要颜色",
           "primaryText": "文本主要颜色",
           "secondaryText": "文本次要颜色",
-          "infoColor": "信息颜色",
-          "warningColor": "警告颜色",
-          "errorColor": "错误颜色",
-          "successColor": "成功颜色",
           "fontFamily": "字体系列",
           "cssInjection": "CSS 注入"
         },

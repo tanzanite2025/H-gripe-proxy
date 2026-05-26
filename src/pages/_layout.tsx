@@ -292,8 +292,8 @@ const Layout = () => {
             <SvgIcon
               component={AppIcon}
               style={{
-                height: '22px',
-                width: '22px',
+                height: '28px',
+                width: '28px',
               }}
               inheritViewBox
             />

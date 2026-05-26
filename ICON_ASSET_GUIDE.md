@@ -4,6 +4,20 @@
 
 这份文档用于后续**手动替换图标/Logo 素材**。下面列出当前项目里和图标有关的主要文件、路径、尺寸、用途，以及建议怎么替换。
 
+---
+
+## ✅ 图标生成状态（2026-05-27 更新）
+
+**已完成：** 从 `src-tauri/icons/ico.ico` 自动生成了所有 Windows 所需的图标文件！
+
+- ✅ 主程序图标：icon.ico, 32x32.png, 128x128.png, 128x128@2x.png, icon.png
+- ✅ 托盘图标：tray-icon.ico, tray-icon-sys.ico, tray-icon-tun.ico
+- ⚠️ **待处理**：macOS 的 icon.icns 需要单独生成（见 `ICON_GENERATION_COMPLETE.md`）
+
+**详细报告：** 查看 `ICON_GENERATION_COMPLETE.md`
+
+---
+
 ## 1. 前端顶部图标 / Logo
 
 ### 1.1 当前实际使用中的前端图标

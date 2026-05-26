@@ -207,10 +207,6 @@
           "secondaryColor": "Warna Sekunder",
           "primaryText": "Teks Utama",
           "secondaryText": "Teks Sekunder",
-          "infoColor": "Warna Info",
-          "warningColor": "Warna Peringatan",
-          "errorColor": "Warna Kesalahan",
-          "successColor": "Warna Keberhasilan",
           "fontFamily": "Keluarga Font",
           "cssInjection": "Injeksi CSS"
         },
