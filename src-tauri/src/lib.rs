@@ -282,10 +282,6 @@ pub fn run() {
 
             logging!(info, Type::System, "应用就绪");
 
-            #[cfg(target_os = "macos")]
-            if let Some(window) = _app_handle.get_webview_window("main") {
-                let _ = window.set_title("Clash Verge");
-            }
         }
 
         #[cfg(target_os = "macos")]
