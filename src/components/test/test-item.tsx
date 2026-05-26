@@ -125,22 +125,28 @@ export const TestItem = ({
               {icon.trim().startsWith('http') && (
                 <img
                   src={iconCachePath === '' ? icon : iconCachePath}
-                  height="40px"
+                  style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                  alt={name}
                 />
               )}
               {icon.trim().startsWith('data') && (
-                <img src={icon} height="40px" />
+                <img 
+                  src={icon} 
+                  style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                  alt={name}
+                />
               )}
               {icon.trim().startsWith('<svg') && (
                 <img
                   src={`data:image/svg+xml;base64,${btoa(icon)}`}
-                  height="40px"
+                  style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                  alt={name}
                 />
               )}
             </Box>
           ) : (
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <LanguageRounded sx={{ height: '40px' }} fontSize="large" />
+              <LanguageRounded sx={{ width: '40px', height: '40px' }} fontSize="large" />
             </Box>
           )}
 
