@@ -1,10 +1,26 @@
 import { CheckCircleOutlineRounded } from '@mui/icons-material'
-import { alpha, Box, ListItemButton, styled, Typography } from '@mui/material'
+import {
+  alpha,
+  Box,
+  ListItemButton,
+  styled,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/network'
 import delayManager from '@/services/delay'
+
+import {
+  getMieruMultiplexShortText,
+  getMieruMultiplexTooltip,
+  getSmuxShortText,
+  getSmuxTooltip,
+  getSudokuMultiplexShortText,
+  getSudokuMultiplexTooltip,
+} from './utils/multiplexing-helpers'
 
 interface Props {
   group: IProxyGroupItem
@@ -144,10 +160,42 @@ export const ProxyItemMini = (props: Props) => {
               </TypeBox>
             )}
             {proxy.smux && (
-              <TypeBox color="text.secondary" component="span">
-                SMUX
-              </TypeBox>
+              <Tooltip title={getSmuxTooltip(proxy)} arrow placement="top">
+                <TypeBox color="text.secondary" component="span">
+                  {getSmuxShortText(proxy)}
+                </TypeBox>
+              </Tooltip>
             )}
+            {proxy.type === 'mieru' &&
+              (proxy as any).multiplexing &&
+              (proxy as any).multiplexing !== 'MULTIPLEXING_OFF' && (
+                <Tooltip
+                  title={getMieruMultiplexTooltip((proxy as any).multiplexing)}
+                  arrow
+                  placement="top"
+                >
+                  <TypeBox color="text.secondary" component="span">
+                    {getMieruMultiplexShortText((proxy as any).multiplexing)}
+                  </TypeBox>
+                </Tooltip>
+              )}
+            {proxy.type === 'sudoku' &&
+              (proxy as any).httpmask?.multiplex &&
+              (proxy as any).httpmask.multiplex !== 'off' && (
+                <Tooltip
+                  title={getSudokuMultiplexTooltip(
+                    (proxy as any).httpmask.multiplex,
+                  )}
+                  arrow
+                  placement="top"
+                >
+                  <TypeBox color="text.secondary" component="span">
+                    {getSudokuMultiplexShortText(
+                      (proxy as any).httpmask.multiplex,
+                    )}
+                  </TypeBox>
+                </Tooltip>
+              )}
           </Box>
         )}
       </Box>
