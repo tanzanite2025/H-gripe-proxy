@@ -6,6 +6,11 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /**
+ * DNS 协议类型
+ */
+export type DnsProtocol = 'udp' | 'tcp' | 'doh' | 'dot'
+
+/**
  * DNS 查询结果
  */
 export interface DnsQueryResult {
@@ -14,6 +19,7 @@ export interface DnsQueryResult {
   latency: number
   success: boolean
   error?: string
+  protocol: string
 }
 
 /**
@@ -24,14 +30,30 @@ export interface DnsHealthCheckResult {
   latency: number
   success: boolean
   error?: string
+  protocol: string
+}
+
+/**
+ * DNS 查询选项
+ */
+export interface DnsQueryOptions {
+  server?: string
+  protocol?: DnsProtocol
 }
 
 /**
  * DNS 查询
  */
-export async function dnsQuery(domain: string): Promise<DnsQueryResult> {
+export async function dnsQuery(
+  domain: string,
+  options?: DnsQueryOptions,
+): Promise<DnsQueryResult> {
   try {
-    const result = await invoke<DnsQueryResult>('dns_query', { domain })
+    const result = await invoke<DnsQueryResult>('dns_query', {
+      domain,
+      server: options?.server,
+      protocol: options?.protocol,
+    })
     return result
   } catch (err) {
     console.error(`DNS query failed for ${domain}:`, err)
@@ -45,11 +67,13 @@ export async function dnsQuery(domain: string): Promise<DnsQueryResult> {
 export async function dnsHealthCheck(
   server: string,
   testDomain?: string,
+  protocol?: DnsProtocol,
 ): Promise<DnsHealthCheckResult> {
   try {
     const result = await invoke<DnsHealthCheckResult>('dns_health_check', {
       server,
       testDomain,
+      protocol,
     })
     return result
   } catch (err) {
@@ -61,9 +85,16 @@ export async function dnsHealthCheck(
 /**
  * 批量 DNS 查询
  */
-export async function dnsBatchQuery(domains: string[]): Promise<DnsQueryResult[]> {
+export async function dnsBatchQuery(
+  domains: string[],
+  options?: DnsQueryOptions,
+): Promise<DnsQueryResult[]> {
   try {
-    const results = await invoke<DnsQueryResult[]>('dns_batch_query', { domains })
+    const results = await invoke<DnsQueryResult[]>('dns_batch_query', {
+      domains,
+      server: options?.server,
+      protocol: options?.protocol,
+    })
     return results
   } catch (err) {
     console.error('DNS batch query failed:', err)
@@ -77,11 +108,13 @@ export async function dnsBatchQuery(domains: string[]): Promise<DnsQueryResult[]
 export async function dnsBatchHealthCheck(
   servers: string[],
   testDomain?: string,
+  protocol?: DnsProtocol,
 ): Promise<DnsHealthCheckResult[]> {
   try {
     const results = await invoke<DnsHealthCheckResult[]>('dns_batch_health_check', {
       servers,
       testDomain,
+      protocol,
     })
     return results
   } catch (err) {

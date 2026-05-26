@@ -4,12 +4,18 @@
  */
 
 import { dnsCacheService } from './dns-cache'
-import { dnsQuery } from './dns-api'
+import { dnsQuery, type DnsProtocol } from './dns-api'
 
 interface DomainFrequency {
   domain: string
   count: number
   lastAccess: number
+}
+
+interface DnsPrefetchConfig {
+  server?: string
+  protocol?: DnsProtocol
+  useDoH?: boolean // 是否使用 DoH（隐私优先）
 }
 
 class DnsPrefetchService {
@@ -32,23 +38,62 @@ class DnsPrefetchService {
   private readonly MAX_HISTORY_SIZE = 500
   private prefetchInterval: ReturnType<typeof setInterval> | null = null
 
+  // DNS 配置
+  private config: DnsPrefetchConfig = {
+    useDoH: false, // 默认不使用 DoH（速度优先）
+  }
+
+  /**
+   * 设置 DNS 配置
+   */
+  setConfig(config: Partial<DnsPrefetchConfig>): void {
+    this.config = { ...this.config, ...config }
+    console.log('DNS prefetch config updated:', this.config)
+  }
+
+  /**
+   * 获取当前配置
+   */
+  getConfig(): DnsPrefetchConfig {
+    return { ...this.config }
+  }
+
   /**
    * 预解析域名
    */
-  async prefetchDomain(domain: string): Promise<void> {
+  async prefetchDomain(domain: string, customConfig?: DnsPrefetchConfig): Promise<void> {
     try {
       // 检查缓存
       if (dnsCacheService.has(domain)) {
         return
       }
 
+      const config = customConfig || this.config
+
+      // 构建查询选项
+      const options: { server?: string; protocol?: DnsProtocol } = {}
+
+      if (config.server) {
+        options.server = config.server
+      }
+
+      if (config.protocol) {
+        options.protocol = config.protocol
+      } else if (config.useDoH) {
+        // 如果启用 DoH，使用 Cloudflare DoH
+        options.server = '1.1.1.1'
+        options.protocol = 'doh'
+      }
+
       // 调用后端 API 进行 DNS 查询
-      const result = await dnsQuery(domain)
+      const result = await dnsQuery(domain, options)
 
       if (result.success && result.ip) {
         // 缓存查询结果
         dnsCacheService.set(domain, result.ip)
-        console.log(`DNS prefetch: ${domain} -> ${result.ip} (${result.latency}ms)`)
+        console.log(
+          `DNS prefetch: ${domain} -> ${result.ip} (${result.latency}ms, ${result.protocol})`,
+        )
       } else {
         console.warn(`DNS prefetch failed: ${domain} - ${result.error || 'unknown error'}`)
       }

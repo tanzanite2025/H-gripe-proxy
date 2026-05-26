@@ -1,8 +1,21 @@
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, ToSocketAddrs};
-use std::time::{Duration, Instant};
-use tauri::State;
-use tokio::time::timeout;
+use std::net::IpAddr;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Instant;
+use hickory_resolver::config::*;
+use hickory_resolver::TokioAsyncResolver;
+use hickory_proto::rr::Name;
+
+/// DNS 协议类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DnsProtocol {
+    Udp,
+    Tcp,
+    Doh,  // DNS over HTTPS
+    Dot,  // DNS over TLS
+}
 
 /// DNS 查询结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,6 +25,7 @@ pub struct DnsQueryResult {
     pub latency: u64, // 毫秒
     pub success: bool,
     pub error: Option<String>,
+    pub protocol: String,
 }
 
 /// DNS 服务器健康检查结果
@@ -21,64 +35,171 @@ pub struct DnsHealthCheckResult {
     pub latency: u64,
     pub success: bool,
     pub error: Option<String>,
+    pub protocol: String,
 }
 
-/// DNS 查询（简单实现）
+/// 创建 DNS 解析器
+fn create_resolver(
+    server: Option<String>,
+    protocol: Option<DnsProtocol>,
+) -> Result<TokioAsyncResolver, String> {
+    let protocol = protocol.unwrap_or(DnsProtocol::Udp);
+    
+    // 如果没有指定服务器，使用系统默认
+    if server.is_none() {
+        return TokioAsyncResolver::tokio(
+            ResolverConfig::default(),
+            ResolverOpts::default(),
+        ).map_err(|e| e.to_string());
+    }
+    
+    let server_addr = server.unwrap();
+    let mut config = ResolverConfig::new();
+    
+    match protocol {
+        DnsProtocol::Udp => {
+            // UDP DNS (标准 DNS，端口 53)
+            let socket_addr = if server_addr.contains(':') {
+                server_addr.clone()
+            } else {
+                format!("{}:53", server_addr)
+            };
+            
+            config.add_name_server(NameServerConfig {
+                socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
+                protocol: Protocol::Udp,
+                tls_dns_name: None,
+                trust_negative_responses: true,
+                bind_addr: None,
+            });
+        }
+        DnsProtocol::Tcp => {
+            // TCP DNS (端口 53)
+            let socket_addr = if server_addr.contains(':') {
+                server_addr.clone()
+            } else {
+                format!("{}:53", server_addr)
+            };
+            
+            config.add_name_server(NameServerConfig {
+                socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
+                protocol: Protocol::Tcp,
+                tls_dns_name: None,
+                trust_negative_responses: true,
+                bind_addr: None,
+            });
+        }
+        DnsProtocol::Doh => {
+            // DNS over HTTPS (端口 443)
+            let socket_addr = if server_addr.contains(':') {
+                server_addr.clone()
+            } else {
+                format!("{}:443", server_addr)
+            };
+            
+            // 从 IP 地址提取 TLS DNS 名称
+            let tls_dns_name = match server_addr.as_str() {
+                "1.1.1.1" | "1.0.0.1" => Some("cloudflare-dns.com".to_string()),
+                "8.8.8.8" | "8.8.4.4" => Some("dns.google".to_string()),
+                "9.9.9.9" => Some("dns.quad9.net".to_string()),
+                _ => None,
+            };
+            
+            config.add_name_server(NameServerConfig {
+                socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
+                protocol: Protocol::Https,
+                tls_dns_name,
+                trust_negative_responses: true,
+                bind_addr: None,
+            });
+        }
+        DnsProtocol::Dot => {
+            // DNS over TLS (端口 853)
+            let socket_addr = if server_addr.contains(':') {
+                server_addr.clone()
+            } else {
+                format!("{}:853", server_addr)
+            };
+            
+            // 从 IP 地址提取 TLS DNS 名称
+            let tls_dns_name = match server_addr.as_str() {
+                "1.1.1.1" | "1.0.0.1" => Some("cloudflare-dns.com".to_string()),
+                "8.8.8.8" | "8.8.4.4" => Some("dns.google".to_string()),
+                "9.9.9.9" => Some("dns.quad9.net".to_string()),
+                _ => None,
+            };
+            
+            config.add_name_server(NameServerConfig {
+                socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
+                protocol: Protocol::Tls,
+                tls_dns_name,
+                trust_negative_responses: true,
+                bind_addr: None,
+            });
+        }
+    }
+    
+    let mut opts = ResolverOpts::default();
+    opts.timeout = std::time::Duration::from_secs(5);
+    opts.attempts = 2;
+    
+    TokioAsyncResolver::tokio(config, opts).map_err(|e| e.to_string())
+}
+
+/// DNS 查询
 /// 
-/// 使用系统 DNS 解析器进行查询
+/// 支持自定义 DNS 服务器和协议（UDP/TCP/DoH/DoT）
 #[tauri::command]
-pub async fn dns_query(domain: String) -> Result<DnsQueryResult, String> {
+pub async fn dns_query(
+    domain: String,
+    server: Option<String>,
+    protocol: Option<DnsProtocol>,
+) -> Result<DnsQueryResult, String> {
     let start = Instant::now();
+    let protocol_str = protocol.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "System".to_string());
     
-    // 设置超时时间为 5 秒
-    let query_future = tokio::task::spawn_blocking(move || {
-        // 使用系统 DNS 解析
-        let addrs = format!("{}:0", domain)
-            .to_socket_addrs()
-            .map_err(|e| e.to_string())?;
-        
-        // 获取第一个 IP 地址
-        let ip = addrs
-            .into_iter()
-            .next()
-            .ok_or_else(|| "No IP address found".to_string())?
-            .ip();
-        
-        Ok::<IpAddr, String>(ip)
-    });
+    // 创建解析器
+    let resolver = create_resolver(server.clone(), protocol.clone())?;
     
-    match timeout(Duration::from_secs(5), query_future).await {
-        Ok(Ok(Ok(ip))) => {
+    // 解析域名
+    let name = Name::from_str(&domain).map_err(|e| format!("Invalid domain: {}", e))?;
+    
+    match resolver.lookup_ip(name).await {
+        Ok(response) => {
+            let latency = start.elapsed().as_millis() as u64;
+            
+            // 获取第一个 IP 地址
+            if let Some(ip) = response.iter().next() {
+                Ok(DnsQueryResult {
+                    domain: domain.clone(),
+                    ip: ip.to_string(),
+                    latency,
+                    success: true,
+                    error: None,
+                    protocol: protocol_str,
+                })
+            } else {
+                Ok(DnsQueryResult {
+                    domain: domain.clone(),
+                    ip: String::new(),
+                    latency,
+                    success: false,
+                    error: Some("No IP address found".to_string()),
+                    protocol: protocol_str,
+                })
+            }
+        }
+        Err(e) => {
             let latency = start.elapsed().as_millis() as u64;
             Ok(DnsQueryResult {
                 domain: domain.clone(),
-                ip: ip.to_string(),
+                ip: String::new(),
                 latency,
-                success: true,
-                error: None,
+                success: false,
+                error: Some(e.to_string()),
+                protocol: protocol_str,
             })
         }
-        Ok(Ok(Err(e))) => Ok(DnsQueryResult {
-            domain: domain.clone(),
-            ip: String::new(),
-            latency: start.elapsed().as_millis() as u64,
-            success: false,
-            error: Some(e),
-        }),
-        Ok(Err(e)) => Ok(DnsQueryResult {
-            domain: domain.clone(),
-            ip: String::new(),
-            latency: start.elapsed().as_millis() as u64,
-            success: false,
-            error: Some(e.to_string()),
-        }),
-        Err(_) => Ok(DnsQueryResult {
-            domain: domain.clone(),
-            ip: String::new(),
-            latency: 5000,
-            success: false,
-            error: Some("DNS query timeout".to_string()),
-        }),
     }
 }
 
@@ -89,63 +210,53 @@ pub async fn dns_query(domain: String) -> Result<DnsQueryResult, String> {
 pub async fn dns_health_check(
     server: String,
     test_domain: Option<String>,
+    protocol: Option<DnsProtocol>,
 ) -> Result<DnsHealthCheckResult, String> {
     let domain = test_domain.unwrap_or_else(|| "www.google.com".to_string());
     let start = Instant::now();
+    let protocol_str = protocol.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "Udp".to_string());
     
-    // 注意：这里使用系统 DNS，实际应该使用指定的 DNS 服务器
-    // 完整实现需要使用 trust-dns-resolver 或类似库
-    let query_future = tokio::task::spawn_blocking(move || {
-        let addrs = format!("{}:0", domain)
-            .to_socket_addrs()
-            .map_err(|e| e.to_string())?;
-        
-        addrs
-            .into_iter()
-            .next()
-            .ok_or_else(|| "No IP address found".to_string())?;
-        
-        Ok::<(), String>(())
-    });
+    // 创建解析器
+    let resolver = create_resolver(Some(server.clone()), protocol.clone())?;
     
-    match timeout(Duration::from_secs(5), query_future).await {
-        Ok(Ok(Ok(_))) => {
+    // 解析测试域名
+    let name = Name::from_str(&domain).map_err(|e| format!("Invalid domain: {}", e))?;
+    
+    match resolver.lookup_ip(name).await {
+        Ok(_) => {
             let latency = start.elapsed().as_millis() as u64;
             Ok(DnsHealthCheckResult {
                 server: server.clone(),
                 latency,
                 success: true,
                 error: None,
+                protocol: protocol_str,
             })
         }
-        Ok(Ok(Err(e))) => Ok(DnsHealthCheckResult {
-            server: server.clone(),
-            latency: start.elapsed().as_millis() as u64,
-            success: false,
-            error: Some(e),
-        }),
-        Ok(Err(e)) => Ok(DnsHealthCheckResult {
-            server: server.clone(),
-            latency: start.elapsed().as_millis() as u64,
-            success: false,
-            error: Some(e.to_string()),
-        }),
-        Err(_) => Ok(DnsHealthCheckResult {
-            server: server.clone(),
-            latency: 5000,
-            success: false,
-            error: Some("Health check timeout".to_string()),
-        }),
+        Err(e) => {
+            let latency = start.elapsed().as_millis() as u64;
+            Ok(DnsHealthCheckResult {
+                server: server.clone(),
+                latency,
+                success: false,
+                error: Some(e.to_string()),
+                protocol: protocol_str,
+            })
+        }
     }
 }
 
 /// 批量 DNS 查询
 #[tauri::command]
-pub async fn dns_batch_query(domains: Vec<String>) -> Result<Vec<DnsQueryResult>, String> {
+pub async fn dns_batch_query(
+    domains: Vec<String>,
+    server: Option<String>,
+    protocol: Option<DnsProtocol>,
+) -> Result<Vec<DnsQueryResult>, String> {
     let mut results = Vec::new();
     
     for domain in domains {
-        match dns_query(domain).await {
+        match dns_query(domain, server.clone(), protocol.clone()).await {
             Ok(result) => results.push(result),
             Err(e) => {
                 log::error!("DNS batch query error: {}", e);
@@ -161,12 +272,13 @@ pub async fn dns_batch_query(domains: Vec<String>) -> Result<Vec<DnsQueryResult>
 pub async fn dns_batch_health_check(
     servers: Vec<String>,
     test_domain: Option<String>,
+    protocol: Option<DnsProtocol>,
 ) -> Result<Vec<DnsHealthCheckResult>, String> {
     let mut results = Vec::new();
     let domain = test_domain.clone();
     
     for server in servers {
-        match dns_health_check(server, domain.clone()).await {
+        match dns_health_check(server, domain.clone(), protocol.clone()).await {
             Ok(result) => results.push(result),
             Err(e) => {
                 log::error!("DNS batch health check error: {}", e);
@@ -176,3 +288,4 @@ pub async fn dns_batch_health_check(
     
     Ok(results)
 }
+

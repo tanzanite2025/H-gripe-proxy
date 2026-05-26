@@ -3,7 +3,7 @@
  * 实时监控 DNS 服务器健康状态，自动切换到最优 DNS
  */
 
-import { dnsHealthCheck } from './dns-api'
+import { dnsHealthCheck, type DnsProtocol } from './dns-api'
 
 interface DnsServer {
   address: string
@@ -71,8 +71,11 @@ class DnsHealthCheckService {
     if (!server) return
 
     try {
+      // 将服务器类型转换为协议类型
+      const protocol: DnsProtocol = server.type === 'udp' ? 'udp' : server.type
+
       // 调用后端 API 进行 DNS 健康检查
-      const result = await dnsHealthCheck(address, this.TEST_DOMAIN)
+      const result = await dnsHealthCheck(address, this.TEST_DOMAIN, protocol)
 
       if (result.success) {
         // 更新服务器状态
@@ -91,7 +94,7 @@ class DnsHealthCheckService {
         }
 
         console.log(
-          `DNS health check: ${address} - ${server.status} (${result.latency}ms, ${server.successRate.toFixed(1)}%)`,
+          `DNS health check: ${address} - ${server.status} (${result.latency}ms, ${server.successRate.toFixed(1)}%, ${result.protocol})`,
         )
       } else {
         // 查询失败
