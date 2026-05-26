@@ -206,13 +206,13 @@
 ### Week 1 进度
 
 ```
-[ ] Day 1: enhanced-canvas-traffic-graph.tsx - 提取 hooks
-[ ] Day 2: enhanced-canvas-traffic-graph.tsx - 完成重构
+[✓] Day 1: enhanced-canvas-traffic-graph.tsx - 提取 hooks ✅
+[✓] Day 2: enhanced-canvas-traffic-graph.tsx - 完成重构 ✅
 [ ] Day 3: groups-editor-viewer.tsx - 拆分组件
 [ ] Day 4: groups-editor-viewer.tsx - 完成重构
-[ ] Day 5: current-proxy-card.tsx - 完成重构
+[✓] Day 5: current-proxy-card.tsx - 完成重构 ✅
 
-完成度：0/5 (0%)
+完成度：3/5 (60%)
 ```
 
 ### Week 2 进度
