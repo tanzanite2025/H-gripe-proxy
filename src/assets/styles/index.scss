@@ -21,6 +21,7 @@ body {
 }
 
 :root {
+  /* 默认主题颜色 */
   --primary-main: #5b5c9d;
   --text-primary: #1f1f1f;
   --text-secondary: #6b7280;
@@ -28,9 +29,21 @@ body {
   --scroller-color: #8c8c8c;
   --background-color: #f5f5f5;
   --background-color-alpha: rgba(24, 103, 192, 0.1);
-  --card-bg: var(--background-color);
-  --primary-main-hover: var(--primary-main);
+  --card-bg: #ffffff;
+  --primary-main-hover: #5b5c9d;
   --border-radius: 8px;
+  --divider-color: rgba(0, 0, 0, 0.06);
+  
+  /* 默认字体（防止闪烁） */
+  --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* 默认 RGB 值（用于透明度计算） */
+  --primary-main-rgb: 91, 92, 157;
+  
+  /* 窗口和滚动条颜色 */
+  --window-border-color: #cccccc;
+  --scrollbar-bg: #f1f1f1;
+  --scrollbar-thumb: #c1c1c1;
 }
 
 ::selection {
@@ -76,71 +89,78 @@ body {
 // 全局字体设置，通过 CSS 变量统一管理
 body, html {
   font-family: var(--font-family);
-  font-size: 12px !important;
+  font-size: 12px;
 }
 
 // 1. 排版规范 (Typography)
 .uds-title-h1 {
-  font-size: 1.125rem !important; // text-lg
-  font-weight: 900 !important; // font-black
-  letter-spacing: -0.05em !important; // tracking-tighter
-  font-style: italic !important; // italic
-  text-transform: uppercase !important; // uppercase
+  font-size: 1.125rem; // text-lg - 可以被覆盖
+  font-weight: 900 !important; // font-black - 核心规范，必须保留
+  letter-spacing: -0.05em; // tracking-tighter - 可以被覆盖
+  font-style: italic !important; // italic - 核心规范，必须保留
+  text-transform: uppercase !important; // uppercase - 核心规范，必须保留
 }
 
 .uds-title-h2,
 .uds-card-title {
-  font-size: 0.875rem !important; // text-sm
-  font-weight: 900 !important; // font-black
-  letter-spacing: -0.05em !important; // tracking-tighter
-  font-style: italic !important; // italic
+  font-size: 0.875rem; // text-sm - 可以被覆盖
+  font-weight: 900 !important; // font-black - 核心规范，必须保留
+  letter-spacing: -0.05em; // tracking-tighter - 可以被覆盖
+  font-style: italic !important; // italic - 核心规范，必须保留
 }
 
 // 强制所有标题级别必须使用斜体，正文绝对禁止斜体
 .uds-title-h3 {
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.05em !important;
+  font-style: italic !important; // 核心规范，必须保留
+  font-weight: 900 !important; // 核心规范，必须保留
+  letter-spacing: -0.05em; // 可以被覆盖
 }
 
 .uds-label {
-  font-size: 12px !important; // UDS Level 3: 标签/表头
-  font-weight: 900 !important; // font-black
-  text-transform: uppercase !important; // uppercase
-  letter-spacing: 0.15em !important; // tracking-widest
-  color: var(--text-secondary) !important;
+  font-size: 12px; // UDS Level 3: 标签/表头 - 可以被覆盖
+  font-weight: 900 !important; // font-black - 核心规范，必须保留
+  text-transform: uppercase !important; // uppercase - 核心规范，必须保留
+  letter-spacing: 0.15em; // tracking-widest - 可以被覆盖
+  color: var(--text-secondary); // 可以被覆盖
   opacity: 0.6;
 }
 
 .uds-desc {
-  font-size: 9px !important; // UDS Level 4: 辅助描述
-  font-weight: 900 !important; // font-black
-  text-transform: uppercase !important; // uppercase
-  letter-spacing: 0.15em !important; // tracking-widest
-  opacity: 0.6 !important;
+  font-size: 9px; // UDS Level 4: 辅助描述 - 可以被覆盖
+  font-weight: 900 !important; // font-black - 核心规范，必须保留
+  text-transform: uppercase !important; // uppercase - 核心规范，必须保留
+  letter-spacing: 0.15em; // tracking-widest - 可以被覆盖
+  opacity: 0.6; // 可以被覆盖
 }
 
 .uds-mono {
-  font-size: 8px !important; // text-[8px]
-  font-family: monospace, 'Courier New', Courier, monospace !important; // font-mono
+  font-size: 8px; // text-[8px] - 可以被覆盖
+  font-family: monospace, 'Courier New', Courier, monospace !important; // font-mono - 核心规范，必须保留
 }
 
 // 2. 几何与容器 (Geometry)
 .uds-header-bar {
-  border-radius: 32px !important; // rounded-[32px]
-  border: 1px dashed var(--divider-color) !important; // border-dashed
-  background-color: rgba(0, 0, 0, 0.02) !important; // bg-muted/5
+  border-radius: 32px;
+  border: 1px dashed var(--divider-color);
+  background-color: rgba(0, 0, 0, 0.02);
   backdrop-filter: blur(10px);
 }
 
 .uds-card-container {
+  // 使用 CSS 自定义属性提供默认值，允许子组件覆盖
+  --card-border-radius: 24px;
+  --card-border: 1px dashed var(--divider-color);
+  --card-bg-color: var(--card-bg);
+  --card-hover-transform: translateY(-4px);
+  --card-hover-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -8px rgba(0, 0, 0, 0.04);
+  
   position: relative;
-  border-radius: 24px !important; // 重置圆角为 24px 以符合 UDS 规范
-  border: 1px dashed var(--divider-color) !important; // 虚线边框设为淡灰
-  box-shadow: none !important;
-  background-color: var(--card-bg) !important;
+  border-radius: var(--card-border-radius);
+  border: var(--card-border);
+  box-shadow: none;
+  background-color: var(--card-bg-color);
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
   &::before {
     content: '';
@@ -156,9 +176,9 @@ body, html {
   }
 
   &:hover {
-    border-color: var(--primary-main) !important;
-    transform: translateY(-4px) !important; // 悬浮向上位移 4px (hover:-translate-y-1)
-    box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -8px rgba(0, 0, 0, 0.04) !important; // 漫反射阴影 (hover:shadow-md)
+    border-color: var(--primary-main);
+    transform: var(--card-hover-transform);
+    box-shadow: var(--card-hover-shadow);
     
     &::before {
       background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.08) 0%, transparent 70%);
@@ -167,27 +187,27 @@ body, html {
 }
 
 .uds-toolbar {
-  border-radius: 24px !important; // rounded-[24px]
-  border: 1px dashed var(--divider-color) !important;
+  border-radius: 24px;
+  border: 1px dashed var(--divider-color);
 }
 
 .uds-dialog {
-  border-radius: 32px !important; // rounded-[32px]
-  border: none !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; // shadow-2xl
-  background-color: var(--card-bg) !important;
+  border-radius: 32px;
+  border: none;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  background-color: var(--card-bg);
 }
 
 .uds-surface {
-  background-color: var(--card-bg) !important;
-  border-color: var(--window-border-color) !important;
+  background-color: var(--card-bg);
+  border-color: var(--window-border-color);
 }
 
 .uds-card-header {
   min-height: 64px;
-  background-color: transparent !important;
+  background-color: transparent;
   backdrop-filter: blur(12px);
-  border-bottom: none !important;
+  border-bottom: none;
 }
 
 .uds-card-content {
@@ -195,29 +215,29 @@ body, html {
 }
 
 .uds-dialog > .uds-title-h2 {
-  padding: 18px 22px 10px !important;
+  padding: 18px 22px 10px;
 }
 
 .uds-dialog > .uds-dialog__content {
-  padding: 12px 22px 20px !important;
+  padding: 12px 22px 20px;
 }
 
 .uds-dialog > .uds-dialog__actions {
-  padding: 0 22px 22px !important;
+  padding: 0 22px 22px;
   gap: 10px;
 }
 
 .uds-toolbar {
-  border-radius: 16px !important;
-  border: 1px dashed var(--divider-color) !important;
-  background-color: color-mix(in srgb, var(--card-bg) 90%, transparent) !important;
+  border-radius: 16px;
+  border: 1px dashed var(--divider-color);
+  background-color: color-mix(in srgb, var(--card-bg) 90%, transparent);
   backdrop-filter: blur(10px);
   overflow: hidden;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 .uds-toolbar > * {
-  border-radius: 0 !important;
+  border-radius: 0;
 }
 
 .uds-toolbar--icon > * {
@@ -239,8 +259,13 @@ body, html {
   overflow: hidden;
 }
 
-.settings-page-card:hover {
-  transform: none;
+// 设置页卡片禁用 hover 效果
+.settings-page-card.uds-card-container {
+  --card-hover-transform: none;
+  
+  &:hover {
+    transform: none;
+  }
 }
 
 .settings-page-card > .uds-settings-list {
@@ -253,9 +278,9 @@ body, html {
 }
 
 .uds-settings-list__header {
-  position: static !important;
+  position: static;
   margin: 0 0 8px;
-  padding: 0 4px 10px !important;
+  padding: 0 4px 10px;
   line-height: 1;
 }
 
@@ -267,13 +292,14 @@ body, html {
   border-top: 1px dashed var(--divider-color);
 }
 
-.uds-settings-item__button {
-  padding: 0 !important;
-  border-radius: 18px !important;
+// 使用更高优先级选择器代替 !important
+.uds-settings-list .uds-settings-item .uds-settings-item__button {
+  padding: 0;
+  border-radius: 18px;
 }
 
-.uds-settings-item__button:hover {
-  background-color: transparent !important;
+.uds-settings-list .uds-settings-item .uds-settings-item__button:hover {
+  background-color: transparent;
 }
 
 .uds-settings-item__button:hover .uds-settings-item__body {
@@ -382,24 +408,24 @@ body, html {
 
 // 3. 边框与质感 (Aesthetics)
 .uds-border-dashed {
-  border: 1px dashed var(--divider-color) !important;
+  border: 1px dashed var(--divider-color);
 }
 
 // 4. 状态语义 (Status)
 .uds-status-healthy {
-  background-color: rgba(16, 185, 129, 0.1) !important;
-  color: #059669 !important;
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #059669;
 }
 
 .uds-status-alert {
-  background-color: rgba(245, 158, 11, 0.1) !important;
-  color: #d97706 !important;
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #d97706;
 }
 
 .uds-status-critical {
-  background-color: rgba(244, 63, 94, 0.1) !important;
-  color: #e11d48 !important;
-  animation: uds-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+  background-color: rgba(244, 63, 94, 0.1);
+  color: #e11d48;
+  animation: uds-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes uds-pulse {
@@ -409,8 +435,8 @@ body, html {
 
 // 5. 极细进度条
 .uds-progress-thin {
-  height: 4px !important;
-  background-color: rgba(0, 0, 0, 0.05) !important;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 // ==========================================
@@ -420,7 +446,7 @@ body, html {
 [data-theme='dark'] {
   .uds-card-container {
     &:hover {
-      box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 4px 16px -8px rgba(0, 0, 0, 0.3) !important;
+      box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 4px 16px -8px rgba(0, 0, 0, 0.3);
     }
   }
 }
@@ -437,15 +463,15 @@ button, input:not([type='checkbox']):not([type='radio']), select {
 
 input[type='text'], input[type='password'], input[type='email'], input[type='search'], select, textarea {
   &:not([class*='Mui']) {
-    border-radius: 16px !important;
-    border: none !important;
+    border-radius: 16px;
+    border: none;
     background-color: rgba(0, 0, 0, 0.04);
     height: 48px;
     padding: 0 16px;
     font-size: 12px;
     font-weight: 600;
     box-sizing: border-box;
-    outline: none !important;
+    outline: none;
 
     [data-theme='dark'] & {
       background-color: rgba(255, 255, 255, 0.04);
@@ -454,7 +480,7 @@ input[type='text'], input[type='password'], input[type='email'], input[type='sea
 
     &:focus {
       background-color: rgba(0, 0, 0, 0.02);
-      box-shadow: 0 0 0 2px rgba(var(--primary-main-rgb), 0.2) !important;
+      box-shadow: 0 0 0 2px rgba(var(--primary-main-rgb), 0.2);
 
       [data-theme='dark'] & {
         background-color: rgba(255, 255, 255, 0.02);
@@ -464,7 +490,7 @@ input[type='text'], input[type='password'], input[type='email'], input[type='sea
 }
 
 button:not([class*='Mui']) {
-  border-radius: 9999px !important;
+  border-radius: 9999px;
   font-family: var(--font-family);
   text-transform: uppercase;
   font-weight: 900;
