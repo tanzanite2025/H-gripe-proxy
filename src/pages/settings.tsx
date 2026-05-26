@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { BasePage } from '@/components/base'
 import SettingClash from '@/components/setting/setting-clash'
+import { DnsStatsCard } from '@/components/setting/dns-stats-card'
 import SettingSystem from '@/components/setting/setting-system'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
@@ -79,6 +80,9 @@ const SettingPage = () => {
           </Box>
           <Box className="uds-card-container settings-page-card">
             <SettingClash onError={onError} />
+          </Box>
+          <Box className="uds-card-container settings-page-card">
+            <DnsStatsCard />
           </Box>
         </Grid>
         <Grid size={{ xs: 6, sm: 6, md: 6, lg: 6 }} className="settings-page-grid__column">
