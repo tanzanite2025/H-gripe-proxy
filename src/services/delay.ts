@@ -2,6 +2,9 @@ import { delayProxyByName, ProxyDelay } from 'tauri-plugin-mihomo-api'
 
 import { debugLog } from '@/utils/misc'
 
+import { getDelayTestConfig } from './adaptive-config'
+import { networkMonitor } from './network-monitor'
+
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
 
 export interface DelayUpdate {
@@ -26,6 +29,9 @@ class DelayManager {
   private pendingGroupUpdates = new Set<string>()
   private itemFlushScheduled = false
   private groupFlushScheduled = false
+
+  // 取消控制器
+  private abortControllers = new Map<string, AbortController>()
 
   private scheduleOnNextFrame(run: () => void): void {
     if (typeof window !== 'undefined') {
@@ -201,10 +207,21 @@ class DelayManager {
   async checkDelay(
     name: string,
     group: string,
-    timeout: number,
+    timeout?: number,
+    signal?: AbortSignal,
   ): Promise<DelayUpdate> {
+    // 使用自适应配置
+    const config = getDelayTestConfig()
+    const effectiveTimeout = timeout ?? config.timeout
+
+    // 检查网络状态
+    if (!networkMonitor.isOnline()) {
+      debugLog(`[DelayManager] 网络离线，跳过延迟测试: ${name}`)
+      return this.setDelay(name, group, 1e6) // 设置为错误状态
+    }
+
     debugLog(
-      `[DelayManager] 开始测试延迟，代理: ${name}, 组: ${group}, 超时: ${timeout}ms`,
+      `[DelayManager] 开始测试延迟，代理: ${name}, 组: ${group}, 超时: ${effectiveTimeout}ms`,
     )
 
     // 先将状态设置为测试中
@@ -213,24 +230,32 @@ class DelayManager {
     const startTime = Date.now()
 
     try {
+      // 检查是否已取消
+      if (signal?.aborted) {
+        throw new Error('测试已取消')
+      }
+
       const url = this.getUrl(group)
       debugLog(`[DelayManager] 调用API测试延迟，代理: ${name}, URL: ${url}`)
 
       // 设置超时处理, delay = 0 为超时
       const timeoutPromise = new Promise<ProxyDelay>((resolve) => {
-        setTimeout(() => resolve({ delay: 0 }), timeout)
+        setTimeout(() => resolve({ delay: 0 }), effectiveTimeout)
       })
 
       // 使用Promise.race来实现超时控制
       const result = await Promise.race([
-        delayProxyByName(name, url, timeout),
+        delayProxyByName(name, url, effectiveTimeout),
         timeoutPromise,
       ])
 
-      // 确保至少显示500ms的加载动画
+      // 确保至少显示最小加载时间
       const elapsedTime = Date.now() - startTime
-      if (elapsedTime < 500) {
-        await new Promise((resolve) => setTimeout(resolve, 500 - elapsedTime))
+      const minLoadingTime = config.minLoadingTime
+      if (elapsedTime < minLoadingTime) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, minLoadingTime - elapsedTime),
+        )
       }
 
       const delay = result.delay
@@ -239,8 +264,17 @@ class DelayManager {
 
       return this.setDelay(name, group, delay, { elapsed })
     } catch (error) {
-      // 确保至少显示500ms的加载动画
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // 检查是否是取消错误
+      if (signal?.aborted || (error as Error).message === '测试已取消') {
+        debugLog(`[DelayManager] 延迟测试已取消，代理: ${name}`)
+        return this.setDelay(name, group, -1) // 恢复为未测试状态
+      }
+
+      // 确保至少显示最小加载时间
+      const config = getDelayTestConfig()
+      await new Promise((resolve) =>
+        setTimeout(resolve, config.minLoadingTime),
+      )
       console.error(`[DelayManager] 延迟测试出错，代理: ${name}`, error)
       const delay = 1e6 // error
       const elapsed = Date.now() - startTime
@@ -252,15 +286,31 @@ class DelayManager {
   async checkListDelay(
     nameList: string[],
     group: string,
-    timeout: number,
-    concurrency = 36,
+    timeout?: number,
+    concurrency?: number,
   ) {
+    // 使用自适应配置
+    const config = getDelayTestConfig()
+    const effectiveTimeout = timeout ?? config.timeout
+    const effectiveConcurrency = concurrency ?? config.concurrency
+
+    // 检查网络状态
+    if (!networkMonitor.isOnline()) {
+      debugLog(`[DelayManager] 网络离线，跳过批量延迟测试: ${group}`)
+      return
+    }
+
     debugLog(
-      `[DelayManager] 批量测试延迟开始，组: ${group}, 数量: ${nameList.length}, 并发数: ${concurrency}`,
+      `[DelayManager] 批量测试延迟开始，组: ${group}, 数量: ${nameList.length}, 并发数: ${effectiveConcurrency}`,
     )
+
     const names = nameList.filter(Boolean)
     // 设置正在延迟测试中
     names.forEach((name) => this.setDelay(name, group, -2))
+
+    // 创建 AbortController
+    const controller = new AbortController()
+    this.abortControllers.set(group, controller)
 
     let index = 0
     const startTime = Date.now()
@@ -271,6 +321,12 @@ class DelayManager {
       if (!currName) return
 
       try {
+        // 检查是否已取消
+        if (controller.signal.aborted) {
+          debugLog(`[DelayManager] 批量测试已取消: ${group}`)
+          return
+        }
+
         // 确保API调用前状态为测试中
         this.setDelay(currName, group, -2)
 
@@ -282,11 +338,21 @@ class DelayManager {
           )
         }
 
-        await this.checkDelay(currName, group, timeout)
+        await this.checkDelay(
+          currName,
+          group,
+          effectiveTimeout,
+          controller.signal,
+        )
         if (listener) {
           this.queueGroupNotification(group)
         }
       } catch (error) {
+        // 如果是取消错误，直接返回
+        if (controller.signal.aborted) {
+          return
+        }
+
         console.error(
           `[DelayManager] 批量测试单个代理出错，代理: ${currName}`,
           error,
@@ -299,7 +365,11 @@ class DelayManager {
     }
 
     // 限制并发数，避免发送太多请求
-    const actualConcurrency = Math.min(concurrency, names.length, 10)
+    const actualConcurrency = Math.min(
+      effectiveConcurrency,
+      names.length,
+      10,
+    )
     debugLog(`[DelayManager] 实际并发数: ${actualConcurrency}`)
 
     const promiseList: Promise<void>[] = []
@@ -307,11 +377,34 @@ class DelayManager {
       promiseList.push(help())
     }
 
-    await Promise.all(promiseList)
-    const totalTime = Date.now() - startTime
-    debugLog(
-      `[DelayManager] 批量测试延迟完成，组: ${group}, 总耗时: ${totalTime}ms`,
-    )
+    try {
+      await Promise.all(promiseList)
+      const totalTime = Date.now() - startTime
+      debugLog(
+        `[DelayManager] 批量测试延迟完成，组: ${group}, 总耗时: ${totalTime}ms`,
+      )
+    } finally {
+      // 清理 AbortController
+      this.abortControllers.delete(group)
+    }
+  }
+
+  /**
+   * 取消组的延迟测试
+   */
+  cancelGroupTest(group: string): void {
+    const controller = this.abortControllers.get(group)
+    if (controller) {
+      controller.abort()
+      debugLog(`[DelayManager] 取消组延迟测试: ${group}`)
+    }
+  }
+
+  /**
+   * 检查组是否正在测试
+   */
+  isGroupTesting(group: string): boolean {
+    return this.abortControllers.has(group)
   }
 
   formatDelay(delay: number, timeout = 10000) {

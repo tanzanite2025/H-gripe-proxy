@@ -12,6 +12,10 @@ export {
 } from './base-split-chip-editor'
 export { BaseStyledSelect } from './base-styled-select'
 export { BaseStyledTextField } from './base-styled-text-field'
+export {
+  DelayTestProgress,
+  DelayTestIndicator,
+} from './delay-test-progress'
 export { MonacoEditor } from './monaco-editor'
 export {
   NetworkStatusIndicator,
