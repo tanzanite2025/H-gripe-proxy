@@ -23,7 +23,7 @@ import { copyIconFile, getTrayIconPath } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
 
-import { GuardState } from './guard-state'
+import { GuardState } from '../proxy/guard-state'
 
 const OS = getSystem()
 

@@ -25,7 +25,7 @@ import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
 import { areValidIpCidrs } from '@/utils/network'
 
-import { StackModeSwitch } from './stack-mode-switch'
+import { StackModeSwitch } from '../misc/stack-mode-switch'
 
 const OS = getSystem()
 

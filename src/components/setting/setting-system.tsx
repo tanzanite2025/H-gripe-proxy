@@ -5,10 +5,10 @@ import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import ProxyControlSwitches from '@/components/shared/proxy-control-switches'
 import { useVerge } from '@/hooks/use-verge'
 
-import { GuardState } from './mods/guard-state'
-import { SettingList, SettingItem } from './mods/setting-comp'
-import { SysproxyViewer } from './mods/sysproxy-viewer'
-import { TunViewer } from './mods/tun-viewer'
+import { GuardState } from './components/proxy/guard-state'
+import { SettingList, SettingItem } from './components/shared/setting-item'
+import { SysproxyViewer } from './components/proxy/system-proxy'
+import { TunViewer } from './components/network/tun-config'
 
 interface Props {
   onError?: (err: Error) => void

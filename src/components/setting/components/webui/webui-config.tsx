@@ -10,7 +10,7 @@ import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
-import { WebUIItem } from './web-ui-item'
+import { WebUIItem } from './webui-item'
 
 const DEFAULT_WEB_UI_LIST = [
   'https://metacubex.github.io/metacubexd/#/setup?http=true&hostname=%host&port=%port&secret=%secret',

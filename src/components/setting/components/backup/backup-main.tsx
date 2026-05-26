@@ -23,7 +23,7 @@ import { showNotice } from '@/services/notice-service'
 import { buildWebdavSignature, setWebdavStatus } from '@/services/webdav-status'
 
 import { AutoBackupSettings } from './auto-backup-settings'
-import { BackupHistoryViewer } from './backup-history-viewer'
+import { BackupHistoryViewer } from './backup-history'
 import { BackupWebdavDialog } from './backup-webdav-dialog'
 
 type BackupSource = 'local' | 'webdav'

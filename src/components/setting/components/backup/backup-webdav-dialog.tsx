@@ -8,7 +8,7 @@ import { listWebDavBackup } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { buildWebdavSignature, setWebdavStatus } from '@/services/webdav-status'
 
-import { BackupConfigViewer } from './backup-config-viewer'
+import { BackupConfigViewer } from './backup-config'
 
 interface BackupWebdavDialogProps {
   open: boolean

@@ -4,7 +4,7 @@ import { useRef } from 'react'
 import { DialogRef } from '@/components/base'
 import { useUpdate } from '@/hooks/use-update'
 
-import { UpdateViewer } from '../setting/mods/update-viewer'
+import { UpdateViewer } from '../setting/components/misc/update-config'
 
 interface Props {
   className?: string

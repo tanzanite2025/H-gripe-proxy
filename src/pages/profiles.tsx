@@ -45,7 +45,7 @@ import {
   ProfileViewer,
   ProfileViewerRef,
 } from '@/components/profile/profile-viewer'
-import { ConfigViewer } from '@/components/setting/mods/config-viewer'
+import { ConfigViewer } from '@/components/setting/components/misc/config-editor'
 import { useListen } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
