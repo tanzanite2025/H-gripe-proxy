@@ -106,7 +106,14 @@ export function parseList(str: string): string[] {
 }
 
 /**
- * 默认 DNS 配置
+ * 默认 DNS 配置（已优化网络稳定性）
+ * 
+ * 优化点：
+ * 1. 多层 DNS 备份（UDP → DoH → DoT → Fallback）
+ * 2. 国内 DNS 优先（降低延迟）
+ * 3. 加密 DNS（DoH/DoT）防止 DNS 污染
+ * 4. 智能分流（不同域名使用不同 DNS）
+ * 5. 完善的 fallback 机制
  */
 export const DEFAULT_DNS_CONFIG = {
   enable: true,
@@ -125,38 +132,78 @@ export const DEFAULT_DNS_CONFIG = {
     '*.arpa',
     'time.*.com',
     'ntp.*.com',
-    'time.*.com',
     '+.market.xiaomi.com',
     'localhost.ptlogin2.qq.com',
     '*.msftncsi.com',
     'www.msftconnecttest.com',
   ],
+  // 默认域名服务器（用于解析 DNS 服务器的域名）
+  // 优先使用国内快速 DNS
   'default-nameserver': [
-    'system',
-    '223.6.6.6',
-    '8.8.8.8',
-    '2400:3200::1',
-    '2001:4860:4860::8888',
+    '223.5.5.5', // 阿里 DNS（国内最快）
+    '119.29.29.29', // DNSPod（国内稳定）
+    '114.114.114.114', // 114 DNS（备用）
+    '8.8.8.8', // Google DNS（国际备用）
   ],
+  // 主域名服务器（多层备份策略）
   nameserver: [
-    '8.8.8.8',
-    'https://doh.pub/dns-query',
+    // 第一层：国内快速 DNS（UDP，延迟最低 10-30ms）
+    '223.5.5.5', // 阿里 DNS
+    '119.29.29.29', // DNSPod
+    // 第二层：国内 DoH（加密，防污染，延迟 30-50ms）
     'https://dns.alidns.com/dns-query',
+    'https://doh.pub/dns-query',
   ],
-  fallback: [],
-  'nameserver-policy': {},
+  // 回退域名服务器（主服务器失败时使用）
+  fallback: [
+    // 国际 DoH（防污染，延迟 100-300ms）
+    'https://dns.google/dns-query',
+    'https://cloudflare-dns.com/dns-query',
+    // 国际 DoT（备用）
+    'tls://dns.google',
+  ],
+  // 域名服务器策略（针对不同域名使用不同 DNS）
+  'nameserver-policy': {
+    // 国内域名使用国内 DNS（低延迟）
+    'geosite:cn': ['223.5.5.5', '119.29.29.29'],
+    // Google 服务使用 Google DNS
+    '+.google.com': ['https://dns.google/dns-query'],
+    '+.googleapis.com': ['https://dns.google/dns-query'],
+    // GitHub 使用国际 DNS
+    '+.github.com': ['https://dns.google/dns-query', 'https://cloudflare-dns.com/dns-query'],
+    '+.githubusercontent.com': ['https://dns.google/dns-query'],
+  },
+  // 代理服务器域名解析（用于解析代理服务器地址）
   'proxy-server-nameserver': [
-    'https://doh.pub/dns-query',
     'https://dns.alidns.com/dns-query',
-    'tls://223.5.5.5',
+    'https://doh.pub/dns-query',
+    'tls://dns.alidns.com',
   ],
-  'direct-nameserver': [],
+  // 直连域名服务器（用于直连域名）
+  'direct-nameserver': [
+    '223.5.5.5',
+    '119.29.29.29',
+    'https://dns.alidns.com/dns-query',
+  ],
   'direct-nameserver-follow-policy': false,
+  // 回退过滤器（判断是否使用 fallback）
   'fallback-filter': {
     geoip: true,
     'geoip-code': 'CN',
-    ipcidr: ['240.0.0.0/4', '0.0.0.0/32'],
-    domain: ['+.google.com', '+.facebook.com', '+.youtube.com'],
+    ipcidr: [
+      '240.0.0.0/4', // 保留地址
+      '0.0.0.0/32', // 无效地址
+      '127.0.0.1/8', // 本地回环
+    ],
+    domain: [
+      '+.google.com',
+      '+.googleapis.com',
+      '+.facebook.com',
+      '+.youtube.com',
+      '+.github.com',
+      '+.githubusercontent.com',
+      '+.twitter.com',
+    ],
   },
 }
 
