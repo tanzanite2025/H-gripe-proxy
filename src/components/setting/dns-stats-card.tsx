@@ -1,6 +1,6 @@
 /**
  * DNS 统计卡片组件
- * 显示 DNS 缓存、健康检查等统计信息
+ * 显示 DNS 缓存、健康检查、智能分流、Tor 等统计信息
  */
 
 import {
@@ -9,6 +9,8 @@ import {
   ErrorRounded,
   RefreshRounded,
   WarningRounded,
+  RouterRounded,
+  VpnLockRounded,
 } from '@mui/icons-material'
 import {
   Box,
@@ -78,7 +80,7 @@ export const DnsStatsCard = () => {
     )
   }
 
-  const { cache, health, prefetch } = stats
+  const { cache, health, prefetch, routing, tor, leakProtection } = stats
 
   return (
     <Card>
@@ -221,7 +223,7 @@ export const DnsStatsCard = () => {
         <Divider sx={{ my: 2 }} />
 
         {/* DNS 预解析统计 */}
-        <Box>
+        <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
             DNS 预解析
           </Typography>
@@ -237,6 +239,131 @@ export const DnsStatsCard = () => {
               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                 {prefetch.accessHistory}
               </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* DNS 智能分流统计 */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <RouterRounded fontSize="small" />
+            DNS 智能分流
+          </Typography>
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">分流模式</Typography>
+              <Chip
+                label={
+                  routing.mode === 'speed'
+                    ? '速度优先'
+                    : routing.mode === 'privacy'
+                      ? '隐私优先'
+                      : routing.mode === 'balanced'
+                        ? '平衡模式'
+                        : '自定义'
+                }
+                size="small"
+                color={
+                  routing.mode === 'speed'
+                    ? 'success'
+                    : routing.mode === 'privacy'
+                      ? 'info'
+                      : routing.mode === 'balanced'
+                        ? 'warning'
+                        : 'default'
+                }
+              />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">国内 DNS</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.75rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {routing.domesticDns}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2">国外 DNS</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.75rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {routing.foreignDns}
+              </Typography>
+            </Box>
+            {routing.customRulesCount > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">自定义规则</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                  {routing.customRulesCount} 条
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Tor 代理统计 */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <VpnLockRounded fontSize="small" />
+            Tor 代理
+          </Typography>
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">状态</Typography>
+              {tor.enabled ? (
+                <Chip
+                  icon={tor.connected ? <CheckCircleRounded /> : <WarningRounded />}
+                  label={tor.connected ? '已连接' : '未连接'}
+                  size="small"
+                  color={tor.connected ? 'success' : 'warning'}
+                />
+              ) : (
+                <Chip label="未启用" size="small" />
+              )}
+            </Box>
+            {tor.enabled && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">SOCKS5 代理</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>
+                  {tor.socksProxy}
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* DNS 零泄漏防护统计 */}
+        <Box>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <RouterRounded fontSize="small" />
+            零泄漏防护
+          </Typography>
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">防护级别</Typography>
+              <Chip
+                label={leakProtection.levelName}
+                size="small"
+                color={
+                  leakProtection.security === 'low'
+                    ? 'error'
+                    : leakProtection.security === 'medium'
+                      ? 'warning'
+                      : leakProtection.security === 'high'
+                        ? 'info'
+                        : 'success'
+                }
+              />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">安全状态</Typography>
+              {leakProtection.safe ? (
+                <Chip icon={<CheckCircleRounded />} label="安全" size="small" color="success" />
+              ) : (
+                <Chip icon={<WarningRounded />} label="不安全" size="small" color="error" />
+              )}
             </Box>
           </Stack>
         </Box>

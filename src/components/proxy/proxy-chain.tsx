@@ -22,6 +22,7 @@ import {
   Link,
   LinkOff,
   WarningRounded,
+  HelpOutlined as HelpIcon,
 } from '@mui/icons-material'
 import {
   Alert,
@@ -45,6 +46,8 @@ import { TooltipIcon } from '@/components/base'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { updateProxyChainConfigInRuntime } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
+
+import { ProxyChainHelpDialog } from './proxy-chain-help-dialog'
 
 interface ProxyChainItem {
   id: string
@@ -257,6 +260,7 @@ export const ProxyChain = ({
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
   const [isConnecting, setIsConnecting] = useState(false)
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false)
   const markUnsavedChanges = useCallback(() => {
     onMarkUnsavedChanges?.()
   }, [onMarkUnsavedChanges])
@@ -510,6 +514,14 @@ export const ProxyChain = ({
             color="warning"
             sx={{ p: 0.25 }}
           />
+          <IconButton
+            size="small"
+            onClick={() => setHelpDialogOpen(true)}
+            sx={{ ml: 0.5 }}
+            title="使用帮助"
+          >
+            <HelpIcon fontSize="small" />
+          </IconButton>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {proxyChain.length > 0 && (
@@ -641,6 +653,12 @@ export const ProxyChain = ({
           </DndContext>
         )}
       </Box>
+
+      {/* 帮助对话框 */}
+      <ProxyChainHelpDialog
+        open={helpDialogOpen}
+        onClose={() => setHelpDialogOpen(false)}
+      />
     </Paper>
   )
 }

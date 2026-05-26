@@ -1,0 +1,292 @@
+import { Alert, Box, Snackbar } from '@mui/material'
+import { useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router'
+
+import { BaseEmpty } from '@/components/base'
+
+import { ScrollTopButton } from '../../layout/scroll-top-button'
+import { ProxyChain } from '../proxy-chain'
+import {
+  DEFAULT_HOVER_DELAY,
+  ProxyGroupNavigator,
+} from '../proxy-group-navigator'
+
+import { ChainRuleHeader } from './components/chain-rule-header'
+import { GroupSelectMenu } from './components/group-select-menu'
+import { ProxyVirtualList } from './components/proxy-virtual-list'
+import { useChainMode } from './hooks/use-chain-mode'
+import { useDelayCheck } from './hooks/use-delay-check'
+import { useProxyGroups } from './hooks/use-proxy-groups'
+import {
+  useRestoreScrollPosition,
+  useScrollListener,
+  useScrollPosition,
+} from './hooks/use-scroll-position'
+import { useVirtualScroll } from './hooks/use-virtual-scroll'
+
+interface Props {
+  mode: string
+  isChainMode?: boolean
+  chainConfigData?: string | null
+}
+
+/**
+ * 代理组主组件 - 重构后的版本
+ * 
+ * 职责：
+ * 1. 协调各个子模块
+ * 2. 处理模式切换（normal/chain）
+ * 3. 管理布局和渲染
+ */
+export const ProxyGroups = (props: Props) => {
+  const { mode, isChainMode = false, chainConfigData } = props
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+
+  const parentRef = useRef<HTMLDivElement>(null)
+  const scrollTopRef = useRef(0)
+  const restoredScrollKeyRef = useRef<string | null>(null)
+
+  // 链式代理模式管理
+  const {
+    proxyChain,
+    ruleMenuAnchor,
+    duplicateWarning,
+    availableGroups,
+    activeSelectedGroup,
+    currentGroup,
+    setProxyChain,
+    handleGroupMenuOpen,
+    handleGroupMenuClose,
+    handleGroupSelect,
+    addProxyToChain,
+    handleCloseDuplicateWarning,
+  } = useChainMode({
+    isChainMode,
+    mode,
+  })
+
+  // 代理组数据和业务逻辑
+  const {
+    proxiesData,
+    renderList,
+    timeout,
+    proxyGroupNames,
+    verge,
+    onProxies,
+    onHeadState,
+    getGroupHeadState,
+    handleProxyGroupChange,
+    handleLocation,
+    handleGroupLocationByName,
+  } = useProxyGroups({
+    mode,
+    isChainMode,
+    activeSelectedGroup,
+  })
+
+  // 虚拟滚动
+  const { virtualItems, activeStickyIndex, scrollToIndex, totalSize, measureElement } =
+    useVirtualScroll({
+      renderList,
+      parentRef,
+    })
+
+  // 滚动位置管理
+  const {
+    showScrollTop,
+    scrollPositionKey,
+    handleScroll,
+    restoreScrollPosition,
+    scrollToTop: scrollToTopFn,
+    saveScrollPosition,
+  } = useScrollPosition({
+    mode,
+    isChainMode,
+    activeSelectedGroup,
+    renderListLength: renderList.length,
+  })
+
+  // 恢复滚动位置
+  useRestoreScrollPosition(parentRef, restoreScrollPosition, pathname)
+
+  // 监听滚动事件
+  useScrollListener(
+    parentRef,
+    handleScroll,
+    saveScrollPosition,
+    scrollPositionKey,
+    scrollTopRef,
+    restoredScrollKeyRef,
+  )
+
+  // 延迟测试
+  const { handleCheckAll } = useDelayCheck({
+    renderList,
+    timeout,
+    getGroupHeadState,
+    onProxies,
+    onHeadState,
+  })
+
+  // 滚动到顶部
+  const scrollToTop = useCallback(() => {
+    scrollToTopFn(parentRef.current)
+  }, [scrollToTopFn])
+
+  // 处理代理变更
+  const handleChangeProxy = useCallback(
+    (group: IProxyGroupItem, proxy: IProxyItem) => {
+      if (isChainMode) {
+        addProxyToChain(proxy)
+        return
+      }
+
+      if (!['Selector', 'URLTest', 'Fallback'].includes(group.type)) return
+
+      handleProxyGroupChange(group, proxy)
+    },
+    [addProxyToChain, handleProxyGroupChange, isChainMode],
+  )
+
+  // 定位到代理节点（包装 scrollToIndex）
+  const handleLocationWithScroll = useCallback(
+    (group: IProxyGroupItem) => {
+      handleLocation(group, scrollToIndex)
+    },
+    [handleLocation, scrollToIndex],
+  )
+
+  // 定位到代理组（包装 scrollToIndex）
+  const handleGroupLocationByNameWithScroll = useCallback(
+    (groupName: string) => {
+      handleGroupLocationByName(groupName, scrollToIndex)
+    },
+    [handleGroupLocationByName, scrollToIndex],
+  )
+
+  // 渲染代理列表
+  const renderProxyList = useCallback(
+    (height: string) => {
+      return (
+        <ProxyVirtualList
+          parentRef={parentRef}
+          height={height}
+          totalSize={totalSize}
+          virtualItems={virtualItems}
+          renderList={renderList}
+          activeStickyIndex={activeStickyIndex}
+          indent={mode === 'rule' || mode === 'script'}
+          isChainMode={isChainMode}
+          measureElement={measureElement}
+          onLocation={handleLocationWithScroll}
+          onCheckAll={handleCheckAll}
+          onHeadState={onHeadState}
+          onChangeProxy={handleChangeProxy}
+        />
+      )
+    },
+    [
+      activeStickyIndex,
+      handleChangeProxy,
+      handleCheckAll,
+      handleLocationWithScroll,
+      isChainMode,
+      measureElement,
+      mode,
+      onHeadState,
+      renderList,
+      totalSize,
+      virtualItems,
+    ],
+  )
+
+  // Direct 模式直接返回空状态
+  if (mode === 'direct') {
+    return <BaseEmpty textKey="proxies.page.messages.directMode" />
+  }
+
+  // 链式代理模式
+  if (isChainMode) {
+    const proxyGroups = proxiesData?.groups || []
+    const showRuleHeader = mode === 'rule' && proxyGroups.length > 0
+
+    return (
+      <>
+        <Box sx={{ display: 'flex', height: '100%', gap: 2 }}>
+          <Box sx={{ flex: 1, position: 'relative' }}>
+            {showRuleHeader && (
+              <ChainRuleHeader
+                title={t('proxies.page.rules.title')}
+                selectLabel={t('proxies.page.rules.select')}
+                currentGroup={currentGroup}
+                canSelectGroup={availableGroups.length > 0}
+                onMenuOpen={handleGroupMenuOpen}
+              />
+            )}
+
+            {renderProxyList(
+              showRuleHeader ? 'calc(100% - 80px)' : 'calc(100% - 14px)',
+            )}
+            <ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
+          </Box>
+
+          <Box sx={{ width: '400px', minWidth: '300px' }}>
+            <ProxyChain
+              proxyChain={proxyChain}
+              onUpdateChain={setProxyChain}
+              chainConfigData={chainConfigData}
+              mode={mode}
+              selectedGroup={activeSelectedGroup}
+            />
+          </Box>
+        </Box>
+
+        <Snackbar
+          open={duplicateWarning.open}
+          autoHideDuration={3000}
+          onClose={handleCloseDuplicateWarning}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={handleCloseDuplicateWarning}
+            severity="warning"
+            variant="filled"
+          >
+            {duplicateWarning.message}
+          </Alert>
+        </Snackbar>
+
+        <GroupSelectMenu
+          anchorEl={ruleMenuAnchor}
+          groups={availableGroups}
+          selectedGroup={activeSelectedGroup}
+          emptyText="暂无可用代理组"
+          onClose={handleGroupMenuClose}
+          onSelect={handleGroupSelect}
+        />
+      </>
+    )
+  }
+
+  // 普通模式
+  return (
+    <div
+      style={{ position: 'relative', height: '100%', willChange: 'transform' }}
+    >
+      {/* 代理组导航栏 */}
+      {mode === 'rule' && (
+        <ProxyGroupNavigator
+          proxyGroupNames={proxyGroupNames}
+          onGroupLocation={handleGroupLocationByNameWithScroll}
+          enableHoverJump={verge?.enable_hover_jump_navigator ?? true}
+          hoverDelay={verge?.hover_jump_navigator_delay ?? DEFAULT_HOVER_DELAY}
+        />
+      )}
+
+      {renderProxyList('calc(100% - 14px)')}
+      <ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
+    </div>
+  )
+}

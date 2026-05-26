@@ -8,6 +8,7 @@ import { dnsHealthCheckService, type DnsHealthStats } from './dns-health-check'
 import { dnsPrefetchService } from './dns-prefetch'
 import { dnsSmartRoutingService, type DnsRoutingMode } from './dns-smart-routing'
 import { torProxyService } from './tor-proxy'
+import { dnsLeakProtectionService, type DnsLeakProtectionLevel } from './dns-leak-protection'
 import { dnsQuery } from './dns-api'
 
 interface DnsManagerConfig {
@@ -16,9 +17,11 @@ interface DnsManagerConfig {
   enableHealthCheck: boolean
   enableSmartRouting: boolean // 启用智能分流
   enableTor: boolean // 启用 Tor 支持
+  enableLeakProtection: boolean // 启用零泄漏防护
   prefetchInterval: number // 预解析间隔（毫秒）
   healthCheckInterval: number // 健康检查间隔（毫秒）
   routingMode: DnsRoutingMode // DNS 分流模式
+  leakProtectionLevel: DnsLeakProtectionLevel // 零泄漏防护级别
 }
 
 interface DnsManagerStats {
@@ -39,6 +42,12 @@ interface DnsManagerStats {
     connected: boolean
     socksProxy: string
   }
+  leakProtection: {
+    level: DnsLeakProtectionLevel
+    levelName: string
+    security: string
+    safe: boolean
+  }
 }
 
 class DnsManager {
@@ -48,9 +57,11 @@ class DnsManager {
     enableHealthCheck: true,
     enableSmartRouting: true,
     enableTor: false,
+    enableLeakProtection: true,
     prefetchInterval: 300000, // 5 分钟
     healthCheckInterval: 60000, // 1 分钟
     routingMode: 'balanced',
+    leakProtectionLevel: 'basic',
   }
 
   private initialized = false
@@ -75,6 +86,12 @@ class DnsManager {
     if (this.config.enableSmartRouting) {
       dnsSmartRoutingService.setMode(this.config.routingMode)
       console.log('DNS Manager: smart routing enabled')
+    }
+
+    // 初始化零泄漏防护
+    if (this.config.enableLeakProtection) {
+      dnsLeakProtectionService.setLevel(this.config.leakProtectionLevel)
+      console.log('DNS Manager: leak protection enabled')
     }
 
     // 初始化 Tor
@@ -190,6 +207,7 @@ class DnsManager {
   getStats(): DnsManagerStats {
     const routingStats = dnsSmartRoutingService.getStats()
     const torStatus = torProxyService.getStatus()
+    const leakProtectionStats = dnsLeakProtectionService.getStats()
 
     return {
       cache: dnsCacheService.getStats(),
@@ -208,6 +226,12 @@ class DnsManager {
         enabled: torStatus.enabled,
         connected: torStatus.connected,
         socksProxy: torProxyService.getSocksProxyUrl(),
+      },
+      leakProtection: {
+        level: leakProtectionStats.level,
+        levelName: leakProtectionStats.levelName,
+        security: leakProtectionStats.security,
+        safe: leakProtectionStats.safe,
       },
     }
   }
@@ -351,6 +375,47 @@ class DnsManager {
    */
   getTorService() {
     return torProxyService
+  }
+
+  /**
+   * 设置零泄漏防护级别
+   */
+  setLeakProtectionLevel(level: DnsLeakProtectionLevel): void {
+    this.config.leakProtectionLevel = level
+    dnsLeakProtectionService.setLevel(level)
+    console.log(`DNS Manager: leak protection level set to ${level}`)
+  }
+
+  /**
+   * 启用零泄漏防护
+   */
+  enableLeakProtection(): void {
+    this.config.enableLeakProtection = true
+    dnsLeakProtectionService.setLevel(this.config.leakProtectionLevel)
+    console.log('DNS Manager: leak protection enabled')
+  }
+
+  /**
+   * 禁用零泄漏防护
+   */
+  disableLeakProtection(): void {
+    this.config.enableLeakProtection = false
+    dnsLeakProtectionService.setLevel('none')
+    console.log('DNS Manager: leak protection disabled')
+  }
+
+  /**
+   * 获取零泄漏防护服务
+   */
+  getLeakProtectionService() {
+    return dnsLeakProtectionService
+  }
+
+  /**
+   * 生成零泄漏 Clash DNS 配置
+   */
+  generateLeakProofDnsConfig(): Record<string, any> {
+    return dnsLeakProtectionService.generateClashDnsConfig()
   }
 
   /**

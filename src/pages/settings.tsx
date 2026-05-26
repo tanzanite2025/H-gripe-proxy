@@ -6,6 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { BasePage } from '@/components/base'
 import SettingClash from '@/components/setting/setting-clash'
 import { DnsStatsCard } from '@/components/setting/dns-stats-card'
+import { DnsRoutingCard } from '@/components/setting/dns-routing-card'
+import { TorConfigCard } from '@/components/setting/tor-config-card'
+import { DnsLeakProtectionCard } from '@/components/setting/dns-leak-protection-card'
 import SettingSystem from '@/components/setting/setting-system'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
@@ -89,10 +92,19 @@ const SettingPage = () => {
           <Box className="uds-card-container settings-page-card">
             <SettingVergeBasic onError={onError} />
           </Box>
+          <Box className="uds-card-container settings-page-card">
+            <DnsRoutingCard />
+          </Box>
+          <Box className="uds-card-container settings-page-card">
+            <DnsLeakProtectionCard />
+          </Box>
         </Grid>
         <Grid size={{ xs: 6, sm: 6, md: 12, lg: 6 }} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingVergeAdvanced onError={onError} />
+          </Box>
+          <Box className="uds-card-container settings-page-card">
+            <TorConfigCard />
           </Box>
         </Grid>
       </Grid>

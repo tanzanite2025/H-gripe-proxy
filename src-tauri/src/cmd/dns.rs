@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Instant;
 use hickory_resolver::config::*;
 use hickory_resolver::TokioAsyncResolver;
@@ -39,7 +37,7 @@ pub struct DnsHealthCheckResult {
 }
 
 /// 创建 DNS 解析器
-fn create_resolver(
+async fn create_resolver(
     server: Option<String>,
     protocol: Option<DnsProtocol>,
 ) -> Result<TokioAsyncResolver, String> {
@@ -50,7 +48,7 @@ fn create_resolver(
         return TokioAsyncResolver::tokio(
             ResolverConfig::default(),
             ResolverOpts::default(),
-        ).map_err(|e| e.to_string());
+        ).await.map_err(|e| e.to_string());
     }
     
     let server_addr = server.unwrap();
@@ -69,6 +67,7 @@ fn create_resolver(
                 socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
                 protocol: Protocol::Udp,
                 tls_dns_name: None,
+                tls_config: None,
                 trust_negative_responses: true,
                 bind_addr: None,
             });
@@ -85,6 +84,7 @@ fn create_resolver(
                 socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
                 protocol: Protocol::Tcp,
                 tls_dns_name: None,
+                tls_config: None,
                 trust_negative_responses: true,
                 bind_addr: None,
             });
@@ -109,6 +109,7 @@ fn create_resolver(
                 socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
                 protocol: Protocol::Https,
                 tls_dns_name,
+                tls_config: None,
                 trust_negative_responses: true,
                 bind_addr: None,
             });
@@ -133,6 +134,7 @@ fn create_resolver(
                 socket_addr: socket_addr.parse().map_err(|e| format!("Invalid server address: {}", e))?,
                 protocol: Protocol::Tls,
                 tls_dns_name,
+                tls_config: None,
                 trust_negative_responses: true,
                 bind_addr: None,
             });
@@ -143,7 +145,7 @@ fn create_resolver(
     opts.timeout = std::time::Duration::from_secs(5);
     opts.attempts = 2;
     
-    TokioAsyncResolver::tokio(config, opts).map_err(|e| e.to_string())
+    TokioAsyncResolver::tokio(config, opts).await.map_err(|e| e.to_string())
 }
 
 /// DNS 查询
@@ -159,7 +161,7 @@ pub async fn dns_query(
     let protocol_str = protocol.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "System".to_string());
     
     // 创建解析器
-    let resolver = create_resolver(server.clone(), protocol.clone())?;
+    let resolver = create_resolver(server.clone(), protocol.clone()).await?;
     
     // 解析域名
     let name = Name::from_str(&domain).map_err(|e| format!("Invalid domain: {}", e))?;
@@ -217,7 +219,7 @@ pub async fn dns_health_check(
     let protocol_str = protocol.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "Udp".to_string());
     
     // 创建解析器
-    let resolver = create_resolver(Some(server.clone()), protocol.clone())?;
+    let resolver = create_resolver(Some(server.clone()), protocol.clone()).await?;
     
     // 解析测试域名
     let name = Name::from_str(&domain).map_err(|e| format!("Invalid domain: {}", e))?;
