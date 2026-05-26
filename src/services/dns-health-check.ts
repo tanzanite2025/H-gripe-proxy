@@ -3,6 +3,8 @@
  * 实时监控 DNS 服务器健康状态，自动切换到最优 DNS
  */
 
+import { dnsHealthCheck } from './dns-api'
+
 interface DnsServer {
   address: string
   type: 'udp' | 'doh' | 'dot'
@@ -63,45 +65,51 @@ class DnsHealthCheckService {
 
   /**
    * 检查单个 DNS 服务器
-   * 注意：这是一个模拟实现，实际需要调用后端 API
    */
   async checkServer(address: string): Promise<void> {
     const server = this.servers.get(address)
     if (!server) return
 
-    const startTime = Date.now()
-
     try {
-      // 实际实现需要调用后端 API 进行 DNS 查询
-      // const result = await invoke('dns_query', {
-      //   server: address,
-      //   domain: this.TEST_DOMAIN,
-      //   timeout: 5000,
-      // })
+      // 调用后端 API 进行 DNS 健康检查
+      const result = await dnsHealthCheck(address, this.TEST_DOMAIN)
 
-      // 模拟查询（实际应该删除）
-      await new Promise((resolve) => setTimeout(resolve, Math.random() * 200))
+      if (result.success) {
+        // 更新服务器状态
+        server.latency = result.latency
+        server.successRate = Math.min(100, server.successRate + 2)
+        server.lastCheck = Date.now()
+        server.consecutiveFailures = 0
 
-      const latency = Date.now() - startTime
+        // 判断健康状态
+        if (result.latency < 100 && server.successRate > 95) {
+          server.status = 'healthy'
+        } else if (result.latency < 500 && server.successRate > 80) {
+          server.status = 'degraded'
+        } else {
+          server.status = 'down'
+        }
 
-      // 更新服务器状态
-      server.latency = latency
-      server.successRate = Math.min(100, server.successRate + 2)
-      server.lastCheck = Date.now()
-      server.consecutiveFailures = 0
-
-      // 判断健康状态
-      if (latency < 100 && server.successRate > 95) {
-        server.status = 'healthy'
-      } else if (latency < 500 && server.successRate > 80) {
-        server.status = 'degraded'
+        console.log(
+          `DNS health check: ${address} - ${server.status} (${result.latency}ms, ${server.successRate.toFixed(1)}%)`,
+        )
       } else {
-        server.status = 'down'
-      }
+        // 查询失败
+        server.successRate = Math.max(0, server.successRate - 10)
+        server.lastCheck = Date.now()
+        server.consecutiveFailures++
 
-      console.log(
-        `DNS health check: ${address} - ${server.status} (${latency}ms, ${server.successRate.toFixed(1)}%)`,
-      )
+        // 判断健康状态
+        if (server.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES || server.successRate < 50) {
+          server.status = 'down'
+        } else {
+          server.status = 'degraded'
+        }
+
+        console.error(
+          `DNS health check: ${address} - failed (${server.consecutiveFailures} consecutive failures) - ${result.error || 'unknown error'}`,
+        )
+      }
     } catch (err) {
       // 查询失败
       server.successRate = Math.max(0, server.successRate - 10)

@@ -4,6 +4,7 @@
  */
 
 import { dnsCacheService } from './dns-cache'
+import { dnsQuery } from './dns-api'
 
 interface DomainFrequency {
   domain: string
@@ -33,7 +34,6 @@ class DnsPrefetchService {
 
   /**
    * 预解析域名
-   * 注意：这是一个模拟实现，实际需要调用后端 API
    */
   async prefetchDomain(domain: string): Promise<void> {
     try {
@@ -42,11 +42,16 @@ class DnsPrefetchService {
         return
       }
 
-      // 实际实现需要调用后端 API 进行 DNS 查询
-      // const ip = await invoke('dns_query', { domain })
-      // dnsCacheService.set(domain, ip)
+      // 调用后端 API 进行 DNS 查询
+      const result = await dnsQuery(domain)
 
-      console.log(`DNS prefetch: ${domain}`)
+      if (result.success && result.ip) {
+        // 缓存查询结果
+        dnsCacheService.set(domain, result.ip)
+        console.log(`DNS prefetch: ${domain} -> ${result.ip} (${result.latency}ms)`)
+      } else {
+        console.warn(`DNS prefetch failed: ${domain} - ${result.error || 'unknown error'}`)
+      }
     } catch (err) {
       console.error(`DNS prefetch failed: ${domain}`, err)
     }

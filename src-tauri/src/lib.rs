@@ -215,6 +215,10 @@ mod app_init {
             cmd::restore_webdav_backup,
             cmd::get_unlock_items,
             cmd::check_media_unlock,
+            cmd::dns_query,
+            cmd::dns_health_check,
+            cmd::dns_batch_query,
+            cmd::dns_batch_health_check,
         ]
     }
 }
