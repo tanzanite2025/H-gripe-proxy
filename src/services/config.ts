@@ -1,6 +1,6 @@
 const SWR_NOT_SMART = {
   revalidateOnFocus: false,
-  revalidateOnReconnect: false,
+  revalidateOnReconnect: true, // ✅ 启用重连时重新验证
   revalidateIfStale: false,
   suspense: false,
   errorRetryCount: 2,
@@ -10,7 +10,7 @@ const SWR_NOT_SMART = {
 
 export const SWR_DEFAULTS = {
   revalidateOnFocus: false,
-  revalidateOnReconnect: false,
+  revalidateOnReconnect: true, // ✅ 启用重连时重新验证
   suspense: false,
   errorRetryCount: 2,
   dedupingInterval: 5000,

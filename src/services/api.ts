@@ -6,6 +6,15 @@ import { once } from 'foxts/once'
 
 import { debugLog } from '@/utils/misc'
 
+import { getIpCheckConfig } from './adaptive-config'
+import {
+  getCachedIpInfo,
+  setCachedIpInfo,
+  clearIpCache,
+} from './ip-cache'
+import { networkMonitor } from './network-monitor'
+import { deduplicator } from './request-deduplicator'
+
 const getUserAgentPromise = once(async () => {
   try {
     const [name, version] = await Promise.all([getName(), getVersion()])
@@ -141,14 +150,32 @@ const IP_CHECK_SERVICES: ServiceConfig[] = [
 export const getIpInfo = async (): Promise<
   IpInfo & { lastFetchTs: number }
 > => {
-  // 配置参数
-  const maxRetries = 2
-  const serviceTimeout = 5000
+  // 使用请求去重
+  return deduplicator.dedupe('ip-info', async () => {
+    // 先尝试从缓存获取
+    const cached = getCachedIpInfo()
+    if (cached) {
+      console.debug('[IpInfo] 使用缓存的IP信息')
+      return cached
+    }
 
-  const shuffledServices = IP_CHECK_SERVICES.toSorted(() => Math.random() - 0.5)
-  let lastError: unknown | null = null
-  const userAgent = await getUserAgentPromise()
-  console.debug('User-Agent for IP detection:', userAgent)
+    // 检查网络状态
+    if (!networkMonitor.isOnline()) {
+      throw new Error('网络已断开，无法获取IP信息')
+    }
+
+    // 根据网络质量获取配置
+    const config = getIpCheckConfig()
+    if (config.timeout === 0) {
+      throw new Error('离线状态，无法获取IP信息')
+    }
+
+    const shuffledServices = IP_CHECK_SERVICES.toSorted(
+      () => Math.random() - 0.5,
+    )
+    let lastError: unknown | null = null
+    const userAgent = await getUserAgentPromise()
+    console.debug('User-Agent for IP detection:', userAgent)
 
   for (const service of shuffledServices) {
     debugLog(`尝试IP检测服务: ${service.url}`)
@@ -156,7 +183,7 @@ export const getIpInfo = async (): Promise<
     const timeoutController = new AbortController()
     const timeoutId = setTimeout(() => {
       timeoutController.abort()
-    }, service.timeout || serviceTimeout)
+    }, service.timeout || config.timeout)
 
     try {
       return await asyncRetry(
@@ -165,8 +192,8 @@ export const getIpInfo = async (): Promise<
 
           const response = await fetch(service.url, {
             method: 'GET',
-            signal: timeoutController.signal, // AbortSignal.timeout(service.timeout || serviceTimeout),
-            connectTimeout: service.timeout || serviceTimeout,
+            signal: timeoutController.signal,
+            connectTimeout: service.timeout || config.timeout,
             headers: {
               'User-Agent': userAgent,
             },
@@ -189,18 +216,21 @@ export const getIpInfo = async (): Promise<
 
           if (data && data.ip) {
             debugLog(`IP检测成功，使用服务: ${service.url}`)
-            return Object.assign(service.mapping(data), {
+            const ipInfo = Object.assign(service.mapping(data), {
               // use last fetch success timestamp
               lastFetchTs: Date.now(),
             })
+            // 保存到缓存
+            setCachedIpInfo(ipInfo)
+            return ipInfo
           } else {
             return bail(new Error(`无效的响应格式 from ${service.url}`))
           }
         },
         {
-          retries: maxRetries,
-          minTimeout: 1000,
-          maxTimeout: 4000,
+          retries: config.retries,
+          minTimeout: config.minTimeout,
+          maxTimeout: config.maxTimeout,
           randomize: true,
         },
       )
@@ -219,4 +249,10 @@ export const getIpInfo = async (): Promise<
   } else {
     throw new Error('没有可用的IP检测服务')
   }
+  })
 }
+
+/**
+ * 清除 IP 信息缓存
+ */
+export const clearIpInfoCache = clearIpCache
