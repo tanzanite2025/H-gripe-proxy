@@ -15,6 +15,7 @@ mod tls_fingerprint;
 mod security;
 #[cfg(target_os = "linux")]
 mod xdp;
+mod multipath;
 
 use crate::constants::files;
 use crate::{
@@ -247,6 +248,21 @@ mod app_init {
             cmd::security_decrypt_data,
             cmd::security_check_encryption_key,
             cmd::security_self_destruct,
+            cmd::multipath_get_config,
+            cmd::multipath_update_config,
+            cmd::multipath_get_bindings,
+            cmd::multipath_add_binding,
+            cmd::multipath_remove_binding,
+            cmd::multipath_get_predefined_bindings,
+            cmd::multipath_add_pool,
+            cmd::multipath_remove_pool,
+            cmd::multipath_update_pool,
+            cmd::multipath_add_node,
+            cmd::multipath_remove_node,
+            cmd::multipath_test_node,
+            cmd::multipath_import_nodes,
+            cmd::multipath_export_nodes,
+            cmd::multipath_get_recommended_config,
         ]
     }
 
