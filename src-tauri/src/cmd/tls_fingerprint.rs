@@ -25,7 +25,7 @@ pub fn tls_fingerprint_get_by_name(name: String) -> Result<Option<TlsFingerprint
 /// 设置当前指纹
 #[tauri::command]
 pub fn tls_fingerprint_set(fingerprint: TlsFingerprint) -> Result<(), String> {
-    let mut service = TLS_FINGERPRINT_SERVICE.write();
+    let service = TLS_FINGERPRINT_SERVICE.read();
     service.set_fingerprint(fingerprint);
     Ok(())
 }
@@ -36,7 +36,7 @@ pub fn tls_fingerprint_set_by_name(name: String) -> Result<(), String> {
     let fingerprint = TlsFingerprintLibrary::get_by_name(&name)
         .ok_or_else(|| format!("Fingerprint not found: {}", name))?;
 
-    let mut service = TLS_FINGERPRINT_SERVICE.write();
+    let service = TLS_FINGERPRINT_SERVICE.read();
     service.set_fingerprint(fingerprint);
     Ok(())
 }
@@ -45,7 +45,7 @@ pub fn tls_fingerprint_set_by_name(name: String) -> Result<(), String> {
 #[tauri::command]
 pub fn tls_fingerprint_get_current() -> Result<Option<TlsFingerprint>, String> {
     let service = TLS_FINGERPRINT_SERVICE.read();
-    Ok(service.get_fingerprint().cloned())
+    Ok(service.get_fingerprint())
 }
 
 /// 生成 Clash 配置

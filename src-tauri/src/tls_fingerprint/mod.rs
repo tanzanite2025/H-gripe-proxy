@@ -292,29 +292,50 @@ impl TlsFingerprintLibrary {
 
 /// TLS 指纹伪装服务
 pub struct TlsFingerprintService {
-    current_fingerprint: Option<TlsFingerprint>,
+    current_fingerprint: parking_lot::RwLock<Option<TlsFingerprint>>,
 }
 
 impl TlsFingerprintService {
     pub fn new() -> Self {
         Self {
-            current_fingerprint: None,
+            current_fingerprint: parking_lot::RwLock::new(None),
         }
     }
 
     /// 设置当前指纹
-    pub fn set_fingerprint(&mut self, fingerprint: TlsFingerprint) {
-        self.current_fingerprint = Some(fingerprint);
+    pub fn set_fingerprint(&self, fingerprint: TlsFingerprint) {
+        *self.current_fingerprint.write() = Some(fingerprint);
+    }
+
+    /// 根据名称设置指纹
+    pub fn set_by_name(&self, name: &str) -> Result<(), String> {
+        if let Some(fp) = TlsFingerprintLibrary::get_by_name(name) {
+            self.set_fingerprint(fp);
+            Ok(())
+        } else {
+            Err(format!("未找到指纹: {}", name))
+        }
     }
 
     /// 获取当前指纹
-    pub fn get_fingerprint(&self) -> Option<&TlsFingerprint> {
-        self.current_fingerprint.as_ref()
+    pub fn get_fingerprint(&self) -> Option<TlsFingerprint> {
+        self.current_fingerprint.read().clone()
+    }
+
+    /// 获取当前指纹（用于协调器）
+    #[allow(dead_code)]
+    pub fn get_current(&self) -> Option<TlsFingerprint> {
+        self.get_fingerprint()
+    }
+
+    /// 清除当前指纹
+    pub fn clear(&self) {
+        *self.current_fingerprint.write() = None;
     }
 
     /// 生成 Clash 配置
     pub fn generate_clash_config(&self) -> Option<serde_json::Value> {
-        self.current_fingerprint.as_ref().map(|fp| {
+        self.current_fingerprint.read().as_ref().map(|fp| {
             serde_json::json!({
                 "client-fingerprint": "custom",
                 "tls-version": fp.tls_version,

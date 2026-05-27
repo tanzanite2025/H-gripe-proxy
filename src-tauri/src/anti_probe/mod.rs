@@ -15,7 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 
 /// 反探测配置
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AntiProbeConfig {
     /// 启用反探测
     pub enabled: bool,

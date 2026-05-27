@@ -61,6 +61,7 @@ impl HoneypotToken {
     }
 
     /// 记录访问（由内存保护机制调用）
+    #[allow(dead_code)]
     pub fn record_access(&self) {
         self.access_count.fetch_add(1, Ordering::Relaxed);
         let now = SystemTime::now()
@@ -117,6 +118,7 @@ impl MemoryHoneypot {
     }
 
     /// 获取统计信息
+    #[allow(dead_code)]
     pub fn get_stats(&self) -> HoneypotStats {
         let mut total_accesses = 0;
         let mut compromised_tokens = 0;
@@ -144,6 +146,7 @@ impl Default for MemoryHoneypot {
 }
 
 /// 蜜罐统计信息
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct HoneypotStats {
     pub total_tokens: usize,

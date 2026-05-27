@@ -17,8 +17,8 @@ pub struct XdpConfig {
     pub interface: String,
     /// XDP 模式（native, skb, hw）
     pub mode: XdpMode,
-    /// 是否启用统计
-    pub enable_stats: bool,
+    /// 队列大小
+    pub queue_size: usize,
 }
 
 impl Default for XdpConfig {
@@ -27,7 +27,7 @@ impl Default for XdpConfig {
             enabled: false,
             interface: "eth0".to_string(),
             mode: XdpMode::Skb,
-            enable_stats: true,
+            queue_size: 4096,
         }
     }
 }
@@ -39,8 +39,8 @@ pub enum XdpMode {
     Native,
     /// SKB 模式（兼容性好，性能较低）
     Skb,
-    /// 硬件卸载模式（需要硬件支持）
-    Hw,
+    /// Generic 模式（通用模式，所有网卡都支持）
+    Generic,
 }
 
 /// XDP 代理状态
@@ -123,6 +123,11 @@ impl XdpManager {
     /// 获取状态
     pub fn get_status(&self) -> XdpStatus {
         self.status.read().clone()
+    }
+
+    /// 检查是否运行中
+    pub fn is_running(&self) -> bool {
+        self.status.read().running
     }
 
     /// 启动 XDP 代理

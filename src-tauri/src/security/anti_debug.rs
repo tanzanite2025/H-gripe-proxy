@@ -87,19 +87,23 @@ unsafe fn get_peb() -> *const u8 {
     #[cfg(target_arch = "x86_64")]
     {
         let peb: *const u8;
-        std::arch::asm!(
-            "mov {}, gs:[0x60]",
-            out(reg) peb,
-        );
+        unsafe {
+            std::arch::asm!(
+                "mov {}, gs:[0x60]",
+                out(reg) peb,
+            );
+        }
         peb
     }
     #[cfg(target_arch = "x86")]
     {
         let peb: *const u8;
-        std::arch::asm!(
-            "mov {}, fs:[0x30]",
-            out(reg) peb,
-        );
+        unsafe {
+            std::arch::asm!(
+                "mov {}, fs:[0x30]",
+                out(reg) peb,
+            );
+        }
         peb
     }
     #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]

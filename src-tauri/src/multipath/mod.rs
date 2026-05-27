@@ -241,6 +241,7 @@ impl SessionBinding {
 }
 
 /// 分片信息
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Fragment {
     /// 流 ID
@@ -258,6 +259,7 @@ pub struct Fragment {
 }
 
 /// 流会话
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct StreamSession {
     /// 会话 ID
@@ -279,12 +281,15 @@ pub struct StreamSession {
 /// 多路径管理器
 pub struct MultipathManager {
     config: Arc<RwLock<MultipathConfig>>,
+    #[allow(dead_code)]
     sessions: Arc<RwLock<HashMap<u64, StreamSession>>>,
     bindings: Arc<RwLock<Vec<SessionBinding>>>,
+    #[allow(dead_code)]
     node_stats: Arc<RwLock<HashMap<String, NodeStats>>>,
 }
 
 /// 节点统计
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct NodeStats {
     pub active_connections: u32,
@@ -295,7 +300,7 @@ pub struct NodeStats {
 
 impl MultipathManager {
     pub fn new() -> Self {
-        let mut bindings = SessionBinding::all_predefined();
+        let bindings = SessionBinding::all_predefined();
         
         Self {
             config: Arc::new(RwLock::new(MultipathConfig::default())),
@@ -408,23 +413,23 @@ impl MultipathManager {
         Some(node.name.clone())
     }
 
-    fn select_round_robin(&self, nodes: &[PathNode]) -> Option<&PathNode> {
-        nodes.iter().find(|n| n.enabled)
+    fn select_round_robin(&self, nodes: &[PathNode]) -> Option<PathNode> {
+        nodes.iter().find(|n| n.enabled).cloned()
     }
 
-    fn select_random(&self, nodes: &[PathNode]) -> Option<&PathNode> {
+    fn select_random(&self, nodes: &[PathNode]) -> Option<PathNode> {
         use rand::seq::SliceRandom;
-        let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).collect();
-        enabled.choose(&mut rand::thread_rng()).copied()
+        let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).cloned().collect();
+        enabled.choose(&mut rand::thread_rng()).cloned()
     }
 
-    fn select_weighted(&self, nodes: &[PathNode]) -> Option<&PathNode> {
+    fn select_weighted(&self, nodes: &[PathNode]) -> Option<PathNode> {
         use rand::Rng;
-        let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).collect();
+        let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).cloned().collect();
         let total_weight: u32 = enabled.iter().map(|n| n.weight as u32).sum();
         
         if total_weight == 0 {
-            return enabled.first().copied();
+            return enabled.first().cloned();
         }
 
         let mut rng = rand::thread_rng();
@@ -440,7 +445,7 @@ impl MultipathManager {
         None
     }
 
-    fn select_least_connections(&self, nodes: &[PathNode]) -> Option<&PathNode> {
+    fn select_least_connections(&self, nodes: &[PathNode]) -> Option<PathNode> {
         let stats = self.node_stats.read();
         nodes.iter()
             .filter(|n| n.enabled)
@@ -449,9 +454,10 @@ impl MultipathManager {
                     .map(|s| s.active_connections)
                     .unwrap_or(0)
             })
+            .cloned()
     }
 
-    fn select_latency_based(&self, nodes: &[PathNode]) -> Option<&PathNode> {
+    fn select_latency_based(&self, nodes: &[PathNode]) -> Option<PathNode> {
         let stats = self.node_stats.read();
         nodes.iter()
             .filter(|n| n.enabled)
@@ -460,6 +466,7 @@ impl MultipathManager {
                     .map(|s| s.avg_latency)
                     .unwrap_or(u64::MAX)
             })
+            .cloned()
     }
 
     fn current_timestamp() -> u64 {

@@ -263,6 +263,15 @@ mod app_init {
             cmd::multipath_import_nodes,
             cmd::multipath_export_nodes,
             cmd::multipath_get_recommended_config,
+            cmd::coordinator_initialize,
+            cmd::coordinator_get_config,
+            cmd::coordinator_update_config,
+            cmd::coordinator_shutdown,
+            cmd::get_advanced_config,
+            cmd::save_advanced_config,
+            cmd::get_recommended_advanced_config,
+            cmd::validate_advanced_config,
+            cmd::coordinator_get_status,
         ]
     }
 
@@ -318,6 +327,15 @@ pub fn run() {
             resolve::resolve_setup_async();
             resolve::resolve_setup_sync();
             resolve::init_signal();
+
+            // 初始化核心协调器
+            logging!(info, Type::Setup, "初始化核心协调器...");
+            let coordinator = cmd::coordinator::get_coordinator();
+            if let Err(e) = coordinator.initialize() {
+                logging!(error, Type::Setup, "协调器初始化失败: {}", e);
+            } else {
+                logging!(info, Type::Setup, "协调器初始化成功");
+            }
 
             logging!(info, Type::Setup, "初始化已启动");
             Ok(())

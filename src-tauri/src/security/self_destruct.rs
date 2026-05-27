@@ -66,6 +66,7 @@ fn delete_config_files(config_paths: &[PathBuf]) {
 }
 
 /// 删除日志文件
+#[allow(dead_code)]
 fn delete_log_files(log_dir: &PathBuf) {
     log::warn!("🔥 删除日志文件...");
 
@@ -89,6 +90,7 @@ fn delete_log_files(log_dir: &PathBuf) {
 }
 
 /// 安全擦除文件（多次覆写）
+#[allow(dead_code)]
 fn secure_erase_file(path: &PathBuf) -> Result<(), String> {
     if !path.exists() {
         return Ok(());
@@ -156,6 +158,7 @@ pub fn execute_with_config(config: SelfDestructConfig) {
 }
 
 /// 紧急自毁（最激进的模式）
+#[allow(dead_code)]
 pub fn emergency_destruct() {
     log::error!("🚨🚨🚨 紧急自毁！🚨🚨🚨");
 
@@ -167,6 +170,7 @@ pub fn emergency_destruct() {
 }
 
 /// 检查是否应该触发自毁
+#[allow(dead_code)]
 pub fn should_self_destruct() -> bool {
     // 检查环境变量中的紧急停止标志
     if let Ok(val) = std::env::var("CLASH_VERGE_EMERGENCY_STOP") {
