@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { useLockFn } from 'ahooks'
 import { Box, Tabs, Tab, Alert, Button, Stack } from '@mui/material'
 import { BasePage } from '@/components/base'
-import { Notice } from '@/components/base/base-notice'
+import { showNotice } from '@/services/notice-service'
 import {
   getAdvancedConfig,
   saveAdvancedConfig,
@@ -59,7 +59,7 @@ export default function AdvancedPage() {
       setConfig(cfg)
       setStatus(st)
     } catch (err: any) {
-      Notice.error(err.message || err.toString())
+      showNotice.error(err.message || err.toString())
     } finally {
       setLoading(false)
     }
@@ -71,10 +71,10 @@ export default function AdvancedPage() {
 
     try {
       await saveAdvancedConfig(config)
-      Notice.success('配置已保存并应用')
+      showNotice.success('配置已保存并应用')
       await loadConfig()
     } catch (err: any) {
-      Notice.error(err.message || err.toString())
+      showNotice.error(err.message || err.toString())
     }
   })
 
@@ -83,9 +83,9 @@ export default function AdvancedPage() {
     try {
       const recommended = await getRecommendedAdvancedConfig()
       setConfig(recommended)
-      Notice.success('已加载推荐配置')
+      showNotice.success('已加载推荐配置')
     } catch (err: any) {
-      Notice.error(err.message || err.toString())
+      showNotice.error(err.message || err.toString())
     }
   })
 
@@ -95,7 +95,7 @@ export default function AdvancedPage() {
 
   if (loading || !config) {
     return (
-      <BasePage title="高级功能" loading={loading}>
+      <BasePage title="高级功能">
         <Box sx={{ p: 2 }}>加载中...</Box>
       </BasePage>
     )

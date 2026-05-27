@@ -115,7 +115,6 @@ unsafe fn get_peb() -> *const u8 {
 #[cfg(target_os = "windows")]
 fn check_debug_port_windows() -> bool {
     use windows::Win32::System::Threading::GetCurrentProcess;
-    use windows::core::PWSTR;
     
     unsafe {
         let process = GetCurrentProcess();

@@ -17,7 +17,7 @@ import {
   Chip,
 } from '@mui/material'
 import { SecurityConfig } from '@/services/coordinator'
-import { getTlsFingerprintAll } from '@/services/tls-fingerprint'
+import { tlsFingerprintGetAll } from '@/services/tls-fingerprint'
 
 interface Props {
   config: SecurityConfig
@@ -29,7 +29,7 @@ export function SecurityConfigPanel({ config, onChange }: Props) {
 
   // 加载 TLS 指纹列表
   useState(() => {
-    getTlsFingerprintAll().then((fps) => {
+    tlsFingerprintGetAll().then((fps) => {
       setFingerprints(fps.map((f) => f.name))
     })
   })
@@ -54,7 +54,7 @@ export function SecurityConfigPanel({ config, onChange }: Props) {
             }
             label={
               <Box>
-                <Typography variant="body1" fontWeight="bold">
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                   启用安全监控
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -169,7 +169,7 @@ export function SecurityConfigPanel({ config, onChange }: Props) {
               <Typography variant="body2" gutterBottom>
                 选择指纹
               </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }} useFlexGap>
                 <Chip
                   label="不使用"
                   color={!config.tls_fingerprint ? 'primary' : 'default'}

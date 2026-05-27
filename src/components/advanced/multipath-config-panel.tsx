@@ -62,7 +62,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
             }
             label={
               <Box>
-                <Typography variant="body1" fontWeight="bold">
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                   启用多路径路由
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -130,7 +130,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
                 }
                 label={
                   <Box>
-                    <Typography variant="body1" fontWeight="bold">
+                    <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                       会话保持
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -165,7 +165,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Box>
-                            <Typography variant="body1" fontWeight="bold">
+                            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                               {pool.name}
                             </Typography>
                             <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
@@ -212,7 +212,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
 
               <Stack spacing={1}>
                 <Alert severity="success">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     流媒体服务（强制单节点）
                   </Typography>
                   <Typography variant="caption">
@@ -221,7 +221,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
                 </Alert>
 
                 <Alert severity="success">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     游戏服务（强制单节点）
                   </Typography>
                   <Typography variant="caption">
@@ -230,7 +230,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
                 </Alert>
 
                 <Alert severity="info">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     社交媒体（建议单节点）
                   </Typography>
                   <Typography variant="caption">
@@ -239,7 +239,7 @@ export function MultipathConfigPanel({ config, onChange }: Props) {
                 </Alert>
 
                 <Alert severity="info">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     下载服务（可多路径）
                   </Typography>
                   <Typography variant="caption">

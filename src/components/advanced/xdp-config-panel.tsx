@@ -56,7 +56,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
             }
             label={
               <Box>
-                <Typography variant="body1" fontWeight="bold">
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                   启用 XDP 代理
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -118,7 +118,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
 
               <Stack spacing={1} sx={{ mt: 2 }}>
                 <Alert severity="success">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     Native 模式
                   </Typography>
                   <Typography variant="caption">
@@ -127,7 +127,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
                 </Alert>
 
                 <Alert severity="info">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     SKB 模式
                   </Typography>
                   <Typography variant="caption">
@@ -136,7 +136,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
                 </Alert>
 
                 <Alert severity="warning">
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     Generic 模式
                   </Typography>
                   <Typography variant="caption">

@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
   Alert,
   Button,
   Stack,
@@ -40,7 +39,7 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
       {/* 安全状态警告 */}
       {status.security_compromised && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          <Typography variant="body1" fontWeight="bold">
+          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
             ⚠️ 安全状态已被破坏
           </Typography>
           <Typography variant="body2">
@@ -61,47 +60,165 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
       </Box>
 
       {/* 模块状态 */}
-      <Grid container spacing={2}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+          gap: 2,
+        }}
+      >
         {/* 协调器状态 */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                {status.initialized ? (
-                  <CheckCircleOutlined color="success" />
-                ) : (
-                  <ErrorOutlined color="error" />
-                )}
-                <Typography variant="h6">核心协调器</Typography>
-              </Stack>
+        <Card>
+          <CardContent>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+              {status.initialized ? (
+                <CheckCircleOutlined color="success" />
+              ) : (
+                <ErrorOutlined color="error" />
+              )}
+              <Typography variant="h6">核心协调器</Typography>
+            </Stack>
 
-              <Stack spacing={1}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">状态</Typography>
-                  <Chip
-                    label={status.initialized ? '已初始化' : '未初始化'}
-                    size="small"
-                    color={status.initialized ? 'success' : 'error'}
-                  />
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+            <Stack spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">状态</Typography>
+                <Chip
+                  label={status.initialized ? '已初始化' : '未初始化'}
+                  size="small"
+                  color={status.initialized ? 'success' : 'error'}
+                />
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
 
         {/* 安全监控 */}
-        <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+              {status.security_enabled && !status.security_compromised ? (
+                <CheckCircleOutlined color="success" />
+              ) : status.security_compromised ? (
+                <ErrorOutlined color="error" />
+              ) : (
+                <WarningOutlined color="warning" />
+              )}
+              <Typography variant="h6">安全监控</Typography>
+            </Stack>
+
+            <Stack spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">状态</Typography>
+                <Chip
+                  label={
+                    status.security_enabled
+                      ? status.security_compromised
+                        ? '已破坏'
+                        : '运行中'
+                      : '未启用'
+                  }
+                  size="small"
+                  color={
+                    status.security_enabled
+                      ? status.security_compromised
+                        ? 'error'
+                        : 'success'
+                      : 'default'
+                  }
+                />
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* 反探测 */}
+        <Card>
+          <CardContent>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+              {status.anti_probe_enabled ? (
+                <CheckCircleOutlined color="success" />
+              ) : (
+                <WarningOutlined color="warning" />
+              )}
+              <Typography variant="h6">反主动探测</Typography>
+            </Stack>
+
+            <Stack spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">状态</Typography>
+                <Chip
+                  label={status.anti_probe_enabled ? '已启用' : '未启用'}
+                  size="small"
+                  color={status.anti_probe_enabled ? 'success' : 'default'}
+                />
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* TLS 指纹 */}
+        <Card>
+          <CardContent>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+              {status.tls_fingerprint ? (
+                <CheckCircleOutlined color="success" />
+              ) : (
+                <WarningOutlined color="warning" />
+              )}
+              <Typography variant="h6">TLS 指纹伪装</Typography>
+            </Stack>
+
+            <Stack spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">当前指纹</Typography>
+                <Chip
+                  label={status.tls_fingerprint || '未设置'}
+                  size="small"
+                  color={status.tls_fingerprint ? 'success' : 'default'}
+                />
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* 多路径路由 */}
+        <Card>
+          <CardContent>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+              {status.multipath_enabled ? (
+                <CheckCircleOutlined color="success" />
+              ) : (
+                <WarningOutlined color="warning" />
+              )}
+              <Typography variant="h6">多路径路由</Typography>
+            </Stack>
+
+            <Stack spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">状态</Typography>
+                <Chip
+                  label={status.multipath_enabled ? '已启用' : '未启用'}
+                  size="small"
+                  color={status.multipath_enabled ? 'success' : 'default'}
+                />
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        {/* XDP 代理（仅 Linux） */}
+        {status.xdp_enabled !== undefined && (
           <Card>
             <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                {status.security_enabled && !status.security_compromised ? (
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+                {status.xdp_enabled && status.xdp_running ? (
                   <CheckCircleOutlined color="success" />
-                ) : status.security_compromised ? (
-                  <ErrorOutlined color="error" />
+                ) : status.xdp_enabled ? (
+                  <WarningOutlined color="warning" />
                 ) : (
                   <WarningOutlined color="warning" />
                 )}
-                <Typography variant="h6">安全监控</Typography>
+                <Typography variant="h6">XDP 代理</Typography>
               </Stack>
 
               <Stack spacing={1}>
@@ -109,18 +226,18 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
                   <Typography variant="body2">状态</Typography>
                   <Chip
                     label={
-                      status.security_enabled
-                        ? status.security_compromised
-                          ? '已破坏'
-                          : '运行中'
+                      status.xdp_enabled
+                        ? status.xdp_running
+                          ? '运行中'
+                          : '已启用但未运行'
                         : '未启用'
                     }
                     size="small"
                     color={
-                      status.security_enabled
-                        ? status.security_compromised
-                          ? 'error'
-                          : 'success'
+                      status.xdp_enabled && status.xdp_running
+                        ? 'success'
+                        : status.xdp_enabled
+                        ? 'warning'
                         : 'default'
                     }
                   />
@@ -128,132 +245,8 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
               </Stack>
             </CardContent>
           </Card>
-        </Grid>
-
-        {/* 反探测 */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                {status.anti_probe_enabled ? (
-                  <CheckCircleOutlined color="success" />
-                ) : (
-                  <WarningOutlined color="warning" />
-                )}
-                <Typography variant="h6">反主动探测</Typography>
-              </Stack>
-
-              <Stack spacing={1}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">状态</Typography>
-                  <Chip
-                    label={status.anti_probe_enabled ? '已启用' : '未启用'}
-                    size="small"
-                    color={status.anti_probe_enabled ? 'success' : 'default'}
-                  />
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* TLS 指纹 */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                {status.tls_fingerprint ? (
-                  <CheckCircleOutlined color="success" />
-                ) : (
-                  <WarningOutlined color="warning" />
-                )}
-                <Typography variant="h6">TLS 指纹伪装</Typography>
-              </Stack>
-
-              <Stack spacing={1}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">当前指纹</Typography>
-                  <Chip
-                    label={status.tls_fingerprint || '未设置'}
-                    size="small"
-                    color={status.tls_fingerprint ? 'success' : 'default'}
-                  />
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* 多路径路由 */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                {status.multipath_enabled ? (
-                  <CheckCircleOutlined color="success" />
-                ) : (
-                  <WarningOutlined color="warning" />
-                )}
-                <Typography variant="h6">多路径路由</Typography>
-              </Stack>
-
-              <Stack spacing={1}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">状态</Typography>
-                  <Chip
-                    label={status.multipath_enabled ? '已启用' : '未启用'}
-                    size="small"
-                    color={status.multipath_enabled ? 'success' : 'default'}
-                  />
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* XDP 代理（仅 Linux） */}
-        {status.xdp_enabled !== undefined && (
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                  {status.xdp_enabled && status.xdp_running ? (
-                    <CheckCircleOutlined color="success" />
-                  ) : status.xdp_enabled ? (
-                    <WarningOutlined color="warning" />
-                  ) : (
-                    <WarningOutlined color="warning" />
-                  )}
-                  <Typography variant="h6">XDP 代理</Typography>
-                </Stack>
-
-                <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2">状态</Typography>
-                    <Chip
-                      label={
-                        status.xdp_enabled
-                          ? status.xdp_running
-                            ? '运行中'
-                            : '已启用但未运行'
-                          : '未启用'
-                      }
-                      size="small"
-                      color={
-                        status.xdp_enabled && status.xdp_running
-                          ? 'success'
-                          : status.xdp_enabled
-                          ? 'warning'
-                          : 'default'
-                      }
-                    />
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
         )}
-      </Grid>
+      </Box>
 
       {/* 性能提示 */}
       <Card sx={{ mt: 2 }}>
