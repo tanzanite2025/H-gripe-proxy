@@ -13,6 +13,8 @@ pub mod utils;
 mod anti_probe;
 mod tls_fingerprint;
 mod security;
+#[cfg(target_os = "linux")]
+mod xdp;
 
 use crate::constants::files;
 use crate::{
@@ -245,6 +247,22 @@ mod app_init {
             cmd::security_decrypt_data,
             cmd::security_check_encryption_key,
             cmd::security_self_destruct,
+        ]
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn generate_xdp_handlers() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
+        tauri::generate_handler![
+            cmd::xdp_get_config,
+            cmd::xdp_update_config,
+            cmd::xdp_get_status,
+            cmd::xdp_start,
+            cmd::xdp_stop,
+            cmd::xdp_add_route,
+            cmd::xdp_remove_route,
+            cmd::xdp_update_stats,
+            cmd::xdp_check_support,
+            cmd::xdp_get_interfaces,
         ]
     }
 }
