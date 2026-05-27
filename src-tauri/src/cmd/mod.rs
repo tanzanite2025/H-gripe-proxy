@@ -4,6 +4,7 @@ use smartstring::alias::String;
 pub type CmdResult<T = ()> = Result<T, String>;
 
 // Command modules
+pub mod anti_probe;
 pub mod app;
 pub mod backup;
 pub mod clash;
@@ -15,14 +16,17 @@ pub mod profile;
 pub mod proxy;
 pub mod runtime;
 pub mod save_profile;
+pub mod security;
 pub mod service;
 pub mod system;
+pub mod tls_fingerprint;
 pub mod uwp;
 pub mod validate;
 pub mod verge;
 pub mod webdav;
 
 // Re-export all command functions for backwards compatibility
+pub use anti_probe::*;
 pub use app::*;
 pub use backup::*;
 pub use clash::*;
@@ -34,8 +38,10 @@ pub use profile::*;
 pub use proxy::*;
 pub use runtime::*;
 pub use save_profile::*;
+pub use security::*;
 pub use service::*;
 pub use system::*;
+pub use tls_fingerprint::*;
 pub use uwp::*;
 pub use validate::*;
 pub use verge::*;

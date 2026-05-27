@@ -113,6 +113,10 @@ tokio-util = { version = "0.7.18", features = ["time"] }
 # DNS resolver with DoH/DoT support
 hickory-resolver = { version = "0.24", features = ["dns-over-rustls", "dns-over-https-rustls", "dnssec-ring"] }
 hickory-proto = "0.24"
+# Anti-probe and TLS fingerprinting
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.8"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"

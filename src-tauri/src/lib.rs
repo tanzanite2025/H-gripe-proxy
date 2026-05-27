@@ -10,6 +10,9 @@ mod feat;
 mod module;
 mod process;
 pub mod utils;
+mod anti_probe;
+mod tls_fingerprint;
+mod security;
 
 use crate::constants::files;
 use crate::{
@@ -219,6 +222,29 @@ mod app_init {
             cmd::dns_health_check,
             cmd::dns_batch_query,
             cmd::dns_batch_health_check,
+            cmd::anti_probe_verify_handshake,
+            cmd::anti_probe_generate_token,
+            cmd::anti_probe_update_config,
+            cmd::anti_probe_get_config,
+            cmd::anti_probe_cleanup,
+            cmd::tls_fingerprint_get_all,
+            cmd::tls_fingerprint_get_by_name,
+            cmd::tls_fingerprint_set,
+            cmd::tls_fingerprint_set_by_name,
+            cmd::tls_fingerprint_get_current,
+            cmd::tls_fingerprint_generate_config,
+            cmd::tls_fingerprint_clear,
+            cmd::security_start_monitor,
+            cmd::security_stop_monitor,
+            cmd::security_check_status,
+            cmd::security_deploy_decoy,
+            cmd::security_cleanup_decoy,
+            cmd::security_check_decoy_access,
+            cmd::security_generate_encryption_key,
+            cmd::security_encrypt_data,
+            cmd::security_decrypt_data,
+            cmd::security_check_encryption_key,
+            cmd::security_self_destruct,
         ]
     }
 }

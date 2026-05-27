@@ -45,10 +45,10 @@ async fn create_resolver(
     
     // 如果没有指定服务器，使用系统默认
     if server.is_none() {
-        return TokioAsyncResolver::tokio(
+        return Ok(TokioAsyncResolver::tokio(
             ResolverConfig::default(),
             ResolverOpts::default(),
-        ).await.map_err(|e| e.to_string());
+        ));
     }
     
     let server_addr = server.unwrap();
@@ -145,7 +145,7 @@ async fn create_resolver(
     opts.timeout = std::time::Duration::from_secs(5);
     opts.attempts = 2;
     
-    TokioAsyncResolver::tokio(config, opts).await.map_err(|e| e.to_string())
+    Ok(TokioAsyncResolver::tokio(config, opts))
 }
 
 /// DNS 查询
