@@ -20,7 +20,7 @@ import {
   SecurityOutlined,
   WarningAmberOutlined,
 } from '@mui/icons-material'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import {
   type AntiProbeConfig,
@@ -30,44 +30,45 @@ import {
   antiProbeUpdateConfig,
 } from '@/services/anti-probe'
 import { showNotice } from '@/services/notice-service'
+import { useConfigLoader, useConfigSaver } from '@/hooks'
 
 export default function AntiProbeConfigComponent() {
-  const [config, setConfig] = useState<AntiProbeConfig>({
-    enabled: false,
-    secret_key: '',
-    time_window: 300,
-    whitelist: [],
-    strict_mode: false,
-  })
   const [newIp, setNewIp] = useState('')
   const [token, setToken] = useState('')
-  const [loading, setLoading] = useState(false)
 
-  // 加载配置
-  useEffect(() => {
-    loadConfig()
-  }, [])
+  // 使用通用 Hook 加载配置
+  const { data: config, loading, reload } = useConfigLoader({
+    loadFn: antiProbeGetConfig,
+  })
 
-  const loadConfig = async () => {
-    try {
-      const cfg = await antiProbeGetConfig()
-      setConfig(cfg)
-    } catch (error) {
-      showNotice.error(`加载配置失败: ${error}`)
+  // 使用通用 Hook 保存配置
+  const { save, saving } = useConfigSaver({
+    saveFn: antiProbeUpdateConfig,
+    onSuccess: reload,
+    successMessage: '配置已保存',
+  })
+
+  // 本地配置状态（用于编辑）
+  const [localConfig, setLocalConfig] = useState<AntiProbeConfig>(
+    config || {
+      enabled: false,
+      secret_key: '',
+      time_window: 300,
+      whitelist: [],
+      strict_mode: false,
     }
-  }
+  )
+
+  // 当配置加载完成时，更新本地配置
+  useState(() => {
+    if (config) {
+      setLocalConfig(config)
+    }
+  })
 
   // 保存配置
-  const handleSave = async () => {
-    try {
-      setLoading(true)
-      await antiProbeUpdateConfig(config)
-      showNotice.success('配置已保存')
-    } catch (error) {
-      showNotice.error(`保存配置失败: ${error}`)
-    } finally {
-      setLoading(false)
-    }
+  const handleSave = () => {
+    save(localConfig)
   }
 
   // 生成新密钥
@@ -77,7 +78,7 @@ export default function AntiProbeConfigComponent() {
         .toString(16)
         .padStart(2, '0'),
     ).join('')
-    setConfig({ ...config, secret_key: newKey })
+    setLocalConfig({ ...localConfig, secret_key: newKey })
   }
 
   // 生成握手暗号
@@ -85,16 +86,16 @@ export default function AntiProbeConfigComponent() {
     try {
       const newToken = await antiProbeGenerateToken()
       setToken(newToken)
-      showNotice.success('握手暗号已生成')
-    } catch (error) {
-      showNotice.error(`生成暗号失败: ${error}`)
+      showNotice('success', '握手暗号已生成')
+    } catch (error: any) {
+      showNotice('error', `生成暗号失败: ${error.message || error}`)
     }
   }
 
   // 复制暗号
   const handleCopyToken = () => {
     navigator.clipboard.writeText(token)
-    showNotice.success('已复制到剪贴板')
+    showNotice('success', '已复制到剪贴板')
   }
 
   // 添加白名单 IP
@@ -105,27 +106,27 @@ export default function AntiProbeConfigComponent() {
     const ipRegex =
       /^(\d{1,3}\.){3}\d{1,3}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/
     if (!ipRegex.test(newIp)) {
-      showNotice.error('无效的 IP 地址格式')
+      showNotice('error', '无效的 IP 地址格式')
       return
     }
 
-    if (config.whitelist.includes(newIp)) {
-      showNotice.error('IP 已存在于白名单')
+    if (localConfig.whitelist.includes(newIp)) {
+      showNotice('error', 'IP 已存在于白名单')
       return
     }
 
-    setConfig({
-      ...config,
-      whitelist: [...config.whitelist, newIp],
+    setLocalConfig({
+      ...localConfig,
+      whitelist: [...localConfig.whitelist, newIp],
     })
     setNewIp('')
   }
 
   // 删除白名单 IP
   const handleRemoveIp = (ip: string) => {
-    setConfig({
-      ...config,
-      whitelist: config.whitelist.filter((i) => i !== ip),
+    setLocalConfig({
+      ...localConfig,
+      whitelist: localConfig.whitelist.filter((i) => i !== ip),
     })
   }
 
@@ -133,10 +134,18 @@ export default function AntiProbeConfigComponent() {
   const handleCleanup = async () => {
     try {
       await antiProbeCleanup()
-      showNotice.success('已清理过期缓存')
-    } catch (error) {
-      showNotice.error(`清理失败: ${error}`)
+      showNotice('success', '已清理过期缓存')
+    } catch (error: any) {
+      showNotice('error', `清理失败: ${error.message || error}`)
     }
+  }
+
+  if (loading || !config) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography>加载中...</Typography>
+      </Box>
+    )
   }
 
   return (
@@ -170,9 +179,9 @@ export default function AntiProbeConfigComponent() {
             <FormControlLabel
               control={
                 <Switch
-                  checked={config.enabled}
+                  checked={localConfig.enabled}
                   onChange={(e) =>
-                    setConfig({ ...config, enabled: e.target.checked })
+                    setLocalConfig({ ...localConfig, enabled: e.target.checked })
                   }
                 />
               }
@@ -182,11 +191,11 @@ export default function AntiProbeConfigComponent() {
             <FormControlLabel
               control={
                 <Switch
-                  checked={config.strict_mode}
+                  checked={localConfig.strict_mode}
                   onChange={(e) =>
-                    setConfig({ ...config, strict_mode: e.target.checked })
+                    setLocalConfig({ ...localConfig, strict_mode: e.target.checked })
                   }
-                  disabled={!config.enabled}
+                  disabled={!localConfig.enabled}
                 />
               }
               label="严格模式（非白名单直接拒绝）"
@@ -195,14 +204,14 @@ export default function AntiProbeConfigComponent() {
             <TextField
               label="时间窗口（秒）"
               type="number"
-              value={config.time_window}
+              value={localConfig.time_window}
               onChange={(e) =>
-                setConfig({
-                  ...config,
+                setLocalConfig({
+                  ...localConfig,
                   time_window: Number.parseInt(e.target.value),
                 })
               }
-              disabled={!config.enabled}
+              disabled={!localConfig.enabled}
               helperText="握手暗号的有效时间"
               fullWidth
             />
@@ -215,11 +224,11 @@ export default function AntiProbeConfigComponent() {
             <Typography variant="subtitle2">私钥管理</Typography>
             <TextField
               label="私钥"
-              value={config.secret_key}
+              value={localConfig.secret_key}
               onChange={(e) =>
-                setConfig({ ...config, secret_key: e.target.value })
+                setLocalConfig({ ...localConfig, secret_key: e.target.value })
               }
-              disabled={!config.enabled}
+              disabled={!localConfig.enabled}
               fullWidth
               slotProps={{
                 input: {
@@ -232,7 +241,7 @@ export default function AntiProbeConfigComponent() {
               variant="outlined"
               startIcon={<RefreshOutlined />}
               onClick={handleGenerateKey}
-              disabled={!config.enabled}
+              disabled={!localConfig.enabled}
             >
               生成新密钥
             </Button>
@@ -247,7 +256,7 @@ export default function AntiProbeConfigComponent() {
               variant="contained"
               startIcon={<RefreshOutlined />}
               onClick={handleGenerateToken}
-              disabled={!config.enabled}
+              disabled={!localConfig.enabled}
             >
               生成握手暗号
             </Button>
@@ -274,7 +283,7 @@ export default function AntiProbeConfigComponent() {
                   }}
                 />
                 <Typography variant="caption" color="text.secondary">
-                  此暗号在 {config.time_window} 秒内有效
+                  此暗号在 {localConfig.time_window} 秒内有效
                 </Typography>
               </Box>
             )}
@@ -291,29 +300,29 @@ export default function AntiProbeConfigComponent() {
                 value={newIp}
                 onChange={(e) => setNewIp(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddIp()}
-                disabled={!config.enabled}
+                disabled={!localConfig.enabled}
                 placeholder="192.168.1.1 或 2001:db8::1"
                 fullWidth
               />
               <Button
                 variant="contained"
                 onClick={handleAddIp}
-                disabled={!config.enabled}
+                disabled={!localConfig.enabled}
               >
                 添加
               </Button>
             </Box>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {config.whitelist.map((ip) => (
+              {localConfig.whitelist.map((ip) => (
                 <Chip
                   key={ip}
                   label={ip}
                   onDelete={() => handleRemoveIp(ip)}
                   deleteIcon={<DeleteOutlined />}
-                  disabled={!config.enabled}
+                  disabled={!localConfig.enabled}
                 />
               ))}
-              {config.whitelist.length === 0 && (
+              {localConfig.whitelist.length === 0 && (
                 <Typography variant="body2" color="text.secondary">
                   暂无白名单 IP
                 </Typography>
@@ -327,7 +336,7 @@ export default function AntiProbeConfigComponent() {
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={loading}
+            disabled={saving || loading}
             fullWidth
           >
             保存配置
@@ -336,7 +345,7 @@ export default function AntiProbeConfigComponent() {
             variant="outlined"
             startIcon={<DeleteOutlined />}
             onClick={handleCleanup}
-            disabled={!config.enabled}
+            disabled={!localConfig.enabled}
           >
             清理缓存
           </Button>

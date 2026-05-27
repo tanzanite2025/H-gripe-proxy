@@ -35,7 +35,7 @@ import {
   UploadOutlined,
   WarningAmberOutlined,
 } from '@mui/icons-material'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import {
   type MultipathConfig,
@@ -60,115 +60,105 @@ import {
   multipathUpdatePool,
 } from '@/services/multipath'
 import { showNotice } from '@/services/notice-service'
+import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
 
 export default function MultipathConfig() {
-  const [config, setConfig] = useState<MultipathConfig | null>(null)
-  const [bindings, setBindings] = useState<SessionBinding[]>([])
-  const [predefinedBindings, setPredefinedBindings] = useState<
-    SessionBinding[]
-  >([])
   const [tabValue, setTabValue] = useState(0)
   const [poolDialogOpen, setPoolDialogOpen] = useState(false)
   const [nodeDialogOpen, setNodeDialogOpen] = useState(false)
   const [selectedPool, setSelectedPool] = useState<string>('')
-  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    loadConfig()
-    loadBindings()
-    loadPredefinedBindings()
-  }, [])
+  // 使用通用 Hook 加载多个配置
+  const {
+    data,
+    loading,
+    reload,
+  } = useMultiConfigLoader({
+    loaders: {
+      config: multipathGetConfig,
+      bindings: multipathGetBindings,
+      predefinedBindings: multipathGetPredefinedBindings,
+    },
+  })
 
-  const loadConfig = async () => {
-    try {
-      const cfg = await multipathGetConfig()
-      setConfig(cfg)
-    } catch (error) {
-      console.error('加载配置失败:', error)
+  // 解构配置数据
+  const config = data?.config || null
+  const bindings = data?.bindings || []
+  const predefinedBindings = data?.predefinedBindings || []
+
+  // 使用通用 Hook 保存配置
+  const { save, saving } = useConfigSaver({
+    saveFn: multipathUpdateConfig,
+    onSuccess: reload,
+    successMessage: '配置已保存',
+  })
+
+  // 本地配置状态（用于编辑）
+  const [localConfig, setLocalConfig] = useState<MultipathConfig | null>(
+    config || null
+  )
+
+  // 当配置加载完成时，更新本地配置
+  useState(() => {
+    if (config) {
+      setLocalConfig(config)
     }
-  }
+  })
 
-  const loadBindings = async () => {
-    try {
-      const b = await multipathGetBindings()
-      setBindings(b)
-    } catch (error) {
-      console.error('加载绑定规则失败:', error)
-    }
-  }
-
-  const loadPredefinedBindings = async () => {
-    try {
-      const pb = await multipathGetPredefinedBindings()
-      setPredefinedBindings(pb)
-    } catch (error) {
-      console.error('加载预定义规则失败:', error)
-    }
-  }
-
-  const handleSaveConfig = async () => {
-    if (!config) return
-
-    try {
-      setLoading(true)
-      await multipathUpdateConfig(config)
-      showNotice.success('配置已保存')
-    } catch (error) {
-      showNotice.error(`保存失败: ${error}`)
-    } finally {
-      setLoading(false)
-    }
+  const handleSaveConfig = () => {
+    if (!localConfig) return
+    save(localConfig)
   }
 
   const handleLoadRecommended = async () => {
     try {
       const recommended = await multipathGetRecommendedConfig()
-      setConfig(recommended)
-      showNotice.success('已加载推荐配置')
-    } catch (error) {
-      showNotice.error(`加载失败: ${error}`)
+      setLocalConfig(recommended)
+      showNotice('success', '已加载推荐配置')
+    } catch (error: any) {
+      showNotice('error', `加载失败: ${error.message || error}`)
     }
   }
 
   const handleAddPool = async (pool: NodePool) => {
     try {
       await multipathAddPool(pool)
-      await loadConfig()
+      await reload()
       setPoolDialogOpen(false)
-      showNotice.success('节点池已添加')
-    } catch (error) {
-      showNotice.error(`添加失败: ${error}`)
+      showNotice('success', '节点池已添加')
+    } catch (error: any) {
+      showNotice('error', `添加失败: ${error.message || error}`)
     }
   }
 
   const handleRemovePool = async (poolName: string) => {
     try {
       await multipathRemovePool(poolName)
-      await loadConfig()
-      showNotice.success('节点池已删除')
-    } catch (error) {
-      showNotice.error(`删除失败: ${error}`)
+      await reload()
+      showNotice('success', '节点池已删除')
+    } catch (error: any) {
+      showNotice('error', `删除失败: ${error.message || error}`)
     }
   }
 
   const handleAddNode = async (poolName: string, node: PathNode) => {
     try {
       await multipathAddNode(poolName, node)
-      await loadConfig()
+      await reload()
       setNodeDialogOpen(false)
-      showNotice.success('节点已添加')
-    } catch (error) {
-      showNotice.error(`添加失败: ${error}`)
+      showNotice('success', '节点已添加')
+    } catch (error: any) {
+      showNotice('error', `添加失败: ${error.message || error}`)
     }
   }
 
   const handleRemoveNode = async (poolName: string, nodeName: string) => {
     try {
       await multipathRemoveNode(poolName, nodeName)
-      await loadConfig()
-      showNotice.success('节点已删除')
-    } catch (error) {
-      showNotice.error(`删除失败: ${error}`)
+      await reload()
+      showNotice('success', '节点已删除')
+    } catch (error: any) {
+      showNotice('error', `删除失败: ${error.message || error}`)
     }
   }
 
@@ -182,9 +172,9 @@ export default function MultipathConfig() {
       a.download = `${poolName}-nodes.yaml`
       a.click()
       URL.revokeObjectURL(url)
-      showNotice.success('节点已导出')
-    } catch (error) {
-      showNotice.error(`导出失败: ${error}`)
+      showNotice('success', '节点已导出')
+    } catch (error: any) {
+      showNotice('error', `导出失败: ${error.message || error}`)
     }
   }
 
@@ -192,10 +182,10 @@ export default function MultipathConfig() {
     try {
       const yaml = await file.text()
       const result = await multipathImportNodes(poolName, yaml)
-      await loadConfig()
-      showNotice.success(result.message)
-    } catch (error) {
-      showNotice.error(`导入失败: ${error}`)
+      await reload()
+      showNotice('success', result.message)
+    } catch (error: any) {
+      showNotice('error', `导入失败: ${error.message || error}`)
     }
   }
 
@@ -221,7 +211,7 @@ export default function MultipathConfig() {
     return labels[strategy]
   }
 
-  if (!config) {
+  if (loading || !localConfig) {
     return <Box sx={{ p: 3 }}>加载中...</Box>
   }
 
@@ -270,9 +260,9 @@ export default function MultipathConfig() {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={config.enabled}
+                        checked={localConfig.enabled}
                         onChange={(e) =>
-                          setConfig({ ...config, enabled: e.target.checked })
+                          setLocalConfig({ ...localConfig, enabled: e.target.checked })
                         }
                       />
                     }
@@ -282,15 +272,15 @@ export default function MultipathConfig() {
                   <FormControl fullWidth>
                     <InputLabel>分片策略</InputLabel>
                     <Select
-                      value={config.strategy}
+                      value={localConfig.strategy}
                       label="分片策略"
                       onChange={(e) =>
-                        setConfig({
-                          ...config,
+                        setLocalConfig({
+                          ...localConfig,
                           strategy: e.target.value as SlicingStrategy,
                         })
                       }
-                      disabled={!config.enabled}
+                      disabled={!localConfig.enabled}
                     >
                       <MenuItem value="RoundRobin">轮询（均匀分配）</MenuItem>
                       <MenuItem value="Random">随机</MenuItem>
@@ -303,56 +293,56 @@ export default function MultipathConfig() {
                   <TextField
                     label="最小分片大小（字节）"
                     type="number"
-                    value={config.min_fragment_size}
+                    value={localConfig.min_fragment_size}
                     onChange={(e) =>
-                      setConfig({
-                        ...config,
+                      setLocalConfig({
+                        ...localConfig,
                         min_fragment_size: Number.parseInt(e.target.value),
                       })
                     }
-                    disabled={!config.enabled}
+                    disabled={!localConfig.enabled}
                     fullWidth
                   />
 
                   <TextField
                     label="最大分片大小（字节）"
                     type="number"
-                    value={config.max_fragment_size}
+                    value={localConfig.max_fragment_size}
                     onChange={(e) =>
-                      setConfig({
-                        ...config,
+                      setLocalConfig({
+                        ...localConfig,
                         max_fragment_size: Number.parseInt(e.target.value),
                       })
                     }
-                    disabled={!config.enabled}
+                    disabled={!localConfig.enabled}
                     fullWidth
                   />
 
                   <TextField
                     label="重组超时（毫秒）"
                     type="number"
-                    value={config.reassembly_timeout}
+                    value={localConfig.reassembly_timeout}
                     onChange={(e) =>
-                      setConfig({
-                        ...config,
+                      setLocalConfig({
+                        ...localConfig,
                         reassembly_timeout: Number.parseInt(e.target.value),
                       })
                     }
-                    disabled={!config.enabled}
+                    disabled={!localConfig.enabled}
                     fullWidth
                   />
 
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={config.session_persistence}
+                        checked={localConfig.session_persistence}
                         onChange={(e) =>
-                          setConfig({
-                            ...config,
+                          setLocalConfig({
+                            ...localConfig,
                             session_persistence: e.target.checked,
                           })
                         }
-                        disabled={!config.enabled}
+                        disabled={!localConfig.enabled}
                       />
                     }
                     label="启用会话保持"
@@ -379,7 +369,7 @@ export default function MultipathConfig() {
               <Button
                 variant="contained"
                 onClick={handleSaveConfig}
-                disabled={loading}
+                disabled={saving || loading}
                 fullWidth
               >
                 保存配置
@@ -387,7 +377,7 @@ export default function MultipathConfig() {
               <Button
                 variant="outlined"
                 onClick={handleLoadRecommended}
-                disabled={loading}
+                disabled={saving || loading}
               >
                 加载推荐配置
               </Button>
@@ -408,7 +398,7 @@ export default function MultipathConfig() {
               </Button>
             </Box>
 
-            {config.node_pools.map((pool) => (
+            {localConfig.node_pools.map((pool) => (
               <Card key={pool.name}>
                 <CardContent>
                   <Box

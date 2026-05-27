@@ -30,7 +30,6 @@ import { useEffect, useState } from 'react'
 
 import {
   type XdpConfig,
-  type XdpStatus,
   type XdpSupportInfo,
   xdpCheckSupport,
   xdpGetConfig,
@@ -42,54 +41,53 @@ import {
   xdpUpdateStats,
 } from '@/services/xdp'
 import { showNotice } from '@/services/notice-service'
+import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
 
 export default function XdpConfigComponent() {
-  const [config, setConfig] = useState<XdpConfig>({
+  const [localConfig, setLocalConfig] = useState<XdpConfig>({
     enabled: false,
     interface: 'eth0',
     mode: 'Skb',
     enable_stats: true,
   })
-  const [status, setStatus] = useState<XdpStatus | null>(null)
   const [supportInfo, setSupportInfo] = useState<XdpSupportInfo | null>(null)
   const [interfaces, setInterfaces] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
-  // 加载配置和状态
+  // 使用通用 Hook 加载配置和状态
+  const { data, reload } = useMultiConfigLoader({
+    loaders: {
+      config: xdpGetConfig,
+      status: xdpGetStatus,
+    },
+    onSuccess: (result) => {
+      setLocalConfig(result.config)
+    },
+  })
+
+  // 使用通用 Hook 保存配置
+  const { save, saving } = useConfigSaver({
+    saveFn: xdpUpdateConfig,
+    onSuccess: reload,
+    successMessage: '配置已保存',
+  })
+
+  // 加载支持信息和网卡列表
   useEffect(() => {
-    loadConfig()
-    loadStatus()
     checkSupport()
     loadInterfaces()
 
     // 定期更新状态
     const interval = setInterval(() => {
-      loadStatus()
-      if (status?.running) {
+      reload()
+      if (data?.status?.running) {
         updateStats()
       }
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [])
-
-  const loadConfig = async () => {
-    try {
-      const cfg = await xdpGetConfig()
-      setConfig(cfg)
-    } catch (error) {
-      console.error('加载配置失败:', error)
-    }
-  }
-
-  const loadStatus = async () => {
-    try {
-      const st = await xdpGetStatus()
-      setStatus(st)
-    } catch (error) {
-      console.error('加载状态失败:', error)
-    }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.status?.running])
 
   const checkSupport = async () => {
     try {
@@ -112,32 +110,24 @@ export default function XdpConfigComponent() {
   const updateStats = async () => {
     try {
       await xdpUpdateStats()
-      await loadStatus()
+      await reload()
     } catch (error) {
       console.error('更新统计失败:', error)
     }
   }
 
-  const handleSaveConfig = async () => {
-    try {
-      setLoading(true)
-      await xdpUpdateConfig(config)
-      showNotice.success('配置已保存')
-    } catch (error) {
-      showNotice.error(`保存失败: ${error}`)
-    } finally {
-      setLoading(false)
-    }
+  const handleSaveConfig = () => {
+    save(localConfig)
   }
 
   const handleStart = async () => {
     try {
       setLoading(true)
       await xdpStart()
-      await loadStatus()
-      showNotice.success('XDP 代理已启动')
-    } catch (error) {
-      showNotice.error(`启动失败: ${error}`)
+      await reload()
+      showNotice('success', 'XDP 代理已启动')
+    } catch (error: any) {
+      showNotice('error', `启动失败: ${error.message || error}`)
     } finally {
       setLoading(false)
     }
@@ -147,10 +137,10 @@ export default function XdpConfigComponent() {
     try {
       setLoading(true)
       await xdpStop()
-      await loadStatus()
-      showNotice.success('XDP 代理已停止')
-    } catch (error) {
-      showNotice.error(`停止失败: ${error}`)
+      await reload()
+      showNotice('success', 'XDP 代理已停止')
+    } catch (error: any) {
+      showNotice('error', `停止失败: ${error.message || error}`)
     } finally {
       setLoading(false)
     }
@@ -167,6 +157,8 @@ export default function XdpConfigComponent() {
   const formatNumber = (num: number) => {
     return num.toLocaleString()
   }
+
+  const status = data?.status
 
   return (
     <Box sx={{ p: 3 }}>
@@ -238,9 +230,9 @@ export default function XdpConfigComponent() {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={config.enabled}
+                    checked={localConfig.enabled}
                     onChange={(e) =>
-                      setConfig({ ...config, enabled: e.target.checked })
+                      setLocalConfig({ ...localConfig, enabled: e.target.checked })
                     }
                   />
                 }
@@ -250,12 +242,12 @@ export default function XdpConfigComponent() {
               <FormControl fullWidth>
                 <InputLabel>网卡接口</InputLabel>
                 <Select
-                  value={config.interface}
+                  value={localConfig.interface}
                   label="网卡接口"
                   onChange={(e) =>
-                    setConfig({ ...config, interface: e.target.value })
+                    setLocalConfig({ ...localConfig, interface: e.target.value })
                   }
-                  disabled={!config.enabled}
+                  disabled={!localConfig.enabled}
                 >
                   {interfaces.map((iface) => (
                     <MenuItem key={iface} value={iface}>
@@ -268,15 +260,15 @@ export default function XdpConfigComponent() {
               <FormControl fullWidth>
                 <InputLabel>XDP 模式</InputLabel>
                 <Select
-                  value={config.mode}
+                  value={localConfig.mode}
                   label="XDP 模式"
                   onChange={(e) =>
-                    setConfig({
-                      ...config,
+                    setLocalConfig({
+                      ...localConfig,
                       mode: e.target.value as 'Native' | 'Skb' | 'Hw',
                     })
                   }
-                  disabled={!config.enabled}
+                  disabled={!localConfig.enabled}
                 >
                   <MenuItem value="Native">
                     Native（最高性能，需驱动支持）
@@ -289,11 +281,11 @@ export default function XdpConfigComponent() {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={config.enable_stats}
+                    checked={localConfig.enable_stats}
                     onChange={(e) =>
-                      setConfig({ ...config, enable_stats: e.target.checked })
+                      setLocalConfig({ ...localConfig, enable_stats: e.target.checked })
                     }
-                    disabled={!config.enabled}
+                    disabled={!localConfig.enabled}
                   />
                 }
                 label="启用统计"
@@ -443,10 +435,10 @@ export default function XdpConfigComponent() {
           <Button
             variant="contained"
             onClick={handleSaveConfig}
-            disabled={loading}
+            disabled={saving || loading}
             fullWidth
           >
-            保存配置
+            {saving ? '保存中...' : '保存配置'}
           </Button>
           {status?.running ? (
             <Button
@@ -463,7 +455,7 @@ export default function XdpConfigComponent() {
               variant="contained"
               color="success"
               onClick={handleStart}
-              disabled={loading || !config.enabled}
+              disabled={loading || !localConfig.enabled}
               fullWidth
             >
               启动代理
