@@ -47,7 +47,41 @@ interface ServiceConfig {
 }
 
 // 可用的IP检测服务列表及字段映射
+// 包含国内和国际服务，随机打乱顺序以实现负载均衡和故障转移
 const IP_CHECK_SERVICES: ServiceConfig[] = [
+  // 国内服务 - 优先级高，国内用户访问快
+  {
+    url: 'https://myip.ipip.net/json',
+    mapping: (data) => ({
+      ip: data.ip || '',
+      country_code: data.country_code || '',
+      country: data.data?.country || data.country || '',
+      region: data.data?.province || data.region || '',
+      city: data.data?.city || data.city || '',
+      organization: data.data?.isp || data.isp || '',
+      asn: data.data?.asn || data.asn || 0,
+      asn_organization: data.data?.isp || data.isp || '',
+      longitude: data.data?.longitude || 0,
+      latitude: data.data?.latitude || 0,
+      timezone: data.data?.timezone || data.timezone || '',
+    }),
+  },
+  {
+    url: 'https://api.vore.top/api/IPdata',
+    mapping: (data) => ({
+      ip: data.ip || data.ipip || '',
+      country_code: data.adcode?.country || data.country_code || '',
+      country: data.ipip_country || data.country || '',
+      region: data.ipip_province || data.province || data.region || '',
+      city: data.ipip_city || data.city || '',
+      organization: data.isp || data.org || '',
+      asn: data.asn || 0,
+      asn_organization: data.isp || data.org || '',
+      longitude: Number(data.ipip_longitude || data.longitude) || 0,
+      latitude: Number(data.ipip_latitude || data.latitude) || 0,
+      timezone: data.timezone || '',
+    }),
+  },
   {
     url: 'https://api.ip.sb/geoip',
     mapping: (data) => ({
@@ -64,6 +98,7 @@ const IP_CHECK_SERVICES: ServiceConfig[] = [
       timezone: data.timezone || '',
     }),
   },
+  // 国际服务 - 备用，全球覆盖好
   {
     url: 'https://ipapi.co/json',
     mapping: (data) => ({
@@ -175,6 +210,7 @@ export const getIpInfo = async (): Promise<
     )
     let lastError: unknown | null = null
     const userAgent = await getUserAgentPromise()
+    console.debug(`[IpInfo] 开始IP检测，共 ${IP_CHECK_SERVICES.length} 个服务源（${shuffledServices.slice(0, 3).map(s => new URL(s.url).hostname).join(', ')}...）`)
     console.debug('User-Agent for IP detection:', userAgent)
 
   for (const service of shuffledServices) {
