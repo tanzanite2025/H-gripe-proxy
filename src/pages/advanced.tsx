@@ -2,7 +2,7 @@
  * 高级功能统一配置页面
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useLockFn } from 'ahooks'
 import { Box, Tabs, Tab, Alert, Button, Stack } from '@mui/material'
 import { BasePage } from '@/components/base'
@@ -13,12 +13,12 @@ import {
   getRecommendedAdvancedConfig,
   coordinatorGetStatus,
   type AdvancedConfig,
-  type CoordinatorStatus,
 } from '@/services/coordinator'
 import { SecurityConfigPanel } from '@/components/advanced/security-config-panel'
 import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
 import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
+import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -44,62 +44,53 @@ function TabPanel(props: TabPanelProps) {
 
 export default function AdvancedPage() {
   const [tabValue, setTabValue] = useState(0)
-  const [config, setConfig] = useState<AdvancedConfig | null>(null)
-  const [status, setStatus] = useState<CoordinatorStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [localConfig, setLocalConfig] = useState<AdvancedConfig | null>(null)
 
-  // 加载配置
-  const loadConfig = useLockFn(async () => {
-    try {
-      setLoading(true)
-      const [cfg, st] = await Promise.all([
-        getAdvancedConfig(),
-        coordinatorGetStatus(),
-      ])
-      setConfig(cfg)
-      setStatus(st)
-    } catch (err: any) {
-      showNotice.error(err.message || err.toString())
-    } finally {
-      setLoading(false)
-    }
+  // 使用通用 Hook 加载配置和状态
+  const { data, loading, reload } = useMultiConfigLoader({
+    loaders: {
+      config: getAdvancedConfig,
+      status: coordinatorGetStatus,
+    },
+    onSuccess: (result) => {
+      setLocalConfig(result.config)
+    },
+  })
+
+  // 使用通用 Hook 保存配置
+  const { save, saving } = useConfigSaver({
+    saveFn: saveAdvancedConfig,
+    onSuccess: reload,
+    successMessage: '配置已保存并应用',
   })
 
   // 保存配置
-  const handleSave = useLockFn(async () => {
-    if (!config) return
-
-    try {
-      await saveAdvancedConfig(config)
-      showNotice.success('配置已保存并应用')
-      await loadConfig()
-    } catch (err: any) {
-      showNotice.error(err.message || err.toString())
+  const handleSave = () => {
+    if (localConfig) {
+      save(localConfig)
     }
-  })
+  }
 
   // 加载推荐配置
   const handleLoadRecommended = useLockFn(async () => {
     try {
       const recommended = await getRecommendedAdvancedConfig()
-      setConfig(recommended)
-      showNotice.success('已加载推荐配置')
+      setLocalConfig(recommended)
+      showNotice('success', '已加载推荐配置')
     } catch (err: any) {
-      showNotice.error(err.message || err.toString())
+      showNotice('error', err.message || err.toString())
     }
   })
 
-  useEffect(() => {
-    loadConfig()
-  }, [])
-
-  if (loading || !config) {
+  if (loading || !data || !localConfig) {
     return (
       <BasePage title="高级功能">
         <Box sx={{ p: 2 }}>加载中...</Box>
       </BasePage>
     )
   }
+
+  const { config, status } = data
 
   return (
     <BasePage
@@ -117,8 +108,9 @@ export default function AdvancedPage() {
             variant="contained"
             size="small"
             onClick={handleSave}
+            disabled={saving}
           >
-            保存配置
+            {saving ? '保存中...' : '保存配置'}
           </Button>
         </Stack>
       }
@@ -146,29 +138,29 @@ export default function AdvancedPage() {
 
       <TabPanel value={tabValue} index={0}>
         <SecurityConfigPanel
-          config={config.security}
-          onChange={(security) => setConfig({ ...config, security })}
+          config={localConfig.security}
+          onChange={(security) => setLocalConfig({ ...localConfig, security })}
         />
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
         <MultipathConfigPanel
-          config={config.multipath}
-          onChange={(multipath) => setConfig({ ...config, multipath })}
+          config={localConfig.multipath}
+          onChange={(multipath) => setLocalConfig({ ...localConfig, multipath })}
         />
       </TabPanel>
 
       {window.navigator.platform.toLowerCase().includes('linux') && (
         <TabPanel value={tabValue} index={2}>
           <XdpConfigPanel
-            config={config.xdp!}
-            onChange={(xdp) => setConfig({ ...config, xdp })}
+            config={localConfig.xdp!}
+            onChange={(xdp) => setLocalConfig({ ...localConfig, xdp })}
           />
         </TabPanel>
       )}
 
       <TabPanel value={tabValue} index={window.navigator.platform.toLowerCase().includes('linux') ? 3 : 2}>
-        <PerformanceMonitor status={status} onRefresh={loadConfig} />
+        <PerformanceMonitor status={status} onRefresh={reload} />
       </TabPanel>
     </BasePage>
   )
