@@ -34,8 +34,11 @@ const getEmotionStyleCache = () => {
   emotionStyleCache = createCache({
     key: EMOTION_CACHE_KEY,
     insertionPoint,
+    // 强制禁用 speedy 模式，确保样式始终注入到 DOM
+    speedy: false,
   })
 
+  // 双重保险：即使 cache 创建时没生效，也通过 sheet API 强制关闭
   const sheet = emotionStyleCache.sheet as typeof emotionStyleCache.sheet & {
     speedy?: (value: boolean) => void
   }

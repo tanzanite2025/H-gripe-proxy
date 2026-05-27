@@ -150,6 +150,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.4.10
         version: 2.4.15
+      '@emotion/babel-plugin':
+        specifier: ^11.13.5
+        version: 11.13.5
       '@eslint-react/eslint-plugin':
         specifier: ^4.0.0
         version: 4.2.3(eslint@10.4.0(jiti@2.7.0))(typescript@6.0.3)

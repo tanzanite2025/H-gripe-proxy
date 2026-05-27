@@ -86,6 +86,7 @@
   "devDependencies": {
     "@actions/github": "^9.0.0",
     "@biomejs/biome": "^2.4.10",
+    "@emotion/babel-plugin": "^11.13.5",
     "@eslint-react/eslint-plugin": "^4.0.0",
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "2.10.1",
