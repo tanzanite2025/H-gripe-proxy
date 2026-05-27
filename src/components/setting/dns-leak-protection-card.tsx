@@ -118,16 +118,16 @@ export const DnsLeakProtectionCard = () => {
 
   return (
     <Box>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+      <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
         DNS 零泄漏防护
       </Typography>
 
-      <Alert severity="info" sx={{ mb: 2 }}>
+      <Alert severity="info" sx={{ mb: 2, fontSize: '0.75rem' }}>
         DNS 零泄漏防护确保所有 DNS 查询都通过加密通道，防止 ISP 或中间人监控
       </Alert>
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="caption" sx={{ mb: 1.5, color: 'text.secondary', display: 'block' }}>
           防护级别
         </Typography>
         <ToggleButtonGroup
@@ -135,35 +135,35 @@ export const DnsLeakProtectionCard = () => {
           exclusive
           onChange={handleLevelChange}
           fullWidth
-          sx={{ mb: 2 }}
+          sx={{ mb: 1.5 }}
         >
-          <ToggleButton value="none">
-            <ShieldLowIcon sx={{ mr: 1 }} />
+          <ToggleButton value="none" sx={{ fontSize: '0.75rem', py: 1 }}>
+            <ShieldLowIcon sx={{ mr: 0.5, fontSize: '1rem' }} />
             无防护
           </ToggleButton>
-          <ToggleButton value="basic">
-            <ShieldIcon sx={{ mr: 1 }} />
+          <ToggleButton value="basic" sx={{ fontSize: '0.75rem', py: 1 }}>
+            <ShieldIcon sx={{ mr: 0.5, fontSize: '1rem' }} />
             基础
           </ToggleButton>
-          <ToggleButton value="strict">
-            <SecurityIcon sx={{ mr: 1 }} />
+          <ToggleButton value="strict" sx={{ fontSize: '0.75rem', py: 1 }}>
+            <SecurityIcon sx={{ mr: 0.5, fontSize: '1rem' }} />
             严格
           </ToggleButton>
-          <ToggleButton value="paranoid">
-            <VerifiedIcon sx={{ mr: 1 }} />
+          <ToggleButton value="paranoid" sx={{ fontSize: '0.75rem', py: 1 }}>
+            <VerifiedIcon sx={{ mr: 0.5, fontSize: '1rem' }} />
             偏执
           </ToggleButton>
         </ToggleButtonGroup>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
           {stats.levelName}
         </Typography>
       </Box>
 
       <Divider sx={{ my: 2 }} />
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="caption" sx={{ mb: 1.5, color: 'text.secondary', display: 'block' }}>
           当前状态
         </Typography>
 
@@ -199,18 +199,23 @@ export const DnsLeakProtectionCard = () => {
 
       <Divider sx={{ my: 2 }} />
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="caption" sx={{ mb: 1.5, color: 'text.secondary', display: 'block' }}>
           防护特性
         </Typography>
 
-        <List dense>
+        <List dense sx={{ py: 0 }}>
           {stats.features.map((feature, index) => (
-            <ListItem key={index}>
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <CheckIcon color="success" fontSize="small" />
+            <ListItem key={index} sx={{ py: 0.5, px: 0 }}>
+              <ListItemIcon sx={{ minWidth: 28 }}>
+                <CheckIcon color="success" sx={{ fontSize: '1rem' }} />
               </ListItemIcon>
-              <ListItemText primary={feature} />
+              <ListItemText 
+                primary={feature}
+                slotProps={{
+                  primary: { variant: 'body2' }
+                }}
+              />
             </ListItem>
           ))}
         </List>
@@ -219,7 +224,7 @@ export const DnsLeakProtectionCard = () => {
       <Divider sx={{ my: 2 }} />
 
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+        <Typography variant="caption" sx={{ mb: 1.5, color: 'text.secondary', display: 'block' }}>
           DNS 泄漏测试
         </Typography>
 
@@ -236,23 +241,23 @@ export const DnsLeakProtectionCard = () => {
         {testResult && (
           <Box sx={{ mt: 2 }}>
             {testResult.hasLeak ? (
-              <Alert severity="error" icon={<ErrorIcon />}>
+              <Alert severity="error" icon={<ErrorIcon fontSize="small" />} sx={{ fontSize: '0.75rem' }}>
                 检测到 DNS 泄漏！
               </Alert>
             ) : (
-              <Alert severity="success" icon={<CheckIcon />}>
+              <Alert severity="success" icon={<CheckIcon fontSize="small" />} sx={{ fontSize: '0.75rem' }}>
                 未检测到 DNS 泄漏
               </Alert>
             )}
 
             {testResult.leakType.length > 0 && (
               <Box sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                   泄漏类型:
                 </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                   {testResult.leakType.map((type, index) => (
-                    <Chip key={index} label={type} size="small" color="error" />
+                    <Chip key={index} label={type} size="small" color="error" sx={{ fontSize: '0.7rem' }} />
                   ))}
                 </Stack>
               </Box>
@@ -260,16 +265,21 @@ export const DnsLeakProtectionCard = () => {
 
             {testResult.recommendations.length > 0 && (
               <Box sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                   建议:
                 </Typography>
-                <List dense>
+                <List dense sx={{ py: 0 }}>
                   {testResult.recommendations.map((rec, index) => (
-                    <ListItem key={index}>
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        <WarningIcon color="warning" fontSize="small" />
+                    <ListItem key={index} sx={{ py: 0.5, px: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        <WarningIcon color="warning" sx={{ fontSize: '1rem' }} />
                       </ListItemIcon>
-                      <ListItemText primary={rec} />
+                      <ListItemText 
+                        primary={rec}
+                        slotProps={{
+                          primary: { variant: 'body2' }
+                        }}
+                      />
                     </ListItem>
                   ))}
                 </List>

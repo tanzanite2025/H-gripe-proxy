@@ -86,13 +86,13 @@ export const DnsStatsCard = () => {
     <Card>
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CachedRounded />
+          <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600 }}>
+            <CachedRounded fontSize="small" />
             DNS 统计
           </Typography>
           <Button
             size="small"
-            startIcon={<RefreshRounded />}
+            startIcon={<RefreshRounded fontSize="small" />}
             onClick={() => void loadStats()}
             disabled={loading}
           >
@@ -101,8 +101,8 @@ export const DnsStatsCard = () => {
         </Box>
 
         {/* DNS 缓存统计 */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
             DNS 缓存
           </Typography>
           <Stack spacing={1}>
@@ -159,8 +159,8 @@ export const DnsStatsCard = () => {
         <Divider sx={{ my: 2 }} />
 
         {/* DNS 健康检查统计 */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
             DNS 健康检查
           </Typography>
           <Stack spacing={1}>
@@ -205,7 +205,17 @@ export const DnsStatsCard = () => {
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2">最优服务器</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 'bold', 
+                  maxWidth: 200, 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+                title={health.bestServer || 'N/A'}
+              >
                 {health.bestServer || 'N/A'}
               </Typography>
             </Box>
@@ -223,8 +233,8 @@ export const DnsStatsCard = () => {
         <Divider sx={{ my: 2 }} />
 
         {/* DNS 预解析统计 */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
             DNS 预解析
           </Typography>
           <Stack spacing={1}>
@@ -246,9 +256,9 @@ export const DnsStatsCard = () => {
         <Divider sx={{ my: 2 }} />
 
         {/* DNS 智能分流统计 */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <RouterRounded fontSize="small" />
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <RouterRounded sx={{ fontSize: '0.875rem' }} />
             DNS 智能分流
           </Typography>
           <Stack spacing={1}>
@@ -278,13 +288,33 @@ export const DnsStatsCard = () => {
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2">国内 DNS</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.75rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  fontWeight: 'bold', 
+                  maxWidth: 180, 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+                title={routing.domesticDns}
+              >
                 {routing.domesticDns}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2">国外 DNS</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.75rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  fontWeight: 'bold', 
+                  maxWidth: 180, 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+                title={routing.foreignDns}
+              >
                 {routing.foreignDns}
               </Typography>
             </Box>
@@ -302,9 +332,9 @@ export const DnsStatsCard = () => {
         <Divider sx={{ my: 2 }} />
 
         {/* Tor 代理统计 */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <VpnLockRounded fontSize="small" />
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <VpnLockRounded sx={{ fontSize: '0.875rem' }} />
             Tor 代理
           </Typography>
           <Stack spacing={1}>
@@ -324,7 +354,17 @@ export const DnsStatsCard = () => {
             {tor.enabled && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2">SOCKS5 代理</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    fontWeight: 'bold',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: 150
+                  }}
+                  title={tor.socksProxy}
+                >
                   {tor.socksProxy}
                 </Typography>
               </Box>
@@ -336,8 +376,8 @@ export const DnsStatsCard = () => {
 
         {/* DNS 零泄漏防护统计 */}
         <Box>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <RouterRounded fontSize="small" />
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <RouterRounded sx={{ fontSize: '0.875rem' }} />
             零泄漏防护
           </Typography>
           <Stack spacing={1}>

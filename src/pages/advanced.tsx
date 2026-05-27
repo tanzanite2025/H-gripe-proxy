@@ -18,6 +18,7 @@ import { SecurityConfigPanel } from '@/components/advanced/security-config-panel
 import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
 import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
+import { DnsAdvancedPanel } from '@/components/advanced/dns-advanced-panel'
 import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
 
 interface TabPanelProps {
@@ -126,12 +127,15 @@ export default function AdvancedPage() {
           value={tabValue}
           onChange={(_, v) => setTabValue(v)}
           aria-label="高级功能配置"
+          variant="scrollable"
+          scrollButtons="auto"
         >
           <Tab label="安全防御" />
           <Tab label="多路径路由" />
           {window.navigator.platform.toLowerCase().includes('linux') && (
             <Tab label="XDP 代理" />
           )}
+          <Tab label="DNS 高级功能" />
           <Tab label="性能监控" />
         </Tabs>
       </Box>
@@ -160,6 +164,10 @@ export default function AdvancedPage() {
       )}
 
       <TabPanel value={tabValue} index={window.navigator.platform.toLowerCase().includes('linux') ? 3 : 2}>
+        <DnsAdvancedPanel />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={window.navigator.platform.toLowerCase().includes('linux') ? 4 : 3}>
         <PerformanceMonitor status={status} onRefresh={reload} />
       </TabPanel>
     </BasePage>
