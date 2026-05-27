@@ -1,20 +1,13 @@
+import { ChevronDown, ChevronUp, Inbox } from 'lucide-react'
 import {
-  ExpandLessRounded,
-  ExpandMoreRounded,
-  InboxRounded,
-} from '@mui/icons-material'
-import {
-  alpha,
-  Box,
+  Chip,
   ListItemText,
   ListItemButton,
-  Typography,
-  styled,
-  Chip,
   Tooltip,
-} from '@mui/material'
+} from '@/components/tailwind'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/utils/cn'
 
 import { useIconCache, useVerge } from '@/hooks/system'
 import { useThemeMode } from '@/services/states'
@@ -118,46 +111,38 @@ export const ProxyRender = (props: RenderProps) => {
             />
           )}
         <ListItemText
-          primary={<StyledPrimary>{group.name}</StyledPrimary>}
-          secondary={
-            <Box
-              sx={{
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                pt: '2px',
-              }}
-            >
-              <Box component="span" sx={{ marginTop: '2px' }}>
-                <StyledTypeBox>{group.type}</StyledTypeBox>
-                <StyledSubtitle sx={{ color: 'text.secondary' }}>
-                  {group.now}
-                </StyledSubtitle>
-              </Box>
-            </Box>
+          primary={
+            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-base font-bold leading-6">
+              {group.name}
+            </span>
           }
-          slotProps={{
-            secondary: {
-              component: 'div',
-              sx: { display: 'flex', alignItems: 'center', color: '#ccc' },
-            },
-          }}
+          secondary={
+            <div className="flex items-center overflow-hidden pt-0.5">
+              <span className="mt-0.5">
+                <span className="mr-2 inline-block rounded border border-blue-500/50 px-1 text-[10px] leading-6 text-blue-500/80">
+                  {group.type}
+                </span>
+                <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-gray-500">
+                  {group.now}
+                </span>
+              </span>
+            </div>
+          }
         />
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <div className="flex items-center">
           <Tooltip title={t('proxies.page.labels.proxyCount')} arrow>
             <Chip
               size="small"
               label={`${group.all.length}`}
-              sx={{
-                mr: 1,
-                backgroundColor: (theme) =>
-                  alpha(theme.palette.primary.main, 0.1),
-                color: (theme) => theme.palette.primary.main,
-              }}
+              className="mr-2 bg-blue-500/10 text-blue-500"
             />
           </Tooltip>
-          {headState?.open ? <ExpandLessRounded /> : <ExpandMoreRounded />}
-        </Box>
+          {headState?.open ? (
+            <ChevronUp className="h-5 w-5" />
+          ) : (
+            <ChevronDown className="h-5 w-5" />
+          )}
+        </div>
       </ListItemButton>
     )
   }
@@ -165,7 +150,7 @@ export const ProxyRender = (props: RenderProps) => {
   if (type === 1) {
     return (
       <ProxyHead
-        sx={{ pl: 2, pr: 3, mt: indent ? 1 : 0.5, mb: 1 }}
+        className={cn('pl-4 pr-6 mb-2', indent ? 'mt-2' : 'mt-1')}
         url={group.testUrl}
         groupName={group.name}
         headState={headState!}
@@ -191,67 +176,25 @@ export const ProxyRender = (props: RenderProps) => {
 
   if (type === 3) {
     return (
-      <Box
-        sx={{
-          py: 2,
-          pl: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <InboxRounded sx={{ fontSize: '2.5em', color: 'inherit' }} />
-        <Typography sx={{ color: 'inherit' }}>No Proxies</Typography>
-      </Box>
+      <div className="flex flex-col items-center justify-center py-4 pl-0">
+        <Inbox className="text-2xl" />
+        <span>No Proxies</span>
+      </div>
     )
   }
 
   if (type === 4) {
     return (
-      <Box
-        sx={{
-          height: 56,
-          display: 'grid',
-          gap: 1,
-          pl: 2,
-          pr: 2,
-          pb: 1,
+      <div
+        className="grid h-14 gap-2 px-4 pb-2"
+        style={{
           gridTemplateColumns: `repeat(${item.col! || 2}, 1fr)`,
         }}
       >
         {proxyColItemsMemo}
-      </Box>
+      </div>
     )
   }
 
   return null
 }
-
-const StyledPrimary = styled('span')`
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-const StyledSubtitle = styled('span')`
-  font-size: 13px;
-  overflow: hidden;
-  color: text.secondary;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const StyledTypeBox = styled(Box)(({ theme }) => ({
-  display: 'inline-block',
-  border: '1px solid #ccc',
-  borderColor: alpha(theme.palette.primary.main, 0.5),
-  color: alpha(theme.palette.primary.main, 0.8),
-  borderRadius: 4,
-  fontSize: 10,
-  padding: '0 4px',
-  lineHeight: 1.5,
-  marginRight: '8px',
-}))

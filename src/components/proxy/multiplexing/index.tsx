@@ -1,4 +1,4 @@
-import { Box, Tab, Tabs } from '@mui/material'
+import { Tabs, Tab } from '@/components/tailwind'
 import { useState } from 'react'
 
 import { MieruMultiplexConfig } from './mieru-multiplex-config'
@@ -25,14 +25,14 @@ export function MultiplexingConfig({
 
   if (!supportsSMUX && !supportsMieru && !supportsSudoku) {
     return (
-      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+      <div className="p-4 text-center text-gray-500">
         该代理类型不支持多路复用配置
-      </Box>
+      </div>
     )
   }
 
   return (
-    <Box>
+    <div>
       {/* 如果支持多种多路复用，显示标签页 */}
       {(supportsSMUX && (supportsMieru || supportsSudoku)) && (
         <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
@@ -42,7 +42,7 @@ export function MultiplexingConfig({
         </Tabs>
       )}
 
-      <Box sx={{ p: 2 }}>
+      <div className="p-4">
         {/* SMUX 配置 */}
         {supportsSMUX && (!supportsMieru && !supportsSudoku || activeTab === 0) && (
           <SmuxConfigComponent
@@ -68,7 +68,7 @@ export function MultiplexingConfig({
             onChange={(httpmask) => onChange({ ...config, httpmask })}
           />
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

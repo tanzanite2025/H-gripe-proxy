@@ -1,17 +1,9 @@
-import {
-  Box,
-  FormControl,
-  FormControlLabel,
-  InputLabel,
-  MenuItem,
-  Radio,
-  RadioGroup,
-  Select,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material'
 import { useState } from 'react'
+
+import { Radio, RadioGroup } from '@/components/tailwind/Radio'
+import { Select } from '@/components/tailwind/Select'
+import { Switch } from '@/components/tailwind/Switch'
+import { TextField } from '@/components/tailwind/TextField'
 
 type SudokuHttpMaskMode = 'legacy' | 'stream' | 'poll' | 'auto' | 'ws'
 type SudokuHttpMaskMultiplex = 'off' | 'auto' | 'on'
@@ -70,54 +62,48 @@ export function SudokuMultiplexConfig({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h6">Sudoku HTTP Mask 配置</Typography>
+    <div className="flex flex-col gap-4">
+      <h3 className="text-lg font-semibold">Sudoku HTTP Mask 配置</h3>
 
-      <FormControlLabel
-        control={
-          <Switch
-            checked={!localConfig.disable}
-            onChange={(e) => handleChange({ disable: !e.target.checked })}
-          />
-        }
-        label="启用 HTTP Mask"
-      />
+      <label className="flex items-center gap-2">
+        <Switch
+          checked={!localConfig.disable}
+          onChange={(e) => handleChange({ disable: !e.target.checked })}
+        />
+        <span>启用 HTTP Mask</span>
+      </label>
 
       {!localConfig.disable && (
         <>
-          <FormControl fullWidth>
-            <InputLabel>HTTP Mask 模式</InputLabel>
-            <Select
-              value={localConfig.mode || 'auto'}
-              label="HTTP Mask 模式"
-              onChange={(e) =>
-                handleChange({ mode: e.target.value as SudokuHttpMaskMode })
-              }
-            >
-              {httpMaskModes.map((mode) => (
-                <MenuItem key={mode.value} value={mode.value}>
-                  {mode.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={localConfig.tls || false}
-                onChange={(e) => handleChange({ tls: e.target.checked })}
-              />
+          <Select
+            value={localConfig.mode || 'auto'}
+            label="HTTP Mask 模式"
+            onChange={(e) =>
+              handleChange({ mode: e.target.value as SudokuHttpMaskMode })
             }
-            label="启用 TLS"
-          />
+            fullWidth
+          >
+            {httpMaskModes.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </Select>
+
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={localConfig.tls || false}
+              onChange={(e) => handleChange({ tls: e.target.checked })}
+            />
+            <span>启用 TLS</span>
+          </label>
 
           <TextField
             label="主机名"
             value={localConfig.host || ''}
             onChange={(e) => handleChange({ host: e.target.value })}
             helperText="HTTP Mask 使用的主机名"
-            fullWidth
+            className="w-full"
           />
 
           <TextField
@@ -125,37 +111,28 @@ export function SudokuMultiplexConfig({
             value={localConfig['path-root'] || ''}
             onChange={(e) => handleChange({ 'path-root': e.target.value })}
             helperText="HTTP Mask 使用的路径根"
-            fullWidth
+            className="w-full"
           />
 
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              多路复用设置
-            </Typography>
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">多路复用设置</h4>
 
-            <FormControl fullWidth>
-              <InputLabel>多路复用模式</InputLabel>
-              <Select
-                value={localConfig.multiplex || 'auto'}
-                label="多路复用模式"
-                onChange={(e) =>
-                  handleChange({
-                    multiplex: e.target.value as SudokuHttpMaskMultiplex,
-                  })
-                }
-              >
-                {multiplexModes.map((mode) => (
-                  <MenuItem key={mode.value} value={mode.value}>
-                    <Box>
-                      <Typography variant="body2">{mode.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {mode.description}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Select
+              value={localConfig.multiplex || 'auto'}
+              label="多路复用模式"
+              onChange={(e) =>
+                handleChange({
+                  multiplex: e.target.value as SudokuHttpMaskMultiplex,
+                })
+              }
+              fullWidth
+            >
+              {multiplexModes.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label} - {mode.description}
+                </option>
+              ))}
+            </Select>
 
             <RadioGroup
               value={localConfig.multiplex || 'auto'}
@@ -164,27 +141,23 @@ export function SudokuMultiplexConfig({
                   multiplex: e.target.value as SudokuHttpMaskMultiplex,
                 })
               }
-              sx={{ mt: 1 }}
+              className="mt-2"
             >
               {multiplexModes.map((mode) => (
-                <FormControlLabel
-                  key={mode.value}
-                  value={mode.value}
-                  control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body2">{mode.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {mode.description}
-                      </Typography>
-                    </Box>
-                  }
-                />
+                <label key={mode.value} className="flex items-start gap-2 mb-2">
+                  <Radio value={mode.value} />
+                  <div>
+                    <div className="text-sm">{mode.label}</div>
+                    <div className="text-xs text-gray-500">
+                      {mode.description}
+                    </div>
+                  </div>
+                </label>
               ))}
             </RadioGroup>
-          </Box>
+          </div>
         </>
       )}
-    </Box>
+    </div>
   )
 }

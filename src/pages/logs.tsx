@@ -1,9 +1,5 @@
-import {
-  PlayCircleOutlineRounded,
-  PauseCircleOutlineRounded,
-  SwapVertRounded,
-} from '@mui/icons-material'
-import { Box, Button, IconButton, MenuItem } from '@mui/material'
+import { PlayCircle, PauseCircle, ArrowUpDown } from 'lucide-react'
+import { Box, Button, IconButton, MenuItem } from '@/components/tailwind'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -97,7 +93,7 @@ const LogPage = () => {
         overflow: 'auto',
       }}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box className="flex items-center gap-2">
           <IconButton
             title={t(
               enableLog ? 'shared.actions.pause' : 'shared.actions.resume',
@@ -110,9 +106,9 @@ const LogPage = () => {
             onClick={handleToggleLog}
           >
             {enableLog ? (
-              <PauseCircleOutlineRounded fontSize="inherit" />
+              <PauseCircle />
             ) : (
-              <PlayCircleOutlineRounded fontSize="inherit" />
+              <PlayCircle />
             )}
           </IconButton>
           <IconButton
@@ -130,17 +126,14 @@ const LogPage = () => {
             color="inherit"
             onClick={handleToggleOrder}
           >
-            <SwapVertRounded
-              sx={{
-                transform: isDescending ? 'scaleY(-1)' : 'none',
-                transition: 'transform 0.2s ease',
-              }}
+            <ArrowUpDown 
+              className={`h-5 w-5 transition-transform duration-200 ${isDescending ? 'scale-y-[-1]' : ''}`}
             />
           </IconButton>
 
           <Button
             size="small"
-            variant="contained"
+            variant="primary"
             onClick={() => {
               refreshGetClashLog(true)
             }}
@@ -151,14 +144,7 @@ const LogPage = () => {
       }
     >
       <Box
-        sx={{
-          pt: 1,
-          mb: 0.5,
-          mx: '10px',
-          height: '39px',
-          display: 'flex',
-          alignItems: 'center',
-        }}
+        className="pt-4 mb-2 mx-[10px] h-[39px] flex items-center"
       >
         <BaseStyledSelect
           value={logState}

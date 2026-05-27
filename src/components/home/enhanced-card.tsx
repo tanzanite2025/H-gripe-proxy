@@ -1,5 +1,5 @@
-import { Box, Typography, alpha, useTheme } from '@mui/material'
 import React, { forwardRef, ReactNode } from 'react'
+import { cn } from '@/utils/cn'
 
 // 自定义卡片组件接口
 interface EnhancedCardProps {
@@ -10,6 +10,15 @@ interface EnhancedCardProps {
   iconColor?: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success'
   minHeight?: number | string
   noContentPadding?: boolean
+}
+
+const iconColorMap = {
+  primary: 'bg-primary/10 text-primary dark:bg-primary-dark-mode/10 dark:text-primary-dark-mode',
+  secondary: 'bg-gray-500/10 text-gray-500 dark:bg-gray-400/10 dark:text-gray-400',
+  error: 'bg-red-500/10 text-red-500 dark:bg-red-400/10 dark:text-red-400',
+  warning: 'bg-yellow-500/10 text-yellow-500 dark:bg-yellow-400/10 dark:text-yellow-400',
+  info: 'bg-blue-500/10 text-blue-500 dark:bg-blue-400/10 dark:text-blue-400',
+  success: 'bg-green-500/10 text-green-500 dark:bg-green-400/10 dark:text-green-400',
 }
 
 // 自定义卡片组件
@@ -26,97 +35,50 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
     },
     ref,
   ) => {
-    const theme = useTheme()
-
-    // 统一的标题截断样式
-    const titleTruncateStyle = {
-      minWidth: 0,
-      maxWidth: '100%',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      display: 'block',
-    }
-
     return (
-      <Box
-        className="uds-card-container uds-surface"
-        sx={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+      <section
+        className="uds-card-container uds-surface flex h-full flex-col"
         ref={ref}
       >
-        <Box
-          className="uds-card-header"
-          sx={{
-            px: 2,
-            py: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              minWidth: 0,
-              flex: 1,
-              overflow: 'hidden',
-            }}
-          >
+        <div className="uds-card-header flex items-center justify-between px-4 py-2">
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
             {icon && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 1.5,
-                  width: 38,
-                  height: 38,
-                  mr: 1.5,
-                  flexShrink: 0,
-                  backgroundColor: alpha(theme.palette[iconColor].main, 0.12),
-                  color: theme.palette[iconColor].main,
-                }}
+              <div
+                className={cn(
+                  'mr-3 flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-xl',
+                  iconColorMap[iconColor]
+                )}
               >
                 {icon}
-              </Box>
+              </div>
             )}
-            <Box sx={{ minWidth: 0, flex: 1 }}>
+            <div className="min-w-0 flex-1">
               {typeof title === 'string' ? (
-                <Typography
-                  className="uds-card-title"
-                  variant="h6"
-                  sx={{
-                    ...titleTruncateStyle,
-                  }}
+                <h3
+                  className="uds-card-title block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-lg font-semibold"
                   title={title}
                 >
                   {title}
-                </Typography>
+                </h3>
               ) : (
-                <Box sx={titleTruncateStyle}>{title}</Box>
+                <div className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                  {title}
+                </div>
               )}
-            </Box>
-          </Box>
-          {action && <Box sx={{ ml: 2, flexShrink: 0 }}>{action}</Box>}
-        </Box>
-        <Box
-          className="uds-card-content"
-          sx={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            p: noContentPadding ? 0 : 2,
-            ...(minHeight && { minHeight }),
-          }}
+            </div>
+          </div>
+          {action && <div className="ml-4 flex-shrink-0">{action}</div>}
+        </div>
+        <div
+          className={cn(
+            'uds-card-content flex flex-1 flex-col',
+            noContentPadding ? 'p-0' : 'p-4'
+          )}
+          style={minHeight ? { minHeight } : undefined}
         >
           {children}
-        </Box>
-      </Box>
+        </div>
+      </section>
     )
   },
 )

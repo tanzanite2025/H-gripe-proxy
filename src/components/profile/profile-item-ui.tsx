@@ -1,0 +1,260 @@
+import { RefreshRounded } from '@mui/icons-material'
+import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
+
+import { CircularProgress } from '@/components/tailwind/CircularProgress'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { LinearProgress } from '@/components/tailwind/LinearProgress'
+import parseTraffic from '@/utils/format'
+
+import { ProfileBox } from './profile-box'
+
+const round = `
+  @keyframes round {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`
+
+interface ProfileItemUIProps {
+  // Basic info
+  name: string
+  description?: string
+  from?: string
+  hasUrl: boolean
+  hasExtra: boolean
+  hasHome: boolean
+
+  // State
+  selected: boolean
+  activating: boolean
+  loading: boolean
+  isDragging: boolean
+  batchMode?: boolean
+  isSelected?: boolean
+
+  // Time display
+  updated: number
+  showNextUpdate: boolean
+  nextUpdateTime: string
+
+  // Traffic info
+  upload: number
+  download: number
+  total: number
+  expire?: string
+  progress: number
+
+  // Drag and drop
+  dragHandleProps: {
+    ref: (node: HTMLElement | null) => void
+    attributes: Record<string, unknown>
+    listeners: Record<string, unknown>
+  }
+  transform?: { x: number; y: number; scaleX: number; scaleY: number } | null
+  transition?: string
+
+  // Event handlers
+  onClick: (e: React.MouseEvent) => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onUpdateClick: (e: React.MouseEvent) => void
+  onToggleUpdateTimeDisplay: (e: React.MouseEvent) => void
+  onSelectionChange?: () => void
+}
+
+export const ProfileItemUI = (props: ProfileItemUIProps) => {
+  const {
+    name,
+    description,
+    from,
+    hasUrl,
+    hasExtra,
+    selected,
+    activating,
+    loading,
+    isDragging,
+    batchMode,
+    isSelected,
+    updated,
+    showNextUpdate,
+    nextUpdateTime,
+    upload,
+    download,
+    total,
+    expire,
+    progress,
+    dragHandleProps,
+    transform,
+    transition,
+    onClick,
+    onContextMenu,
+    onUpdateClick,
+    onToggleUpdateTimeDisplay,
+    onSelectionChange,
+  } = props
+
+  const { t } = useTranslation()
+
+  const transformStyle = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scaleX(${transform.scaleX}) scaleY(${transform.scaleY})`,
+      }
+    : undefined
+
+  return (
+    <div
+      className="relative"
+      style={{
+        ...transformStyle,
+        transition,
+        zIndex: isDragging ? 9999 : undefined,
+      }}
+    >
+      <ProfileBox
+        aria-selected={selected}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+      >
+        {activating && (
+          <div className="absolute top-2.5 left-2.5 right-2.5 bottom-0.5 z-10 flex items-center justify-center backdrop-blur-sm bg-black/10">
+            <CircularProgress size={20} className="animate-pulse" />
+          </div>
+        )}
+
+        <div className="relative">
+          <div className="flex justify-start">
+            {batchMode && (
+              <IconButton
+                size="small"
+                className="p-0.5 mr-1 -ml-2"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onSelectionChange) {
+                    onSelectionChange()
+                  }
+                }}
+              >
+                {isSelected ? (
+                  <svg
+                    className="w-6 h-6 text-primary"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-6 h-6"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+                  </svg>
+                )}
+              </IconButton>
+            )}
+
+            <div
+              ref={dragHandleProps.ref}
+              className={`flex my-auto ${batchMode ? '-ml-1' : ''}`}
+              {...dragHandleProps.attributes}
+              {...dragHandleProps.listeners}
+            >
+              <svg
+                className="w-6 h-6 -ml-1.5 cursor-move text-current"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+              </svg>
+            </div>
+
+            <h2
+              className={`${batchMode ? 'w-[calc(100%-56px)]' : 'w-[calc(100%-36px)]'} text-lg font-semibold leading-[26px] truncate`}
+              title={name}
+            >
+              {name}
+            </h2>
+          </div>
+
+          {hasUrl && (
+            <IconButton
+              title={t('shared.actions.refresh')}
+              className="absolute p-[3px] -top-0.5 -right-1.5"
+              style={{
+                animation: loading ? '1s linear infinite round' : 'none',
+              }}
+              size="small"
+              color="inherit"
+              disabled={loading}
+              onClick={onUpdateClick}
+            >
+              <RefreshRounded color="inherit" />
+            </IconButton>
+          )}
+        </div>
+
+        {/* Second line: description or URL */}
+        <div className="h-[26px] flex items-center justify-between">
+          {description ? (
+            <p className="text-sm truncate" title={description}>
+              {description}
+            </p>
+          ) : (
+            hasUrl && (
+              <p className="truncate" title={`${t('shared.labels.from')} ${from}`}>
+                {from}
+              </p>
+            )
+          )}
+          {hasUrl && (
+            <div className="flex justify-end ml-auto">
+              <span
+                className="text-sm text-right cursor-pointer inline-block border-b border-transparent transition-all duration-200 hover:border-primary hover:text-primary"
+                title={
+                  showNextUpdate
+                    ? t('profiles.components.profileItem.tooltips.showLast')
+                    : `${t('shared.labels.updateTime')}: ${parseExpire(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
+                }
+                onClick={onToggleUpdateTimeDisplay}
+              >
+                {showNextUpdate
+                  ? nextUpdateTime
+                  : updated > 0
+                    ? dayjs(updated * 1000).fromNow()
+                    : ''}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Third line: traffic info or update time */}
+        {hasExtra ? (
+          <div className="h-[26px] flex items-center justify-between text-sm">
+            <span title={t('shared.labels.usedTotal')}>
+              {parseTraffic(upload + download)} / {parseTraffic(total)}
+            </span>
+            <span title={t('shared.labels.expireTime')}>{expire}</span>
+          </div>
+        ) : (
+          <div className="h-[26px] flex items-center justify-end text-xs">
+            <span title={t('shared.labels.updateTime')}>
+              {parseExpire(updated)}
+            </span>
+          </div>
+        )}
+
+        <LinearProgress
+          variant="determinate"
+          value={progress}
+          style={{ opacity: total > 0 ? 1 : 0 }}
+        />
+      </ProfileBox>
+    </div>
+  )
+}
+
+function parseExpire(expire?: number) {
+  if (!expire) return '-'
+  return dayjs(expire * 1000).format('YYYY-MM-DD')
+}

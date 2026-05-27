@@ -1,6 +1,5 @@
 import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core'
 import { SortableContext } from '@dnd-kit/sortable'
-import { List } from '@mui/material'
 import { useMemo } from 'react'
 
 import { VirtualList } from '@/components/base'
@@ -116,12 +115,7 @@ export const GroupListView = ({
   }
 
   return (
-    <List
-      sx={{
-        width: '50%',
-        padding: '0 10px',
-      }}
-    >
+    <div className="w-1/2 px-2.5">
       <VirtualList
         count={
           filteredGroupList.length +
@@ -132,6 +126,6 @@ export const GroupListView = ({
         renderItem={renderItem}
         style={{ height: 'calc(100% - 24px)', marginTop: '8px' }}
       />
-    </List>
+    </div>
   )
 }

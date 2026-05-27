@@ -1,4 +1,3 @@
-import { Typography } from '@mui/material'
 import React, { ReactNode } from 'react'
 
 import { BaseErrorBoundary } from './base-error-boundary'
@@ -22,13 +21,12 @@ export const BasePage: React.FC<Props> = (props) => {
           data-tauri-drag-region="true"
           style={{ userSelect: 'none' }}
         >
-          <Typography
-            className="uds-title-h1 base-page__title"
-            sx={{ fontSize: '18px', fontWeight: '700 ' }}
+          <h1
+            className="uds-title-h1 base-page__title text-lg font-bold"
             data-tauri-drag-region="true"
           >
             {title}
-          </Typography>
+          </h1>
 
           {header ? <div className="base-page__header-actions">{header}</div> : null}
         </header>

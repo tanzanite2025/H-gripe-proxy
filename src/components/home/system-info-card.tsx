@@ -5,12 +5,13 @@ import {
   DnsOutlined,
   ExtensionOutlined,
 } from '@mui/icons-material'
-import { Typography, Stack, Divider, Chip, IconButton } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+import { Chip } from '@/components/tailwind/Chip'
+import { IconButton } from '@/components/tailwind/IconButton'
 import {
   useServiceInstaller,
   useSystemState,
@@ -121,30 +122,12 @@ export const SystemInfoCard = () => {
     [verge],
   )
 
-  // 运行模式样式
-  const runningModeStyle = useMemo(
-    () => ({
-      // Sidecar或纯管理员模式允许安装服务
-      cursor:
-        isSidecarMode || (isAdminMode && isSidecarMode) ? 'pointer' : 'default',
-      textDecoration:
-        isSidecarMode || (isAdminMode && isSidecarMode) ? 'underline' : 'none',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 0.5,
-      '&:hover': {
-        opacity: isSidecarMode || (isAdminMode && isSidecarMode) ? 0.7 : 1,
-      },
-    }),
-    [isSidecarMode, isAdminMode],
-  )
-
   // 获取模式图标和文本
   const getModeIcon = () => {
     if (isNotRunningMode) {
       return (
         <ExtensionOutlined
-          sx={{ color: 'warning.main', fontSize: 16 }}
+          className="text-warning text-base"
           titleAccess={t('shared.statuses.disabled')}
         />
       )
@@ -156,11 +139,11 @@ export const SystemInfoCard = () => {
         return (
           <>
             <AdminPanelSettingsOutlined
-              sx={{ color: 'primary.main', fontSize: 16 }}
+              className="text-primary text-base"
               titleAccess={t('home.components.systemInfo.badges.adminMode')}
             />
             <DnsOutlined
-              sx={{ color: 'success.main', fontSize: 16, ml: 0.5 }}
+              className="text-success text-base ml-1"
               titleAccess={t('home.components.systemInfo.badges.serviceMode')}
             />
           </>
@@ -168,21 +151,21 @@ export const SystemInfoCard = () => {
       }
       return (
         <AdminPanelSettingsOutlined
-          sx={{ color: 'primary.main', fontSize: 16 }}
+          className="text-primary text-base"
           titleAccess={t('home.components.systemInfo.badges.adminMode')}
         />
       )
     } else if (isSidecarMode) {
       return (
         <ExtensionOutlined
-          sx={{ color: 'info.main', fontSize: 16 }}
+          className="text-info text-base"
           titleAccess={t('home.components.systemInfo.badges.sidecarMode')}
         />
       )
     } else {
       return (
         <DnsOutlined
-          sx={{ color: 'success.main', fontSize: 16 }}
+          className="text-success text-base"
           titleAccess={t('home.components.systemInfo.badges.serviceMode')}
         />
       )
@@ -226,24 +209,21 @@ export const SystemInfoCard = () => {
         </IconButton>
       }
     >
-      <Stack spacing={1.5}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+      <div className="space-y-3">
+        <div className="flex justify-between">
+          <p className="text-sm text-text-secondary">
             {t('home.components.systemInfo.fields.osInfo')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </p>
+          <p className="text-sm font-medium">
             {osInfo}
-          </Typography>
-        </Stack>
-        <Divider />
-        <Stack
-          direction="row"
-          sx={{ justifyContent: 'space-between', alignItems: 'center' }}
-        >
-          <Typography variant="body2" color="text.secondary">
+          </p>
+        </div>
+        <div className="border-t border-divider" />
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-text-secondary">
             {t('home.components.systemInfo.fields.autoLaunch')}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          </p>
+          <div className="flex items-center gap-2">
             <Chip
               size="small"
               label={
@@ -254,55 +234,49 @@ export const SystemInfoCard = () => {
               color={autoLaunchEnabled ? 'success' : 'default'}
               variant={autoLaunchEnabled ? 'filled' : 'outlined'}
               onClick={toggleAutoLaunch}
-              sx={{ cursor: 'pointer' }}
+              className="cursor-pointer"
             />
-          </Stack>
-        </Stack>
-        <Divider />
-        <Stack
-          direction="row"
-          sx={{ justifyContent: 'space-between', alignItems: 'center' }}
-        >
-          <Typography variant="body2" color="text.secondary">
+          </div>
+        </div>
+        <div className="border-t border-divider" />
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-text-secondary">
             {t('home.components.systemInfo.fields.runningMode')}
-          </Typography>
-          <Typography
-            variant="body2"
+          </p>
+          <p
+            className={`text-sm font-medium flex items-center gap-1 ${
+              isSidecarMode || (isAdminMode && isSidecarMode)
+                ? 'cursor-pointer underline hover:opacity-70'
+                : 'cursor-default'
+            }`}
             onClick={handleRunningModeClick}
-            sx={{ ...runningModeStyle, fontWeight: 'medium' }}
           >
             {getModeIcon()}
             {getModeText()}
-          </Typography>
-        </Stack>
-        <Divider />
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+          </p>
+        </div>
+        <div className="border-t border-divider" />
+        <div className="flex justify-between">
+          <p className="text-sm text-text-secondary">
             {t('home.components.systemInfo.fields.lastCheckUpdate')}
-          </Typography>
-          <Typography
-            variant="body2"
+          </p>
+          <p
+            className="text-sm font-medium cursor-pointer underline hover:opacity-70"
             onClick={onCheckUpdate}
-            sx={{
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              fontWeight: 'medium',
-              '&:hover': { opacity: 0.7 },
-            }}
           >
             {lastCheckUpdateText}
-          </Typography>
-        </Stack>
-        <Divider />
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+          </p>
+        </div>
+        <div className="border-t border-divider" />
+        <div className="flex justify-between">
+          <p className="text-sm text-text-secondary">
             {t('home.components.systemInfo.fields.vergeVersion')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </p>
+          <p className="text-sm font-medium">
             v{appVersion}
-          </Typography>
-        </Stack>
-      </Stack>
+          </p>
+        </div>
+      </div>
     </EnhancedCard>
   )
 }

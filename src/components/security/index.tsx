@@ -2,7 +2,7 @@
  * 安全配置主组件
  */
 
-import { Box, Tab, Tabs } from '@mui/material'
+import { Tabs, Tab } from '@/components/tailwind'
 import { useState } from 'react'
 
 import AntiProbeConfigComponent from './anti-probe-config'
@@ -26,7 +26,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`security-tab-${index}`}
       {...other}
     >
-      {value === index && <Box>{children}</Box>}
+      {value === index && <div>{children}</div>}
     </div>
   )
 }
@@ -39,14 +39,14 @@ export default function SecurityConfig() {
   }
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+    <div className="w-full">
+      <div className="border-b border-divider">
         <Tabs value={tabValue} onChange={handleTabChange} aria-label="安全配置">
-          <Tab label="反主动探测" />
-          <Tab label="TLS 指纹伪装" />
-          <Tab label="内生欺骗陷阱" />
+          <Tab label="反主动探测" value={0} />
+          <Tab label="TLS 指纹伪装" value={1} />
+          <Tab label="内生欺骗陷阱" value={2} />
         </Tabs>
-      </Box>
+      </div>
 
       <TabPanel value={tabValue} index={0}>
         <AntiProbeConfigComponent />
@@ -59,6 +59,6 @@ export default function SecurityConfig() {
       <TabPanel value={tabValue} index={2}>
         <SecurityMonitor />
       </TabPanel>
-    </Box>
+    </div>
   )
 }

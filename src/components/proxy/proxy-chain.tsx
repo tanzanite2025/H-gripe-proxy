@@ -15,25 +15,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  ArrowDownward,
-  Delete as DeleteIcon,
-  DragIndicator,
-  Link,
-  LinkOff,
-  WarningRounded,
-  HelpOutlined as HelpIcon,
-} from '@mui/icons-material'
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  IconButton,
-  Paper,
-  Typography,
-  useTheme,
-} from '@mui/material'
+import { ArrowDown, Trash2, GripVertical, Link, LinkOff, AlertTriangle, HelpCircle } from 'lucide-react'
+
+import { Alert } from '@/components/tailwind/Alert'
+import { Button } from '@/components/tailwind/Button'
+import { Chip } from '@/components/tailwind/Chip'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { Paper } from '@/components/tailwind/Paper'
+import { useThemeMode } from '@/services/states'
 import yaml from 'js-yaml'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,8 +92,10 @@ const SortableItem = ({
   isLast,
   onRemove,
 }: SortableItemProps) => {
-  const theme = useTheme()
   const { t } = useTranslation()
+  const mode = useThemeMode()
+  const isDark = mode === 'dark'
+  
   const {
     attributes,
     listeners,
@@ -126,88 +117,59 @@ const SortableItem = ({
       ? t('proxies.page.chain.exitNode')
       : undefined
 
-  const roleColor = isFirst
-    ? theme.palette.success.main
-    : isLast
-      ? theme.palette.warning.main
-      : undefined
+  const getBorderClass = () => {
+    if (isFirst) return 'border-2 border-green-500'
+    if (isLast) return 'border-2 border-orange-500'
+    return 'border border-gray-300 dark:border-gray-700'
+  }
 
   return (
-    <Box
+    <div
       ref={setNodeRef}
       style={style}
-      sx={{
-        mb: 0,
-        display: 'flex',
-        alignItems: 'center',
-        p: 1,
-        backgroundColor: isDragging
-          ? theme.palette.action.selected
-          : theme.palette.background.default,
-        borderRadius: 1,
-        border: roleColor
-          ? `1.5px solid ${roleColor}`
-          : `1px solid ${theme.palette.divider}`,
-        boxShadow: isDragging ? theme.shadows[4] : theme.shadows[1],
-        transition: 'box-shadow 0.2s, background-color 0.2s',
-      }}
+      className={`mb-0 flex items-center p-2 rounded ${
+        isDragging
+          ? 'bg-gray-100 dark:bg-gray-800'
+          : 'bg-white dark:bg-gray-900'
+      } ${getBorderClass()} ${
+        isDragging ? 'shadow-lg' : 'shadow'
+      } transition-all duration-200`}
     >
-      <Box
+      <div
         {...attributes}
         {...listeners}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          mr: 1,
-          color: theme.palette.text.secondary,
-          cursor: 'grab',
-          '&:active': {
-            cursor: 'grabbing',
-          },
-        }}
+        className="flex items-center mr-2 text-gray-500 cursor-grab active:cursor-grabbing"
       >
-        <DragIndicator />
-      </Box>
+        <GripVertical className="h-5 w-5" />
+      </div>
 
       {roleLabel ? (
         <Chip
           label={roleLabel}
           size="small"
-          sx={{
-            mr: 1,
-            fontWeight: 700,
-            color: '#fff',
-            backgroundColor: roleColor,
-          }}
+          className={`mr-2 font-bold text-white ${
+            isFirst ? 'bg-green-500' : 'bg-orange-500'
+          }`}
         />
       ) : (
         <Chip
           label={`${index + 1}`}
           size="small"
           color="primary"
-          sx={{ mr: 1, minWidth: 32 }}
+          className="mr-2 min-w-[32px]"
         />
       )}
 
-      <Typography
-        variant="body2"
-        sx={{
-          flex: 1,
-          fontWeight: 500,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
+      <span className="flex-1 text-sm font-medium overflow-hidden text-ellipsis whitespace-nowrap">
         {proxy.name}
-      </Typography>
+      </span>
 
       {proxy.type && (
         <Chip
           label={proxy.type}
           size="small"
           variant="outlined"
-          sx={{ mr: 1 }}
+          className="mr-2"
         />
       )}
 
@@ -226,23 +188,18 @@ const SortableItem = ({
                 ? 'warning'
                 : 'error'
           }
-          sx={{ mr: 1, fontSize: '0.7rem', minWidth: 50 }}
+          className="mr-2 text-xs min-w-[50px]"
         />
       )}
 
       <IconButton
         size="small"
         onClick={() => onRemove(proxy.id)}
-        sx={{
-          color: theme.palette.error.main,
-          '&:hover': {
-            backgroundColor: theme.palette.error.light + '20',
-          },
-        }}
+        className="text-red-500 hover:bg-red-500/10"
       >
-        <DeleteIcon fontSize="small" />
+        <Trash2 className="h-4 w-4" />
       </IconButton>
-    </Box>
+    </div>
   )
 }
 
@@ -254,8 +211,8 @@ export const ProxyChain = ({
   mode,
   selectedGroup,
 }: ProxyChainProps) => {
-  const theme = useTheme()
   const { t } = useTranslation()
+  const themeMode = useThemeMode()
   const chainWarning = t('proxies.page.chain.warning')
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
@@ -489,41 +446,26 @@ export const ProxyChain = ({
   }, [proxies?.records]) // 只依赖proxies.records
 
   return (
-    <Paper
-      elevation={1}
-      sx={{
-        height: '100%',
-        p: 2,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 2,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Typography variant="h6">{t('proxies.page.chain.header')}</Typography>
+    <Paper className="h-full p-4 flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold">{t('proxies.page.chain.header')}</h3>
           <TooltipIcon
             title={chainWarning}
-            icon={WarningRounded}
+            icon={AlertTriangle}
             color="warning"
-            sx={{ p: 0.25 }}
+            className="p-1"
           />
           <IconButton
             size="small"
             onClick={() => setHelpDialogOpen(true)}
-            sx={{ ml: 0.5 }}
+            className="ml-1"
             title="使用帮助"
           >
-            <HelpIcon fontSize="small" />
+            <HelpCircle className="h-4 w-4" />
           </IconButton>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        </div>
+        <div className="flex items-center gap-2">
           {proxyChain.length > 0 && (
             <IconButton
               size="small"
@@ -534,33 +476,27 @@ export const ProxyChain = ({
                 localStorage.removeItem('proxy-chain-items')
                 onUpdateChain([])
               }}
-              sx={{
-                color: theme.palette.error.main,
-                '&:hover': {
-                  backgroundColor: theme.palette.error.light + '20',
-                },
-              }}
+              className="text-red-500 hover:bg-red-500/10"
               title={
                 t('proxies.page.actions.clearChainConfig') || '删除链式配置'
               }
             >
-              <DeleteIcon fontSize="small" />
+              <Trash2 className="h-4 w-4" />
             </IconButton>
           )}
           <Button
             size="small"
-            variant="contained"
-            startIcon={isConnected ? <LinkOff /> : <Link />}
+            variant={isConnected ? 'outlined' : 'primary'}
+            startIcon={isConnected ? <LinkOff className="h-4 w-4" /> : <Link className="h-4 w-4" />}
             onClick={handleConnect}
             disabled={
               isConnecting ||
               proxyChain.length < 2 ||
               (mode !== 'global' && !selectedGroup)
             }
-            color={isConnected ? 'error' : 'success'}
-            sx={{
-              minWidth: 90,
-            }}
+            className={`min-w-[90px] ${
+              isConnected ? 'text-red-500 border-red-500 hover:bg-red-500/10' : ''
+            }`}
             title={
               proxyChain.length < 2
                 ? t('proxies.page.chain.minimumNodes') ||
@@ -574,12 +510,12 @@ export const ProxyChain = ({
                 ? t('proxies.page.actions.disconnect') || '断开'
                 : t('proxies.page.actions.connect') || '连接'}
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       <Alert
         severity={proxyChain.length === 1 ? 'warning' : 'info'}
-        sx={{ mb: 2 }}
+        className="mb-4"
       >
         {proxyChain.length === 1
           ? t('proxies.page.chain.minimumNodesHint') ||
@@ -588,19 +524,11 @@ export const ProxyChain = ({
             '按顺序点击节点添加到代理链中'}
       </Alert>
 
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <div className="flex-1 overflow-auto">
         {proxyChain.length === 0 ? (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: theme.palette.text.secondary,
-            }}
-          >
-            <Typography>{t('proxies.page.chain.empty')}</Typography>
-          </Box>
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <span>{t('proxies.page.chain.empty')}</span>
+          </div>
         ) : (
           <DndContext
             sensors={sensors}
@@ -611,15 +539,9 @@ export const ProxyChain = ({
               items={proxyChain.map((proxy) => proxy.id)}
               strategy={verticalListSortingStrategy}
             >
-              <Box
-                sx={{
-                  borderRadius: 1,
-                  minHeight: 60,
-                  p: 1,
-                }}
-              >
+              <div className="rounded min-h-[60px] p-2">
                 {proxyChain.map((proxy, index) => (
-                  <Box key={proxy.id}>
+                  <div key={proxy.id}>
                     <SortableItem
                       proxy={proxy}
                       index={index}
@@ -630,29 +552,17 @@ export const ProxyChain = ({
                       onRemove={handleRemoveProxy}
                     />
                     {index < proxyChain.length - 1 && (
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'center',
-                          py: 0.25,
-                        }}
-                      >
-                        <ArrowDownward
-                          sx={{
-                            fontSize: 20,
-                            color: theme.palette.primary.main,
-                            opacity: 0.7,
-                          }}
-                        />
-                      </Box>
+                      <div className="flex justify-center py-1">
+                        <ArrowDown className="h-5 w-5 text-primary opacity-70" />
+                      </div>
                     )}
-                  </Box>
+                  </div>
                 ))}
-              </Box>
+              </div>
             </SortableContext>
           </DndContext>
         )}
-      </Box>
+      </div>
 
       {/* 帮助对话框 */}
       <ProxyChainHelpDialog

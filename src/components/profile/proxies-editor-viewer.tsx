@@ -8,22 +8,6 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import {
-  VerticalAlignBottomRounded,
-  VerticalAlignTopRounded,
-} from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  List,
-  ListItem,
-  TextField,
-  styled,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import yaml from 'js-yaml'
 import {
@@ -38,6 +22,15 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseSearchBox, MonacoEditor, VirtualList } from '@/components/base'
 import { ProxyItem } from '@/components/profile/proxy-item'
+import { Button } from '@/components/tailwind/Button'
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+} from '@/components/tailwind/Dialog'
+import { List, ListItem } from '@/components/tailwind/List'
+import { TextField } from '@/components/tailwind/TextField'
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
@@ -368,70 +361,56 @@ export const ProxiesEditorViewer = (props: Props) => {
   })
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="xl"
-      fullWidth
-      disableEnforceFocus={!visualization}
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
       <DialogTitle>
-        {
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            {t('profiles.modals.proxiesEditor.title')}
-            <Box>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => {
-                  setVisualization((prev) => !prev)
-                }}
-              >
-                {visualization
-                  ? t('shared.editorModes.advanced')
-                  : t('shared.editorModes.visualization')}
-              </Button>
-            </Box>
-          </Box>
-        }
+        <div className="flex justify-between">
+          <span>{t('profiles.modals.proxiesEditor.title')}</span>
+          <Button
+            variant="primary"
+            size="small"
+            onClick={() => {
+              setVisualization((prev) => !prev)
+            }}
+          >
+            {visualization
+              ? t('shared.editorModes.advanced')
+              : t('shared.editorModes.visualization')}
+          </Button>
+        </div>
       </DialogTitle>
 
-      <DialogContent
-        sx={{ display: 'flex', width: 'auto', height: 'calc(100vh - 185px)' }}
-      >
+      <DialogContent className="flex w-auto h-[calc(100vh-185px)]">
         {visualization ? (
           <>
-            <List
-              sx={{
-                width: '50%',
-                padding: '0 10px',
-              }}
-            >
-              <Box
-                sx={{
-                  height: 'calc(100% - 80px)',
-                  overflowY: 'auto',
-                }}
-              >
-                <Item>
+            <List className="w-1/2 px-2.5">
+              <div className="h-[calc(100%-80px)] overflow-y-auto">
+                <ListItem className="py-1.5 px-0.5">
                   <TextField
                     autoComplete="new-password"
                     placeholder={t(
                       'profiles.modals.proxiesEditor.placeholders.multiUri',
                     )}
-                    fullWidth
+                    className="w-full"
                     rows={9}
                     multiline
-                    size="small"
                     onChange={(e) => setProxyUri(e.target.value)}
                   />
-                </Item>
-              </Box>
-              <Item>
+                </ListItem>
+              </div>
+              <ListItem className="py-1.5 px-0.5">
                 <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<VerticalAlignTopRounded />}
+                  className="w-full"
+                  variant="primary"
+                  startIcon={
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M8 11h3v10h2V11h3l-4-4-4 4zM4 3v2h16V3H4z" />
+                    </svg>
+                  }
                   onClick={() => {
                     handleParseAsync((proxies) => {
                       setPrependSeq((prev) => [...proxies, ...prev])
@@ -440,12 +419,21 @@ export const ProxiesEditorViewer = (props: Props) => {
                 >
                   {t('profiles.modals.proxiesEditor.actions.prepend')}
                 </Button>
-              </Item>
-              <Item>
+              </ListItem>
+              <ListItem className="py-1.5 px-0.5">
                 <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<VerticalAlignBottomRounded />}
+                  className="w-full"
+                  variant="primary"
+                  startIcon={
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M16 13h-3V3h-2v10H8l4 4 4-4zM4 19v2h16v-2H4z" />
+                    </svg>
+                  }
                   onClick={() => {
                     handleParseAsync((proxies) => {
                       setAppendSeq((prev) => [...prev, ...proxies])
@@ -454,15 +442,10 @@ export const ProxiesEditorViewer = (props: Props) => {
                 >
                   {t('profiles.modals.proxiesEditor.actions.append')}
                 </Button>
-              </Item>
+              </ListItem>
             </List>
 
-            <List
-              sx={{
-                width: '50%',
-                padding: '0 10px',
-              }}
-            >
+            <List className="w-1/2 px-2.5">
               <BaseSearchBox onSearch={(match) => setMatch(() => match)} />
               <VirtualList
                 count={
@@ -515,14 +498,10 @@ export const ProxiesEditorViewer = (props: Props) => {
           {t('shared.actions.cancel')}
         </Button>
 
-        <Button onClick={handleSave} variant="contained">
+        <Button onClick={handleSave} variant="primary">
           {t('shared.actions.save')}
         </Button>
       </DialogActions>
     </Dialog>
   )
 }
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-}))

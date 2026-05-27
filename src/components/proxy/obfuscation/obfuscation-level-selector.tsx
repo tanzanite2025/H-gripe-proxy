@@ -1,13 +1,6 @@
-import {
-  Box,
-  Card,
-  CardActionArea,
-  CardContent,
-  Chip,
-  Typography,
-} from '@mui/material'
 import { useState } from 'react'
 
+import { Chip } from '@/components/tailwind/Chip'
 import {
   getAllObfuscationStrategies,
   type ObfuscationLevel,
@@ -50,82 +43,68 @@ export function ObfuscationLevelSelector({
   }
 
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        选择混淆级别
-      </Typography>
+    <div>
+      <h3 className="text-lg font-semibold mb-4">选择混淆级别</h3>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div className="flex flex-col gap-4">
         {strategies.map((strategy: ObfuscationStrategy) => {
           const isSelected = selectedLevel === strategy.level
           const recommendation = getRecommendation(strategy.level)
 
           return (
-            <Card
+            <div
               key={strategy.level}
-              variant={isSelected ? 'elevation' : 'outlined'}
-              sx={{
-                borderColor: isSelected ? 'primary.main' : 'divider',
-                borderWidth: isSelected ? 2 : 1,
-              }}
+              className={`rounded-lg border-2 cursor-pointer transition-colors ${
+                isSelected
+                  ? 'border-primary bg-primary/5'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-primary/50'
+              }`}
+              onClick={() => handleSelect(strategy.level)}
             >
-              <CardActionArea onClick={() => handleSelect(strategy.level)}>
-                <CardContent>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      mb: 1,
-                    }}
-                  >
-                    <Typography variant="h6">{strategy.name}</Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      {recommendation && (
-                        <Chip
-                          label={recommendation}
-                          color={
-                            recommendation === '推荐' ? 'success' : 'warning'
-                          }
-                          size="small"
-                        />
-                      )}
-                      {isSelected && (
-                        <Chip label="当前" color="primary" size="small" />
-                      )}
-                    </Box>
-                  </Box>
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-lg font-semibold">{strategy.name}</h4>
+                  <div className="flex gap-2">
+                    {recommendation && (
+                      <Chip
+                        label={recommendation}
+                        color={
+                          recommendation === '推荐' ? 'success' : 'warning'
+                        }
+                        size="small"
+                      />
+                    )}
+                    {isSelected && (
+                      <Chip label="当前" color="primary" size="small" />
+                    )}
+                  </div>
+                </div>
 
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    {strategy.description}
-                  </Typography>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  {strategy.description}
+                </p>
 
-                  <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Chip
-                      label={`性能影响: ${getPerformanceImpact(strategy.level)}`}
-                      size="small"
-                      variant="outlined"
-                    />
-                    {strategy.features.trafficObfuscation && (
-                      <Chip label="流量混淆" size="small" variant="outlined" />
-                    )}
-                    {strategy.features.protocolObfuscation && (
-                      <Chip label="协议混淆" size="small" variant="outlined" />
-                    )}
-                    {strategy.features.tlsFingerprintRandomization && (
-                      <Chip label="TLS指纹" size="small" variant="outlined" />
-                    )}
-                  </Box>
-                </CardContent>
-              </CardActionArea>
-            </Card>
+                <div className="flex gap-2 flex-wrap">
+                  <Chip
+                    label={`性能影响: ${getPerformanceImpact(strategy.level)}`}
+                    size="small"
+                    variant="outlined"
+                  />
+                  {strategy.features.trafficObfuscation && (
+                    <Chip label="流量混淆" size="small" variant="outlined" />
+                  )}
+                  {strategy.features.protocolObfuscation && (
+                    <Chip label="协议混淆" size="small" variant="outlined" />
+                  )}
+                  {strategy.features.tlsFingerprintRandomization && (
+                    <Chip label="TLS指纹" size="small" variant="outlined" />
+                  )}
+                </div>
+              </div>
+            </div>
           )
         })}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

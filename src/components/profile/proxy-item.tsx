@@ -1,14 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DeleteForeverRounded, UndoRounded } from '@mui/icons-material'
-import {
-  Box,
-  IconButton,
-  ListItem,
-  ListItemText,
-  alpha,
-  styled,
-} from '@mui/material'
+
+import { IconButton } from '@/components/tailwind/IconButton'
+import { ListItem, ListItemText } from '@/components/tailwind/List'
 
 interface Props {
   type: 'prepend' | 'original' | 'delete' | 'append'
@@ -35,63 +30,50 @@ export const ProxyItem = (props: Props) => {
   const dragListeners = sortable ? sortableListeners : undefined
   const dragNodeRef = sortable ? sortableSetNodeRef : undefined
 
+  const getBackgroundClass = () => {
+    if (type === 'original') {
+      return 'bg-gray-400/30 dark:bg-gray-800/30'
+    }
+    if (type === 'delete') {
+      return 'bg-red-500/30'
+    }
+    return 'bg-green-500/30'
+  }
+
   return (
     <ListItem
-      dense
-      sx={({ palette }) => ({
-        position: 'relative',
-        background:
-          type === 'original'
-            ? palette.mode === 'dark'
-              ? alpha(palette.background.paper, 0.3)
-              : alpha(palette.grey[400], 0.3)
-            : type === 'delete'
-              ? alpha(palette.error.main, 0.3)
-              : alpha(palette.success.main, 0.3),
-        height: '100%',
-        margin: '8px 0',
-        borderRadius: '8px',
+      className={`relative h-full my-2 rounded-lg ${getBackgroundClass()}`}
+      style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        zIndex: isDragging ? 'calc(infinity)' : undefined,
-      })}
+        zIndex: isDragging ? 9999 : undefined,
+      }}
     >
       <ListItemText
         {...(dragAttributes ?? {})}
         {...(dragListeners ?? {})}
         ref={dragNodeRef}
-        sx={{ cursor: sortable ? 'move' : '' }}
+        className={sortable ? 'cursor-move' : ''}
         primary={
-          <StyledPrimary
+          <div
             title={proxy.name}
-            sx={{ textDecoration: type === 'delete' ? 'line-through' : '' }}
+            className={`text-[15px] font-bold leading-6 overflow-hidden text-ellipsis whitespace-nowrap ${
+              type === 'delete' ? 'line-through' : ''
+            }`}
           >
             {proxy.name}
-          </StyledPrimary>
+          </div>
         }
         secondary={
-          <ListItemTextChild
-            sx={{
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              pt: '2px',
-            }}
-          >
-            <Box sx={{ marginTop: '2px' }}>
-              <StyledTypeBox>{proxy.type}</StyledTypeBox>
-            </Box>
-          </ListItemTextChild>
+          <div className="overflow-hidden flex items-center pt-0.5">
+            <div className="mt-0.5">
+              <span className="inline-block border border-primary/50 text-primary/80 rounded text-[10px] px-1 leading-6 mr-2">
+                {proxy.type}
+              </span>
+            </div>
+          </div>
         }
-        slotProps={{
-          secondary: {
-            sx: {
-              display: 'flex',
-              alignItems: 'center',
-              color: '#ccc',
-            },
-          },
-        }}
+        secondaryClassName="flex items-center text-gray-400"
       />
       <IconButton onClick={onDelete}>
         {type === 'delete' ? <UndoRounded /> : <DeleteForeverRounded />}
@@ -99,28 +81,3 @@ export const ProxyItem = (props: Props) => {
     </ListItem>
   )
 }
-
-const StyledPrimary = styled('div')`
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const ListItemTextChild = styled('span')`
-  display: block;
-`
-
-const StyledTypeBox = styled(ListItemTextChild)(({ theme }) => ({
-  display: 'inline-block',
-  border: '1px solid #ccc',
-  borderColor: alpha(theme.palette.primary.main, 0.5),
-  color: alpha(theme.palette.primary.main, 0.8),
-  borderRadius: 4,
-  fontSize: 10,
-  padding: '0 4px',
-  lineHeight: 1.5,
-  marginRight: '8px',
-}))

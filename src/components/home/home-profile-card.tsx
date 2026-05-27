@@ -1,19 +1,11 @@
-import {
-  Box,
-  Button,
-  LinearProgress,
-  Link,
-  Stack,
-  Typography,
-  alpha,
-  useTheme,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+import { Button } from '@/components/tailwind/Button'
+import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import { useAppRefreshers } from '@/providers/app-data-context'
 import { openWebUrl, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -68,7 +60,6 @@ const ProfileDetails = ({
   onUpdateProfile: () => void
 }) => {
   const { t } = useTranslation()
-  const theme = useTheme()
 
   const usedTraffic = useMemo(() => {
     if (!current.extra) return 0
@@ -82,129 +73,87 @@ const ProfileDetails = ({
   }, [current.extra, usedTraffic])
 
   return (
-    <Box>
-      <Stack spacing={2}>
+    <div>
+      <div className="space-y-4">
         {current.url && (
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              noWrap
-              sx={{ display: 'flex', alignItems: 'center' }}
-            >
-              <span style={{ flexShrink: 0 }}>{t('shared.labels.from')}: </span>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-text-secondary flex items-center">
+              <span className="flex-shrink-0">{t('shared.labels.from')}: </span>
               {current.home ? (
-                <Link
-                  component="button"
+                <button
                   onClick={() => current.home && openWebUrl(current.home)}
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    minWidth: 0,
-                    maxWidth: 'calc(100% - 40px)',
-                    ml: 0.5,
-                    fontWeight: 'medium',
-                  }}
+                  className="inline-flex items-center min-w-0 max-w-[calc(100%-40px)] ml-1 font-medium text-primary hover:underline"
                   title={parseUrl(current.url)}
                 >
-                  <Typography
-                    component="span"
-                    sx={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      minWidth: 0,
-                      flex: 1,
-                    }}
-                  >
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex-1">
                     {parseUrl(current.url)}
-                  </Typography>
-                </Link>
+                  </span>
+                </button>
               ) : (
-                <Typography
-                  component="span"
-                  sx={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    minWidth: 0,
-                    flex: 1,
-                    ml: 0.5,
-                    fontWeight: 'medium',
-                  }}
+                <span
+                  className="overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex-1 ml-1 font-medium"
                   title={parseUrl(current.url)}
                 >
                   {parseUrl(current.url)}
-                </Typography>
+                </span>
               )}
-            </Typography>
-          </Stack>
+            </p>
+          </div>
         )}
 
         {current.updated && (
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ cursor: 'pointer' }}
+          <div className="flex items-center gap-2">
+            <p
+              className="text-sm text-text-secondary cursor-pointer"
               onClick={onUpdateProfile}
             >
               {t('shared.labels.updateTime')}:{' '}
-              <Box component="span" sx={{ fontWeight: 'medium' }}>
+              <span className="font-medium">
                 {dayjs(current.updated * 1000).format('YYYY-MM-DD HH:mm')}
-              </Box>
-            </Typography>
-          </Stack>
+              </span>
+            </p>
+          </div>
         )}
 
         {current.extra && (
           <>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-text-secondary">
                 {t('shared.labels.usedTotal')}:{' '}
-                <Box component="span" sx={{ fontWeight: 'medium' }}>
+                <span className="font-medium">
                   <span className="uds-mono">{parseTraffic(usedTraffic)}</span> /{' '}
                   <span className="uds-mono">
                     {parseTraffic(current.extra.total)}
                   </span>
-                </Box>
-              </Typography>
-            </Stack>
+                </span>
+              </p>
+            </div>
 
             {current.extra.expire > 0 && (
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-text-secondary">
                   {t('shared.labels.expireTime')}:{' '}
-                  <Box component="span" sx={{ fontWeight: 'medium' }}>
+                  <span className="font-medium">
                     {parseExpire(current.extra.expire)}
-                  </Box>
-                </Typography>
-              </Stack>
+                  </span>
+                </p>
+              </div>
             )}
 
-            <Box sx={{ mt: 1 }}>
-              <Typography
-                className="uds-mono"
-                variant="caption"
-                color="text.secondary"
-                sx={{ mb: 0.5, display: 'block' }}
-              >
+            <div className="mt-2">
+              <p className="uds-mono text-xs text-text-secondary mb-1">
                 {trafficPercentage}%
-              </Typography>
+              </p>
               <LinearProgress
                 variant="determinate"
                 value={trafficPercentage}
-                sx={{
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.12),
-                }}
+                className="h-2 rounded"
               />
-            </Box>
+            </div>
           </>
         )}
-      </Stack>
-    </Box>
+      </div>
+    </div>
   )
 }
 
@@ -213,26 +162,17 @@ const EmptyProfile = ({ onClick }: { onClick: () => void }) => {
   const { t } = useTranslation()
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        py: 2.4,
-        cursor: 'pointer',
-        '&:hover': { bgcolor: 'action.hover' },
-        borderRadius: 2,
-      }}
+    <div
+      className="flex flex-col items-center justify-center py-6 cursor-pointer hover:bg-action-hover rounded-lg"
       onClick={onClick}
     >
-      <Typography variant="h6" className="uds-card-title" gutterBottom>
+      <h6 className="text-lg font-semibold uds-card-title mb-2">
         {t('profiles.page.actions.import')} {t('profiles.page.title')}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
+      </h6>
+      <p className="text-sm text-text-secondary">
         {t('profiles.components.card.labels.clickToImport')}
-      </Typography>
-    </Box>
+      </p>
+    </div>
   )
 }
 
@@ -270,31 +210,15 @@ export const HomeProfileCard = ({
     if (!current.home) return current.name
 
     return (
-      <Link
-        className="uds-card-title"
-        component="button"
-        variant="h6"
+      <button
+        className="uds-card-title text-inherit no-underline flex items-center min-w-0 max-w-full font-medium text-lg hover:underline"
         onClick={() => current.home && openWebUrl(current.home)}
-        sx={{
-          color: 'inherit',
-          textDecoration: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          minWidth: 0,
-          maxWidth: '100%',
-          fontWeight: 'medium',
-          fontSize: 18,
-          '& > span': {
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-          },
-        }}
         title={current.name}
       >
-        <span>{current.name}</span>
-      </Link>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap flex-1">
+          {current.name}
+        </span>
+      </button>
     )
   }, [current, t])
 
@@ -307,7 +231,7 @@ export const HomeProfileCard = ({
         variant="outlined"
         size="small"
         onClick={goToProfiles}
-        sx={{ borderRadius: 1.5 }}
+        className="rounded-xl"
       >
         {t('layout.components.navigation.tabs.profiles')}
       </Button>

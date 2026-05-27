@@ -1,5 +1,4 @@
-import { ContentCopyRounded } from '@mui/icons-material'
-import { Typography } from '@mui/material'
+import { Copy as ContentCopyRounded } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -169,7 +168,7 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
           />
         }
       >
-        <Typography sx={{ py: '7px', pr: 1 }}>v{version}</Typography>
+        <div className="py-[7px] pr-1">v{version}</div>
       </SettingItem>
     </SettingList>
   )

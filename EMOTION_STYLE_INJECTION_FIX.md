@@ -105,6 +105,17 @@ Emotion 在 production 模式下默认启用 `speedy` 模式：
 
 ## 验证步骤
 
+### 0. CSP 配置检查（已确认 ✅）
+
+当前 `src-tauri/tauri.conf.json` 的 CSP 配置：
+```json
+"csp": "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; ..."
+```
+
+- ✅ `'unsafe-inline'` 已启用，允许 Emotion 动态注入样式
+- ✅ 无需修改 CSP 配置
+- ✅ CSP 不是导致样式丢失的原因
+
 ### 1. 重新构建
 ```bash
 pnpm build

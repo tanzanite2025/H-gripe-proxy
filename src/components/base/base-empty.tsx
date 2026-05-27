@@ -1,5 +1,4 @@
-import { InboxRounded } from '@mui/icons-material'
-import { alpha, Box, Typography } from '@mui/material'
+import { Inbox } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,20 +20,10 @@ export const BaseEmpty = ({
   const resolvedText: ReactNode = text !== undefined ? text : t(textKey)
 
   return (
-    <Box
-      sx={({ palette }) => ({
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: alpha(palette.text.secondary, 0.75),
-      })}
-    >
-      <InboxRounded sx={{ fontSize: '4em' }} />
-      <Typography sx={{ fontSize: '1.25em' }}>{resolvedText}</Typography>
+    <div className="flex h-full w-full flex-col items-center justify-center text-gray-500/75 dark:text-gray-400/75">
+      <Inbox className="h-16 w-16" />
+      <p className="text-xl">{resolvedText}</p>
       {extra}
-    </Box>
+    </div>
   )
 }

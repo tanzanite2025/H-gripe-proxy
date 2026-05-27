@@ -1,4 +1,4 @@
-import { Button } from '@mui/material'
+import { Button } from '@/components/tailwind'
 import { useRef } from 'react'
 
 import { DialogRef } from '@/components/base'
@@ -23,8 +23,7 @@ export const UpdateButton = (props: Props) => {
       <UpdateViewer ref={viewerRef} />
 
       <Button
-        color="error"
-        variant="contained"
+        variant="danger"
         size="small"
         className={className}
         onClick={() => viewerRef.current?.open()}

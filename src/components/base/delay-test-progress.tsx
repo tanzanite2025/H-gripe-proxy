@@ -3,7 +3,7 @@
  * 显示批量延迟测试的进度和取消按钮
  */
 
-import { Box, Button, LinearProgress, Typography } from '@mui/material'
+import { Button } from '@/components/tailwind'
 import { useEffect, useState } from 'react'
 
 interface DelayTestProgressProps {
@@ -32,26 +32,24 @@ export const DelayTestProgress = ({
   }
 
   return (
-    <Box sx={{ width: '100%', mb: 2 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 1,
-        }}
-      >
-        <Typography variant="caption" color="text.secondary">
+    <div className="mb-2 w-full">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs text-gray-600 dark:text-gray-400">
           正在测试延迟... {completed}/{total}
-        </Typography>
+        </span>
         {onCancel && (
-          <Button size="small" color="error" onClick={onCancel}>
+          <Button size="small" variant="danger" onClick={onCancel}>
             取消
           </Button>
         )}
-      </Box>
-      <LinearProgress variant="determinate" value={progress} />
-    </Box>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+        <div
+          className="h-full bg-primary transition-all duration-300 dark:bg-primary-dark-mode"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -64,27 +62,18 @@ export const DelayTestIndicator = ({ testing }: { testing: boolean }) => {
   }
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Box
-        sx={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          bgcolor: 'primary.main',
-          animation: 'pulse 1.5s ease-in-out infinite',
-          '@keyframes pulse': {
-            '0%, 100%': {
-              opacity: 1,
-            },
-            '50%': {
-              opacity: 0.5,
-            },
-          },
-        }}
-      />
-      <Typography variant="caption" color="text.secondary">
-        测试中...
-      </Typography>
-    </Box>
+    <div className="flex items-center gap-1">
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .pulse-dot {
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+      `}</style>
+      <div className="pulse-dot h-2 w-2 rounded-full bg-primary dark:bg-primary-dark-mode" />
+      <span className="text-xs text-gray-600 dark:text-gray-400">测试中...</span>
+    </div>
   )
 }

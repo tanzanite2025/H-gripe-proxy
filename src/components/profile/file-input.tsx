@@ -1,4 +1,4 @@
-import { Box, Button, Typography } from '@mui/material'
+import { Button } from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,6 @@ export const FileInput = (props: Props) => {
   const { onChange } = props
 
   const { t } = useTranslation()
-  // file input
   const inputRef = useRef<any>(undefined)
   const [loading, setLoading] = useState(false)
   const [fileName, setFileName] = useState('')
@@ -36,10 +35,10 @@ export const FileInput = (props: Props) => {
   })
 
   return (
-    <Box sx={{ mt: 2, mb: 1, display: 'flex', alignItems: 'center' }}>
+    <div className="mb-1 mt-2 flex items-center">
       <Button
         variant="outlined"
-        sx={{ flex: 'none' }}
+        className="flex-none"
         onClick={() => inputRef.current?.click()}
       >
         {t('profiles.components.fileInput.chooseFile')}
@@ -53,9 +52,9 @@ export const FileInput = (props: Props) => {
         onChange={onFileInput}
       />
 
-      <Typography noWrap sx={{ ml: 1 }}>
+      <span className="ml-2 overflow-hidden text-ellipsis whitespace-nowrap">
         {loading ? 'Loading...' : fileName}
-      </Typography>
-    </Box>
+      </span>
+    </div>
   )
 }

@@ -2,23 +2,9 @@
  * 性能监控面板
  */
 
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Alert,
-  Button,
-  Stack,
-  Chip,
-} from '@mui/material'
-import {
-  CheckCircleOutlined,
-  ErrorOutlined,
-  WarningOutlined,
-  RefreshOutlined,
-} from '@mui/icons-material'
-import { CoordinatorStatus } from '@/services/coordinator'
+import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/tailwind'
+import type { CoordinatorStatus } from '@/services/coordinator'
 
 interface Props {
   status: CoordinatorStatus | null
@@ -28,276 +14,244 @@ interface Props {
 export function PerformanceMonitor({ status, onRefresh }: Props) {
   if (!status) {
     return (
-      <Box>
-        <Alert severity="info">加载中...</Alert>
-      </Box>
+      <div>
+        <div className="p-3 bg-blue-500 text-white rounded-lg">
+          <p className="text-sm">加载中...</p>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Box>
+    <div>
       {/* 安全状态警告 */}
       {status.security_compromised && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-            ⚠️ 安全状态已被破坏
-          </Typography>
-          <Typography variant="caption">
+        <div className="p-4 bg-red-500 text-white rounded-lg mb-4">
+          <p className="font-semibold text-sm mb-1">⚠️ 安全状态已被破坏</p>
+          <p className="text-xs opacity-90">
             检测到调试器或恶意扫描。建议立即停止使用并检查系统安全。
-          </Typography>
-        </Alert>
+          </p>
+        </div>
       )}
 
       {/* 刷新按钮 */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<RefreshOutlined fontSize="small" />}
-          onClick={onRefresh}
-        >
+      <div className="flex justify-end mb-4">
+        <Button variant="outline" size="sm" onClick={onRefresh}>
+          <RefreshCw className="w-4 h-4 mr-1" />
           刷新状态
         </Button>
-      </Box>
+      </div>
 
       {/* 模块状态 */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
-          gap: 2,
-        }}
-      >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 协调器状态 */}
-        <Card>
-          <CardContent>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-              {status.initialized ? (
-                <CheckCircleOutlined color="success" fontSize="small" />
-              ) : (
-                <ErrorOutlined color="error" fontSize="small" />
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>核心协调器</Typography>
-            </Stack>
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.initialized ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            )}
+            <h3 className="text-sm font-semibold">核心协调器</h3>
+          </div>
 
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2">状态</Typography>
-                <Chip
-                  label={status.initialized ? '已初始化' : '未初始化'}
-                  size="small"
-                  color={status.initialized ? 'success' : 'error'}
-                  sx={{ fontSize: '0.7rem' }}
-                />
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+          <div className="flex justify-between items-center">
+            <p className="text-sm">状态</p>
+            <span
+              className={`px-2 py-1 rounded-full text-xs ${
+                status.initialized
+                  ? 'bg-green-500 text-white'
+                  : 'bg-red-500 text-white'
+              }`}
+            >
+              {status.initialized ? '已初始化' : '未初始化'}
+            </span>
+          </div>
+        </div>
 
         {/* 安全监控 */}
-        <Card>
-          <CardContent>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-              {status.security_enabled && !status.security_compromised ? (
-                <CheckCircleOutlined color="success" fontSize="small" />
-              ) : status.security_compromised ? (
-                <ErrorOutlined color="error" fontSize="small" />
-              ) : (
-                <WarningOutlined color="warning" fontSize="small" />
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>安全监控</Typography>
-            </Stack>
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.security_enabled && !status.security_compromised ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : status.security_compromised ? (
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">安全监控</h3>
+          </div>
 
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2">状态</Typography>
-                <Chip
-                  label={
-                    status.security_enabled
-                      ? status.security_compromised
-                        ? '已破坏'
-                        : '运行中'
-                      : '未启用'
-                  }
-                  size="small"
-                  color={
-                    status.security_enabled
-                      ? status.security_compromised
-                        ? 'error'
-                        : 'success'
-                      : 'default'
-                  }
-                  sx={{ fontSize: '0.7rem' }}
-                />
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+          <div className="flex justify-between items-center">
+            <p className="text-sm">状态</p>
+            <span
+              className={`px-2 py-1 rounded-full text-xs ${
+                status.security_enabled
+                  ? status.security_compromised
+                    ? 'bg-red-500 text-white'
+                    : 'bg-green-500 text-white'
+                  : 'bg-secondary text-secondary-foreground'
+              }`}
+            >
+              {status.security_enabled
+                ? status.security_compromised
+                  ? '已破坏'
+                  : '运行中'
+                : '未启用'}
+            </span>
+          </div>
+        </div>
 
         {/* 反探测 */}
-        <Card>
-          <CardContent>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-              {status.anti_probe_enabled ? (
-                <CheckCircleOutlined color="success" fontSize="small" />
-              ) : (
-                <WarningOutlined color="warning" fontSize="small" />
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>反主动探测</Typography>
-            </Stack>
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.anti_probe_enabled ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">反主动探测</h3>
+          </div>
 
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2">状态</Typography>
-                <Chip
-                  label={status.anti_probe_enabled ? '已启用' : '未启用'}
-                  size="small"
-                  color={status.anti_probe_enabled ? 'success' : 'default'}
-                  sx={{ fontSize: '0.7rem' }}
-                />
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+          <div className="flex justify-between items-center">
+            <p className="text-sm">状态</p>
+            <span
+              className={`px-2 py-1 rounded-full text-xs ${
+                status.anti_probe_enabled
+                  ? 'bg-green-500 text-white'
+                  : 'bg-secondary text-secondary-foreground'
+              }`}
+            >
+              {status.anti_probe_enabled ? '已启用' : '未启用'}
+            </span>
+          </div>
+        </div>
 
         {/* TLS 指纹 */}
-        <Card>
-          <CardContent>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-              {status.tls_fingerprint ? (
-                <CheckCircleOutlined color="success" fontSize="small" />
-              ) : (
-                <WarningOutlined color="warning" fontSize="small" />
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>TLS 指纹伪装</Typography>
-            </Stack>
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.tls_fingerprint ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">TLS 指纹伪装</h3>
+          </div>
 
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2">当前指纹</Typography>
-                <Chip
-                  label={status.tls_fingerprint || '未设置'}
-                  size="small"
-                  color={status.tls_fingerprint ? 'success' : 'default'}
-                  sx={{ fontSize: '0.7rem' }}
-                />
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+          <div className="flex justify-between items-center">
+            <p className="text-sm">当前指纹</p>
+            <span
+              className={`px-2 py-1 rounded-full text-xs ${
+                status.tls_fingerprint
+                  ? 'bg-green-500 text-white'
+                  : 'bg-secondary text-secondary-foreground'
+              }`}
+            >
+              {status.tls_fingerprint || '未设置'}
+            </span>
+          </div>
+        </div>
 
         {/* 多路径路由 */}
-        <Card>
-          <CardContent>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-              {status.multipath_enabled ? (
-                <CheckCircleOutlined color="success" fontSize="small" />
-              ) : (
-                <WarningOutlined color="warning" fontSize="small" />
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>多路径路由</Typography>
-            </Stack>
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.multipath_enabled ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">多路径路由</h3>
+          </div>
 
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2">状态</Typography>
-                <Chip
-                  label={status.multipath_enabled ? '已启用' : '未启用'}
-                  size="small"
-                  color={status.multipath_enabled ? 'success' : 'default'}
-                  sx={{ fontSize: '0.7rem' }}
-                />
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+          <div className="flex justify-between items-center">
+            <p className="text-sm">状态</p>
+            <span
+              className={`px-2 py-1 rounded-full text-xs ${
+                status.multipath_enabled
+                  ? 'bg-green-500 text-white'
+                  : 'bg-secondary text-secondary-foreground'
+              }`}
+            >
+              {status.multipath_enabled ? '已启用' : '未启用'}
+            </span>
+          </div>
+        </div>
 
         {/* XDP 代理（仅 Linux） */}
         {status.xdp_enabled !== undefined && (
-          <Card>
-            <CardContent>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-                {status.xdp_enabled && status.xdp_running ? (
-                  <CheckCircleOutlined color="success" fontSize="small" />
-                ) : status.xdp_enabled ? (
-                  <WarningOutlined color="warning" fontSize="small" />
-                ) : (
-                  <WarningOutlined color="warning" fontSize="small" />
-                )}
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>XDP 代理</Typography>
-              </Stack>
+          <div className="p-4 bg-card border border-border rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              {status.xdp_enabled && status.xdp_running ? (
+                <CheckCircle className="w-4 h-4 text-green-500" />
+              ) : status.xdp_enabled ? (
+                <AlertCircle className="w-4 h-4 text-yellow-500" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-yellow-500" />
+              )}
+              <h3 className="text-sm font-semibold">XDP 代理</h3>
+            </div>
 
-              <Stack spacing={1}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2">状态</Typography>
-                  <Chip
-                    label={
-                      status.xdp_enabled
-                        ? status.xdp_running
-                          ? '运行中'
-                          : '已启用但未运行'
-                        : '未启用'
-                    }
-                    size="small"
-                    color={
-                      status.xdp_enabled && status.xdp_running
-                        ? 'success'
-                        : status.xdp_enabled
-                        ? 'warning'
-                        : 'default'
-                    }
-                    sx={{ fontSize: '0.7rem' }}
-                  />
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
+            <div className="flex justify-between items-center">
+              <p className="text-sm">状态</p>
+              <span
+                className={`px-2 py-1 rounded-full text-xs ${
+                  status.xdp_enabled && status.xdp_running
+                    ? 'bg-green-500 text-white'
+                    : status.xdp_enabled
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                {status.xdp_enabled
+                  ? status.xdp_running
+                    ? '运行中'
+                    : '已启用但未运行'
+                  : '未启用'}
+              </span>
+            </div>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* 性能提示 */}
-      <Card sx={{ mt: 2 }}>
-        <CardContent>
-          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1.5 }}>
-            性能优化建议
-          </Typography>
+      <div className="p-4 bg-card border border-border rounded-lg mt-4">
+        <h3 className="text-sm font-semibold mb-3">性能优化建议</h3>
 
-          <Stack spacing={1}>
-            {!status.security_enabled && (
-              <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
-                建议启用安全监控以保护您的代理
-              </Alert>
+        <div className="space-y-2">
+          {!status.security_enabled && (
+            <div className="p-2 bg-blue-500 text-white rounded text-xs">
+              建议启用安全监控以保护您的代理
+            </div>
+          )}
+
+          {!status.anti_probe_enabled && (
+            <div className="p-2 bg-blue-500 text-white rounded text-xs">
+              建议启用反探测以防止主动探测
+            </div>
+          )}
+
+          {!status.tls_fingerprint && (
+            <div className="p-2 bg-blue-500 text-white rounded text-xs">
+              建议设置 TLS 指纹伪装以提高隐蔽性
+            </div>
+          )}
+
+          {status.xdp_enabled !== undefined && !status.xdp_enabled && (
+            <div className="p-2 bg-blue-500 text-white rounded text-xs">
+              Linux 系统可以启用 XDP 代理获得 10 倍性能提升
+            </div>
+          )}
+
+          {status.security_enabled &&
+            status.anti_probe_enabled &&
+            status.tls_fingerprint &&
+            status.multipath_enabled && (
+              <div className="p-2 bg-green-500 text-white rounded text-xs">
+                ✅ 所有高级功能已启用，您的代理处于最佳状态
+              </div>
             )}
-
-            {!status.anti_probe_enabled && (
-              <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
-                建议启用反探测以防止主动探测
-              </Alert>
-            )}
-
-            {!status.tls_fingerprint && (
-              <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
-                建议设置 TLS 指纹伪装以提高隐蔽性
-              </Alert>
-            )}
-
-            {status.xdp_enabled !== undefined && !status.xdp_enabled && (
-              <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
-                Linux 系统可以启用 XDP 代理获得 10 倍性能提升
-              </Alert>
-            )}
-
-            {status.security_enabled &&
-              status.anti_probe_enabled &&
-              status.tls_fingerprint &&
-              status.multipath_enabled && (
-                <Alert severity="success" sx={{ fontSize: '0.75rem' }}>
-                  ✅ 所有高级功能已启用，您的代理处于最佳状态
-                </Alert>
-              )}
-          </Stack>
-        </CardContent>
-      </Card>
-    </Box>
+        </div>
+      </div>
+    </div>
   )
 }

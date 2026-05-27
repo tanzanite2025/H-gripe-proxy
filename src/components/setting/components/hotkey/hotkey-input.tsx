@@ -1,57 +1,9 @@
-import { DeleteRounded } from '@mui/icons-material'
-import { alpha, Box, IconButton, styled } from '@mui/material'
+import { Trash2 } from 'lucide-react'
+import { Box, IconButton } from '@/components/tailwind'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { parseHotkey } from '@/utils/format'
-
-const KeyWrapper = styled('div')(({ theme }) => ({
-  position: 'relative',
-  width: 230,
-  minHeight: 36,
-
-  '> input': {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    zIndex: 1,
-    opacity: 0,
-  },
-  '> input:focus + .list': {
-    borderColor: alpha(theme.palette.primary.main, 0.75),
-  },
-  '.list': {
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    width: '100%',
-    height: '100%',
-    minHeight: 36,
-    boxSizing: 'border-box',
-    padding: '3px 4px',
-    border: '1px solid',
-    borderRadius: 4,
-    borderColor: alpha(theme.palette.text.secondary, 0.15),
-    '&:last-child': {
-      marginRight: 0,
-    },
-  },
-  '.item': {
-    fontSize: '14px',
-    color: theme.palette.text.primary,
-    border: '1px solid',
-    borderColor: alpha(theme.palette.text.secondary, 0.2),
-    borderRadius: '2px',
-    padding: '1px 5px',
-    margin: '2px 0',
-  },
-  '.delimiter': {
-    lineHeight: '25px',
-    padding: '0 2px',
-  },
-}))
 
 interface Props {
   value: string[]
@@ -66,9 +18,10 @@ export const HotkeyInput = (props: Props) => {
   const [keys, setKeys] = useState(value)
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-      <KeyWrapper>
+    <Box className="flex items-center">
+      <div className="relative w-[230px] min-h-[36px]">
         <input
+          className="absolute top-0 left-0 w-full h-full z-10 opacity-0"
           onKeyUp={() => {
             const ret = changeRef.current.slice()
             if (ret.length) {
@@ -88,28 +41,29 @@ export const HotkeyInput = (props: Props) => {
           }}
         />
 
-        <div className="list">
+        <div className="flex items-center flex-wrap w-full h-full min-h-[36px] box-border p-1 border border-divider rounded focus-within:border-primary/75">
           {keys.map((key, index) => (
-            <Box sx={{ display: 'flex' }} key={key}>
-              <span className="delimiter" hidden={index === 0}>
+            <Box className="flex" key={key}>
+              <span className="leading-[25px] px-0.5" hidden={index === 0}>
                 +
               </span>
-              <div className="item">{key}</div>
+              <div className="text-sm text-text-primary border border-divider/20 rounded-sm px-[5px] py-0.5 my-0.5">
+                {key}
+              </div>
             </Box>
           ))}
         </div>
-      </KeyWrapper>
+      </div>
 
       <IconButton
         size="small"
         title={t('shared.actions.delete')}
-        color="inherit"
         onClick={() => {
           onChange([])
           setKeys([])
         }}
       >
-        <DeleteRounded fontSize="inherit" />
+        <Trash2 size={16} />
       </IconButton>
     </Box>
   )

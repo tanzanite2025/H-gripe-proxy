@@ -1,9 +1,4 @@
-import {
-  DeleteForeverRounded,
-  TableChartRounded,
-  TableRowsRounded,
-  ViewColumnRounded,
-} from '@mui/icons-material'
+import { Trash2, Table, Rows, Columns } from 'lucide-react'
 import {
   Box,
   Button,
@@ -13,7 +8,7 @@ import {
   MenuItem,
   Tooltip,
   Zoom,
-} from '@mui/material'
+} from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -139,12 +134,12 @@ const ConnectionsPage = () => {
         minHeight: 0,
       }}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ mx: 1 }}>
+        <Box className="flex items-center gap-2">
+          <Box className="mx-1">
             {t('shared.labels.downloaded')}:{' '}
             {parseTraffic(connections?.downloadTotal)}
           </Box>
-          <Box sx={{ mx: 1 }}>
+          <Box className="mx-1">
             {t('shared.labels.uploaded')}:{' '}
             {parseTraffic(connections?.uploadTotal)}
           </Box>
@@ -160,12 +155,12 @@ const ConnectionsPage = () => {
             }
           >
             {isTableLayout ? (
-              <TableRowsRounded titleAccess={t('shared.actions.listView')} />
+              <Rows className="h-5 w-5" titleAccess={t('shared.actions.listView')} />
             ) : (
-              <TableChartRounded titleAccess={t('shared.actions.tableView')} />
+              <Table className="h-5 w-5" titleAccess={t('shared.actions.tableView')} />
             )}
           </IconButton>
-          <Button size="small" variant="contained" onClick={onCloseAll}>
+          <Button size="small" variant="primary" onClick={onCloseAll}>
             <span style={{ whiteSpace: 'nowrap' }}>
               {t('shared.actions.closeAll')}
             </span>
@@ -174,24 +169,12 @@ const ConnectionsPage = () => {
       }
     >
       <Box
-        sx={{
-          pt: 1,
-          mb: 0.5,
-          mx: '10px',
-          minHeight: '36px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          userSelect: 'text',
-          position: 'sticky',
-          top: 0,
-          zIndex: 2,
-        }}
+        className="pt-4 mb-2 mx-[10px] min-h-[36px] flex items-center gap-4 select-text sticky top-0 z-[2]"
       >
-        <ButtonGroup className="uds-toolbar" sx={{ mr: 1, flexBasis: 'content' }}>
+        <ButtonGroup className="uds-toolbar mr-1" style={{ flexBasis: 'content' }}>
           <Button
             size="small"
-            variant={connectionsType === 'active' ? 'contained' : 'outlined'}
+            variant={connectionsType === 'active' ? 'primary' : 'outlined'}
             onClick={() => setConnectionsType('active')}
           >
             {t('connections.components.actions.active')}{' '}
@@ -199,7 +182,7 @@ const ConnectionsPage = () => {
           </Button>
           <Button
             size="small"
-            variant={connectionsType === 'closed' ? 'contained' : 'outlined'}
+            variant={connectionsType === 'closed' ? 'primary' : 'outlined'}
             onClick={() => setConnectionsType('closed')}
           >
             {t('connections.components.actions.closed')}{' '}
@@ -219,14 +202,7 @@ const ConnectionsPage = () => {
           </BaseStyledSelect>
         )}
         <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            '& > *': {
-              flex: 1,
-            },
-          }}
+          className="flex-1 flex items-center [&>*]:flex-1"
         >
           <BaseSearchBox onSearch={handleSearch} />
         </Box>
@@ -236,9 +212,9 @@ const ConnectionsPage = () => {
               size="small"
               aria-label={t('connections.components.columnManager.title')}
               onClick={() => setIsColumnManagerOpen(true)}
-              sx={{ flex: '0 0 auto' }}
+              className="flex-[0_0_auto]"
             >
-              <ViewColumnRounded fontSize="small" />
+              <Columns />
             </IconButton>
           </Tooltip>
         )}
@@ -287,15 +263,12 @@ const ConnectionsPage = () => {
         <Fab
           size="medium"
           variant="extended"
-          sx={{
-            position: 'absolute',
-            right: 16,
-            bottom: isTableLayout ? 70 : 16,
-          }}
+          className="absolute right-4"
+          style={{ bottom: isTableLayout ? 70 : 16 }}
           color="primary"
           onClick={() => clearClosedConnections()}
         >
-          <DeleteForeverRounded sx={{ mr: 1 }} fontSize="small" />
+          <Trash2 className="h-5 w-5 mr-1" />
           {t('shared.actions.clear')}
         </Fab>
       </Zoom>

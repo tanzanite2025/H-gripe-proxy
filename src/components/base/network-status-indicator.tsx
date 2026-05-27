@@ -3,7 +3,8 @@
  * 显示当前网络状态（在线/离线/弱网）
  */
 
-import { Alert, Collapse } from '@mui/material'
+import { Collapse } from '@/components/tailwind'
+import { AlertTriangle, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,15 +30,17 @@ export const NetworkStatusIndicator = () => {
   const showIndicator = status.quality !== 'good'
 
   return (
-    <Collapse in={showIndicator}>
+    <Collapse open={showIndicator}>
       {status.quality === 'offline' ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          网络已断开，部分功能不可用
-        </Alert>
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-800 dark:bg-red-900/20 dark:text-red-200">
+          <WifiOff className="h-5 w-5" />
+          <span>网络已断开，部分功能不可用</span>
+        </div>
       ) : status.quality === 'poor' ? (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          网络较慢，请耐心等待
-        </Alert>
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-yellow-50 p-3 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200">
+          <AlertTriangle className="h-5 w-5" />
+          <span>网络较慢，请耐心等待</span>
+        </div>
       ) : null}
     </Collapse>
   )
@@ -58,9 +61,9 @@ export const NetworkQualityBadge = () => {
   }, [])
 
   const colorMap = {
-    good: 'success.main',
-    poor: 'warning.main',
-    offline: 'error.main',
+    good: 'bg-green-500',
+    poor: 'bg-yellow-500',
+    offline: 'bg-red-500',
   }
 
   const labelMap = {
@@ -70,22 +73,8 @@ export const NetworkQualityBadge = () => {
   }
 
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        fontSize: '12px',
-      }}
-    >
-      <span
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          backgroundColor: colorMap[quality],
-        }}
-      />
+    <span className="inline-flex items-center gap-1 text-xs">
+      <span className={`h-2 w-2 rounded-full ${colorMap[quality]}`} />
       {labelMap[quality]}
     </span>
   )

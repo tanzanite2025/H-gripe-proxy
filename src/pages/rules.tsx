@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box } from '@/components/tailwind'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -64,20 +64,13 @@ const RulesPage = () => {
         overflow: 'auto',
       }}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box className="flex items-center gap-1">
           <ProviderButton />
         </Box>
       }
     >
       <Box
-        sx={{
-          pt: 1,
-          mb: 0.5,
-          mx: '10px',
-          height: '36px',
-          display: 'flex',
-          alignItems: 'center',
-        }}
+        className="pt-4 mb-2 mx-[10px] h-[36px] flex items-center"
       >
         <BaseSearchBox onSearch={(match) => setMatch(() => match)} />
       </Box>

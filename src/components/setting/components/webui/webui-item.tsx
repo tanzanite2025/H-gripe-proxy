@@ -1,19 +1,7 @@
-import {
-  CheckRounded,
-  CloseRounded,
-  DeleteRounded,
-  EditRounded,
-  OpenInNewRounded,
-} from '@mui/icons-material'
-import {
-  Divider,
-  IconButton,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Check, X, Trash2, Edit, ExternalLink } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Stack, TextField, IconButton, Divider, Box } from '@/components/tailwind'
 
 interface Props {
   value?: string
@@ -49,11 +37,7 @@ export const WebUIItem = (props: Props) => {
   if (editing || onlyEdit) {
     return (
       <>
-        <Stack
-          spacing={0.75}
-          direction="row"
-          sx={{ mt: 1, mb: 1, alignItems: 'center' }}
-        >
+        <Stack direction="row" spacing={0.75} className="mt-4 mb-4 items-center">
           <TextField
             autoComplete="new-password"
             fullWidth
@@ -67,24 +51,22 @@ export const WebUIItem = (props: Props) => {
           <IconButton
             size="small"
             title={t('shared.actions.save')}
-            color="inherit"
             onClick={() => {
               onChange(editValue)
               setEditing(false)
             }}
           >
-            <CheckRounded fontSize="inherit" />
+            <Check size={16} />
           </IconButton>
           <IconButton
             size="small"
             title={t('shared.actions.cancel')}
-            color="inherit"
             onClick={() => {
               onCancel?.()
               setEditing(false)
             }}
           >
-            <CloseRounded fontSize="inherit" />
+            <X size={16} />
           </IconButton>
         </Stack>
         <Divider />
@@ -101,7 +83,7 @@ export const WebUIItem = (props: Props) => {
     const key = `${part || 'empty'}-${repeatIndex}`
 
     return (
-      <span key={key} className={isPlaceholder ? 'placeholder' : undefined}>
+      <span key={key} className={isPlaceholder ? 'text-primary' : undefined}>
         {part}
       </span>
     )
@@ -109,52 +91,38 @@ export const WebUIItem = (props: Props) => {
 
   return (
     <>
-      <Stack
-        spacing={0.75}
-        direction="row"
-        sx={{ alignItems: 'center', mt: 1, mb: 1 }}
-      >
-        <Typography
-          component="div"
+      <Stack direction="row" spacing={0.75} className="items-center mt-4 mb-4">
+        <Box
           title={value}
-          color={value ? 'text.primary' : 'text.secondary'}
-          sx={({ palette }) => ({
-            width: '100%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            '> .placeholder': {
-              color: palette.primary.main,
-            },
-          })}
+          className={`w-full overflow-hidden text-ellipsis ${
+            value ? 'text-text-primary' : 'text-text-secondary'
+          }`}
         >
           {renderedParts}
-        </Typography>
+        </Box>
         <IconButton
           size="small"
           title={t('settings.modals.webUI.actions.openUrl')}
-          color="inherit"
           onClick={() => onOpenUrl?.(value)}
         >
-          <OpenInNewRounded fontSize="inherit" />
+          <ExternalLink size={16} />
         </IconButton>
         <IconButton
           size="small"
           title={t('shared.actions.edit')}
-          color="inherit"
           onClick={() => {
             setEditing(true)
             setEditValue(value)
           }}
         >
-          <EditRounded fontSize="inherit" />
+          <Edit size={16} />
         </IconButton>
         <IconButton
           size="small"
           title={t('shared.actions.delete')}
-          color="inherit"
           onClick={onDelete}
         >
-          <DeleteRounded fontSize="inherit" />
+          <Trash2 size={16} />
         </IconButton>
       </Stack>
       <Divider />

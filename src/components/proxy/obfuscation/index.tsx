@@ -1,17 +1,14 @@
+import { useEffect, useState } from 'react'
+
+import { Button } from '@/components/tailwind/Button'
 import {
-  Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
-  Switch,
-  Tab,
-  Tabs,
-} from '@mui/material'
-import { useEffect, useState } from 'react'
-
+} from '@/components/tailwind/Dialog'
+import { Switch } from '@/components/tailwind/Switch'
+import { Tab, Tabs } from '@/components/tailwind/Tabs'
 import {
   getObfuscationManager,
   getObfuscationStrategy,
@@ -72,29 +69,24 @@ export function ObfuscationConfig({
       <DialogTitle>混沌动态混淆配置</DialogTitle>
 
       <DialogContent>
-        <Box sx={{ mb: 2 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-              />
-            }
-            label="启用混淆"
-          />
+        <div className="mb-4">
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
+            <span>启用混淆</span>
+          </label>
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={autoAdjust}
-                onChange={(e) => setAutoAdjust(e.target.checked)}
-                disabled={!enabled}
-              />
-            }
-            label="自动调整（根据网络环境）"
-            sx={{ ml: 2 }}
-          />
-        </Box>
+          <label className="flex items-center gap-2 ml-4 mt-2">
+            <Switch
+              checked={autoAdjust}
+              onChange={(e) => setAutoAdjust(e.target.checked)}
+              disabled={!enabled}
+            />
+            <span>自动调整（根据网络环境）</span>
+          </label>
+        </div>
 
         {enabled && (
           <>
@@ -104,7 +96,7 @@ export function ObfuscationConfig({
               <Tab label="统计信息" />
             </Tabs>
 
-            <Box sx={{ mt: 2 }}>
+            <div className="mt-4">
               {activeTab === 0 && (
                 <ObfuscationLevelSelector
                   currentLevel={level}
@@ -131,14 +123,16 @@ export function ObfuscationConfig({
                   }}
                 />
               )}
-            </Box>
+            </div>
           </>
         )}
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>取消</Button>
-        <Button onClick={handleApply} variant="contained">
+        <Button onClick={onClose} variant="outlined">
+          取消
+        </Button>
+        <Button onClick={handleApply} variant="primary">
           应用
         </Button>
       </DialogActions>

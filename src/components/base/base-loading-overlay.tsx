@@ -1,4 +1,4 @@
-import { Box, CircularProgress } from '@mui/material'
+import { Loader2 } from 'lucide-react'
 import React from 'react'
 
 interface BaseLoadingOverlayProps {
@@ -11,25 +11,8 @@ export const BaseLoadingOverlay: React.FC<BaseLoadingOverlayProps> = ({
   if (!isLoading) return null
 
   return (
-    <Box
-      sx={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        // Respect current theme; avoid bright flash in dark mode
-        backgroundColor: (theme) =>
-          theme.palette.mode === 'dark'
-            ? 'rgba(0, 0, 0, 0.5)'
-            : 'rgba(255, 255, 255, 0.7)',
-        zIndex: 1000,
-      }}
-    >
-      <CircularProgress />
-    </Box>
+    <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-white/70 dark:bg-black/50">
+      <Loader2 className="h-10 w-10 animate-spin text-primary dark:text-primary-dark-mode" />
+    </div>
   )
 }

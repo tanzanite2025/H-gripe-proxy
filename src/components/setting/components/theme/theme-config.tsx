@@ -1,13 +1,4 @@
-import { EditRounded } from '@mui/icons-material'
-import {
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  styled,
-  TextField,
-  useTheme,
-} from '@mui/material'
+import { Edit } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import {
   useEffect,
@@ -18,11 +9,13 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef } from '@/components/base'
+import { Dialog, Button, TextField, Box } from '@/components/tailwind'
+import { DialogRef } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useVerge } from '@/hooks/system'
 import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
 import { showNotice } from '@/services/notice-service'
+import { useTheme } from '@/hooks/use-theme'
 
 export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const { ref } = props
@@ -49,12 +42,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  const textProps = {
-    size: 'small',
-    autoComplete: 'off',
-    sx: { width: 135 },
-  } as const
-
   const handleChange = (field: keyof typeof theme) => (e: any) => {
     setTheme((t) => ({ ...t, [field]: e.target.value }))
   }
@@ -68,9 +55,9 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
     }
   })
 
-  const { palette } = useTheme()
+  const { mode } = useTheme()
 
-  const dt = palette.mode === 'light' ? defaultTheme : defaultDarkTheme
+  const dt = mode === 'light' ? defaultTheme : defaultDarkTheme
 
   type ThemeKey = keyof typeof theme & keyof typeof defaultTheme
 
@@ -112,85 +99,89 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const renderItem = (labelKey: string, key: ThemeKey) => {
     const label = t(labelKey)
     return (
-      <Item key={key}>
-        <ListItemText primary={label} />
-        <Round sx={{ background: theme[key] || dt[key] }} />
+      <Box key={key} className="flex items-center py-2 px-1">
+        <span className="flex-1">{label}</span>
+        <div
+          className="w-6 h-6 rounded-full mr-3"
+          style={{ background: theme[key] || dt[key] }}
+        />
         <TextField
-          {...textProps}
+          size="small"
+          autoComplete="off"
+          className="w-[135px]"
           value={theme[key] ?? ''}
           placeholder={dt[key]}
           onChange={handleChange(key)}
           onKeyDown={(e) => e.key === 'Enter' && onSave()}
         />
-      </Item>
+      </Box>
     )
   }
 
   return (
-    <BaseDialog
+    <Dialog
       open={open}
-      title={t('settings.components.verge.theme.title')}
-      okBtn={t('shared.actions.save')}
-      cancelBtn={t('shared.actions.cancel')}
-      contentSx={{ width: 400, maxHeight: 505, overflow: 'auto', pb: 0 }}
       onClose={() => setOpen(false)}
-      onCancel={() => setOpen(false)}
-      onOk={onSave}
-    >
-      <List sx={{ pt: 0 }}>
-        {fieldDefinitions.map((field) => renderItem(field.labelKey, field.key))}
-
-        <Item>
-          <ListItemText
-            primary={t('settings.components.verge.theme.fields.fontFamily')}
-          />
-          <TextField
-            {...textProps}
-            value={theme.font_family ?? ''}
-            onChange={handleChange('font_family')}
-            onKeyDown={(e) => e.key === 'Enter' && onSave()}
-          />
-        </Item>
-        <Item>
-          <ListItemText
-            primary={t('settings.components.verge.theme.fields.cssInjection')}
-          />
-          <Button
-            startIcon={<EditRounded />}
-            variant="outlined"
-            onClick={openCssEditor}
-          >
-            {t('settings.components.verge.theme.actions.editCss')}
+      title={t('settings.components.verge.theme.title')}
+      maxWidth="sm"
+      actions={
+        <>
+          <Button onClick={() => setOpen(false)}>
+            {t('shared.actions.cancel')}
           </Button>
-          {editorOpen && (
-            <EditorViewer
-              open={true}
-              title={t('settings.components.verge.theme.dialogs.editCssTitle')}
-              value={cssEditorValue}
-              language="css"
-              path="theme-css.css"
-              dirty={cssEditorValue !== cssEditorSavedValue}
-              onChange={setCssEditorValue}
-              onSave={handleSaveCss}
-              onClose={() => {
-                setEditorOpen(false)
-              }}
+          <Button onClick={onSave} variant="primary">
+            {t('shared.actions.save')}
+          </Button>
+        </>
+      }
+    >
+      <Box className="w-[400px] max-h-[505px] overflow-auto pb-0">
+        <Box className="pt-0">
+          {fieldDefinitions.map((field) => renderItem(field.labelKey, field.key))}
+
+          <Box className="flex items-center py-2 px-1">
+            <span className="flex-1">
+              {t('settings.components.verge.theme.fields.fontFamily')}
+            </span>
+            <TextField
+              size="small"
+              autoComplete="off"
+              className="w-[135px]"
+              value={theme.font_family ?? ''}
+              onChange={handleChange('font_family')}
+              onKeyDown={(e) => e.key === 'Enter' && onSave()}
             />
-          )}
-        </Item>
-      </List>
-    </BaseDialog>
+          </Box>
+          <Box className="flex items-center py-2 px-1">
+            <span className="flex-1">
+              {t('settings.components.verge.theme.fields.cssInjection')}
+            </span>
+            <Button
+              variant="outlined"
+              onClick={openCssEditor}
+              className="flex items-center gap-2"
+            >
+              <Edit size={16} />
+              {t('settings.components.verge.theme.actions.editCss')}
+            </Button>
+            {editorOpen && (
+              <EditorViewer
+                open={true}
+                title={t('settings.components.verge.theme.dialogs.editCssTitle')}
+                value={cssEditorValue}
+                language="css"
+                path="theme-css.css"
+                dirty={cssEditorValue !== cssEditorSavedValue}
+                onChange={setCssEditorValue}
+                onSave={handleSaveCss}
+                onClose={() => {
+                  setEditorOpen(false)
+                }}
+              />
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Dialog>
   )
 }
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-}))
-
-const Round = styled('div')(() => ({
-  width: '24px',
-  height: '24px',
-  borderRadius: '18px',
-  display: 'inline-block',
-  marginRight: '8px',
-}))

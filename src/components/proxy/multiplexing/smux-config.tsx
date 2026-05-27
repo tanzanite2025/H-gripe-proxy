@@ -1,15 +1,8 @@
-import {
-  Box,
-  FormControl,
-  FormControlLabel,
-  InputLabel,
-  MenuItem,
-  Select,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material'
 import { useState } from 'react'
+
+import { Select } from '@/components/tailwind/Select'
+import { Switch } from '@/components/tailwind/Switch'
+import { TextField } from '@/components/tailwind/TextField'
 
 interface SmuxConfig {
   enabled: boolean
@@ -47,35 +40,31 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h6">SMUX 多路复用配置</Typography>
+    <div className="flex flex-col gap-4">
+      <h3 className="text-lg font-semibold">SMUX 多路复用配置</h3>
 
-      <FormControlLabel
-        control={
-          <Switch
-            checked={localConfig.enabled}
-            onChange={(e) => handleChange({ enabled: e.target.checked })}
-          />
-        }
-        label="启用 SMUX"
-      />
+      <label className="flex items-center gap-2">
+        <Switch
+          checked={localConfig.enabled}
+          onChange={(e) => handleChange({ enabled: e.target.checked })}
+        />
+        <span>启用 SMUX</span>
+      </label>
 
       {localConfig.enabled && (
         <>
-          <FormControl fullWidth>
-            <InputLabel>协议</InputLabel>
-            <Select
-              value={localConfig.protocol}
-              label="协议"
-              onChange={(e) =>
-                handleChange({ protocol: e.target.value as any })
-              }
-            >
-              <MenuItem value="smux">SMUX</MenuItem>
-              <MenuItem value="yamux">Yamux</MenuItem>
-              <MenuItem value="h2mux">H2Mux</MenuItem>
-            </Select>
-          </FormControl>
+          <Select
+            value={localConfig.protocol}
+            label="协议"
+            onChange={(e) =>
+              handleChange({ protocol: e.target.value as any })
+            }
+            fullWidth
+          >
+            <option value="smux">SMUX</option>
+            <option value="yamux">Yamux</option>
+            <option value="h2mux">H2Mux</option>
+          </Select>
 
           <TextField
             label="最大连接数"
@@ -119,74 +108,64 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
             helperText="每个连接的最大流数，0 表示无限制"
           />
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={localConfig.padding || false}
-                onChange={(e) => handleChange({ padding: e.target.checked })}
-              />
-            }
-            label="启用填充"
-          />
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={localConfig.statistic || false}
-                onChange={(e) => handleChange({ statistic: e.target.checked })}
-              />
-            }
-            label="启用统计"
-          />
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={localConfig['only-tcp'] || false}
-                onChange={(e) => handleChange({ 'only-tcp': e.target.checked })}
-              />
-            }
-            label="仅 TCP"
-          />
-
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Brutal 优化
-            </Typography>
-
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={localConfig['brutal-opts']?.enabled || false}
-                  onChange={(e) =>
-                    handleBrutalChange({ enabled: e.target.checked })
-                  }
-                />
-              }
-              label="启用 Brutal"
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={localConfig.padding || false}
+              onChange={(e) => handleChange({ padding: e.target.checked })}
             />
+            <span>启用填充</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={localConfig.statistic || false}
+              onChange={(e) => handleChange({ statistic: e.target.checked })}
+            />
+            <span>启用统计</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <Switch
+              checked={localConfig['only-tcp'] || false}
+              onChange={(e) => handleChange({ 'only-tcp': e.target.checked })}
+            />
+            <span>仅 TCP</span>
+          </label>
+
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Brutal 优化</h4>
+
+            <label className="flex items-center gap-2 mb-2">
+              <Switch
+                checked={localConfig['brutal-opts']?.enabled || false}
+                onChange={(e) =>
+                  handleBrutalChange({ enabled: e.target.checked })
+                }
+              />
+              <span>启用 Brutal</span>
+            </label>
 
             {localConfig['brutal-opts']?.enabled && (
-              <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+              <div className="flex gap-4 mt-2">
                 <TextField
                   label="上传速度"
                   value={localConfig['brutal-opts']?.up || ''}
                   onChange={(e) => handleBrutalChange({ up: e.target.value })}
                   helperText="例如: 100 Mbps"
-                  fullWidth
+                  className="flex-1"
                 />
                 <TextField
                   label="下载速度"
                   value={localConfig['brutal-opts']?.down || ''}
                   onChange={(e) => handleBrutalChange({ down: e.target.value })}
                   helperText="例如: 200 Mbps"
-                  fullWidth
+                  className="flex-1"
                 />
-              </Box>
+              </div>
             )}
-          </Box>
+          </div>
         </>
       )}
-    </Box>
+    </div>
   )
 }

@@ -4,22 +4,14 @@ import {
   HelpOutlineRounded,
   SvgIconComponent,
 } from '@mui/icons-material'
-import {
-  Box,
-  Typography,
-  Stack,
-  Paper,
-  Tooltip,
-  alpha,
-  useTheme,
-  Fade,
-} from '@mui/material'
 import { useState, useMemo, memo, FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProxyControlSwitches from '@/components/ui/proxy-control-switches'
+import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useSystemProxyState, useSystemState, useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
+import { cn } from '@/utils/cn'
 
 const LOCAL_STORAGE_TAB_KEY = 'clash-verge-proxy-active-tab'
 
@@ -34,60 +26,36 @@ interface TabButtonProps {
 // Tab组件
 const TabButton: FC<TabButtonProps> = memo(
   ({ isActive, onClick, icon: Icon, label, hasIndicator = false }) => (
-    <Box
+    <div
       onClick={onClick}
-      sx={(theme) => ({
-        cursor: 'pointer',
-        px: 1.5,
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 0.8,
-        bgcolor: isActive ? 'primary.main' : 'transparent',
-        color: isActive ? 'primary.contrastText' : 'text.secondary',
-        borderRadius: '20px',
-        border: 'none',
-        boxShadow: isActive ? '0 2px 8px -2px rgba(var(--primary-main-rgb), 0.3)' : 'none',
-        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        flex: 1,
-        maxWidth: 160,
-        position: 'relative',
-        '&:hover': {
-          color: isActive ? 'primary.contrastText' : 'text.primary',
-          bgcolor: isActive ? 'primary.main' : alpha(theme.palette.action.hover, 0.05),
-          transform: isActive ? 'none' : 'scale(1.02)',
-        },
-        '&:active': {
-          transform: 'scale(0.98)',
-        },
-      })}
+      className={cn(
+        'cursor-pointer px-3 h-8 flex items-center justify-center gap-2',
+        'rounded-[20px] border-none transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
+        'flex-1 max-w-[160px] relative',
+        isActive
+          ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--primary-main-rgb),0.3)]'
+          : 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-action-hover/5 hover:scale-[1.02]',
+        'active:scale-[0.98]'
+      )}
     >
       <Icon fontSize="small" />
-      <Typography
-        variant="body2"
-        sx={{
-          fontWeight: isActive ? 900 : 600,
-          fontSize: '11px',
-          letterSpacing: '0.02em',
-        }}
+      <span
+        className={cn(
+          'text-[11px] tracking-[0.02em]',
+          isActive ? 'font-black' : 'font-semibold'
+        )}
       >
         {label}
-      </Typography>
+      </span>
       {hasIndicator && (
-        <Box
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            bgcolor: isActive ? '#fff' : 'success.main',
-            position: 'absolute',
-            top: 6,
-            right: 12,
-          }}
+        <div
+          className={cn(
+            'w-1.5 h-1.5 rounded-full absolute top-1.5 right-3',
+            isActive ? 'bg-white' : 'bg-success'
+          )}
         />
       )}
-    </Box>
+    </div>
   ),
 )
 
@@ -100,66 +68,22 @@ interface TabDescriptionProps {
 // 描述文本组件
 const TabDescription: FC<TabDescriptionProps> = memo(
   ({ activeTab, description, tooltipTitle }) => (
-    <Fade in={true} timeout={200}>
-      <Box
-        sx={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.2,
-          px: 0.5,
-        }}
-      >
-        <Box
-          sx={(theme) => ({
-            display: 'inline-flex',
-            alignItems: 'center',
-            height: 18,
-            px: 1.2,
-            borderRadius: '9999px',
-            bgcolor: alpha(theme.palette.primary.main, 0.08),
-            color: 'primary.main',
-            fontSize: '8px',
-            fontFamily: 'monospace',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            flexShrink: 0,
-          })}
-        >
-          {activeTab.toUpperCase()}
-        </Box>
-        <Typography
-          variant="caption"
-          sx={(theme) => ({
-            fontSize: '9px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            letterSpacing: '0.15em',
-            color: 'text.secondary',
-            opacity: 0.6,
-            wordBreak: 'break-word',
-            lineHeight: 1.2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-          })}
-        >
-          {description}
-          <Tooltip title={tooltipTitle}>
-            <HelpOutlineRounded
-              sx={{ fontSize: 12, opacity: 0.7, flexShrink: 0, cursor: 'pointer' }}
-            />
-          </Tooltip>
-        </Typography>
-      </Box>
-    </Fade>
+    <div className="w-full flex items-center gap-3 px-1 animate-in fade-in duration-200">
+      <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-mono font-black uppercase tracking-[0.1em] flex-shrink-0">
+        {activeTab.toUpperCase()}
+      </div>
+      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight flex items-center gap-1">
+        {description}
+        <Tooltip title={tooltipTitle}>
+          <HelpOutlineRounded className="text-xs opacity-70 flex-shrink-0 cursor-pointer" />
+        </Tooltip>
+      </p>
+    </div>
   ),
 )
 
 export const ProxyTunCard: FC = () => {
   const { t } = useTranslation()
-  const theme = useTheme()
   const [activeTab, setActiveTab] = useState<string>(
     () => localStorage.getItem(LOCAL_STORAGE_TAB_KEY) || 'system',
   )
@@ -206,23 +130,9 @@ export const ProxyTunCard: FC = () => {
   ])
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', mt: 0.5 }}>
+    <div className="flex flex-col w-full mt-1">
       {/* 模式选择按钮组 - 工业滑块选择器 */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          p: '4px',
-          height: 40,
-          bgcolor: alpha(theme.palette.action.hover, 0.02),
-          border: '1px dashed',
-          borderColor: 'divider',
-          borderRadius: '24px',
-          width: '100%',
-          boxSizing: 'border-box',
-        }}
-      >
+      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-dashed border-divider rounded-3xl w-full">
         <TabButton
           isActive={activeTab === 'system'}
           onClick={() => handleTabChange('system')}
@@ -237,36 +147,19 @@ export const ProxyTunCard: FC = () => {
           label={t('settings.sections.system.toggles.tunMode')}
           hasIndicator={enable_tun_mode && isTunModeAvailable}
         />
-      </Box>
+      </div>
 
       {/* 说明文本区域 - 微型 Badge */}
-      <Box
-        sx={{
-          width: '100%',
-          mt: 1.5,
-          display: 'flex',
-          justifyContent: 'center',
-          overflow: 'visible',
-        }}
-      >
+      <div className="w-full mt-3 flex justify-center overflow-visible">
         <TabDescription
           activeTab={activeTab}
           description={tabDescription.text}
           tooltipTitle={tabDescription.tooltip}
         />
-      </Box>
+      </div>
 
       {/* 底部开关组件容器 - dashed 虚线边框融入底板 */}
-      <Box
-        sx={{
-          mt: 1.5,
-          p: '6px 10px',
-          bgcolor: alpha(theme.palette.background.paper, 0.4),
-          border: '1px dashed',
-          borderColor: 'divider',
-          borderRadius: '20px',
-        }}
-      >
+      <div className="mt-3 p-[6px_10px] bg-paper/40 border border-dashed border-divider rounded-[20px]">
         <ProxyControlSwitches
           onError={handleError}
           label={
@@ -276,7 +169,7 @@ export const ProxyTunCard: FC = () => {
           }
           noRightPadding={true}
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

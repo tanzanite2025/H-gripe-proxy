@@ -1,26 +1,13 @@
-import {
-  Box,
-  FormControl,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Select,
-  styled,
-  TextField,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
+import { useForm } from 'react-hook-form'
 
-import { BaseDialog, Switch } from '@/components/base'
 import { useProfiles } from '@/hooks/data'
 import { createProfile, patchProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { version } from '@root/package.json'
 
-import { FileInput } from './file-input'
+import { ProfileViewerUI } from './profile-viewer-ui'
 
 interface Props {
   onChange: (isActivating?: boolean) => void
@@ -36,7 +23,6 @@ export interface ProfileViewerRef {
 type ProfileViewerProps = Props & { ref?: Ref<ProfileViewerRef> }
 
 export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
-  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [openType, setOpenType] = useState<'new' | 'edit'>('new')
   const [loading, setLoading] = useState(false)
@@ -202,223 +188,21 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
     }
   }
 
-  const text = {
-    fullWidth: true,
-    size: 'small',
-    margin: 'normal',
-    variant: 'outlined',
-    autoComplete: 'off',
-    autoCorrect: 'off',
-  } as const
-
   const formType = watch('type')
-  const isRemote = formType === 'remote'
-  const isLocal = formType === 'local'
 
   return (
-    <BaseDialog
+    <ProfileViewerUI
       open={open}
-      title={
-        openType === 'new'
-          ? t('profiles.modals.profileForm.title.create')
-          : t('profiles.modals.profileForm.title.edit')
-      }
-      contentSx={{ width: 375, pb: 0, maxHeight: '80%' }}
-      okBtn={t('shared.actions.save')}
-      cancelBtn={t('shared.actions.cancel')}
+      openType={openType}
+      loading={loading}
+      control={control}
+      formType={formType}
       onClose={handleClose}
       onCancel={handleClose}
       onOk={handleOk}
-      loading={loading}
-    >
-      <Controller
-        name="type"
-        control={control}
-        render={({ field }) => (
-          <FormControl size="small" fullWidth sx={{ mt: 1, mb: 1 }}>
-            <InputLabel className="uds-label">
-              {t('profiles.modals.profileForm.fields.type')}
-            </InputLabel>
-            <Select
-              {...field}
-              autoFocus
-              label={t('profiles.modals.profileForm.fields.type')}
-            >
-              <MenuItem value="remote">Remote</MenuItem>
-              <MenuItem value="local">Local</MenuItem>
-            </Select>
-          </FormControl>
-        )}
-      />
-
-      <Controller
-        name="name"
-        control={control}
-        render={({ field }) => (
-          <TextField {...text} {...field} label={t('shared.labels.name')} />
-        )}
-      />
-
-      <Controller
-        name="desc"
-        control={control}
-        render={({ field }) => (
-          <TextField
-            {...text}
-            {...field}
-            label={t('profiles.modals.profileForm.fields.description')}
-          />
-        )}
-      />
-
-      {isRemote && (
-        <>
-          <Controller
-            name="url"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...text}
-                {...field}
-                multiline
-                label={t('profiles.modals.profileForm.fields.subscriptionUrl')}
-              />
-            )}
-          />
-
-          <Controller
-            name="option.user_agent"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...text}
-                {...field}
-                placeholder={`clash-verge/v${version}`}
-                label="User Agent"
-              />
-            )}
-          />
-
-          <Controller
-            name="option.timeout_seconds"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...text}
-                {...field}
-                type="number"
-                placeholder="60"
-                label={t('profiles.modals.profileForm.fields.httpTimeout')}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        {t('shared.units.seconds')}
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-            )}
-          />
-        </>
-      )}
-
-      {(isRemote || isLocal) && (
-        <Controller
-          name="option.update_interval"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              {...text}
-              {...field}
-              type="number"
-              label={t('profiles.modals.profileForm.fields.updateInterval')}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {t('shared.units.minutes')}
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          )}
-        />
-      )}
-
-      {isLocal && openType === 'new' && (
-        <FileInput
-          onChange={(file, val) => {
-            setValue('name', getValues('name') || file.name)
-            fileDataRef.current = val
-          }}
-        />
-      )}
-
-      {isRemote && (
-        <>
-          <Controller
-            name="option.with_proxy"
-            control={control}
-            render={({ field }) => (
-              <StyledBox>
-                <InputLabel className="uds-label">
-                  {t('profiles.modals.profileForm.fields.useSystemProxy')}
-                </InputLabel>
-                <Switch checked={field.value} {...field} color="primary" />
-              </StyledBox>
-            )}
-          />
-
-          <Controller
-            name="option.self_proxy"
-            control={control}
-            render={({ field }) => (
-              <StyledBox>
-                <InputLabel className="uds-label">
-                  {t('profiles.modals.profileForm.fields.useClashProxy')}
-                </InputLabel>
-                <Switch checked={field.value} {...field} color="primary" />
-              </StyledBox>
-            )}
-          />
-
-          <Controller
-            name="option.danger_accept_invalid_certs"
-            control={control}
-            render={({ field }) => (
-              <StyledBox>
-                <InputLabel className="uds-label">
-                  {t('profiles.modals.profileForm.fields.acceptInvalidCerts')}
-                </InputLabel>
-                <Switch checked={field.value} {...field} color="primary" />
-              </StyledBox>
-            )}
-          />
-
-          <Controller
-            name="option.allow_auto_update"
-            control={control}
-            render={({ field }) => (
-              <StyledBox>
-                <InputLabel className="uds-label">
-                  {t('profiles.modals.profileForm.fields.allowAutoUpdate')}
-                </InputLabel>
-                <Switch checked={field.value} {...field} color="primary" />
-              </StyledBox>
-            )}
-          />
-        </>
-      )}
-    </BaseDialog>
+      setValue={setValue}
+      getValues={getValues}
+      fileDataRef={fileDataRef}
+    />
   )
 }
-
-const StyledBox = styled(Box)(() => ({
-  margin: '8px 0 8px 8px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-}))

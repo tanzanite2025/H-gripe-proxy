@@ -1,4 +1,3 @@
-import { useTheme } from '@mui/material/styles'
 import type { Key, RefObject } from 'react'
 
 import { ProxyRender } from '../../proxy-render'
@@ -49,10 +48,6 @@ export function ProxyVirtualList({
   onHeadState,
   onChangeProxy,
 }: ProxyVirtualListProps) {
-  const theme = useTheme()
-  const stickyBackground =
-    theme.palette.mode === 'dark' ? '#1e1f27' : 'var(--background-color)'
-
   return (
     <div ref={parentRef} style={{ height, overflow: 'auto' }}>
       <div style={{ height: totalSize, position: 'relative' }}>
@@ -61,6 +56,7 @@ export function ProxyVirtualList({
             key={virtualItem.key}
             data-index={virtualItem.index}
             ref={measureElement}
+            className={virtualItem.index === activeStickyIndex ? 'bg-[var(--background-color)] dark:bg-[#1e1f27]' : ''}
             style={{
               position:
                 virtualItem.index === activeStickyIndex ? 'sticky' : 'absolute',
@@ -70,10 +66,6 @@ export function ProxyVirtualList({
               display:
                 virtualItem.index === activeStickyIndex
                   ? 'flow-root'
-                  : undefined,
-              backgroundColor:
-                virtualItem.index === activeStickyIndex
-                  ? stickyBackground
                   : undefined,
               width: '100%',
               transform:

@@ -3,30 +3,12 @@
  * 包含基础配置字段
  */
 
-import {
-  FormControl,
-  ListItem,
-  ListItemText,
-  MenuItem,
-  Select,
-  styled,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { TextField, Select, Box } from '@/components/tailwind'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
 
 import type { DnsFormValues } from '../utils/dns-helpers'
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-  '& textarea': {
-    lineHeight: 1.5,
-    fontSize: 14,
-    resize: 'vertical',
-  },
-}))
 
 interface DnsGeneralFieldsProps {
   values: DnsFormValues
@@ -41,25 +23,25 @@ export const DnsGeneralFields = ({
 
   return (
     <>
-      <Typography
-        className="uds-card-title"
-        variant="subtitle1"
-        sx={{ mt: 1, mb: 1, fontWeight: 'bold' }}
-      >
+      <h2 className="uds-card-title text-base font-bold mt-4 mb-4">
         {t('settings.modals.dns.sections.general')}
-      </Typography>
+      </h2>
 
-      <Item>
-        <ListItemText primary={t('settings.modals.dns.fields.enable')} />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium">
+          {t('settings.modals.dns.fields.enable')}
+        </div>
         <Switch
           edge="end"
           checked={values.enable}
           onChange={onChange('enable')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText primary={t('settings.modals.dns.fields.listen')} />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium">
+          {t('settings.modals.dns.fields.listen')}
+        </div>
         <TextField
           size="small"
           autoComplete="off"
@@ -67,27 +49,29 @@ export const DnsGeneralFields = ({
           value={values.listen}
           onChange={onChange('listen')}
           placeholder=":53"
-          sx={{ width: 150 }}
+          className="w-[150px]"
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.enhancedMode')}
-        />
-        <FormControl size="small" sx={{ width: 150 }}>
-          <Select
-            value={values.enhancedMode}
-            onChange={onChange('enhancedMode')}
-          >
-            <MenuItem value="fake-ip">fake-ip</MenuItem>
-            <MenuItem value="redir-host">redir-host</MenuItem>
-          </Select>
-        </FormControl>
-      </Item>
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium">
+          {t('settings.modals.dns.fields.enhancedMode')}
+        </div>
+        <Select
+          size="small"
+          value={values.enhancedMode}
+          onChange={onChange('enhancedMode')}
+          className="w-[150px]"
+        >
+          <option value="fake-ip">fake-ip</option>
+          <option value="redir-host">redir-host</option>
+        </Select>
+      </Box>
 
-      <Item>
-        <ListItemText primary={t('settings.modals.dns.fields.fakeIpRange')} />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium">
+          {t('settings.modals.dns.fields.fakeIpRange')}
+        </div>
         <TextField
           size="small"
           autoComplete="off"
@@ -95,98 +79,120 @@ export const DnsGeneralFields = ({
           value={values.fakeIpRange}
           onChange={onChange('fakeIpRange')}
           placeholder="198.18.0.1/16"
-          sx={{ width: 150 }}
+          className="w-[150px]"
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.fakeIpFilterMode')}
-        />
-        <FormControl size="small" sx={{ width: 150 }}>
-          <Select
-            value={values.fakeIpFilterMode}
-            onChange={onChange('fakeIpFilterMode')}
-          >
-            <MenuItem value="blacklist">blacklist</MenuItem>
-            <MenuItem value="whitelist">whitelist</MenuItem>
-          </Select>
-        </FormControl>
-      </Item>
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium">
+          {t('settings.modals.dns.fields.fakeIpFilterMode')}
+        </div>
+        <Select
+          size="small"
+          value={values.fakeIpFilterMode}
+          onChange={onChange('fakeIpFilterMode')}
+          className="w-[150px]"
+        >
+          <option value="blacklist">blacklist</option>
+          <option value="whitelist">whitelist</option>
+        </Select>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.ipv6.label')}
-          secondary={t('settings.modals.dns.fields.ipv6.description')}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.ipv6.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.ipv6.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.ipv6}
           onChange={onChange('ipv6')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.preferH3.label')}
-          secondary={t('settings.modals.dns.fields.preferH3.description')}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.preferH3.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.preferH3.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.preferH3}
           onChange={onChange('preferH3')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.respectRules.label')}
-          secondary={t('settings.modals.dns.fields.respectRules.description')}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.respectRules.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.respectRules.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.respectRules}
           onChange={onChange('respectRules')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.useHosts.label')}
-          secondary={t('settings.modals.dns.fields.useHosts.description')}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.useHosts.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.useHosts.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.useHosts}
           onChange={onChange('useHosts')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.useSystemHosts.label')}
-          secondary={t(
-            'settings.modals.dns.fields.useSystemHosts.description',
-          )}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.useSystemHosts.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.useSystemHosts.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.useSystemHosts}
           onChange={onChange('useSystemHosts')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.directPolicy.label')}
-          secondary={t('settings.modals.dns.fields.directPolicy.description')}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.directPolicy.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.directPolicy.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.directNameserverFollowPolicy}
           onChange={onChange('directNameserverFollowPolicy')}
         />
-      </Item>
+      </Box>
     </>
   )
 }

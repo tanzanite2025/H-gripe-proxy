@@ -1,9 +1,5 @@
-import {
-  ErrorOutlineRounded,
-  RefreshRounded,
-  BugReportRounded,
-} from '@mui/icons-material'
-import { Box, Typography, Button, Alert, Collapse } from '@mui/material'
+import { AlertCircle, Bug, RefreshCw } from 'lucide-react'
+import { Button, Alert, Collapse } from '@/components/tailwind'
 import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -158,126 +154,67 @@ const TrafficErrorFallback: React.FC<TrafficErrorFallbackProps> = ({
   const { t } = useTranslation()
 
   return (
-    <Box
-      sx={{
-        p: 2,
-        minHeight: 200,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        border: '1px dashed',
-        borderColor: 'error.main',
-        borderRadius: 2,
-        bgcolor: 'error.light',
-        color: 'error.contrastText',
-      }}
-    >
-      <ErrorOutlineRounded sx={{ fontSize: 48, mb: 2, color: 'error.main' }} />
+    <div className="p-4 min-h-[200px] flex flex-col items-center justify-center border-2 border-dashed border-red-500 rounded-lg bg-red-50 dark:bg-red-950/20">
+      <AlertCircle className="w-12 h-12 mb-4 text-red-500" />
 
-      <Typography variant="h6" gutterBottom>
+      <h3 className="text-lg font-semibold mb-2">
         {t('shared.feedback.errors.trafficStats')}
-      </Typography>
+      </h3>
 
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={{ mb: 2, textAlign: 'center' }}
-      >
+      <p className="text-sm text-muted-foreground mb-4 text-center">
         {t('shared.feedback.errors.trafficStatsDescription')}
-      </Typography>
+      </p>
 
-      <Alert severity="error" sx={{ mb: 2, maxWidth: 400 }}>
-        <Typography variant="body2">
+      <Alert variant="destructive" className="mb-4 max-w-md">
+        <p className="text-sm">
           <strong>Error:</strong>{' '}
           {error instanceof Error ? error.message : 'Unknown error'}
-        </Typography>
+        </p>
         {retryCount > 0 && (
-          <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
+          <p className="text-xs mt-2">
             {t('shared.labels.retryAttempts')}: {retryCount}/{maxRetries}
-          </Typography>
+          </p>
         )}
       </Alert>
 
-      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+      <div className="flex gap-2 mb-4">
         {canRetry && (
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<RefreshRounded />}
-            onClick={onRetry}
-            size="small"
-          >
+          <Button variant="default" size="sm" onClick={onRetry}>
+            <RefreshCw className="w-4 h-4 mr-1" />
             {t('shared.actions.retry')}
           </Button>
         )}
 
-        <Button variant="outlined" onClick={onRefresh} size="small">
+        <Button variant="outline" size="sm" onClick={onRefresh}>
           {t('shared.actions.refreshPage')}
         </Button>
 
-        <Button
-          variant="text"
-          startIcon={<BugReportRounded />}
-          onClick={onToggleDetails}
-          size="small"
-        >
+        <Button variant="ghost" size="sm" onClick={onToggleDetails}>
+          <Bug className="w-4 h-4 mr-1" />
           {showDetails
             ? t('shared.actions.hideDetails')
             : t('shared.actions.showDetails')}
         </Button>
-      </Box>
+      </div>
 
-      <Collapse in={showDetails} sx={{ width: '100%', maxWidth: 600 }}>
-        <Box
-          sx={{
-            p: 2,
-            bgcolor: 'background.paper',
-            borderRadius: 1,
-            border: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Typography variant="subtitle2" gutterBottom>
-            Error Details:
-          </Typography>
-          <Typography
-            variant="caption"
-            component="pre"
-            sx={{
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              fontFamily: 'monospace',
-              fontSize: '0.75rem',
-              color: 'text.secondary',
-            }}
-          >
+      <Collapse open={showDetails} className="w-full max-w-2xl">
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <h4 className="text-sm font-semibold mb-2">Error Details:</h4>
+          <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-words">
             {error?.stack}
-          </Typography>
+          </pre>
 
           {errorInfo?.componentStack && (
             <>
-              <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
-                Component Stack:
-              </Typography>
-              <Typography
-                variant="caption"
-                component="pre"
-                sx={{
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontFamily: 'monospace',
-                  fontSize: '0.75rem',
-                  color: 'text.secondary',
-                }}
-              >
+              <h4 className="text-sm font-semibold mb-2 mt-4">Component Stack:</h4>
+              <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-words">
                 {errorInfo.componentStack}
-              </Typography>
+              </pre>
             </>
           )}
-        </Box>
+        </div>
       </Collapse>
-    </Box>
+    </div>
   )
 }
 
@@ -291,21 +228,10 @@ export const LightweightTrafficErrorBoundary: React.FC<{
   return (
     <TrafficErrorBoundary
       fallbackComponent={
-        <Box
-          sx={{
-            p: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 60,
-            bgcolor: 'error.light',
-            borderRadius: 1,
-            color: 'error.contrastText',
-          }}
-        >
-          <ErrorOutlineRounded sx={{ mr: 1, fontSize: 20 }} />
-          <Typography variant="caption">Traffic data unavailable</Typography>
-        </Box>
+        <div className="p-2 flex items-center justify-center min-h-[60px] bg-red-50 dark:bg-red-950/20 rounded text-red-600 dark:text-red-400">
+          <AlertCircle className="w-5 h-5 mr-2" />
+          <span className="text-xs">Traffic data unavailable</span>
+        </div>
       }
     >
       {children}

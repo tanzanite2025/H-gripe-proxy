@@ -1,11 +1,12 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { LanguageRounded } from '@mui/icons-material'
-import { Box, Divider, MenuItem, Menu, styled, alpha } from '@mui/material'
+import { Globe } from 'lucide-react'
+import { Divider, Menu, MenuItem } from '@/components/tailwind'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/utils/cn'
 
 import { BaseLoading } from '@/components/base'
 import { useIconCache, useListen } from '@/hooks/system'
@@ -98,12 +99,12 @@ export const TestItem = ({
   }, [url, addListener, onDelay, id])
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
+    <div
+      className="relative"
+      style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        zIndex: isDragging ? 'calc(infinity)' : undefined,
+        zIndex: isDragging ? 9999 : undefined,
       }}
     >
       <TestBox
@@ -114,95 +115,85 @@ export const TestItem = ({
           event.preventDefault()
         }}
       >
-        <Box
-          sx={{ position: 'relative', cursor: 'move' }}
+        <div
+          className="relative cursor-move"
           ref={setNodeRef}
           {...attributes}
           {...listeners}
         >
           {icon && icon.trim() !== '' ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <div className="flex justify-center">
               {icon.trim().startsWith('http') && (
                 <img
                   src={iconCachePath === '' ? icon : iconCachePath}
-                  style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                  className="h-10 w-10 object-contain"
                   alt={name}
                 />
               )}
               {icon.trim().startsWith('data') && (
                 <img 
                   src={icon} 
-                  style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                  className="h-10 w-10 object-contain"
                   alt={name}
                 />
               )}
               {icon.trim().startsWith('<svg') && (
                 <img
                   src={`data:image/svg+xml;base64,${btoa(icon)}`}
-                  style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                  className="h-10 w-10 object-contain"
                   alt={name}
                 />
               )}
-            </Box>
+            </div>
           ) : (
-            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <LanguageRounded sx={{ width: '40px', height: '40px' }} fontSize="large" />
-            </Box>
+            <div className="flex justify-center">
+              <Globe className="h-10 w-10" />
+            </div>
           )}
 
-          <Box sx={{ display: 'flex', justifyContent: 'center' }}>{name}</Box>
-        </Box>
-        <Divider sx={{ marginTop: '8px' }} />
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            marginTop: '8px',
-            color: 'primary.main',
-          }}
-        >
+          <div className="flex justify-center">{name}</div>
+        </div>
+        <Divider className="mt-2" />
+        <div className="mt-2 flex justify-center text-primary dark:text-primary-dark-mode">
           {delay === -2 && (
-            <Widget>
+            <div className="rounded-lg px-2 py-1 text-xs">
               <BaseLoading />
-            </Widget>
+            </div>
           )}
 
           {delay === -1 && (
-            <Widget
-              className="the-check"
+            <div
+              className={cn(
+                'the-check rounded-lg px-2 py-1 text-xs',
+                'hover:bg-primary/15 dark:hover:bg-primary-dark-mode/15'
+              )}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 onDelay()
               }}
-              sx={({ palette }) => ({
-                ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
-              })}
             >
               {t('tests.components.item.actions.test')}
-            </Widget>
+            </div>
           )}
 
           {delay >= 0 && (
-            // 显示延迟
-            <Widget
-              className="the-delay"
+            <div
+              className={cn(
+                'the-delay rounded-lg px-2 py-1 text-xs',
+                'hover:bg-primary/15 dark:hover:bg-primary-dark-mode/15'
+              )}
+              style={{ color: delayManager.formatDelayColor(delay) }}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 onDelay()
               }}
-              sx={({ palette }) => ({
-                color: delayManager.formatDelayColor(delay),
-                ':hover': {
-                  bgcolor: alpha(palette.primary.main, 0.15),
-                },
-              })}
             >
               {delayManager.formatDelay(delay)}
-            </Widget>
+            </div>
           )}
-        </Box>
+        </div>
       </TestBox>
 
       <Menu
@@ -211,8 +202,6 @@ export const TestItem = ({
         onClose={() => setAnchorEl(null)}
         anchorPosition={position}
         anchorReference="anchorPosition"
-        transitionDuration={225}
-        slotProps={{ list: { sx: { py: 0.5 } } }}
         onContextMenu={(e) => {
           setAnchorEl(null)
           e.preventDefault()
@@ -222,19 +211,11 @@ export const TestItem = ({
           <MenuItem
             key={item.label}
             onClick={item.handler}
-            sx={{ minWidth: 120 }}
-            dense
           >
             {t(item.label)}
           </MenuItem>
         ))}
       </Menu>
-    </Box>
+    </div>
   )
 }
-const Widget = styled(Box)(({ theme: { typography } }) => ({
-  padding: '3px 6px',
-  fontSize: 12,
-  fontFamily: typography.fontFamily,
-  borderRadius: '8px',
-}))

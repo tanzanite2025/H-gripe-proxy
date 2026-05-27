@@ -1,16 +1,10 @@
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MonacoEditor } from '@/components/base'
+import { Button } from '@/components/tailwind/Button'
+import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
 import { saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
@@ -162,9 +156,9 @@ export const GroupsEditorViewer = (props: Props) => {
       disableEnforceFocus={!visualization}
     >
       <DialogTitle>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div className="flex justify-between">
           {t('profiles.modals.groupsEditor.title')}
-          <Box>
+          <div>
             <Button
               variant="contained"
               size="small"
@@ -176,13 +170,11 @@ export const GroupsEditorViewer = (props: Props) => {
                 ? t('shared.editorModes.advanced')
                 : t('shared.editorModes.visualization')}
             </Button>
-          </Box>
-        </Box>
+          </div>
+        </div>
       </DialogTitle>
 
-      <DialogContent
-        sx={{ display: 'flex', width: 'auto', height: 'calc(100vh - 185px)' }}
-      >
+      <DialogContent className="flex h-[calc(100vh-185px)] w-auto">
         {visualization ? (
           <>
             <GroupForm
@@ -197,12 +189,7 @@ export const GroupsEditorViewer = (props: Props) => {
               onAppend={handleAppend}
             />
 
-            <Box
-              sx={{
-                width: '50%',
-                padding: '0 10px',
-              }}
-            >
+            <div className="w-1/2 px-2.5">
               <GroupSearch onSearch={(match) => setMatch(() => match)} />
               <GroupListView
                 prependSeq={prependSeq}
@@ -217,7 +204,7 @@ export const GroupsEditorViewer = (props: Props) => {
                 onAppendDelete={handleAppendDelete}
                 onGroupToggleDelete={handleGroupToggleDelete}
               />
-            </Box>
+            </div>
           </>
         ) : (
           <MonacoEditor

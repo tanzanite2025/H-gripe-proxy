@@ -1,4 +1,4 @@
-import { Box, useTheme } from '@mui/material'
+import { cn } from '@/utils/cn'
 
 import type { TooltipData } from '../hooks/use-graph-interaction'
 
@@ -10,43 +10,28 @@ interface GraphTooltipProps {
  * 图表悬浮提示框组件
  */
 export const GraphTooltip = ({ tooltipData }: GraphTooltipProps) => {
-  const theme = useTheme()
-
   if (!tooltipData.visible) return null
 
   return (
-    <Box
-      sx={{
-        position: 'absolute',
+    <div
+      className={cn(
+        'pointer-events-none absolute z-[1000] whitespace-nowrap rounded border border-gray-200 bg-white px-1 py-0.5 text-[10px] leading-tight opacity-100 shadow-lg dark:border-gray-700 dark:bg-gray-800',
+      )}
+      style={{
         left: tooltipData.x + 8,
         top: tooltipData.y - 8,
-        bgcolor: theme.palette.background.paper,
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 0.5,
-        px: 1,
-        py: 0.5,
-        fontSize: '10px',
-        lineHeight: 1.2,
-        zIndex: 1000,
-        pointerEvents: 'none',
-        transform:
-          tooltipData.x > 200 ? 'translateX(-100%)' : 'translateX(0)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        backdropFilter: 'none',
-        opacity: 1,
-        whiteSpace: 'nowrap',
+        transform: tooltipData.x > 200 ? 'translateX(-100%)' : 'translateX(0)',
       }}
     >
-      <Box sx={{ color: 'text.secondary', mb: 0.2 }}>
+      <div className="mb-0.5 text-gray-500 dark:text-gray-400">
         {tooltipData.timestamp}
-      </Box>
-      <Box sx={{ color: 'secondary.main', fontWeight: 500 }}>
+      </div>
+      <div className="font-medium text-secondary-500">
         ↑ {tooltipData.upSpeed}
-      </Box>
-      <Box sx={{ color: 'primary.main', fontWeight: 500 }}>
+      </div>
+      <div className="font-medium text-primary-500">
         ↓ {tooltipData.downSpeed}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

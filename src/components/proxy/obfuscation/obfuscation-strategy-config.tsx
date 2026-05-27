@@ -1,17 +1,8 @@
-import {
-  Box,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
-  Paper,
-  Typography,
-} from '@mui/material'
-import {
-  CheckCircleOutlined,
-  RadioButtonUnchecked,
-} from '@mui/icons-material'
+import { CheckCircle, Circle } from 'lucide-react'
 
+import { Chip } from '@/components/tailwind/Chip'
+import { List, ListItem, ListItemText } from '@/components/tailwind/List'
+import { Paper } from '@/components/tailwind/Paper'
 import type { ObfuscationStrategy } from '@/services/obfuscation'
 
 interface ObfuscationStrategyConfigProps {
@@ -55,24 +46,20 @@ export function ObfuscationStrategyConfig({
   ]
 
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        混淆策略详情
-      </Typography>
+    <div>
+      <h3 className="text-lg font-semibold mb-4">混淆策略详情</h3>
 
-      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Typography variant="subtitle1">{strategy.name}</Typography>
+      <Paper className="p-4 mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <h4 className="text-base font-medium">{strategy.name}</h4>
           <Chip label={strategy.level} size="small" color="primary" />
-        </Box>
-        <Typography variant="body2" color="text.secondary">
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           {strategy.description}
-        </Typography>
+        </p>
       </Paper>
 
-      <Typography variant="subtitle2" gutterBottom>
-        启用的功能
-      </Typography>
+      <h4 className="text-sm font-medium mb-2">启用的功能</h4>
 
       <List>
         {features.map((feature) => {
@@ -83,70 +70,60 @@ export function ObfuscationStrategyConfig({
 
           return (
             <ListItem key={feature.key}>
-              <Box
-                sx={{
-                  mr: 2,
-                  color: enabled ? 'success.main' : 'text.disabled',
-                }}
+              <div
+                className={`mr-4 ${
+                  enabled ? 'text-green-500' : 'text-gray-400'
+                }`}
               >
-                {enabled ? <CheckCircleOutlined /> : <RadioButtonUnchecked />}
-              </Box>
+                {enabled ? (
+                  <CheckCircle className="h-5 w-5" />
+                ) : (
+                  <Circle className="h-5 w-5" />
+                )}
+              </div>
               <ListItemText
                 primary={feature.label}
                 secondary={feature.description}
-                slotProps={{
-                  primary: {
-                    style: {
-                      color: enabled ? undefined : 'rgba(0, 0, 0, 0.38)',
-                    },
-                  },
-                  secondary: {
-                    style: {
-                      color: enabled ? undefined : 'rgba(0, 0, 0, 0.38)',
-                    },
-                  },
-                }}
+                className={!enabled ? 'opacity-40' : ''}
               />
             </ListItem>
           )
         })}
       </List>
 
-      <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
-        配置参数
-      </Typography>
+      <h4 className="text-sm font-medium mb-2 mt-4">配置参数</h4>
 
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">
+      <Paper className="p-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               填充大小范围
-            </Typography>
-            <Typography variant="body2">
+            </span>
+            <span className="text-sm">
               {strategy.config.minPaddingSize} - {strategy.config.maxPaddingSize}{' '}
               字节
-            </Typography>
-          </Box>
+            </span>
+          </div>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">
+          <div className="flex justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               时序抖动
-            </Typography>
-            <Typography variant="body2">
+            </span>
+            <span className="text-sm">
               {strategy.config.timingJitter} ms
-            </Typography>
-          </Box>
+            </span>
+          </div>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">
+          <div className="flex justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               包大小变化
-            </Typography>
-            <Typography variant="body2">
+            </span>
+            <span className="text-sm">
               ±{strategy.config.packetSizeVariation}%
-            </Typography>
-          </Box>
-        </Box>
+            </span>
+          </div>
+        </div>
       </Paper>
-    </Box>
+    </div>
   )
 }

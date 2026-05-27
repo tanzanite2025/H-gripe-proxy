@@ -1,5 +1,5 @@
-import { GitHub, HelpOutlineRounded, Telegram } from '@mui/icons-material'
-import { Box, ButtonGroup, IconButton, Grid } from '@mui/material'
+import { Github as GithubIcon, HelpCircle, Send } from 'lucide-react'
+import { Box, ButtonGroup, IconButton, Grid } from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
 import { useTranslation } from 'react-i18next'
 
@@ -37,7 +37,7 @@ const SettingPage = () => {
       header={
         <ButtonGroup
           className="uds-toolbar uds-toolbar--icon"
-          variant="contained"
+          variant="primary"
           aria-label="Basic button group"
         >
           <IconButton
@@ -46,7 +46,7 @@ const SettingPage = () => {
             title={t('settings.page.actions.manual')}
             onClick={toGithubDoc}
           >
-            <HelpOutlineRounded fontSize="inherit" />
+            <HelpCircle className="h-5 w-5" />
           </IconButton>
           <IconButton
             size="medium"
@@ -54,7 +54,7 @@ const SettingPage = () => {
             title={t('settings.page.actions.telegram')}
             onClick={toTelegramChannel}
           >
-            <Telegram fontSize="inherit" />
+            <Send className="h-5 w-5" fontSize="inherit" />
           </IconButton>
 
           <IconButton
@@ -63,7 +63,7 @@ const SettingPage = () => {
             title={t('settings.page.actions.github')}
             onClick={toGithubRepo}
           >
-            <GitHub fontSize="inherit" />
+            <GithubIcon className="h-5 w-5" />
           </IconButton>
         </ButtonGroup>
       }
@@ -74,7 +74,7 @@ const SettingPage = () => {
         columns={{ xs: 6, sm: 6, md: 12, lg: 18 }}
         className="settings-page-grid"
       >
-        <Grid size={{ xs: 6, sm: 6, md: 6, lg: 6 }} className="settings-page-grid__column">
+        <Grid item xs={6} sm={6} md={6} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingSystem onError={onError} />
           </Box>
@@ -82,12 +82,12 @@ const SettingPage = () => {
             <SettingClash onError={onError} />
           </Box>
         </Grid>
-        <Grid size={{ xs: 6, sm: 6, md: 6, lg: 6 }} className="settings-page-grid__column">
+        <Grid item xs={6} sm={6} md={6} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingVergeBasic onError={onError} />
           </Box>
         </Grid>
-        <Grid size={{ xs: 6, sm: 6, md: 12, lg: 6 }} className="settings-page-grid__column">
+        <Grid item xs={6} sm={6} md={12} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingVergeAdvanced onError={onError} />
           </Box>

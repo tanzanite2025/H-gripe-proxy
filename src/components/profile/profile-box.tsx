@@ -1,57 +1,44 @@
-import { alpha, Box, styled } from '@mui/material'
+import { cn } from '@/utils/cn'
 
-export const ProfileBox = styled(Box)(
-  ({ theme, 'aria-selected': selected }) => {
-    const { mode, primary, text } = theme.palette
-    const key = `${mode}-${!!selected}`
+interface ProfileBoxProps {
+  selected?: boolean
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+}
 
-    const backgroundColor = mode === 'light' ? '#ffffff' : '#282A36'
-
-    const color = {
-      'light-true': text.secondary,
-      'light-false': text.secondary,
-      'dark-true': alpha(text.secondary, 0.65),
-      'dark-false': alpha(text.secondary, 0.65),
-    }[key]!
-
-    const h2color = {
-      'light-true': primary.main,
-      'light-false': text.primary,
-      'dark-true': primary.main,
-      'dark-false': text.primary,
-    }[key]!
-
-    const borderSelect = {
-      'light-true': {
-        borderLeft: `3px solid ${primary.main}`,
-        width: `calc(100% + 3px)`,
-        marginLeft: `-3px`,
-      },
-      'light-false': {
-        width: '100%',
-      },
-      'dark-true': {
-        borderLeft: `3px solid ${primary.main}`,
-        width: `calc(100% + 3px)`,
-        marginLeft: `-3px`,
-      },
-      'dark-false': {
-        width: '100%',
-      },
-    }[key]
-
-    return {
-      position: 'relative',
-      display: 'block',
-      cursor: 'pointer',
-      textAlign: 'left',
-      padding: '8px 16px',
-      boxSizing: 'border-box',
-      backgroundColor,
-      ...borderSelect,
-      borderRadius: '8px',
-      color,
-      '& h2': { color: h2color },
-    }
-  },
-)
+export const ProfileBox = ({
+  selected = false,
+  children,
+  className,
+  onClick,
+}: ProfileBoxProps) => {
+  return (
+    <div
+      role="button"
+      aria-selected={selected}
+      onClick={onClick}
+      className={cn(
+        'relative block cursor-pointer rounded-lg p-4 text-left',
+        'bg-white dark:bg-[#282A36]',
+        'text-gray-600 dark:text-gray-400',
+        selected && 'border-l-4 border-blue-500 -ml-1 w-[calc(100%+4px)]',
+        !selected && 'w-full',
+        className,
+      )}
+      style={{
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        className={cn(
+          selected
+            ? 'text-blue-500 [&_h2]:text-blue-500'
+            : '[&_h2]:text-gray-900 dark:[&_h2]:text-gray-100',
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}

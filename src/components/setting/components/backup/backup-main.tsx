@@ -1,11 +1,3 @@
-import {
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  Stack,
-  Typography,
-} from '@mui/material'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useLockFn } from 'ahooks'
 import type { ReactNode, Ref } from 'react'
@@ -13,6 +5,14 @@ import { useCallback, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef } from '@/components/base'
+import {
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  Stack,
+  Typography,
+} from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import {
   createLocalBackup,
@@ -121,35 +121,25 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
     >
       <Stack spacing={2}>
         <Stack
-          className="uds-card-container"
+          className="uds-card-container border border-divider rounded-lg p-8"
           spacing={1}
-          sx={{
-            border: (theme) => `1px solid ${theme.palette.divider}`,
-            borderRadius: 2,
-            p: 2,
-          }}
         >
           <Typography variant="subtitle1" className="uds-card-title">
             {t('settings.modals.backup.auto.title')}
           </Typography>
-          <List disablePadding sx={{ '& > li': { px: 0 } }}>
+          <List disablePadding className="[&>li]:px-0">
             <AutoBackupSettings />
           </List>
         </Stack>
 
         <Stack
-          className="uds-card-container"
+          className="uds-card-container border border-divider rounded-lg p-8"
           spacing={1}
-          sx={{
-            border: (theme) => `1px solid ${theme.palette.divider}`,
-            borderRadius: 2,
-            p: 2,
-          }}
         >
           <Typography variant="subtitle1" className="uds-card-title">
             {t('settings.modals.backup.manual.title')}
           </Typography>
-          <List disablePadding sx={{ '& > li': { px: 0 } }}>
+          <List disablePadding className="[&>li]:px-0">
             {(
               [
                 {
@@ -159,7 +149,7 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
                   actions: [
                     <Button
                       key="backup"
-                      variant="contained"
+                      variant="primary"
                       size="small"
                       loading={busyAction === 'local'}
                       disabled={localImporting}
@@ -195,7 +185,7 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
                   actions: [
                     <Button
                       key="backup"
-                      variant="contained"
+                      variant="primary"
                       size="small"
                       loading={busyAction === 'webdav'}
                       onClick={() => handleBackup('webdav')}
@@ -228,7 +218,7 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
               }>
             ).map((item, idx) => (
               <ListItem key={item.key} disableGutters divider={idx === 0}>
-                <Stack spacing={1} sx={{ width: '100%' }}>
+                <Stack spacing={1} className="w-full">
                   <ListItemText
                     primary={<span className="uds-card-title">{item.title}</span>}
                     slotProps={{ secondary: { component: 'span' } }}
@@ -238,7 +228,7 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
                     direction="row"
                     spacing={1}
                     useFlexGap
-                    sx={{ flexWrap: 'wrap', alignItems: 'center' }}
+                    className="flex-wrap items-center"
                   >
                     {item.actions}
                   </Stack>

@@ -1,4 +1,3 @@
-import { alpha, Box, Button, LinearProgress } from '@mui/material'
 import { relaunch } from '@tauri-apps/plugin-process'
 import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useLockFn } from 'ahooks'
@@ -8,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
+import { alpha, Box, Button, LinearProgress } from '@/components/tailwind'
 import { useUpdate } from '@/hooks/system'
 import { portableFlag } from '@/pages/_layout/layout'
 import { openWebUrl } from '@/services/cmds'
@@ -200,24 +200,8 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     <BaseDialog
       open={open}
       title={
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            minWidth: 0,
-          }}
-        >
-          <Box
-            component="span"
-            sx={{
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
+        <Box className="flex items-center justify-between gap-8 min-w-0">
+          <Box className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
             {t('settings.modals.update.title', {
               version: updateInfo?.version ?? '',
             })}
@@ -225,7 +209,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
           <Button
             variant="contained"
             size="small"
-            sx={{ whiteSpace: 'nowrap' }}
+            className="whitespace-nowrap"
             onClick={() => {
               void openWebUrl(
                 `https://github.com/tanzanite2025/clash-verge-optimized/releases/tag/v${updateInfo?.version}`,
@@ -427,7 +411,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
         <LinearProgress
           variant={total > 0 ? 'determinate' : 'indeterminate'}
           value={progress}
-          sx={{ mt: 1 }}
+          className="mt-4"
         />
       )}
     </BaseDialog>

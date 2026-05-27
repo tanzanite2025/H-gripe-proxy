@@ -1,3 +1,8 @@
+import { useLockFn } from 'ahooks'
+import { forwardRef, useImperativeHandle, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import {
   InputAdornment,
   List,
@@ -6,12 +11,7 @@ import {
   MenuItem,
   Select,
   TextField,
-} from '@mui/material'
-import { useLockFn } from 'ahooks'
-import { forwardRef, useImperativeHandle, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
+} from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
@@ -92,13 +92,13 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
       onOk={onSave}
     >
       <List>
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.appLogLevel')}
           />
           <Select
             size="small"
-            sx={{ width: 100, '> div': { py: '7.5px' } }}
+            className="w-[100px]"
             value={values.appLogLevel}
             onChange={(e) =>
               setValues((v) => ({
@@ -115,10 +115,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           </Select>
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.appLogMaxSize')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TextField
             autoComplete="new-password"
@@ -127,7 +127,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 140, marginLeft: 'auto' }}
+            className="w-[140px] ml-auto"
             value={values.appLogMaxSize}
             onChange={(e) =>
               setValues((v) => ({
@@ -147,10 +147,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.appLogMaxCount')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TextField
             autoComplete="new-password"
@@ -159,7 +159,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 140, marginLeft: 'auto' }}
+            className="w-[140px] ml-auto"
             value={values.appLogMaxCount}
             onChange={(e) =>
               setValues((v) => ({
@@ -179,14 +179,14 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.autoCloseConnections')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.autoCloseConnections')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
           <Switch
             edge="end"
@@ -194,11 +194,11 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             onChange={(_, c) =>
               setValues((v) => ({ ...v, autoCloseConnection: c }))
             }
-            sx={{ marginLeft: 'auto' }}
+            className="ml-auto"
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.autoCheckUpdate')}
           />
@@ -211,14 +211,14 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.enableBuiltinEnhanced')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.enableBuiltinEnhanced')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
           <Switch
             edge="end"
@@ -226,17 +226,17 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             onChange={(_, c) =>
               setValues((v) => ({ ...v, enableBuiltinEnhanced: c }))
             }
-            sx={{ marginLeft: 'auto' }}
+            className="ml-auto"
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.proxyLayoutColumns')}
           />
           <Select
             size="small"
-            sx={{ width: 160, '> div': { py: '7.5px' } }}
+            className="w-[160px]"
             value={values.proxyLayoutColumn}
             onChange={(e) =>
               setValues((v) => ({
@@ -256,13 +256,13 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           </Select>
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.autoLogClean')}
           />
           <Select
             size="small"
-            sx={{ width: 160, '> div': { py: '7.5px' } }}
+            className="w-[160px]"
             value={values.autoLogClean}
             onChange={(e) =>
               setValues((v) => ({
@@ -309,14 +309,14 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           </Select>
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.autoDelayDetection')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.autoDelayDetection')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
           <Switch
             edge="end"
@@ -324,16 +324,16 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             onChange={(_, c) =>
               setValues((v) => ({ ...v, enableAutoDelayDetection: c }))
             }
-            sx={{ marginLeft: 'auto' }}
+            className="ml-auto"
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.modals.misc.fields.autoDelayDetectionInterval',
             )}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TextField
             autoComplete="new-password"
@@ -342,7 +342,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 160, marginLeft: 'auto' }}
+            className="w-[160px] ml-auto"
             value={values.autoDelayDetectionIntervalMinutes}
             disabled={!values.enableAutoDelayDetection}
             onChange={(e) => {
@@ -366,14 +366,14 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.defaultLatencyTest')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.defaultLatencyTest')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
           <TextField
             autoComplete="new-password"
@@ -381,7 +381,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 250, marginLeft: 'auto' }}
+            className="w-[250px] ml-auto"
             value={values.defaultLatencyTest}
             placeholder="http://cp.cloudflare.com/generate_204"
             onChange={(e) =>
@@ -390,7 +390,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           />
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.misc.fields.defaultLatencyTimeout')}
           />
@@ -401,7 +401,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 250 }}
+            className="w-[250px]"
             value={values.defaultLatencyTimeout}
             placeholder="10000"
             onChange={(e) =>

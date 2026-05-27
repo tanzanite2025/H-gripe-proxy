@@ -9,21 +9,16 @@ import {
 import { arrayMove, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DragIndicatorRounded } from '@mui/icons-material'
-import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-} from '@mui/material'
 import type { Column } from '@tanstack/react-table'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/tailwind/Button'
+import { Checkbox } from '@/components/tailwind/Checkbox'
+import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { List, ListItem, ListItemText } from '@/components/tailwind/List'
+import { cn } from '@/utils/cn'
 
 interface Props {
   open: boolean
@@ -73,18 +68,14 @@ export const ConnectionColumnManager = ({
       <DialogTitle>
         {t('connections.components.columnManager.title')}
       </DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
+      <DialogContent className="pt-2">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
           <SortableContext items={items}>
-            <List
-              dense
-              disablePadding
-              sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
-            >
+            <List disablePadding className="flex flex-col gap-2">
               {columns.map((column) => (
                 <SortableColumnItem
                   key={column.id}
@@ -103,7 +94,7 @@ export const ConnectionColumnManager = ({
           </SortableContext>
         </DndContext>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions className="px-6 pb-4">
         <Button variant="text" onClick={onReset}>
           {t('shared.actions.resetToDefault')}
         </Button>
@@ -148,17 +139,10 @@ const SortableColumnItem = ({
   return (
     <ListItem
       ref={setNodeRef}
-      disableGutters
-      sx={{
-        px: 1,
-        py: 0.5,
-        borderRadius: 1,
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        backgroundColor: isDragging ? 'action.hover' : 'transparent',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1,
-      }}
+      className={cn(
+        'px-2 py-1 rounded border border-divider flex items-center gap-2',
+        isDragging ? 'bg-action-hover' : 'bg-transparent'
+      )}
       style={style}
     >
       <Checkbox
@@ -169,13 +153,12 @@ const SortableColumnItem = ({
       />
       <ListItemText
         primary={label}
-        slotProps={{ primary: { variant: 'body2' } }}
-        sx={{ mr: 1 }}
+        className="mr-2 text-sm"
       />
       <IconButton
         edge="end"
         size="small"
-        sx={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+        className={cn(isDragging ? 'cursor-grabbing' : 'cursor-grab')}
         aria-label={dragHandleLabel}
         {...attributes}
         {...listeners}

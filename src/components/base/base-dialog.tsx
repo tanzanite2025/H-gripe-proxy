@@ -4,9 +4,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  type SxProps,
-  type Theme,
-} from '@mui/material'
+} from '@/components/tailwind'
 import { ReactNode } from 'react'
 
 interface Props {
@@ -18,7 +16,7 @@ interface Props {
   disableOk?: boolean
   disableCancel?: boolean
   disableFooter?: boolean
-  contentSx?: SxProps<Theme>
+  className?: string
   children?: ReactNode
   loading?: boolean
   onOk?: () => void
@@ -38,7 +36,7 @@ export const BaseDialog: React.FC<Props> = ({
   okBtn,
   cancelBtn,
   disableEnforceFocus,
-  contentSx,
+  className,
   disableCancel,
   disableOk,
   disableFooter,
@@ -51,16 +49,11 @@ export const BaseDialog: React.FC<Props> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      disableEnforceFocus={disableEnforceFocus}
-      slotProps={{
-        paper: {
-          className: 'uds-dialog',
-        },
-      }}
+      className={`uds-dialog ${className || ''}`}
     >
       <DialogTitle className="uds-title-h2">{title}</DialogTitle>
 
-      <DialogContent className="uds-dialog__content" sx={contentSx}>
+      <DialogContent className={`uds-dialog__content ${className || ''}`}>
         {children}
       </DialogContent>
 
@@ -72,7 +65,7 @@ export const BaseDialog: React.FC<Props> = ({
             </Button>
           )}
           {!disableOk && (
-            <Button loading={loading} variant="contained" onClick={onOk}>
+            <Button loading={loading} variant="primary" onClick={onOk}>
               {okBtn}
             </Button>
           )}

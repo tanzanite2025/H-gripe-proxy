@@ -1,4 +1,3 @@
-import { Box } from '@mui/material'
 import { forwardRef, useImperativeHandle } from 'react'
 
 import { useWindowControls } from '@/hooks/ui/use-window'
@@ -55,13 +54,7 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
   // 这可能是上游缺陷，保险起见跨平台以窗口的最大化翻转为准。
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        gap: 1,
-        alignItems: 'center',
-      }}
-    >
+    <div className="flex items-center gap-1">
       {OS === 'macos' && (
         <>
           <button type="button" style={controlButtonStyle} onClick={close}>
@@ -111,6 +104,6 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
           </button>
         </>
       )}
-    </Box>
+    </div>
   )
 })

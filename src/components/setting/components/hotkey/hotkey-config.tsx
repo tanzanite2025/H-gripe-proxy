@@ -1,20 +1,13 @@
-import { styled, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef, Switch } from '@/components/base'
+import { Dialog, Box } from '@/components/tailwind'
+import { DialogRef, Switch } from '@/components/base'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
 import { HotkeyInput } from './hotkey-input'
-
-const ItemWrapper = styled('div')`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-`
 
 const HOTKEY_FUNC = [
   'open_or_close_dashboard',
@@ -101,36 +94,48 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
   })
 
   return (
-    <BaseDialog
+    <Dialog
       open={open}
-      title={t('settings.modals.hotkey.title')}
-      contentSx={{ width: 450, maxHeight: 380 }}
-      okBtn={t('shared.actions.save')}
-      cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
-      onCancel={() => setOpen(false)}
-      onOk={onSave}
+      title={t('settings.modals.hotkey.title')}
+      maxWidth="sm"
+      actions={
+        <>
+          <button
+            onClick={() => setOpen(false)}
+            className="px-4 py-2 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            {t('shared.actions.cancel')}
+          </button>
+          <button
+            onClick={onSave}
+            className="px-4 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90"
+          >
+            {t('shared.actions.save')}
+          </button>
+        </>
+      }
     >
-      <ItemWrapper style={{ marginBottom: 16 }}>
-        <Typography>
-          {t('settings.modals.hotkey.toggles.enableGlobal')}
-        </Typography>
-        <Switch
-          edge="end"
-          checked={enableGlobalHotkey}
-          onChange={(e) => setEnableGlobalHotkey(e.target.checked)}
-        />
-      </ItemWrapper>
-
-      {HOTKEY_FUNC.map((func) => (
-        <ItemWrapper key={func}>
-          <Typography>{t(HOTKEY_FUNC_LABELS[func])}</Typography>
-          <HotkeyInput
-            value={hotkeyMap[func] ?? []}
-            onChange={(v) => setHotkeyMap((m) => ({ ...m, [func]: v }))}
+      <Box className="w-[450px] max-h-[380px]">
+        <div className="flex items-center justify-between mb-6">
+          <span>{t('settings.modals.hotkey.toggles.enableGlobal')}</span>
+          <Switch
+            edge="end"
+            checked={enableGlobalHotkey}
+            onChange={(e) => setEnableGlobalHotkey(e.target.checked)}
           />
-        </ItemWrapper>
-      ))}
-    </BaseDialog>
+        </div>
+
+        {HOTKEY_FUNC.map((func) => (
+          <div key={func} className="flex items-center justify-between mb-3">
+            <span>{t(HOTKEY_FUNC_LABELS[func])}</span>
+            <HotkeyInput
+              value={hotkeyMap[func] ?? []}
+              onChange={(v) => setHotkeyMap((m) => ({ ...m, [func]: v }))}
+            />
+          </div>
+        ))}
+      </Box>
+    </Dialog>
   )
 })

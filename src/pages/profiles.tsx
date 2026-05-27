@@ -9,18 +9,8 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import {
-  CheckBoxOutlineBlankRounded,
-  CheckBoxRounded,
-  ClearRounded,
-  ContentPasteRounded,
-  DeleteRounded,
-  IndeterminateCheckBoxRounded,
-  LocalFireDepartmentRounded,
-  RefreshRounded,
-  TextSnippetOutlined,
-} from '@mui/icons-material'
-import { Box, Button, Divider, Grid, IconButton, Stack } from '@mui/material'
+import { Square, CheckSquare, X, Clipboard, Trash2, MinusSquare, Flame, RefreshCw, FileText, Check } from 'lucide-react'
+import { Box, Button, Divider, Grid, IconButton, Stack } from '@/components/tailwind'
 import { useQuery } from '@tanstack/react-query'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
@@ -809,7 +799,7 @@ const ProfilePage = () => {
       title={t('profiles.page.title')}
       contentStyle={{ height: '100%' }}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box className="flex items-center gap-1">
           {!batchMode ? (
             <>
               {/* Batch mode toggle button */}
@@ -819,7 +809,7 @@ const ProfilePage = () => {
                 title={t('profiles.page.batch.title')}
                 onClick={toggleBatchMode}
               >
-                <CheckBoxOutlineBlankRounded />
+                <Check className="h-5 w-5" />
               </IconButton>
 
               <IconButton
@@ -828,7 +818,7 @@ const ProfilePage = () => {
                 title={t('profiles.page.actions.updateAll')}
                 onClick={onUpdateAll}
               >
-                <RefreshRounded />
+                <RefreshCw className="h-5 w-5" />
               </IconButton>
 
               <IconButton
@@ -837,7 +827,7 @@ const ProfilePage = () => {
                 title={t('profiles.page.actions.viewRuntimeConfig')}
                 onClick={() => configRef.current?.open()}
               >
-                <TextSnippetOutlined />
+                <FileText />
               </IconButton>
 
               <IconButton
@@ -846,7 +836,7 @@ const ProfilePage = () => {
                 title={t('profiles.page.actions.reactivate')}
                 onClick={() => onEnhance(true)}
               >
-                <LocalFireDepartmentRounded />
+                <Flame />
               </IconButton>
 
               {/* 故障检测和紧急恢复按钮 */}
@@ -856,22 +846,15 @@ const ProfilePage = () => {
                   color="warning"
                   title="数据异常，点击强制刷新"
                   onClick={onEmergencyRefresh}
-                  sx={{
-                    animation: 'pulse 2s infinite',
-                    '@keyframes pulse': {
-                      '0%': { opacity: 1 },
-                      '50%': { opacity: 0.5 },
-                      '100%': { opacity: 1 },
-                    },
-                  }}
+                  className="animate-pulse"
                 >
-                  <ClearRounded />
+                  <X className="h-5 w-5" />
                 </IconButton>
               )}
             </>
           ) : (
             // Batch mode header
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box className="flex items-center gap-1">
               <IconButton
                 size="small"
                 color="inherit"
@@ -885,11 +868,11 @@ const ProfilePage = () => {
                 }
               >
                 {getSelectionState() === 'all' ? (
-                  <CheckBoxRounded />
+                  <CheckSquare className="h-5 w-5" />
                 ) : getSelectionState() === 'partial' ? (
-                  <IndeterminateCheckBoxRounded />
+                  <MinusSquare className="h-5 w-5" />
                 ) : (
-                  <CheckBoxOutlineBlankRounded />
+                  <Square className="h-5 w-5" />
                 )}
               </IconButton>
               <IconButton
@@ -899,13 +882,13 @@ const ProfilePage = () => {
                 onClick={deleteSelectedProfiles}
                 disabled={selectedProfiles.size === 0}
               >
-                <DeleteRounded />
+                <Trash2 className="h-5 w-5" />
               </IconButton>
               <Button size="small" variant="outlined" onClick={toggleBatchMode}>
                 {t('profiles.page.batch.actions.done')}
               </Button>
               <Box
-                sx={{ flex: 1, textAlign: 'right', color: 'text.secondary' }}
+                className="flex-1 text-right text-gray-500 dark:text-gray-400"
               >
                 {t('profiles.page.batch.summary.selected')}{' '}
                 {selectedProfiles.size} {t('profiles.page.batch.summary.items')}
@@ -918,14 +901,7 @@ const ProfilePage = () => {
       <Stack
         direction="row"
         spacing={1}
-        sx={{
-          pt: 1,
-          mb: 0.5,
-          mx: '10px',
-          height: '36px',
-          display: 'flex',
-          alignItems: 'center',
-        }}
+        className="pt-4 mb-2 mx-[10px] h-[36px] flex items-center"
       >
         <BaseStyledTextField
           value={url}
@@ -948,20 +924,20 @@ const ProfilePage = () => {
               endAdornment: !url ? (
                 <IconButton
                   size="small"
-                  sx={{ p: 0.5 }}
+                  className="p-0.5"
                   title={t('profiles.page.importForm.actions.paste')}
                   onClick={onCopyLink}
                 >
-                  <ContentPasteRounded fontSize="inherit" />
+                  <Clipboard />
                 </IconButton>
               ) : (
                 <IconButton
                   size="small"
-                  sx={{ p: 0.5 }}
+                  className="p-0.5"
                   title={t('shared.actions.clear')}
                   onClick={() => setUrl('')}
                 >
-                  <ClearRounded fontSize="inherit" />
+                  <X className="h-5 w-5" />
                 </IconButton>
               ),
             },
@@ -970,17 +946,17 @@ const ProfilePage = () => {
         <Button
           disabled={!url || disabled}
           loading={loading}
-          variant="contained"
+          variant="primary"
           size="small"
-          sx={{ borderRadius: '6px' }}
+          className="rounded-[6px]"
           onClick={onImport}
         >
           {t('profiles.page.actions.import')}
         </Button>
         <Button
-          variant="contained"
+          variant="primary"
           size="small"
-          sx={{ borderRadius: '6px' }}
+          className="rounded-[6px]"
           onClick={() => viewerRef.current?.create()}
         >
           {t('shared.actions.new')}
@@ -993,14 +969,9 @@ const ProfilePage = () => {
         onDragEnd={onDragEnd}
       >
         <Box
-          sx={{
-            pl: '10px',
-            pr: '10px',
-            height: 'calc(100% - 48px)',
-            overflowY: 'auto',
-          }}
+          className="pl-[10px] pr-[10px] h-[calc(100%-48px)] overflow-y-auto"
         >
-          <Box sx={{ mb: 1.5 }}>
+          <Box className="mb-6">
             <Grid container spacing={{ xs: 1, lg: 1 }}>
               <SortableContext
                 items={profileItems.map((x) => {
@@ -1008,7 +979,7 @@ const ProfilePage = () => {
                 })}
               >
                 {profileItems.map((item) => (
-                  <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={item.file}>
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={item.file}>
                     <ProfileItem
                       id={item.uid}
                       selected={profiles.current === item.uid}
@@ -1043,11 +1014,12 @@ const ProfilePage = () => {
           <Divider
             variant="middle"
             flexItem
-            sx={{ width: `calc(100% - 32px)`, borderColor: dividercolor }}
+            className="w-[calc(100%-32px)]"
+            style={{ borderColor: dividercolor }}
           ></Divider>
-          <Box sx={{ mt: 1.5, mb: '10px' }}>
+          <Box className="mt-6 mb-[10px]">
             <Grid container spacing={{ xs: 1, lg: 1 }}>
-              <Grid size={{ xs: 12, sm: 6, md: 6, lg: 6 }}>
+              <Grid item xs={12} sm={6} md={6} lg={6}>
                 <ProfileMore
                   id="Merge"
                   onSave={async (prev, curr) => {
@@ -1057,7 +1029,7 @@ const ProfilePage = () => {
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 6, lg: 6 }}>
+              <Grid item xs={12} sm={6} md={6} lg={6}>
                 <ProfileMore
                   id="Script"
                   logInfo={chainLogs['Script']}

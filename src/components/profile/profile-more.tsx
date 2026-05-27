@@ -1,18 +1,12 @@
 import { FeaturedPlayListRounded } from '@mui/icons-material'
-import {
-  Box,
-  Badge,
-  Chip,
-  IconButton,
-  Menu,
-  MenuItem,
-  Typography,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EditorViewer } from '@/components/profile/editor-viewer'
+import { Badge } from '@/components/tailwind/Badge'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { Menu, MenuItem } from '@/components/tailwind/Menu'
 import { useEditorDocument } from '@/hooks/ui'
 import { viewProfile, readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -76,14 +70,6 @@ export const ProfileMore = (props: Props) => {
     { label: 'profiles.components.menu.openFile', handler: onOpenFile },
   ]
 
-  const boxStyle = {
-    height: 26,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    lineHeight: 1,
-  }
-
   const handleSave = useLockFn(async () => {
     const currentValue = document.value
     if (!(await saveProfileFile(id, currentValue))) {
@@ -105,40 +91,26 @@ export const ProfileMore = (props: Props) => {
           event.preventDefault()
         }}
       >
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 0.5,
-          }}
-        >
-          <Typography
-            variant="h6"
-            component="h2"
-            noWrap
+        <div className="flex justify-between items-center mb-1">
+          <h2
+            className="text-xl font-semibold overflow-hidden text-ellipsis whitespace-nowrap"
             title={t(globalTitles[id])}
-            sx={{ width: 'calc(100% - 52px)' }}
+            style={{ width: 'calc(100% - 52px)' }}
           >
             {t(globalTitles[id])}
-          </Typography>
+          </h2>
 
-          <Chip
-            label={t(chipLabels[id])}
-            color="primary"
-            size="small"
-            variant="outlined"
-            sx={{ height: 20, textTransform: 'capitalize' }}
-          />
-        </Box>
+          <span className="inline-block px-2 h-5 text-xs border border-primary text-primary rounded capitalize leading-5">
+            {t(chipLabels[id])}
+          </span>
+        </div>
 
-        <Box sx={boxStyle}>
+        <div className="h-[26px] flex items-center justify-between leading-none">
           {id === 'Script' &&
             (hasError ? (
-              <Badge color="error" variant="dot" overlap="circular">
+              <Badge variant="dot" color="error">
                 <IconButton
                   size="small"
-                  edge="start"
                   color="error"
                   title={t('profiles.modals.logViewer.title')}
                   onClick={() => setLogOpen(true)}
@@ -149,15 +121,13 @@ export const ProfileMore = (props: Props) => {
             ) : (
               <IconButton
                 size="small"
-                edge="start"
-                color="inherit"
                 title={t('profiles.modals.logViewer.title')}
                 onClick={() => setLogOpen(true)}
               >
                 <FeaturedPlayListRounded fontSize="inherit" />
               </IconButton>
             ))}
-        </Box>
+        </div>
       </ProfileBox>
 
       <Menu
@@ -166,8 +136,6 @@ export const ProfileMore = (props: Props) => {
         onClose={() => setAnchorEl(null)}
         anchorPosition={position}
         anchorReference="anchorPosition"
-        transitionDuration={225}
-        slotProps={{ list: { sx: { py: 0.5 } } }}
         onContextMenu={(e) => {
           setAnchorEl(null)
           e.preventDefault()
@@ -179,18 +147,9 @@ export const ProfileMore = (props: Props) => {
             <MenuItem
               key={item.label}
               onClick={item.handler}
-              sx={[
-                { minWidth: 120 },
-                (theme) => {
-                  return {
-                    color:
-                      item.label === 'Delete'
-                        ? theme.palette.error.main
-                        : undefined,
-                  }
-                },
-              ]}
-              dense
+              className={`min-w-[120px] ${
+                item.label === 'Delete' ? 'text-red-500' : ''
+              }`}
             >
               {t(item.label)}
             </MenuItem>

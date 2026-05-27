@@ -1,4 +1,3 @@
-import { TextField } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { nanoid } from 'nanoid'
 import { forwardRef, useImperativeHandle, useState } from 'react'
@@ -6,6 +5,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
+import { TextField } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
@@ -118,9 +118,6 @@ export const TestViewer = forwardRef<TestViewerRef, Props>(
 
     const text = {
       fullWidth: true,
-      size: 'small',
-      margin: 'normal',
-      variant: 'outlined',
       autoComplete: 'off',
       autoCorrect: 'off',
     } as const
@@ -133,7 +130,7 @@ export const TestViewer = forwardRef<TestViewerRef, Props>(
             ? t('tests.modals.test.title.create')
             : t('tests.modals.test.title.edit')
         }
-        contentSx={{ width: 375, pb: 0, maxHeight: '80%' }}
+        className="w-[375px] max-h-[80%]"
         okBtn={t('shared.actions.save')}
         cancelBtn={t('shared.actions.cancel')}
         onClose={handleClose}
@@ -141,39 +138,41 @@ export const TestViewer = forwardRef<TestViewerRef, Props>(
         onOk={handleOk}
         loading={loading}
       >
-        <Controller
-          name="name"
-          control={control}
-          render={({ field }) => (
-            <TextField {...text} {...field} label={t('shared.labels.name')} />
-          )}
-        />
-        <Controller
-          name="icon"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              {...text}
-              {...field}
-              multiline
-              maxRows={5}
-              label={t('shared.labels.icon')}
-            />
-          )}
-        />
-        <Controller
-          name="url"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              {...text}
-              {...field}
-              multiline
-              maxRows={3}
-              label={t('tests.modals.test.fields.url')}
-            />
-          )}
-        />
+        <div className="space-y-4">
+          <Controller
+            name="name"
+            control={control}
+            render={({ field }) => (
+              <TextField {...text} {...field} label={t('shared.labels.name')} />
+            )}
+          />
+          <Controller
+            name="icon"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...text}
+                {...field}
+                multiline
+                rows={5}
+                label={t('shared.labels.icon')}
+              />
+            )}
+          />
+          <Controller
+            name="url"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...text}
+                {...field}
+                multiline
+                rows={3}
+                label={t('tests.modals.test.fields.url')}
+              />
+            )}
+          />
+        </div>
       </BaseDialog>
     )
   },

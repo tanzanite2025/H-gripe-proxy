@@ -1,18 +1,14 @@
-import { Box } from '@mui/material'
 import {
   ColumnDef,
   ColumnOrderState,
   ColumnSizingState,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
-  Row,
   SortingState,
   Updater,
   useReactTable,
   VisibilityState,
 } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import dayjs from 'dayjs'
 import { useLocalStorage } from 'foxact/use-local-storage'
 import {
@@ -31,8 +27,7 @@ import parseTraffic from '@/utils/format'
 import { truncateStr } from '@/utils/format'
 
 import { ConnectionColumnManager } from './connection-column-manager'
-
-const ROW_HEIGHT = 40
+import { ConnectionTableUI } from './connection-table-ui'
 
 type TickListener = () => void
 let _tickNow = Date.now()
@@ -76,99 +71,6 @@ const RelativeTimeCell = memo(function RelativeTimeCell({
   const now = useSyncExternalStore(tickStore.subscribe, tickStore.getSnapshot)
   return <>{dayjs(start).from(now)}</>
 })
-
-const SX_OUTER: React.ComponentProps<typeof Box>['sx'] = {
-  display: 'flex',
-  flexDirection: 'column',
-  flex: 1,
-  minHeight: 0,
-  position: 'relative',
-  fontFamily: (theme) => theme.typography.fontFamily,
-}
-
-const SX_SCROLL_CONTAINER: React.ComponentProps<typeof Box>['sx'] = {
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-  WebkitOverflowScrolling: 'touch',
-  overscrollBehavior: 'contain',
-  borderRadius: 1,
-  border: 'none',
-  '&::-webkit-scrollbar': {
-    height: 8,
-  },
-}
-
-const SX_HEADER_STICKY: React.ComponentProps<typeof Box>['sx'] = {
-  position: 'sticky',
-  top: 0,
-  zIndex: 2,
-}
-
-const SX_CELL_CONTENT: React.ComponentProps<typeof Box>['sx'] = {
-  flex: 1,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 0.5,
-  px: 1,
-  py: 1,
-}
-
-const SX_RESIZE_HANDLE: React.ComponentProps<typeof Box>['sx'] = {
-  cursor: 'col-resize',
-  position: 'absolute',
-  right: 0,
-  top: 0,
-  width: 4,
-  height: '100%',
-  transform: 'translateX(50%)',
-  '&:hover': {
-    backgroundColor: (theme) => theme.palette.action.active,
-  },
-}
-
-const SX_HEADER_ROW: React.ComponentProps<typeof Box>['sx'] = {
-  display: 'flex',
-  borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-  backgroundColor: (theme) => theme.palette.background.paper,
-}
-
-const SX_HEADER_CELL_BASE: React.ComponentProps<typeof Box>['sx'] = {
-  display: 'flex',
-  alignItems: 'center',
-  position: 'relative',
-  boxSizing: 'border-box',
-  fontSize: 13,
-  fontWeight: 600,
-  color: 'text.secondary',
-  userSelect: 'none',
-  '&:hover': {
-    backgroundColor: (theme) => theme.palette.action.hover,
-  },
-}
-
-const SX_DATA_CELL_BASE: React.ComponentProps<typeof Box>['sx'] = {
-  boxSizing: 'border-box',
-  px: 1,
-  fontSize: 13,
-  display: 'flex',
-  alignItems: 'center',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-}
-
-const SX_ROW_BASE: React.ComponentProps<typeof Box>['sx'] = {
-  display: 'flex',
-  position: 'absolute',
-  left: 0,
-  right: 0,
-  cursor: 'pointer',
-  borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-  '&:hover': {
-    backgroundColor: (theme) => theme.palette.action.hover,
-  },
-}
 
 const reconcileColumnOrder = (
   storedOrder: string[],
@@ -229,68 +131,6 @@ const getConnectionCellValue = (field: ColumnField, each: IConnectionsItem) => {
       return ''
   }
 }
-
-interface RowComponentProps {
-  row: Row<IConnectionsItem>
-  virtualStart: number
-  virtualSize: number
-  onShowDetail: (data: IConnectionsItem) => void
-}
-
-const RowComponent = memo(
-  function RowComponent({
-    row,
-    virtualStart,
-    virtualSize,
-    onShowDetail,
-  }: RowComponentProps) {
-    const handleClick = useCallback(
-      () => onShowDetail(row.original),
-      [onShowDetail, row.original],
-    )
-
-    return (
-      <Box
-        sx={[
-          SX_ROW_BASE,
-          {
-            height: virtualSize,
-            transform: `translateY(${virtualStart}px)`,
-          },
-        ]}
-        onClick={handleClick}
-      >
-        {row.getVisibleCells().map((cell) => {
-          const meta = cell.column.columnDef.meta as {
-            align?: 'left' | 'right'
-          }
-          return (
-            <Box
-              key={cell.id}
-              sx={[
-                SX_DATA_CELL_BASE,
-                {
-                  flex: `0 0 ${cell.column.getSize()}px`,
-                  minWidth: cell.column.columnDef.minSize ?? 80,
-                  maxWidth: cell.column.columnDef.maxSize,
-                  justifyContent:
-                    meta?.align === 'right' ? 'flex-end' : 'flex-start',
-                },
-              ]}
-            >
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </Box>
-          )
-        })}
-      </Box>
-    )
-  },
-  (prev, next) =>
-    prev.row === next.row &&
-    prev.virtualStart === next.virtualStart &&
-    prev.virtualSize === next.virtualSize &&
-    prev.onShowDetail === next.onShowDetail,
-)
 
 interface Props {
   connections: IConnectionsItem[]
@@ -506,7 +346,6 @@ export const ConnectionTable = (props: Props) => {
 
   const [sorting, setSorting] = useState<SortingState>([])
 
-  // columnDefs no longer depends on relativeNow — time column delegates to RelativeTimeCell
   const columnDefs = useMemo<ColumnDef<IConnectionsItem>[]>(() => {
     return baseColumns.map((column) => {
       let cell: ColumnDef<IConnectionsItem>['cell']
@@ -599,126 +438,11 @@ export const ConnectionTable = (props: Props) => {
     table.resetColumnOrder()
   }, [table])
 
-  const rows = table.getRowModel().rows
-  const tableContainerRef = useRef<HTMLDivElement | null>(null)
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 4,
-  })
-
-  const virtualRows = rowVirtualizer.getVirtualItems()
-  const totalSize = rowVirtualizer.getTotalSize()
-  const tableWidth = table.getTotalSize()
   const managerColumns = table.getAllLeafColumns()
 
   return (
     <>
-      <Box sx={SX_OUTER}>
-        <Box ref={tableContainerRef} sx={SX_SCROLL_CONTAINER}>
-          <Box
-            sx={{
-              minWidth: '100%',
-              width: tableWidth,
-            }}
-          >
-            <Box sx={SX_HEADER_STICKY}>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <Box key={headerGroup.id} sx={SX_HEADER_ROW}>
-                  {headerGroup.headers.map((header) => {
-                    if (header.isPlaceholder) {
-                      return null
-                    }
-                    const meta = header.column.columnDef.meta as {
-                      align?: 'left' | 'right'
-                      field: string
-                    }
-                    return (
-                      <Box
-                        key={header.id}
-                        sx={[
-                          SX_HEADER_CELL_BASE,
-                          {
-                            flex: `0 0 ${header.getSize()}px`,
-                            minWidth: header.column.columnDef.minSize ?? 80,
-                            maxWidth: header.column.columnDef.maxSize,
-                          },
-                        ]}
-                      >
-                        <Box
-                          component="span"
-                          onClick={
-                            header.column.getCanSort()
-                              ? header.column.getToggleSortingHandler()
-                              : undefined
-                          }
-                          sx={[
-                            SX_CELL_CONTENT,
-                            {
-                              justifyContent:
-                                meta?.align === 'right'
-                                  ? 'flex-end'
-                                  : 'flex-start',
-                              cursor: header.column.getCanSort()
-                                ? 'pointer'
-                                : 'default',
-                            },
-                          ]}
-                        >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                          {{
-                            asc: '▲',
-                            desc: '▼',
-                          }[header.column.getIsSorted() as string] ?? null}
-                        </Box>
-                        {header.column.getCanResize() && (
-                          <Box
-                            onClick={(event) => event.stopPropagation()}
-                            onMouseDown={(event) => {
-                              event.stopPropagation()
-                              header.getResizeHandler()(event)
-                            }}
-                            onTouchStart={(event) => {
-                              event.stopPropagation()
-                              header.getResizeHandler()(event)
-                            }}
-                            sx={SX_RESIZE_HANDLE}
-                          />
-                        )}
-                      </Box>
-                    )
-                  })}
-                </Box>
-              ))}
-            </Box>
-            <Box
-              sx={{
-                position: 'relative',
-                height: totalSize,
-              }}
-            >
-              {virtualRows.map((virtualRow) => {
-                const row = rows[virtualRow.index]
-                if (!row) return null
-
-                return (
-                  <RowComponent
-                    key={row.id}
-                    row={row}
-                    virtualStart={virtualRow.start}
-                    virtualSize={virtualRow.size}
-                    onShowDetail={onShowDetail}
-                  />
-                )
-              })}
-            </Box>
-          </Box>
-        </Box>
-      </Box>
+      <ConnectionTableUI table={table} onShowDetail={onShowDetail} />
       <ConnectionColumnManager
         open={columnManagerOpen}
         columns={managerColumns}

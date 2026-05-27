@@ -1,17 +1,14 @@
-import {
-  Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Typography,
-} from '@mui/material'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseEmpty } from '@/components/base'
+import { Button } from '@/components/tailwind/Button'
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+} from '@/components/tailwind/Dialog'
 
 interface Props {
   open: boolean
@@ -28,32 +25,22 @@ export const LogViewer = (props: Props) => {
     <Dialog open={open} onClose={onClose}>
       <DialogTitle>{t('profiles.modals.logViewer.title')}</DialogTitle>
 
-      <DialogContent
-        sx={{
-          width: 400,
-          height: 300,
-          overflowX: 'hidden',
-          userSelect: 'text',
-          pb: 1,
-        }}
-      >
+      <DialogContent className="w-[400px] h-[300px] overflow-x-hidden select-text pb-2">
         {logInfo.map(([level, log]) => (
           <Fragment key={`${level}-${log}`}>
-            <Typography color="text.secondary" component="div">
-              <Chip
-                label={level}
-                size="small"
-                variant="outlined"
-                color={
+            <div className="text-gray-400 dark:text-gray-500">
+              <span
+                className={`inline-block px-2 py-0.5 mr-2 text-xs border rounded ${
                   level === 'error' || level === 'exception'
-                    ? 'error'
-                    : 'default'
-                }
-                sx={{ mr: 1 }}
-              />
+                    ? 'border-red-500 text-red-500'
+                    : 'border-gray-400 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                {level}
+              </span>
               {log}
-            </Typography>
-            <Divider sx={{ my: 0.5 }} />
+            </div>
+            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
           </Fragment>
         ))}
 

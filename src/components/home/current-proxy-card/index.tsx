@@ -1,17 +1,19 @@
 import {
-  AccessTimeRounded,
+  Clock as AccessTimeRounded,
   ChevronRight,
-  NetworkCheckRounded,
-  SignalWifi0Bar as SignalNone,
-  SortByAlphaRounded,
-  SortRounded,
-} from '@mui/icons-material'
-import { Box, Button, IconButton, Tooltip } from '@mui/material'
+  Activity as NetworkCheckRounded,
+  WifiOff as SignalNone,
+  SortAsc as SortByAlphaRounded,
+  ArrowUpDown as SortRounded,
+} from 'lucide-react'
 import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { EnhancedCard } from '@/components/home/enhanced-card'
+import { Button } from '@/components/tailwind/Button'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProfiles } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import {
@@ -125,11 +127,11 @@ export const CurrentProxyCard = () => {
   const getSortIcon = (): React.ReactElement => {
     switch (sortType) {
       case 1:
-        return <AccessTimeRounded fontSize="small" />
+        return <AccessTimeRounded className="h-4 w-4" />
       case 2:
-        return <SortByAlphaRounded fontSize="small" />
+        return <SortByAlphaRounded className="h-4 w-4" />
       default:
-        return <SortRounded fontSize="small" />
+        return <SortRounded className="h-4 w-4" />
     }
   }
 
@@ -158,14 +160,14 @@ export const CurrentProxyCard = () => {
               : '无代理节点'
           }
         >
-          <Box sx={{ color: signalInfo.color }}>
-            {currentProxy ? signalInfo.icon : <SignalNone color="disabled" />}
-          </Box>
+          <div style={{ color: signalInfo.color }}>
+            {currentProxy ? signalInfo.icon : <SignalNone className="h-5 w-5 text-gray-400" />}
+          </div>
         </Tooltip>
       }
       iconColor={currentProxy ? 'primary' : undefined}
       action={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div className="flex items-center gap-1">
           <Tooltip
             title={t('home.components.currentProxy.actions.refreshDelay')}
           >
@@ -176,7 +178,7 @@ export const CurrentProxyCard = () => {
                 onClick={() => handleCheckAllDelay(isGlobalMode)}
                 disabled={isDirectMode}
               >
-                <NetworkCheckRounded />
+                <NetworkCheckRounded className="h-5 w-5" />
               </IconButton>
             </span>
           </Tooltip>
@@ -193,18 +195,18 @@ export const CurrentProxyCard = () => {
             variant="outlined"
             size="small"
             onClick={goToProxies}
-            sx={{ borderRadius: 1.5 }}
-            endIcon={<ChevronRight fontSize="small" />}
+            className="rounded-xl"
+            endIcon={<ChevronRight className="h-4 w-4" />}
           >
             {t('layout.components.navigation.tabs.proxies')}
           </Button>
-        </Box>
+        </div>
       }
     >
       {isCoreDataPending ? (
-        <Box sx={{ py: 4 }} />
+        <div className="py-4" />
       ) : (
-        <Box>
+        <div>
           {/* 代理节点信息显示 */}
           <ProxyInfoDisplay
             proxy={currentProxy}
@@ -224,7 +226,7 @@ export const CurrentProxyCard = () => {
               onProxyChange={handleProxyChange}
             />
           )}
-        </Box>
+        </div>
       )}
     </EnhancedCard>
   )

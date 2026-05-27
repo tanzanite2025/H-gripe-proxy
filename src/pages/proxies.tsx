@@ -1,5 +1,5 @@
-import { LanOutlined, LanRounded, WarningRounded } from '@mui/icons-material'
-import { Box, Button, ButtonGroup } from '@mui/material'
+import { Network, AlertTriangle } from 'lucide-react'
+import { Box, Button, ButtonGroup } from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -139,14 +139,14 @@ const ProxyPage = () => {
           <Box
             component="span"
             data-tauri-drag-region="true"
-            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}
+            className="inline-flex items-center gap-3"
           >
             {t('proxies.page.title.chainMode')}
             <TooltipIcon
               title={chainWarning}
-              icon={WarningRounded}
+              icon={AlertTriangle}
               color="warning"
-              sx={{ p: 0.25 }}
+              className="p-1"
             />
           </Box>
         ) : (
@@ -154,16 +154,16 @@ const ProxyPage = () => {
         )
       }
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box className="flex items-center gap-1">
           <ProviderButton />
 
           <ButtonGroup className="uds-toolbar" size="small">
             {MODES.map((mode) => (
               <Button
                 key={mode}
-                variant={mode === curMode ? 'contained' : 'outlined'}
+                variant={mode === curMode ? 'primary' : 'outlined'}
                 onClick={() => onChangeMode(mode)}
-                sx={{ textTransform: 'capitalize' }}
+                className="capitalize"
               >
                 {t(`proxies.page.modes.${mode}`)}
               </Button>
@@ -172,14 +172,14 @@ const ProxyPage = () => {
 
           <Button
             size="small"
-            variant={isChainMode ? 'contained' : 'outlined'}
+            variant={isChainMode ? 'primary' : 'outlined'}
             onClick={onToggleChainMode}
-            sx={{ ml: 1 }}
+            className="ml-1"
             startIcon={
               isChainMode ? (
-                <LanRounded fontSize="small" />
+                <Network className="h-5 w-5" />
               ) : (
-                <LanOutlined fontSize="small" />
+                <Network className="h-5 w-5" />
               )
             }
           >

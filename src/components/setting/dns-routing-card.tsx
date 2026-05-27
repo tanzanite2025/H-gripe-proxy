@@ -2,24 +2,14 @@
  * DNS 智能分流配置卡片
  */
 
-import { useState, useEffect } from 'react'
-import {
-  Box,
-  Typography,
-  ToggleButtonGroup,
-  ToggleButton,
-  Chip,
-  Stack,
-  Divider,
-  Alert,
-} from '@mui/material'
-import {
-  Speed as SpeedIcon,
-  Security as SecurityIcon,
-  Balance as BalanceIcon,
-  Settings as SettingsIcon,
-} from '@mui/icons-material'
+import { Balance as BalanceIcon, Settings as SettingsIcon, Shield as SecurityIcon, Zap as SpeedIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import { Alert } from '@/components/tailwind/Alert'
+import { Chip } from '@/components/tailwind/Chip'
+import { ToggleButton, ToggleButtonGroup } from '@/components/tailwind/ToggleButtonGroup'
 import { dnsSmartRoutingService, type DnsRoutingMode } from '@/services/dns-smart-routing'
+import { cn } from '@/utils/cn'
 
 export const DnsRoutingCard = () => {
   const [mode, setMode] = useState<DnsRoutingMode>('balanced')
@@ -81,62 +71,62 @@ export const DnsRoutingCard = () => {
   }
 
   return (
-    <Box>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+    <div>
+      <h6 className="mb-2 text-lg font-bold">
         DNS 智能分流
-      </Typography>
+      </h6>
 
-      <Alert severity="info" sx={{ mb: 2 }}>
+      <Alert severity="info" className="mb-2">
         智能分流可根据域名类型自动选择最优 DNS 服务器，提升解析速度并保护隐私
       </Alert>
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+      <div className="mb-3">
+        <div className="mb-1.5 text-sm text-gray-500 dark:text-gray-400">
           分流模式
-        </Typography>
+        </div>
         <ToggleButtonGroup
           value={mode}
           exclusive
           onChange={handleModeChange}
           fullWidth
-          sx={{ mb: 2 }}
+          className="mb-2"
         >
           <ToggleButton value="speed">
-            <SpeedIcon sx={{ mr: 1 }} />
+            <SpeedIcon className="mr-1 h-4 w-4" />
             速度优先
           </ToggleButton>
           <ToggleButton value="balanced">
-            <BalanceIcon sx={{ mr: 1 }} />
+            <BalanceIcon className="mr-1 h-4 w-4" />
             平衡模式
           </ToggleButton>
           <ToggleButton value="privacy">
-            <SecurityIcon sx={{ mr: 1 }} />
+            <SecurityIcon className="mr-1 h-4 w-4" />
             隐私优先
           </ToggleButton>
           <ToggleButton value="custom">
-            <SettingsIcon sx={{ mr: 1 }} />
+            <SettingsIcon className="mr-1 h-4 w-4" />
             自定义
           </ToggleButton>
         </ToggleButtonGroup>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <div className="mb-2 text-sm text-gray-600 dark:text-gray-400">
           {getModeDescription(mode)}
-        </Typography>
-      </Box>
+        </div>
+      </div>
 
-      <Divider sx={{ my: 2 }} />
+      <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
-      <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+      <div>
+        <div className="mb-1.5 text-sm text-gray-500 dark:text-gray-400">
           当前配置
-        </Typography>
+        </div>
 
-        <Stack spacing={1.5}>
-          <Box>
-            <Typography variant="caption" color="text.secondary">
+        <div className="space-y-1.5">
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
               当前模式
-            </Typography>
-            <Box sx={{ mt: 0.5 }}>
+            </div>
+            <div className="mt-0.5">
               <Chip
                 label={
                   mode === 'speed'
@@ -150,47 +140,47 @@ export const DnsRoutingCard = () => {
                 color={getModeColor(mode)}
                 size="small"
               />
-            </Box>
-          </Box>
+            </div>
+          </div>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary">
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
               国内域名 DNS
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
+            </div>
+            <div className="mt-0.5 text-sm">
               {stats.domesticDns || '未配置'}
-            </Typography>
-          </Box>
+            </div>
+          </div>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary">
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
               国外域名 DNS
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
+            </div>
+            <div className="mt-0.5 text-sm">
               {stats.foreignDns || '未配置'}
-            </Typography>
-          </Box>
+            </div>
+          </div>
 
           {stats.customRulesCount > 0 && (
-            <Box>
-              <Typography variant="caption" color="text.secondary">
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
                 自定义规则
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
+              </div>
+              <div className="mt-0.5 text-sm">
                 {stats.customRulesCount} 条规则
-              </Typography>
-            </Box>
+              </div>
+            </div>
           )}
-        </Stack>
-      </Box>
+        </div>
+      </div>
 
-      <Divider sx={{ my: 2 }} />
+      <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
-      <Box>
-        <Typography variant="caption" color="text.secondary">
+      <div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
           性能提示
-        </Typography>
-        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+        </div>
+        <div className="mt-1 flex gap-1">
           {mode === 'speed' && (
             <>
               <Chip label="延迟: 10-30ms" size="small" color="success" />
@@ -209,8 +199,8 @@ export const DnsRoutingCard = () => {
               <Chip label="隐私: 中" size="small" color="warning" />
             </>
           )}
-        </Stack>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   )
 }

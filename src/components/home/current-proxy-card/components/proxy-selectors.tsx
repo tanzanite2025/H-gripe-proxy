@@ -1,18 +1,9 @@
-import {
-  Box,
-  Chip,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  Typography,
-  alpha,
-  useTheme,
-} from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
+import { Chip } from '@/components/tailwind/Chip'
+import { FormControl, InputLabel, MenuItem, Select, SelectChangeEvent } from '@/components/tailwind/Select'
 import delayManager from '@/services/delay'
+import { cn } from '@/utils/cn'
 
 import type { ProxyState } from '../hooks/use-current-proxy-data'
 import { convertDelayColor } from '../utils/proxy-helpers'
@@ -39,7 +30,6 @@ export const ProxySelectors = ({
   onProxyChange,
 }: ProxySelectorsProps) => {
   const { t } = useTranslation()
-  const theme = useTheme()
 
   // 自定义渲染选择框中的值
   const renderProxyValue = (selected: string) => {
@@ -51,39 +41,28 @@ export const ProxySelectors = ({
     )
 
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Typography noWrap>{selected}</Typography>
+      <div className="flex justify-between">
+        <div className="truncate">{selected}</div>
         <Chip
           size="small"
           label={delayManager.formatDelay(delayValue)}
           color={convertDelayColor(delayValue)}
         />
-      </Box>
+      </div>
     )
   }
 
-  const selectStyles = {
-    bgcolor: alpha(theme.palette.action.hover, 0.02),
-    borderRadius: '16px',
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderStyle: 'dashed',
-      borderColor: 'divider',
-    },
-    '&:hover .MuiOutlinedInput-notchedOutline': {
-      borderStyle: 'dashed',
-      borderColor: 'divider',
-    },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderStyle: 'dashed',
-      borderWidth: '1px',
-      borderColor: 'primary.main',
-    },
-  }
+  const selectClassName = cn(
+    'rounded-2xl border-dashed bg-gray-50/20 dark:bg-gray-800/20',
+    '[&_.MuiOutlinedInput-notchedOutline]:border-dashed [&_.MuiOutlinedInput-notchedOutline]:border-gray-200 dark:[&_.MuiOutlinedInput-notchedOutline]:border-gray-700',
+    'hover:[&_.MuiOutlinedInput-notchedOutline]:border-dashed',
+    '[&.Mui-focused_.MuiOutlinedInput-notchedOutline]:border-dashed [&.Mui-focused_.MuiOutlinedInput-notchedOutline]:border-primary-500',
+  )
 
   return (
     <>
       {/* 代理组选择器 */}
-      <FormControl fullWidth variant="outlined" size="small" sx={{ mb: 1.5 }}>
+      <FormControl fullWidth variant="outlined" size="small" className="mb-1.5">
         <InputLabel id="proxy-group-select-label" className="uds-label">
           {t('home.components.currentProxy.labels.group')}
         </InputLabel>
@@ -93,7 +72,7 @@ export const ProxySelectors = ({
           onChange={onGroupChange}
           label={t('home.components.currentProxy.labels.group')}
           disabled={isGlobalMode || isDirectMode}
-          sx={selectStyles}
+          className={selectClassName}
         >
           {state.proxyData.groups.map((group) => (
             <MenuItem key={group.name} value={group.name}>
@@ -104,7 +83,7 @@ export const ProxySelectors = ({
       </FormControl>
 
       {/* 代理节点选择器 */}
-      <FormControl fullWidth variant="outlined" size="small" sx={{ mb: 0 }}>
+      <FormControl fullWidth variant="outlined" size="small" className="mb-0">
         <InputLabel id="proxy-select-label" className="uds-label">
           {t('home.components.currentProxy.labels.proxy')}
         </InputLabel>
@@ -115,7 +94,7 @@ export const ProxySelectors = ({
           label={t('home.components.currentProxy.labels.proxy')}
           disabled={isDirectMode}
           renderValue={renderProxyValue}
-          sx={selectStyles}
+          className={selectClassName}
           MenuProps={{
             slotProps: {
               paper: {
@@ -140,26 +119,16 @@ export const ProxySelectors = ({
                   <MenuItem
                     key={proxy.name}
                     value={proxy.name}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      width: '100%',
-                      pr: 1,
-                    }}
+                    className="flex w-full items-center justify-between pr-1"
                   >
-                    <Typography noWrap sx={{ flex: 1, mr: 1 }}>
+                    <div className="mr-1 flex-1 truncate">
                       {proxy.name}
-                    </Typography>
+                    </div>
                     <Chip
                       size="small"
                       label={delayManager.formatDelay(delayValue)}
                       color={convertDelayColor(delayValue)}
-                      sx={{
-                        minWidth: '60px',
-                        height: '22px',
-                        flexShrink: 0,
-                      }}
+                      className="h-[22px] min-w-[60px] flex-shrink-0"
                     />
                   </MenuItem>
                 )

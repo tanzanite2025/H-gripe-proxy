@@ -1,5 +1,4 @@
-import { LanRounded, SettingsRounded } from '@mui/icons-material'
-import { MenuItem, Select, TextField, Typography } from '@mui/material'
+import { Network as LanRounded, Settings as SettingsRounded } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useLockFn } from 'ahooks'
 import { useRef, useState } from 'react'
@@ -7,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { updateGeo } from 'tauri-plugin-mihomo-api'
 
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
+import { MenuItem, Select } from '@/components/tailwind/Select'
+import { TextField } from '@/components/tailwind/TextField'
 import { useClash } from '@/hooks/data'
 import { useClashLog, useVerge } from '@/hooks/system'
 import { invoke_uwp_tool } from '@/services/cmds'
@@ -194,7 +195,7 @@ const SettingClash = ({ onError }: Props) => {
             return patchClash({ 'log-level': e })
           }}
         >
-          <Select size="small" sx={{ width: 100, '> div': { py: '7.5px' } }}>
+          <Select size="small" className="w-[100px]">
             <MenuItem value="debug">
               {t('settings.sections.clash.form.options.logLevel.debug')}
             </MenuItem>
@@ -220,7 +221,7 @@ const SettingClash = ({ onError }: Props) => {
           disabled={false}
           size="small"
           value={verge_mixed_port ?? 7897}
-          sx={{ width: 100, input: { py: '7.5px', cursor: 'pointer' } }}
+          className="w-[100px] cursor-pointer"
           onClick={(e) => {
             portRef.current?.open()
             ;(e.target as any).blur()
@@ -259,7 +260,7 @@ const SettingClash = ({ onError }: Props) => {
           />
         }
       >
-        <Typography sx={{ py: '7px', pr: 1 }}>{version}</Typography>
+        <div className="py-[7px] pr-1">{version}</div>
       </SettingItem>
 
       {isWIN && (

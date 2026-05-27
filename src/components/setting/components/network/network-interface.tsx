@@ -1,11 +1,11 @@
-import { ContentCopyRounded } from '@mui/icons-material'
-import { alpha, Box, Button, IconButton } from '@mui/material'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef } from '@/components/base'
+import { alpha, Box, Button, IconButton } from '@/components/tailwind'
+import { Copy } from '@/components/tailwind/icons'
 import { useNetworkInterfaces } from '@/hooks/network/use-network'
 import { showNotice } from '@/services/notice-service'
 
@@ -27,7 +27,7 @@ export function NetworkInterfaceViewer({ ref }: { ref?: Ref<DialogRef> }) {
     <BaseDialog
       open={open}
       title={
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Box className="flex justify-between">
           {t('settings.modals.networkInterface.title')}
           <Box>
             <Button
@@ -111,13 +111,7 @@ const AddressDisplay = ({
   content: string
 }) => {
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        margin: '8px 0',
-      }}
-    >
+    <Box className="flex justify-between my-2">
       <Box>{label}</Box>
       <Box
         sx={({ palette }) => ({
@@ -129,7 +123,7 @@ const AddressDisplay = ({
               : alpha(palette.grey[400], 0.3),
         })}
       >
-        <Box sx={{ display: 'inline', userSelect: 'text' }}>{content}</Box>
+        <Box className="inline select-text">{content}</Box>
         <IconButton
           size="small"
           onClick={async () => {
@@ -139,7 +133,7 @@ const AddressDisplay = ({
             )
           }}
         >
-          <ContentCopyRounded sx={{ fontSize: '18px' }} />
+          <Copy className="text-[18px]" />
         </IconButton>
       </Box>
     </Box>

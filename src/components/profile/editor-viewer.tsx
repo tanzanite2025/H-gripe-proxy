@@ -4,15 +4,15 @@ import {
   FormatPaintRounded,
   OpenInFullRounded,
 } from '@mui/icons-material'
+
+import { Button } from '@/components/tailwind/Button'
 import {
-  Button,
-  ButtonGroup,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
-} from '@mui/material'
+} from '@/components/tailwind/Dialog'
+import { IconButton } from '@/components/tailwind/IconButton'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useLockFn } from 'ahooks'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
@@ -186,24 +186,10 @@ export const EditorViewer = ({
   }, [])
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="xl"
-      fullWidth
-      disableEnforceFocus
-    >
+    <Dialog open={open} onClose={handleClose} maxWidth="xl" fullWidth>
       <DialogTitle>{resolvedTitle}</DialogTitle>
 
-      <DialogContent
-        sx={{
-          width: 'auto',
-          height: 'calc(100vh - 185px)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
+      <DialogContent className="w-auto h-[calc(100vh-185px)] flex flex-col overflow-hidden">
         <div style={{ position: 'relative', flex: '1 1 auto', minHeight: 0 }}>
           <BaseLoadingOverlay isLoading={loading} />
           {!loading && (
@@ -254,38 +240,33 @@ export const EditorViewer = ({
           )}
         </div>
 
-        <ButtonGroup
-          className="uds-toolbar uds-toolbar--icon"
-          variant="contained"
-          sx={{ position: 'absolute', left: '14px', bottom: '8px' }}
-        >
+        <div className="absolute left-3.5 bottom-2 flex gap-1">
+          {!readOnly && (
+            <>
+              <IconButton
+                size="medium"
+                title={t('profiles.page.importForm.actions.paste')}
+                disabled={loading}
+                onClick={() => {
+                  void handlePaste()
+                }}
+              >
+                <ContentPasteRounded fontSize="inherit" />
+              </IconButton>
+              <IconButton
+                size="medium"
+                title={t('profiles.modals.editor.actions.format')}
+                disabled={loading}
+                onClick={() => {
+                  void handleFormat()
+                }}
+              >
+                <FormatPaintRounded fontSize="inherit" />
+              </IconButton>
+            </>
+          )}
           <IconButton
             size="medium"
-            color="inherit"
-            sx={{ display: readOnly ? 'none' : '' }}
-            title={t('profiles.page.importForm.actions.paste')}
-            disabled={loading}
-            onClick={() => {
-              void handlePaste()
-            }}
-          >
-            <ContentPasteRounded fontSize="inherit" />
-          </IconButton>
-          <IconButton
-            size="medium"
-            color="inherit"
-            sx={{ display: readOnly ? 'none' : '' }}
-            title={t('profiles.modals.editor.actions.format')}
-            disabled={loading}
-            onClick={() => {
-              void handleFormat()
-            }}
-          >
-            <FormatPaintRounded fontSize="inherit" />
-          </IconButton>
-          <IconButton
-            size="medium"
-            color="inherit"
             title={t(
               isMaximized ? 'shared.window.minimize' : 'shared.window.maximize',
             )}
@@ -295,7 +276,7 @@ export const EditorViewer = ({
           >
             {isMaximized ? <CloseFullscreenRounded /> : <OpenInFullRounded />}
           </IconButton>
-        </ButtonGroup>
+        </div>
       </DialogContent>
 
       <DialogActions>

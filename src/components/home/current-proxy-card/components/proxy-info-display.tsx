@@ -1,7 +1,8 @@
-import { Box, Chip, Typography, alpha, useTheme } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
+import { Chip } from '@/components/tailwind/Chip'
 import delayManager from '@/services/delay'
+import { cn } from '@/utils/cn'
 
 import { convertDelayColor } from '../utils/proxy-helpers'
 
@@ -23,41 +24,33 @@ export const ProxyInfoDisplay = ({
   isDirectMode,
 }: ProxyInfoDisplayProps) => {
   const { t } = useTranslation()
-  const theme = useTheme()
 
   if (!proxy) {
     return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography variant="body1" color="text.secondary">
+      <div className="py-4 text-center">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           {t('home.components.currentProxy.labels.noActiveNode')}
-        </Typography>
-      </Box>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        p: 1.5,
-        mb: 1.5,
-        borderRadius: 2,
-        bgcolor: alpha(theme.palette.action.hover, 0.02),
-        border: '1px dashed',
-        borderColor: 'divider',
-      }}
+    <div
+      className={cn(
+        'mb-1.5 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5',
+        'bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20',
+      )}
     >
-      <Box>
-        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+      <div>
+        <div className="text-sm font-medium">
           {proxy.name}
-        </Typography>
+        </div>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+        <div className="flex flex-wrap items-center">
+          <div className="mr-1 text-xs text-gray-500 dark:text-gray-400">
             {proxy.type}
-          </Typography>
+          </div>
 
           {/* 模式标签 */}
           {isGlobalMode && (
@@ -65,7 +58,7 @@ export const ProxyInfoDisplay = ({
               size="small"
               label={t('home.components.currentProxy.labels.globalMode')}
               color="primary"
-              sx={{ mr: 0.5 }}
+              className="mr-0.5"
             />
           )}
           {isDirectMode && (
@@ -73,28 +66,28 @@ export const ProxyInfoDisplay = ({
               size="small"
               label={t('home.components.currentProxy.labels.directMode')}
               color="success"
-              sx={{ mr: 0.5 }}
+              className="mr-0.5"
             />
           )}
 
           {/* 节点特性 */}
           {proxy.udp && (
-            <Chip size="small" label="UDP" variant="outlined" sx={{ mr: 0.5 }} />
+            <Chip size="small" label="UDP" variant="outlined" className="mr-0.5" />
           )}
           {proxy.tfo && (
-            <Chip size="small" label="TFO" variant="outlined" sx={{ mr: 0.5 }} />
+            <Chip size="small" label="TFO" variant="outlined" className="mr-0.5" />
           )}
           {proxy.xudp && (
-            <Chip size="small" label="XUDP" variant="outlined" sx={{ mr: 0.5 }} />
+            <Chip size="small" label="XUDP" variant="outlined" className="mr-0.5" />
           )}
           {proxy.mptcp && (
-            <Chip size="small" label="MPTCP" variant="outlined" sx={{ mr: 0.5 }} />
+            <Chip size="small" label="MPTCP" variant="outlined" className="mr-0.5" />
           )}
           {proxy.smux && (
-            <Chip size="small" label="SMUX" variant="outlined" sx={{ mr: 0.5 }} />
+            <Chip size="small" label="SMUX" variant="outlined" className="mr-0.5" />
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* 显示延迟 */}
       {!isDirectMode && (
@@ -104,6 +97,6 @@ export const ProxyInfoDisplay = ({
           color={convertDelayColor(delay)}
         />
       )}
-    </Box>
+    </div>
   )
 }

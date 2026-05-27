@@ -1,5 +1,5 @@
-import { ExpandMoreRounded } from '@mui/icons-material'
-import { Box, Chip, IconButton, Typography } from '@mui/material'
+import { ChevronDown } from 'lucide-react'
+import { Chip, IconButton } from '@/components/tailwind'
 import type { MouseEvent } from 'react'
 
 interface ProxyGroupOption {
@@ -27,59 +27,32 @@ export function ChainRuleHeader({
   onMenuOpen,
 }: ChainRuleHeaderProps) {
   return (
-    <Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-      <Box
-        sx={{
-          px: 2,
-          py: 1.5,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '16px' }}>
-            {title}
-          </Typography>
+    <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="flex items-center gap-4">
+          <h6 className="text-base font-semibold">{title}</h6>
 
           {currentGroup && (
             <Chip
               size="small"
               label={`${currentGroup.name} (${currentGroup.type})`}
               variant="outlined"
-              sx={{
-                fontSize: '12px',
-                maxWidth: '200px',
-                '& .MuiChip-label': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                },
-              }}
+              className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs"
             />
           )}
-        </Box>
+        </div>
 
         {canSelectGroup && (
           <IconButton
             size="small"
             onClick={onMenuOpen}
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: '4px',
-              padding: '4px 8px',
-            }}
+            className="rounded border border-gray-200 px-2 py-1 dark:border-gray-700"
           >
-            <Typography variant="body2" sx={{ mr: 0.5, fontSize: '12px' }}>
-              {selectLabel}
-            </Typography>
-            <ExpandMoreRounded fontSize="small" />
+            <span className="mr-1 text-xs">{selectLabel}</span>
+            <ChevronDown className="h-4 w-4" />
           </IconButton>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

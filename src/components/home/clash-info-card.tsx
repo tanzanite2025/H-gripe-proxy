@@ -1,5 +1,5 @@
-import { DeveloperBoardOutlined } from '@mui/icons-material'
-import { Divider, Stack, Typography } from '@mui/material'
+import { Cpu } from 'lucide-react'
+import { Divider, Stack } from '@/components/tailwind'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,50 +38,50 @@ export const ClashInfoCard = () => {
 
     return (
       <Stack spacing={1.5}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {t('home.components.clashInfo.fields.coreVersion')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
             {clashVersion || '-'}
-          </Typography>
-        </Stack>
+          </span>
+        </div>
         <Divider />
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {t('home.components.clashInfo.fields.systemProxyAddress')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
             {systemProxyAddress}
-          </Typography>
-        </Stack>
+          </span>
+        </div>
         <Divider />
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {t('home.components.clashInfo.fields.mixedPort')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
             {clashConfig.mixedPort || '-'}
-          </Typography>
-        </Stack>
+          </span>
+        </div>
         <Divider />
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {t('home.components.clashInfo.fields.uptime')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
             {formattedUptime}
-          </Typography>
-        </Stack>
+          </span>
+        </div>
         <Divider />
-        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {t('home.components.clashInfo.fields.rulesCount')}
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
             {rules.length}
-          </Typography>
-        </Stack>
+          </span>
+        </div>
       </Stack>
     )
   }, [
@@ -96,7 +96,7 @@ export const ClashInfoCard = () => {
   return (
     <EnhancedCard
       title={t('home.components.clashInfo.title')}
-      icon={<DeveloperBoardOutlined />}
+      icon={<Cpu />}
       iconColor="warning"
       action={null}
     >

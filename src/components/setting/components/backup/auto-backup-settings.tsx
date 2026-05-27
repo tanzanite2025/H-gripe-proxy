@@ -1,15 +1,15 @@
+import { useLockFn } from 'ahooks'
+import { Fragment, useMemo, useState, type ChangeEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Switch } from '@/components/base'
 import {
   InputAdornment,
   ListItem,
   ListItemText,
   Stack,
   TextField,
-} from '@mui/material'
-import { useLockFn } from 'ahooks'
-import { Fragment, useMemo, useState, type ChangeEvent } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { Switch } from '@/components/base'
+} from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
@@ -134,11 +134,7 @@ export function AutoBackupSettings() {
   return (
     <Fragment>
       <ListItem divider disableGutters>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: 'center', width: '100%' }}
-        >
+        <Stack direction="row" spacing={1} className="items-center w-full">
           <ListItemText
             primary={t('settings.modals.backup.auto.scheduleLabel')}
             secondary={t('settings.modals.backup.auto.scheduleHelper')}
@@ -153,11 +149,7 @@ export function AutoBackupSettings() {
       </ListItem>
 
       <ListItem divider disableGutters>
-        <Stack
-          direction="row"
-          spacing={2}
-          sx={{ alignItems: 'center', width: '100%' }}
-        >
+        <Stack direction="row" spacing={2} className="items-center w-full">
           <ListItemText
             primary={t('settings.modals.backup.auto.intervalLabel')}
           />
@@ -175,7 +167,7 @@ export function AutoBackupSettings() {
                 commitIntervalInput()
               }
             }}
-            sx={{ minWidth: 160 }}
+            className="min-w-[160px]"
             slotProps={{
               input: {
                 endAdornment: (
@@ -195,11 +187,7 @@ export function AutoBackupSettings() {
       </ListItem>
 
       <ListItem divider disableGutters>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: 'center', width: '100%' }}
-        >
+        <Stack direction="row" spacing={1} className="items-center w-full">
           <ListItemText
             primary={t('settings.modals.backup.auto.changeLabel')}
             secondary={t('settings.modals.backup.auto.changeHelper')}

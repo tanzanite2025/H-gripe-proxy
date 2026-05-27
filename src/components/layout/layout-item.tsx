@@ -2,7 +2,7 @@ import type {
   DraggableAttributes,
   DraggableSyntheticListeners,
 } from '@dnd-kit/core'
-import { Box, ListItem, ListItemButton } from '@mui/material'
+import { ListItem, ListItemButton } from '@/components/tailwind'
 import type { CSSProperties, ReactNode } from 'react'
 import { useMatch, useNavigate, useResolvedPath } from 'react-router'
 
@@ -55,9 +55,9 @@ export const LayoutItem = (props: Props) => {
         aria-label={navCollapsed ? children : undefined}
         onClick={() => navigate(to)}
       >
-        <Box className="layout-nav-item__text">
+        <div className="layout-nav-item__text">
           <span className="layout-nav-item__primary">{children}</span>
-        </Box>
+        </div>
       </ListItemButton>
     </ListItem>
   )

@@ -1,5 +1,9 @@
-import Visibility from '@mui/icons-material/Visibility'
-import VisibilityOff from '@mui/icons-material/VisibilityOff'
+import { useLockFn } from 'ahooks'
+import { Eye, EyeOff } from 'lucide-react'
+import { useState, useRef, memo, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   TextField,
   Button,
@@ -7,12 +11,7 @@ import {
   Stack,
   IconButton,
   InputAdornment,
-} from '@mui/material'
-import { useLockFn } from 'ahooks'
-import { useState, useRef, memo, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-
+} from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { saveWebdavConfig, createWebdavBackup } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -187,7 +186,7 @@ export const BackupConfigViewer = memo(
                   autoCapitalize="off"
                   spellCheck="false"
                   inputRef={urlRef}
-                  sx={{ mt: 1 }}
+                  className="mt-4"
                 />
               </Grid>
               <Grid size={{ xs: 6 }}>
@@ -221,7 +220,11 @@ export const BackupConfigViewer = memo(
                             onClick={handleClickShowPassword}
                             edge="end"
                           >
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                            {showPassword ? (
+                              <EyeOff className="h-5 w-5" />
+                            ) : (
+                              <Eye className="h-5 w-5" />
+                            )}
                           </IconButton>
                         </InputAdornment>
                       ),
@@ -234,20 +237,15 @@ export const BackupConfigViewer = memo(
           <Grid size={{ xs: 12, sm: 3 }}>
             <Stack
               direction="column"
-              sx={{
-                justifyContent: 'space-between',
-                alignItems: 'stretch',
-                height: '100%',
-              }}
+              className="justify-between items-stretch h-full"
             >
               {webdavChanged ||
               webdav_url === undefined ||
               webdav_username === undefined ||
               webdav_password === undefined ? (
                 <Button
-                  variant="contained"
-                  color={'primary'}
-                  sx={{ height: '100%' }}
+                  variant="primary"
+                  className="h-full"
                   type="button"
                   onClick={handleSubmit(save)}
                 >
@@ -256,8 +254,7 @@ export const BackupConfigViewer = memo(
               ) : (
                 <>
                   <Button
-                    variant="contained"
-                    color="success"
+                    variant="primary"
                     onClick={handleBackup}
                     type="button"
                     size="large"

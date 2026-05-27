@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { useLockFn } from 'ahooks'
-import { Box, Tabs, Tab, Alert, Button, Stack } from '@mui/material'
+import { Box, Tabs, Tab, Alert, Button, Stack } from '@/components/tailwind'
 import { BasePage } from '@/components/base'
 import { showNotice } from '@/services/notice-service'
 import {
@@ -38,7 +38,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`advanced-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
+      {value === index && <Box className="py-2">{children}</Box>}
     </div>
   )
 }
@@ -86,7 +86,7 @@ export default function AdvancedPage() {
   if (loading || !data || !localConfig) {
     return (
       <BasePage title="高级功能">
-        <Box sx={{ p: 2 }}>加载中...</Box>
+        <Box className="p-2">加载中...</Box>
       </BasePage>
     )
   }
@@ -106,7 +106,7 @@ export default function AdvancedPage() {
             加载推荐配置
           </Button>
           <Button
-            variant="contained"
+            variant="primary"
             size="small"
             onClick={handleSave}
             disabled={saving}
@@ -117,12 +117,12 @@ export default function AdvancedPage() {
       }
     >
       {status?.security_compromised && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" className="mb-2">
           ⚠️ 安全状态已被破坏！请立即检查系统安全。
         </Alert>
       )}
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Box className="border-b border-gray-200 dark:border-gray-700">
         <Tabs
           value={tabValue}
           onChange={(_, v) => setTabValue(v)}

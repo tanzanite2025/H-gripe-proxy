@@ -1,4 +1,4 @@
-import { Box, Chip } from '@mui/material'
+import { Box, Chip } from '@/components/tailwind'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,7 +36,7 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
     <EditorViewer
       open={true}
       title={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box className="flex items-center gap-8">
           {t('settings.components.verge.advanced.fields.runtimeConfig')}
           <Chip label={t('shared.labels.readOnly')} size="small" />
         </Box>

@@ -3,7 +3,6 @@ import {
   LanguageRounded,
   MultipleStopRounded,
 } from '@mui/icons-material'
-import { Box, Paper, Stack, Typography, alpha, useTheme } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +16,7 @@ import {
 } from '@/providers/app-data-context'
 import { patchClashMode } from '@/services/cmds'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
+import { cn } from '@/utils/cn'
 
 const CLASH_MODES = ['rule', 'global', 'direct'] as const
 type ClashMode = (typeof CLASH_MODES)[number]
@@ -44,7 +44,6 @@ const MODE_META: Record<
 
 export const ClashModeCard = () => {
   const { t } = useTranslation()
-  const theme = useTheme()
   const { verge } = useVerge()
   const { clashConfig } = useClashConfigData()
   const { isCoreDataPending } = useCoreDataStatus()
@@ -96,122 +95,49 @@ export const ClashModeCard = () => {
     }
   })
 
-  // 按钮样式
-  const buttonStyles = (mode: ClashMode) => {
-    const isActive = mode === currentModeKey
-    return {
-      cursor: 'pointer',
-      px: 1.5,
-      height: 32,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 0.8,
-      bgcolor: isActive ? 'primary.main' : 'transparent',
-      color: isActive ? 'primary.contrastText' : 'text.secondary',
-      borderRadius: '20px', // 内部项采用 20px 圆角
-      border: 'none',
-      boxShadow: isActive ? '0 2px 8px -2px rgba(var(--primary-main-rgb), 0.3)' : 'none',
-      transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-      flex: 1,
-      maxWidth: 160,
-      '&:hover': {
-        color: isActive ? 'primary.contrastText' : 'text.primary',
-        bgcolor: isActive ? 'primary.main' : alpha(theme.palette.action.hover, 0.05),
-        transform: isActive ? 'none' : 'scale(1.02)',
-      },
-      '&:active': {
-        transform: 'scale(0.98)',
-      },
-    }
-  }
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', mt: 0.5 }}>
+    <div className="flex flex-col w-full mt-1">
       {/* 模式选择按钮组 - 工业滑块选择器 */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          p: '4px',
-          height: 40,
-          bgcolor: alpha(theme.palette.action.hover, 0.02),
-          border: '1px dashed',
-          borderColor: 'divider',
-          borderRadius: '24px', // 胶囊型框
-          width: '100%',
-          boxSizing: 'border-box',
-        }}
-      >
-        {modeList.map((mode) => (
-          <Box
-            key={mode}
-            onClick={() => onChangeMode(mode)}
-            sx={buttonStyles(mode)}
-          >
-            {modeIcons[mode]}
-            <Typography
-              variant="body2"
-              sx={{
-                textTransform: 'capitalize',
-                fontWeight: mode === currentModeKey ? 900 : 600,
-                fontSize: '11px',
-                letterSpacing: '0.02em',
-              }}
+      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-dashed border-divider rounded-3xl w-full">
+        {modeList.map((mode) => {
+          const isActive = mode === currentModeKey
+          return (
+            <div
+              key={mode}
+              onClick={() => onChangeMode(mode)}
+              className={cn(
+                'cursor-pointer px-3 h-8 flex items-center justify-center gap-2',
+                'rounded-[20px] border-none transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
+                'flex-1 max-w-[160px]',
+                isActive
+                  ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--primary-main-rgb),0.3)]'
+                  : 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-action-hover/5 hover:scale-[1.02]',
+                'active:scale-[0.98]'
+              )}
             >
-              {t(MODE_META[mode].label)}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
+              {modeIcons[mode]}
+              <span
+                className={cn(
+                  'text-[11px] capitalize tracking-[0.02em]',
+                  isActive ? 'font-black' : 'font-semibold'
+                )}
+              >
+                {t(MODE_META[mode].label)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
 
       {/* 说明文本区域 - 微型 Badge 元数据排版 */}
-      <Box
-        sx={{
-          width: '100%',
-          mt: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.2,
-          px: 0.5,
-        }}
-      >
-        <Box
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            height: 18,
-            px: 1.2,
-            borderRadius: '9999px',
-            bgcolor: alpha(theme.palette.primary.main, 0.08),
-            color: 'primary.main',
-            fontSize: '8px',
-            fontFamily: 'monospace',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            flexShrink: 0,
-          }}
-        >
+      <div className="w-full mt-3 flex items-center gap-3 px-1">
+        <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-mono font-black uppercase tracking-[0.1em] flex-shrink-0">
           {currentModeKey || 'INFO'}
-        </Box>
-        <Typography
-          variant="caption"
-          sx={{
-            fontSize: '9px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            letterSpacing: '0.15em',
-            color: 'text.secondary',
-            opacity: 0.6,
-            wordBreak: 'break-word',
-            lineHeight: 1.2,
-          }}
-        >
+        </div>
+        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight">
           {modeDescription}
-        </Typography>
-      </Box>
-    </Box>
+        </p>
+      </div>
+    </div>
   )
 }

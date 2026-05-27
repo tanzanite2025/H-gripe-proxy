@@ -1,43 +1,19 @@
 import { RefreshRounded, StorageOutlined } from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  IconButton,
-  LinearProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Typography,
-  alpha,
-  styled,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateProxyProvider } from 'tauri-plugin-mihomo-api'
 
+import { Button } from '@/components/tailwind/Button'
+import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { List, ListItem, ListItemText } from '@/components/tailwind/List'
+import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/format'
-
-// 样式化组件 - 类型框
-const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
-  display: 'inline-block',
-  border: '1px solid #ccc',
-  borderColor: alpha(theme.palette.secondary.main, 0.5),
-  color: alpha(theme.palette.secondary.main, 0.8),
-  borderRadius: 4,
-  fontSize: 10,
-  marginRight: '4px',
-  padding: '0 2px',
-  lineHeight: 1.25,
-}))
+import { cn } from '@/utils/cn'
 
 // 解析过期时间
 const parseExpire = (expire?: number) => {
@@ -144,7 +120,7 @@ export const ProviderButton = () => {
         size="small"
         startIcon={<StorageOutlined />}
         onClick={() => setOpen(true)}
-        sx={{ mr: 1 }}
+        className="mr-2"
       >
         {t('proxies.page.provider.title')}
       </Button>
@@ -154,38 +130,26 @@ export const ProviderButton = () => {
         onClose={handleClose}
         maxWidth="sm"
         fullWidth
-        slotProps={{
-          paper: {
-            className: 'uds-dialog',
-          },
-        }}
+        className="uds-dialog"
       >
         <DialogTitle className="uds-title-h2">
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <Typography variant="h6" className="uds-title-h2">
+          <div className="flex justify-between items-center">
+            <h6 className="text-lg font-semibold uds-title-h2">
               {t('proxies.page.provider.title')}
-            </Typography>
-            <Box>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={updateAllProviders}
-                aria-label={t('proxies.page.provider.actions.updateAll')}
-              >
-                {t('proxies.page.provider.actions.updateAll')}
-              </Button>
-            </Box>
-          </Box>
+            </h6>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={updateAllProviders}
+              aria-label={t('proxies.page.provider.actions.updateAll')}
+            >
+              {t('proxies.page.provider.actions.updateAll')}
+            </Button>
+          </div>
         </DialogTitle>
 
         <DialogContent>
-          <List sx={{ py: 0, minHeight: 250 }}>
+          <List className="py-0 min-h-[250px]">
             {Object.entries(proxyProviders || {})
               .sort()
               .map(([key, item]) => {
@@ -213,121 +177,63 @@ export const ProviderButton = () => {
                 return (
                   <ListItem
                     key={key}
-                    className="uds-card-container"
-                    sx={[
-                      {
-                        p: 0,
-                        mb: '8px',
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        transition: 'all 0.2s',
-                      },
-                      ({ palette: { mode, primary } }) => {
-                        const bgcolor = mode === 'light' ? '#ffffff' : '#24252f'
-                        const hoverColor =
-                          mode === 'light'
-                            ? alpha(primary.main, 0.1)
-                            : alpha(primary.main, 0.2)
-
-                        return {
-                          backgroundColor: bgcolor,
-                          '&:hover': {
-                            backgroundColor: hoverColor,
-                          },
-                        }
-                      },
-                    ]}
+                    className={cn(
+                      'uds-card-container p-0 mb-2 rounded-lg overflow-hidden transition-all duration-200',
+                      'bg-white dark:bg-[#24252f]',
+                      'hover:bg-primary/10 dark:hover:bg-primary/20'
+                    )}
                   >
                     <ListItemText
-                      sx={{ px: 2, py: 1 }}
+                      className="px-4 py-2"
                       primary={
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Typography
-                            className="uds-card-title"
-                            variant="subtitle1"
-                            component="div"
-                            noWrap
-                            title={key}
-                            sx={{ display: 'flex', alignItems: 'center' }}
-                          >
-                            <span style={{ marginRight: '8px' }}>{key}</span>
-                            <TypeBox component="span">
+                        <div className="flex justify-between items-center">
+                          <div className="uds-card-title flex items-center overflow-hidden">
+                            <span className="mr-2 truncate" title={key}>{key}</span>
+                            <span className="inline-block border border-secondary/50 text-secondary/80 rounded text-[10px] mr-1 px-0.5 leading-tight">
                               {provider.proxies.length}
-                            </TypeBox>
-                            <TypeBox component="span">
+                            </span>
+                            <span className="inline-block border border-secondary/50 text-secondary/80 rounded text-[10px] px-0.5 leading-tight">
                               {provider.vehicleType}
-                            </TypeBox>
-                          </Typography>
+                            </span>
+                          </div>
 
-                          <Typography
-                            className="uds-desc"
-                            variant="body2"
-                            color="text.secondary"
-                            noWrap
-                          >
+                          <div className="uds-desc text-sm text-text-secondary whitespace-nowrap ml-2">
                             <small>{t('shared.labels.updateAt')}: </small>
                             {time.fromNow()}
-                          </Typography>
-                        </Box>
+                          </div>
+                        </div>
                       }
                       secondary={
                         <>
                           {/* 订阅信息 */}
                           {hasSubInfo && (
                             <>
-                              <Box
-                                sx={{
-                                  mb: 1,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                }}
-                              >
-                                <span
-                                  title={t('shared.labels.usedTotal') as string}
-                                >
+                              <div className="mb-2 flex items-center justify-between">
+                                <span title={t('shared.labels.usedTotal') as string}>
                                   {parseTraffic(upload + download)} /{' '}
                                   {parseTraffic(total)}
                                 </span>
-                                <span
-                                  title={
-                                    t('shared.labels.expireTime') as string
-                                  }
-                                >
+                                <span title={t('shared.labels.expireTime') as string}>
                                   {parseExpire(expire)}
                                 </span>
-                              </Box>
+                              </div>
 
                               {/* 进度条 */}
                               <LinearProgress
                                 variant="determinate"
                                 value={progress}
-                                sx={{
-                                  height: 6,
-                                  borderRadius: 3,
-                                  opacity: total > 0 ? 1 : 0,
-                                }}
+                                className={cn(
+                                  'h-1.5 rounded-full',
+                                  total > 0 ? 'opacity-100' : 'opacity-0'
+                                )}
                               />
                             </>
                           )}
                         </>
                       }
                     />
-                    <Divider orientation="vertical" flexItem />
-                    <Box
-                      sx={{
-                        width: 40,
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                      }}
-                    >
+                    <div className="w-px bg-divider self-stretch" />
+                    <div className="w-10 flex justify-center items-center">
                       <IconButton
                         size="small"
                         color="primary"
@@ -335,21 +241,15 @@ export const ProviderButton = () => {
                           updateProvider(key)
                         }}
                         disabled={isUpdating}
-                        sx={{
-                          animation: isUpdating
-                            ? 'spin 1s linear infinite'
-                            : 'none',
-                          '@keyframes spin': {
-                            '0%': { transform: 'rotate(0deg)' },
-                            '100%': { transform: 'rotate(360deg)' },
-                          },
-                        }}
+                        className={cn(
+                          isUpdating && 'animate-spin'
+                        )}
                         title={t('proxies.page.provider.actions.update')}
                         aria-label={t('proxies.page.provider.actions.update')}
                       >
                         <RefreshRounded />
                       </IconButton>
-                    </Box>
+                    </div>
                   </ListItem>
                 )
               })}

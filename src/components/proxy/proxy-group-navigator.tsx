@@ -1,4 +1,4 @@
-import { Box, Button, Tooltip } from '@mui/material'
+import { Button, Tooltip } from '@/components/tailwind'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 interface ProxyGroupNavigatorProps {
@@ -90,27 +90,10 @@ export const ProxyGroupNavigator = ({
   }
 
   return (
-    <Box
-      sx={{
-        position: 'absolute',
-        right: 2,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        zIndex: 10,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 0.25,
-        bgcolor: 'transparent',
-        borderRadius: 0.5,
-        boxShadow: 0,
-        p: 0.25,
-        maxHeight: '70vh',
-        overflowY: 'auto',
+    <div
+      className="absolute right-2 top-1/2 z-10 flex max-h-[70vh] -translate-y-1/2 flex-col gap-1 overflow-y-auto rounded p-1 scrollbar-none"
+      style={{
         scrollbarWidth: 'none',
-        '&::-webkit-scrollbar': {
-          width: 0,
-          height: 0,
-        },
         minWidth: 'auto',
       }}
     >
@@ -124,29 +107,12 @@ export const ProxyGroupNavigator = ({
             onFocus={() => handleGroupHover(name)}
             onMouseLeave={handleButtonLeave}
             onBlur={handleButtonLeave}
-            sx={{
-              minWidth: 28,
-              minHeight: 28,
-              width: 28,
-              height: 28,
-              fontSize: '12px',
-              fontWeight: 600,
-              padding: 0,
-              borderRadius: 0.25,
-              color: 'text.secondary',
-              textAlign: 'center',
-              justifyContent: 'center',
-              textTransform: 'none',
-              '&:hover': {
-                bgcolor: 'primary.light',
-                color: 'primary.contrastText',
-              },
-            }}
+            className="h-7 w-7 min-h-7 min-w-7 rounded p-0 text-xs font-semibold normal-case text-gray-600 hover:bg-blue-500 hover:text-white dark:text-gray-400"
           >
             {displayChar}
           </Button>
         </Tooltip>
       ))}
-    </Box>
+    </div>
   )
 }

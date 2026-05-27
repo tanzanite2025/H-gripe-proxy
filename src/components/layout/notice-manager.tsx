@@ -1,14 +1,8 @@
-import { CloseRounded } from '@mui/icons-material'
-import {
-  Snackbar,
-  Alert,
-  IconButton,
-  Box,
-  type SnackbarOrigin,
-} from '@mui/material'
+import { X } from 'lucide-react'
 import React, { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Snackbar, Alert, IconButton } from '@/components/tailwind'
 import {
   subscribeNotices,
   hideNotice,
@@ -20,6 +14,11 @@ import type { TranslationKey } from '@/types/generated/i18n-keys'
 type NoticePosition = NonNullable<IVergeConfig['notice_position']>
 type NoticeItem = ReturnType<typeof getSnapshotNotices>[number]
 type TranslationFn = ReturnType<typeof useTranslation>['t']
+
+type SnackbarOrigin = {
+  vertical: 'top' | 'bottom'
+  horizontal: 'left' | 'right' | 'center'
+}
 
 const VALID_POSITIONS: NoticePosition[] = [
   'top-left',
@@ -163,18 +162,13 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
   )
 
   return (
-    <Box
-      sx={{
-        position: 'fixed',
+    <div
+      className="fixed z-[1500] flex max-w-[360px] flex-col gap-2.5"
+      style={{
         top: anchorOrigin.vertical === 'top' ? '20px' : 'auto',
         bottom: anchorOrigin.vertical === 'bottom' ? '20px' : 'auto',
         left: anchorOrigin.horizontal === 'left' ? '20px' : 'auto',
         right: anchorOrigin.horizontal === 'right' ? '20px' : 'auto',
-        zIndex: 1500,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        maxWidth: '360px',
       }}
     >
       {currentNotices.map((notice) => (
@@ -182,20 +176,19 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
           key={notice.id}
           open={true}
           anchorOrigin={anchorOrigin}
-          sx={{
-            position: 'relative',
+          className="relative w-full"
+          style={{
             transform: 'none',
             top: 'auto',
             right: 'auto',
             bottom: 'auto',
             left: 'auto',
-            width: '100%',
           }}
         >
           <Alert
             severity={notice.type}
             variant="filled"
-            sx={{ width: '100%' }}
+            className="w-full"
             onContextMenu={(event) => {
               event.preventDefault()
               event.stopPropagation()
@@ -204,10 +197,10 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
             action={
               <IconButton
                 size="small"
-                color="inherit"
+                className="text-inherit"
                 onClick={() => handleClose(notice.id)}
               >
-                <CloseRounded fontSize="inherit" />
+                <X className="h-4 w-4" />
               </IconButton>
             }
           >
@@ -215,6 +208,6 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
           </Alert>
         </Snackbar>
       ))}
-    </Box>
+    </div>
   )
 }

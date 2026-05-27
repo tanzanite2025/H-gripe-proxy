@@ -1,10 +1,12 @@
-import { ContentCopyRounded } from '@mui/icons-material'
-import { Button, Input, MenuItem, Select } from '@mui/material'
+import { Copy as ContentCopyRounded } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef, TooltipIcon } from '@/components/base'
+import { Button } from '@/components/tailwind/Button'
+import { Input } from '@/components/tailwind/Input'
+import { MenuItem, Select } from '@/components/tailwind/Select'
 import { useVerge } from '@/hooks/system'
 import { navItems } from '@/pages/_core/router'
 import { copyClashEnv } from '@/services/cmds'
@@ -96,7 +98,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
           onChange={(e) => onChangeData({ language: e })}
           onGuard={(e) => patchVerge({ language: e })}
         >
-          <Select size="small" sx={{ width: 110, '> div': { py: '7.5px' } }}>
+          <Select size="small" className="w-[110px]">
             {languageOptions.map(({ code, label }) => (
               <MenuItem key={code} value={code}>
                 {label}
@@ -130,7 +132,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
             onChange={(e) => onChangeData({ tray_event: e })}
             onGuard={(e) => patchVerge({ tray_event: e })}
           >
-            <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+            <Select size="small" className="w-[140px]">
               <MenuItem value="main_window">
                 {t(
                   'settings.components.verge.basic.trayOptions.showMainWindow',
@@ -166,7 +168,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
           onChange={(e) => onChangeData({ env_type: e })}
           onGuard={(e) => patchVerge({ env_type: e })}
         >
-          <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+          <Select size="small" className="w-[140px]">
             <MenuItem value="bash">Bash</MenuItem>
             <MenuItem value="fish">Fish</MenuItem>
             <MenuItem value="nushell">Nushell</MenuItem>
@@ -186,7 +188,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
           onChange={(e) => onChangeData({ start_page: e })}
           onGuard={(e) => patchVerge({ start_page: e })}
         >
-          <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+          <Select size="small" className="w-[140px]">
             {navItems.map((page: { label: string; path: string }) => {
               return (
                 <MenuItem key={page.path} value={page.path}>
@@ -211,8 +213,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
           <Input
             value={startup_script}
             disabled
-            disableUnderline
-            sx={{ width: 230 }}
+            className="w-[230px]"
             endAdornment={
               <>
                 <Button

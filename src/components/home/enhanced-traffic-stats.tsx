@@ -6,22 +6,16 @@ import {
   LinkRounded,
   MemoryRounded,
 } from '@mui/icons-material'
-import {
-  Grid,
-  PaletteColor,
-  Paper,
-  Typography,
-  alpha,
-  useTheme,
-} from '@mui/material'
 import { ReactNode, memo, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Paper } from '@/components/tailwind/Paper'
 import { TrafficErrorBoundary } from '@/components/ui/traffic-error-boundary'
 import { useConnectionData, useMemoryData, useTrafficData } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useVisibility } from '@/hooks/ui'
 import parseTraffic from '@/utils/format'
+import { cn } from '@/utils/cn'
 
 import {
   EnhancedCanvasTrafficGraph,
@@ -48,86 +42,72 @@ declare global {
   }
 }
 
+// 颜色映射
+const colorMap = {
+  primary: 'text-primary',
+  secondary: 'text-secondary',
+  error: 'text-error',
+  warning: 'text-warning',
+  info: 'text-info',
+  success: 'text-success',
+}
+
+const bgColorMap = {
+  primary: 'bg-primary/5 border-primary/15 hover:bg-primary/10 hover:border-primary/30',
+  secondary: 'bg-secondary/5 border-secondary/15 hover:bg-secondary/10 hover:border-secondary/30',
+  error: 'bg-error/5 border-error/15 hover:bg-error/10 hover:border-error/30',
+  warning: 'bg-warning/5 border-warning/15 hover:bg-warning/10 hover:border-warning/30',
+  info: 'bg-info/5 border-info/15 hover:bg-info/10 hover:border-info/30',
+  success: 'bg-success/5 border-success/15 hover:bg-success/10 hover:border-success/30',
+}
+
+const iconBgMap = {
+  primary: 'bg-primary/10',
+  secondary: 'bg-secondary/10',
+  error: 'bg-error/10',
+  warning: 'bg-warning/10',
+  info: 'bg-info/10',
+  success: 'bg-success/10',
+}
+
 // 统计卡片组件 - 使用memo优化
 const CompactStatCard = memo(
   ({ icon, title, value, unit, color, onClick }: StatCardProps) => {
-    const theme = useTheme()
-
-    // 获取调色板颜色 - 使用useMemo避免重复计算
-    const colorValue = useMemo(() => {
-      const palette = theme.palette
-      if (
-        color in palette &&
-        palette[color as keyof typeof palette] &&
-        'main' in (palette[color as keyof typeof palette] as PaletteColor)
-      ) {
-        return (palette[color as keyof typeof palette] as PaletteColor).main
-      }
-      return palette.primary.main
-    }, [theme.palette, color])
-
     return (
       <Paper
         elevation={0}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          borderRadius: 2,
-          bgcolor: alpha(colorValue, 0.05),
-          border: `1px solid ${alpha(colorValue, 0.15)}`,
-          padding: '8px',
-          transition: 'all 0.2s ease-in-out',
-          cursor: onClick ? 'pointer' : 'default',
-          '&:hover': onClick
-            ? {
-                bgcolor: alpha(colorValue, 0.1),
-                border: `1px solid ${alpha(colorValue, 0.3)}`,
-                boxShadow: `0 4px 8px rgba(0,0,0,0.05)`,
-              }
-            : {},
-        }}
+        className={cn(
+          'flex items-center rounded-lg border p-2 transition-all duration-200',
+          bgColorMap[color],
+          onClick ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
+        )}
         onClick={onClick}
       >
         {/* 图标容器 */}
-        <Grid
-          component="div"
-          sx={{
-            mr: 1,
-            ml: '2px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            bgcolor: alpha(colorValue, 0.1),
-            color: colorValue,
-          }}
+        <div
+          className={cn(
+            'mr-2 ml-0.5 flex items-center justify-center w-8 h-8 rounded-full',
+            iconBgMap[color],
+            colorMap[color]
+          )}
         >
           {icon}
-        </Grid>
+        </div>
 
         {/* 文本内容 */}
-        <Grid component="div" sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="caption" color="text.secondary" noWrap>
+        <div className="flex-grow min-w-0">
+          <p className="text-xs text-text-secondary truncate">
             {title}
-          </Typography>
-          <Grid
-            component="div"
-            sx={{ display: 'flex', alignItems: 'baseline' }}
-          >
-            <Typography
-              variant="body1"
-              noWrap
-              sx={{ mr: 0.5, fontWeight: 'bold' }}
-            >
+          </p>
+          <div className="flex items-baseline">
+            <span className="text-base font-bold mr-1 truncate">
               {value}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
+            </span>
+            <span className="text-xs text-text-secondary">
               {unit}
-            </Typography>
-          </Grid>
-        </Grid>
+            </span>
+          </div>
+        </div>
       </Paper>
     )
   },
@@ -138,7 +118,6 @@ CompactStatCard.displayName = 'CompactStatCard'
 
 export const EnhancedTrafficStats = () => {
   const { t } = useTranslation()
-  const theme = useTheme()
   const { verge } = useVerge()
   const trafficRef = useRef<EnhancedCanvasTrafficGraphRef>(null)
   const pageVisible = useVisibility()
@@ -157,8 +136,6 @@ export const EnhancedTrafficStats = () => {
   const {
     response: { data: connections },
   } = useConnectionData()
-
-  // Canvas组件现在直接从全局Hook获取数据，无需手动添加数据点
 
   // 使用useMemo计算解析后的流量数据
   const parsedData = useMemo(() => {
@@ -194,21 +171,15 @@ export const EnhancedTrafficStats = () => {
     return (
       <Paper
         elevation={0}
-        sx={{
-          height: 130,
-          cursor: 'pointer',
-          border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-          borderRadius: 2,
-          overflow: 'hidden',
-        }}
+        className="h-[130px] cursor-pointer border border-divider/20 rounded-lg overflow-hidden"
         onClick={() => trafficRef.current?.toggleStyle()}
       >
-        <div style={{ height: '100%', position: 'relative' }}>
+        <div className="h-full relative">
           <EnhancedCanvasTrafficGraph ref={trafficRef} />
         </div>
       </Paper>
     )
-  }, [trafficGraph, pageVisible, theme.palette.divider])
+  }, [trafficGraph, pageVisible])
 
   // 使用useMemo计算统计卡片配置
   const statCards = useMemo(
@@ -266,20 +237,20 @@ export const EnhancedTrafficStats = () => {
         console.error('[EnhancedTrafficStats] 组件错误:', error, errorInfo)
       }}
     >
-      <Grid container spacing={1} columns={{ xs: 8, sm: 8, md: 12 }}>
+      <div className="grid grid-cols-8 sm:grid-cols-8 md:grid-cols-12 gap-2">
         {trafficGraph && (
-          <Grid size={12}>
+          <div className="col-span-12">
             {/* 流量图表区域 */}
             {trafficGraphComponent}
-          </Grid>
+          </div>
         )}
         {/* 统计卡片区域 */}
         {statCards.map((card) => (
-          <Grid key={card.title} size={4}>
+          <div key={card.title} className="col-span-4">
             <CompactStatCard {...(card as StatCardProps)} />
-          </Grid>
+          </div>
         ))}
-      </Grid>
+      </div>
     </TrafficErrorBoundary>
   )
 }

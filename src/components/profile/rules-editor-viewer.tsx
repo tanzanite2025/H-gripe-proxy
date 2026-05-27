@@ -8,24 +8,6 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import {
-  VerticalAlignBottomRounded,
-  VerticalAlignTopRounded,
-} from '@mui/icons-material'
-import {
-  Autocomplete,
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  List,
-  ListItem,
-  ListItemText,
-  TextField,
-  styled,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import yaml from 'js-yaml'
 import {
@@ -44,6 +26,16 @@ import {
   Switch,
   VirtualList,
 } from '@/components/base'
+import { Button } from '@/components/tailwind/Button'
+import { Dialog } from '@/components/tailwind/Dialog'
+import { DialogActions } from '@/components/tailwind/DialogActions'
+import { DialogContent } from '@/components/tailwind/DialogContent'
+import { DialogTitle } from '@/components/tailwind/DialogTitle'
+import { List } from '@/components/tailwind/List'
+import { ListItem } from '@/components/tailwind/ListItem'
+import { ListItemText } from '@/components/tailwind/ListItemText'
+import { Select } from '@/components/tailwind/Select'
+import { TextField } from '@/components/tailwind/TextField'
 import { RuleItem } from '@/components/profile/rule-item'
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -591,97 +583,89 @@ export const RulesEditorViewer = (props: Props) => {
       disableEnforceFocus={!visualization}
     >
       <DialogTitle>
-        {
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            {t('rules.modals.editor.title')}
-            <Box>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => {
-                  setVisualization((prev) => !prev)
-                }}
-              >
-                {visualization
-                  ? t('shared.editorModes.advanced')
-                  : t('shared.editorModes.visualization')}
-              </Button>
-            </Box>
-          </Box>
-        }
+        <div className="flex justify-between">
+          <span>{t('rules.modals.editor.title')}</span>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => {
+              setVisualization((prev) => !prev)
+            }}
+          >
+            {visualization
+              ? t('shared.editorModes.advanced')
+              : t('shared.editorModes.visualization')}
+          </Button>
+        </div>
       </DialogTitle>
 
-      <DialogContent
-        sx={{ display: 'flex', width: 'auto', height: 'calc(100vh - 185px)' }}
-      >
+      <DialogContent className="flex w-auto h-[calc(100vh-185px)]">
         {visualization ? (
           <>
-            <List
-              sx={{
-                width: '50%',
-                padding: '0 10px',
-              }}
-            >
-              <Item>
+            <List className="w-1/2 px-2.5">
+              <ListItem className="py-1.5 px-0.5">
                 <ListItemText
                   primary={t('rules.modals.editor.form.labels.type')}
                 />
-                <Autocomplete
+                <Select
                   size="small"
-                  sx={{ minWidth: '240px' }}
-                  renderInput={(params) => <TextField {...params} />}
-                  options={rules}
-                  value={ruleType}
-                  getOptionLabel={(option) =>
-                    t(RULE_TYPE_LABEL_KEYS[option.name] ?? option.name)
-                  }
-                  renderOption={(props, option) => {
-                    const { key, ...optionProps } = props
-                    const label = t(
-                      RULE_TYPE_LABEL_KEYS[option.name] ?? option.name,
-                    )
-                    return (
-                      <li key={key} {...optionProps} title={label}>
-                        {label}
-                      </li>
-                    )
+                  className="min-w-[240px]"
+                  value={ruleType.name}
+                  onChange={(e) => {
+                    const rule = rules.find((r) => r.name === e.target.value)
+                    if (rule) setRuleType(rule)
                   }}
-                  onChange={(_, value) => value && setRuleType(value)}
-                />
-              </Item>
-              <Item
-                sx={{ display: !(ruleType.required ?? true) ? 'none' : '' }}
+                >
+                  {rules.map((option) => (
+                    <option key={option.name} value={option.name}>
+                      {t(RULE_TYPE_LABEL_KEYS[option.name] ?? option.name)}
+                    </option>
+                  ))}
+                </Select>
+              </ListItem>
+
+              <ListItem
+                className="py-1.5 px-0.5"
+                style={{ display: !(ruleType.required ?? true) ? 'none' : '' }}
               >
                 <ListItemText
                   primary={t('rules.modals.editor.form.labels.content')}
                 />
 
                 {ruleType.name === 'RULE-SET' && (
-                  <Autocomplete
+                  <Select
                     size="small"
-                    sx={{ minWidth: '240px' }}
-                    renderInput={(params) => <TextField {...params} />}
-                    options={ruleSetList}
+                    className="min-w-[240px]"
                     value={ruleContent}
-                    onChange={(_, value) => value && setRuleContent(value)}
-                  />
+                    onChange={(e) => setRuleContent(e.target.value)}
+                  >
+                    {ruleSetList.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </Select>
                 )}
                 {ruleType.name === 'SUB-RULE' && (
-                  <Autocomplete
+                  <Select
                     size="small"
-                    sx={{ minWidth: '240px' }}
-                    renderInput={(params) => <TextField {...params} />}
-                    options={subRuleList}
+                    className="min-w-[240px]"
                     value={ruleContent}
-                    onChange={(_, value) => value && setRuleContent(value)}
-                  />
+                    onChange={(e) => setRuleContent(e.target.value)}
+                  >
+                    {subRuleList.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </Select>
                 )}
                 {ruleType.name !== 'RULE-SET' &&
                   ruleType.name !== 'SUB-RULE' && (
                     <TextField
                       autoComplete="new-password"
                       size="small"
-                      sx={{ minWidth: '240px' }}
+                      className="min-w-[240px]"
                       value={ruleContent}
                       required={ruleType.required ?? true}
                       error={(ruleType.required ?? true) && !ruleContent}
@@ -689,34 +673,28 @@ export const RulesEditorViewer = (props: Props) => {
                       onChange={(e) => setRuleContent(e.target.value)}
                     />
                   )}
-              </Item>
-              <Item>
+              </ListItem>
+
+              <ListItem className="py-1.5 px-0.5">
                 <ListItemText
                   primary={t('rules.modals.editor.form.labels.proxyPolicy')}
                 />
-                <Autocomplete
+                <Select
                   size="small"
-                  sx={{ minWidth: '240px' }}
-                  renderInput={(params) => <TextField {...params} />}
-                  options={proxyPolicyList}
+                  className="min-w-[240px]"
                   value={proxyPolicy}
-                  getOptionLabel={(option) =>
-                    t(PROXY_POLICY_LABEL_KEYS[option] ?? option)
-                  }
-                  renderOption={(props, option) => {
-                    const { key, ...optionProps } = props
-                    const label = t(PROXY_POLICY_LABEL_KEYS[option] ?? option)
-                    return (
-                      <li key={key} {...optionProps} title={label}>
-                        {label}
-                      </li>
-                    )
-                  }}
-                  onChange={(_, value) => value && setProxyPolicy(value)}
-                />
-              </Item>
+                  onChange={(e) => setProxyPolicy(e.target.value)}
+                >
+                  {proxyPolicyList.map((option) => (
+                    <option key={option} value={option}>
+                      {t(PROXY_POLICY_LABEL_KEYS[option] ?? option)}
+                    </option>
+                  ))}
+                </Select>
+              </ListItem>
+
               {ruleType.noResolve && (
-                <Item>
+                <ListItem className="py-1.5 px-0.5">
                   <ListItemText
                     primary={t('rules.modals.editor.form.toggles.noResolve')}
                   />
@@ -724,13 +702,13 @@ export const RulesEditorViewer = (props: Props) => {
                     checked={noResolve}
                     onChange={() => setNoResolve(!noResolve)}
                   />
-                </Item>
+                </ListItem>
               )}
-              <Item>
+
+              <ListItem className="py-1.5 px-0.5">
                 <Button
                   fullWidth
                   variant="contained"
-                  startIcon={<VerticalAlignTopRounded />}
                   onClick={() => {
                     try {
                       const raw = validateRule()
@@ -741,14 +719,21 @@ export const RulesEditorViewer = (props: Props) => {
                     }
                   }}
                 >
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M8 11h3v10h2V11h3l-4-4-4 4zM4 3v2h16V3H4z" />
+                  </svg>
                   {t('rules.modals.editor.form.actions.prependRule')}
                 </Button>
-              </Item>
-              <Item>
+              </ListItem>
+
+              <ListItem className="py-1.5 px-0.5">
                 <Button
                   fullWidth
                   variant="contained"
-                  startIcon={<VerticalAlignBottomRounded />}
                   onClick={() => {
                     try {
                       const raw = validateRule()
@@ -759,17 +744,19 @@ export const RulesEditorViewer = (props: Props) => {
                     }
                   }}
                 >
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M16 13h-3V3h-2v10H8l4 4 4-4zM4 19v2h16v-2H4z" />
+                  </svg>
                   {t('rules.modals.editor.form.actions.appendRule')}
                 </Button>
-              </Item>
+              </ListItem>
             </List>
 
-            <List
-              sx={{
-                width: '50%',
-                padding: '0 10px',
-              }}
-            >
+            <List className="w-1/2 px-2.5">
               <BaseSearchBox onSearch={(match) => setMatch(() => match)} />
               <VirtualList
                 count={
@@ -793,24 +780,24 @@ export const RulesEditorViewer = (props: Props) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // 根据语言类型设置缩进大小
+              tabSize: 2,
               minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // 超过一定宽度显示minimap滚动条
+                enabled: document.documentElement.clientWidth >= 1500,
               },
-              mouseWheelZoom: true, // 按住Ctrl滚轮调节缩放比例
+              mouseWheelZoom: true,
               quickSuggestions: {
-                strings: true, // 字符串类型的建议
-                comments: true, // 注释类型的建议
-                other: true, // 其他类型的建议
+                strings: true,
+                comments: true,
+                other: true,
               },
               padding: {
-                top: 33, // 顶部padding防止遮挡snippets
+                top: 33,
               },
               fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
                 getSystem() === 'windows' ? ', twemoji mozilla' : ''
               }`,
-              fontLigatures: false, // 连字符
-              smoothScrolling: true, // 平滑滚动
+              fontLigatures: false,
+              smoothScrolling: true,
             }}
             onChange={(value) => setCurrData(value ?? '')}
           />
@@ -829,7 +816,3 @@ export const RulesEditorViewer = (props: Props) => {
     </Dialog>
   )
 }
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-}))

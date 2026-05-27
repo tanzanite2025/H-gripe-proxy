@@ -1,29 +1,13 @@
 import { CloseRounded } from '@mui/icons-material'
-import {
-  styled,
-  ListItem,
-  IconButton,
-  ListItemText,
-  Box,
-  alpha,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
+import { IconButton } from '@/components/tailwind/IconButton'
+import { ListItem, ListItemText } from '@/components/tailwind/List'
 import parseTraffic from '@/utils/format'
-
-const Tag = styled('span')(({ theme }) => ({
-  fontSize: '10px',
-  padding: '0 4px',
-  lineHeight: 1.375,
-  border: '1px solid',
-  borderRadius: 4,
-  borderColor: alpha(theme.palette.text.secondary, 0.35),
-  marginTop: '4px',
-  marginRight: '4px',
-}))
+import { cn } from '@/utils/cn'
 
 interface Props {
   value: IConnectionsItem
@@ -42,8 +26,7 @@ export const ConnectionItem = (props: Props) => {
 
   return (
     <ListItem
-      dense
-      sx={{ borderBottom: '1px solid var(--divider-color)' }}
+      className="border-b border-divider"
       secondaryAction={
         !closed && (
           <IconButton
@@ -59,31 +42,41 @@ export const ConnectionItem = (props: Props) => {
       }
     >
       <ListItemText
-        sx={{ userSelect: 'text', cursor: 'pointer' }}
+        className="select-text cursor-pointer"
         primary={metadata.host || metadata.destinationIP}
         onClick={onShowDetail}
         secondary={
-          <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-            <Tag sx={{ textTransform: 'uppercase', color: 'success' }}>
+          <div className="flex flex-wrap">
+            <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1 uppercase text-success">
               {metadata.network}
-            </Tag>
+            </span>
 
-            <Tag>{metadata.type}</Tag>
+            <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
+              {metadata.type}
+            </span>
 
-            {!!metadata.process && <Tag>{metadata.process}</Tag>}
+            {!!metadata.process && (
+              <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
+                {metadata.process}
+              </span>
+            )}
 
             {chains?.length > 0 && (
-              <Tag>{[...chains].reverse().join(' / ')}</Tag>
+              <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
+                {[...chains].reverse().join(' / ')}
+              </span>
             )}
 
-            <Tag>{dayjs(start).fromNow()}</Tag>
+            <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
+              {dayjs(start).fromNow()}
+            </span>
 
             {showTraffic && (
-              <Tag>
+              <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
                 {parseTraffic(curUpload!)} / {parseTraffic(curDownload!)}
-              </Tag>
+              </span>
             )}
-          </Box>
+          </div>
         }
       />
     </ListItem>

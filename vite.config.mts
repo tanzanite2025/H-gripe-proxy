@@ -10,30 +10,7 @@ export default defineConfig({
   server: { host: '127.0.0.1', port: 3500 },
   plugins: [
     svgr(),
-    react({
-      jsxImportSource: '@emotion/react',
-      babel: {
-        plugins: [
-          [
-            '@emotion/babel-plugin',
-            {
-              // 确保在 production 构建时也注入样式
-              sourceMap: true,
-              autoLabel: 'dev-only',
-              labelFormat: '[local]',
-              // 关键：强制使用 DOM 样式注入而非 speedy 模式
-              importMap: {
-                '@mui/material': {
-                  styled: {
-                    canonicalImport: ['@emotion/styled', 'default'],
-                  },
-                },
-              },
-            },
-          ],
-        ],
-      },
-    }),
+    react(),
     legacy({
       modernTargets: ['edge>=109', 'safari>=14'],
       renderLegacyChunks: false,
@@ -45,6 +22,9 @@ export default defineConfig({
       ],
     }),
   ],
+  css: {
+    postcss: './postcss.config.js',
+  },
   build: {
     outDir: '../dist',
     emptyOutDir: true,

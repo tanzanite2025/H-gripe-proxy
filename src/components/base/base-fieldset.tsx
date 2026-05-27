@@ -1,44 +1,38 @@
-import { Box, styled } from '@mui/material'
 import React from 'react'
+import { cn } from '@/utils/cn'
 
 type Props = {
   label: string
   fontSize?: string
   width?: string
   padding?: string
+  className?: string
   children?: React.ReactNode
 }
 
 export const BaseFieldset: React.FC<Props> = ({
   label,
-  fontSize,
-  width,
-  padding,
+  fontSize = '1em',
+  width = 'auto',
+  padding = '15px',
+  className,
   children,
 }: Props) => {
-  const Fieldset = styled(Box)<{ component?: string }>(() => ({
-    position: 'relative',
-    border: '1px solid #bbb',
-    borderRadius: '5px',
-    width: width ?? 'auto',
-    padding: padding ?? '15px',
-  }))
-
-  const Label = styled('legend')(({ theme }) => ({
-    position: 'absolute',
-    top: '-10px',
-    left: padding ?? '15px',
-    backgroundColor: theme.palette.background.paper,
-    backgroundImage:
-      'linear-gradient(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.16))',
-    color: theme.palette.text.primary,
-    fontSize: fontSize ?? '1em',
-  }))
-
   return (
-    <Fieldset component="fieldset">
-      <Label>{label}</Label>
+    <fieldset
+      className={cn(
+        'relative rounded-md border border-gray-400 dark:border-gray-600',
+        className
+      )}
+      style={{ width, padding }}
+    >
+      <legend
+        className="absolute -top-2.5 bg-card-light px-2 text-gray-900 dark:bg-card-dark dark:text-gray-100"
+        style={{ fontSize, left: padding }}
+      >
+        {label}
+      </legend>
       {children}
-    </Fieldset>
+    </fieldset>
   )
 }

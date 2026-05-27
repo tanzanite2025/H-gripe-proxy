@@ -8,7 +8,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { Box, Button, Grid } from '@mui/material'
+import { Box, Button, Grid } from '@/components/tailwind'
 import { emit } from '@tauri-apps/api/event'
 import { nanoid } from 'nanoid'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -142,16 +142,16 @@ const TestPage = () => {
       full
       title={t('tests.page.title')}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box className="flex items-center gap-1">
           <Button
-            variant="contained"
+            variant="primary"
             size="small"
             onClick={() => emit('verge://test-all')}
           >
             {t('tests.page.actions.testAll')}
           </Button>
           <Button
-            variant="contained"
+            variant="primary"
             size="small"
             onClick={() => viewerRef.current?.create()}
           >
@@ -163,21 +163,14 @@ const TestPage = () => {
       <Box
         ref={containerRef}
         onScroll={handleScroll}
-        sx={{
-          pt: 1.25,
-          mb: 0.5,
-          px: '10px',
-          height: 'calc(100vh - 100px)',
-          overflow: 'auto',
-          position: 'relative',
-        }}
+        className="pt-5 mb-2 px-[10px] h-[calc(100vh-100px)] overflow-auto relative"
       >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={onDragEnd}
         >
-          <Box sx={{ mb: 4.5 }}>
+          <Box className="mb-[18px]">
             <Grid container spacing={{ xs: 1, lg: 1 }}>
               <SortableContext
                 items={testList.map((x) => {
@@ -187,7 +180,7 @@ const TestPage = () => {
                 {testList.map((item) => (
                   <Grid
                     component={'div'}
-                    size={{ xs: 6, lg: 2, sm: 4, md: 3 }}
+                    item xs={6} lg={2} sm={4} md={3}
                     key={item.uid}
                   >
                     <TestItem
@@ -206,12 +199,7 @@ const TestPage = () => {
         <ScrollTopButton
           onClick={scrollToTop}
           show={showScrollTop}
-          sx={{
-            position: 'absolute',
-            bottom: '20px',
-            left: '20px',
-            zIndex: 1000,
-          }}
+          className="absolute bottom-5 left-5 z-[1000]"
         />
       </Box>
       <TestViewer ref={viewerRef} onChange={onTestListItemChange} />

@@ -4,28 +4,21 @@
  */
 
 import {
-  CachedRounded,
-  CheckCircleRounded,
-  ErrorRounded,
-  RefreshRounded,
-  WarningRounded,
-  RouterRounded,
-  VpnLockRounded,
-} from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Divider,
-  LinearProgress,
-  Stack,
-  Typography,
-} from '@mui/material'
+  RefreshCw as CachedRounded,
+  CheckCircle as CheckCircleRounded,
+  AlertCircle as ErrorRounded,
+  RefreshCw as RefreshRounded,
+  AlertTriangle as WarningRounded,
+  Router as RouterRounded,
+  Shield as VpnLockRounded,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/tailwind/Button'
+import { Card, CardContent } from '@/components/tailwind/Card'
+import { Chip } from '@/components/tailwind/Chip'
+import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import { dnsManager, type DnsManagerStats } from '@/services/dns-manager'
 
 export const DnsStatsCard = () => {
@@ -85,185 +78,178 @@ export const DnsStatsCard = () => {
   return (
     <Card>
       <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600 }}>
-            <CachedRounded fontSize="small" />
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1 text-sm font-semibold">
+            <CachedRounded className="h-4 w-4" />
             DNS 统计
-          </Typography>
+          </div>
           <Button
             size="small"
-            startIcon={<RefreshRounded fontSize="small" />}
+            startIcon={<RefreshRounded className="h-4 w-4" />}
             onClick={() => void loadStats()}
             disabled={loading}
           >
             刷新
           </Button>
-        </Box>
+        </div>
 
         {/* DNS 缓存统计 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        <div className="mb-2">
+          <div className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
             DNS 缓存
-          </Typography>
-          <Stack spacing={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">总查询次数</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <div className="text-sm">总查询次数</div>
+              <div className="text-sm font-bold">
                 {cache.totalQueries}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">缓存命中</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }} color="success.main">
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">缓存命中</div>
+              <div className="text-sm font-bold text-green-600 dark:text-green-400">
                 {cache.cacheHits}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">缓存未命中</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }} color="warning.main">
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">缓存未命中</div>
+              <div className="text-sm font-bold text-yellow-600 dark:text-yellow-400">
                 {cache.cacheMisses}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">命中率</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm">命中率</div>
+              <div className="flex items-center gap-1">
                 <LinearProgress
                   variant="determinate"
                   value={cache.hitRate}
-                  sx={{ width: 100, height: 6, borderRadius: 3 }}
+                  className="h-1.5 w-[100px] rounded-full"
                   color={cache.hitRate > 70 ? 'success' : cache.hitRate > 40 ? 'warning' : 'error'}
                 />
-                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                <div className="text-sm font-bold">
                   {cache.hitRate.toFixed(1)}%
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">缓存大小</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">缓存大小</div>
+              <div className="text-sm font-bold">
                 {cache.cacheSize} / 1000
-              </Typography>
-            </Box>
+              </div>
+            </div>
             <Button
               size="small"
               variant="outlined"
               color="warning"
               onClick={handleClearCache}
-              sx={{ mt: 1 }}
+              className="mt-1"
             >
               清空缓存
             </Button>
-          </Stack>
-        </Box>
+          </div>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
         {/* DNS 健康检查统计 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        <div className="mb-2">
+          <div className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
             DNS 健康检查
-          </Typography>
-          <Stack spacing={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">总服务器数</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <div className="text-sm">总服务器数</div>
+              <div className="text-sm font-bold">
                 {health.totalServers}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">健康</Typography>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm">健康</div>
               <Chip
-                icon={<CheckCircleRounded />}
+                icon={<CheckCircleRounded className="h-3 w-3" />}
                 label={health.healthyServers}
                 size="small"
                 color="success"
               />
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">降级</Typography>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm">降级</div>
               <Chip
-                icon={<WarningRounded />}
+                icon={<WarningRounded className="h-3 w-3" />}
                 label={health.degradedServers}
                 size="small"
                 color="warning"
               />
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">故障</Typography>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm">故障</div>
               <Chip
-                icon={<ErrorRounded />}
+                icon={<ErrorRounded className="h-3 w-3" />}
                 label={health.downServers}
                 size="small"
                 color="error"
               />
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">平均延迟</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }} color="primary.main">
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">平均延迟</div>
+              <div className="text-sm font-bold text-primary-600 dark:text-primary-400">
                 {health.averageLatency}ms
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">最优服务器</Typography>
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontWeight: 'bold', 
-                  maxWidth: 200, 
-                  overflow: 'hidden', 
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">最优服务器</div>
+              <div 
+                className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold"
                 title={health.bestServer || 'N/A'}
               >
                 {health.bestServer || 'N/A'}
-              </Typography>
-            </Box>
+              </div>
+            </div>
             <Button
               size="small"
               variant="outlined"
               onClick={handleResetHealth}
-              sx={{ mt: 1 }}
+              className="mt-1"
             >
               重置健康检查
             </Button>
-          </Stack>
-        </Box>
+          </div>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
         {/* DNS 预解析统计 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        <div className="mb-2">
+          <div className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
             DNS 预解析
-          </Typography>
-          <Stack spacing={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">常用域名数</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <div className="text-sm">常用域名数</div>
+              <div className="text-sm font-bold">
                 {prefetch.commonDomains}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">访问历史数</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">访问历史数</div>
+              <div className="text-sm font-bold">
                 {prefetch.accessHistory}
-              </Typography>
-            </Box>
-          </Stack>
-        </Box>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
         {/* DNS 智能分流统计 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <RouterRounded sx={{ fontSize: '0.875rem' }} />
+        <div className="mb-2">
+          <div className="mb-1 flex items-center gap-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <RouterRounded className="h-3.5 w-3.5" />
             DNS 智能分流
-          </Typography>
-          <Stack spacing={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">分流模式</Typography>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="text-sm">分流模式</div>
               <Chip
                 label={
                   routing.mode === 'speed'
@@ -285,64 +271,50 @@ export const DnsStatsCard = () => {
                         : 'default'
                 }
               />
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">国内 DNS</Typography>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  fontWeight: 'bold', 
-                  maxWidth: 180, 
-                  overflow: 'hidden', 
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">国内 DNS</div>
+              <div 
+                className="max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
                 title={routing.domesticDns}
               >
                 {routing.domesticDns}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2">国外 DNS</Typography>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  fontWeight: 'bold', 
-                  maxWidth: 180, 
-                  overflow: 'hidden', 
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-sm">国外 DNS</div>
+              <div 
+                className="max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
                 title={routing.foreignDns}
               >
                 {routing.foreignDns}
-              </Typography>
-            </Box>
+              </div>
+            </div>
             {routing.customRulesCount > 0 && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2">自定义规则</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              <div className="flex justify-between">
+                <div className="text-sm">自定义规则</div>
+                <div className="text-sm font-bold">
                   {routing.customRulesCount} 条
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
-          </Stack>
-        </Box>
+          </div>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
         {/* Tor 代理统计 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <VpnLockRounded sx={{ fontSize: '0.875rem' }} />
+        <div className="mb-2">
+          <div className="mb-1 flex items-center gap-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <VpnLockRounded className="h-3.5 w-3.5" />
             Tor 代理
-          </Typography>
-          <Stack spacing={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">状态</Typography>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="text-sm">状态</div>
               {tor.enabled ? (
                 <Chip
-                  icon={tor.connected ? <CheckCircleRounded /> : <WarningRounded />}
+                  icon={tor.connected ? <CheckCircleRounded className="h-3 w-3" /> : <WarningRounded className="h-3 w-3" />}
                   label={tor.connected ? '已连接' : '未连接'}
                   size="small"
                   color={tor.connected ? 'success' : 'warning'}
@@ -350,39 +322,32 @@ export const DnsStatsCard = () => {
               ) : (
                 <Chip label="未启用" size="small" />
               )}
-            </Box>
+            </div>
             {tor.enabled && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2">SOCKS5 代理</Typography>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    fontWeight: 'bold',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    maxWidth: 150
-                  }}
+              <div className="flex justify-between">
+                <div className="text-sm">SOCKS5 代理</div>
+                <div 
+                  className="max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
                   title={tor.socksProxy}
                 >
                   {tor.socksProxy}
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
-          </Stack>
-        </Box>
+          </div>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
         {/* DNS 零泄漏防护统计 */}
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <RouterRounded sx={{ fontSize: '0.875rem' }} />
+        <div>
+          <div className="mb-1 flex items-center gap-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <RouterRounded className="h-3.5 w-3.5" />
             零泄漏防护
-          </Typography>
-          <Stack spacing={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">防护级别</Typography>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="text-sm">防护级别</div>
               <Chip
                 label={leakProtection.levelName}
                 size="small"
@@ -396,17 +361,17 @@ export const DnsStatsCard = () => {
                         : 'success'
                 }
               />
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">安全状态</Typography>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm">安全状态</div>
               {leakProtection.safe ? (
-                <Chip icon={<CheckCircleRounded />} label="安全" size="small" color="success" />
+                <Chip icon={<CheckCircleRounded className="h-3 w-3" />} label="安全" size="small" color="success" />
               ) : (
-                <Chip icon={<WarningRounded />} label="不安全" size="small" color="error" />
+                <Chip icon={<WarningRounded className="h-3 w-3" />} label="不安全" size="small" color="error" />
               )}
-            </Box>
-          </Stack>
-        </Box>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

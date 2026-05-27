@@ -1,17 +1,3 @@
-import { EditRounded } from '@mui/icons-material'
-import {
-  Autocomplete,
-  Box,
-  Button,
-  Chip,
-  InputAdornment,
-  List,
-  ListItem,
-  ListItemText,
-  styled,
-  TextField,
-  Typography,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import {
   forwardRef,
@@ -21,17 +7,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import {
-  BaseDialog,
-  BaseFieldset,
-  BaseSplitChipEditor,
-  DialogRef,
-  Switch,
-  TooltipIcon,
-} from '@/components/base'
-import { EditorViewer } from '@/components/profile/editor-viewer'
+import { DialogRef } from '@/components/base'
+import { SystemProxyUI } from './system-proxy-ui'
 import { useSystemProxyState, useVerge } from '@/hooks/system'
 import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
 import {
@@ -94,7 +72,6 @@ const splitBypass = (value?: string) =>
     .filter(Boolean)
 
 export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
-  const { t } = useTranslation()
   const systemName = getSystem()
   const isWindows = systemName === 'windows'
   const validReg = useMemo(() => getValidReg(isWindows), [isWindows])
@@ -443,258 +420,28 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   })
 
   return (
-    <BaseDialog
+    <SystemProxyUI
       open={open}
-      title={t('settings.modals.sysproxy.title')}
-      contentSx={{ width: 450, maxHeight: 565 }}
-      okBtn={t('shared.actions.save')}
-      cancelBtn={t('shared.actions.cancel')}
+      saving={saving}
+      enabled={enabled ?? false}
+      value={value}
+      isProxyReallyEnabled={isProxyReallyEnabled}
+      getSystemProxyAddress={getSystemProxyAddress}
+      getCurrentPacUrl={getCurrentPacUrl}
+      bypassError={bypassError}
+      separator={separator}
+      hostOptions={hostOptions}
+      editorOpen={editorOpen}
+      pacEditorValue={pacEditorValue}
+      pacEditorSavedValue={pacEditorSavedValue}
+      defaultBypass={defaultBypass}
       onClose={() => setOpen(false)}
-      onCancel={() => setOpen(false)}
-      onOk={onSave}
-      loading={saving}
-      disableOk={saving}
-    >
-      <List>
-        <BaseFieldset
-          label={t('settings.modals.sysproxy.fieldsets.currentStatus')}
-          padding="15px 10px"
-        >
-          <FlexBox>
-            <Typography className="label">
-              {t('settings.modals.sysproxy.fields.enableStatus')}
-            </Typography>
-            <Typography className="value">
-              {isProxyReallyEnabled
-                ? t('shared.statuses.enabled')
-                : t('shared.statuses.disabled')}
-            </Typography>
-          </FlexBox>
-          {!value.pac && (
-            <FlexBox>
-              <Typography className="label">
-                {t('settings.modals.sysproxy.fields.serverAddr')}
-              </Typography>
-              <Typography className="value">{getSystemProxyAddress}</Typography>
-            </FlexBox>
-          )}
-          {value.pac && (
-            <FlexBox>
-              <Typography className="label">
-                {t('settings.modals.sysproxy.fields.pacUrl')}
-              </Typography>
-              <Typography className="value">
-                {getCurrentPacUrl || '-'}
-              </Typography>
-            </FlexBox>
-          )}
-        </BaseFieldset>
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.proxyHost')}
-          />
-          <Autocomplete
-            size="small"
-            sx={{ width: 150 }}
-            options={hostOptions}
-            value={value.proxy_host}
-            freeSolo
-            renderInput={(params) => (
-              <TextField {...params} placeholder="127.0.0.1" size="small" />
-            )}
-            onChange={(_, newValue) => {
-              setValue((v) => ({
-                ...v,
-                proxy_host: newValue || '127.0.0.1',
-              }))
-            }}
-            onInputChange={(_, newInputValue) => {
-              setValue((v) => ({
-                ...v,
-                proxy_host: newInputValue || '127.0.0.1',
-              }))
-            }}
-          />
-        </ListItem>
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.usePacMode')}
-          />
-          <Switch
-            edge="end"
-            disabled={!enabled}
-            checked={value.pac}
-            onChange={(_, e) => setValue((v) => ({ ...v, pac: e }))}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.proxyGuard')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.sysproxy.tooltips.proxyGuard')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Switch
-            edge="end"
-            disabled={!enabled}
-            checked={value.guard}
-            onChange={(_, e) => setValue((v) => ({ ...v, guard: e }))}
-            sx={{ marginLeft: 'auto' }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.guardDuration')}
-          />
-          <TextField
-            disabled={!enabled}
-            size="small"
-            value={value.duration}
-            sx={{ width: 100 }}
-            slotProps={{
-              input: {
-                endAdornment: <InputAdornment position="end">s</InputAdornment>,
-              },
-            }}
-            onChange={(e) => {
-              setValue((v) => ({
-                ...v,
-                duration: +e.target.value.replace(/\D/, ''),
-              }))
-            }}
-          />
-        </ListItem>
-        {!value.pac && (
-          <ListItem sx={{ padding: '5px 2px' }}>
-            <ListItemText
-              primary={t(
-                'settings.modals.sysproxy.fields.alwaysUseDefaultBypass',
-              )}
-            />
-            <Switch
-              edge="end"
-              disabled={!enabled}
-              checked={value.use_default}
-              onChange={(_, e) => {
-                if (!e && !value.bypass) {
-                  const nextBypass = defaultBypass()
-                  setValue((v) => ({
-                    ...v,
-                    use_default: e,
-                    // 当取消选择use_default且当前bypass为空时，填充默认值
-                    bypass: nextBypass,
-                  }))
-                  return
-                }
-                setValue((v) => ({ ...v, use_default: e }))
-              }}
-            />
-          </ListItem>
-        )}
-
-        {!value.pac && (
-          <ListItem sx={{ padding: '5px 2px' }}>
-            <ListItemText
-              primary={t('settings.modals.sysproxy.fields.enableBypassCheck')}
-            />
-            <Switch
-              edge="end"
-              disabled={!enabled}
-              checked={value.enable_bypass_check}
-              onChange={(_, e) =>
-                setValue((v) => ({ ...v, enable_bypass_check: e }))
-              }
-            />
-          </ListItem>
-        )}
-
-        {!value.pac && !value.use_default && (
-          <BaseSplitChipEditor
-            value={value.bypass ?? ''}
-            separator={separator}
-            disabled={!enabled}
-            error={bypassError}
-            helperText={
-              bypassError
-                ? t('settings.modals.sysproxy.messages.invalidBypass')
-                : undefined
-            }
-            placeholder="localhost"
-            ariaLabel={t('settings.modals.sysproxy.fields.proxyBypass')}
-            onChange={(nextValue) => {
-              setValue((v) => ({ ...v, bypass: nextValue }))
-            }}
-            renderHeader={(modeToggle) => (
-              <ListItem sx={{ padding: '5px 2px' }}>
-                <ListItemText
-                  primary={t('settings.modals.sysproxy.fields.proxyBypass')}
-                />
-                {modeToggle ? (
-                  <Box sx={{ marginLeft: 'auto' }}>{modeToggle}</Box>
-                ) : null}
-              </ListItem>
-            )}
-          />
-        )}
-
-        {!value.pac && value.use_default && (
-          <>
-            <ListItemText
-              primary={t('settings.modals.sysproxy.fields.bypass')}
-            />
-            <Box sx={{ padding: '0 2px 5px' }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {splitBypass(defaultBypass()).map((item) => (
-                  <Chip key={item} label={item} size="small" />
-                ))}
-              </Box>
-            </Box>
-          </>
-        )}
-
-        {value.pac && (
-          <ListItem sx={{ padding: '5px 2px', alignItems: 'start' }}>
-            <ListItemText
-              primary={t('settings.modals.sysproxy.fields.pacScriptContent')}
-              sx={{ padding: '3px 0' }}
-            />
-            <Button
-              startIcon={<EditRounded />}
-              variant="outlined"
-              onClick={openPacEditor}
-            >
-              {t('settings.modals.sysproxy.actions.editPac')}
-            </Button>
-            {editorOpen && (
-              <EditorViewer
-                open={true}
-                title={t('settings.modals.sysproxy.actions.editPac')}
-                value={pacEditorValue}
-                language="javascript"
-                path="sysproxy-pac.js"
-                dirty={pacEditorValue !== pacEditorSavedValue}
-                onChange={setPacEditorValue}
-                onSave={handleSavePac}
-                onClose={() => setEditorOpen(false)}
-              />
-            )}
-          </ListItem>
-        )}
-      </List>
-    </BaseDialog>
+      onSave={onSave}
+      setValue={setValue}
+      openPacEditor={openPacEditor}
+      setEditorOpen={setEditorOpen}
+      setPacEditorValue={setPacEditorValue}
+      handleSavePac={handleSavePac}
+    />
   )
 })
-
-const FlexBox = styled('div')`
-  display: flex;
-  margin-top: 4px;
-
-  .label {
-    flex: none;
-    //width: 85px;
-  }
-`

@@ -3,21 +3,12 @@
  * 包含 fallback-filter 相关配置
  */
 
-import { ListItem, ListItemText, styled, TextField, Typography } from '@mui/material'
+import { TextField, Box } from '@/components/tailwind'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
 
 import type { DnsFormValues } from '../utils/dns-helpers'
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-  '& textarea': {
-    lineHeight: 1.5,
-    fontSize: 14,
-    resize: 'vertical',
-  },
-}))
 
 interface DnsFallbackFieldsProps {
   values: DnsFormValues
@@ -32,29 +23,30 @@ export const DnsFallbackFields = ({
 
   return (
     <>
-      <Typography
-        variant="subtitle2"
-        sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}
-      >
+      <h3 className="text-sm font-bold mt-8 mb-4">
         {t('settings.modals.dns.sections.fallbackFilter')}
-      </Typography>
+      </h3>
 
-      <Item>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.geoipFiltering.label')}
-          secondary={t(
-            'settings.modals.dns.fields.geoipFiltering.description',
-          )}
-        />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div>
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.geoipFiltering.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.geoipFiltering.description')}
+          </div>
+        </div>
         <Switch
           edge="end"
           checked={values.fallbackGeoip}
           onChange={onChange('fallbackGeoip')}
         />
-      </Item>
+      </Box>
 
-      <Item>
-        <ListItemText primary={t('settings.modals.dns.fields.geoipCode')} />
+      <Box className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium">
+          {t('settings.modals.dns.fields.geoipCode')}
+        </div>
         <TextField
           size="small"
           autoComplete="off"
@@ -62,17 +54,19 @@ export const DnsFallbackFields = ({
           value={values.fallbackGeoipCode}
           onChange={onChange('fallbackGeoipCode')}
           placeholder="CN"
-          sx={{ width: 100 }}
+          className="w-[100px]"
         />
-      </Item>
+      </Box>
 
-      <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.fallbackIpCidr.label')}
-          secondary={t(
-            'settings.modals.dns.fields.fallbackIpCidr.description',
-          )}
-        />
+      <Box className="flex flex-col items-start py-2 px-1">
+        <div className="mb-2">
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.fallbackIpCidr.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.fallbackIpCidr.description')}
+          </div>
+        </div>
         <TextField
           fullWidth
           multiline
@@ -83,16 +77,19 @@ export const DnsFallbackFields = ({
           value={values.fallbackIpcidr}
           onChange={onChange('fallbackIpcidr')}
           placeholder="240.0.0.0/4, 127.0.0.1/8"
+          className="[&_textarea]:leading-[1.5] [&_textarea]:text-sm [&_textarea]:resize-y"
         />
-      </Item>
+      </Box>
 
-      <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-        <ListItemText
-          primary={t('settings.modals.dns.fields.fallbackDomain.label')}
-          secondary={t(
-            'settings.modals.dns.fields.fallbackDomain.description',
-          )}
-        />
+      <Box className="flex flex-col items-start py-2 px-1">
+        <div className="mb-2">
+          <div className="text-sm font-medium">
+            {t('settings.modals.dns.fields.fallbackDomain.label')}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('settings.modals.dns.fields.fallbackDomain.description')}
+          </div>
+        </div>
         <TextField
           fullWidth
           multiline
@@ -103,8 +100,9 @@ export const DnsFallbackFields = ({
           value={values.fallbackDomain}
           onChange={onChange('fallbackDomain')}
           placeholder="+.google.com, +.facebook.com, +.youtube.com"
+          className="[&_textarea]:leading-[1.5] [&_textarea]:text-sm [&_textarea]:resize-y"
         />
-      </Item>
+      </Box>
     </>
   )
 }

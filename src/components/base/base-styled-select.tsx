@@ -1,19 +1,12 @@
-import { Select, SelectProps, styled } from '@mui/material'
+import { Select } from '@/components/tailwind'
+import type { ComponentProps } from 'react'
 
-export const BaseStyledSelect = styled((props: SelectProps<string>) => {
+type BaseStyledSelectProps = Omit<ComponentProps<typeof Select>, 'options'>
+
+export const BaseStyledSelect = (props: BaseStyledSelectProps & { options: Array<{ value: string | number; label: string }> }) => {
   return (
-    <Select
-      size="small"
-      autoComplete="new-password"
-      sx={{
-        width: 120,
-        height: 33.375,
-        mr: 1,
-        '[role="button"]': { py: 0.65 },
-      }}
-      {...props}
-    />
+    <div className="mr-1 w-[120px]">
+      <Select {...props} />
+    </div>
   )
-})(({ theme }) => ({
-  background: theme.palette.mode === 'light' ? '#fff' : undefined,
-}))
+}

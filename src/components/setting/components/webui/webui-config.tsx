@@ -1,10 +1,10 @@
-import { Box, Button, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, BaseEmpty, DialogRef } from '@/components/base'
+import { Dialog, Button, Box } from '@/components/tailwind'
+import { BaseEmpty, DialogRef } from '@/components/base'
 import { useClashInfo } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { openWebUrl } from '@/services/cmds'
@@ -97,13 +97,14 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
   })
 
   return (
-    <BaseDialog
+    <Dialog
       open={open}
+      onClose={() => setOpen(false)}
       title={
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Box className="flex justify-between">
           {t('settings.modals.webUI.title')}
           <Button
-            variant="contained"
+            variant="primary"
             size="small"
             disabled={editing}
             onClick={() => setEditing(true)}
@@ -112,48 +113,45 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Button>
         </Box>
       }
-      contentSx={{
-        width: 450,
-        height: 300,
-        pb: 1,
-        overflowY: 'auto',
-        userSelect: 'text',
-      }}
-      cancelBtn={t('shared.actions.close')}
-      disableOk
-      onClose={() => setOpen(false)}
-      onCancel={() => setOpen(false)}
+      maxWidth="md"
+      actions={
+        <Button onClick={() => setOpen(false)}>
+          {t('shared.actions.close')}
+        </Button>
+      }
     >
-      {!editing && webUIList.length === 0 && (
-        <BaseEmpty
-          extra={
-            <Typography sx={{ mt: 2, fontSize: '12px' }}>
-              {t('settings.modals.webUI.messages.placeholderInstruction')}
-            </Typography>
-          }
-        />
-      )}
+      <Box className="w-[450px] h-[300px] pb-4 overflow-y-auto select-text">
+        {!editing && webUIList.length === 0 && (
+          <BaseEmpty
+            extra={
+              <p className="mt-8 text-xs">
+                {t('settings.modals.webUI.messages.placeholderInstruction')}
+              </p>
+            }
+          />
+        )}
 
-      {webUIEntries.map(({ item, index, key }) => (
-        <WebUIItem
-          key={key}
-          value={item}
-          onChange={(v) => handleChange(index, v)}
-          onDelete={() => handleDelete(index)}
-          onOpenUrl={handleOpenUrl}
-        />
-      ))}
-      {editing && (
-        <WebUIItem
-          value=""
-          onlyEdit
-          onChange={(v) => {
-            setEditing(false)
-            handleAdd(v || '')
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
-    </BaseDialog>
+        {webUIEntries.map(({ item, index, key }) => (
+          <WebUIItem
+            key={key}
+            value={item}
+            onChange={(v) => handleChange(index, v)}
+            onDelete={() => handleDelete(index)}
+            onOpenUrl={handleOpenUrl}
+          />
+        ))}
+        {editing && (
+          <WebUIItem
+            value=""
+            onlyEdit
+            onChange={(v) => {
+              setEditing(false)
+              handleAdd(v || '')
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        )}
+      </Box>
+    </Dialog>
   )
 }

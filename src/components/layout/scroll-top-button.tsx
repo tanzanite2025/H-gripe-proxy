@@ -1,37 +1,32 @@
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
-import { IconButton, Fade, SxProps, Theme } from '@mui/material'
+import { ChevronUp } from 'lucide-react'
+import { IconButton } from '@/components/tailwind'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface Props {
   onClick: () => void
   show: boolean
-  sx?: SxProps<Theme>
+  className?: string
 }
 
-export const ScrollTopButton = ({ onClick, show, sx }: Props) => {
+export const ScrollTopButton = ({ onClick, show, className = '' }: Props) => {
   return (
-    <Fade in={show}>
-      <IconButton
-        onClick={onClick}
-        sx={{
-          position: 'absolute',
-          bottom: '20px',
-          right: '20px',
-          backgroundColor: (theme) =>
-            theme.palette.mode === 'dark'
-              ? 'rgba(255,255,255,0.1)'
-              : 'rgba(0,0,0,0.1)',
-          '&:hover': {
-            backgroundColor: (theme) =>
-              theme.palette.mode === 'dark'
-                ? 'rgba(255,255,255,0.2)'
-                : 'rgba(0,0,0,0.2)',
-          },
-          visibility: show ? 'visible' : 'hidden',
-          ...sx,
-        }}
-      >
-        <KeyboardArrowUpIcon />
-      </IconButton>
-    </Fade>
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.2 }}
+          className={className}
+        >
+          <IconButton
+            onClick={onClick}
+            className="bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20"
+          >
+            <ChevronUp className="h-6 w-6" />
+          </IconButton>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

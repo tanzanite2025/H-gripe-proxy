@@ -3,15 +3,15 @@
  * 主组件负责组合所有子组件和 hooks
  */
 
-import { RestartAltRounded } from '@mui/icons-material'
-import { Box, Button, List, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import yaml from 'js-yaml'
+import { RefreshCw } from 'lucide-react'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, MonacoEditor } from '@/components/base'
+import { Box, Button, List, Typography } from '@/components/tailwind'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
@@ -147,28 +147,22 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       open={open}
       disableEnforceFocus={!visualization}
       title={
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
+        <Box className="flex justify-between items-center">
           <span className="uds-title-h2">
             {t('settings.modals.dns.dialog.title')}
           </span>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box className="flex items-center gap-4">
             <Button
               variant="outlined"
               size="small"
               color="warning"
-              startIcon={<RestartAltRounded />}
+              startIcon={<RefreshCw className="h-4 w-4" />}
               onClick={resetToDefaults}
             >
               {t('shared.actions.resetToDefault')}
             </Button>
             <Button
-              variant="contained"
+              variant="primary"
               size="small"
               onClick={() => {
                 setVisualization((prev) => !prev)
@@ -196,10 +190,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     >
       {/* Warning message */}
       <Typography
-        className="uds-desc"
+        className="uds-desc mb-8 mt-0 italic"
         variant="body2"
         color="warning.main"
-        sx={{ mb: 2, mt: 0, fontStyle: 'italic' }}
       >
         {t('settings.modals.dns.dialog.warning')}
       </Typography>

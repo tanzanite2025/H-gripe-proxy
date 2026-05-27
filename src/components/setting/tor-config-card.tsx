@@ -2,31 +2,19 @@
  * Tor 代理配置卡片
  */
 
-import { useState, useEffect } from 'react'
-import {
-  Box,
-  Typography,
-  Switch,
-  TextField,
-  Button,
-  Stack,
-  Divider,
-  Alert,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Collapse,
-} from '@mui/material'
-import {
-  VpnLock as TorIcon,
-  CheckCircle as CheckIcon,
-  Error as ErrorIcon,
-  ExpandMore as ExpandMoreIcon,
-  ContentCopy as CopyIcon,
-} from '@mui/icons-material'
+import { CheckCircle as CheckIcon, ChevronDown as ExpandMoreIcon, Copy as CopyIcon, AlertCircle as ErrorIcon, Shield as TorIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import { Alert } from '@/components/tailwind/Alert'
+import { Button } from '@/components/tailwind/Button'
+import { Chip } from '@/components/tailwind/Chip'
+import { Collapse } from '@/components/tailwind/Collapse'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { List, ListItem, ListItemText } from '@/components/tailwind/List'
+import { Switch } from '@/components/tailwind/Switch'
+import { TextField } from '@/components/tailwind/TextField'
 import { torProxyService } from '@/services/tor-proxy'
+import { cn } from '@/utils/cn'
 
 export const TorConfigCard = () => {
   const [enabled, setEnabled] = useState(false)
@@ -103,27 +91,27 @@ export const TorConfigCard = () => {
   const instructions = torProxyService.getUsageInstructions()
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <TorIcon sx={{ mr: 1 }} />
-        <Typography variant="h6" sx={{ fontWeight: 'bold', flexGrow: 1 }}>
+    <div>
+      <div className="mb-2 flex items-center">
+        <TorIcon className="mr-1 h-5 w-5" />
+        <h6 className="flex-grow text-lg font-bold">
           Tor 代理
-        </Typography>
+        </h6>
         <Switch checked={enabled} onChange={handleEnableChange} />
-      </Box>
+      </div>
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
+      <Alert severity="warning" className="mb-2">
         Tor 会显著降低网络速度（通常 &lt; 1 Mbps），仅在需要最强隐私保护时使用
       </Alert>
 
       {enabled && (
         <>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+          <div className="mb-3">
+            <div className="mb-1.5 text-sm text-gray-500 dark:text-gray-400">
               SOCKS5 代理配置
-            </Typography>
+            </div>
 
-            <Stack spacing={2}>
+            <div className="space-y-2">
               <TextField
                 label="SOCKS5 主机"
                 value={socksHost}
@@ -141,7 +129,7 @@ export const TorConfigCard = () => {
                 fullWidth
               />
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <div className="flex items-center gap-1">
                 <TextField
                   label="SOCKS5 代理地址"
                   value={torProxyService.getSocksProxyUrl()}
@@ -154,47 +142,47 @@ export const TorConfigCard = () => {
                   }}
                 />
                 <IconButton onClick={handleCopySocksUrl} size="small">
-                  <CopyIcon />
+                  <CopyIcon className="h-4 w-4" />
                 </IconButton>
-              </Box>
-            </Stack>
-          </Box>
+              </div>
+            </div>
+          </div>
 
-          <Divider sx={{ my: 2 }} />
+          <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+          <div className="mb-3">
+            <div className="mb-1.5 text-sm text-gray-500 dark:text-gray-400">
               连接状态
-            </Typography>
+            </div>
 
-            <Stack spacing={1.5}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2">Tor 状态:</Typography>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1">
+                <div className="text-sm">Tor 状态:</div>
                 {status.enabled ? (
                   <Chip
-                    icon={<CheckIcon />}
+                    icon={<CheckIcon className="h-3 w-3" />}
                     label="已启用"
                     color="success"
                     size="small"
                   />
                 ) : (
-                  <Chip icon={<ErrorIcon />} label="未启用" size="small" />
+                  <Chip icon={<ErrorIcon className="h-3 w-3" />} label="未启用" size="small" />
                 )}
-              </Box>
+              </div>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2">连接状态:</Typography>
+              <div className="flex items-center gap-1">
+                <div className="text-sm">连接状态:</div>
                 {status.connected ? (
                   <Chip
-                    icon={<CheckIcon />}
+                    icon={<CheckIcon className="h-3 w-3" />}
                     label="已连接"
                     color="success"
                     size="small"
                   />
                 ) : (
-                  <Chip icon={<ErrorIcon />} label="未连接" color="error" size="small" />
+                  <Chip icon={<ErrorIcon className="h-3 w-3" />} label="未连接" color="error" size="small" />
                 )}
-              </Box>
+              </div>
 
               <Button
                 variant="outlined"
@@ -204,22 +192,22 @@ export const TorConfigCard = () => {
               >
                 检查连接
               </Button>
-            </Stack>
-          </Box>
+            </div>
+          </div>
         </>
       )}
 
-      <Divider sx={{ my: 2 }} />
+      <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
-      <Box>
+      <div>
         <Button
           onClick={() => setShowInstructions(!showInstructions)}
           endIcon={
             <ExpandMoreIcon
-              sx={{
-                transform: showInstructions ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: '0.3s',
-              }}
+              className={cn(
+                'h-4 w-4 transition-transform duration-300',
+                showInstructions ? 'rotate-180' : 'rotate-0',
+              )}
             />
           }
           fullWidth
@@ -228,10 +216,10 @@ export const TorConfigCard = () => {
         </Button>
 
         <Collapse in={showInstructions}>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          <div className="mt-2">
+            <div className="mb-1 text-sm font-medium">
               {instructions.title}
-            </Typography>
+            </div>
 
             <List dense>
               {instructions.steps.map((step, index) => (
@@ -241,9 +229,9 @@ export const TorConfigCard = () => {
               ))}
             </List>
 
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+            <div className="mb-1 mt-2 text-sm font-medium">
               注意事项
-            </Typography>
+            </div>
 
             <List dense>
               {instructions.notes.map((note, index) => (
@@ -252,9 +240,9 @@ export const TorConfigCard = () => {
                 </ListItem>
               ))}
             </List>
-          </Box>
+          </div>
         </Collapse>
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

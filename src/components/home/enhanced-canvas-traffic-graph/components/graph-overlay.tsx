@@ -1,4 +1,3 @@
-import { Box } from '@mui/material'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,103 +38,41 @@ export const GraphOverlay = ({
   }
 
   return (
-    <Box
-      sx={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className="pointer-events-none absolute bottom-0 left-0 right-0 top-0">
       {/* 时间范围按钮 */}
-      <Box
-        component="div"
+      <div
         onClick={onTimeRangeClick}
-        sx={{
-          position: 'absolute',
-          top: 6,
-          left: 40,
-          fontSize: '11px',
-          fontWeight: 'bold',
-          color: 'text.secondary',
-          cursor: 'pointer',
-          pointerEvents: 'all',
-          px: 1,
-          py: 0.5,
-          borderRadius: 0.5,
-          bgcolor: 'rgba(0,0,0,0.05)',
-          '&:hover': {
-            bgcolor: 'rgba(0,0,0,0.1)',
-          },
-        }}
+        className="pointer-events-auto absolute left-10 top-1.5 cursor-pointer rounded bg-black/5 px-1 py-0.5 text-[11px] font-bold text-gray-500 hover:bg-black/10 dark:text-gray-400"
       >
         {getTimeRangeText()}
-      </Box>
+      </div>
 
       {/* 图例 */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 6,
-          right: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0.5,
-        }}
-      >
-        <Box
-          sx={{
-            fontSize: '11px',
-            fontWeight: 'bold',
-            color: colors.up,
-            textAlign: 'right',
-          }}
+      <div className="absolute right-2 top-1.5 flex flex-col gap-0.5">
+        <div
+          className="text-right text-[11px] font-bold"
+          style={{ color: colors.up }}
         >
           {t('home.components.traffic.legends.upload')}
-        </Box>
-        <Box
-          sx={{
-            fontSize: '11px',
-            fontWeight: 'bold',
-            color: colors.down,
-            textAlign: 'right',
-          }}
+        </div>
+        <div
+          className="text-right text-[11px] font-bold"
+          style={{ color: colors.down }}
         >
           {t('home.components.traffic.legends.download')}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* 样式指示器 */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 6,
-          right: 8,
-          fontSize: '10px',
-          color: 'text.disabled',
-          opacity: 0.7,
-        }}
-      >
+      <div className="absolute bottom-1.5 right-2 text-[10px] text-gray-400 opacity-70">
         {chartStyle === 'bezier' ? 'Smooth' : 'Linear'}
-      </Box>
+      </div>
 
       {/* 数据统计指示器（左下角） */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 6,
-          left: 8,
-          fontSize: '9px',
-          color: 'text.disabled',
-          opacity: 0.6,
-          lineHeight: 1.2,
-        }}
-      >
+      <div className="absolute bottom-1.5 left-2 text-[9px] leading-tight text-gray-400 opacity-60">
         Points: {displayDataLength} | Compressed: {compressedBufferSize} | FPS:{' '}
         {currentFPS}
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

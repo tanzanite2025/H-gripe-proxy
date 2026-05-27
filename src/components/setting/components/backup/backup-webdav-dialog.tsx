@@ -1,8 +1,8 @@
-import { Box } from '@mui/material'
+import { Box, Dialog, Button } from '@/components/tailwind'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, BaseLoadingOverlay } from '@/components/base'
+import { BaseLoadingOverlay } from '@/components/base'
 import { useVerge } from '@/hooks/system'
 import { listWebDavBackup } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -67,16 +67,18 @@ export const BackupWebdavDialog = ({
   )
 
   return (
-    <BaseDialog
+    <Dialog
       open={open}
-      title={t('settings.modals.backup.webdav.title')}
-      contentSx={{ width: { xs: 360, sm: 520 } }}
-      disableOk
-      cancelBtn={t('shared.actions.close')}
-      onCancel={onClose}
       onClose={onClose}
+      title={t('settings.modals.backup.webdav.title')}
+      maxWidth="md"
+      actions={
+        <Button onClick={onClose}>
+          {t('shared.actions.close')}
+        </Button>
+      }
     >
-      <Box sx={{ position: 'relative' }}>
+      <Box className="w-[360px] sm:w-[520px] relative">
         <BaseLoadingOverlay isLoading={loading} />
         <BackupConfigViewer
           setLoading={handleLoading}
@@ -89,6 +91,6 @@ export const BackupWebdavDialog = ({
           onInit={refreshSilently}
         />
       </Box>
-    </BaseDialog>
+    </Dialog>
   )
 }

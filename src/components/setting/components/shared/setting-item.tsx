@@ -1,14 +1,7 @@
-import { ChevronRightRounded } from '@mui/icons-material'
-import {
-  Box,
-  List,
-  ListItem,
-  ListItemButton,
-  ListSubheader,
-} from '@mui/material'
-import CircularProgress from '@mui/material/CircularProgress'
+import { ChevronRight } from 'lucide-react'
 import React, { ReactNode, useState } from 'react'
 
+import { Box, CircularProgress } from '@/components/tailwind'
 import isAsyncFunction from '@/utils/misc/is-async-function'
 
 interface ItemProps {
@@ -30,7 +23,7 @@ export const SettingItem: React.FC<ItemProps> = ({
 
   const primary = (
     <Box className="uds-settings-item__label-row">
-      <Box component="span" className="uds-settings-item__label uds-card-title">
+      <Box as="span" className="uds-settings-item__label uds-card-title">
         {label}
       </Box>
       {extra ? <Box className="uds-settings-item__extra">{extra}</Box> : null}
@@ -53,11 +46,20 @@ export const SettingItem: React.FC<ItemProps> = ({
   }
 
   return clickable ? (
-    <ListItem disablePadding className="uds-settings-item uds-settings-item--clickable">
-      <ListItemButton
-        className="uds-settings-item__button"
+    <Box as="li" className="uds-settings-item uds-settings-item--clickable p-0">
+      <Box
+        as="button"
+        className="uds-settings-item__button w-full text-left"
         onClick={handleClick}
         disabled={isLoading}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e: React.KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleClick()
+          }
+        }}
       >
         <Box className="uds-settings-item__body">
           <Box className="uds-settings-item__main">
@@ -68,14 +70,14 @@ export const SettingItem: React.FC<ItemProps> = ({
             {isLoading ? (
               <CircularProgress color="inherit" size={20} />
             ) : (
-              <ChevronRightRounded />
+              <ChevronRight size={20} />
             )}
           </Box>
         </Box>
-      </ListItemButton>
-    </ListItem>
+      </Box>
+    </Box>
   ) : (
-    <ListItem className="uds-settings-item" sx={{ p: 0 }}>
+    <Box as="li" className="uds-settings-item p-0">
       <Box className="uds-settings-item__body">
         <Box className="uds-settings-item__main">
           {primary}
@@ -83,7 +85,7 @@ export const SettingItem: React.FC<ItemProps> = ({
         </Box>
         {children ? <Box className="uds-settings-item__control">{children}</Box> : null}
       </Box>
-    </ListItem>
+    </Box>
   )
 }
 
@@ -91,15 +93,16 @@ export const SettingList: React.FC<{
   title: string
   children: ReactNode
 }> = ({ title, children }) => (
-  <List disablePadding className="uds-settings-list">
-    <ListSubheader
+  <Box as="ul" className="uds-settings-list p-0">
+    <Box
+      as="div"
       className="uds-label uds-settings-list__header"
-      sx={{ background: 'transparent' }}
-      disableSticky
+      role="heading"
+      aria-level={2}
     >
       {title}
-    </ListSubheader>
+    </Box>
 
     {children}
-  </List>
+  </Box>
 )

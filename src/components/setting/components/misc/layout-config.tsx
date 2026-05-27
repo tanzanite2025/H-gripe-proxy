@@ -1,3 +1,9 @@
+import { convertFileSrc } from '@tauri-apps/api/core'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import {
   Box,
   Button,
@@ -8,14 +14,7 @@ import {
   MenuItem,
   Select,
   TextField,
-  styled,
-} from '@mui/material'
-import { convertFileSrc } from '@tauri-apps/api/core'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
+} from '@/components/tailwind'
 import { DEFAULT_HOVER_DELAY } from '@/components/proxy/proxy-group-navigator'
 import { useVerge } from '@/hooks/system'
 import { useWindowDecorations } from '@/hooks/ui'
@@ -85,7 +84,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
       onCancel={() => setOpen(false)}
     >
       <List>
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.preferSystemTitlebar',
@@ -102,9 +101,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.components.verge.layout.fields.trafficGraph')}
           />
@@ -118,9 +117,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.components.verge.layout.fields.memoryUsage')}
           />
@@ -134,9 +133,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.proxyGroupIcon',
@@ -152,9 +151,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.pauseRenderTrafficStatsOnBlur',
@@ -174,9 +173,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.components.verge.layout.fields.toastPosition')}
           />
@@ -187,7 +186,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(value) => onChangeData({ notice_position: value })}
             onGuard={(value) => patchVerge({ notice_position: value })}
           >
-            <Select size="small" sx={{ width: 180, '> div': { py: '7.5px' } }}>
+            <Select size="small" className="w-[180px]">
               <MenuItem value="top-right">
                 {t(
                   'settings.components.verge.layout.options.toastPosition.topRight',
@@ -210,12 +209,12 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               </MenuItem>
             </Select>
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box className="flex items-center gap-2">
                 <span>
                   {t('settings.components.verge.layout.fields.hoverNavigator')}
                 </span>
@@ -223,7 +222,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                   title={t(
                     'settings.components.verge.layout.tooltips.hoverNavigator',
                   )}
-                  sx={{ opacity: '0.7' }}
+                  className="opacity-70"
                 />
               </Box>
             }
@@ -238,12 +237,12 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box className="flex items-center gap-2">
                 <span>
                   {t(
                     'settings.components.verge.layout.fields.hoverNavigatorDelay',
@@ -253,7 +252,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                   title={t(
                     'settings.components.verge.layout.tooltips.hoverNavigatorDelay',
                   )}
-                  sx={{ opacity: '0.7' }}
+                  className="opacity-70"
                 />
               </Box>
             }
@@ -279,7 +278,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              sx={{ width: 120 }}
+              className="w-[120px]"
               disabled={!(verge?.enable_hover_jump_navigator ?? true)}
               slotProps={{
                 input: {
@@ -297,9 +296,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               }}
             />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.components.verge.layout.fields.navIcon')}
           />
@@ -310,7 +309,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(value) => onChangeData({ menu_icon: value })}
             onGuard={(value) => patchVerge({ menu_icon: value })}
           >
-            <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+            <Select size="small" className="w-[140px]">
               <MenuItem value="monochrome">
                 {t('settings.components.verge.layout.options.icon.monochrome')}
               </MenuItem>
@@ -322,9 +321,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               </MenuItem>
             </Select>
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.collapseNavBar',
@@ -340,10 +339,10 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
         {OS === 'macos' && (
-          <Item>
+          <ListItem className="py-[5px] px-[2px]">
             <ListItemText
               primary={t('settings.components.verge.layout.fields.trayIcon')}
             />
@@ -354,10 +353,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               onChange={(e) => onChangeData({ tray_icon: e })}
               onGuard={(e) => patchVerge({ tray_icon: e })}
             >
-              <Select
-                size="small"
-                sx={{ width: 140, '> div': { py: '7.5px' } }}
-              >
+              <Select size="small" className="w-[140px]">
                 <MenuItem value="monochrome">
                   {t(
                     'settings.components.verge.layout.options.icon.monochrome',
@@ -368,10 +364,10 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                 </MenuItem>
               </Select>
             </GuardState>
-          </Item>
+          </ListItem>
         )}
         {OS === 'macos' && (
-          <Item>
+          <ListItem className="py-[5px] px-[2px]">
             <ListItemText
               primary={t(
                 'settings.components.verge.layout.fields.enableTraySpeed',
@@ -387,10 +383,10 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             >
               <Switch edge="end" />
             </GuardState>
-          </Item>
+          </ListItem>
         )}
         {/* {OS === "macos" && (
-          <Item>
+          <ListItem className="py-[5px] px-[2px]">
             <ListItemText primary={t("settings.components.verge.layout.fields.enableTrayIcon")} />
             <GuardState
               value={
@@ -407,9 +403,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             >
               <Switch edge="end" />
             </GuardState>
-          </Item>
+          </ListItem>
         )} */}
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.proxyGroupsDisplayMode',
@@ -426,7 +422,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               patchVerge({ tray_proxy_groups_display_mode: value })
             }
           >
-            <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+            <Select size="small" className="w-[140px]">
               <MenuItem value="default">
                 {t(
                   'settings.components.verge.layout.options.proxyGroupsDisplayMode.default',
@@ -444,8 +440,8 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               </MenuItem>
             </Select>
           </GuardState>
-        </Item>
-        <Item>
+        </ListItem>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.showOutboundModesInline',
@@ -461,9 +457,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           >
             <Switch edge="end" />
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.commonTrayIcon',
@@ -518,9 +514,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                 : t('settings.components.verge.basic.actions.browse')}
             </Button>
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.systemProxyTrayIcon',
@@ -574,9 +570,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                 : t('settings.components.verge.basic.actions.browse')}
             </Button>
           </GuardState>
-        </Item>
+        </ListItem>
 
-        <Item>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.components.verge.layout.fields.tunTrayIcon')}
           />
@@ -628,12 +624,8 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                 : t('settings.components.verge.basic.actions.browse')}
             </Button>
           </GuardState>
-        </Item>
+        </ListItem>
       </List>
     </BaseDialog>
   )
 })
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-}))

@@ -1,10 +1,10 @@
-import { Delete as DeleteIcon } from '@mui/icons-material'
-import { Box, Button, Divider, List, ListItem, TextField } from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
 import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
+import { Box, Button, Divider, List, ListItem, TextField } from '@/components/tailwind'
+import { Trash2 } from '@/components/tailwind/icons'
 import { useClash } from '@/hooks/data'
 import { restartCore } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -32,40 +32,7 @@ const filterBaseOriginsForUI = (origins: string[]) => {
   return origins.filter((origin: string) => !DEV_URLS.includes(origin.trim()))
 }
 
-// 统一使用的按钮样式
-const buttonStyle = {
-  borderRadius: '8px',
-  textTransform: 'none',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-  transition: 'all 0.3s ease',
-  '&:hover': {
-    boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
-    transform: 'translateY(-1px)',
-  },
-  '&:active': {
-    transform: 'translateY(0)',
-  },
-}
 
-// 添加按钮样式
-const addButtonStyle = {
-  ...buttonStyle,
-  backgroundColor: '#4CAF50',
-  color: 'white',
-  '&:hover': {
-    backgroundColor: '#388E3C',
-  },
-}
-
-// 删除按钮样式
-const deleteButtonStyle = {
-  ...buttonStyle,
-  backgroundColor: '#FF5252',
-  color: 'white',
-  '&:hover': {
-    backgroundColor: '#D32F2F',
-  },
-}
 
 interface ClashHeaderConfigingRef {
   open: () => void
@@ -191,17 +158,10 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
         onCancel={() => setOpen(false)}
         onOk={handleSave}
       >
-        <List sx={{ width: '90%', padding: 2 }}>
-          <ListItem sx={{ padding: '8px 0' }}>
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                width: '100%',
-              }}
-            >
-              <span style={{ fontWeight: 'normal' }}>
+        <List className="w-[90%] p-8">
+          <ListItem className="py-2 px-0">
+            <Box className="flex justify-between items-center w-full">
+              <span className="font-normal">
                 {t('settings.sections.externalCors.fields.allowPrivateNetwork')}
               </span>
               <Switch
@@ -217,65 +177,47 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
             </Box>
           </ListItem>
 
-          <Divider sx={{ my: 2 }} />
+          <Divider className="my-8" />
 
-          <ListItem sx={{ padding: '8px 0' }}>
-            <div style={{ width: '100%' }}>
-              <div style={{ marginBottom: 8, fontWeight: 'bold' }}>
+          <ListItem className="py-2 px-0">
+            <div className="w-full">
+              <div className="mb-8 font-bold">
                 {t('settings.sections.externalCors.fields.allowedOrigins')}
               </div>
               {originEntries.map(({ origin, index, key }) => (
-                <div
-                  key={key}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: 8,
-                  }}
-                >
+                <div key={key} className="flex items-center mb-8">
                   <TextField
                     fullWidth
                     size="small"
-                    sx={{ fontSize: 14, marginRight: 2 }}
+                    className="text-sm mr-8"
                     value={origin}
                     onChange={(e) => handleUpdateOrigin(index, e.target.value)}
                     placeholder={t(
                       'settings.sections.externalCors.placeholders.origin',
                     )}
-                    slotProps={{ htmlInput: { style: { fontSize: 14 } } }}
                   />
                   <Button
-                    variant="contained"
-                    color="error"
+                    variant="error"
                     size="small"
                     onClick={() => handleDeleteOrigin(index)}
                     disabled={corsConfig.allowOrigins.length <= 0}
-                    sx={deleteButtonStyle}
+                    className="rounded-lg shadow-sm hover:shadow-md transition-all"
                   >
-                    <DeleteIcon fontSize="small" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
               <Button
-                variant="contained"
+                variant="primary"
                 size="small"
                 onClick={handleAddOrigin}
-                sx={addButtonStyle}
+                className="rounded-lg shadow-sm hover:shadow-md transition-all"
               >
                 {t('settings.sections.externalCors.actions.add')}
               </Button>
 
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 8,
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: 4,
-                }}
-              >
-                <div
-                  style={{ color: '#666', fontSize: 12, fontStyle: 'italic' }}
-                >
+              <div className="mt-12 p-8 bg-gray-100 rounded">
+                <div className="text-gray-600 text-xs italic">
                   {t('settings.sections.externalCors.messages.alwaysIncluded', {
                     urls: DEV_URLS.join(', '),
                   })}

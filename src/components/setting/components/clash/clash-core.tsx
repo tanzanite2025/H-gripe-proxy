@@ -1,23 +1,20 @@
-import {
-  RestartAltRounded,
-  SwitchAccessShortcutRounded,
-} from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  List,
-  ListItemButton,
-  ListItemText,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
+import { RefreshCw, Repeat } from 'lucide-react'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections, upgradeCore } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog, DialogRef } from '@/components/base'
+import {
+  Box,
+  Button,
+  Chip,
+  List,
+  ListItemButton,
+  ListItemText,
+} from '@/components/tailwind'
+import { Spinner } from '@/components/tailwind/icons'
 import { useClash, useClashInfo } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { changeClashCore, restartCore } from '@/services/cmds'
@@ -112,25 +109,25 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     <BaseDialog
       open={open}
       title={
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Box className="flex justify-between">
           {t('settings.sections.clash.form.fields.clashCore')}
           <Box>
             <Button
-              variant="contained"
+              variant="primary"
               size="small"
-              startIcon={<SwitchAccessShortcutRounded />}
+              startIcon={<Repeat className="h-4 w-4" />}
               loadingPosition="start"
               loading={upgrading}
               disabled={restarting || changingCore !== null}
-              sx={{ marginRight: '8px' }}
+              className="mr-8"
               onClick={onUpgrade}
             >
               {t('shared.actions.upgrade')}
             </Button>
             <Button
-              variant="contained"
+              variant="primary"
               size="small"
-              startIcon={<RestartAltRounded />}
+              startIcon={<RefreshCw className="h-4 w-4" />}
               loadingPosition="start"
               loading={restarting}
               disabled={upgrading}
@@ -164,7 +161,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           >
             <ListItemText primary={each.name} secondary={`/${each.core}`} />
             {changingCore === each.core ? (
-              <CircularProgress size={20} sx={{ mr: 1 }} />
+              <Spinner className="h-5 w-5 mr-4" />
             ) : (
               <Chip label={t(each.chipKey)} size="small" />
             )}

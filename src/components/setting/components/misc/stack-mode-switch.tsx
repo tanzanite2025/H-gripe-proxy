@@ -1,4 +1,4 @@
-import { Button, ButtonGroup } from '@mui/material'
+import { Button, ButtonGroup } from '@/components/tailwind'
 
 interface Props {
   value?: string
@@ -9,25 +9,25 @@ export const StackModeSwitch = (props: Props) => {
   const { value, onChange } = props
 
   return (
-    <ButtonGroup className="uds-toolbar" size="small" sx={{ my: '4px' }}>
+    <ButtonGroup className="uds-toolbar my-1" size="small">
       <Button
-        variant={value?.toLowerCase() === 'system' ? 'contained' : 'outlined'}
+        variant={value?.toLowerCase() === 'system' ? 'primary' : 'outlined'}
         onClick={() => onChange?.('system')}
-        sx={{ textTransform: 'capitalize' }}
+        className="capitalize"
       >
         System
       </Button>
       <Button
-        variant={value?.toLowerCase() === 'gvisor' ? 'contained' : 'outlined'}
+        variant={value?.toLowerCase() === 'gvisor' ? 'primary' : 'outlined'}
         onClick={() => onChange?.('gvisor')}
-        sx={{ textTransform: 'capitalize' }}
+        className="capitalize"
       >
         gVisor
       </Button>
       <Button
-        variant={value?.toLowerCase() === 'mixed' ? 'contained' : 'outlined'}
+        variant={value?.toLowerCase() === 'mixed' ? 'primary' : 'outlined'}
         onClick={() => onChange?.('mixed')}
-        sx={{ textTransform: 'capitalize' }}
+        className="capitalize"
       >
         Mixed
       </Button>

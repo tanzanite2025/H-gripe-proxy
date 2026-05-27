@@ -12,15 +12,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  Box,
-  List,
-  Menu,
-  MenuItem,
-  Paper,
-  SvgIcon,
-  ThemeProvider,
-} from '@mui/material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { CSSProperties } from 'react'
@@ -35,16 +26,17 @@ import { LayoutTraffic } from '@/components/layout/layout-traffic'
 import { NoticeManager } from '@/components/layout/notice-manager'
 import { UpdateButton } from '@/components/layout/update-button'
 import { WindowControls } from '@/components/layout/window-controller'
+import { Menu, MenuItem, Box } from '@/components/tailwind'
 import { useI18n, useWindowDecorations } from '@/hooks/ui'
 import { useVerge } from '@/hooks/system'
 import { useThemeMode } from '@/services/states'
 import getSystem from '@/utils/misc'
 
 import {
-  useCustomTheme,
   useLayoutEvents,
   useLoadingOverlay,
   useNavMenuOrder,
+  useCssVariables,
 } from './hooks'
 import { handleNoticeMessage } from './utils'
 import { navItems } from '@/pages/_core/router'
@@ -109,7 +101,6 @@ const OS = getSystem()
 const Layout = () => {
   const mode = useThemeMode()
   const { t } = useTranslation()
-  const { theme } = useCustomTheme()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { language } = verge ?? {}
   const { switchLanguage } = useI18n()
@@ -118,7 +109,7 @@ const Layout = () => {
   const isLogsPage = pathname === '/logs'
   const logsPageMountedRef = useRef(false)
   if (isLogsPage) logsPageMountedRef.current = true
-  const themeReady = useMemo(() => Boolean(theme), [theme])
+  const themeReady = true // Tailwind doesn't need theme initialization
 
   const [menuUnlocked, setMenuUnlocked] = useState(false)
   const [menuContextPosition, setMenuContextPosition] =
@@ -197,6 +188,9 @@ const Layout = () => {
 
   useLoadingOverlay(themeReady)
 
+  // Apply CSS variables for theming
+  useCssVariables()
+
   const handleNotice = useCallback(
     (payload: [string, string]) => {
       const [status, msg] = payload
@@ -220,23 +214,15 @@ const Layout = () => {
 
   if (!themeReady) {
     return (
-      <div
-        style={{
-          width: '100vw',
-          height: '100vh',
-          background: mode === 'light' ? '#fff' : '#181a1b',
-          transition: 'background 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: mode === 'light' ? '#333' : '#fff',
-        }}
+      <div className={`flex items-center justify-center w-screen h-screen transition-colors duration-200 ${
+        mode === 'light' ? 'bg-white text-gray-800' : 'bg-[#181a1b] text-white'
+      }`}
       ></div>
     )
   }
 
   return (
-    <ThemeProvider theme={theme}>
+    <>
       {/* 左侧底部窗口控制按钮 */}
       <NoticeManager position={verge?.notice_position} />
       <div
@@ -253,13 +239,16 @@ const Layout = () => {
             }
           `}
       </style>
-      <Paper
-        square
-        elevation={0}
-        className={`${OS} layout`}
+      <div
+        className={`${OS} layout bg-[var(--background-color)]`}
         style={{
           borderTopLeftRadius: '0px',
           borderTopRightRadius: '0px',
+          ...(OS === 'linux' ? {
+            borderRadius: '8px',
+            width: '100vw',
+            height: '100vh',
+          } : {}),
         }}
         onContextMenu={(e) => {
           if (
@@ -272,29 +261,17 @@ const Layout = () => {
             e.preventDefault()
           }
         }}
-        sx={[
-          ({ palette }) => ({ bgcolor: palette.background.paper }),
-          OS === 'linux'
-            ? {
-                borderRadius: '8px',
-                width: '100vw',
-                height: '100vh',
-              }
-            : {},
-        ]}
       >
         {/* 顶部贯穿式页眉与导航控制台 */}
         <div className="layout-header">
           <div className="layout-header__drag-zone" data-tauri-drag-region="true" />
           {/* 左侧 Logo */}
           <div className="the-logo">
-            <SvgIcon
-              component={AppIcon}
+            <AppIcon
               style={{
                 height: '28px',
                 width: '28px',
               }}
-              inheritViewBox
             />
           </div>
 
@@ -307,10 +284,9 @@ const Layout = () => {
                 onDragEnd={handleMenuDragEnd}
               >
                 <SortableContext items={menuOrder}>
-                  <List
-                    className="the-menu"
+                  <ul
+                    className="the-menu flex flex-row p-0"
                     onContextMenu={handleMenuContextMenu}
-                    style={{ display: 'flex', flexDirection: 'row', padding: 0 }}
                   >
                     {menuOrder.map((path) => {
                       const item = navItemMap.get(path)
@@ -325,14 +301,13 @@ const Layout = () => {
                         />
                       )
                     })}
-                  </List>
+                  </ul>
                 </SortableContext>
               </DndContext>
             ) : (
-              <List
-                className="the-menu"
+              <ul
+                className="the-menu flex flex-row p-0"
                 onContextMenu={handleMenuContextMenu}
-                style={{ display: 'flex', flexDirection: 'row', padding: 0 }}
               >
                 {menuOrder.map((path) => {
                   const item = navItemMap.get(path)
@@ -345,7 +320,7 @@ const Layout = () => {
                     </LayoutItem>
                   )
                 })}
-              </List>
+              </ul>
             )}
           </div>
 
@@ -368,20 +343,11 @@ const Layout = () => {
         {/* 导航重新排序时的警示条 */}
         {menuUnlocked && (
           <Box
-            sx={(theme) => ({
-              px: 1.5,
-              py: 0.5,
-              width: '100%',
-              fontSize: 11,
-              fontWeight: 600,
-              textAlign: 'center',
-              color: theme.palette.warning.contrastText,
-              bgcolor:
-                theme.palette.mode === 'light'
-                  ? theme.palette.warning.main
-                  : theme.palette.warning.dark,
-              zIndex: 10,
-            })}
+            className={`px-6 py-2 w-full text-[11px] font-semibold text-center z-10 ${
+              mode === 'light'
+                ? 'text-amber-900 bg-amber-400'
+                : 'text-amber-100 bg-amber-800'
+            }`}
           >
             {t('layout.components.navigation.menu.reorderMode')}
           </Box>
@@ -390,7 +356,6 @@ const Layout = () => {
         <Menu
           open={Boolean(menuContextPosition)}
           onClose={handleMenuContextClose}
-          anchorReference="anchorPosition"
           anchorPosition={
             menuContextPosition
               ? {
@@ -399,16 +364,9 @@ const Layout = () => {
                 }
               : undefined
           }
-          transitionDuration={200}
-          slotProps={{
-            list: {
-              sx: { py: 0.5 },
-            },
-          }}
         >
           <MenuItem
             onClick={menuUnlocked ? handleLockMenu : handleUnlockMenu}
-            dense
           >
             {menuUnlocked
               ? t('layout.components.navigation.menu.lock')
@@ -416,7 +374,6 @@ const Layout = () => {
           </MenuItem>
           <MenuItem
             onClick={handleResetMenuOrder}
-            dense
             disabled={isDefaultOrder}
           >
             {t('layout.components.navigation.menu.restoreDefaultOrder')}
@@ -443,8 +400,8 @@ const Layout = () => {
             </div>
           )}
         </div>
-      </Paper>
-    </ThemeProvider>
+      </div>
+    </>
   )
 }
 

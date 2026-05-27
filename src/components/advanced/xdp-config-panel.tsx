@@ -2,22 +2,9 @@
  * XDP 代理配置面板（仅 Linux）
  */
 
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Switch,
-  FormControlLabel,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Alert,
-  Stack,
-  TextField,
-} from '@mui/material'
-import { XdpConfig, XdpMode } from '@/services/coordinator'
+import { AlertTriangle, Info } from 'lucide-react'
+import { Switch, TextField, Select } from '@/components/tailwind'
+import type { XdpConfig, XdpMode } from '@/services/coordinator'
 
 interface Props {
   config: XdpConfig
@@ -32,145 +19,122 @@ const modeLabels: Record<XdpMode, string> = {
 
 export function XdpConfigPanel({ config, onChange }: Props) {
   return (
-    <Box>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        XDP（eXpress Data Path）是 Linux 内核的高性能数据包处理框架。
-        启用后可以获得 10 倍以上的性能提升。
-      </Alert>
+    <div>
+      <div className="p-4 bg-blue-500 text-white rounded-lg mb-4">
+        <div className="flex items-start gap-2">
+          <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <p className="text-sm">
+            XDP（eXpress Data Path）是 Linux 内核的高性能数据包处理框架。
+            启用后可以获得 10 倍以上的性能提升。
+          </p>
+        </div>
+      </div>
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        ⚠️ XDP 需要 root 权限和支持 XDP 的网卡驱动。请确保您的系统满足要求。
-      </Alert>
+      <div className="p-4 bg-yellow-500 text-white rounded-lg mb-4">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <p className="text-sm">
+            ⚠️ XDP 需要 root 权限和支持 XDP 的网卡驱动。请确保您的系统满足要求。
+          </p>
+        </div>
+      </div>
 
       {/* 总开关 */}
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={config.enabled}
-                onChange={(e) =>
-                  onChange({ ...config, enabled: e.target.checked })
-                }
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                  启用 XDP 代理
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  零内核态切换，极致性能
-                </Typography>
-              </Box>
+      <div className="p-4 bg-card border border-border rounded-lg mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold">启用 XDP 代理</p>
+            <p className="text-xs text-muted-foreground">零内核态切换，极致性能</p>
+          </div>
+          <Switch
+            checked={config.enabled}
+            onCheckedChange={(checked) =>
+              onChange({ ...config, enabled: checked })
             }
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {config.enabled && (
         <>
           {/* 网卡接口 */}
-          <Card sx={{ mb: 2 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                网卡配置
-              </Typography>
-
-              <TextField
-                label="网卡接口"
-                value={config.interface}
-                onChange={(e) =>
-                  onChange({ ...config, interface: e.target.value })
-                }
-                helperText="例如：eth0, ens33, wlan0"
-                fullWidth
-              />
-            </CardContent>
-          </Card>
+          <div className="p-4 bg-card border border-border rounded-lg mb-4">
+            <h3 className="text-sm font-semibold mb-4">网卡配置</h3>
+            <TextField
+              label="网卡接口"
+              value={config.interface}
+              onChange={(e) =>
+                onChange({ ...config, interface: e.target.value })
+              }
+              helperText="例如：eth0, ens33, wlan0"
+              fullWidth
+            />
+          </div>
 
           {/* XDP 模式 */}
-          <Card sx={{ mb: 2 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                XDP 模式
-              </Typography>
+          <div className="p-4 bg-card border border-border rounded-lg mb-4">
+            <h3 className="text-sm font-semibold mb-4">XDP 模式</h3>
+            <Select
+              label="模式"
+              value={config.mode}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  mode: e.target.value as XdpMode,
+                })
+              }
+              fullWidth
+            >
+              {Object.entries(modeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
 
-              <FormControl fullWidth>
-                <InputLabel>模式</InputLabel>
-                <Select
-                  value={config.mode}
-                  label="模式"
-                  onChange={(e) =>
-                    onChange({
-                      ...config,
-                      mode: e.target.value as XdpMode,
-                    })
-                  }
-                >
-                  {Object.entries(modeLabels).map(([value, label]) => (
-                    <MenuItem key={value} value={value}>
-                      {label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <div className="space-y-2 mt-4">
+              <div className="p-3 bg-green-500 text-white rounded-lg">
+                <p className="font-semibold text-sm">Native 模式</p>
+                <p className="text-xs opacity-90">
+                  最快，但需要网卡驱动支持。延迟 ~10μs，吞吐量 50+ Gbps
+                </p>
+              </div>
 
-              <Stack spacing={1} sx={{ mt: 2 }}>
-                <Alert severity="success">
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    Native 模式
-                  </Typography>
-                  <Typography variant="caption">
-                    最快，但需要网卡驱动支持。延迟 ~10μs，吞吐量 50+ Gbps
-                  </Typography>
-                </Alert>
+              <div className="p-3 bg-blue-500 text-white rounded-lg">
+                <p className="font-semibold text-sm">SKB 模式</p>
+                <p className="text-xs opacity-90">
+                  兼容性好，性能略低于 Native
+                </p>
+              </div>
 
-                <Alert severity="info">
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    SKB 模式
-                  </Typography>
-                  <Typography variant="caption">
-                    兼容性好，性能略低于 Native
-                  </Typography>
-                </Alert>
-
-                <Alert severity="warning">
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    Generic 模式
-                  </Typography>
-                  <Typography variant="caption">
-                    所有网卡都支持，但性能最低
-                  </Typography>
-                </Alert>
-              </Stack>
-            </CardContent>
-          </Card>
+              <div className="p-3 bg-yellow-500 text-white rounded-lg">
+                <p className="font-semibold text-sm">Generic 模式</p>
+                <p className="text-xs opacity-90">
+                  所有网卡都支持，但性能最低
+                </p>
+              </div>
+            </div>
+          </div>
 
           {/* 队列大小 */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                高级设置
-              </Typography>
-
-              <TextField
-                label="队列大小"
-                type="number"
-                value={config.queue_size}
-                onChange={(e) =>
-                  onChange({
-                    ...config,
-                    queue_size: parseInt(e.target.value) || 4096,
-                  })
-                }
-                helperText="数据包队列大小，默认 4096"
-                fullWidth
-              />
-            </CardContent>
-          </Card>
+          <div className="p-4 bg-card border border-border rounded-lg">
+            <h3 className="text-sm font-semibold mb-4">高级设置</h3>
+            <TextField
+              label="队列大小"
+              type="number"
+              value={config.queue_size.toString()}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  queue_size: Number.parseInt(e.target.value) || 4096,
+                })
+              }
+              helperText="数据包队列大小，默认 4096"
+              fullWidth
+            />
+          </div>
         </>
       )}
-    </Box>
+    </div>
   )
 }

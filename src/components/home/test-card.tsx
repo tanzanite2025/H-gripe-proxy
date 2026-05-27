@@ -9,7 +9,6 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext } from '@dnd-kit/sortable'
 import { Add, NetworkCheck } from '@mui/icons-material'
-import { Box, IconButton, Tooltip, alpha, styled, Grid } from '@mui/material'
 import { emit } from '@tauri-apps/api/event'
 import { nanoid } from 'nanoid'
 import { useEffect, useRef, useMemo, useCallback } from 'react'
@@ -22,23 +21,12 @@ import google from '@/assets/image/test/google.svg?raw'
 import youtube from '@/assets/image/test/youtube.svg?raw'
 import { TestItem } from '@/components/test/test-item'
 import { TestViewer, TestViewerRef } from '@/components/test/test-viewer'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useVerge } from '@/hooks/system'
+import { cn } from '@/utils/cn'
 
 import { EnhancedCard } from './enhanced-card'
-
-// 自定义滚动条样式
-const ScrollBox = styled(Box)(({ theme }) => ({
-  maxHeight: '180px',
-  overflowY: 'auto',
-  overflowX: 'hidden',
-  '&::-webkit-scrollbar': {
-    width: '6px',
-  },
-  '&::-webkit-scrollbar-thumb': {
-    backgroundColor: alpha(theme.palette.text.primary, 0.2),
-    borderRadius: '3px',
-  },
-}))
 
 // 默认测试列表，移到组件外部避免重复创建
 const DEFAULT_TEST_LIST = [
@@ -149,20 +137,20 @@ export const TestCard = () => {
   // 使用useMemo优化UI内容，减少渲染计算
   const renderTestItems = useMemo(
     () => (
-      <Grid container spacing={1} columns={12}>
+      <div className="grid grid-cols-12 gap-2">
         <SortableContext items={testList.map((x) => x.uid)}>
           {testList.map((item) => (
-            <Grid key={item.uid} size={3}>
+            <div key={item.uid} className="col-span-3">
               <TestItem
                 id={item.uid}
                 itemData={item}
                 onEdit={() => viewerRef.current?.edit(item)}
                 onDelete={onDeleteTestListItem}
               />
-            </Grid>
+            </div>
           ))}
         </SortableContext>
-      </Grid>
+      </div>
     ),
     [testList, onDeleteTestListItem],
   )
@@ -180,7 +168,7 @@ export const TestCard = () => {
       title={t('home.components.tests.title')}
       icon={<NetworkCheck />}
       action={
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <div className="flex gap-2">
           <Tooltip title={t('tests.page.actions.testAll')} arrow>
             <IconButton size="small" onClick={handleTestAll}>
               <NetworkCheck fontSize="small" />
@@ -191,10 +179,10 @@ export const TestCard = () => {
               <Add fontSize="small" />
             </IconButton>
           </Tooltip>
-        </Box>
+        </div>
       }
     >
-      <ScrollBox>
+      <div className="max-h-[180px] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-text-primary/20 scrollbar-thumb-rounded">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -203,7 +191,7 @@ export const TestCard = () => {
           {renderTestItems}
           <DragOverlay />
         </DndContext>
-      </ScrollBox>
+      </div>
 
       <TestViewer ref={viewerRef} onChange={onTestListItemChange} />
     </EnhancedCard>

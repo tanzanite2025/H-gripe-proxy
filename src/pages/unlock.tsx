@@ -1,11 +1,4 @@
-import {
-  AccessTimeOutlined,
-  CancelOutlined,
-  CheckCircleOutlined,
-  HelpOutlined,
-  PendingOutlined,
-  RefreshRounded,
-} from '@mui/icons-material'
+import { Clock, XCircle, CheckCircle, HelpCircle, Clock as Pending, RefreshCw } from 'lucide-react'
 import {
   Box,
   Button,
@@ -16,9 +9,7 @@ import {
   Grid,
   Tooltip,
   Typography,
-  alpha,
-  useTheme,
-} from '@mui/material'
+} from '@/components/tailwind'
 import { invoke } from '@tauri-apps/api/core'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useState } from 'react'
@@ -92,7 +83,24 @@ const dedupeUnlockItems = (items: UnlockItem[]) => {
 
 const UnlockPage = () => {
   const { t } = useTranslation()
-  const theme = useTheme()
+  const [isDark, setIsDark] = useState(false)
+
+  // 检测暗色模式
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    }
+    checkDarkMode()
+    
+    // 监听暗色模式变化
+    const observer = new MutationObserver(checkDarkMode)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    
+    return () => observer.disconnect()
+  }, [])
 
   const [unlockItems, setUnlockItems] = useState<UnlockItem[]>([])
   const [isCheckingAll, setIsCheckingAll] = useState(false)
@@ -311,34 +319,32 @@ const UnlockPage = () => {
 
   // 状态图标
   const getStatusIcon = (status: string) => {
-    const iconProps = { fontSize: 'small' as const }
-    if (status === 'Pending') return <PendingOutlined {...iconProps} />
-    if (status === 'Yes') return <CheckCircleOutlined {...iconProps} />
-    if (status === 'No') return <CancelOutlined {...iconProps} />
-    if (status === 'Soon') return <AccessTimeOutlined {...iconProps} />
-    if (status.includes('Failed')) return <HelpOutlined {...iconProps} />
-    return <HelpOutlined {...iconProps} />
+    const iconProps = { className: 'h-4 w-4' }
+    if (status === 'Pending') return <Clock {...iconProps} />
+    if (status === 'Yes') return <CheckCircle {...iconProps} />
+    if (status === 'No') return <XCircle {...iconProps} />
+    if (status === 'Soon') return <Clock {...iconProps} />
+    if (status.includes('Failed')) return <HelpCircle {...iconProps} />
+    return <HelpCircle {...iconProps} />
   }
 
   // 边框色
   const getStatusBorderColor = (status: string) => {
-    if (status === 'Yes') return theme.palette.success.main
-    if (status === 'No') return theme.palette.error.main
-    if (status === 'Soon') return theme.palette.warning.main
-    if (status.includes('Failed')) return theme.palette.error.main
-    if (status === 'Completed') return theme.palette.info.main
-    return theme.palette.divider
+    if (status === 'Yes') return '#10b981' // green-500
+    if (status === 'No') return '#ef4444' // red-500
+    if (status === 'Soon') return '#f59e0b' // amber-500
+    if (status.includes('Failed')) return '#ef4444' // red-500
+    if (status === 'Completed') return '#3b82f6' // blue-500
+    return isDark ? '#374151' : '#e5e7eb' // gray-700 : gray-200
   }
-
-  const isDark = theme.palette.mode === 'dark'
 
   return (
     <BasePage
       title={t('tests.unlock.page.title')}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box className="flex items-center gap-1">
           <Button
-            variant="contained"
+            variant="primary"
             size="small"
             disabled={isCheckingAll}
             onClick={checkAllMedia}
@@ -346,7 +352,7 @@ const UnlockPage = () => {
               isCheckingAll ? (
                 <CircularProgress size={16} color="inherit" />
               ) : (
-                <RefreshRounded />
+                <RefreshCw className="h-5 w-5" />
               )
             }
           >
@@ -358,14 +364,7 @@ const UnlockPage = () => {
       }
     >
       {unlockItems.length === 0 ? (
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '50%',
-          }}
-        >
+        <Box className="flex justify-center items-center h-1/2">
           <BaseEmpty textKey="tests.unlock.page.empty" />
         </Box>
       ) : (
@@ -374,37 +373,17 @@ const UnlockPage = () => {
             <Grid size={1} key={item.name}>
               <Card
                 variant="outlined"
-                sx={{
-                  height: '100%',
-                  borderRadius: 2,
+                className="h-full rounded-lg relative overflow-hidden flex flex-col"
+                style={{
                   borderLeft: `4px solid ${getStatusBorderColor(item.status)}`,
                   backgroundColor: isDark ? '#282a36' : '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '&:hover': {
-                    backgroundColor: isDark
-                      ? alpha(theme.palette.primary.dark, 0.05)
-                      : alpha(theme.palette.primary.light, 0.05),
-                  },
-                  display: 'flex',
-                  flexDirection: 'column',
                 }}
               >
-                <Box sx={{ p: 1.3, flex: 1 }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
+                <Box className="p-[5.2px] flex-1">
+                  <Box className="flex justify-between items-center">
                     <Typography
                       variant="subtitle1"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '1rem',
-                        color: 'text.primary',
-                      }}
+                      className="font-semibold text-base text-gray-900 dark:text-gray-100"
                     >
                       {item.name}
                     </Typography>
@@ -417,47 +396,24 @@ const UnlockPage = () => {
                           disabled={
                             loadingItems.includes(item.name) || isCheckingAll
                           }
-                          sx={{
-                            minWidth: '32px',
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                          }}
+                          className="min-w-8 w-8 h-8 rounded-full"
                           onClick={() => checkSingleMedia(item.name)}
                         >
-                          <RefreshRounded
-                            sx={{
-                              animation: loadingItems.includes(item.name)
-                                ? 'spin 1s linear infinite'
-                                : 'none',
-                              '@keyframes spin': {
-                                '0%': { transform: 'rotate(0deg)' },
-                                '100%': { transform: 'rotate(360deg)' },
-                              },
-                            }}
+                          <RefreshCw 
+                            className={`h-5 w-5 ${loadingItems.includes(item.name) ? 'animate-spin' : ''}`}
                           />
                         </Button>
                       </span>
                     </Tooltip>
                   </Box>
 
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: 1,
-                    }}
-                  >
+                  <Box className="flex items-center flex-wrap gap-1">
                     <Chip
                       label={t(STATUS_LABEL_KEYS[item.status] ?? item.status)}
                       color={getStatusColor(item.status)}
                       size="small"
                       icon={getStatusIcon(item.status)}
-                      sx={{
-                        fontWeight:
-                          item.status === 'Pending' ? 'normal' : 'bold',
-                      }}
+                      className={item.status === 'Pending' ? 'font-normal' : 'font-bold'}
                     />
 
                     {item.region && (
@@ -472,22 +428,13 @@ const UnlockPage = () => {
                 </Box>
 
                 <Divider
-                  sx={{
-                    borderStyle: 'dashed',
-                    borderColor: alpha(theme.palette.divider, 0.2),
-                    mx: 1,
-                  }}
+                  className="mx-1 border-dashed opacity-20"
                 />
 
-                <Box sx={{ px: 1.5, py: 0.2 }}>
+                <Box className="px-6 py-0.8">
                   <Typography
                     variant="caption"
-                    sx={{
-                      display: 'block',
-                      color: 'text.secondary',
-                      fontSize: '0.7rem',
-                      textAlign: 'right',
-                    }}
+                    className="block text-gray-500 dark:text-gray-400 text-[0.7rem] text-right"
                   >
                     {item.check_time || '-- --'}
                   </Typography>

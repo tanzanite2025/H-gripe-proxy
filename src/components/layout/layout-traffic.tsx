@@ -1,5 +1,3 @@
-import { Box, Typography } from '@mui/material'
-import type { BoxProps, TypographyProps } from '@mui/material'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +6,7 @@ import { useMemoryData, useTrafficData } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useVisibility } from '@/hooks/ui'
 import parseTraffic from '@/utils/format'
+import { cn } from '@/utils/cn'
 
 import { TrafficGraph, type TrafficRef } from './traffic-graph'
 
@@ -53,91 +52,54 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
   if (horizontal) {
     return (
       <LightweightTrafficErrorBoundary>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 2.0,
-            userSelect: 'none',
-          }}
-        >
+        <div className="flex flex-row items-center gap-4 select-none">
           {/* 上传速度 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography
-              className="uds-mono"
-              sx={{
-                fontSize: '10px !important',
-                fontWeight: 900,
-                color: (traffic?.up || 0) > 0 ? 'secondary.main' : 'text.secondary',
-                opacity: (traffic?.up || 0) > 0 ? 1.0 : 0.6,
-              }}
+          <div className="flex items-center gap-1">
+            <span
+              className={cn(
+                'uds-mono text-[10px] font-black',
+                (traffic?.up || 0) > 0
+                  ? 'text-purple-500 opacity-100'
+                  : 'text-gray-500 opacity-60',
+              )}
             >
-              {up}{upUnit}/s
-            </Typography>
-          </Box>
+              {up}
+              {upUnit}/s
+            </span>
+          </div>
 
           {/* 下载速度 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography
-              className="uds-mono"
-              sx={{
-                fontSize: '10px !important',
-                fontWeight: 900,
-                color: (traffic?.down || 0) > 0 ? 'primary.main' : 'text.secondary',
-                opacity: (traffic?.down || 0) > 0 ? 1.0 : 0.6,
-              }}
+          <div className="flex items-center gap-1">
+            <span
+              className={cn(
+                'uds-mono text-[10px] font-black',
+                (traffic?.down || 0) > 0
+                  ? 'text-blue-500 opacity-100'
+                  : 'text-gray-500 opacity-60',
+              )}
             >
-              {down}{downUnit}/s
-            </Typography>
-          </Box>
+              {down}
+              {downUnit}/s
+            </span>
+          </div>
 
           {/* 内存占用 */}
           {displayMemory && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography
-                className="uds-mono"
-                sx={{
-                  fontSize: '10px !important',
-                  fontWeight: 900,
-                  color: 'text.secondary',
-                  opacity: 0.6,
-                }}
-              >
-                {inuse}{inuseUnit}
-              </Typography>
-            </Box>
+            <div className="flex items-center gap-1">
+              <span className="uds-mono text-[10px] font-black text-gray-500 opacity-60">
+                {inuse}
+                {inuseUnit}
+              </span>
+            </div>
           )}
-        </Box>
+        </div>
       </LightweightTrafficErrorBoundary>
     )
   }
 
-  const boxStyle: Pick<BoxProps, 'sx'> = {
-    sx: {
-      display: 'flex',
-      alignItems: 'center',
-      whiteSpace: 'nowrap',
-    },
-  }
-  const valStyle: Pick<TypographyProps, 'component' | 'sx'> = {
-    component: 'span',
-    sx: { flex: '1 1 56px', userSelect: 'none', textAlign: 'center' },
-  }
-  const unitStyle: Pick<TypographyProps, 'component' | 'color' | 'sx'> = {
-    component: 'span',
-    color: 'grey.500',
-    sx: {
-      flex: '0 1 27px',
-      userSelect: 'none',
-      fontSize: '12px',
-      textAlign: 'right',
-    },
-  }
-
   return (
     <LightweightTrafficErrorBoundary>
-      <Box sx={{ position: 'relative' }}>
+      <div className="relative">
         {trafficGraph && pageVisible && (
           <div
             style={{ width: '100%', height: 60, marginBottom: 6 }}
@@ -147,55 +109,49 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
           </div>
         )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          <Box
+        <div className="flex flex-col gap-1.5">
+          <div
             title={`${t('home.components.traffic.metrics.uploadSpeed')}`}
-            {...boxStyle}
-            sx={{
-              ...boxStyle.sx,
-              // opacity: traffic?.is_fresh ? 1 : 0.6,
-            }}
+            className="flex items-center whitespace-nowrap"
           >
-            <Typography {...valStyle} className="uds-mono" color="secondary">
+            <span className="uds-mono flex-1 basis-14 select-none text-center text-purple-500">
               {up}
-            </Typography>
-            <Typography {...unitStyle} className="uds-mono">{upUnit}/s</Typography>
-          </Box>
+            </span>
+            <span className="uds-mono flex-none basis-7 select-none text-right text-xs text-gray-500">
+              {upUnit}/s
+            </span>
+          </div>
 
-          <Box
+          <div
             title={`${t('home.components.traffic.metrics.downloadSpeed')}`}
-            {...boxStyle}
-            sx={{
-              ...boxStyle.sx,
-              // opacity: traffic?.is_fresh ? 1 : 0.6,
-            }}
+            className="flex items-center whitespace-nowrap"
           >
-            <Typography {...valStyle} className="uds-mono" color="primary">
+            <span className="uds-mono flex-1 basis-14 select-none text-center text-blue-500">
               {down}
-            </Typography>
-            <Typography {...unitStyle} className="uds-mono">{downUnit}/s</Typography>
-          </Box>
+            </span>
+            <span className="uds-mono flex-none basis-7 select-none text-right text-xs text-gray-500">
+              {downUnit}/s
+            </span>
+          </div>
 
           {displayMemory && (
-            <Box
+            <div
               title={`${t('home.components.traffic.metrics.memoryUsage')} `}
-              {...boxStyle}
-              sx={{
-                ...boxStyle.sx,
-                cursor: 'auto',
-                // opacity: memory?.is_fresh ? 1 : 0.6,
-              }}
-              color={'disabled'}
+              className="flex cursor-auto items-center whitespace-nowrap"
               onClick={async () => {
                 // isDebug && (await gc());
               }}
             >
-              <Typography {...valStyle} className="uds-mono">{inuse}</Typography>
-              <Typography {...unitStyle} className="uds-mono">{inuseUnit}</Typography>
-            </Box>
+              <span className="uds-mono flex-1 basis-14 select-none text-center">
+                {inuse}
+              </span>
+              <span className="uds-mono flex-none basis-7 select-none text-right text-xs text-gray-500">
+                {inuseUnit}
+              </span>
+            </div>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
     </LightweightTrafficErrorBoundary>
   )
 }

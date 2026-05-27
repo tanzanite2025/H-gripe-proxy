@@ -1,15 +1,7 @@
-import {
-  Box,
-  FormControl,
-  FormControlLabel,
-  InputLabel,
-  MenuItem,
-  Radio,
-  RadioGroup,
-  Select,
-  Typography,
-} from '@mui/material'
 import { useState } from 'react'
+
+import { Radio, RadioGroup } from '@/components/tailwind/Radio'
+import { Select } from '@/components/tailwind/Select'
 
 type MieruMultiplexing =
   | 'MULTIPLEXING_OFF'
@@ -58,54 +50,39 @@ export function MieruMultiplexConfig({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h6">Mieru 多路复用配置</Typography>
+    <div className="flex flex-col gap-4">
+      <h3 className="text-lg font-semibold">Mieru 多路复用配置</h3>
 
-      <FormControl fullWidth>
-        <InputLabel>多路复用级别</InputLabel>
-        <Select
-          value={localMultiplexing}
-          label="多路复用级别"
-          onChange={(e) => handleChange(e.target.value as MieruMultiplexing)}
-        >
-          {multiplexingLevels.map((level) => (
-            <MenuItem key={level.value} value={level.value}>
-              <Box>
-                <Typography variant="body2">{level.label}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {level.description}
-                </Typography>
-              </Box>
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      <Select
+        value={localMultiplexing}
+        label="多路复用级别"
+        onChange={(e) => handleChange(e.target.value as MieruMultiplexing)}
+        fullWidth
+      >
+        {multiplexingLevels.map((level) => (
+          <option key={level.value} value={level.value}>
+            {level.label} - {level.description}
+          </option>
+        ))}
+      </Select>
 
-      <Box sx={{ mt: 1 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          或使用单选按钮选择：
-        </Typography>
+      <div className="mt-2">
+        <h4 className="text-sm font-medium mb-2">或使用单选按钮选择：</h4>
         <RadioGroup
           value={localMultiplexing}
           onChange={(e) => handleChange(e.target.value as MieruMultiplexing)}
         >
           {multiplexingLevels.map((level) => (
-            <FormControlLabel
-              key={level.value}
-              value={level.value}
-              control={<Radio />}
-              label={
-                <Box>
-                  <Typography variant="body2">{level.label}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {level.description}
-                  </Typography>
-                </Box>
-              }
-            />
+            <label key={level.value} className="flex items-start gap-2 mb-2">
+              <Radio value={level.value} />
+              <div>
+                <div className="text-sm">{level.label}</div>
+                <div className="text-xs text-gray-500">{level.description}</div>
+              </div>
+            </label>
           ))}
         </RadioGroup>
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }

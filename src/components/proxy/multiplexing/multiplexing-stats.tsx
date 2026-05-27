@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Chip, Typography } from '@mui/material'
+import { Card, Chip } from '@/components/tailwind'
 
 interface MultiplexingStatsProps {
   proxyName: string
@@ -21,85 +21,56 @@ export function MultiplexingStats({
   if (!multiplexingEnabled) {
     return (
       <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            多路复用统计
-          </Typography>
-          <Typography color="text.secondary">
-            多路复用未启用
-          </Typography>
-        </CardContent>
+        <div className="p-4">
+          <h6 className="mb-2 text-lg font-semibold">多路复用统计</h6>
+          <p className="text-gray-500">多路复用未启用</p>
+        </div>
       </Card>
     )
   }
 
   return (
     <Card>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" sx={{ flex: 1 }}>
-            多路复用统计
-          </Typography>
+      <div className="p-4">
+        <div className="mb-4 flex items-center">
+          <h6 className="flex-1 text-lg font-semibold">多路复用统计</h6>
           <Chip label="已启用" color="success" size="small" />
-        </Box>
+        </div>
 
-        <Typography variant="body2" color="text.secondary" gutterBottom>
+        <p className="mb-2 text-sm text-gray-500">
           代理: {proxyName} ({proxyType})
-        </Typography>
+        </p>
 
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: 2,
-            mt: 2,
-          }}
-        >
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              连接数
-            </Typography>
-            <Typography variant="h6">
-              {stats?.connections ?? '-'}
-            </Typography>
-          </Box>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-gray-500">连接数</p>
+            <p className="text-xl font-semibold">{stats?.connections ?? '-'}</p>
+          </div>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              流数
-            </Typography>
-            <Typography variant="h6">
-              {stats?.streams ?? '-'}
-            </Typography>
-          </Box>
+          <div>
+            <p className="text-xs text-gray-500">流数</p>
+            <p className="text-xl font-semibold">{stats?.streams ?? '-'}</p>
+          </div>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              复用率
-            </Typography>
-            <Typography variant="h6">
+          <div>
+            <p className="text-xs text-gray-500">复用率</p>
+            <p className="text-xl font-semibold">
               {stats?.reuseRate ? `${stats.reuseRate}%` : '-'}
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              平均延迟
-            </Typography>
-            <Typography variant="h6">
+          <div>
+            <p className="text-xs text-gray-500">平均延迟</p>
+            <p className="text-xl font-semibold">
               {stats?.avgLatency ? `${stats.avgLatency}ms` : '-'}
-            </Typography>
-          </Box>
-        </Box>
+            </p>
+          </div>
+        </div>
 
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: 'block', mt: 2 }}
-        >
+        <p className="mt-4 block text-xs text-gray-500">
           注: 统计数据需要代理核心支持
-        </Typography>
-      </CardContent>
+        </p>
+      </div>
     </Card>
   )
 }

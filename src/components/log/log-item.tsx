@@ -1,46 +1,7 @@
-import { styled, Box } from '@mui/material'
+import { cn } from '@/utils/cn'
 import type { ReactNode } from 'react'
 
 import type { SearchState } from '@/components/base'
-
-const Item = styled(Box)(({ theme: { palette, typography } }) => ({
-  padding: '8px 0',
-  margin: '0 12px',
-  lineHeight: 1.35,
-  borderBottom: `1px solid ${palette.divider}`,
-  fontSize: '0.875rem',
-  fontFamily: typography.fontFamily,
-  userSelect: 'text',
-  '& .time': {
-    color: palette.text.secondary,
-  },
-  '& .type': {
-    display: 'inline-block',
-    marginLeft: 8,
-    textAlign: 'center',
-    borderRadius: 2,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  '& .type[data-type="error"], & .type[data-type="err"]': {
-    color: palette.error.main,
-  },
-  '& .type[data-type="warning"], & .type[data-type="warn"]': {
-    color: palette.warning.main,
-  },
-  '& .type[data-type="info"], & .type[data-type="inf"]': {
-    color: palette.info.main,
-  },
-  '& .data': {
-    color: palette.text.primary,
-    overflowWrap: 'anywhere',
-  },
-  '& .highlight': {
-    backgroundColor: palette.mode === 'dark' ? '#ffeb3b40' : '#ffeb3b90',
-    borderRadius: 2,
-    padding: '0 2px',
-  },
-}))
 
 interface Props {
   value: ILogItem
@@ -87,7 +48,7 @@ const LogItem = ({ value, searchState }: Props) => {
         }
 
         elements.push(
-          <span key={`highlight-${start}`} className="highlight">
+          <span key={`highlight-${start}`} className="rounded bg-yellow-400/40 px-0.5 dark:bg-yellow-400/25">
             {matchText}
           </span>,
         )
@@ -105,18 +66,33 @@ const LogItem = ({ value, searchState }: Props) => {
     }
   }
 
+  const typeClass = cn(
+    'ml-2 inline-block rounded text-center font-semibold uppercase',
+    value.type.toLowerCase() === 'error' || value.type.toLowerCase() === 'err'
+      ? 'text-red-500 dark:text-red-400'
+      : value.type.toLowerCase() === 'warning' || value.type.toLowerCase() === 'warn'
+        ? 'text-yellow-500 dark:text-yellow-400'
+        : value.type.toLowerCase() === 'info' || value.type.toLowerCase() === 'inf'
+          ? 'text-blue-500 dark:text-blue-400'
+          : ''
+  )
+
   return (
-    <Item>
+    <div className="mx-3 select-text border-b border-divider py-2 text-sm leading-tight">
       <div>
-        <span className="time">{renderHighlightText(value.time || '')}</span>
-        <span className="type" data-type={value.type.toLowerCase()}>
+        <span className="text-gray-600 dark:text-gray-400">
+          {renderHighlightText(value.time || '')}
+        </span>
+        <span className={typeClass}>
           {renderHighlightText(value.type)}
         </span>
       </div>
       <div>
-        <span className="data">{renderHighlightText(value.payload)}</span>
+        <span className="break-anywhere text-gray-900 dark:text-gray-100">
+          {renderHighlightText(value.payload)}
+        </span>
       </div>
-    </Item>
+    </div>
   )
 }
 

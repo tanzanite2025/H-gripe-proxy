@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义基础样式 */
+@layer base {
+  * {
+    @apply transition-colors duration-200;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    @apply bg-background-light dark:bg-background-dark;
+    @apply text-text-primary-light dark:text-text-primary-dark;
+  }
+
+  /* 滚动条样式 */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-600;
+    @apply rounded;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+
+  /* 选择文本样式 */
+  ::selection {
+    @apply bg-primary/20 dark:bg-primary-dark-mode/20;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  /* 卡片基础样式 */
+  .card {
+    @apply bg-card-light dark:bg-card-dark;
+    @apply rounded-card;
+    @apply shadow-card hover:shadow-card-hover;
+    @apply transition-all duration-300 ease-smooth;
+  }
+
+  /* 按钮基础样式 */
+  .btn {
+    @apply px-6 py-3;
+    @apply rounded-button;
+    @apply font-black text-xs uppercase tracking-widest;
+    @apply transition-all duration-300 ease-smooth;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply btn;
+    @apply bg-primary dark:bg-primary-dark-mode;
+    @apply text-white;
+    @apply hover:opacity-90 hover:-translate-y-0.5;
+    @apply shadow-button;
+    @apply focus:ring-primary dark:focus:ring-primary-dark-mode;
+  }
+
+  .btn-outlined {
+    @apply btn;
+    @apply border border-dashed;
+    @apply border-gray-300 dark:border-gray-600;
+    @apply text-gray-900 dark:text-gray-100;
+    @apply hover:bg-gray-50 dark:hover:bg-gray-800;
+    @apply hover:-translate-y-0.5;
+  }
+
+  /* 输入框基础样式 */
+  .input {
+    @apply w-full h-12;
+    @apply px-4;
+    @apply rounded-input;
+    @apply bg-gray-50 dark:bg-gray-800/50;
+    @apply border-0;
+    @apply text-sm font-semibold;
+    @apply text-gray-900 dark:text-gray-100;
+    @apply placeholder:text-gray-400 dark:placeholder:text-gray-500;
+    @apply transition-all duration-300 ease-smooth;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-dark-mode;
+    @apply focus:bg-white dark:focus:bg-gray-800;
+  }
+
+  /* 分隔线 */
+  .divider {
+    @apply border-t border-divider-light dark:border-divider-dark;
+  }
+}
+
+/* 自定义工具类 */
+@layer utilities {
+  /* 文本渐变 */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary to-primary-dark;
+    @apply dark:from-primary-dark-mode dark:to-primary-dark-mode-light;
+  }
+
+  /* 玻璃态效果 */
+  .glass {
+    @apply backdrop-blur-md bg-white/80 dark:bg-gray-900/80;
+  }
+
+  /* 隐藏滚动条 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

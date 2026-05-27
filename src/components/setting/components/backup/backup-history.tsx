@@ -1,7 +1,13 @@
-import DeleteOutlined from '@mui/icons-material/DeleteOutlined'
-import DownloadRounded from '@mui/icons-material/DownloadRounded'
-import RefreshRounded from '@mui/icons-material/RefreshRounded'
-import RestoreRounded from '@mui/icons-material/RestoreRounded'
+import { save } from '@tauri-apps/plugin-dialog'
+import { useLockFn } from 'ahooks'
+import dayjs from 'dayjs'
+import customParseFormat from 'dayjs/plugin/customParseFormat'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { Download, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseDialog, BaseLoadingOverlay } from '@/components/base'
 import {
   Box,
   Button,
@@ -14,16 +20,7 @@ import {
   Tab,
   Tabs,
   Typography,
-} from '@mui/material'
-import { save } from '@tauri-apps/plugin-dialog'
-import { useLockFn } from 'ahooks'
-import dayjs from 'dayjs'
-import customParseFormat from 'dayjs/plugin/customParseFormat'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseDialog, BaseLoadingOverlay } from '@/components/base'
+} from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import {
   deleteLocalBackup,
@@ -303,13 +300,10 @@ export const BackupHistoryViewer = ({
       onCancel={onClose}
       onClose={onClose}
     >
-      <Box sx={{ position: 'relative', minHeight: 320 }}>
+      <Box className="relative min-h-[320px]">
         <BaseLoadingOverlay isLoading={isBusy} />
         <Stack spacing={2}>
-          <Stack
-            direction="row"
-            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
-          >
+          <Stack direction="row" className="items-center justify-between">
             <Tabs
               value={source}
               onChange={(_, val) => {
@@ -324,20 +318,20 @@ export const BackupHistoryViewer = ({
                 value="local"
                 label={t('settings.modals.backup.tabs.local')}
                 disabled={isBusy}
-                sx={{ px: 2 }}
+                className="px-8"
               />
               <Tab
                 value="webdav"
                 label={t('settings.modals.backup.tabs.webdav')}
                 disabled={isBusy}
-                sx={{ px: 2 }}
+                className="px-8"
               />
             </Tabs>
             <IconButton size="small" onClick={handleRefresh} disabled={isBusy}>
-              <RefreshRounded fontSize="small" />
+              <RefreshCw className="h-4 w-4" />
             </IconButton>
           </Stack>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" className="text-secondary">
             {summary}
           </Typography>
 
@@ -360,10 +354,7 @@ export const BackupHistoryViewer = ({
                 <ListItem key={`${row.platform}-${row.filename}`} divider>
                   <ListItemText
                     primary={
-                      <Typography
-                        variant="body2"
-                        sx={{ wordBreak: 'break-all', fontWeight: 500 }}
-                      >
+                      <Typography variant="body2" className="break-all font-medium">
                         {row.filename}
                       </Typography>
                     }
@@ -371,26 +362,19 @@ export const BackupHistoryViewer = ({
                       <Stack
                         direction="row"
                         spacing={1.5}
-                        sx={{
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
+                        className="items-center justify-between"
                       >
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" className="text-secondary">
                           {`${row.platform} · ${row.display_time}`}
                         </Typography>
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          sx={{ alignItems: 'center' }}
-                        >
+                        <Stack direction="row" spacing={0.5} className="items-center">
                           {isLocal && (
                             <IconButton
                               size="small"
                               disabled={isBusy}
                               onClick={() => handleExport(row.filename)}
                             >
-                              <DownloadRounded fontSize="small" />
+                              <Download className="h-4 w-4" />
                             </IconButton>
                           )}
                           <IconButton
@@ -398,14 +382,14 @@ export const BackupHistoryViewer = ({
                             disabled={isBusy}
                             onClick={() => handleDelete(row.filename)}
                           >
-                            <DeleteOutlined fontSize="small" />
+                            <Trash2 className="h-4 w-4" />
                           </IconButton>
                           <IconButton
                             size="small"
                             disabled={isBusy}
                             onClick={() => handleRestore(row.filename)}
                           >
-                            <RestoreRounded fontSize="small" />
+                            <RotateCcw className="h-4 w-4" />
                           </IconButton>
                         </Stack>
                       </Stack>
@@ -420,7 +404,7 @@ export const BackupHistoryViewer = ({
             <Stack
               direction="row"
               spacing={1}
-              sx={{ justifyContent: 'flex-end', alignItems: 'center' }}
+              className="justify-end items-center"
             >
               <Typography variant="caption">
                 {currentPage + 1} / {pageCount}
@@ -460,14 +444,13 @@ export const BackupHistoryViewer = ({
         onClose={closeConfirmDialog}
         onOk={handleConfirmAction}
       >
-        <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+        <Typography variant="body2" className="break-words">
           {confirmMessage}
         </Typography>
         {pendingConfirmation?.filename && (
           <Typography
             variant="caption"
-            color="text.secondary"
-            sx={{ display: 'block', mt: 1, wordBreak: 'break-all' }}
+            className="block mt-4 break-all text-secondary"
           >
             {pendingConfirmation.filename}
           </Typography>

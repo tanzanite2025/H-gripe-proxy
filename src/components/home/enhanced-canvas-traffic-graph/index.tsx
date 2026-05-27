@@ -1,4 +1,3 @@
-import { Box } from '@mui/material'
 import type { Ref } from 'react'
 import {
   memo,
@@ -181,16 +180,8 @@ export const EnhancedCanvasTrafficGraph = memo(
     )
 
     return (
-      <Box
-        sx={{
-          width: '100%',
-          height: '100%',
-          position: 'relative',
-          bgcolor: 'action.hover',
-          borderRadius: 1,
-          cursor: 'pointer',
-          overflow: 'hidden',
-        }}
+      <div
+        className="relative h-full w-full cursor-pointer overflow-hidden rounded bg-gray-100/50 dark:bg-gray-800/50"
         onClick={toggleStyle}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
@@ -234,7 +225,7 @@ export const EnhancedCanvasTrafficGraph = memo(
 
         {/* 悬浮提示框 */}
         <GraphTooltip tooltipData={tooltipData} />
-      </Box>
+      </div>
     )
   },
 )

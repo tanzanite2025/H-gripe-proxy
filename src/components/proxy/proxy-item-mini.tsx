@@ -1,17 +1,12 @@
 import { CheckCircleOutlineRounded } from '@mui/icons-material'
-import {
-  alpha,
-  Box,
-  ListItemButton,
-  styled,
-  Tooltip,
-  Typography,
-} from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
+import { ListItemButton } from '@/components/tailwind/ListItemButton'
+import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProxyDelayState } from '@/hooks/network'
 import delayManager from '@/services/delay'
+import { cn } from '@/utils/cn'
 
 import {
   getMieruMultiplexShortText,
@@ -42,128 +37,67 @@ export const ProxyItemMini = (props: Props) => {
     group.name,
   )
 
+  const showDelay = delayValue > 0
+
   return (
     <ListItemButton
-      dense
       selected={selected}
       onClick={() => onClick?.(proxy.name)}
-      sx={[
-        {
-          height: 56,
-          borderRadius: 1.5,
-          pl: 1.5,
-          pr: 1,
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        },
-        ({ palette: { mode, primary } }) => {
-          const bgcolor = mode === 'light' ? '#ffffff' : '#24252f'
-          const showDelay = delayValue > 0
-          const selectColor = mode === 'light' ? primary.main : primary.light
-
-          return {
-            '&:hover .the-check': { display: !showDelay ? 'block' : 'none' },
-            '&:hover .the-delay': { display: showDelay ? 'block' : 'none' },
-            '&:hover .the-icon': { display: 'none' },
-            '& .the-pin, & .the-unpin': {
-              position: 'absolute',
-              fontSize: '12px',
-              top: '-5px',
-              right: '-5px',
-            },
-            '& .the-unpin': { filter: 'grayscale(1)' },
-            '&.Mui-selected': {
-              width: `calc(100% + 3px)`,
-              marginLeft: `-3px`,
-              borderLeft: `3px solid ${selectColor}`,
-              bgcolor:
-                mode === 'light'
-                  ? alpha(primary.main, 0.15)
-                  : alpha(primary.main, 0.35),
-            },
-            backgroundColor: bgcolor,
-          }
-        },
-      ]}
+      className={cn(
+        'h-14 rounded-xl pl-3 pr-2 justify-between items-center relative',
+        'bg-white dark:bg-[#24252f]',
+        'group',
+        selected && 'w-[calc(100%+3px)] -ml-[3px] border-l-[3px] border-primary bg-primary/15 dark:bg-primary/35'
+      )}
     >
-      <Box
+      <div
         title={`${proxy.name}\n${proxy.now ?? ''}`}
-        sx={{ overflow: 'hidden' }}
+        className="overflow-hidden"
       >
-        <Typography
-          variant="body2"
-          component="div"
-          color="text.primary"
-          sx={{
-            display: 'block',
-            textOverflow: 'ellipsis',
-            wordBreak: 'break-all',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <div className="block text-sm text-text-primary overflow-hidden text-ellipsis whitespace-nowrap break-all">
           {proxy.name}
-        </Typography>
+        </div>
 
         {showType && (
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'nowrap',
-              flex: 'none',
-              marginTop: '4px',
-            }}
-          >
+          <div className="flex flex-nowrap flex-none mt-1">
             {proxy.now && (
-              <Typography
-                variant="body2"
-                component="div"
-                color="text.secondary"
-                sx={{
-                  display: 'block',
-                  textOverflow: 'ellipsis',
-                  wordBreak: 'break-all',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                  marginRight: '8px',
-                }}
-              >
+              <div className="block text-sm text-text-secondary overflow-hidden text-ellipsis whitespace-nowrap break-all mr-2">
                 {proxy.now}
-              </Typography>
+              </div>
             )}
             {!!proxy.provider && (
-              <TypeBox color="text.secondary" component="span">
+              <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                 {proxy.provider}
-              </TypeBox>
+              </span>
             )}
-            <TypeBox color="text.secondary" component="span">
+            <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
               {proxy.type}
-            </TypeBox>
+            </span>
             {proxy.udp && (
-              <TypeBox color="text.secondary" component="span">
+              <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                 UDP
-              </TypeBox>
+              </span>
             )}
             {proxy.xudp && (
-              <TypeBox color="text.secondary" component="span">
+              <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                 XUDP
-              </TypeBox>
+              </span>
             )}
             {proxy.tfo && (
-              <TypeBox color="text.secondary" component="span">
+              <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                 TFO
-              </TypeBox>
+              </span>
             )}
             {proxy.mptcp && (
-              <TypeBox color="text.secondary" component="span">
+              <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                 MPTCP
-              </TypeBox>
+              </span>
             )}
             {proxy.smux && (
               <Tooltip title={getSmuxTooltip(proxy)} arrow placement="top">
-                <TypeBox color="text.secondary" component="span">
+                <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                   {getSmuxShortText(proxy)}
-                </TypeBox>
+                </span>
               </Tooltip>
             )}
             {proxy.type === 'mieru' &&
@@ -174,9 +108,9 @@ export const ProxyItemMini = (props: Props) => {
                   arrow
                   placement="top"
                 >
-                  <TypeBox color="text.secondary" component="span">
+                  <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                     {getMieruMultiplexShortText((proxy as any).multiplexing)}
-                  </TypeBox>
+                  </span>
                 </Tooltip>
               )}
             {proxy.type === 'sudoku' &&
@@ -189,61 +123,53 @@ export const ProxyItemMini = (props: Props) => {
                   arrow
                   placement="top"
                 >
-                  <TypeBox color="text.secondary" component="span">
+                  <span className="inline-block border border-text-secondary text-text-secondary rounded text-[10px] mr-1 px-1 leading-normal">
                     {getSudokuMultiplexShortText(
                       (proxy as any).httpmask.multiplex,
                     )}
-                  </TypeBox>
+                  </span>
                 </Tooltip>
               )}
-          </Box>
+          </div>
         )}
-      </Box>
-      <Box
-        sx={{ ml: 0.5, color: 'primary.main', display: isPreset ? 'none' : '' }}
-      >
+      </div>
+      <div className={cn('ml-1 text-primary', isPreset && 'hidden')}>
         {delayValue === -2 && (
-          <Widget>
+          <div className="p-0.5 px-1 text-sm rounded">
             <BaseLoading />
-          </Widget>
+          </div>
         )}
         {!proxy.provider && delayValue !== -2 && (
           // provider 的节点不支持检测
-          <Widget
-            className="the-check"
+          <div
+            className="the-check hidden group-hover:block p-0.5 px-1 text-sm rounded hover:bg-primary/15"
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
               onDelay()
             }}
-            sx={({ palette }) => ({
-              display: 'none', // hover 时显示
-              ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
-            })}
           >
             Check
-          </Widget>
+          </div>
         )}
 
         {delayValue >= 0 && (
           // 显示延迟
-          <Widget
-            className="the-delay"
+          <div
+            className={cn(
+              'the-delay p-0.5 px-1 text-sm rounded',
+              !proxy.provider && 'hover:bg-primary/15'
+            )}
+            style={{ color: delayManager.formatDelayColor(delayValue, timeout) }}
             onClick={(e) => {
               if (proxy.provider) return
               e.preventDefault()
               e.stopPropagation()
               onDelay()
             }}
-            sx={({ palette }) => ({
-              color: delayManager.formatDelayColor(delayValue, timeout),
-              ...(!proxy.provider
-                ? { ':hover': { bgcolor: alpha(palette.primary.main, 0.15) } }
-                : {}),
-            })}
           >
             {delayManager.formatDelay(delayValue, timeout)}
-          </Widget>
+          </div>
         )}
         {proxy.type !== 'Direct' &&
           delayValue !== -2 &&
@@ -251,15 +177,17 @@ export const ProxyItemMini = (props: Props) => {
           selected && (
             // 展示已选择的 icon
             <CheckCircleOutlineRounded
-              className="the-icon"
-              sx={{ fontSize: 16, mr: 0.5, display: 'block' }}
+              className="the-icon block text-base mr-1"
             />
           )}
-      </Box>
+      </div>
       {group.fixed && group.fixed === proxy.name && (
         // 展示 fixed 状态
         <span
-          className={proxy.name === group.now ? 'the-pin' : 'the-unpin'}
+          className={cn(
+            'absolute text-xs -top-1 -right-1',
+            proxy.name === group.now ? 'the-pin' : 'the-unpin grayscale'
+          )}
           title={
             group.type === 'URLTest'
               ? t('proxies.page.labels.delayCheckReset')
@@ -272,26 +200,3 @@ export const ProxyItemMini = (props: Props) => {
     </ListItemButton>
   )
 }
-
-const Widget = styled(Box)(({ theme: { typography } }) => ({
-  padding: '2px 4px',
-  fontSize: 14,
-  fontFamily: typography.fontFamily,
-  borderRadius: '4px',
-}))
-
-const TypeBox = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'component',
-})<{ component?: React.ElementType }>(({ theme: { typography } }) => ({
-  display: 'inline-block',
-  border: '1px solid #ccc',
-  borderColor: 'text.secondary',
-  color: 'text.secondary',
-  borderRadius: 4,
-  fontSize: 10,
-  fontFamily: typography.fontFamily,
-  marginRight: '4px',
-  marginTop: 'auto',
-  padding: '0 4px',
-  lineHeight: 1.5,
-}))

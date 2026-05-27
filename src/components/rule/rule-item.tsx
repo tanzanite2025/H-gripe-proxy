@@ -1,18 +1,12 @@
-import { styled, Box, Typography } from '@mui/material'
+import { cn } from '@/utils/cn'
 import { Rule } from 'tauri-plugin-mihomo-api'
 
-const Item = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  padding: '4px 16px',
-  color: theme.palette.text.primary,
-}))
-
 const COLOR = [
-  'primary',
-  'secondary',
-  'info.main',
-  'warning.main',
-  'success.main',
+  'text-primary dark:text-primary-dark-mode',
+  'text-gray-600 dark:text-gray-400',
+  'text-blue-500 dark:text-blue-400',
+  'text-yellow-500 dark:text-yellow-400',
+  'text-green-500 dark:text-green-400',
 ]
 
 interface Props {
@@ -20,8 +14,8 @@ interface Props {
 }
 
 const parseColor = (text: string) => {
-  if (text === 'REJECT' || text === 'REJECT-DROP') return 'error.main'
-  if (text === 'DIRECT') return 'text.primary'
+  if (text === 'REJECT' || text === 'REJECT-DROP') return 'text-red-500 dark:text-red-400'
+  if (text === 'DIRECT') return 'text-gray-900 dark:text-gray-100'
 
   let sum = 0
   for (let i = 0; i < text.length; i++) {
@@ -34,38 +28,25 @@ const RuleItem = (props: Props) => {
   const { value } = props
 
   return (
-    <Item sx={{ borderBottom: '1px solid var(--divider-color)' }}>
-      <Typography
-        color="text.secondary"
-        variant="body2"
-        sx={{ lineHeight: 2, minWidth: 30, mr: 2.25, textAlign: 'center' }}
-      >
+    <div className="flex border-b border-divider-light px-4 py-1 text-gray-900 dark:border-divider-dark dark:text-gray-100">
+      <span className="mr-4 min-w-[30px] text-center text-sm leading-8 text-gray-600 dark:text-gray-400">
         {value.lineNo}
-      </Typography>
+      </span>
 
-      <Box sx={{ userSelect: 'text' }}>
-        <Typography component="h6" variant="subtitle1" color="text.primary">
+      <div className="select-text">
+        <h6 className="text-base font-medium text-gray-900 dark:text-gray-100">
           {value.payload || '-'}
-        </Typography>
+        </h6>
 
-        <Typography
-          component="span"
-          variant="body2"
-          color="text.secondary"
-          sx={{ mr: 3, minWidth: 120, display: 'inline-block' }}
-        >
+        <span className="mr-6 inline-block min-w-[120px] text-sm text-gray-600 dark:text-gray-400">
           {value.type}
-        </Typography>
+        </span>
 
-        <Typography
-          component="span"
-          variant="body2"
-          color={parseColor(value.proxy)}
-        >
+        <span className={cn('text-sm', parseColor(value.proxy))}>
           {value.proxy}
-        </Typography>
-      </Box>
-    </Item>
+        </span>
+      </div>
+    </div>
   )
 }
 

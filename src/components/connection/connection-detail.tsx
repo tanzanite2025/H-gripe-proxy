@@ -1,10 +1,11 @@
-import { Box, Button, Snackbar, useTheme } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
+import { Button } from '@/components/tailwind/Button'
+import { Snackbar } from '@/components/tailwind/Snackbar'
 import parseTraffic from '@/utils/format'
 
 export interface ConnectionDetailRef {
@@ -15,7 +16,6 @@ export function ConnectionDetail({ ref }: { ref?: Ref<ConnectionDetailRef> }) {
   const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<IConnectionsItem>(null!)
   const [closed, setClosed] = useState(false)
-  const theme = useTheme()
 
   useImperativeHandle(ref, () => ({
     open: (detail: IConnectionsItem, closed: boolean) => {
@@ -33,15 +33,7 @@ export function ConnectionDetail({ ref }: { ref?: Ref<ConnectionDetailRef> }) {
       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       open={open}
       onClose={onClose}
-      sx={{
-        '.MuiSnackbarContent-root': {
-          maxWidth: '520px',
-          maxHeight: '480px',
-          overflowY: 'auto',
-          backgroundColor: theme.palette.background.paper,
-          color: theme.palette.text.primary,
-        },
-      }}
+      className="max-w-[520px] max-h-[480px] overflow-y-auto bg-paper text-text-primary"
       message={
         detail ? (
           <InnerConnectionDetail
@@ -64,7 +56,6 @@ interface InnerProps {
 const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
   const { t } = useTranslation()
   const { metadata, rulePayload } = data
-  const theme = useTheme()
   const chains = [...data.chains].reverse().join(' / ')
   const rule = rulePayload ? `${data.rule}(${rulePayload})` : data.rule
   const host = metadata.host
@@ -126,23 +117,18 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
   const onDelete = useLockFn(async () => closeConnection(data.id))
 
   return (
-    <Box sx={{ userSelect: 'text', color: theme.palette.text.secondary }}>
+    <div className="select-text text-text-secondary">
       {information.map((each) => (
         <div key={each.label}>
           <b>{each.label}</b>
-          <span
-            style={{
-              wordBreak: 'break-all',
-              color: theme.palette.text.primary,
-            }}
-          >
+          <span className="break-all text-text-primary">
             : {each.value}
           </span>
         </div>
       ))}
 
       {!closed && (
-        <Box sx={{ textAlign: 'right' }}>
+        <div className="text-right">
           <Button
             variant="contained"
             title={t('connections.components.actions.closeConnection')}
@@ -153,8 +139,8 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
           >
             {t('connections.components.actions.closeConnection')}
           </Button>
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   )
 }

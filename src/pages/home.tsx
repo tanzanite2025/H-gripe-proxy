@@ -12,7 +12,7 @@ import {
   IconButton,
   Skeleton,
   Tooltip,
-} from '@mui/material'
+} from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
 import { Suspense, lazy, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -407,7 +407,7 @@ const HomePage = () => {
       title={t('home.page.title')}
       contentStyle={{ padding: 2 }}
       header={
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box className="flex items-center">
           <Tooltip title={t('home.page.tooltips.lightweightMode')} arrow>
             <IconButton
               onClick={async () => await entry_lightweight_mode()}

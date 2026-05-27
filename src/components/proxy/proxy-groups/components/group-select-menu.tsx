@@ -1,4 +1,4 @@
-import { Box, Menu, MenuItem, Typography } from '@mui/material'
+import { Menu, MenuItem } from '@/components/tailwind'
 
 interface ProxyGroupOption {
   name: string
@@ -31,44 +31,27 @@ export function GroupSelectMenu({
       anchorEl={anchorEl}
       open={Boolean(anchorEl)}
       onClose={onClose}
-      slotProps={{
-        paper: {
-          sx: {
-            maxHeight: 300,
-            minWidth: 200,
-          },
-        },
-      }}
+      className="max-h-[300px] min-w-[200px]"
     >
       {groups.map((group) => (
         <MenuItem
           key={group.name}
           onClick={() => onSelect(group.name)}
           selected={selectedGroup === group.name}
-          sx={{ fontSize: '14px', py: 1 }}
+          className="py-2 text-sm"
         >
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-            }}
-          >
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              {group.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
+          <div className="flex flex-col items-start">
+            <span className="font-medium text-sm">{group.name}</span>
+            <span className="text-xs text-gray-500">
               {group.type} · {group.all?.length ?? 0} 节点
-            </Typography>
-          </Box>
+            </span>
+          </div>
         </MenuItem>
       ))}
 
       {groups.length === 0 && (
         <MenuItem disabled>
-          <Typography variant="body2" color="text.secondary">
-            {emptyText}
-          </Typography>
+          <span className="text-sm text-gray-500">{emptyText}</span>
         </MenuItem>
       )}
     </Menu>

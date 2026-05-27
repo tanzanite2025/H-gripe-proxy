@@ -1,27 +1,13 @@
 import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import {
-  CheckBoxOutlineBlankRounded,
-  CheckBoxRounded,
-  DragIndicatorRounded,
-  RefreshRounded,
-} from '@mui/icons-material'
-import {
-  Box,
-  CircularProgress,
-  IconButton,
-  keyframes,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  Typography,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
+import { Menu } from '@/components/tailwind/Menu'
+import { MenuItem } from '@/components/tailwind/MenuItem'
+import { Typography } from '@/components/tailwind/Typography'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
@@ -40,13 +26,9 @@ import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { debugLog } from '@/utils/misc'
 import parseTraffic from '@/utils/format'
 
-import { ProfileBox } from './profile-box'
+import { ProfileItemUI } from './profile-item-ui'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'
 import { QrViewer } from './qr-viewer'
-const round = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`
 
 interface Props {
   id: string
@@ -579,12 +561,7 @@ export const ProfileItem = (props: Props) => {
     },
   ]
 
-  const boxStyle = {
-    height: 26,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  }
+
 
   // 监听自动更新事件
   useEffect(() => {
@@ -661,18 +638,36 @@ export const ProfileItem = (props: Props) => {
   })
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        transform: CSS.Transform.toString(transform),
-        transition,
-        zIndex: isDragging ? 'calc(infinity)' : undefined,
-      }}
-    >
-      <ProfileBox
-        aria-selected={selected}
+    <>
+      <ProfileItemUI
+        name={name}
+        description={description}
+        from={from}
+        hasUrl={hasUrl}
+        hasExtra={hasExtra}
+        hasHome={hasHome}
+        selected={selected}
+        activating={activating}
+        loading={loading}
+        isDragging={isDragging}
+        batchMode={batchMode}
+        isSelected={isSelected}
+        updated={updated}
+        showNextUpdate={showNextUpdate}
+        nextUpdateTime={nextUpdateTime}
+        upload={upload}
+        download={download}
+        total={total}
+        expire={expire}
+        progress={progress}
+        dragHandleProps={{
+          ref: setNodeRef,
+          attributes,
+          listeners,
+        }}
+        transform={transform}
+        transition={transition}
         onClick={(e) => {
-          // 如果正在激活中，阻止重复点击
           if (activating) {
             e.preventDefault()
             e.stopPropagation()
@@ -686,208 +681,22 @@ export const ProfileItem = (props: Props) => {
           setAnchorEl(event.currentTarget as HTMLElement)
           event.preventDefault()
         }}
-      >
-        {activating && (
-          <Box
-            sx={{
-              position: 'absolute',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              top: 10,
-              left: 10,
-              right: 10,
-              bottom: 2,
-              zIndex: 10,
-              backdropFilter: 'blur(2px)',
-              backgroundColor: 'rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            <CircularProgress
-              color="inherit"
-              size={20}
-              sx={{
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}
-            />
-          </Box>
-        )}
-        <Box sx={{ position: 'relative' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'start' }}>
-            {batchMode && (
-              <IconButton
-                size="small"
-                sx={{ padding: '2px', marginRight: '4px', marginLeft: '-8px' }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onSelectionChange) {
-                    onSelectionChange()
-                  }
-                }}
-              >
-                {isSelected ? (
-                  <CheckBoxRounded color="primary" />
-                ) : (
-                  <CheckBoxOutlineBlankRounded />
-                )}
-              </IconButton>
-            )}
-            <Box
-              ref={setNodeRef}
-              sx={{
-                display: 'flex',
-                margin: 'auto 0',
-                ...(batchMode && { marginLeft: '-4px' }),
-              }}
-              {...attributes}
-              {...listeners}
-            >
-              <DragIndicatorRounded
-                sx={[
-                  { cursor: 'move', marginLeft: '-6px' },
-                  ({ palette: { text } }) => {
-                    return { color: text.primary }
-                  },
-                ]}
-              />
-            </Box>
-
-            <Typography
-              sx={{
-                width: batchMode ? 'calc(100% - 56px)' : 'calc(100% - 36px)',
-                fontSize: '18px',
-                fontWeight: '600',
-                lineHeight: '26px',
-              }}
-              variant="h6"
-              component="h2"
-              noWrap
-              title={name}
-            >
-              {name}
-            </Typography>
-          </Box>
-
-          {/* only if has url can it be updated */}
-          {hasUrl && (
-            <IconButton
-              title={t('shared.actions.refresh')}
-              sx={{
-                position: 'absolute',
-                p: '3px',
-                top: -1,
-                right: -5,
-                animation: loading ? `1s linear infinite ${round}` : 'none',
-              }}
-              size="small"
-              color="inherit"
-              disabled={loading}
-              onClick={(e) => {
-                e.stopPropagation()
-                // 如果正在激活或加载中，阻止更新操作
-                if (activating || loading) {
-                  return
-                }
-                onUpdate(1)
-              }}
-            >
-              <RefreshRounded color="inherit" />
-            </IconButton>
-          )}
-        </Box>
-        {/* the second line show url's info or description */}
-        <Box sx={boxStyle}>
-          {
-            <>
-              {description ? (
-                <Typography
-                  noWrap
-                  title={description}
-                  sx={{ fontSize: '14px' }}
-                >
-                  {description}
-                </Typography>
-              ) : (
-                hasUrl && (
-                  <Typography
-                    noWrap
-                    title={`${t('shared.labels.from')} ${from}`}
-                  >
-                    {from}
-                  </Typography>
-                )
-              )}
-              {hasUrl && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    ml: 'auto',
-                  }}
-                >
-                  <Typography
-                    noWrap
-                    component="span"
-                    title={
-                      showNextUpdate
-                        ? t('profiles.components.profileItem.tooltips.showLast')
-                        : `${t('shared.labels.updateTime')}: ${parseExpire(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
-                    }
-                    sx={{
-                      fontSize: 14,
-                      textAlign: 'right',
-                      cursor: 'pointer',
-                      display: 'inline-block',
-                      borderBottom: '1px dashed transparent',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        borderBottomColor: 'primary.main',
-                        color: 'primary.main',
-                      },
-                    }}
-                    onClick={toggleUpdateTimeDisplay}
-                  >
-                    {showNextUpdate
-                      ? nextUpdateTime
-                      : updated > 0
-                        ? dayjs(updated * 1000).fromNow()
-                        : ''}
-                  </Typography>
-                </Box>
-              )}
-            </>
+        onUpdateClick={(e) => {
+          e.stopPropagation()
+          if (activating || loading) {
+            return
           }
-        </Box>
-        {/* the third line show extra info or last updated time */}
-        {hasExtra ? (
-          <Box sx={{ ...boxStyle, fontSize: 14 }}>
-            <span title={t('shared.labels.usedTotal')}>
-              {parseTraffic(upload + download)} / {parseTraffic(total)}
-            </span>
-            <span title={t('shared.labels.expireTime')}>{expire}</span>
-          </Box>
-        ) : (
-          <Box sx={{ ...boxStyle, fontSize: 12, justifyContent: 'flex-end' }}>
-            <span title={t('shared.labels.updateTime')}>
-              {parseExpire(updated)}
-            </span>
-          </Box>
-        )}
-        <LinearProgress
-          variant="determinate"
-          value={progress}
-          style={{ opacity: total > 0 ? 1 : 0 }}
-        />
-      </ProfileBox>
+          onUpdate(1)
+        }}
+        onToggleUpdateTimeDisplay={toggleUpdateTimeDisplay}
+        onSelectionChange={onSelectionChange}
+      />
 
       <Menu
         open={!!anchorEl}
-        anchorEl={anchorEl}
         onClose={() => setAnchorEl(null)}
         anchorPosition={position}
         anchorReference="anchorPosition"
-        transitionDuration={225}
-        slotProps={{ list: { sx: { py: 0.5 } } }}
         onContextMenu={(e) => {
           setAnchorEl(null)
           e.preventDefault()
@@ -898,20 +707,9 @@ export const ProfileItem = (props: Props) => {
             key={item.label}
             onClick={item.handler}
             disabled={item.disabled}
-            sx={[
-              {
-                minWidth: 120,
-              },
-              (theme) => {
-                return {
-                  color:
-                    item.label === menuLabels.delete
-                      ? theme.palette.error.main
-                      : undefined,
-                }
-              },
-            ]}
-            dense
+            className={
+              item.label === menuLabels.delete ? 'text-error' : undefined
+            }
           >
             {t(item.label)}
           </MenuItem>
@@ -1003,7 +801,7 @@ export const ProfileItem = (props: Props) => {
           setConfirmOpen(false)
         }}
       >
-        <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+        <Typography className="break-words">
           {t('profiles.modals.confirmDelete.message')}
         </Typography>
       </BaseDialog>

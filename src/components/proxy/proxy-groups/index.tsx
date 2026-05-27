@@ -1,4 +1,4 @@
-import { Alert, Box, Snackbar } from '@mui/material'
+import { Alert, Snackbar } from '@/components/tailwind'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
@@ -214,8 +214,8 @@ export const ProxyGroups = (props: Props) => {
 
     return (
       <>
-        <Box sx={{ display: 'flex', height: '100%', gap: 2 }}>
-          <Box sx={{ flex: 1, position: 'relative' }}>
+        <div className="flex h-full gap-4">
+          <div className="relative flex-1">
             {showRuleHeader && (
               <ChainRuleHeader
                 title={t('proxies.page.rules.title')}
@@ -230,9 +230,9 @@ export const ProxyGroups = (props: Props) => {
               showRuleHeader ? 'calc(100% - 80px)' : 'calc(100% - 14px)',
             )}
             <ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
-          </Box>
+          </div>
 
-          <Box sx={{ width: '400px', minWidth: '300px' }}>
+          <div className="w-[400px] min-w-[300px]">
             <ProxyChain
               proxyChain={proxyChain}
               onUpdateChain={setProxyChain}
@@ -240,8 +240,8 @@ export const ProxyGroups = (props: Props) => {
               mode={mode}
               selectedGroup={activeSelectedGroup}
             />
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         <Snackbar
           open={duplicateWarning.open}

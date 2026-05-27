@@ -1,17 +1,13 @@
-import { CodeRounded, ViewModuleRounded } from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Chip,
-  FormHelperText,
-  IconButton,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import { Code as CodeRounded, Grid as ViewModuleRounded } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/tailwind/Button'
+import { Chip } from '@/components/tailwind/Chip'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { TextField } from '@/components/tailwind/TextField'
+import { Tooltip } from '@/components/tailwind/Tooltip'
 
 export type BaseSplitChipEditorMode = 'visual' | 'advanced'
 
@@ -125,7 +121,7 @@ export const BaseSplitChipEditor = ({
           }
         }}
       >
-        <ToggleIcon fontSize="small" />
+        <ToggleIcon className="h-4 w-4" />
       </IconButton>
     </Tooltip>
   ) : null
@@ -134,15 +130,8 @@ export const BaseSplitChipEditor = ({
     <>
       {renderHeader ? renderHeader(modeToggle) : modeToggle}
       {mode === 'visual' ? (
-        <Box sx={{ padding: '0 2px 5px' }}>
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 1,
-              minHeight: 32,
-            }}
-          >
+        <div className="px-0.5 pb-[5px]">
+          <div className="flex min-h-8 flex-wrap gap-1">
             {items.length ? (
               items.map((item, index) => (
                 <Chip
@@ -155,14 +144,12 @@ export const BaseSplitChipEditor = ({
                 />
               ))
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {resolvedLabels.empty}
-              </Typography>
+              </div>
             )}
-          </Box>
-          <Box
-            sx={{ display: 'flex', gap: 1, marginTop: 1, alignItems: 'center' }}
-          >
+          </div>
+          <div className="mt-1 flex items-center gap-1">
             <TextField
               disabled={disabled}
               size="small"
@@ -170,10 +157,7 @@ export const BaseSplitChipEditor = ({
               value={draft}
               placeholder={placeholder}
               error={error}
-              sx={{
-                '& .MuiInputBase-root': { minHeight: 32 },
-                '& .MuiInputBase-input': { padding: '4px 8px' },
-              }}
+              className="[&_.MuiInputBase-root]:min-h-8 [&_.MuiInputBase-input]:px-2 [&_.MuiInputBase-input]:py-1"
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
@@ -187,15 +171,17 @@ export const BaseSplitChipEditor = ({
               size="small"
               onClick={handleAddDraft}
               disabled={disabled || !draft.trim()}
-              sx={{ minHeight: 32, padding: '2px 8px' }}
+              className="min-h-8 px-2 py-0.5"
             >
               {resolvedLabels.add}
             </Button>
-          </Box>
+          </div>
           {helperText && (
-            <FormHelperText error={error}>{helperText}</FormHelperText>
+            <div className={`mt-1 text-xs ${error ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+              {helperText}
+            </div>
           )}
-        </Box>
+        </div>
       ) : (
         <TextField
           error={error}
@@ -203,7 +189,7 @@ export const BaseSplitChipEditor = ({
           size="small"
           multiline
           rows={rows}
-          sx={{ width: '100%' }}
+          className="w-full"
           value={value}
           helperText={helperText}
           onChange={(event) => {

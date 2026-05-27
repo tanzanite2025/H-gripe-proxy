@@ -1,23 +1,19 @@
-import { InfoRounded } from '@mui/icons-material'
-import {
-  Tooltip,
-  IconButton,
-  IconButtonProps,
-  SvgIconProps,
-} from '@mui/material'
+import { Info } from 'lucide-react'
+import { Tooltip, IconButton } from '@/components/tailwind'
+import type { ComponentProps } from 'react'
 
-interface Props extends IconButtonProps {
+interface Props extends Omit<ComponentProps<typeof IconButton>, 'children'> {
   title?: string
-  icon?: React.ElementType<SvgIconProps>
+  icon?: React.ComponentType<{ className?: string }>
 }
 
 export const TooltipIcon: React.FC<Props> = (props: Props) => {
-  const { title = '', icon: Icon = InfoRounded, ...restProps } = props
+  const { title = '', icon: Icon = Info, ...restProps } = props
 
   return (
-    <Tooltip title={title} placement="top">
-      <IconButton color="inherit" size="small" {...restProps}>
-        <Icon fontSize="inherit" style={{ cursor: 'pointer', opacity: 0.75 }} />
+    <Tooltip title={title}>
+      <IconButton size="small" {...restProps}>
+        <Icon className="cursor-pointer opacity-75" />
       </IconButton>
     </Tooltip>
   )

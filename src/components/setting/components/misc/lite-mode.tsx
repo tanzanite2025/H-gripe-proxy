@@ -1,3 +1,9 @@
+import { useLockFn } from 'ahooks'
+import type { Ref } from 'react'
+import { useImperativeHandle, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import {
   InputAdornment,
   List,
@@ -5,13 +11,7 @@ import {
   ListItemText,
   TextField,
   Typography,
-} from '@mui/material'
-import { useLockFn } from 'ahooks'
-import type { Ref } from 'react'
-import { useImperativeHandle, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
+} from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { entry_lightweight_mode } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -61,31 +61,27 @@ export function LiteModeViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onOk={onSave}
     >
       <List>
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.liteMode.actions.enterNow')}
           />
           <Typography
             variant="button"
-            sx={{
-              cursor: 'pointer',
-              color: 'primary.main',
-              '&:hover': { textDecoration: 'underline' },
-            }}
+            className="cursor-pointer text-primary hover:underline"
             onClick={async () => await entry_lightweight_mode()}
           >
             {t('shared.actions.enable')}
           </Typography>
         </ListItem>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
+        <ListItem className="py-[5px] px-[2px]">
           <ListItemText
             primary={t('settings.modals.liteMode.toggles.autoEnter')}
-            sx={{ maxWidth: 'fit-content' }}
+            className="max-w-fit"
           />
           <TooltipIcon
             title={t('settings.modals.liteMode.tooltips.autoEnter')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
           <Switch
             edge="end"
@@ -93,13 +89,13 @@ export function LiteModeViewer({ ref }: { ref?: Ref<DialogRef> }) {
             onChange={(_, c) =>
               setValues((v) => ({ ...v, autoEnterLiteMode: c }))
             }
-            sx={{ marginLeft: 'auto' }}
+            className="ml-auto"
           />
         </ListItem>
 
         {values.autoEnterLiteMode && (
           <>
-            <ListItem sx={{ padding: '5px 2px' }}>
+            <ListItem className="py-[5px] px-[2px]">
               <ListItemText
                 primary={t('settings.modals.liteMode.fields.delay')}
               />
@@ -110,7 +106,7 @@ export function LiteModeViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                sx={{ width: 150 }}
+                className="w-[150px]"
                 value={values.autoEnterLiteModeDelay}
                 onChange={(e) =>
                   setValues((v) => ({
@@ -130,11 +126,11 @@ export function LiteModeViewer({ ref }: { ref?: Ref<DialogRef> }) {
               />
             </ListItem>
 
-            <ListItem sx={{ padding: '5px 2px' }}>
+            <ListItem className="py-[5px] px-[2px]">
               <Typography
                 variant="body2"
                 color="text.secondary"
-                sx={{ fontStyle: 'italic' }}
+                className="italic"
               >
                 {t('settings.modals.liteMode.messages.autoEnterHint', {
                   n: values.autoEnterLiteModeDelay,

@@ -1,4 +1,3 @@
-import { useTheme } from '@mui/material'
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import { Traffic } from 'tauri-plugin-mihomo-api'
 
@@ -44,7 +43,13 @@ export function TrafficGraph({ ref }: { ref?: Ref<TrafficRef> }) {
   const cacheRef = useRef<Traffic | null>(null)
   const requestDrawRef = useRef<(animate?: boolean) => void>(() => {})
 
-  const { palette } = useTheme()
+  // Get theme colors from CSS variables
+  const isDark =
+    typeof window !== 'undefined' &&
+    document.documentElement.classList.contains('dark')
+  const refLineColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'
+  const upLineColor = isDark ? '#ba68c8' : '#9c27b0' // secondary color
+  const downLineColor = isDark ? '#7986cb' : '#5b5c9d' // primary color
 
   useImperativeHandle(ref, () => ({
     appendData: (data: Traffic) => {
@@ -96,11 +101,6 @@ export function TrafficGraph({ ref }: { ref?: Ref<TrafficRef> }) {
     const context = canvas.getContext('2d')!
 
     if (!context) return
-
-    const { primary, secondary, divider } = palette
-    const refLineColor = divider || 'rgba(0, 0, 0, 0.12)'
-    const upLineColor = secondary.main || '#9c27b0'
-    const downLineColor = primary.main || '#5b5c9d'
 
     const cancelPendingDraw = () => {
       if (frameTimer !== null) {
@@ -273,7 +273,7 @@ export function TrafficGraph({ ref }: { ref?: Ref<TrafficRef> }) {
       resizeObserver?.disconnect()
       cancelPendingDraw()
     }
-  }, [palette])
+  }, [refLineColor, upLineColor, downLineColor])
 
   return <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
 }

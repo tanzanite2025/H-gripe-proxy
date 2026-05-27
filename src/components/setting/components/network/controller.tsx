@@ -1,8 +1,12 @@
-import { ContentCopy } from '@mui/icons-material'
+import { useLockFn } from 'ahooks'
+import { Copy } from 'lucide-react'
+import { useImperativeHandle, useState, type Ref } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseDialog, DialogRef, Switch } from '@/components/base'
 import {
   Alert,
   Box,
-  CircularProgress,
   IconButton,
   List,
   ListItem,
@@ -10,12 +14,8 @@ import {
   Snackbar,
   TextField,
   Tooltip,
-} from '@mui/material'
-import { useLockFn } from 'ahooks'
-import { useImperativeHandle, useState, type Ref } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseDialog, DialogRef, Switch } from '@/components/base'
+} from '@/components/tailwind'
+import { Spinner } from '@/components/tailwind/icons'
 import { useClashInfo } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
@@ -111,8 +111,8 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
       contentSx={{ width: 400 }}
       okBtn={
         isSaving ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CircularProgress size={16} color="inherit" />
+          <Box className="flex items-center gap-4">
+            <Spinner className="h-4 w-4" />
             {t('shared.statuses.saving')}
           </Box>
         ) : (
@@ -125,13 +125,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onOk={onSave}
     >
       <List>
-        <ListItem
-          sx={{
-            padding: '5px 2px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
+        <ListItem className="py-2 px-0 flex justify-between">
           <ListItemText
             primary={t('settings.sections.externalController.fields.enable')}
           />
@@ -143,24 +137,14 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
           />
         </ListItem>
 
-        <ListItem
-          sx={{
-            padding: '5px 2px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
+        <ListItem className="py-2 px-0 flex justify-between">
           <ListItemText
             primary={t('settings.sections.externalController.fields.address')}
           />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box className="flex items-center gap-4">
             <TextField
               size="small"
-              sx={{
-                width: 175,
-                opacity: enableController ? 1 : 0.5,
-                pointerEvents: enableController ? 'auto' : 'none',
-              }}
+              className={`w-[175px] ${enableController ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}
               value={controller}
               placeholder={t(
                 'settings.sections.externalController.placeholders.address',
@@ -174,33 +158,23 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
               <IconButton
                 size="small"
                 onClick={() => handleCopyToClipboard(controller, 'controller')}
-                color="primary"
+                className="text-primary"
                 disabled={isSaving || !enableController}
               >
-                <ContentCopy fontSize="small" />
+                <Copy className="h-4 w-4" />
               </IconButton>
             </Tooltip>
           </Box>
         </ListItem>
 
-        <ListItem
-          sx={{
-            padding: '5px 2px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
+        <ListItem className="py-2 px-0 flex justify-between">
           <ListItemText
             primary={t('settings.sections.externalController.fields.secret')}
           />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box className="flex items-center gap-4">
             <TextField
               size="small"
-              sx={{
-                width: 175,
-                opacity: enableController ? 1 : 0.5,
-                pointerEvents: enableController ? 'auto' : 'none',
-              }}
+              className={`w-[175px] ${enableController ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}
               value={secret}
               placeholder={t(
                 'settings.sections.externalController.placeholders.secret',
@@ -214,10 +188,10 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
               <IconButton
                 size="small"
                 onClick={() => handleCopyToClipboard(secret, 'secret')}
-                color="primary"
+                className="text-primary"
                 disabled={isSaving || !enableController}
               >
-                <ContentCopy fontSize="small" />
+                <Copy className="h-4 w-4" />
               </IconButton>
             </Tooltip>
           </Box>

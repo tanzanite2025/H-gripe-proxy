@@ -1,20 +1,20 @@
-import { Delete, ExpandLess, ExpandMore } from '@mui/icons-material'
-import {
-  Button,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemButton,
-  IconButton,
-  TextField,
-  Select,
-  MenuItem,
-} from '@mui/material'
 import { forwardRef, useImperativeHandle, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
+import {
+  Button,
+  Divider,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  MenuItem,
+  Select,
+  TextField,
+} from '@/components/tailwind'
+import { Delete, ExpandLess, ExpandMore } from '@/components/tailwind/icons'
 import { useClash } from '@/hooks/data'
 import { useProxiesData } from '@/providers/app-data-context'
 import { isPortInUse } from '@/services/cmds'
@@ -215,7 +215,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       <List>
         {draftTunnels.length > 0 && (
           <>
-            <ListItem sx={{ padding: '4px 0', opacity: 0.6 }}>
+            <ListItem className="py-1 px-0 opacity-60">
               <ListItemText
                 primary={t(
                   'settings.sections.clash.form.fields.tunnels.existing',
@@ -226,7 +226,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {tunnelEntries.map((item) => (
                 <ListItem
                   key={`${item.key}`}
-                  sx={{ padding: '4px 0' }}
+                  className="py-1 px-0"
                   secondaryAction={
                     <IconButton
                       edge="end"
@@ -248,11 +248,11 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 </ListItem>
               ))}
             </List>
-            <Divider sx={{ my: 2 }} />
+            <Divider className="my-8" />
           </>
         )}
         <ListItemButton
-          sx={{ padding: '4px 0', opacity: 0.8 }}
+          className="py-1 px-0 opacity-80"
           onClick={() => setExpanded((v) => !v)}
         >
           <ListItemText
@@ -263,11 +263,11 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
           {expanded ? <ExpandLess /> : <ExpandMore />}
         </ListItemButton>
         {expanded && (
-          <ListItem sx={{ padding: '8px 0' }}>
+          <ListItem className="py-2 px-0">
             <div style={{ width: '100%' }}>
               {/* 输入框区域 */}
               {/* 协议 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.protocols',
@@ -275,7 +275,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
                 <Select
                   size="small"
-                  sx={{ width: 200, '> div': { py: '7.5px' } }}
+                  className="w-[200px]"
                   value={values.network}
                   onChange={(e) =>
                     setValues((v) => ({
@@ -291,7 +291,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               </ListItem>
 
               {/* 本地监听地址 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.localAddr',
@@ -300,7 +300,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 <TextField
                   autoComplete="new-password"
                   size="small"
-                  sx={{ width: 200 }}
+                  className="w-[200px]"
                   value={values.localAddr}
                   placeholder="127.0.0.1"
                   onChange={(e) =>
@@ -310,7 +310,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               </ListItem>
 
               {/* 本地监听端口 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.localPort',
@@ -320,7 +320,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   autoComplete="new-password"
                   size="small"
                   type="number"
-                  sx={{ width: 200 }}
+                  className="w-[200px]"
                   value={values.localPort}
                   placeholder="6553"
                   onChange={(e) =>
@@ -330,7 +330,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               </ListItem>
 
               {/* 目标服务器地址 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.targetAddr',
@@ -339,7 +339,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 <TextField
                   autoComplete="new-password"
                   size="small"
-                  sx={{ width: 200 }}
+                  className="w-[200px]"
                   value={values.targetAddr}
                   placeholder="8.8.8.8"
                   onChange={(e) =>
@@ -349,7 +349,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               </ListItem>
 
               {/* 目标服务器端口 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.targetPort',
@@ -359,7 +359,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   autoComplete="new-password"
                   size="small"
                   type="number"
-                  sx={{ width: 200 }}
+                  className="w-[200px]"
                   value={values.targetPort}
                   placeholder="53"
                   onChange={(e) =>
@@ -369,7 +369,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               </ListItem>
 
               {/* 代理组 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={
                     <>
@@ -389,7 +389,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
                 <Select
                   size="small"
-                  sx={{ width: 200, '> div': { py: '7.5px' } }}
+                  className="w-[200px]"
                   value={values.group}
                   displayEmpty
                   onChange={(e) => {
@@ -416,7 +416,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               </ListItem>
 
               {/* 代理节点 */}
-              <ListItem sx={{ padding: '6px 2px' }}>
+              <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   primary={
                     <>
@@ -436,7 +436,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
                 <Select
                   size="small"
-                  sx={{ width: 200, '> div': { py: '7.5px' } }}
+                  className="w-[200px]"
                   value={values.proxy}
                   displayEmpty
                   onChange={(e) =>
@@ -462,12 +462,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               <Button
                 variant="contained"
                 size="small"
-                sx={{
-                  marginTop: '6px',
-                  marginRight: '2px',
-                  marginLeft: 'auto',
-                  display: 'block',
-                }}
+                className="mt-[6px] mr-[2px] ml-auto block"
                 color="success"
                 onClick={handleAdd}
               >
