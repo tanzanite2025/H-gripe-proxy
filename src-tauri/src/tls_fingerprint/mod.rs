@@ -322,12 +322,6 @@ impl TlsFingerprintService {
         self.current_fingerprint.read().clone()
     }
 
-    /// 获取当前指纹（用于协调器）
-    #[allow(dead_code)]
-    pub fn get_current(&self) -> Option<TlsFingerprint> {
-        self.get_fingerprint()
-    }
-
     /// 清除当前指纹
     pub fn clear(&self) {
         *self.current_fingerprint.write() = None;

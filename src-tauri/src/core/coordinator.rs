@@ -184,7 +184,7 @@ impl CoreCoordinator {
         };
 
         // 4. 获取 TLS 指纹
-        let tls_fingerprint = self.tls_fingerprint.get_current()
+        let tls_fingerprint = self.tls_fingerprint.get_fingerprint()
             .map(|f| f.name.clone());
 
         // 5. 返回决策

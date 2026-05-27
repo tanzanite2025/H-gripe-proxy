@@ -98,23 +98,20 @@ impl Default for ConfigDecoyConfig {
     }
 }
 
-impl AdvancedConfig {
-    /// 从文件加载配置
-    pub fn load(path: &PathBuf) -> Result<Self> {
-        if !path.exists() {
-            return Ok(Self::default());
-        }
+use super::ConfigFile;
 
-        let content = std::fs::read_to_string(path)?;
-        let config: Self = serde_yaml_ng::from_str(&content)?;
-        Ok(config)
+// 实现 ConfigFile trait
+impl ConfigFile for AdvancedConfig {}
+
+impl AdvancedConfig {
+    /// 从文件加载配置（使用 trait 默认实现）
+    pub fn load(path: &PathBuf) -> Result<Self> {
+        Self::load_from_file(path)
     }
 
-    /// 保存配置到文件
+    /// 保存配置到文件（使用 trait 默认实现）
     pub fn save(&self, path: &PathBuf) -> Result<()> {
-        let content = serde_yaml_ng::to_string(self)?;
-        std::fs::write(path, content)?;
-        Ok(())
+        self.save_to_file(path)
     }
 
     /// 验证配置
