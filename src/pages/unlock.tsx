@@ -311,12 +311,13 @@ const UnlockPage = () => {
 
   // 状态图标
   const getStatusIcon = (status: string) => {
-    if (status === 'Pending') return <PendingOutlined />
-    if (status === 'Yes') return <CheckCircleOutlined />
-    if (status === 'No') return <CancelOutlined />
-    if (status === 'Soon') return <AccessTimeOutlined />
-    if (status.includes('Failed')) return <HelpOutlined />
-    return <HelpOutlined />
+    const iconProps = { fontSize: 'small' as const }
+    if (status === 'Pending') return <PendingOutlined {...iconProps} />
+    if (status === 'Yes') return <CheckCircleOutlined {...iconProps} />
+    if (status === 'No') return <CancelOutlined {...iconProps} />
+    if (status === 'Soon') return <AccessTimeOutlined {...iconProps} />
+    if (status.includes('Failed')) return <HelpOutlined {...iconProps} />
+    return <HelpOutlined {...iconProps} />
   }
 
   // 边框色

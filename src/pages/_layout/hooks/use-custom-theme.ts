@@ -309,6 +309,25 @@ export const useCustomTheme = () => {
           },
         },
         components: {
+          MuiSvgIcon: {
+            defaultProps: {
+              fontSize: 'medium', // 设置所有图标的默认尺寸
+            },
+            styleOverrides: {
+              root: {
+                fontSize: '1.5rem', // 24px - medium
+              },
+              fontSizeSmall: {
+                fontSize: '1.25rem', // 20px
+              },
+              fontSizeLarge: {
+                fontSize: '2.1875rem', // 35px
+              },
+              fontSizeInherit: {
+                fontSize: 'inherit',
+              },
+            },
+          },
           MuiButton: {
             defaultProps: {
               disableElevation: true,

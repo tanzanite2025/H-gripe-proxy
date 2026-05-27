@@ -110,9 +110,9 @@ const LogPage = () => {
             onClick={handleToggleLog}
           >
             {enableLog ? (
-              <PauseCircleOutlineRounded />
+              <PauseCircleOutlineRounded fontSize="inherit" />
             ) : (
-              <PlayCircleOutlineRounded />
+              <PlayCircleOutlineRounded fontSize="inherit" />
             )}
           </IconButton>
           <IconButton
