@@ -3,7 +3,7 @@
  * 确保所有 DNS 查询都通过加密通道，防止 DNS 泄漏
  */
 
-import type { DnsProtocol } from './dns-api'
+import { testDnsLeak as testDnsLeakCommand } from './cmds'
 
 /**
  * DNS 泄漏防护级别
@@ -282,30 +282,18 @@ class DnsLeakProtectionService {
    * 执行 DNS 泄漏测试
    */
   async testDnsLeak(): Promise<DnsLeakTestResult> {
-    // 注意：实际实现需要调用后端 API 或第三方服务
-    // 这里提供一个模拟实现
-
     try {
-      // 模拟测试结果
-      const hasLeak = false
-      const leakType: string[] = []
-      const dnsServers: Array<{ ip: string; location: string; isp: string }> = []
-      const recommendations: string[] = []
-
-      if (!this.config.forceDoH && !this.config.forceDoT) {
-        leakType.push('明文 DNS')
-        recommendations.push('启用 DoH 或 DoT 加密')
-      }
-
-      if (!this.config.enableFakeIp) {
-        recommendations.push('启用 Fake-IP 模式以获得更强防护')
-      }
+      const result = await testDnsLeakCommand()
 
       return {
-        hasLeak,
-        leakType,
-        dnsServers,
-        recommendations,
+        hasLeak: result.has_leak,
+        leakType: result.leak_type,
+        dnsServers: result.dns_servers.map((server) => ({
+          ip: server.ip,
+          location: [server.country, server.city].filter(Boolean).join(' · ') || 'Unknown',
+          isp: server.isp || 'Unknown',
+        })),
+        recommendations: result.recommendations,
       }
     } catch (err) {
       console.error('DNS leak test failed:', err)

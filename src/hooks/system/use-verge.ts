@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 
-import { getVergeConfig, patchVergeConfig } from '@/services/cmds'
+import { applyDnsConfig, getVergeConfig, patchVergeConfig } from '@/services/cmds'
 import { getPreloadConfig, setPreloadConfig } from '@/services/preload'
 
 export const useVerge = () => {
@@ -47,9 +47,40 @@ export const useVerge = () => {
     [refetch],
   )
 
+  const setDnsRuntimeEnabled = useCallback(
+    async (enable: boolean) => {
+      const previous = qc.getQueryData<IVergeConfig>(['getVergeConfig'])
+      const previousEnabled = previous?.enable_dns_settings ?? false
+
+      qc.setQueryData<IVergeConfig | undefined>(['getVergeConfig'], (current) =>
+        current ? { ...current, enable_dns_settings: enable } : current,
+      )
+
+      try {
+        await patchVergeConfig({ enable_dns_settings: enable })
+        await applyDnsConfig(enable)
+        await refetch()
+      } catch (error) {
+        qc.setQueryData<IVergeConfig | undefined>(['getVergeConfig'], (current) =>
+          current
+            ? { ...current, enable_dns_settings: previousEnabled }
+            : current,
+        )
+
+        await patchVergeConfig({ enable_dns_settings: previousEnabled }).catch(
+          () => {},
+        )
+        await refetch().catch(() => {})
+        throw error
+      }
+    },
+    [qc, refetch],
+  )
+
   return {
     verge,
     mutateVerge,
     patchVerge,
+    setDnsRuntimeEnabled,
   }
 }

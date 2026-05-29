@@ -21,6 +21,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
 } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +32,7 @@ import {
   Switch,
   VirtualList,
 } from '@/components/base'
+import { GroupItem } from '@/components/profile/group-item'
 import { Button } from '@/components/tailwind/Button'
 import { Dialog } from '@/components/tailwind/Dialog'
 import { DialogActions } from '@/components/tailwind/DialogActions'
@@ -41,8 +43,8 @@ import { List } from '@/components/tailwind/List'
 import { ListItem } from '@/components/tailwind/ListItem'
 import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Select } from '@/components/tailwind/Select'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
-import { GroupItem } from '@/components/profile/group-item'
 import {
   getNetworkInterfaces,
   readProfileFile,
@@ -710,7 +712,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         placeholder="*"
                         size="small"
                         className="w-[calc(100%-150px)]"
-                        onChange={(e) => {
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           field.onChange(parseInt(e.target.value))
                         }}
                       />
@@ -733,7 +735,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         type="number"
                         size="small"
                         className="w-[calc(100%-150px)]"
-                        onChange={(e) => {
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           field.onChange(parseInt(e.target.value))
                         }}
                         InputProps={{
@@ -759,7 +761,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         type="number"
                         size="small"
                         className="w-[calc(100%-150px)]"
-                        onChange={(e) => {
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           field.onChange(parseInt(e.target.value))
                         }}
                         InputProps={{
@@ -789,7 +791,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         type="number"
                         size="small"
                         className="w-[calc(100%-150px)]"
-                        onChange={(e) => {
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           field.onChange(parseInt(e.target.value))
                         }}
                       />
@@ -810,7 +812,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         className="w-[calc(100%-150px)]"
                         value={field.value || ''}
-                        onChange={(e) => field.onChange(e.target.value)}
+                        onChange={(e: SelectChangeEvent) => field.onChange(e.target.value)}
                       >
                         {interfaceNameList.map((option) => (
                           <option key={option} value={option}>
@@ -836,7 +838,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         type="number"
                         size="small"
                         className="w-[calc(100%-150px)]"
-                        onChange={(e) => {
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           field.onChange(parseInt(e.target.value))
                         }}
                       />

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 
 import { Radio, RadioGroup } from '@/components/tailwind/Radio'
-import { Select } from '@/components/tailwind/Select'
+import { Select, type SelectChangeEvent } from '@/components/tailwind/Select'
 import { Switch } from '@/components/tailwind/Switch'
 import { TextField } from '@/components/tailwind/TextField'
 
@@ -68,7 +68,7 @@ export function SudokuMultiplexConfig({
       <label className="flex items-center gap-2">
         <Switch
           checked={!localConfig.disable}
-          onChange={(e) => handleChange({ disable: !e.target.checked })}
+          onCheckedChange={(checked) => handleChange({ disable: !checked })}
         />
         <span>启用 HTTP Mask</span>
       </label>
@@ -78,8 +78,8 @@ export function SudokuMultiplexConfig({
           <Select
             value={localConfig.mode || 'auto'}
             label="HTTP Mask 模式"
-            onChange={(e) =>
-              handleChange({ mode: e.target.value as SudokuHttpMaskMode })
+            onChange={(event: SelectChangeEvent) =>
+              handleChange({ mode: event.target.value as SudokuHttpMaskMode })
             }
             fullWidth
           >
@@ -93,7 +93,7 @@ export function SudokuMultiplexConfig({
           <label className="flex items-center gap-2">
             <Switch
               checked={localConfig.tls || false}
-              onChange={(e) => handleChange({ tls: e.target.checked })}
+              onCheckedChange={(checked) => handleChange({ tls: checked })}
             />
             <span>启用 TLS</span>
           </label>
@@ -101,7 +101,7 @@ export function SudokuMultiplexConfig({
           <TextField
             label="主机名"
             value={localConfig.host || ''}
-            onChange={(e) => handleChange({ host: e.target.value })}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => handleChange({ host: event.target.value })}
             helperText="HTTP Mask 使用的主机名"
             className="w-full"
           />
@@ -109,7 +109,7 @@ export function SudokuMultiplexConfig({
           <TextField
             label="路径根"
             value={localConfig['path-root'] || ''}
-            onChange={(e) => handleChange({ 'path-root': e.target.value })}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => handleChange({ 'path-root': event.target.value })}
             helperText="HTTP Mask 使用的路径根"
             className="w-full"
           />
@@ -120,9 +120,9 @@ export function SudokuMultiplexConfig({
             <Select
               value={localConfig.multiplex || 'auto'}
               label="多路复用模式"
-              onChange={(e) =>
+              onChange={(event: SelectChangeEvent) =>
                 handleChange({
-                  multiplex: e.target.value as SudokuHttpMaskMultiplex,
+                  multiplex: event.target.value as SudokuHttpMaskMultiplex,
                 })
               }
               fullWidth
@@ -136,9 +136,9 @@ export function SudokuMultiplexConfig({
 
             <RadioGroup
               value={localConfig.multiplex || 'auto'}
-              onChange={(e) =>
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 handleChange({
-                  multiplex: e.target.value as SudokuHttpMaskMultiplex,
+                  multiplex: event.target.value as SudokuHttpMaskMultiplex,
                 })
               }
               className="mt-2"

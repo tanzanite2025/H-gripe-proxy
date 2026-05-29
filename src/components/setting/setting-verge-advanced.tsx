@@ -18,26 +18,19 @@ import { version } from '@root/package.json'
 
 import { BackupViewer } from './components/backup/backup-main'
 import { ConfigViewer } from './components/misc/config-editor'
-import { HotkeyViewer } from './components/hotkey/hotkey-config'
-import { LayoutViewer } from './components/misc/layout-config'
 import { LiteModeViewer } from './components/misc/lite-mode'
-import { MiscViewer } from './components/misc/misc-config'
-import { SettingItem, SettingList } from './components/shared/setting-item'
-import { ThemeViewer } from './components/theme/theme-config'
 import { UpdateViewer } from './components/misc/update-config'
+import { SettingItem, SettingList } from './components/shared/setting-item'
 
 interface Props {
   onError?: (err: Error) => void
 }
 
-const SettingVergeAdvanced = ({ onError: _ }: Props) => {
+const SettingVergeTools = ({ onError: _ }: Props) => {
   const { t } = useTranslation()
+  const canOpenDevTools = import.meta.env.DEV
 
   const configRef = useRef<DialogRef>(null)
-  const hotkeyRef = useRef<DialogRef>(null)
-  const miscRef = useRef<DialogRef>(null)
-  const themeRef = useRef<DialogRef>(null)
-  const layoutRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
   const liteModeRef = useRef<DialogRef>(null)
@@ -74,11 +67,7 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
 
   return (
     <SettingList title={t('settings.components.verge.advanced.title')}>
-      <ThemeViewer ref={themeRef} />
       <ConfigViewer ref={configRef} />
-      <HotkeyViewer ref={hotkeyRef} />
-      <MiscViewer ref={miscRef} />
-      <LayoutViewer ref={layoutRef} />
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
       <LiteModeViewer ref={liteModeRef} />
@@ -89,7 +78,7 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
         extra={
           <TooltipIcon
             title={t('settings.components.verge.advanced.tooltips.backupInfo')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
         }
       />
@@ -105,7 +94,7 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
         extra={
           <TooltipIcon
             title={t('settings.components.verge.advanced.tooltips.openConfDir')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
         }
       />
@@ -125,17 +114,19 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
         label={t('settings.components.verge.advanced.fields.checkUpdates')}
       />
 
-      <SettingItem
-        onClick={openDevTools}
-        label={t('settings.components.verge.advanced.fields.openDevTools')}
-      />
+      {canOpenDevTools && (
+        <SettingItem
+          onClick={openDevTools}
+          label={t('settings.components.verge.advanced.fields.openDevTools')}
+        />
+      )}
 
       <SettingItem
         label={t('settings.components.verge.advanced.fields.liteModeSettings')}
         extra={
           <TooltipIcon
             title={t('settings.components.verge.advanced.tooltips.liteMode')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
         }
         onClick={() => liteModeRef.current?.open()}
@@ -174,4 +165,4 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
   )
 }
 
-export default SettingVergeAdvanced
+export default SettingVergeTools

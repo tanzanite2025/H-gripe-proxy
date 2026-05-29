@@ -1,4 +1,4 @@
-import { FeaturedPlayListRounded } from '@mui/icons-material'
+import { ListTodo } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -115,7 +115,7 @@ export const ProfileMore = (props: Props) => {
                   title={t('profiles.modals.logViewer.title')}
                   onClick={() => setLogOpen(true)}
                 >
-                  <FeaturedPlayListRounded fontSize="inherit" />
+                  <ListTodo className="h-[1em] w-[1em]" />
                 </IconButton>
               </Badge>
             ) : (
@@ -124,7 +124,7 @@ export const ProfileMore = (props: Props) => {
                 title={t('profiles.modals.logViewer.title')}
                 onClick={() => setLogOpen(true)}
               >
-                <FeaturedPlayListRounded fontSize="inherit" />
+                <ListTodo className="h-[1em] w-[1em]" />
               </IconButton>
             ))}
         </div>

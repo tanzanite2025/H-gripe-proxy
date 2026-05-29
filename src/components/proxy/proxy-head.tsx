@@ -11,7 +11,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react'
 import { IconButton, TextField } from '@/components/tailwind'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSearchBox } from '@/components/base'
@@ -183,7 +183,7 @@ export const ProxyHead = ({
           autoSave="off"
           value={testUrl}
           placeholder={t('proxies.page.placeholders.delayCheckUrl')}
-          onChange={(e) => onHeadState({ testUrl: e.target.value })}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => onHeadState({ testUrl: e.target.value })}
           className="ml-1 flex-1"
           inputClassName="py-1.5 px-2"
         />

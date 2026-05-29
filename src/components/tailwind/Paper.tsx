@@ -6,6 +6,7 @@ export interface PaperProps {
   className?: string
   variant?: 'elevation' | 'outlined'
   elevation?: number
+  onClick?: () => void
 }
 
 export const Paper = forwardRef<HTMLDivElement, PaperProps>(

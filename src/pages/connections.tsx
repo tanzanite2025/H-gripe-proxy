@@ -155,9 +155,13 @@ const ConnectionsPage = () => {
             }
           >
             {isTableLayout ? (
-              <Rows className="h-5 w-5" titleAccess={t('shared.actions.listView')} />
+              <span title={t('shared.actions.listView')}>
+                <Rows className="h-5 w-5" />
+              </span>
             ) : (
-              <Table className="h-5 w-5" titleAccess={t('shared.actions.tableView')} />
+              <span title={t('shared.actions.tableView')}>
+                <Table className="h-5 w-5" />
+              </span>
             )}
           </IconButton>
           <Button size="small" variant="primary" onClick={onCloseAll}>

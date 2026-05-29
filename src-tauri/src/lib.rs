@@ -13,15 +13,18 @@ pub mod utils;
 mod anti_probe;
 mod tls_fingerprint;
 mod security;
+mod http;
+mod traffic;
 #[cfg(target_os = "linux")]
 mod xdp;
 mod multipath;
 
 use crate::constants::files;
+use crate::config::AdvancedConfig;
 use crate::{
     core::handle,
     process::AsyncHandler,
-    utils::{resolve, server},
+    utils::{dirs, resolve, server},
 };
 use anyhow::Result;
 use clash_verge_logging::{Type, logging};
@@ -54,7 +57,6 @@ mod app_init {
             .plugin(tauri_plugin_notification::init())
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_clipboard_manager::init())
-            .plugin(tauri_plugin_process::init())
             .plugin(tauri_plugin_global_shortcut::Builder::new().build())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_shell::init())
@@ -170,6 +172,11 @@ mod app_init {
             cmd::change_clash_core,
             cmd::get_runtime_config,
             cmd::get_runtime_yaml,
+            cmd::get_dns_runtime_status,
+            cmd::test_dns_leak,
+            cmd::test_proxy_detection,
+            cmd::get_tor_status,
+            cmd::test_tor_connection,
             cmd::get_runtime_exists,
             cmd::get_runtime_logs,
             cmd::get_runtime_proxy_chain_config,
@@ -177,11 +184,7 @@ mod app_init {
             cmd::invoke_uwp_tool,
             cmd::copy_clash_env,
             cmd::sync_tray_proxy_selection,
-            cmd::save_dns_config,
             cmd::apply_dns_config,
-            cmd::check_dns_config_exists,
-            cmd::get_dns_config_content,
-            cmd::validate_dns_config,
             cmd::get_clash_logs,
             cmd::get_verge_config,
             cmd::patch_verge_config,
@@ -189,6 +192,7 @@ mod app_init {
             cmd::get_tray_icon_path,
             cmd::copy_icon_file,
             cmd::download_icon_cache,
+            #[cfg(debug_assertions)]
             cmd::open_devtools,
             cmd::exit_app,
             cmd::get_network_interfaces_info,
@@ -248,6 +252,23 @@ mod app_init {
             cmd::security_decrypt_data,
             cmd::security_check_encryption_key,
             cmd::security_self_destruct,
+            cmd::security_start_monitor,
+            cmd::security_stop_monitor,
+            cmd::security_check_status,
+            cmd::local_security_get_config,
+            cmd::local_security_update_config,
+            cmd::local_security_get_status,
+            cmd::local_security_check_now,
+            cmd::local_security_check_binding,
+            cmd::local_security_check_port_conflict,
+            cmd::local_security_find_available_port,
+            cmd::local_security_configure_firewall,
+            cmd::local_security_remove_firewall,
+            cmd::leak_monitor_start,
+            cmd::leak_monitor_stop,
+            cmd::leak_monitor_is_running,
+            cmd::leak_monitor_set_port,
+            cmd::leak_monitor_get_port,
             cmd::multipath_get_config,
             cmd::multipath_update_config,
             cmd::multipath_get_bindings,
@@ -272,6 +293,36 @@ mod app_init {
             cmd::get_recommended_advanced_config,
             cmd::validate_advanced_config,
             cmd::coordinator_get_status,
+            cmd::egress_identity_preview_match,
+            cmd::egress_identity_assign_match,
+            cmd::egress_identity_get_active_assignments,
+            cmd::egress_identity_clear_assignment,
+            cmd::session_affinity_get_bindings,
+            cmd::session_affinity_clear_binding,
+            cmd::session_affinity_get_predefined_rules,
+            cmd::session_affinity_cleanup_expired,
+            cmd::session_affinity_select_node_for_domain,
+            cmd::session_affinity_select_node_for_process,
+            cmd::session_affinity_select_node_for_connection,
+            cmd::ip_reputation_get_config,
+            cmd::ip_reputation_update_config,
+            cmd::ip_reputation_check_ip,
+            cmd::ip_reputation_get_predefined_rules,
+            cmd::ip_reputation_select_node_for_domain,
+            cmd::ip_reputation_clear_cache,
+            cmd::ip_reputation_get_cache_stats,
+            cmd::header_sanitization_get_config,
+            cmd::header_sanitization_update_config,
+            cmd::header_sanitization_test,
+            cmd::header_sanitization_get_templates,
+            cmd::header_sanitization_get_fingerprint,
+            cmd::traffic_padding_get_config,
+            cmd::traffic_padding_update_config,
+            cmd::traffic_padding_start,
+            cmd::traffic_padding_stop,
+            cmd::traffic_padding_get_stats,
+            cmd::traffic_padding_reset_stats,
+            cmd::traffic_padding_is_running,
         ]
     }
 
@@ -328,6 +379,21 @@ pub fn run() {
             resolve::resolve_setup_sync();
             resolve::init_signal();
 
+            // 从高级配置加载流量填充配置并应用（如启用则自动启动）
+            let padding_cfg = dirs::app_home_dir()
+                .ok()
+                .map(|path| path.join("advanced.yaml"))
+                .and_then(|path| AdvancedConfig::load(&path).ok())
+                .map(|cfg| cfg.traffic_padding);
+
+            if let Some(padding_cfg) = padding_cfg {
+                AsyncHandler::spawn(move || async move {
+                    if let Err(e) = crate::cmd::traffic::apply_traffic_padding_config(padding_cfg).await {
+                        logging!(warn, Type::Setup, "Failed to apply traffic padding config at startup: {}", e);
+                    }
+                });
+            }
+
             // 初始化核心协调器
             logging!(info, Type::Setup, "初始化核心协调器...");
             let coordinator = cmd::coordinator::get_coordinator();
@@ -336,6 +402,10 @@ pub fn run() {
             } else {
                 logging!(info, Type::Setup, "协调器初始化成功");
             }
+
+            // 启动会话绑定清理任务
+            logging!(info, Type::Setup, "启动会话绑定清理任务...");
+            cmd::session_affinity::start_cleanup_task();
 
             logging!(info, Type::Setup, "初始化已启动");
             Ok(())

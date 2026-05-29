@@ -1,5 +1,5 @@
 import { useLockFn, useRequest } from 'ahooks'
-import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
@@ -151,7 +151,7 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
       <BaseDialog
         open={open}
         title={t('settings.sections.externalCors.title')}
-        contentSx={{ width: 500 }}
+        panelStyle={{ width: 500 }}
         okBtn={loading ? t('shared.statuses.saving') : t('shared.actions.save')}
         cancelBtn={t('shared.actions.cancel')}
         onClose={() => setOpen(false)}
@@ -165,12 +165,11 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
                 {t('settings.sections.externalCors.fields.allowPrivateNetwork')}
               </span>
               <Switch
-                edge="end"
                 checked={corsConfig.allowPrivateNetwork}
-                onChange={(e) =>
+                onCheckedChange={(checked) =>
                   handleCorsConfigChange(
                     'allowPrivateNetwork',
-                    e.target.checked,
+                    checked,
                   )
                 }
               />
@@ -191,13 +190,13 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
                     size="small"
                     className="text-sm mr-8"
                     value={origin}
-                    onChange={(e) => handleUpdateOrigin(index, e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => handleUpdateOrigin(index, e.target.value)}
                     placeholder={t(
                       'settings.sections.externalCors.placeholders.origin',
                     )}
                   />
                   <Button
-                    variant="error"
+                    variant="danger"
                     size="small"
                     onClick={() => handleDeleteOrigin(index)}
                     disabled={corsConfig.allowOrigins.length <= 0}

@@ -1,9 +1,4 @@
-import {
-  CloseFullscreenRounded,
-  ContentPasteRounded,
-  FormatPaintRounded,
-  OpenInFullRounded,
-} from '@mui/icons-material'
+import { ClipboardPaste, Minimize2, Paintbrush, Maximize2 } from 'lucide-react'
 
 import { Button } from '@/components/tailwind/Button'
 import {
@@ -251,7 +246,7 @@ export const EditorViewer = ({
                   void handlePaste()
                 }}
               >
-                <ContentPasteRounded fontSize="inherit" />
+                <ClipboardPaste className="h-[1em] w-[1em]" />
               </IconButton>
               <IconButton
                 size="medium"
@@ -261,7 +256,7 @@ export const EditorViewer = ({
                   void handleFormat()
                 }}
               >
-                <FormatPaintRounded fontSize="inherit" />
+                <Paintbrush className="h-[1em] w-[1em]" />
               </IconButton>
             </>
           )}
@@ -274,7 +269,7 @@ export const EditorViewer = ({
               void handleToggleMaximize()
             }}
           >
-            {isMaximized ? <CloseFullscreenRounded /> : <OpenInFullRounded />}
+            {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </IconButton>
         </div>
       </DialogContent>

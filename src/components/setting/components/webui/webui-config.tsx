@@ -100,9 +100,16 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
     <Dialog
       open={open}
       onClose={() => setOpen(false)}
-      title={
-        <Box className="flex justify-between">
-          {t('settings.modals.webUI.title')}
+      title={t('settings.modals.webUI.title')}
+      maxWidth="md"
+      actions={
+        <Button onClick={() => setOpen(false)}>
+          {t('shared.actions.close')}
+        </Button>
+      }
+    >
+      <Box className="w-[450px] h-[300px] pb-4 overflow-y-auto select-text">
+        <Box className="mb-4 flex justify-end">
           <Button
             variant="primary"
             size="small"
@@ -112,15 +119,6 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
             {t('shared.actions.new')}
           </Button>
         </Box>
-      }
-      maxWidth="md"
-      actions={
-        <Button onClick={() => setOpen(false)}>
-          {t('shared.actions.close')}
-        </Button>
-      }
-    >
-      <Box className="w-[450px] h-[300px] pb-4 overflow-y-auto select-text">
         {!editing && webUIList.length === 0 && (
           <BaseEmpty
             extra={

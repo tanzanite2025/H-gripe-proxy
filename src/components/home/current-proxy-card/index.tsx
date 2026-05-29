@@ -14,6 +14,7 @@ import { EnhancedCard } from '@/components/home/enhanced-card'
 import { Button } from '@/components/tailwind/Button'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { Tooltip } from '@/components/tailwind/Tooltip'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { useProfiles } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import {
@@ -110,6 +111,13 @@ export const CurrentProxyCard = () => {
   const currentProxy = useMemo(() => {
     return state.displayProxy
   }, [state.displayProxy])
+
+  const handleGroupSelectChange = useCallback(
+    (event: SelectChangeEvent<string>) => {
+      handleGroupChange(event.target.value)
+    },
+    [handleGroupChange],
+  )
 
   // 获取当前节点的延迟
   const currentDelay =
@@ -222,7 +230,7 @@ export const CurrentProxyCard = () => {
               proxyOptions={proxyOptions}
               isGlobalMode={isGlobalMode}
               isDirectMode={isDirectMode}
-              onGroupChange={handleGroupChange}
+              onGroupChange={handleGroupSelectChange}
               onProxyChange={handleProxyChange}
             />
           )}

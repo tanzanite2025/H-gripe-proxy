@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DeleteForeverRounded, UndoRounded } from '@mui/icons-material'
+import { Trash2, Undo2 } from 'lucide-react'
 
 import { IconButton } from '@/components/tailwind/IconButton'
 import { ListItem, ListItemText } from '@/components/tailwind/List'
@@ -55,7 +55,7 @@ export const RuleItem = (props: Props) => {
       className={`relative h-full my-2 rounded-lg ${getBackgroundClass()}`}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: transition ?? undefined,
         zIndex: isDragging ? 9999 : undefined,
       }}
     >
@@ -89,7 +89,7 @@ export const RuleItem = (props: Props) => {
         secondaryClassName="flex items-center text-gray-400"
       />
       <IconButton onClick={onDelete}>
-        {type === 'delete' ? <UndoRounded /> : <DeleteForeverRounded />}
+        {type === 'delete' ? <Undo2 className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
       </IconButton>
     </ListItem>
   )

@@ -73,7 +73,7 @@ export function ObfuscationConfig({
           <label className="flex items-center gap-2">
             <Switch
               checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
+              onCheckedChange={setEnabled}
             />
             <span>启用混淆</span>
           </label>
@@ -81,7 +81,7 @@ export function ObfuscationConfig({
           <label className="flex items-center gap-2 ml-4 mt-2">
             <Switch
               checked={autoAdjust}
-              onChange={(e) => setAutoAdjust(e.target.checked)}
+              onCheckedChange={setAutoAdjust}
               disabled={!enabled}
             />
             <span>自动调整（根据网络环境）</span>
@@ -90,10 +90,10 @@ export function ObfuscationConfig({
 
         {enabled && (
           <>
-            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-              <Tab label="选择级别" />
-              <Tab label="策略详情" />
-              <Tab label="统计信息" />
+            <Tabs value={activeTab} onChange={(_, value) => setActiveTab(Number(value))}>
+              <Tab label="选择级别" value={0} />
+              <Tab label="策略详情" value={1} />
+              <Tab label="统计信息" value={2} />
             </Tabs>
 
             <div className="mt-4">

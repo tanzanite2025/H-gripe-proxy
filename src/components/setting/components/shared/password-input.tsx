@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/tailwind/Button'
@@ -44,7 +44,7 @@ export const PasswordInput = (props: Props) => {
           type={showPassword ? 'text' : 'password'}
           value={passwd}
           onKeyDown={(e) => e.key === 'Enter' && onConfirm(passwd)}
-          onChange={(e) => setPasswd(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setPasswd(e.target.value)}
         />
         <div className="absolute right-3 top-9">
           <IconButton

@@ -140,7 +140,6 @@ export function AutoBackupSettings() {
             secondary={t('settings.modals.backup.auto.scheduleHelper')}
           />
           <Switch
-            edge="end"
             checked={values.scheduleEnabled}
             onChange={handleScheduleToggle}
             disabled={disabled}
@@ -193,7 +192,6 @@ export function AutoBackupSettings() {
             secondary={t('settings.modals.backup.auto.changeHelper')}
           />
           <Switch
-            edge="end"
             checked={values.changeEnabled}
             onChange={handleChangeToggle}
             disabled={disabled}

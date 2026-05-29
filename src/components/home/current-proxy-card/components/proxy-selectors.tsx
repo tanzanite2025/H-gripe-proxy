@@ -1,7 +1,14 @@
 import { useTranslation } from 'react-i18next'
 
 import { Chip } from '@/components/tailwind/Chip'
-import { FormControl, InputLabel, MenuItem, Select, SelectChangeEvent } from '@/components/tailwind/Select'
+import {
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  type SelectChangeEvent,
+  type SelectPrimitiveValue,
+} from '@/components/tailwind/Select'
 import delayManager from '@/services/delay'
 import { cn } from '@/utils/cn'
 
@@ -32,17 +39,18 @@ export const ProxySelectors = ({
   const { t } = useTranslation()
 
   // 自定义渲染选择框中的值
-  const renderProxyValue = (selected: string) => {
-    if (!selected || !state.proxyData.records[selected]) return selected
+  const renderProxyValue = (selected: SelectPrimitiveValue) => {
+    const selectedValue = String(selected)
+    if (!selectedValue || !state.proxyData.records[selectedValue]) return selectedValue
 
     const delayValue = delayManager.getDelayFix(
-      state.proxyData.records[selected],
+      state.proxyData.records[selectedValue],
       state.selection.group,
     )
 
     return (
       <div className="flex justify-between">
-        <div className="truncate">{selected}</div>
+        <div className="truncate">{selectedValue}</div>
         <Chip
           size="small"
           label={delayManager.formatDelay(delayValue)}

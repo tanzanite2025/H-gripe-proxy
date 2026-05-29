@@ -3,14 +3,13 @@
  * 显示 DNS 是否泄漏，提供修复建议
  */
 
-import {
-  ErrorOutlined,
-  RefreshOutlined,
-  SecurityOutlined,
-} from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
+import {
+  AlertCircle,
+  RefreshCw,
+  Shield,
+} from 'lucide-react'
 import { forwardRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/tailwind/Button'
 import { IconButton } from '@/components/tailwind/IconButton'
@@ -25,18 +24,17 @@ import { EnhancedCard } from './enhanced-card'
 
 const DNSLeakCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
   ({ children }, ref) => {
-    const { t } = useTranslation()
     const { refetch } = useDNSLeakDetection()
 
     return (
       <EnhancedCard
         title="DNS 安全检测"
-        icon={<SecurityOutlined />}
+        icon={<Shield className="h-5 w-5" />}
         iconColor="info"
         ref={ref}
         action={
           <IconButton size="small" onClick={() => refetch()}>
-            <RefreshOutlined />
+            <RefreshCw className="h-4 w-4" />
           </IconButton>
         }
       >
@@ -96,7 +94,7 @@ const DNSLeakCardUI = ({
   if (error || result?.error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-error">
-        <ErrorOutlined className="text-4xl mb-2" />
+        <AlertCircle className="mb-2 h-10 w-10" />
         <p className="text-base text-error">
           {error instanceof Error ? error.message : result?.error || '检测失败'}
         </p>
@@ -112,18 +110,53 @@ const DNSLeakCardUI = ({
   }
 
   const riskInfo = getDNSLeakRiskDescription(result.riskLevel)
+  const statusMessage = result.observedLeak
+    ? '已观测到外部 DNS 泄漏迹象'
+    : result.runtimeRiskDetected
+      ? '当前未观测到外部泄漏，但运行态存在 DNS 风险'
+      : result.observationIncomplete
+        ? '当前外部观测不完整，结果偏保守'
+        : '当前未发现 DNS 泄漏或运行态风险'
 
   return (
     <div className="flex flex-col gap-3">
       {/* 风险状态 */}
       <div className="flex items-start gap-2">
-        <SecurityOutlined className={`text-2xl ${riskInfo.color}`} />
+        <Shield className={`h-6 w-6 ${riskInfo.color}`} />
         <div className="flex-1">
           <p className={`text-base font-medium ${riskInfo.color}`}>
             {riskInfo.title}
           </p>
           <p className="text-xs text-text-secondary mt-0.5">
             {riskInfo.description}
+          </p>
+          <p className="text-xs text-text-secondary mt-1">
+            {statusMessage}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="p-2 bg-surface-variant rounded">
+          <p className="text-xs text-text-secondary mb-1">结果判定</p>
+          <p className="text-sm font-medium">
+            {result.assessment === 'observed-leak'
+              ? '已观测泄漏'
+              : result.assessment === 'runtime-risk'
+                ? '运行态风险'
+                : result.assessment === 'inconclusive'
+                  ? '结果不完整'
+                  : '安全'}
+          </p>
+        </div>
+        <div className="p-2 bg-surface-variant rounded">
+          <p className="text-xs text-text-secondary mb-1">结果置信度</p>
+          <p className="text-sm font-medium">
+            {result.confidence === 'high'
+              ? '高'
+              : result.confidence === 'medium'
+                ? '中'
+                : '低'}
           </p>
         </div>
       </div>
@@ -142,13 +175,52 @@ const DNSLeakCardUI = ({
         </div>
       </div>
 
+      {!result.locationComparable && (
+        <div className="p-2 bg-surface-variant rounded text-xs text-text-secondary">
+          当前 DNS 位置与出口位置尚不可直接比较，结果主要基于现有外部观测与运行态风险信号。
+        </div>
+      )}
+
+      {showDetails && result.warnings.length > 0 && (
+        <div className="p-2 bg-surface-variant rounded text-xs">
+          <p className="font-medium mb-1">观测提示：</p>
+          <div className="space-y-0.5 text-text-secondary">
+            {result.warnings.map((warning) => (
+              <p key={warning}>{warning}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showDetails && result.runtimeRiskType.length > 0 && (
+        <div className="p-2 bg-surface-variant rounded text-xs">
+          <p className="font-medium mb-1">运行态风险：</p>
+          <div className="space-y-0.5 text-text-secondary">
+            {result.runtimeRiskType.map((item) => (
+              <p key={item}>{item}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showDetails && result.observedLeakType.length > 0 && (
+        <div className="p-2 bg-surface-variant rounded text-xs">
+          <p className="font-medium mb-1">外部观测信号：</p>
+          <div className="space-y-0.5 text-text-secondary">
+            {result.observedLeakType.map((item) => (
+              <p key={item}>{item}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* DNS 服务器列表 */}
       {showDetails && result.dnsServers.length > 0 && (
         <div className="p-2 bg-surface-variant rounded">
           <p className="text-xs font-medium mb-2">DNS 服务器：</p>
           <div className="space-y-1.5">
-            {result.dnsServers.map((dns, index) => (
-              <div key={index} className="text-xs">
+            {result.dnsServers.map((dns) => (
+              <div key={`${dns.ip}-${dns.hostname ?? ''}`} className="text-xs">
                 <p className="uds-mono font-medium">{dns.ip}</p>
                 {dns.hostname && (
                   <p className="text-text-secondary">{dns.hostname}</p>
@@ -171,8 +243,8 @@ const DNSLeakCardUI = ({
         <div className="p-2 bg-surface-variant rounded text-xs">
           <p className="font-medium mb-1">修复建议：</p>
           <div className="space-y-0.5 text-text-secondary">
-            {result.recommendations.map((item, index) => (
-              <p key={index}>{item}</p>
+            {result.recommendations.map((item) => (
+              <p key={item}>{item}</p>
             ))}
           </div>
         </div>

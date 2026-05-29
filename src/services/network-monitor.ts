@@ -3,6 +3,8 @@
  * 监听网络在线/离线状态，并定期检测网络质量
  */
 
+import { fetch } from '@tauri-apps/plugin-http'
+
 export type NetworkQuality = 'good' | 'poor' | 'offline'
 
 export interface NetworkStatus {

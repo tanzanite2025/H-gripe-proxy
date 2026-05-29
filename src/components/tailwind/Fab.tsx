@@ -1,12 +1,11 @@
-import React from 'react'
+import React, { type ButtonHTMLAttributes } from 'react'
 
-export interface FabProps {
+export interface FabProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: React.ReactNode
   size?: 'small' | 'medium' | 'large'
   variant?: 'circular' | 'extended'
-  color?: 'default' | 'primary' | 'secondary'
+  color?: 'default' | 'primary' | 'secondary' | 'inherit'
   className?: string
-  onClick?: () => void
 }
 
 export const Fab = React.forwardRef<HTMLButtonElement, FabProps>(
@@ -21,6 +20,7 @@ export const Fab = React.forwardRef<HTMLButtonElement, FabProps>(
       default: 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600',
       primary: 'bg-blue-500 text-white hover:bg-blue-600',
       secondary: 'bg-purple-500 text-white hover:bg-purple-600',
+      inherit: 'bg-transparent text-inherit hover:bg-black/5 dark:hover:bg-white/5',
     }
 
     return (

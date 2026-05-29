@@ -1,11 +1,11 @@
+import { Copy } from 'lucide-react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { alpha, Box, Button, IconButton } from '@/components/tailwind'
-import { Copy } from '@/components/tailwind/icons'
+import { Box, Button, IconButton } from '@/components/tailwind'
 import { useNetworkInterfaces } from '@/hooks/network/use-network'
 import { showNotice } from '@/services/notice-service'
 
@@ -42,7 +42,7 @@ export function NetworkInterfaceViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Box>
         </Box>
       }
-      contentSx={{ width: 450 }}
+      panelStyle={{ width: 450 }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onClose={() => setOpen(false)}
@@ -113,16 +113,7 @@ const AddressDisplay = ({
   return (
     <Box className="flex justify-between my-2">
       <Box>{label}</Box>
-      <Box
-        sx={({ palette }) => ({
-          borderRadius: '8px',
-          padding: '2px 2px 2px 8px',
-          background:
-            palette.mode === 'dark'
-              ? alpha(palette.background.paper, 0.3)
-              : alpha(palette.grey[400], 0.3),
-        })}
-      >
+      <Box className="inline-flex items-center rounded-lg bg-black/5 py-[2px] pl-2 pr-[2px] dark:bg-white/10">
         <Box className="inline select-text">{content}</Box>
         <IconButton
           size="small"

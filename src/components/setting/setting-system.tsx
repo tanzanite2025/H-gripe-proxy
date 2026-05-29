@@ -1,14 +1,12 @@
-import React, { useRef } from 'react'
+﻿import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DialogRef, Switch, TooltipIcon } from '@/components/base'
+import { Switch, TooltipIcon } from '@/components/base'
 import ProxyControlSwitches from '@/components/ui/proxy-control-switches'
 import { useVerge } from '@/hooks/system'
 
 import { GuardState } from './components/proxy/guard-state'
 import { SettingList, SettingItem } from './components/shared/setting-item'
-import { SysproxyViewer } from './components/proxy/system-proxy'
-import { TunViewer } from './components/network/tun-config'
 
 interface Props {
   onError?: (err: Error) => void
@@ -21,9 +19,6 @@ const SettingSystem = ({ onError }: Props) => {
 
   const { enable_auto_launch, enable_silent_start } = verge ?? {}
 
-  const sysproxyRef = useRef<DialogRef>(null)
-  const tunRef = useRef<DialogRef>(null)
-
   const onSwitchFormat = (
     _e: React.ChangeEvent<HTMLInputElement>,
     value: boolean,
@@ -34,9 +29,6 @@ const SettingSystem = ({ onError }: Props) => {
 
   return (
     <SettingList title={t('settings.sections.system.title')}>
-      <SysproxyViewer ref={sysproxyRef} />
-      <TunViewer ref={tunRef} />
-
       <ProxyControlSwitches
         label={t('settings.sections.system.toggles.tunMode')}
         onError={onError}
@@ -58,18 +50,18 @@ const SettingSystem = ({ onError }: Props) => {
           }}
           onGuard={async (e) => {
             try {
-              // 先触发UI更新立即看到反馈
+              // 閸忓牐袝閸欐叅I閺囧瓨鏌婄粩瀣祮閻鍩岄崣宥夘洯
               onChangeData({ enable_auto_launch: e })
               await patchVerge({ enable_auto_launch: e })
               return Promise.resolve()
             } catch (error) {
-              // 如果出错，恢复原始状态
+              // 婵″倹鐏夐崙娲晩閿涘本浠径宥呭斧婵濮搁幀?
               onChangeData({ enable_auto_launch: !e })
               return Promise.reject(error)
             }
           }}
         >
-          <Switch edge="end" />
+          <Switch />
         </GuardState>
       </SettingItem>
 
@@ -78,7 +70,7 @@ const SettingSystem = ({ onError }: Props) => {
         extra={
           <TooltipIcon
             title={t('settings.sections.system.tooltips.silentStart')}
-            sx={{ opacity: '0.7' }}
+            className="opacity-70"
           />
         }
       >
@@ -90,7 +82,7 @@ const SettingSystem = ({ onError }: Props) => {
           onChange={(e) => onChangeData({ enable_silent_start: e })}
           onGuard={(e) => patchVerge({ enable_silent_start: e })}
         >
-          <Switch edge="end" />
+          <Switch />
         </GuardState>
       </SettingItem>
     </SettingList>
@@ -98,3 +90,4 @@ const SettingSystem = ({ onError }: Props) => {
 }
 
 export default SettingSystem
+

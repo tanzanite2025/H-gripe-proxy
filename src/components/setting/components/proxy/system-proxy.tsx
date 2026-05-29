@@ -101,12 +101,12 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   } = verge ?? {}
 
   const [value, setValue] = useState({
-    guard: enable_proxy_guard,
+    guard: enable_proxy_guard ?? false,
     enable_bypass_check: enable_bypass_check ?? true,
-    bypass: system_proxy_bypass,
+    bypass: system_proxy_bypass ?? '',
     duration: proxy_guard_duration ?? 10,
     use_default: use_default_bypass ?? true,
-    pac: proxy_auto_config,
+    pac: proxy_auto_config ?? false,
     pac_content: pac_file_content ?? DEFAULT_PAC,
     proxy_host: proxy_host ?? '127.0.0.1',
   })
@@ -211,12 +211,12 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     open: () => {
       setOpen(true)
       setValue({
-        guard: enable_proxy_guard,
+        guard: enable_proxy_guard ?? false,
         enable_bypass_check: enable_bypass_check ?? true,
-        bypass: system_proxy_bypass,
+        bypass: system_proxy_bypass ?? '',
         duration: proxy_guard_duration ?? 10,
         use_default: use_default_bypass ?? true,
-        pac: proxy_auto_config,
+        pac: proxy_auto_config ?? false,
         pac_content: pac_file_content ?? DEFAULT_PAC,
         proxy_host: proxy_host ?? '127.0.0.1',
       })

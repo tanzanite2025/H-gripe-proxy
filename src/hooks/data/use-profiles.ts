@@ -6,6 +6,7 @@ import {
   getProfiles,
   patchProfile,
   patchProfilesConfig,
+  syncTrayProxySelection,
 } from '@/services/cmds'
 import { queryClient } from '@/services/query-client'
 import { debugLog } from '@/utils/misc'
@@ -179,6 +180,7 @@ export const useProfiles = () => {
           hasChange = true
           try {
             await selectNodeForGroup(name, savedProxy)
+            await syncTrayProxySelection()
           } catch (error: unknown) {
             console.warn(
               `[ActivateSelected] 切换代理组 ${name} 失败:`,

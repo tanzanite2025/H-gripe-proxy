@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { useProxySelection } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
 import { calcuProxies } from '@/services/cmds'
 
-import type { HeadState } from '../../use-head-state'
 import { useRenderList } from '../../use-render-list'
 
 interface UseProxyGroupsOptions {

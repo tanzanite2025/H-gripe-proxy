@@ -38,6 +38,26 @@ const LazyIpInfoCard = lazy(() =>
     default: module.IpInfoCard,
   })),
 )
+const LazyProxyDetectionCard = lazy(() =>
+  import('@/components/home/proxy-detection-card').then((module) => ({
+    default: module.ProxyDetectionCard,
+  })),
+)
+const LazyDNSLeakCard = lazy(() =>
+  import('@/components/home/dns-leak-card').then((module) => ({
+    default: module.DNSLeakCard,
+  })),
+)
+const LazySpeedTestCard = lazy(() =>
+  import('@/components/home/speed-test-card').then((module) => ({
+    default: module.SpeedTestCard,
+  })),
+)
+const LazyWebRTCLeakCard = lazy(() =>
+  import('@/components/home/webrtc-leak-card').then((module) => ({
+    default: module.WebRTCLeakCard,
+  })),
+)
 const LazyClashInfoCard = lazy(() =>
   import('@/components/home/clash-info-card').then((module) => ({
     default: module.ClashInfoCard,
@@ -61,6 +81,10 @@ interface HomeCardsSettings {
   systeminfo: boolean
   test: boolean
   ip: boolean
+  proxyDetection: boolean
+  dnsLeak: boolean
+  speedTest: boolean
+  webrtcLeak: boolean
   [key: string]: boolean
 }
 
@@ -236,6 +260,58 @@ const HomeSettingsDialog = ({
               </span>
             }
           />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cards.proxyDetection || false}
+                onChange={() => handleToggle('proxyDetection')}
+              />
+            }
+            label={
+              <span className="uds-label">
+                代理检测
+              </span>
+            }
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cards.dnsLeak || false}
+                onChange={() => handleToggle('dnsLeak')}
+              />
+            }
+            label={
+              <span className="uds-label">
+                DNS 泄漏检测
+              </span>
+            }
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cards.speedTest || false}
+                onChange={() => handleToggle('speedTest')}
+              />
+            }
+            label={
+              <span className="uds-label">
+                速度测试
+              </span>
+            }
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cards.webrtcLeak || false}
+                onChange={() => handleToggle('webrtcLeak')}
+              />
+            }
+            label={
+              <span className="uds-label">
+                WebRTC 泄漏检测
+              </span>
+            }
+          />
         </FormGroup>
       </DialogContent>
       <DialogActions>
@@ -273,6 +349,10 @@ const HomePage = () => {
       systeminfo: true,
       test: true,
       ip: true,
+      proxyDetection: false,
+      dnsLeak: false,
+      speedTest: false,
+      webrtcLeak: false,
     }),
     [],
   )
@@ -381,6 +461,30 @@ const HomePage = () => {
         'ip',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
           <LazyIpInfoCard />
+        </Suspense>,
+      ),
+      renderCard(
+        'proxyDetection',
+        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+          <LazyProxyDetectionCard />
+        </Suspense>,
+      ),
+      renderCard(
+        'dnsLeak',
+        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+          <LazyDNSLeakCard />
+        </Suspense>,
+      ),
+      renderCard(
+        'speedTest',
+        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+          <LazySpeedTestCard />
+        </Suspense>,
+      ),
+      renderCard(
+        'webrtcLeak',
+        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+          <LazyWebRTCLeakCard />
         </Suspense>,
       ),
       renderCard(

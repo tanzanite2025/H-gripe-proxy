@@ -2,11 +2,19 @@
  * 高级功能统一配置页面
  */
 
-import { useState } from 'react'
 import { useLockFn } from 'ahooks'
-import { Box, Tabs, Tab, Alert, Button, Stack } from '@/components/tailwind'
+import { useState } from 'react'
+
+import { EgressIdentityPanel } from '@/components/advanced/egress-identity-panel'
+import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
+import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
+import { SecurityConfigPanel } from '@/components/advanced/security-config-panel'
+import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { BasePage } from '@/components/base'
-import { showNotice } from '@/services/notice-service'
+import { SessionAffinityBindings as SessionAffinityBindingsPanel } from '@/components/security/session-affinity-bindings'
+import { SessionAffinityConfig as SessionAffinityConfigPanel } from '@/components/security/session-affinity-config'
+import { Box, Tabs, Tab, Alert, Button, Stack } from '@/components/tailwind'
+import { useConfigLoader, useConfigSaver } from '@/hooks'
 import {
   getAdvancedConfig,
   saveAdvancedConfig,
@@ -14,12 +22,7 @@ import {
   coordinatorGetStatus,
   type AdvancedConfig,
 } from '@/services/coordinator'
-import { SecurityConfigPanel } from '@/components/advanced/security-config-panel'
-import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
-import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
-import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
-import { DnsAdvancedPanel } from '@/components/advanced/dns-advanced-panel'
-import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
+import { showNotice } from '@/services/notice-service'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -44,24 +47,28 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function AdvancedPage() {
+  const isLinux = window.navigator.platform.toLowerCase().includes('linux')
   const [tabValue, setTabValue] = useState(0)
   const [localConfig, setLocalConfig] = useState<AdvancedConfig | null>(null)
 
-  // 使用通用 Hook 加载配置和状态
-  const { data, loading, reload } = useMultiConfigLoader({
-    loaders: {
-      config: getAdvancedConfig,
-      status: coordinatorGetStatus,
+  // 使用通用 Hook 分别加载配置和运行态状态，避免刷新状态时覆盖未保存草稿
+  const { data: loadedConfig, loading: configLoading, reload: reloadConfig } = useConfigLoader({
+    loadFn: getAdvancedConfig,
+    onSuccess: (config) => {
+      setLocalConfig(config)
     },
-    onSuccess: (result) => {
-      setLocalConfig(result.config)
-    },
+  })
+  const { data: status, loading: statusLoading, reload: reloadStatus } = useConfigLoader({
+    loadFn: coordinatorGetStatus,
   })
 
   // 使用通用 Hook 保存配置
   const { save, saving } = useConfigSaver({
     saveFn: saveAdvancedConfig,
-    onSuccess: reload,
+    onSuccess: () => {
+      void reloadConfig()
+      void reloadStatus()
+    },
     successMessage: '配置已保存并应用',
   })
 
@@ -83,15 +90,21 @@ export default function AdvancedPage() {
     }
   })
 
-  if (loading || !data || !localConfig) {
+  const securityTabIndex = 0
+  const egressIdentityTabIndex = 1
+  const sessionAffinityTabIndex = 2
+  const multipathTabIndex = 3
+  const xdpTabIndex = 4
+  const performanceTabIndex = isLinux ? 5 : 4
+
+
+  if (configLoading || statusLoading || !loadedConfig || !status || !localConfig) {
     return (
       <BasePage title="高级功能">
         <Box className="p-2">加载中...</Box>
       </BasePage>
     )
   }
-
-  const { config, status } = data
 
   return (
     <BasePage
@@ -116,7 +129,7 @@ export default function AdvancedPage() {
         </Stack>
       }
     >
-      {status?.security_compromised && (
+      {status?.securityCompromised && (
         <Alert severity="error" className="mb-2">
           ⚠️ 安全状态已被破坏！请立即检查系统安全。
         </Alert>
@@ -125,37 +138,62 @@ export default function AdvancedPage() {
       <Box className="border-b border-gray-200 dark:border-gray-700">
         <Tabs
           value={tabValue}
-          onChange={(_, v) => setTabValue(v)}
+          onChange={(_, v) => setTabValue(Number(v))}
           aria-label="高级功能配置"
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="安全防御" />
-          <Tab label="多路径路由" />
-          {window.navigator.platform.toLowerCase().includes('linux') && (
-            <Tab label="XDP 代理" />
+          <Tab label="安全防御" value={securityTabIndex} />
+          <Tab label="出口身份" value={egressIdentityTabIndex} />
+          <Tab label="会话绑定" value={sessionAffinityTabIndex} />
+          <Tab label="多路径路由" value={multipathTabIndex} />
+          {isLinux && (
+            <Tab label="XDP 代理" value={xdpTabIndex} />
           )}
-          <Tab label="DNS 高级功能" />
-          <Tab label="性能监控" />
+          <Tab label="性能监控" value={performanceTabIndex} />
         </Tabs>
       </Box>
 
-      <TabPanel value={tabValue} index={0}>
+      <TabPanel value={tabValue} index={securityTabIndex}>
         <SecurityConfigPanel
           config={localConfig.security}
           onChange={(security) => setLocalConfig({ ...localConfig, security })}
         />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={egressIdentityTabIndex}>
+        <EgressIdentityPanel
+          config={localConfig.egress_identity}
+          status={status}
+          onRefreshStatus={reloadStatus}
+          onChange={(egress_identity) =>
+            setLocalConfig({ ...localConfig, egress_identity })
+          }
+        />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={sessionAffinityTabIndex}>
+        <div className="space-y-4">
+          <SessionAffinityConfigPanel
+            config={localConfig.session_affinity}
+            onChange={(session_affinity) =>
+              setLocalConfig({ ...localConfig, session_affinity })
+            }
+            hideSaveButton
+          />
+          <SessionAffinityBindingsPanel status={status} onRefreshStatus={reloadStatus} />
+        </div>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={multipathTabIndex}>
         <MultipathConfigPanel
           config={localConfig.multipath}
           onChange={(multipath) => setLocalConfig({ ...localConfig, multipath })}
         />
       </TabPanel>
 
-      {window.navigator.platform.toLowerCase().includes('linux') && (
-        <TabPanel value={tabValue} index={2}>
+      {isLinux && (
+        <TabPanel value={tabValue} index={xdpTabIndex}>
           <XdpConfigPanel
             config={localConfig.xdp!}
             onChange={(xdp) => setLocalConfig({ ...localConfig, xdp })}
@@ -163,12 +201,8 @@ export default function AdvancedPage() {
         </TabPanel>
       )}
 
-      <TabPanel value={tabValue} index={window.navigator.platform.toLowerCase().includes('linux') ? 3 : 2}>
-        <DnsAdvancedPanel />
-      </TabPanel>
-
-      <TabPanel value={tabValue} index={window.navigator.platform.toLowerCase().includes('linux') ? 4 : 3}>
-        <PerformanceMonitor status={status} onRefresh={reload} />
+      <TabPanel value={tabValue} index={performanceTabIndex}>
+        <PerformanceMonitor status={status} onRefresh={reloadStatus} />
       </TabPanel>
     </BasePage>
   )

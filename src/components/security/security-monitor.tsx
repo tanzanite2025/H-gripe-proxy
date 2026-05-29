@@ -25,6 +25,8 @@ export default function SecurityMonitor() {
     compromised: false,
     debugger_present: false,
     memory_scanning: false,
+    leak_detected: false,
+    leak_type: null,
   })
   const [decoyPath, setDecoyPath] = useState('config_decoy.yaml')
   const [encryptionKey, setEncryptionKey] = useState('')
@@ -40,6 +42,9 @@ export default function SecurityMonitor() {
 
         if (newStatus.compromised) {
           showNotice.error('🚨 安全状态已被破坏！')
+        }
+        if (newStatus.leak_detected) {
+          showNotice.error(`🚨 泄漏检测: ${newStatus.leak_type ?? '未知类型'}`)
         }
       } catch (error) {
         console.error('检查安全状态失败:', error)

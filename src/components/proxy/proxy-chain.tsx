@@ -15,15 +15,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowDown, Trash2, GripVertical, Link, LinkOff, AlertTriangle, HelpCircle } from 'lucide-react'
-
-import { Alert } from '@/components/tailwind/Alert'
-import { Button } from '@/components/tailwind/Button'
-import { Chip } from '@/components/tailwind/Chip'
-import { IconButton } from '@/components/tailwind/IconButton'
-import { Paper } from '@/components/tailwind/Paper'
-import { useThemeMode } from '@/services/states'
 import yaml from 'js-yaml'
+import { ArrowDown, Trash2, GripVertical, Link, Link2Off, AlertTriangle, HelpCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -32,8 +25,13 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { TooltipIcon } from '@/components/base'
+import { Alert } from '@/components/tailwind/Alert'
+import { Button } from '@/components/tailwind/Button'
+import { Chip } from '@/components/tailwind/Chip'
+import { IconButton } from '@/components/tailwind/IconButton'
+import { Paper } from '@/components/tailwind/Paper'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import { updateProxyChainConfigInRuntime } from '@/services/cmds'
+import { syncTrayProxySelection, updateProxyChainConfigInRuntime } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
 
 import { ProxyChainHelpDialog } from './proxy-chain-help-dialog'
@@ -93,8 +91,6 @@ const SortableItem = ({
   onRemove,
 }: SortableItemProps) => {
   const { t } = useTranslation()
-  const mode = useThemeMode()
-  const isDark = mode === 'dark'
   
   const {
     attributes,
@@ -212,7 +208,6 @@ export const ProxyChain = ({
   selectedGroup,
 }: ProxyChainProps) => {
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
   const chainWarning = t('proxies.page.chain.warning')
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
@@ -304,10 +299,12 @@ export const ProxyChain = ({
         if (targetGroup) {
           try {
             await selectNodeForGroup(targetGroup, 'DIRECT')
+            await syncTrayProxySelection()
           } catch {
             if (proxyChain.length >= 1) {
               try {
                 await selectNodeForGroup(targetGroup, proxyChain[0].name)
+                await syncTrayProxySelection()
               } catch {
                 // ignore
               }
@@ -357,6 +354,7 @@ export const ProxyChain = ({
       const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
 
       await selectNodeForGroup(targetGroup || 'GLOBAL', lastNode.name)
+      await syncTrayProxySelection()
       localStorage.setItem('proxy-chain-group', targetGroup || 'GLOBAL')
       localStorage.setItem('proxy-chain-exit-node', lastNode.name)
 
@@ -487,7 +485,7 @@ export const ProxyChain = ({
           <Button
             size="small"
             variant={isConnected ? 'outlined' : 'primary'}
-            startIcon={isConnected ? <LinkOff className="h-4 w-4" /> : <Link className="h-4 w-4" />}
+            startIcon={isConnected ? <Link2Off className="h-4 w-4" /> : <Link className="h-4 w-4" />}
             onClick={handleConnect}
             disabled={
               isConnecting ||

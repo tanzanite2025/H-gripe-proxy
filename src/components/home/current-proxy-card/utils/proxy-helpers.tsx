@@ -1,12 +1,12 @@
 import {
-  SignalWifi0Bar as SignalNone,
-  SignalWifi1Bar as SignalWeak,
-  SignalWifi2Bar as SignalMedium,
-  SignalWifi3Bar as SignalGood,
-  SignalWifi4Bar as SignalStrong,
+  Signal,
+  SignalHigh,
+  SignalLow,
+  SignalMedium,
+  SignalZero,
   WifiOff as SignalError,
-} from '@mui/icons-material'
-import React from 'react'
+} from 'lucide-react'
+import type { ReactElement } from 'react'
 
 import delayManager from '@/services/delay'
 
@@ -39,25 +39,25 @@ export function convertDelayColor(
  * 根据延迟值获取信号图标和描述
  */
 export function getSignalIcon(delay: number): {
-  icon: React.ReactElement
+  icon: ReactElement
   text: string
   color: string
 } {
   if (delay === -2)
-    return { icon: <SignalNone />, text: '测试中', color: 'text.secondary' }
+    return { icon: <SignalZero className="h-5 w-5" />, text: '测试中', color: '#9ca3af' }
   if (delay === -1)
-    return { icon: <SignalNone />, text: '未测试', color: 'text.secondary' }
+    return { icon: <SignalZero className="h-5 w-5" />, text: '未测试', color: '#9ca3af' }
   if (delay > 1e5)
-    return { icon: <SignalError />, text: '错误', color: 'error.main' }
+    return { icon: <SignalError className="h-5 w-5" />, text: '错误', color: '#dc2626' }
   if (delay === 0 || delay >= 10000)
-    return { icon: <SignalError />, text: '超时', color: 'error.main' }
+    return { icon: <SignalError className="h-5 w-5" />, text: '超时', color: '#dc2626' }
   if (delay >= 500)
-    return { icon: <SignalWeak />, text: '延迟较高', color: 'error.main' }
+    return { icon: <SignalLow className="h-5 w-5" />, text: '延迟较高', color: '#dc2626' }
   if (delay >= 300)
-    return { icon: <SignalMedium />, text: '延迟中等', color: 'warning.main' }
+    return { icon: <SignalMedium className="h-5 w-5" />, text: '延迟中等', color: '#d97706' }
   if (delay >= 200)
-    return { icon: <SignalGood />, text: '延迟良好', color: 'info.main' }
-  return { icon: <SignalStrong />, text: '延迟极佳', color: 'success.main' }
+    return { icon: <SignalHigh className="h-5 w-5" />, text: '延迟良好', color: '#2563eb' }
+  return { icon: <Signal className="h-5 w-5" />, text: '延迟极佳', color: '#16a34a' }
 }
 
 /**

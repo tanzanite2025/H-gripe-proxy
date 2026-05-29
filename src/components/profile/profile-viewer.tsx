@@ -202,7 +202,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       onOk={handleOk}
       setValue={setValue}
       getValues={getValues}
-      fileDataRef={fileDataRef}
+      onFileDataChange={(value) => {
+        fileDataRef.current = value
+      }}
     />
   )
 }

@@ -3,6 +3,8 @@
  */
 
 import { AlertTriangle, Bug, Copy, Shield, Trash2 } from 'lucide-react'
+import type { ChangeEvent } from 'react'
+
 import { Button, Switch, TextField } from '@/components/tailwind'
 import type { SecurityStatus } from '@/services/security'
 
@@ -109,6 +111,19 @@ export default function SecurityMonitorUI({
                   {status.memory_scanning ? '检测到内存扫描' : '无内存扫描'}
                 </span>
               </div>
+              <div
+                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
+                  status.leak_detected
+                    ? 'bg-red-500 text-white'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                <span>
+                  {status.leak_detected
+                    ? `泄漏: ${status.leak_type ?? '未知'}`
+                    : '无泄漏'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -120,7 +135,7 @@ export default function SecurityMonitorUI({
             <TextField
               label="假配置文件路径"
               value={decoyPath}
-              onChange={(e) => onDecoyPathChange(e.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => onDecoyPathChange(event.target.value)}
               fullWidth
               helperText="放置假配置文件来误导扫描软件"
             />
@@ -202,7 +217,7 @@ export default function SecurityMonitorUI({
             <TextField
               label="确认码"
               value={selfDestructConfirm}
-              onChange={(e) => onSelfDestructConfirmChange(e.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => onSelfDestructConfirmChange(event.target.value)}
               placeholder="输入 CONFIRM_SELF_DESTRUCT"
               fullWidth
               helperText="手动触发自毁需要输入确认码"

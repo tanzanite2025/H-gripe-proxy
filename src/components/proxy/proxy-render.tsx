@@ -2,7 +2,6 @@ import { ChevronDown, ChevronUp, Inbox } from 'lucide-react'
 import {
   Chip,
   ListItemText,
-  ListItemButton,
   Tooltip,
 } from '@/components/tailwind'
 import { useMemo } from 'react'
@@ -74,15 +73,20 @@ export const ProxyRender = (props: RenderProps) => {
 
   if (type === 0) {
     return (
-      <ListItemButton
-        dense
+      <div
+        role="button"
+        tabIndex={0}
+        className="mx-2 my-2 flex h-full items-center rounded-lg px-3 py-1.5 cursor-pointer transition-colors hover:bg-action-hover active:bg-action-selected"
         style={{
           background: itembackgroundcolor,
-          height: '100%',
-          margin: '8px 8px',
-          borderRadius: '8px',
         }}
         onClick={() => onHeadState(group.name, { open: !headState?.open })}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onHeadState(group.name, { open: !headState?.open })
+          }
+        }}
       >
         {enable_group_icon &&
           group.icon &&
@@ -143,7 +147,7 @@ export const ProxyRender = (props: RenderProps) => {
             <ChevronDown className="h-5 w-5" />
           )}
         </div>
-      </ListItemButton>
+      </div>
     )
   }
 

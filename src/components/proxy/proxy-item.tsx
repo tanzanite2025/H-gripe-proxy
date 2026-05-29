@@ -3,10 +3,9 @@ import { CheckCircle } from 'lucide-react'
 import { BaseLoading } from '@/components/base'
 import {
   ListItem,
-  ListItemButton,
   ListItemIcon,
-  ListItemText,
 } from '@/components/tailwind/List'
+import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProxyDelayState } from '@/hooks/network'
 import delayManager from '@/services/delay'
@@ -47,7 +46,9 @@ export const ProxyItem = (props: Props) => {
 
   return (
     <ListItem className="py-0 pl-2">
-      <ListItemButton
+      <div
+        role="button"
+        tabIndex={0}
         className={`rounded mb-2 h-10 group ${
           selected
             ? `border-l-[3px] ml-[-3px] w-[calc(100%+3px)]`
@@ -65,6 +66,12 @@ export const ProxyItem = (props: Props) => {
             : {}),
         }}
         onClick={() => onClick?.(proxy.name)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onClick?.(proxy.name)
+          }
+        }}
       >
         <ListItemText
           title={proxy.name}
@@ -192,7 +199,7 @@ export const ProxyItem = (props: Props) => {
             <CheckCircle className="the-icon h-4 w-4" />
           )}
         </ListItemIcon>
-      </ListItemButton>
+      </div>
     </ListItem>
   )
 }

@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 
 import { DialogRef, TooltipIcon } from '@/components/base'
 import { Button } from '@/components/tailwind/Button'
-import { Input } from '@/components/tailwind/Input'
+import { Box } from '@/components/tailwind/Box'
 import { MenuItem, Select } from '@/components/tailwind/Select'
+import { TextField } from '@/components/tailwind/TextField'
 import { useVerge } from '@/hooks/system'
 import { navItems } from '@/pages/_core/router'
 import { copyClashEnv } from '@/services/cmds'
@@ -203,53 +204,43 @@ const SettingVergeBasic = ({ onError }: Props) => {
       <SettingItem
         label={t('settings.components.verge.basic.fields.startupScript')}
       >
-        <GuardState
-          value={startup_script ?? ''}
-          onCatch={onError}
-          onFormat={(e: any) => e.target.value}
-          onChange={(e) => onChangeData({ startup_script: e })}
-          onGuard={(e) => patchVerge({ startup_script: e })}
-        >
-          <Input
-            value={startup_script}
+        <Box className="flex items-center gap-2">
+          <TextField
+            value={startup_script ?? ''}
             disabled
             className="w-[230px]"
-            endAdornment={
-              <>
-                <Button
-                  onClick={async () => {
-                    const selected = await open({
-                      directory: false,
-                      multiple: false,
-                      filters: [
-                        {
-                          name: 'Shell Script',
-                          extensions: ['sh', 'bat', 'ps1'],
-                        },
-                      ],
-                    })
-                    if (selected) {
-                      onChangeData({ startup_script: `${selected}` })
-                      patchVerge({ startup_script: `${selected}` })
-                    }
-                  }}
-                >
-                  {t('settings.components.verge.basic.actions.browse')}
-                </Button>
-                {startup_script && (
-                  <Button
-                    onClick={async () => {
-                      onChangeData({ startup_script: '' })
-                      patchVerge({ startup_script: '' })
-                    }}
-                  >
-                    {t('shared.actions.clear')}
-                  </Button>
-                )}
-              </>
-            }
-          ></Input>
-        </GuardState>
+          />
+          <Button
+            onClick={async () => {
+              const selected = await open({
+                directory: false,
+                multiple: false,
+                filters: [
+                  {
+                    name: 'Shell Script',
+                    extensions: ['sh', 'bat', 'ps1'],
+                  },
+                ],
+              })
+              if (selected) {
+                onChangeData({ startup_script: `${selected}` })
+                patchVerge({ startup_script: `${selected}` })
+              }
+            }}
+          >
+            {t('settings.components.verge.basic.actions.browse')}
+          </Button>
+          {startup_script && (
+            <Button
+              onClick={async () => {
+                onChangeData({ startup_script: '' })
+                patchVerge({ startup_script: '' })
+              }}
+            >
+              {t('shared.actions.clear')}
+            </Button>
+          )}
+        </Box>
       </SettingItem>
 
       <SettingItem

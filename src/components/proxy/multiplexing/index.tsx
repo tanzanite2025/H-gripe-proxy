@@ -35,10 +35,20 @@ export function MultiplexingConfig({
     <div>
       {/* 如果支持多种多路复用，显示标签页 */}
       {(supportsSMUX && (supportsMieru || supportsSudoku)) && (
-        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-          {supportsSMUX && <Tab label="SMUX" />}
-          {supportsMieru && <Tab label="Mieru" />}
-          {supportsSudoku && <Tab label="Sudoku" />}
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) =>
+            setActiveTab(typeof v === 'number' ? v : Number(v) || 0)
+          }
+        >
+          {supportsSMUX && <Tab label="SMUX" value={0} />}
+          {supportsMieru && <Tab label="Mieru" value={supportsSMUX ? 1 : 0} />}
+          {supportsSudoku && (
+            <Tab
+              label="Sudoku"
+              value={supportsSMUX ? (supportsMieru ? 2 : 1) : 0}
+            />
+          )}
         </Tabs>
       )}
 

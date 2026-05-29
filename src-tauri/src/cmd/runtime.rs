@@ -1,10 +1,21 @@
 use super::CmdResult;
-use crate::{cmd::StringifyErr as _, config::Config, core::CoreManager};
+use crate::{
+    cmd::StringifyErr as _,
+    config::Config,
+    core::{
+        runtime_diagnostics::{
+            build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
+        },
+        CoreManager,
+        runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
+    },
+};
 use anyhow::{Context as _, anyhow};
 use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
+// Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
 /// 获取运行时配置
 #[tauri::command]
@@ -27,6 +38,21 @@ pub async fn get_runtime_yaml() -> CmdResult<String> {
                 .map(|s| s.into())
         })
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_dns_runtime_status() -> CmdResult<DnsRuntimeStatus> {
+    build_dns_runtime_status().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn test_dns_leak() -> CmdResult<DnsLeakTestResult> {
+    build_dns_leak_test_result().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn test_proxy_detection() -> CmdResult<ProxyDetectionResult> {
+    build_proxy_detection_result().await.stringify_err()
 }
 
 /// 获取运行时存在的键

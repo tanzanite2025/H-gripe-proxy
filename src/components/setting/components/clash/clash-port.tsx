@@ -1,6 +1,6 @@
 import { useLockFn, useRequest } from 'ahooks'
 import { Shuffle } from 'lucide-react'
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
@@ -216,7 +216,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.modals.clashPort.title')}
-      contentSx={{
+      panelStyle={{
         width: 400,
       }}
       okBtn={
@@ -245,7 +245,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               size="small"
               className="w-[80px] mr-2 text-xs"
               value={mixedPort}
-              onChange={(e) =>
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setMixedPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
               }
             />
@@ -276,7 +276,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               size="small"
               className="w-[80px] mr-2 text-xs"
               value={socksPort}
-              onChange={(e) =>
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setSocksPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
               }
               disabled={!socksEnabled}
@@ -293,7 +293,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
             <Switch
               size="small"
               checked={socksEnabled}
-              onChange={(_, c) => setSocksEnabled(c)}
+              onCheckedChange={setSocksEnabled}
               className="ml-2"
             />
           </div>
@@ -309,7 +309,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               size="small"
               className="w-[80px] mr-2 text-xs"
               value={httpPort}
-              onChange={(e) =>
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setHttpPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
               }
               disabled={!httpEnabled}
@@ -326,7 +326,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
             <Switch
               size="small"
               checked={httpEnabled}
-              onChange={(_, c) => setHttpEnabled(c)}
+              onCheckedChange={setHttpEnabled}
               className="ml-2"
             />
           </div>
@@ -343,7 +343,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
                 size="small"
                 className="w-[80px] mr-2 text-xs"
                 value={redirPort}
-                onChange={(e) =>
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
                   setRedirPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
                 }
                 disabled={!redirEnabled}
@@ -360,7 +360,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               <Switch
                 size="small"
                 checked={redirEnabled}
-                onChange={(_, c) => setRedirEnabled(c)}
+                onCheckedChange={setRedirEnabled}
                 className="ml-2"
               />
             </div>
@@ -378,7 +378,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
                 size="small"
                 className="w-[80px] mr-2 text-xs"
                 value={tproxyPort}
-                onChange={(e) =>
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
                   setTproxyPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
                 }
                 disabled={!tproxyEnabled}
@@ -395,7 +395,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               <Switch
                 size="small"
                 checked={tproxyEnabled}
-                onChange={(_, c) => setTproxyEnabled(c)}
+                onCheckedChange={setTproxyEnabled}
                 className="ml-2"
               />
             </div>

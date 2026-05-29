@@ -4,8 +4,11 @@
  * 在内存中放置诱饵数据，检测是否有进程在扫描内存
  */
 
+use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use tokio::runtime::Handle;
+use tokio::sync::RwLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// 蜜罐令牌（Canary Token）
@@ -154,24 +157,20 @@ pub struct HoneypotStats {
     pub total_accesses: u64,
 }
 
-/// 全局内存蜜罐实例
-static mut GLOBAL_HONEYPOT: Option<MemoryHoneypot> = None;
+/// 全局内存蜜罐实例（线程安全）
+static GLOBAL_HONEYPOT: Lazy<RwLock<Option<MemoryHoneypot>>> =
+    Lazy::new(|| RwLock::new(None));
 
 /// 初始化全局蜜罐
 pub fn init_global_honeypot() {
-    unsafe {
-        GLOBAL_HONEYPOT = Some(MemoryHoneypot::new(10));
-    }
+    let mut guard = Handle::current().block_on(GLOBAL_HONEYPOT.write());
+    *guard = Some(MemoryHoneypot::new(10));
 }
 
 /// 检查全局蜜罐
 pub fn check_global_honeypot() -> bool {
-    unsafe {
-        if let Some(ref honeypot) = GLOBAL_HONEYPOT {
-            return honeypot.check_compromise();
-        }
-    }
-    false
+    let guard = Handle::current().block_on(GLOBAL_HONEYPOT.read());
+    guard.as_ref().map(|h| h.check_compromise()).unwrap_or(false)
 }
 
 /// 内存扫描检测

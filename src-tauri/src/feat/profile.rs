@@ -25,6 +25,16 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     {
         Ok(_) => {
             logging!(info, Type::Tray, "切换代理成功: {} -> {}", group_name, proxy_name);
+            if let Err(error) = cmd::proxy::sync_runtime_stable_egress_selection().await {
+                logging!(
+                    warn,
+                    Type::Tray,
+                    "稳定出口运行态回写失败: {} -> {}, 错误: {}",
+                    group_name,
+                    proxy_name,
+                    error
+                );
+            }
             let _ = handle::Handle::app_handle().emit("verge://refresh-proxy-config", ());
             let _ = tray::Tray::global().update_menu().await;
             return;
@@ -48,6 +58,16 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     {
         Ok(_) => {
             logging!(info, Type::Tray, "代理切换回退成功: {} -> {}", group_name, proxy_name);
+            if let Err(error) = cmd::proxy::sync_runtime_stable_egress_selection().await {
+                logging!(
+                    warn,
+                    Type::Tray,
+                    "稳定出口运行态回写失败: {} -> {}, 错误: {}",
+                    group_name,
+                    proxy_name,
+                    error
+                );
+            }
             let _ = tray::Tray::global().update_menu().await;
         }
         Err(err) => {

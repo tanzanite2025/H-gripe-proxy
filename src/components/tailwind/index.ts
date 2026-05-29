@@ -27,9 +27,11 @@ export { Snackbar, type SnackbarProps } from './Snackbar'
 export { Select, type SelectProps, type SelectOption } from './Select'
 export { Switch, type SwitchProps } from './Switch'
 export { Chip, type ChipProps } from './Chip'
+export { Badge, type BadgeProps } from './Badge'
 export { Checkbox, type CheckboxProps } from './Checkbox'
 export { FormControlLabel, type FormControlLabelProps } from './FormControlLabel'
 export { FormGroup, type FormGroupProps } from './FormGroup'
+export { Radio, RadioGroup, type RadioProps, type RadioGroupProps } from './Radio'
 
 // 导航组件
 export { Tabs, Tab, type TabsProps, type TabProps } from './Tabs'

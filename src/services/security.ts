@@ -8,6 +8,8 @@ export interface SecurityStatus {
   compromised: boolean
   debugger_present: boolean
   memory_scanning: boolean
+  leak_detected: boolean
+  leak_type?: string | null
 }
 
 /**

@@ -1,15 +1,46 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
+import { forwardRef, type ElementType, type HTMLAttributes, type ReactNode } from 'react'
 
-export interface GridProps extends HTMLAttributes<HTMLDivElement> {
-  container?: boolean
-  item?: boolean
-  spacing?: number
-  size?: number | { xs?: number; sm?: number; md?: number; lg?: number; xl?: number }
+type ResponsiveGridValue = {
   xs?: number
   sm?: number
   md?: number
   lg?: number
   xl?: number
+}
+
+const getResponsiveClass = (
+  value: number | ResponsiveGridValue | undefined,
+  getClassName: (size: number) => string,
+) => {
+  if (value === undefined) {
+    return ''
+  }
+
+  if (typeof value === 'number') {
+    return getClassName(value)
+  }
+
+  const xsClass = value.xs !== undefined ? getClassName(value.xs) : ''
+  const smClass = value.sm !== undefined ? `sm:${getClassName(value.sm)}` : ''
+  const mdClass = value.md !== undefined ? `md:${getClassName(value.md)}` : ''
+  const lgClass = value.lg !== undefined ? `lg:${getClassName(value.lg)}` : ''
+  const xlClass = value.xl !== undefined ? `xl:${getClassName(value.xl)}` : ''
+
+  return [xsClass, smClass, mdClass, lgClass, xlClass].filter(Boolean).join(' ')
+}
+
+export interface GridProps extends HTMLAttributes<HTMLDivElement> {
+  container?: boolean
+  item?: boolean
+  spacing?: number | ResponsiveGridValue
+  columns?: number | ResponsiveGridValue
+  size?: number | ResponsiveGridValue
+  xs?: number
+  sm?: number
+  md?: number
+  lg?: number
+  xl?: number
+  component?: ElementType
   children?: ReactNode
 }
 
@@ -19,7 +50,9 @@ export const Grid = forwardRef<HTMLDivElement, GridProps>(
       container = false,
       item = false,
       spacing = 0,
+      columns,
       size,
+      component,
       xs,
       sm,
       md,
@@ -31,6 +64,8 @@ export const Grid = forwardRef<HTMLDivElement, GridProps>(
     },
     ref,
   ) => {
+    const Comp = (component ?? 'div') as ElementType
+
     // Handle size prop (MUI Grid2 API)
     if (size !== undefined) {
       if (typeof size === 'number') {
@@ -45,46 +80,39 @@ export const Grid = forwardRef<HTMLDivElement, GridProps>(
     }
 
     if (container) {
-      const gapClass = spacing > 0 ? `gap-${spacing}` : ''
+      const gapClass = getResponsiveClass(spacing, (current) => `gap-${current}`)
+      const colsClass =
+        getResponsiveClass(columns ?? 12, (current) => `grid-cols-${current}`) ||
+        'grid-cols-12'
+
       return (
-        <div
+        <Comp
           ref={ref}
-          className={`grid grid-cols-12 ${gapClass} ${className}`}
+          className={`grid ${colsClass} ${gapClass} ${className}`}
           {...props}
         >
           {children}
-        </div>
+        </Comp>
       )
     }
 
     if (item || xs || sm || md || lg || xl) {
-      // 计算列跨度
-      const getColSpan = (size?: number) => {
-        if (!size) return ''
-        return `col-span-${size}`
-      }
-
-      const colClasses = [
-        xs && getColSpan(xs),
-        sm && `sm:${getColSpan(sm)}`,
-        md && `md:${getColSpan(md)}`,
-        lg && `lg:${getColSpan(lg)}`,
-        xl && `xl:${getColSpan(xl)}`,
-      ]
-        .filter(Boolean)
-        .join(' ')
+      const colClasses = getResponsiveClass(
+        { xs, sm, md, lg, xl },
+        (current) => `col-span-${current}`,
+      )
 
       return (
-        <div ref={ref} className={`${colClasses} ${className}`} {...props}>
+        <Comp ref={ref} className={`${colClasses} ${className}`} {...props}>
           {children}
-        </div>
+        </Comp>
       )
     }
 
     return (
-      <div ref={ref} className={className} {...props}>
+      <Comp ref={ref} className={className} {...props}>
         {children}
-      </div>
+      </Comp>
     )
   },
 )

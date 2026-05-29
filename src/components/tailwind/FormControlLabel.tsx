@@ -1,4 +1,4 @@
-import { forwardRef, type ReactElement, cloneElement } from 'react'
+import { forwardRef, type ReactElement, cloneElement, isValidElement } from 'react'
 import { cn } from '@/utils/cn'
 
 export interface FormControlLabelProps {
@@ -18,6 +18,10 @@ export const FormControlLabel = forwardRef<HTMLLabelElement, FormControlLabelPro
       bottom: 'flex-col',
     }
 
+    const controlElement = isValidElement(control) 
+      ? cloneElement(control, { disabled } as any)
+      : control
+
     return (
       <label
         ref={ref}
@@ -28,7 +32,7 @@ export const FormControlLabel = forwardRef<HTMLLabelElement, FormControlLabelPro
           className
         )}
       >
-        {cloneElement(control, { disabled })}
+        {controlElement}
         <span className="text-sm select-none">{label}</span>
       </label>
     )

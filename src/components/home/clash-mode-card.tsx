@@ -1,9 +1,5 @@
-import {
-  DirectionsRounded,
-  LanguageRounded,
-  MultipleStopRounded,
-} from '@mui/icons-material'
 import { useLockFn } from 'ahooks'
+import { Globe, Route, Send } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
@@ -72,9 +68,9 @@ export const ClashModeCard = () => {
   // 模式图标映射
   const modeIcons = useMemo(
     () => ({
-      rule: <MultipleStopRounded fontSize="small" />,
-      global: <LanguageRounded fontSize="small" />,
-      direct: <DirectionsRounded fontSize="small" />,
+      rule: <Route className="h-4 w-4" />,
+      global: <Globe className="h-4 w-4" />,
+      direct: <Send className="h-4 w-4" />,
     }),
     [],
   )

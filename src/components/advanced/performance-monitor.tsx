@@ -3,12 +3,13 @@
  */
 
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
+
 import { Button } from '@/components/tailwind'
 import type { CoordinatorStatus } from '@/services/coordinator'
 
 interface Props {
   status: CoordinatorStatus | null
-  onRefresh: () => void
+  onRefresh: () => Promise<CoordinatorStatus | null>
 }
 
 export function PerformanceMonitor({ status, onRefresh }: Props) {
@@ -22,10 +23,14 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
     )
   }
 
+  const domainPatternAssignments =
+    status.runtimeState.stableEgressBackwrite.domainPatternAssignments
+  const domainRuleBindings = status.runtimeState.stableEgressBackwrite.domainRuleBindings
+
   return (
     <div>
       {/* 安全状态警告 */}
-      {status.security_compromised && (
+      {status.securityCompromised && (
         <div className="p-4 bg-red-500 text-white rounded-lg mb-4">
           <p className="font-semibold text-sm mb-1">⚠️ 安全状态已被破坏</p>
           <p className="text-xs opacity-90">
@@ -36,7 +41,7 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
 
       {/* 刷新按钮 */}
       <div className="flex justify-end mb-4">
-        <Button variant="outline" size="sm" onClick={onRefresh}>
+        <Button variant="outline" size="sm" onClick={() => void onRefresh()}>
           <RefreshCw className="w-4 h-4 mr-1" />
           刷新状态
         </Button>
@@ -72,9 +77,9 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
         {/* 安全监控 */}
         <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-2 mb-3">
-            {status.security_enabled && !status.security_compromised ? (
+            {status.securityEnabled && !status.securityCompromised ? (
               <CheckCircle className="w-4 h-4 text-green-500" />
-            ) : status.security_compromised ? (
+            ) : status.securityCompromised ? (
               <AlertCircle className="w-4 h-4 text-red-500" />
             ) : (
               <AlertCircle className="w-4 h-4 text-yellow-500" />
@@ -86,15 +91,15 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
             <p className="text-sm">状态</p>
             <span
               className={`px-2 py-1 rounded-full text-xs ${
-                status.security_enabled
-                  ? status.security_compromised
+                status.securityEnabled
+                  ? status.securityCompromised
                     ? 'bg-red-500 text-white'
                     : 'bg-green-500 text-white'
                   : 'bg-secondary text-secondary-foreground'
               }`}
             >
-              {status.security_enabled
-                ? status.security_compromised
+              {status.securityEnabled
+                ? status.securityCompromised
                   ? '已破坏'
                   : '运行中'
                 : '未启用'}
@@ -105,7 +110,7 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
         {/* 反探测 */}
         <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-2 mb-3">
-            {status.anti_probe_enabled ? (
+            {status.antiProbeEnabled ? (
               <CheckCircle className="w-4 h-4 text-green-500" />
             ) : (
               <AlertCircle className="w-4 h-4 text-yellow-500" />
@@ -117,12 +122,12 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
             <p className="text-sm">状态</p>
             <span
               className={`px-2 py-1 rounded-full text-xs ${
-                status.anti_probe_enabled
+                status.antiProbeEnabled
                   ? 'bg-green-500 text-white'
                   : 'bg-secondary text-secondary-foreground'
               }`}
             >
-              {status.anti_probe_enabled ? '已启用' : '未启用'}
+              {status.antiProbeEnabled ? '已启用' : '未启用'}
             </span>
           </div>
         </div>
@@ -130,7 +135,7 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
         {/* TLS 指纹 */}
         <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-2 mb-3">
-            {status.tls_fingerprint ? (
+            {status.tlsFingerprint ? (
               <CheckCircle className="w-4 h-4 text-green-500" />
             ) : (
               <AlertCircle className="w-4 h-4 text-yellow-500" />
@@ -142,20 +147,125 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
             <p className="text-sm">当前指纹</p>
             <span
               className={`px-2 py-1 rounded-full text-xs ${
-                status.tls_fingerprint
+                status.tlsFingerprint
                   ? 'bg-green-500 text-white'
                   : 'bg-secondary text-secondary-foreground'
               }`}
             >
-              {status.tls_fingerprint || '未设置'}
+              {status.tlsFingerprint || '未设置'}
             </span>
+          </div>
+        </div>
+
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.egressIdentityEnabled ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">出口身份管理</h3>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <p className="text-sm">状态</p>
+              <span
+                className={`px-2 py-1 rounded-full text-xs ${
+                  status.egressIdentityEnabled
+                    ? 'bg-green-500 text-white'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                {status.egressIdentityEnabled ? '已启用' : '未启用'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-sm">活跃 assignment</p>
+              <span className="px-2 py-1 rounded-full text-xs bg-blue-500 text-white">
+                {status.egressIdentityActiveAssignments}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-sm">domain-pattern 回写</p>
+              <span className="px-2 py-1 rounded-full text-xs bg-purple-500 text-white">
+                {domainPatternAssignments.length}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {status.sessionAffinityEnabled ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">会话绑定</h3>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <p className="text-sm">状态</p>
+              <span
+                className={`px-2 py-1 rounded-full text-xs ${
+                  status.sessionAffinityEnabled
+                    ? 'bg-green-500 text-white'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                {status.sessionAffinityEnabled ? '已启用' : '未启用'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-sm">活跃绑定</p>
+              <span className="px-2 py-1 rounded-full text-xs bg-blue-500 text-white">
+                {status.sessionAffinityActiveBindings}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-sm">domain-rule 回写</p>
+              <span className="px-2 py-1 rounded-full text-xs bg-purple-500 text-white">
+                {domainRuleBindings.length}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-card border border-border rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            {domainPatternAssignments.length > 0 || domainRuleBindings.length > 0 ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            )}
+            <h3 className="text-sm font-semibold">稳定出口回写</h3>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <p className="text-sm">domain-pattern</p>
+              <span className="px-2 py-1 rounded-full text-xs bg-purple-500 text-white">
+                {domainPatternAssignments.length}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-sm">domain-rule</p>
+              <span className="px-2 py-1 rounded-full text-xs bg-purple-500 text-white">
+                {domainRuleBindings.length}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 pt-1">
+              该卡片汇总稳定组手动选择回写到 `egress_identity` 与 `session_affinity` 的统一运行态结果。
+            </div>
           </div>
         </div>
 
         {/* 多路径路由 */}
         <div className="p-4 bg-card border border-border rounded-lg">
           <div className="flex items-center gap-2 mb-3">
-            {status.multipath_enabled ? (
+            {status.multipathEnabled ? (
               <CheckCircle className="w-4 h-4 text-green-500" />
             ) : (
               <AlertCircle className="w-4 h-4 text-yellow-500" />
@@ -167,23 +277,23 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
             <p className="text-sm">状态</p>
             <span
               className={`px-2 py-1 rounded-full text-xs ${
-                status.multipath_enabled
+                status.multipathEnabled
                   ? 'bg-green-500 text-white'
                   : 'bg-secondary text-secondary-foreground'
               }`}
             >
-              {status.multipath_enabled ? '已启用' : '未启用'}
+              {status.multipathEnabled ? '已启用' : '未启用'}
             </span>
           </div>
         </div>
 
         {/* XDP 代理（仅 Linux） */}
-        {status.xdp_enabled !== undefined && (
+        {status.xdpEnabled !== undefined && (
           <div className="p-4 bg-card border border-border rounded-lg">
             <div className="flex items-center gap-2 mb-3">
-              {status.xdp_enabled && status.xdp_running ? (
+              {status.xdpEnabled && status.xdpRunning ? (
                 <CheckCircle className="w-4 h-4 text-green-500" />
-              ) : status.xdp_enabled ? (
+              ) : status.xdpEnabled ? (
                 <AlertCircle className="w-4 h-4 text-yellow-500" />
               ) : (
                 <AlertCircle className="w-4 h-4 text-yellow-500" />
@@ -195,15 +305,15 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
               <p className="text-sm">状态</p>
               <span
                 className={`px-2 py-1 rounded-full text-xs ${
-                  status.xdp_enabled && status.xdp_running
+                  status.xdpEnabled && status.xdpRunning
                     ? 'bg-green-500 text-white'
-                    : status.xdp_enabled
+                    : status.xdpEnabled
                     ? 'bg-yellow-500 text-white'
                     : 'bg-secondary text-secondary-foreground'
                 }`}
               >
-                {status.xdp_enabled
-                  ? status.xdp_running
+                {status.xdpEnabled
+                  ? status.xdpRunning
                     ? '运行中'
                     : '已启用但未运行'
                   : '未启用'}
@@ -218,34 +328,48 @@ export function PerformanceMonitor({ status, onRefresh }: Props) {
         <h3 className="text-sm font-semibold mb-3">性能优化建议</h3>
 
         <div className="space-y-2">
-          {!status.security_enabled && (
+          {!status.securityEnabled && (
             <div className="p-2 bg-blue-500 text-white rounded text-xs">
               建议启用安全监控以保护您的代理
             </div>
           )}
 
-          {!status.anti_probe_enabled && (
+          {!status.antiProbeEnabled && (
             <div className="p-2 bg-blue-500 text-white rounded text-xs">
               建议启用反探测以防止主动探测
             </div>
           )}
 
-          {!status.tls_fingerprint && (
+          {!status.egressIdentityEnabled && (
+            <div className="p-2 bg-blue-500 text-white rounded text-xs">
+              建议启用出口身份管理以统一应用、快捷方式和会话的出口画像
+            </div>
+          )}
+
+          {!status.sessionAffinityEnabled && (
+            <div className="p-2 bg-blue-500 text-white rounded text-xs">
+              建议启用会话绑定以把稳定出口选择持续映射到域名、进程和连接会话
+            </div>
+          )}
+
+          {!status.tlsFingerprint && (
             <div className="p-2 bg-blue-500 text-white rounded text-xs">
               建议设置 TLS 指纹伪装以提高隐蔽性
             </div>
           )}
 
-          {status.xdp_enabled !== undefined && !status.xdp_enabled && (
+          {status.xdpEnabled !== undefined && !status.xdpEnabled && (
             <div className="p-2 bg-blue-500 text-white rounded text-xs">
               Linux 系统可以启用 XDP 代理获得 10 倍性能提升
             </div>
           )}
 
-          {status.security_enabled &&
-            status.anti_probe_enabled &&
-            status.tls_fingerprint &&
-            status.multipath_enabled && (
+          {status.securityEnabled &&
+            status.antiProbeEnabled &&
+            status.tlsFingerprint &&
+            status.egressIdentityEnabled &&
+            status.sessionAffinityEnabled &&
+            status.multipathEnabled && (
               <div className="p-2 bg-green-500 text-white rounded text-xs">
                 ✅ 所有高级功能已启用，您的代理处于最佳状态
               </div>

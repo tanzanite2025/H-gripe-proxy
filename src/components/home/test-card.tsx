@@ -8,8 +8,8 @@ import {
   DragOverlay,
 } from '@dnd-kit/core'
 import { SortableContext } from '@dnd-kit/sortable'
-import { Add, NetworkCheck } from '@mui/icons-material'
 import { emit } from '@tauri-apps/api/event'
+import { Plus, Activity } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -166,17 +166,17 @@ export const TestCard = () => {
   return (
     <EnhancedCard
       title={t('home.components.tests.title')}
-      icon={<NetworkCheck />}
+      icon={<Activity className="h-5 w-5" />}
       action={
         <div className="flex gap-2">
           <Tooltip title={t('tests.page.actions.testAll')} arrow>
             <IconButton size="small" onClick={handleTestAll}>
-              <NetworkCheck fontSize="small" />
+              <Activity className="h-4 w-4" />
             </IconButton>
           </Tooltip>
           <Tooltip title={t('tests.modals.test.title.create')} arrow>
             <IconButton size="small" onClick={handleCreateTest}>
-              <Add fontSize="small" />
+              <Plus className="h-4 w-4" />
             </IconButton>
           </Tooltip>
         </div>

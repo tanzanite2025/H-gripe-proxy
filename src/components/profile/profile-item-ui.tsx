@@ -1,5 +1,5 @@
-import { RefreshRounded } from '@mui/icons-material'
 import dayjs from 'dayjs'
+import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CircularProgress } from '@/components/tailwind/CircularProgress'
@@ -48,8 +48,8 @@ interface ProfileItemUIProps {
   // Drag and drop
   dragHandleProps: {
     ref: (node: HTMLElement | null) => void
-    attributes: Record<string, unknown>
-    listeners: Record<string, unknown>
+    attributes: any
+    listeners: any
   }
   transform?: { x: number; y: number; scaleX: number; scaleY: number } | null
   transition?: string
@@ -189,7 +189,7 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
               disabled={loading}
               onClick={onUpdateClick}
             >
-              <RefreshRounded color="inherit" />
+              <RefreshCw className="h-4 w-4" />
             </IconButton>
           )}
         </div>

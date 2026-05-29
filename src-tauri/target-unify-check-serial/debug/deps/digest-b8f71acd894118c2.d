@@ -1,0 +1,11 @@
+C:\Users\P16V\Desktop\个人开发\clashverge-clean\src-tauri\target-unify-check-serial\debug\deps\digest-b8f71acd894118c2.d: C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\lib.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\digest.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\dyn_digest.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\errors.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\fixed.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\variable.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\xof.rs
+
+C:\Users\P16V\Desktop\个人开发\clashverge-clean\src-tauri\target-unify-check-serial\debug\deps\libdigest-b8f71acd894118c2.rmeta: C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\lib.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\digest.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\dyn_digest.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\errors.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\fixed.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\variable.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\xof.rs
+
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\lib.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\digest.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\dyn_digest.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\errors.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\fixed.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\variable.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\digest-0.9.0\src\xof.rs:

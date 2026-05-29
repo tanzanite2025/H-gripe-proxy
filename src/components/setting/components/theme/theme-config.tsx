@@ -15,7 +15,7 @@ import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useVerge } from '@/hooks/system'
 import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
 import { showNotice } from '@/services/notice-service'
-import { useTheme } from '@/hooks/use-theme'
+import { useThemeMode } from '@/services/states'
 
 export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const { ref } = props
@@ -55,7 +55,7 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
     }
   })
 
-  const { mode } = useTheme()
+  const mode = useThemeMode()
 
   const dt = mode === 'light' ? defaultTheme : defaultDarkTheme
 

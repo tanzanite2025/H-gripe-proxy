@@ -1,4 +1,3 @@
-import { relaunch } from '@tauri-apps/plugin-process'
 import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
@@ -7,12 +6,14 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { alpha, Box, Button, LinearProgress } from '@/components/tailwind'
+import { Box, Button } from '@/components/tailwind'
+import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import { useUpdate } from '@/hooks/system'
 import { portableFlag } from '@/pages/_layout/layout'
-import { openWebUrl } from '@/services/cmds'
+import { openWebUrl, restartApp } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
+import { cn } from '@/utils/cn'
 
 type MarkdownNode = {
   type: string
@@ -37,6 +38,17 @@ const GITHUB_ALERT_PATTERN =
   /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][\t ]*\n?/i
 const GITHUB_ALERT_CLASS_PATTERN =
   /markdown-alert-(note|tip|important|warning|caution)/
+
+const toRgba = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '')
+  const value = Number.parseInt(normalized, 16)
+
+  const red = (value >> 16) & 255
+  const green = (value >> 8) & 255
+  const blue = value & 255
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+}
 
 const getAlertTypeFromClassName = (
   className: unknown,
@@ -184,7 +196,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
     try {
       await updateInfo.downloadAndInstall(onDownloadEvent)
-      await relaunch()
+      await restartApp()
     } catch (err: any) {
       showNotice.error(err)
     } finally {
@@ -220,14 +232,13 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Button>
         </Box>
       }
-      contentSx={{
-        width: { xs: 'calc(100vw - 56px)', sm: 560 },
+      panelClassName="flex flex-col"
+      panelStyle={{
+        width: 'min(560px, calc(100vw - 56px))',
         maxWidth: 'calc(100vw - 56px)',
         height: 'min(64vh, 680px)',
-        display: 'flex',
-        flexDirection: 'column',
-        pb: 1,
       }}
+      contentClassName="flex min-h-0 flex-1 flex-col pb-1"
       okBtn={t('settings.modals.update.actions.update')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
@@ -235,120 +246,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onOk={onUpdate}
     >
       <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          overflow: 'auto',
-          pr: 1.5,
-          mr: -1,
-          fontSize: 14,
-          lineHeight: 1.65,
-          color: 'text.primary',
-          overflowWrap: 'break-word',
-          '& > :first-child': {
-            mt: 0,
-          },
-          '& > :last-child': {
-            mb: 0,
-          },
-          '& h1': {
-            mt: 0,
-            mb: 1.5,
-            fontSize: 24,
-            lineHeight: 1.25,
-          },
-          '& h2': {
-            mt: 2.25,
-            mb: 1,
-            fontSize: 19,
-            lineHeight: 1.3,
-          },
-          '& h3': {
-            mt: 2,
-            mb: 0.75,
-            fontSize: 16,
-            lineHeight: 1.35,
-          },
-          '& h4, & h5, & h6': {
-            mt: 1.5,
-            mb: 0.75,
-            fontSize: 14,
-            lineHeight: 1.4,
-          },
-          '& p': {
-            my: 1,
-          },
-          '& ul, & ol': {
-            my: 1,
-            pl: 2.75,
-          },
-          '& li': {
-            my: 0.35,
-            pl: 0.25,
-          },
-          '& a': {
-            color: 'primary.main',
-            overflowWrap: 'anywhere',
-          },
-          '& strong': {
-            fontWeight: 700,
-          },
-          '& code': {
-            px: 0.5,
-            py: 0.125,
-            borderRadius: 0.5,
-            bgcolor: 'action.hover',
-            fontSize: '0.92em',
-          },
-          '& pre': {
-            my: 1.5,
-            p: 1.5,
-            overflow: 'auto',
-            borderRadius: 1,
-            bgcolor: 'action.hover',
-          },
-          '& pre code': {
-            p: 0,
-            bgcolor: 'transparent',
-            fontSize: '0.9em',
-          },
-          '& table': {
-            display: 'block',
-            width: '100%',
-            my: 1.5,
-            overflowX: 'auto',
-            borderCollapse: 'collapse',
-          },
-          '& th, & td': {
-            px: 1,
-            py: 0.75,
-            border: '1px solid',
-            borderColor: 'divider',
-            verticalAlign: 'top',
-          },
-          '& th': {
-            bgcolor: 'action.hover',
-            fontWeight: 700,
-          },
-          '& hr': {
-            my: 2,
-            border: 0,
-            borderTop: '1px solid',
-            borderColor: 'divider',
-          },
-          '& img': {
-            maxWidth: '100%',
-            height: 'auto',
-            borderRadius: 1,
-          },
-          '& blockquote:not(.markdown-alert)': {
-            m: '12px 0 18px',
-            pl: 2,
-            color: 'text.secondary',
-            borderLeft: '4px solid',
-            borderColor: 'divider',
-          },
-        }}
+        className="flex-1 min-h-0 overflow-auto break-words pr-1.5 -mr-1 text-sm leading-[1.65] text-gray-900 dark:text-gray-100 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_h1]:mt-0 [&_h1]:mb-6 [&_h1]:text-2xl [&_h1]:leading-[1.25] [&_h2]:mt-9 [&_h2]:mb-4 [&_h2]:text-[19px] [&_h2]:leading-[1.3] [&_h3]:mt-8 [&_h3]:mb-3 [&_h3]:text-base [&_h3]:leading-[1.35] [&_h4]:mt-6 [&_h4]:mb-3 [&_h4]:text-sm [&_h4]:leading-[1.4] [&_h5]:mt-6 [&_h5]:mb-3 [&_h5]:text-sm [&_h5]:leading-[1.4] [&_h6]:mt-6 [&_h6]:mb-3 [&_h6]:text-sm [&_h6]:leading-[1.4] [&_p]:my-4 [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-11 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-11 [&_li]:my-[0.35rem] [&_li]:pl-1 [&_a]:break-words [&_a]:text-primary [&_strong]:font-bold [&_code]:rounded-md [&_code]:bg-black/5 [&_code]:px-2 [&_code]:py-0.5 [&_code]:text-[0.92em] dark:[&_code]:bg-white/10 [&_pre]:my-6 [&_pre]:overflow-auto [&_pre]:rounded-xl [&_pre]:bg-black/5 [&_pre]:p-4 dark:[&_pre]:bg-white/10 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[0.9em] [&_table]:my-6 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_th]:border [&_th]:border-divider [&_th]:bg-black/5 [&_th]:px-4 [&_th]:py-3 [&_th]:align-top [&_th]:font-bold dark:[&_th]:bg-white/10 [&_td]:border [&_td]:border-divider [&_td]:px-4 [&_td]:py-3 [&_td]:align-top [&_hr]:my-8 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-divider [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-lg"
       >
         <ReactMarkdown
           remarkPlugins={[remarkGitHubAlerts]}
@@ -366,40 +264,28 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
               const alertType = getAlertTypeFromClassName(className)
 
               if (!alertType) {
-                return <blockquote className={className}>{children}</blockquote>
+                return (
+                  <blockquote className={cn('my-3 border-l-4 border-divider pl-4 text-gray-600 dark:text-gray-400', className)}>
+                    {children}
+                  </blockquote>
+                )
               }
 
+              const color = GITHUB_ALERTS[alertType].color
+
               return (
-                <Box
-                  component="blockquote"
-                  className={className}
-                  sx={(theme) => {
-                    const color = GITHUB_ALERTS[alertType].color
-                    return {
-                      m: '12px 0 18px',
-                      px: 2,
-                      py: 1,
-                      borderLeft: `4px solid ${color}`,
-                      borderRadius: 1,
-                      bgcolor: alpha(
-                        color,
-                        theme.palette.mode === 'dark' ? 0.16 : 0.08,
-                      ),
-                      '& p': {
-                        my: 0.75,
-                      },
-                      '& .markdown-alert-title': {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.75,
-                        fontWeight: 700,
-                        lineHeight: 1.4,
-                      },
-                    }
+                <blockquote
+                  className={cn(
+                    'my-3 rounded-lg px-4 py-2 [&_p]:my-3 [&_.markdown-alert-title]:flex [&_.markdown-alert-title]:items-center [&_.markdown-alert-title]:gap-3 [&_.markdown-alert-title]:font-bold [&_.markdown-alert-title]:leading-[1.4]',
+                    className,
+                  )}
+                  style={{
+                    borderLeft: `4px solid ${color}`,
+                    backgroundColor: toRgba(color, 0.12),
                   }}
                 >
                   {children}
-                </Box>
+                </blockquote>
               )
             },
           }}

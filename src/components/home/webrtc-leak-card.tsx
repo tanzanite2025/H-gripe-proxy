@@ -4,10 +4,10 @@
  */
 
 import {
-  ErrorOutlined,
-  RefreshOutlined,
-  VpnLockOutlined,
-} from '@mui/icons-material'
+  AlertCircle,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { forwardRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,12 +34,12 @@ const WebRTCLeakCardContainer = forwardRef<
   return (
     <EnhancedCard
       title="WebRTC 泄漏检测"
-      icon={<VpnLockOutlined />}
+      icon={<ShieldAlert className="h-5 w-5" />}
       iconColor="info"
       ref={ref}
       action={
         <IconButton size="small" onClick={() => refetch()}>
-          <RefreshOutlined />
+          <RefreshCw className="h-4 w-4" />
         </IconButton>
       }
     >
@@ -59,7 +59,7 @@ export const WebRTCLeakCard = () => {
     return (
       <WebRTCLeakCardContainer>
         <div className="flex flex-col items-center justify-center py-6 text-warning">
-          <ErrorOutlined className="text-4xl mb-2" />
+          <AlertCircle className="mb-2 h-10 w-10" />
           <p className="text-base text-warning">
             您的浏览器不支持 WebRTC
           </p>
@@ -115,7 +115,7 @@ const WebRTCLeakCardUI = ({
   if (error || result?.error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-error">
-        <ErrorOutlined className="text-4xl mb-2" />
+        <AlertCircle className="mb-2 h-10 w-10" />
         <p className="text-base text-error">
           {error instanceof Error ? error.message : result?.error || '检测失败'}
         </p>
@@ -136,7 +136,7 @@ const WebRTCLeakCardUI = ({
     <div className="flex flex-col gap-3">
       {/* 风险状态 */}
       <div className="flex items-start gap-2">
-        <VpnLockOutlined className={`text-2xl ${riskInfo.color}`} />
+        <ShieldAlert className={`h-6 w-6 ${riskInfo.color}`} />
         <div className="flex-1">
           <p className={`text-base font-medium ${riskInfo.color}`}>
             {riskInfo.title}

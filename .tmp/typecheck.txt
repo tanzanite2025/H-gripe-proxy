@@ -1,0 +1,751 @@
+﻿
+> clash-verge@0.0.4 typecheck
+> tsc --noEmit
+
+src/components/advanced/multipath-config-panel.tsx(53,13): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/multipath-config-panel.tsx(53,31): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/multipath-config-panel.tsx(72,31): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/advanced/multipath-config-panel.tsx(75,15): error TS2322: Type '{ children: Element[]; label: string; value: SlicingStrategy; onChange: (e: string | number) => void; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/advanced/multipath-config-panel.tsx(104,17): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/multipath-config-panel.tsx(104,35): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/multipath-config-panel.tsx(118,41): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/advanced/multipath-config-panel.tsx(155,33): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/advanced/multipath-config-panel.tsx(158,33): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/advanced/performance-monitor.tsx(39,35): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/advanced/security-config-panel.tsx(48,13): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/security-config-panel.tsx(48,31): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/security-config-panel.tsx(67,15): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/security-config-panel.tsx(67,33): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/security-config-panel.tsx(95,17): error TS2322: Type '{ label: string; type: "number"; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; helperText: string; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/advanced/security-config-panel.tsx(107,19): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/security-config-panel.tsx(107,37): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/security-config-panel.tsx(190,15): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/security-config-panel.tsx(190,33): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/xdp-config-panel.tsx(51,13): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/advanced/xdp-config-panel.tsx(51,31): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/advanced/xdp-config-panel.tsx(70,15): error TS2322: Type '{ label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; helperText: string; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/advanced/xdp-config-panel.tsx(83,27): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/advanced/xdp-config-panel.tsx(86,15): error TS2322: Type '{ children: Element[]; label: string; value: XdpMode; onChange: (e: string | number) => void; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/advanced/xdp-config-panel.tsx(133,15): error TS2322: Type '{ label: string; type: "number"; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; helperText: string; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/base/base-dialog.tsx(51,7): error TS2322: Type '(() => void) | undefined' is not assignable to type '() => void'.
+  Type 'undefined' is not assignable to type '() => void'.
+src/components/base/base-emotion-style-chain.tsx(1,48): error TS2307: Cannot find module '@emotion/cache' or its corresponding type declarations.
+src/components/base/base-emotion-style-chain.tsx(2,31): error TS2307: Cannot find module '@emotion/react' or its corresponding type declarations.
+src/components/base/base-search-box.tsx(174,50): error TS2322: Type '"bottom-start"' is not assignable to type '"top" | "right" | "bottom" | "left" | undefined'.
+src/components/base/base-search-box.tsx(178,9): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/base/base-search-box.tsx(191,9): error TS2322: Type 'boolean' is not assignable to type 'string'.
+src/components/base/base-search-box.tsx(208,19): error TS2339: Property 'matchCaseIcon' does not exist on type 'JSX.IntrinsicElements'.
+src/components/base/base-search-box.tsx(215,19): error TS2339: Property 'matchWholeWordIcon' does not exist on type 'JSX.IntrinsicElements'.
+src/components/base/base-split-chip-editor.tsx(113,14): error TS2322: Type 'string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<...>' is not assignable to type 'string | undefined'.
+  Type 'number' is not assignable to type 'string'.
+src/components/base/base-split-chip-editor.tsx(141,19): error TS2322: Type '{ key: string; label: string; size: "small"; onDelete: (() => void) | undefined; }' is not assignable to type 'IntrinsicAttributes & ChipProps & RefAttributes<HTMLDivElement>'.
+  Property 'onDelete' does not exist on type 'IntrinsicAttributes & ChipProps & RefAttributes<HTMLDivElement>'.
+src/components/base/base-split-chip-editor.tsx(155,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/base/base-split-chip-editor.tsx(159,15): error TS2322: Type 'boolean' is not assignable to type 'string'.
+src/components/base/base-split-chip-editor.tsx(187,11): error TS2322: Type 'boolean' is not assignable to type 'string'.
+src/components/base/base-split-chip-editor.tsx(194,11): error TS2322: Type 'ReactNode' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/components/base/delay-test-progress.tsx(41,32): error TS2322: Type '"danger"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/connection/connection-column-manager.tsx(11,38): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/connection/connection-column-manager.tsx(67,43): error TS2322: Type '"xs"' is not assignable to type '"sm" | "md" | "lg" | "xl" | undefined'.
+src/components/connection/connection-column-manager.tsx(101,17): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/connection/connection-column-manager.tsx(146,7): error TS2322: Type '{ children: Element[]; ref: (node: HTMLElement | null) => void; className: string; style: { transform: string | undefined; transition: string | undefined; }; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/connection/connection-column-manager.tsx(149,9): error TS2322: Type '{ edge: string; checked: boolean; disabled: boolean; onChange: (event: ChangeEvent<HTMLInputElement, Element>) => void; }' is not assignable to type 'IntrinsicAttributes & CheckboxProps & RefAttributes<HTMLInputElement>'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & CheckboxProps & RefAttributes<HTMLInputElement>'.
+src/components/connection/connection-detail.tsx(37,7): error TS2322: Type '{ anchorOrigin: { vertical: "bottom"; horizontal: "right"; }; open: boolean; onClose: () => void; className: string; message: Element | null; }' is not assignable to type 'IntrinsicAttributes & SnackbarProps & RefAttributes<HTMLDivElement>'.
+  Property 'message' does not exist on type 'IntrinsicAttributes & SnackbarProps & RefAttributes<HTMLDivElement>'.
+src/components/connection/connection-detail.tsx(133,13): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/connection/connection-item.tsx(1,30): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/connection/connection-item.tsx(30,7): error TS2322: Type '{ children: Element; className: string; secondaryAction: false | Element; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'secondaryAction' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/connection/connection-item.tsx(47,9): error TS2322: Type '{ className: string; primary: string | undefined; onClick: (() => void) | undefined; secondary: Element; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'onClick' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/home/clash-mode-card.tsx(5,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/current-proxy-card/components/proxy-selectors.tsx(4,10): error TS2305: Module '"@/components/tailwind/Select"' has no exported member 'FormControl'.
+src/components/home/current-proxy-card/components/proxy-selectors.tsx(4,23): error TS2305: Module '"@/components/tailwind/Select"' has no exported member 'InputLabel'.
+src/components/home/current-proxy-card/components/proxy-selectors.tsx(4,35): error TS2305: Module '"@/components/tailwind/Select"' has no exported member 'MenuItem'.
+src/components/home/current-proxy-card/components/proxy-selectors.tsx(4,53): error TS2305: Module '"@/components/tailwind/Select"' has no exported member 'SelectChangeEvent'.
+src/components/home/current-proxy-card/components/proxy-selectors.tsx(70,11): error TS2322: Type '{ children: Element[]; labelId: string; value: string; onChange: (event: SelectChangeEvent<string>) => void; label: string; disabled: boolean; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'labelId' does not exist on type 'IntrinsicAttributes & SelectProps'. Did you mean 'label'?
+src/components/home/current-proxy-card/components/proxy-selectors.tsx(91,11): error TS2322: Type '{ children: Element[] | null; labelId: string; value: string; onChange: (event: SelectChangeEvent<string>) => void; label: string; disabled: boolean; renderValue: (selected: string) => string | Element; className: string; MenuProps: { ...; }; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'labelId' does not exist on type 'IntrinsicAttributes & SelectProps'. Did you mean 'label'?
+src/components/home/current-proxy-card/hooks/use-current-proxy-data.ts(1,35): error TS2307: Cannot find module '@mui/material' or its corresponding type declarations.
+src/components/home/current-proxy-card/utils/proxy-helpers.tsx(8,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/dns-leak-card.tsx(10,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/enhanced-canvas-traffic-graph/hooks/use-graph-renderer.ts(2,26): error TS2307: Cannot find module '@mui/material' or its corresponding type declarations.
+src/components/home/enhanced-traffic-stats.tsx(8,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/enhanced-traffic-stats.tsx(84,9): error TS2322: Type '{ children: Element[]; elevation: number; className: string; onClick: (() => void) | undefined; }' is not assignable to type 'IntrinsicAttributes & PaperProps & RefAttributes<HTMLDivElement>'.
+  Property 'onClick' does not exist on type 'IntrinsicAttributes & PaperProps & RefAttributes<HTMLDivElement>'.
+src/components/home/enhanced-traffic-stats.tsx(175,9): error TS2322: Type '{ children: Element; elevation: number; className: string; onClick: () => void | undefined; }' is not assignable to type 'IntrinsicAttributes & PaperProps & RefAttributes<HTMLDivElement>'.
+  Property 'onClick' does not exist on type 'IntrinsicAttributes & PaperProps & RefAttributes<HTMLDivElement>'.
+src/components/home/ip-info-card-ui.tsx(1,59): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/ip-info-card.tsx(1,53): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/proxy-detection-card.tsx(13,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/proxy-tun-card.tsx(6,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/speed-test-card.tsx(11,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/speed-test-card.tsx(287,9): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/home/system-info-card.tsx(7,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/system-info-card.tsx(236,15): error TS2322: Type '{ size: "small"; label: string; color: "default" | "success"; variant: "outlined" | "filled"; onClick: () => Promise<void>; className: string; }' is not assignable to type 'IntrinsicAttributes & ChipProps & RefAttributes<HTMLDivElement>'.
+  Property 'onClick' does not exist on type 'IntrinsicAttributes & ChipProps & RefAttributes<HTMLDivElement>'.
+src/components/home/test-card.tsx(11,35): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/home/webrtc-leak-card.tsx(10,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/layout/layout-item.tsx(48,7): error TS2322: Type '{ children: Element; ref: ((element: HTMLElement | null) => void) | undefined; style: CSSProperties | undefined; className: string; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/layout/layout-item.tsx(54,9): error TS2322: Type '{ children: Element; className: string; title: string | undefined; "aria-label": string | undefined; onClick: () => void | Promise<void>; role?: string | undefined; ... 4 more ...; 'aria-describedby'?: string | undefined; }' is not assignable to type 'IntrinsicAttributes & ListItemButtonProps & RefAttributes<HTMLDivElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & ListItemButtonProps & RefAttributes<HTMLDivElement>'.
+src/components/layout/notice-manager.tsx(180,11): error TS2322: Type '{ children: Element; key: number; open: true; anchorOrigin: SnackbarOrigin; className: string; style: { transform: string; top: string; right: string; bottom: string; left: string; }; }' is not assignable to type 'IntrinsicAttributes & SnackbarProps & RefAttributes<HTMLDivElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & SnackbarProps & RefAttributes<HTMLDivElement>'.
+src/components/layout/update-button.tsx(26,9): error TS2322: Type '"danger"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/multipath/multipath-config-ui.tsx(73,66): error TS2345: Argument of type 'string | number' is not assignable to parameter of type 'number'.
+  Type 'string' is not assignable to type 'number'.
+src/components/multipath/multipath-config-ui.tsx(89,21): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/multipath/multipath-config-ui.tsx(89,39): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/multipath/multipath-config-ui.tsx(101,35): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/multipath/multipath-config-ui.tsx(105,19): error TS2322: Type '{ children: Element[]; label: string; value: SlicingStrategy; onChange: (e: string | number) => void; disabled: boolean; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/multipath/multipath-config-ui.tsx(125,19): error TS2322: Type '{ label: string; type: "number"; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; disabled: boolean; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/multipath/multipath-config-ui.tsx(139,19): error TS2322: Type '{ label: string; type: "number"; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; disabled: boolean; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/multipath/multipath-config-ui.tsx(153,19): error TS2322: Type '{ label: string; type: "number"; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; disabled: boolean; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/multipath/multipath-config-ui.tsx(160,21): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/multipath/multipath-config-ui.tsx(160,39): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/multipath/multipath-config-ui.tsx(209,23): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/profile/editor-viewer.tsx(6,8): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/profile/editor-viewer.tsx(291,13): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/group-item.tsx(3,51): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/profile/group-item.tsx(52,7): error TS2322: Type '{ children: (false | "" | Element | undefined)[]; className: string; style: { transform: string | undefined; transition: string | undefined; zIndex: number | undefined; }; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/profile/group-item.tsx(98,9): error TS2322: Type '{ ref: ((node: HTMLElement | null) => void) | undefined; className: string; primary: Element; secondary: Element; secondaryClassName: string; role?: string | undefined; ... 4 more ...; 'aria-describedby'?: string | undefined; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'secondaryClassName' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/profile/groups-editor-viewer.tsx(527,7): error TS2322: Type '{ children: Element[]; open: boolean; onClose: () => void; maxWidth: "xl"; fullWidth: true; disableEnforceFocus: boolean; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'disableEnforceFocus' does not exist on type 'IntrinsicAttributes & DialogProps'.
+src/components/profile/groups-editor-viewer.tsx(533,13): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer.tsx(560,25): error TS2322: Type '{ children: Element[]; size: string; className: string; value: "select" | "fallback" | "url-test" | "load-balance" | "relay"; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/groups-editor-viewer.tsx(563,59): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer.tsx(590,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(593,25): error TS2322: Type 'boolean' is not assignable to type 'string'.
+src/components/profile/groups-editor-viewer.tsx(609,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(630,25): error TS2322: Type 'string[]' is not assignable to type 'string | number | undefined'.
+src/components/profile/groups-editor-viewer.tsx(632,43): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer.tsx(661,25): error TS2322: Type 'string[]' is not assignable to type 'string | number | undefined'.
+src/components/profile/groups-editor-viewer.tsx(663,43): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer.tsx(691,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(711,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(734,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(760,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(790,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(810,25): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/groups-editor-viewer.tsx(813,59): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer.tsx(837,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(858,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(877,25): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer.tsx(898,25): error TS2322: Type 'string[]' is not assignable to type 'string | number | undefined'.
+src/components/profile/groups-editor-viewer.tsx(900,43): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer.tsx(954,31): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer.tsx(968,31): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer.tsx(982,31): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer.tsx(994,31): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer.tsx(1008,31): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer.tsx(1022,31): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer.tsx(1030,19): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer.tsx(1060,19): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer.tsx(1142,38): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(49,17): error TS2322: Type '{ children: Element[]; size: string; className: string; value: "select" | "fallback" | "url-test" | "load-balance" | "relay"; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(52,51): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(75,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(78,17): error TS2322: Type 'boolean' is not assignable to type 'string'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(94,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(113,17): error TS2322: Type 'string[]' is not assignable to type 'string | number | undefined'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(115,35): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(142,17): error TS2322: Type 'string[]' is not assignable to type 'string | number | undefined'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(144,35): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(172,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(192,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(213,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(239,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(269,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(289,17): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(292,51): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(314,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(333,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(352,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(371,17): error TS2322: Type 'string[]' is not assignable to type 'string | number | undefined'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(373,35): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(425,23): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(439,23): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(453,23): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(465,23): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(477,23): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(489,23): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(495,27): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer/components/group-form.tsx(507,27): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer/index.tsx(156,7): error TS2322: Type '{ children: Element[]; open: boolean; onClose: () => void; maxWidth: "xl"; fullWidth: true; disableEnforceFocus: boolean; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'disableEnforceFocus' does not exist on type 'IntrinsicAttributes & DialogProps'.
+src/components/profile/groups-editor-viewer/index.tsx(163,15): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/groups-editor-viewer/index.tsx(248,38): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/profile-item-ui.tsx(1,32): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/profile/profile-item-ui.tsx(115,9): error TS2322: Type '(e: MouseEvent<Element, MouseEvent>) => void' is not assignable to type '() => void'.
+  Target signature provides too few arguments. Expected 1 or more, but got 0.
+src/components/profile/profile-item.tsx(9,26): error TS2307: Cannot find module '@/components/tailwind/MenuItem' or its corresponding type declarations.
+src/components/profile/profile-item.tsx(665,11): error TS2322: Type 'DraggableAttributes' is not assignable to type 'Record<string, unknown>'.
+  Index signature for type 'string' is missing in type 'DraggableAttributes'.
+src/components/profile/profile-item.tsx(666,11): error TS2322: Type 'SyntheticListenerMap | undefined' is not assignable to type 'Record<string, unknown>'.
+  Type 'undefined' is not assignable to type 'Record<string, unknown>'.
+src/components/profile/profile-item.tsx(698,9): error TS2322: Type '{ children: Element[]; open: boolean; onClose: () => void; anchorPosition: { left: number; top: number; }; anchorReference: string; onContextMenu: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & MenuProps'.
+  Property 'anchorPosition' does not exist on type 'IntrinsicAttributes & MenuProps'.
+src/components/profile/profile-item.tsx(700,25): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/profile/profile-item.tsx(796,9): error TS2322: Type '{ children: Element; title: string; open: boolean; okBtn: string; cancelBtn: string; contentSx: { width: { xs: number; sm: number; }; userSelect: string; }; onCancel: () => void; onClose: () => void; onOk: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/profile/profile-more.tsx(1,41): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/profile/profile-more.tsx(7,23): error TS2307: Cannot find module '@/components/tailwind/Badge' or its corresponding type declarations.
+src/components/profile/profile-more.tsx(86,9): error TS2322: Type '{ children: Element[]; onDoubleClick: () => void; onContextMenu: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & ProfileBoxProps'.
+  Property 'onDoubleClick' does not exist on type 'IntrinsicAttributes & ProfileBoxProps'.
+src/components/profile/profile-more.tsx(87,25): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/components/profile/profile-more.tsx(137,9): error TS2322: Type '{ children: Element[]; open: boolean; anchorEl: HTMLElement | null; onClose: () => void; anchorPosition: { left: number; top: number; }; anchorReference: string; onContextMenu: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & MenuProps'.
+  Property 'anchorPosition' does not exist on type 'IntrinsicAttributes & MenuProps'.
+src/components/profile/profile-more.tsx(139,25): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/profile/profile-more.tsx(150,15): error TS2322: Type '{ children: string; key: string; onClick: () => void; className: string; }' is not assignable to type 'IntrinsicAttributes & MenuItemProps'.
+  Property 'className' does not exist on type 'IntrinsicAttributes & MenuItemProps'.
+src/components/profile/profile-viewer-ui.tsx(62,7): error TS2322: Type '{ children: (false | Element)[]; open: boolean; title: string; contentSx: { width: number; pb: number; maxHeight: string; }; okBtn: string; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => void; loading: boolean; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/profile/profile-viewer-ui.tsx(77,13): error TS2322: Type '{ children: Element[]; label: string; className: string; fullWidth: true; autoFocus: true; onChange: (...event: any[]) => void; onBlur: Noop; value: "local" | "script" | "remote" | "merge" | undefined; disabled?: boolean | undefined; name: "type"; ref: RefCallBack; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'className' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/profile-viewer-ui.tsx(91,12): error TS2322: Type '{ label: string; onChange: (...event: any[]) => void; onBlur: Noop; value: string | undefined; disabled?: boolean | undefined; name: "name"; ref: RefCallBack; fullWidth: true; ... 4 more ...; autoCorrect: "off"; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Type '{ label: string; onChange: (...event: any[]) => void; onBlur: Noop; value: string | undefined; disabled?: boolean | undefined; name: "name"; ref: RefCallBack; fullWidth: true; ... 4 more ...; autoCorrect: "off"; }' is not assignable to type 'InputHTMLAttributes<HTMLInputElement>'.
+    Types of property 'size' are incompatible.
+      Type 'string' is not assignable to type 'number'.
+src/components/profile/profile-viewer-ui.tsx(99,12): error TS2322: Type '{ label: string; onChange: (...event: any[]) => void; onBlur: Noop; value: string | undefined; disabled?: boolean | undefined; name: "desc"; ref: RefCallBack; fullWidth: true; ... 4 more ...; autoCorrect: "off"; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Type '{ label: string; onChange: (...event: any[]) => void; onBlur: Noop; value: string | undefined; disabled?: boolean | undefined; name: "desc"; ref: RefCallBack; fullWidth: true; ... 4 more ...; autoCorrect: "off"; }' is not assignable to type 'InputHTMLAttributes<HTMLInputElement>'.
+    Types of property 'size' are incompatible.
+      Type 'string' is not assignable to type 'number'.
+src/components/profile/profile-viewer-ui.tsx(126,16): error TS2322: Type '{ placeholder: string; label: string; onChange: (...event: any[]) => void; onBlur: Noop; value: string | undefined; disabled?: boolean | undefined; name: "option.user_agent"; ref: RefCallBack; ... 5 more ...; autoCorrect: "off"; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Type '{ placeholder: string; label: string; onChange: (...event: any[]) => void; onBlur: Noop; value: string | undefined; disabled?: boolean | undefined; name: "option.user_agent"; ref: RefCallBack; ... 5 more ...; autoCorrect: "off"; }' is not assignable to type 'InputHTMLAttributes<HTMLInputElement>'.
+    Types of property 'size' are incompatible.
+      Type 'string' is not assignable to type 'number'.
+src/components/profile/profile-viewer-ui.tsx(145,17): error TS2322: Type '{ type: "number"; placeholder: string; label: string; slotProps: { input: { endAdornment: Element; }; }; onChange: (...event: any[]) => void; onBlur: Noop; value: number | undefined; ... 8 more ...; autoCorrect: "off"; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'slotProps' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/profile/profile-viewer-ui.tsx(170,15): error TS2322: Type '{ type: "number"; label: string; slotProps: { input: { endAdornment: Element; }; }; onChange: (...event: any[]) => void; onBlur: Noop; value: number | undefined; disabled?: boolean | undefined; ... 7 more ...; autoCorrect: "off"; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'slotProps' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/profile/profile-viewer-ui.tsx(203,25): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/profile-viewer-ui.tsx(216,25): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/profile-viewer-ui.tsx(229,25): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/profile-viewer-ui.tsx(242,25): error TS2322: Type 'boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/components/profile/profile-viewer.tsx(199,7): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/profile/proxy-item.tsx(3,51): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/profile/proxy-item.tsx(46,7): error TS2322: Type '{ children: Element[]; className: string; style: { transform: string | undefined; transition: string | undefined; zIndex: number | undefined; }; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/profile/proxy-item.tsx(76,9): error TS2322: Type '{ ref: ((node: HTMLElement | null) => void) | undefined; className: string; primary: Element; secondary: Element; secondaryClassName: string; role?: string | undefined; ... 4 more ...; 'aria-describedby'?: string | undefined; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'secondaryClassName' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/profile/qr-viewer.tsx(17,43): error TS2322: Type '"xs"' is not assignable to type '"sm" | "md" | "lg" | "xl" | undefined'.
+src/components/profile/rule-item.tsx(3,51): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/profile/rule-item.tsx(56,7): error TS2322: Type '{ children: Element[]; className: string; style: { transform: string | undefined; transition: string | null | undefined; zIndex: number | undefined; }; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/profile/rule-item.tsx(89,9): error TS2322: Type '{ ref: ((node: HTMLElement | null) => void) | null; className: string; primary: Element; secondary: Element; secondaryClassName: string; role?: string | undefined; ... 4 more ...; 'aria-describedby'?: string | undefined; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'secondaryClassName' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/profile/rules-editor-viewer.tsx(583,7): error TS2322: Type '{ children: Element[]; open: boolean; onClose: () => void; maxWidth: "xl"; fullWidth: true; disableEnforceFocus: boolean; }' is not assignable to type 'IntrinsicAttributes & DialogProps'.
+  Property 'disableEnforceFocus' does not exist on type 'IntrinsicAttributes & DialogProps'.
+src/components/profile/rules-editor-viewer.tsx(589,13): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/rules-editor-viewer.tsx(611,19): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/rules-editor-viewer.tsx(615,65): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/rules-editor-viewer.tsx(629,17): error TS2322: Type '{ children: (false | Element)[]; className: string; style: { display: string; }; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/profile/rules-editor-viewer.tsx(637,21): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/rules-editor-viewer.tsx(640,55): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/rules-editor-viewer.tsx(651,21): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/rules-editor-viewer.tsx(654,55): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/rules-editor-viewer.tsx(667,23): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/profile/rules-editor-viewer.tsx(671,23): error TS2322: Type 'boolean' is not assignable to type 'string'.
+src/components/profile/rules-editor-viewer.tsx(683,19): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/profile/rules-editor-viewer.tsx(686,53): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/profile/rules-editor-viewer.tsx(711,19): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/rules-editor-viewer.tsx(736,19): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/profile/rules-editor-viewer.tsx(812,38): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/proxy/multiplexing/index.tsx(38,66): error TS2345: Argument of type 'string | number' is not assignable to parameter of type 'SetStateAction<number>'.
+  Type 'string' is not assignable to type 'SetStateAction<number>'.
+src/components/proxy/multiplexing/mieru-multiplex-config.tsx(3,35): error TS2307: Cannot find module '@/components/tailwind/Radio' or its corresponding type declarations.
+src/components/proxy/multiplexing/mieru-multiplex-config.tsx(59,41): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/proxy/multiplexing/mieru-multiplex-config.tsx(60,9): error TS2322: Type '{ children: Element[]; value: MieruMultiplexing; label: string; onChange: (e: string | number) => void; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/proxy/multiplexing/mieru-multiplex-config.tsx(73,22): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/smux-config.tsx(49,22): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/smux-config.tsx(60,42): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/proxy/multiplexing/smux-config.tsx(62,13): error TS2322: Type '{ children: Element[]; value: "smux" | "yamux" | "h2mux"; label: string; onChange: (e: string | number) => void; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/proxy/multiplexing/smux-config.tsx(114,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/smux-config.tsx(122,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/smux-config.tsx(130,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/smux-config.tsx(141,28): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(3,35): error TS2307: Cannot find module '@/components/tailwind/Radio' or its corresponding type declarations.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(71,22): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(82,38): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(84,13): error TS2322: Type '{ children: Element[]; value: SudokuHttpMaskMode; label: string; onChange: (e: string | number) => void; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(96,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(125,32): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(128,15): error TS2322: Type '{ children: Element[]; value: SudokuHttpMaskMultiplex; label: string; onChange: (e: string | number) => void; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/proxy/multiplexing/sudoku-multiplex-config.tsx(139,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/obfuscation/index.tsx(76,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/obfuscation/index.tsx(84,26): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/proxy/obfuscation/index.tsx(93,70): error TS2345: Argument of type 'string | number' is not assignable to parameter of type 'SetStateAction<number>'.
+  Type 'string' is not assignable to type 'SetStateAction<number>'.
+src/components/proxy/provider-button.tsx(1,49): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/proxy/provider-button.tsx(141,15): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/proxy/proxy-chain.tsx(18,49): error TS2724: '"lucide-react"' has no exported member named 'LinkOff'. Did you mean 'Link2Off'?
+src/components/proxy/proxy-groups/components/group-select-menu.tsx(34,7): error TS2322: Type '{ children: (false | Element | Element[])[]; anchorEl: HTMLElement | null; open: boolean; onClose: () => void; className: string; }' is not assignable to type 'IntrinsicAttributes & MenuProps'.
+  Property 'className' does not exist on type 'IntrinsicAttributes & MenuProps'.
+src/components/proxy/proxy-groups/components/group-select-menu.tsx(40,11): error TS2322: Type '{ children: Element; key: string; onClick: () => void; selected: boolean; className: string; }' is not assignable to type 'IntrinsicAttributes & MenuItemProps'.
+  Property 'selected' does not exist on type 'IntrinsicAttributes & MenuItemProps'.
+src/components/proxy/proxy-groups/index.tsx(253,13): error TS2322: Type '{ children: string; onClose: () => void; severity: "warning"; variant: "filled"; }' is not assignable to type 'IntrinsicAttributes & AlertProps & RefAttributes<HTMLDivElement>'.
+  Property 'onClose' does not exist on type 'IntrinsicAttributes & AlertProps & RefAttributes<HTMLDivElement>'.
+src/components/proxy/proxy-head.tsx(188,11): error TS2322: Type '{ autoComplete: "new-password"; autoFocus: boolean; autoSave: string; value: string; placeholder: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; className: string; inputClassName: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'inputClassName' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/proxy/proxy-item-mini.tsx(1,43): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/proxy/proxy-item.tsx(6,3): error TS2305: Module '"@/components/tailwind/List"' has no exported member 'ListItemButton'.
+src/components/proxy/proxy-item.tsx(70,11): error TS2322: Type '{ title: string; secondary: Element; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/proxy/proxy-render.tsx(78,9): error TS2322: Type '{ children: (false | "" | Element | undefined)[]; dense: true; style: { background: string; height: string; margin: string; borderRadius: string; }; onClick: () => void; }' is not assignable to type 'IntrinsicAttributes & ListItemButtonProps & RefAttributes<HTMLDivElement>'.
+  Property 'dense' does not exist on type 'IntrinsicAttributes & ListItemButtonProps & RefAttributes<HTMLDivElement>'.
+src/components/rule/provider-button.tsx(1,49): error TS2307: Cannot find module '@mui/icons-material' or its corresponding type declarations.
+src/components/rule/provider-button.tsx(132,15): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/security/anti-probe-config-ui.tsx(69,17): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/security/anti-probe-config-ui.tsx(69,35): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/security/anti-probe-config-ui.tsx(81,17): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/security/anti-probe-config-ui.tsx(81,35): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/security/anti-probe-config-ui.tsx(100,15): error TS2322: Type '{ label: string; type: "number"; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; disabled: boolean; helperText: string; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/anti-probe-config-ui.tsx(116,15): error TS2322: Type '{ label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; disabled: boolean; fullWidth: true; readOnly: true; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/anti-probe-config-ui.tsx(151,21): error TS2322: Type '{ label: string; value: string; fullWidth: true; readOnly: true; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/anti-probe-config-ui.tsx(156,21): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/security/anti-probe-config-ui.tsx(185,17): error TS2322: Type '{ label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; onKeyPress: (e: KeyboardEvent<HTMLInputElement>) => false | void; disabled: boolean; placeholder: string; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/index.tsx(44,32): error TS2322: Type '(_event: React.SyntheticEvent, newValue: number) => void' is not assignable to type '(event: SyntheticEvent<Element, Event>, newValue: string | number) => void'.
+  Types of parameters 'newValue' and 'newValue' are incompatible.
+    Type 'string | number' is not assignable to type 'number'.
+      Type 'string' is not assignable to type 'number'.
+src/components/security/security-monitor-ui.tsx(75,48): error TS2322: Type '{ checked: boolean; onCheckedChange: () => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/security/security-monitor-ui.tsx(124,15): error TS2322: Type '{ label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; fullWidth: true; helperText: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/security-monitor-ui.tsx(170,21): error TS2322: Type '{ label: string; value: string; fullWidth: true; readOnly: true; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/security-monitor-ui.tsx(175,21): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/security/security-monitor-ui.tsx(207,15): error TS2322: Type '{ label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; placeholder: string; fullWidth: true; helperText: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/components/security/tls-fingerprint-selector.tsx(124,15): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/setting/components/backup/auto-backup-settings.tsx(143,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, checked: boolean) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/backup/auto-backup-settings.tsx(158,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/backup/auto-backup-settings.tsx(196,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, checked: boolean) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/backup/backup-config.tsx(183,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/backup/backup-config.tsx(196,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/backup/backup-config.tsx(209,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/backup/backup-history.tsx(297,7): error TS2322: Type '{ children: Element[]; open: boolean; title: string; contentSx: { width: number; }; disableOk: true; cancelBtn: string; onCancel: () => void; onClose: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/backup/backup-history.tsx(441,9): error TS2322: Type '{ children: ("" | Element | undefined)[]; open: boolean; title: string; okBtn: string; cancelBtn: string; contentSx: { width: { xs: number; sm: number; }; }; loading: boolean; onCancel: () => void; onClose: () => void; onOk: () => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/backup/backup-main.tsx(116,7): error TS2322: Type '{ children: Element[]; open: boolean; title: string; contentSx: { width: { xs: number; sm: number; }; }; disableOk: true; cancelBtn: string; onCancel: () => void; onClose: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/clash/clash-core.tsx(141,7): error TS2322: Type '{ children: Element; open: boolean; title: Element; contentSx: { pb: number; width: number; height: number; overflowY: string; userSelect: string; marginTop: string; }; disableOk: true; cancelBtn: string; onClose: () => void; onCancel: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/clash/clash-port.tsx(219,7): error TS2322: Type '{ children: Element; open: boolean; title: string; contentSx: { width: number; }; okBtn: string | Element; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/clash/clash-port.tsx(245,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/clash-port.tsx(261,15): error TS2322: Type '{ size: string; checked: true; disabled: true; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/clash-port.tsx(276,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/clash-port.tsx(294,15): error TS2322: Type '{ size: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/clash-port.tsx(309,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/clash-port.tsx(327,15): error TS2322: Type '{ size: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/clash-port.tsx(343,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/clash-port.tsx(361,17): error TS2322: Type '{ size: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/clash-port.tsx(378,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/clash-port.tsx(396,17): error TS2322: Type '{ size: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-fallback-fields.tsx(40,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-fallback-fields.tsx(51,11): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/dns-config/components/dns-fallback-fields.tsx(71,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-fallback-fields.tsx(94,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(35,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(46,11): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(61,11): error TS2322: Type '{ children: Element[]; size: string; value: "fake-ip" | "redir-host"; onChange: (event: any) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(76,11): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(91,11): error TS2322: Type '{ children: Element[]; size: string; value: "blacklist" | "whitelist"; onChange: (event: any) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(111,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(127,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(143,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(159,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(175,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-general-fields.tsx(191,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (event: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/clash/dns-config/components/dns-hosts-fields.tsx(38,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(34,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(57,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(80,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(103,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(126,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(149,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/components/dns-nameserver-fields.tsx(172,11): error TS2322: Type '{ fullWidth: true; multiline: true; minRows: number; maxRows: number; size: string; spellCheck: "false"; value: string; onChange: (event: any) => void; placeholder: string; className: string; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & BaseTextFieldProps & { multiline: true; } & TextareaHTMLAttributes<HTMLTextAreaElement> & RefAttributes<...>'.
+src/components/setting/components/clash/dns-config/index.tsx(178,7): error TS2322: Type '{ children: Element[]; open: boolean; disableEnforceFocus: boolean; title: Element; contentSx: { padding?: string | undefined; display?: string | undefined; flexDirection?: string | undefined; width: number; overflow: string; }; ... 4 more ...; onOk: () => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/clash/dns-config/index.tsx(195,9): error TS2322: Type '{ children: string; className: string; variant: "body2"; color: string; }' is not assignable to type 'IntrinsicAttributes & TypographyProps & RefAttributes<HTMLElement>'.
+  Property 'color' does not exist on type 'IntrinsicAttributes & TypographyProps & RefAttributes<HTMLElement>'.
+src/components/setting/components/hotkey/hotkey-config.tsx(123,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/hotkey/hotkey-config.tsx(125,24): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/setting/components/misc/layout-config.tsx(80,7): error TS2322: Type '{ children: Element; open: boolean; title: string; contentSx: { width: number; }; disableOk: true; cancelBtn: string; onClose: () => void; onCancel: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/misc/layout-config.tsx(102,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(118,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(134,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(152,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(174,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(189,21): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/layout-config.tsx(238,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(276,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/layout-config.tsx(312,21): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/layout-config.tsx(340,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(356,23): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/layout-config.tsx(384,23): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/layout-config.tsx(425,21): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/layout-config.tsx(458,21): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/lite-mode.tsx(56,7): error TS2322: Type '{ children: Element; open: boolean; title: string; contentSx: { width: number; }; okBtn: string; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/misc/lite-mode.tsx(69,13): error TS2322: Type '"button"' is not assignable to type '"caption" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "overline" | "subtitle1" | "subtitle2" | "body1" | "body2" | undefined'.
+src/components/setting/components/misc/lite-mode.tsx(87,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/lite-mode.tsx(104,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/lite-mode.tsx(132,17): error TS2322: Type '{ children: string; variant: "body2"; color: string; className: string; }' is not assignable to type 'IntrinsicAttributes & TypographyProps & RefAttributes<HTMLElement>'.
+  Property 'color' does not exist on type 'IntrinsicAttributes & TypographyProps & RefAttributes<HTMLElement>'.
+src/components/setting/components/misc/misc-config.tsx(87,7): error TS2322: Type '{ children: Element; open: boolean; title: string; contentSx: { width: number; }; okBtn: string; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/misc/misc-config.tsx(100,13): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/misc-config.tsx(106,32): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/setting/components/misc/misc-config.tsx(125,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/misc-config.tsx(157,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/misc-config.tsx(192,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/misc-config.tsx(206,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/misc-config.tsx(224,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/misc-config.tsx(238,13): error TS2322: Type '{ children: (Element | Element[])[]; size: string; className: string; value: number; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/misc-config.tsx(244,38): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/setting/components/misc/misc-config.tsx(264,13): error TS2322: Type '{ children: Element[]; size: string; className: string; value: number; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/misc/misc-config.tsx(270,33): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/setting/components/misc/misc-config.tsx(322,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/misc/misc-config.tsx(340,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/misc-config.tsx(380,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/misc-config.tsx(399,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/misc/update-config.tsx(10,10): error TS2305: Module '"@/components/tailwind"' has no exported member 'alpha'.
+src/components/setting/components/misc/update-config.tsx(10,30): error TS2305: Module '"@/components/tailwind"' has no exported member 'LinearProgress'.
+src/components/setting/components/misc/update-config.tsx(210,13): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/setting/components/misc/update-config.tsx(223,7): error TS2322: Type '{ children: (false | Element)[]; open: boolean; title: Element; contentSx: { width: { xs: string; sm: number; }; maxWidth: string; height: string; display: string; flexDirection: string; pb: number; }; ... 4 more ...; onOk: () => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/misc/update-config.tsx(238,9): error TS2322: Type '{ children: Element; sx: { flex: number; minHeight: number; overflow: string; pr: number; mr: number; fontSize: number; lineHeight: number; color: string; overflowWrap: string; '& > :first-child': { ...; }; ... 18 more ...; '& blockquote:not(.markdown-alert)': { ...; }; }; }' is not assignable to type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/components/misc/update-config.tsx(374,19): error TS2322: Type '{ children: ReactI18NextChildren | Iterable<ReactI18NextChildren>; component: string; className: string | undefined; sx: (theme: any) => { ...; }; }' is not assignable to type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+  Property 'component' does not exist on type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/components/misc/update-config.tsx(376,24): error TS7006: Parameter 'theme' implicitly has an 'any' type.
+src/components/setting/components/network/controller.tsx(111,7): error TS2322: Type '{ children: Element[]; open: boolean; title: string; contentSx: { width: number; }; okBtn: string | Element; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/network/controller.tsx(133,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (e: any) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/network/controller.tsx(135,24): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/setting/components/network/controller.tsx(146,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/controller.tsx(176,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/external-cors.tsx(154,9): error TS2322: Type '{ children: Element; open: boolean; title: string; contentSx: { width: number; }; okBtn: string; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/network/external-cors.tsx(168,17): error TS2322: Type '{ edge: string; checked: boolean; onChange: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/network/external-cors.tsx(170,28): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/setting/components/network/external-cors.tsx(191,21): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/external-cors.tsx(200,21): error TS2322: Type '"error"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/setting/components/network/network-interface.tsx(7,10): error TS2305: Module '"@/components/tailwind"' has no exported member 'alpha'.
+src/components/setting/components/network/network-interface.tsx(34,15): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/setting/components/network/network-interface.tsx(45,7): error TS2322: Type '{ children: Element[]; open: boolean; title: Element; contentSx: { width: number; }; disableOk: true; cancelBtn: string; onClose: () => void; onCancel: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/network/network-interface.tsx(117,9): error TS2322: Type '{ children: Element[]; sx: ({ palette }: { palette: any; }) => { borderRadius: string; padding: string; background: any; }; }' is not assignable to type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/components/network/network-interface.tsx(117,16): error TS7031: Binding element 'palette' implicitly has an 'any' type.
+src/components/setting/components/network/tun-config.tsx(190,7): error TS2322: Type '{ children: Element; open: boolean; title: Element; contentSx: { width: number; }; okBtn: string; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/network/tun-config.tsx(215,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tun-config.tsx(231,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/network/tun-config.tsx(254,15): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; disabled: boolean; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/network/tun-config.tsx(271,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/network/tun-config.tsx(282,13): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, c: boolean) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/network/tun-config.tsx(294,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tun-config.tsx(311,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tunnels-config.tsx(17,10): error TS2305: Module '"@/components/tailwind/icons"' has no exported member 'Delete'.
+src/components/setting/components/network/tunnels-config.tsx(17,18): error TS2305: Module '"@/components/tailwind/icons"' has no exported member 'ExpandLess'.
+src/components/setting/components/network/tunnels-config.tsx(17,30): error TS2305: Module '"@/components/tailwind/icons"' has no exported member 'ExpandMore'.
+src/components/setting/components/network/tunnels-config.tsx(204,7): error TS2322: Type '{ children: Element; open: boolean; title: string; contentSx: { width: number; }; okBtn: string; cancelBtn: string; onClose: () => void; onCancel: () => void; onOk: () => Promise<void>; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'contentSx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/components/network/tunnels-config.tsx(230,19): error TS2322: Type '{ children: Element; key: string; className: string; secondaryAction: Element; }' is not assignable to type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+  Property 'secondaryAction' does not exist on type 'IntrinsicAttributes & ListItemProps & RefAttributes<HTMLLIElement>'.
+src/components/setting/components/network/tunnels-config.tsx(277,19): error TS2322: Type '{ children: Element[]; size: string; className: string; value: string; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/network/tunnels-config.tsx(283,34): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/setting/components/network/tunnels-config.tsx(302,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tunnels-config.tsx(321,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tunnels-config.tsx(341,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tunnels-config.tsx(360,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/network/tunnels-config.tsx(391,19): error TS2322: Type '{ children: (Element | Element[])[]; size: string; className: string; value: string; displayEmpty: true; onChange: (e: string | number) => void; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/network/tunnels-config.tsx(396,41): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/setting/components/network/tunnels-config.tsx(438,19): error TS2322: Type '{ children: (Element | Element[])[]; size: string; className: string; value: string; displayEmpty: true; onChange: (e: string | number) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/components/network/tunnels-config.tsx(445,32): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/setting/components/network/tunnels-config.tsx(463,17): error TS2322: Type '"contained"' is not assignable to type '"primary" | "outlined" | "text" | "default" | "destructive" | "ghost" | "outline" | undefined'.
+src/components/setting/components/proxy/system-proxy-ui.tsx(180,13): error TS2322: Type '{ disabled: boolean; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, e: boolean) => void; className: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'className' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/components/proxy/system-proxy.tsx(427,7): error TS2322: Type '{ guard: boolean | undefined; enable_bypass_check: boolean; bypass: string | undefined; duration: number; use_default: boolean; pac: boolean | undefined; pac_content: string; proxy_host: string; }' is not assignable to type '{ guard: boolean; enable_bypass_check: boolean; bypass: string; duration: number; use_default: boolean; pac: boolean; pac_content: string; proxy_host: string; }'.
+  Types of property 'guard' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/setting/components/shared/setting-item.tsx(54,9): error TS2322: Type '{ children: Element; as: "button"; className: string; onClick: () => void; disabled: boolean; role: "button"; tabIndex: number; onKeyDown: (e: KeyboardEvent<Element>) => void; }' is not assignable to type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+  Property 'disabled' does not exist on type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/components/theme/theme-config.tsx(18,26): error TS2307: Cannot find module '@/hooks/use-theme' or its corresponding type declarations.
+src/components/setting/components/theme/theme-config.tsx(109,11): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/theme/theme-config.tsx(147,15): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/components/webui/webui-config.tsx(103,7): error TS2322: Type 'Element' is not assignable to type 'string'.
+src/components/setting/components/webui/webui-item.tsx(44,13): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/dns-leak-protection-card.tsx(118,11): error TS2322: Type '(_event: React.MouseEvent<HTMLElement>, newLevel: DnsLeakProtectionLevel) => void' is not assignable to type '(event: MouseEvent<HTMLElement, MouseEvent>, value: string | string[]) => void'.
+  Types of parameters 'newLevel' and 'value' are incompatible.
+    Type 'string | string[]' is not assignable to type 'DnsLeakProtectionLevel'.
+      Type 'string' is not assignable to type 'DnsLeakProtectionLevel'.
+src/components/setting/dns-leak-protection-card.tsx(197,17): error TS2322: Type '{ primary: string; primaryTypographyProps: { className: string; }; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'primaryTypographyProps' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/dns-leak-protection-card.tsx(224,39): error TS2322: Type '{ children: string; severity: "error"; icon: Element; className: string; }' is not assignable to type 'IntrinsicAttributes & AlertProps & RefAttributes<HTMLDivElement>'.
+  Property 'icon' does not exist on type 'IntrinsicAttributes & AlertProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/dns-leak-protection-card.tsx(228,41): error TS2322: Type '{ children: string; severity: "success"; icon: Element; className: string; }' is not assignable to type 'IntrinsicAttributes & AlertProps & RefAttributes<HTMLDivElement>'.
+  Property 'icon' does not exist on type 'IntrinsicAttributes & AlertProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/dns-leak-protection-card.tsx(259,25): error TS2322: Type '{ primary: string; primaryTypographyProps: { className: string; }; }' is not assignable to type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+  Property 'primaryTypographyProps' does not exist on type 'IntrinsicAttributes & ListItemTextProps & RefAttributes<HTMLDivElement>'.
+src/components/setting/dns-routing-card.tsx(5,10): error TS2305: Module '"lucide-react"' has no exported member 'Balance'.
+src/components/setting/dns-routing-card.tsx(90,11): error TS2322: Type '(_event: React.MouseEvent<HTMLElement>, newMode: DnsRoutingMode) => void' is not assignable to type '(event: MouseEvent<HTMLElement, MouseEvent>, value: string | string[]) => void'.
+  Types of parameters 'newMode' and 'value' are incompatible.
+    Type 'string | string[]' is not assignable to type 'DnsRoutingMode'.
+      Type 'string' is not assignable to type 'DnsRoutingMode'.
+src/components/setting/dns-stats-card.tsx(19,16): error TS2305: Module '"@/components/tailwind/Card"' has no exported member 'CardContent'.
+src/components/setting/dns-stats-card.tsx(127,19): error TS2322: Type '{ variant: "determinate"; value: number; className: string; color: string; }' is not assignable to type 'IntrinsicAttributes & LinearProgressProps'.
+  Property 'color' does not exist on type 'IntrinsicAttributes & LinearProgressProps'.
+src/components/setting/dns-stats-card.tsx(170,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/setting/dns-stats-card.tsx(179,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/setting/dns-stats-card.tsx(188,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/setting/setting-clash.tsx(9,10): error TS2305: Module '"@/components/tailwind/Select"' has no exported member 'MenuItem'.
+src/components/setting/setting-clash.tsx(125,19): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/setting-clash.tsx(139,11): error TS2322: Type '{ edge: string; checked: boolean; onChange: (_: ChangeEvent<HTMLInputElement, Element>, checked: boolean) => Promise<void | undefined>; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/setting-clash.tsx(154,19): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/setting-clash.tsx(163,13): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-clash.tsx(175,19): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/setting-clash.tsx(184,13): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-clash.tsx(198,19): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/setting-clash.tsx(222,11): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/setting-clash.tsx(273,15): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-system.tsx(72,19): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/setting-system.tsx(81,13): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-system.tsx(93,19): error TS2322: Type '{ edge: string; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/setting/setting-verge-advanced.tsx(92,13): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-verge-advanced.tsx(108,13): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-verge-advanced.tsx(138,13): error TS2322: Type '{ title: string; sx: { opacity: string; }; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'sx' does not exist on type 'IntrinsicAttributes & Props'.
+src/components/setting/setting-verge-basic.tsx(8,23): error TS2307: Cannot find module '@/components/tailwind/Input' or its corresponding type declarations.
+src/components/setting/setting-verge-basic.tsx(9,10): error TS2305: Module '"@/components/tailwind/Select"' has no exported member 'MenuItem'.
+src/components/setting/setting-verge-basic.tsx(101,19): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/setting-verge-basic.tsx(135,21): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/setting-verge-basic.tsx(171,19): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/setting-verge-basic.tsx(191,19): error TS2322: Type '{ children: Element[]; size: string; className: string; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'size' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/setting/tor-config-card.tsx(119,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/tor-config-card.tsx(128,17): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/setting/tor-config-card.tsx(136,19): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/test/test-item.tsx(203,9): error TS2322: Type '{ children: Element[]; open: boolean; anchorEl: any; onClose: () => void; anchorPosition: { left: number; top: number; }; anchorReference: string; onContextMenu: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & MenuProps'.
+  Property 'anchorPosition' does not exist on type 'IntrinsicAttributes & MenuProps'.
+src/components/test/test-item.tsx(205,25): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/ui/proxy-control-switches-ui.tsx(87,11): error TS2322: Type '{ edge: string; disabled: boolean | undefined; checked: boolean; onChange: (_: ChangeEvent<Element, Element>, value: boolean) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/ui/proxy-control-switches-ui.tsx(125,13): error TS2322: Type '{ edge: string; disabled: boolean | undefined; checked: boolean; onChange: (_: ChangeEvent<Element, Element>, value: boolean) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'edge' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/ui/traffic-error-boundary.tsx(182,37): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/ui/traffic-error-boundary.tsx(188,35): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/ui/traffic-error-boundary.tsx(192,33): error TS2322: Type '"sm"' is not assignable to type '"small" | "medium" | "large" | undefined'.
+src/components/xdp/xdp-config-ui.tsx(100,17): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/xdp/xdp-config-ui.tsx(100,35): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/xdp/xdp-config-ui.tsx(110,58): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/xdp/xdp-config-ui.tsx(113,15): error TS2322: Type '{ children: Element[]; label: string; value: string; onChange: (e: string | number) => void; disabled: boolean; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/xdp/xdp-config-ui.tsx(128,27): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/components/xdp/xdp-config-ui.tsx(132,15): error TS2322: Type '{ children: Element[]; label: string; value: "Native" | "Skb" | "Hw"; onChange: (e: string | number) => void; disabled: boolean; fullWidth: true; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'fullWidth' does not exist on type 'IntrinsicAttributes & SelectProps'.
+src/components/xdp/xdp-config-ui.tsx(143,17): error TS2322: Type '{ checked: boolean; onCheckedChange: (checked: any) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SwitchProps'.
+  Property 'onCheckedChange' does not exist on type 'IntrinsicAttributes & SwitchProps'.
+src/components/xdp/xdp-config-ui.tsx(143,35): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/pages/_layout/layout.tsx(359,11): error TS2322: Type '{ children: Element[]; open: boolean; onClose: () => void; anchorPosition: { top: number; left: number; } | undefined; }' is not assignable to type 'IntrinsicAttributes & MenuProps'.
+  Property 'anchorPosition' does not exist on type 'IntrinsicAttributes & MenuProps'.
+src/pages/advanced.tsx(128,43): error TS2345: Argument of type 'string | number' is not assignable to parameter of type 'SetStateAction<number>'.
+  Type 'string' is not assignable to type 'SetStateAction<number>'.
+src/pages/connections.tsx(158,41): error TS2322: Type '{ className: string; titleAccess: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'titleAccess' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/pages/connections.tsx(160,42): error TS2322: Type '{ className: string; titleAccess: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'titleAccess' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/pages/connections.tsx(193,12): error TS2741: Property 'options' is missing in type '{ children: Element[]; value: "default" | "uploadSpeed" | "downloadSpeed"; onChange: (e: string | number) => void; }' but required in type '{ options: { value: string | number; label: string; }[]; }'.
+src/pages/connections.tsx(195,47): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/pages/connections.tsx(267,11): error TS2322: Type '{ children: (string | Element)[]; size: "medium"; variant: "extended"; className: string; style: { bottom: number; }; color: "primary"; onClick: () => void; }' is not assignable to type 'IntrinsicAttributes & FabProps & RefAttributes<HTMLButtonElement>'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & FabProps & RefAttributes<HTMLButtonElement>'.
+src/pages/home.tsx(133,7): error TS2322: Type '"xs"' is not assignable to type '"sm" | "md" | "lg" | "xl" | undefined'.
+src/pages/home.tsx(531,37): error TS2322: Type '{ xs: number; sm: number; md: number; }' is not assignable to type 'number'.
+src/pages/logs.tsx(149,10): error TS2741: Property 'options' is missing in type '{ children: Element[]; value: LogFilter; onChange: (e: string | number) => void; }' but required in type '{ options: { value: string | number; label: string; }[]; }'.
+src/pages/logs.tsx(151,51): error TS2339: Property 'target' does not exist on type 'string | number'.
+  Property 'target' does not exist on type 'string'.
+src/pages/network-diagnostic.tsx(51,35): error TS2322: Type '{ xs: number; sm: number; md: number; }' is not assignable to type 'number'.
+src/pages/profiles.tsx(921,11): error TS2322: Type '{ value: string; variant: "outlined"; onChange: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void; onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void; placeholder: string; slotProps: { ...; }; }' is not assignable to type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+  Property 'slotProps' does not exist on type 'IntrinsicAttributes & (TextFieldProps & RefAttributes<HTMLInputElement | HTMLTextAreaElement>)'.
+src/pages/profiles.tsx(975,29): error TS2322: Type '{ xs: number; lg: number; }' is not assignable to type 'number'.
+src/pages/profiles.tsx(1021,29): error TS2322: Type '{ xs: number; lg: number; }' is not assignable to type 'number'.
+src/pages/proxies.tsx(140,13): error TS2322: Type '{ children: (string | Element)[]; component: string; "data-tauri-drag-region": string; className: string; }' is not assignable to type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+  Property 'component' does not exist on type 'IntrinsicAttributes & BoxProps & RefAttributes<HTMLDivElement>'.
+src/pages/settings.tsx(1,10): error TS2305: Module '"lucide-react"' has no exported member 'Github'.
+src/pages/settings.tsx(74,9): error TS2322: Type '{ xs: number; sm: number; md: number; lg: number; }' is not assignable to type 'number'.
+src/pages/test.tsx(174,29): error TS2322: Type '{ xs: number; lg: number; }' is not assignable to type 'number'.
+src/pages/test.tsx(182,21): error TS2322: Type '{ children: Element; component: string; item: true; xs: number; lg: number; sm: number; md: number; key: string; }' is not assignable to type 'IntrinsicAttributes & GridProps & RefAttributes<HTMLDivElement>'.
+  Property 'component' does not exist on type 'IntrinsicAttributes & GridProps & RefAttributes<HTMLDivElement>'.
+src/pages/unlock.tsx(371,39): error TS2322: Type '{ xs: number; sm: number; md: number; }' is not assignable to type 'number'.

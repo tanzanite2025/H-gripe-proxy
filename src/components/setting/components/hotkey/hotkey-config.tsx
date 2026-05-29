@@ -120,9 +120,8 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
         <div className="flex items-center justify-between mb-6">
           <span>{t('settings.modals.hotkey.toggles.enableGlobal')}</span>
           <Switch
-            edge="end"
             checked={enableGlobalHotkey}
-            onChange={(e) => setEnableGlobalHotkey(e.target.checked)}
+            onCheckedChange={setEnableGlobalHotkey}
           />
         </div>
 

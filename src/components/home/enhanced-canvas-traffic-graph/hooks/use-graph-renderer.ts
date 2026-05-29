@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useTheme } from '@mui/material'
+
+import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
+import { useThemeMode } from '@/services/states'
 
 import type { ChartStyle, TimeRange } from '../utils/graph-config'
 import { STALE_DATA_THRESHOLD } from '../utils/graph-config'
@@ -44,7 +46,8 @@ export const useGraphRenderer = ({
   lastDataTimestampRef,
   dataStaleRef,
 }: UseGraphRendererProps) => {
-  const theme = useTheme()
+  const mode = useThemeMode()
+  const theme = mode === 'light' ? defaultTheme : defaultDarkTheme
 
   // 帧请求引用
   const drawFrameRef = useRef<number | undefined>(undefined)
@@ -53,11 +56,11 @@ export const useGraphRenderer = ({
 
   // 主题颜色配置
   const colors = {
-    up: theme.palette.secondary.main,
-    down: theme.palette.primary.main,
-    grid: theme.palette.divider,
-    text: theme.palette.text.secondary,
-    background: theme.palette.background.paper,
+    up: theme.secondary_color,
+    down: theme.primary_color,
+    grid: mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+    text: theme.secondary_text,
+    background: theme.background_color,
   }
 
   // 主绘制函数

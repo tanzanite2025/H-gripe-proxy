@@ -3,8 +3,16 @@
  */
 
 import { AlertTriangle, Download, Info, Plus, Route, Trash2 } from 'lucide-react'
+import type { ChangeEvent } from 'react'
+
 import { Button, Switch, TextField, Select, Tabs, Tab } from '@/components/tailwind'
-import type { MultipathConfig, NodePool, PoolType, SessionBinding, SlicingStrategy } from '@/services/multipath'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
+import type {
+  MultipathConfig,
+  PoolType,
+  SessionBinding,
+  SlicingStrategy,
+} from '@/services/multipath'
 
 interface MultipathConfigUIProps {
   config: MultipathConfig
@@ -28,7 +36,7 @@ interface MultipathConfigUIProps {
 
 export default function MultipathConfigUI({
   config,
-  bindings,
+  bindings: _bindings,
   predefinedBindings,
   tabValue,
   saving,
@@ -43,7 +51,7 @@ export default function MultipathConfigUI({
   onAddNode,
   onRemoveNode,
   getPoolTypeLabel,
-  getStrategyLabel,
+  getStrategyLabel: _getStrategyLabel,
 }: MultipathConfigUIProps) {
   return (
     <div className="p-6">
@@ -70,7 +78,10 @@ export default function MultipathConfigUI({
 
         {/* 标签页 */}
         <div className="border-b border-divider">
-          <Tabs value={tabValue} onChange={(_, v) => onTabChange(v)}>
+          <Tabs
+            value={tabValue}
+            onChange={(_, v) => onTabChange(typeof v === 'number' ? v : Number(v) || 0)}
+          >
             <Tab label="基础配置" value={0} />
             <Tab label="节点池管理" value={1} />
             <Tab label="会话绑定规则" value={2} />
@@ -95,7 +106,7 @@ export default function MultipathConfigUI({
                 <Select
                   label="分片策略"
                   value={config.strategy}
-                  onChange={(e) =>
+                  onChange={(e: SelectChangeEvent) =>
                     onConfigChange({
                       ...config,
                       strategy: e.target.value as SlicingStrategy,
@@ -115,7 +126,7 @@ export default function MultipathConfigUI({
                   label="最小分片大小（字节）"
                   type="number"
                   value={config.min_fragment_size.toString()}
-                  onChange={(e) =>
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
                     onConfigChange({
                       ...config,
                       min_fragment_size: Number.parseInt(e.target.value),
@@ -129,7 +140,7 @@ export default function MultipathConfigUI({
                   label="最大分片大小（字节）"
                   type="number"
                   value={config.max_fragment_size.toString()}
-                  onChange={(e) =>
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
                     onConfigChange({
                       ...config,
                       max_fragment_size: Number.parseInt(e.target.value),
@@ -143,7 +154,7 @@ export default function MultipathConfigUI({
                   label="重组超时（毫秒）"
                   type="number"
                   value={config.reassembly_timeout.toString()}
-                  onChange={(e) =>
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
                     onConfigChange({
                       ...config,
                       reassembly_timeout: Number.parseInt(e.target.value),

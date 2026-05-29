@@ -13,8 +13,9 @@ import {
 import {
   buildGroupsYaml,
   normalizeDeleteSeq,
-  parseGroupsYaml,
 } from '../utils/group-helpers'
+
+const BUILTIN_PROXY_POLICIES = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
 
 interface UseGroupDataProps {
   mergeUid: string
@@ -45,8 +46,6 @@ export const useGroupData = ({
   const [appendSeq, setAppendSeq] = useState<IProxyGroupConfig[]>([])
   const [deleteSeq, setDeleteSeq] = useState<string[]>([])
   const [interfaceNameList, setInterfaceNameList] = useState<string[]>([])
-
-  const builtinProxyPolicies = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
 
   // Fetch content from profile file
   const fetchContent = useCallback(async () => {
@@ -145,7 +144,7 @@ export const useGroupData = ({
         (name): name is string => typeof name === 'string' && name.length > 0,
       )
 
-    const computedPolicyList = builtinProxyPolicies.concat(
+    const computedPolicyList = BUILTIN_PROXY_POLICIES.concat(
       prependSeq.map((group: IProxyGroupConfig) => group.name),
       (originGroupsObj?.['proxy-groups'] || [])
         .map((group: IProxyGroupConfig) => group.name)
@@ -155,7 +154,7 @@ export const useGroupData = ({
     )
 
     setProxyPolicyList(Array.from(new Set(computedPolicyList)))
-  }, [appendSeq, deleteSeq, prependSeq, profileUid, proxiesUid, builtinProxyPolicies])
+  }, [appendSeq, deleteSeq, prependSeq, profileUid, proxiesUid])
 
   // Fetch profile groups and providers
   const fetchProfile = useCallback(async () => {

@@ -5,17 +5,21 @@ export interface CollapseProps {
   children?: ReactNode
   className?: string
   in?: boolean
+  open?: boolean
   timeout?: number | 'auto'
 }
 
 export const Collapse = forwardRef<HTMLDivElement, CollapseProps>(
-  ({ children, className, in: isOpen }, ref) => {
+  ({ children, className, in: isOpen, open }, ref) => {
+    // Support both 'in' and 'open' props
+    const isExpanded = isOpen ?? open ?? false
+    
     return (
       <div
         ref={ref}
         className={cn(
           'transition-all duration-300 overflow-hidden',
-          isOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0',
+          isExpanded ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0',
           className
         )}
       >

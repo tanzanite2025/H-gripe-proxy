@@ -5,11 +5,16 @@
  */
 
 use serde::{Deserialize, Serialize};
+use serde_yaml_ng::{Mapping, Value};
 use std::path::PathBuf;
 use anyhow::Result;
 
+use super::ConfigFile;
 use crate::anti_probe::AntiProbeConfig;
+use crate::core::egress_identity::EgressIdentityConfig;
+use crate::core::session_affinity::SessionAffinityConfig;
 use crate::multipath::MultipathConfig;
+use crate::traffic::TrafficPaddingConfig;
 #[cfg(target_os = "linux")]
 use crate::xdp::XdpConfig;
 
@@ -23,6 +28,20 @@ pub struct AdvancedConfig {
     /// 多路径路由配置
     #[serde(default)]
     pub multipath: MultipathConfig,
+
+    /// 会话绑定配置
+    #[serde(default)]
+    pub session_affinity: SessionAffinityConfig,
+
+    #[serde(default)]
+    pub egress_identity: EgressIdentityConfig,
+
+    #[serde(default)]
+    pub dns: DnsAdvancedConfig,
+
+    /// 流量填充配置
+    #[serde(default)]
+    pub traffic_padding: TrafficPaddingConfig,
     
     /// XDP 代理配置（仅 Linux）
     #[cfg(target_os = "linux")]
@@ -35,6 +54,10 @@ impl Default for AdvancedConfig {
         Self {
             security: SecurityConfig::default(),
             multipath: MultipathConfig::default(),
+            session_affinity: SessionAffinityConfig::default(),
+            egress_identity: EgressIdentityConfig::default(),
+            dns: DnsAdvancedConfig::default(),
+            traffic_padding: TrafficPaddingConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig::default(),
         }
@@ -98,7 +121,268 @@ impl Default for ConfigDecoyConfig {
     }
 }
 
-use super::ConfigFile;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsAdvancedConfig {
+    #[serde(default = "dns_bool_default_true")]
+    pub enable_cache: bool,
+    #[serde(default = "dns_bool_default_true")]
+    pub enable_prefetch: bool,
+    #[serde(default = "dns_bool_default_true")]
+    pub enable_health_check: bool,
+    #[serde(default = "dns_prefetch_interval_default")]
+    pub prefetch_interval: u64,
+    #[serde(default = "dns_health_check_interval_default")]
+    pub health_check_interval: u64,
+    #[serde(default)]
+    pub routing_mode: DnsRoutingMode,
+    #[serde(default)]
+    pub leak_protection_level: DnsLeakProtectionLevel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DnsRoutingMode {
+    Speed,
+    Privacy,
+    Balanced,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DnsLeakProtectionLevel {
+    None,
+    Basic,
+    Strict,
+    Paranoid,
+}
+
+fn dns_bool_default_true() -> bool {
+    true
+}
+
+fn dns_prefetch_interval_default() -> u64 {
+    300_000
+}
+
+fn dns_health_check_interval_default() -> u64 {
+    60_000
+}
+
+impl Default for DnsRoutingMode {
+    fn default() -> Self {
+        Self::Balanced
+    }
+}
+
+impl Default for DnsLeakProtectionLevel {
+    fn default() -> Self {
+        Self::Basic
+    }
+}
+
+impl Default for DnsAdvancedConfig {
+    fn default() -> Self {
+        Self {
+            enable_cache: true,
+            enable_prefetch: true,
+            enable_health_check: true,
+            prefetch_interval: dns_prefetch_interval_default(),
+            health_check_interval: dns_health_check_interval_default(),
+            routing_mode: DnsRoutingMode::default(),
+            leak_protection_level: DnsLeakProtectionLevel::default(),
+        }
+    }
+}
+
+impl DnsAdvancedConfig {
+    pub fn validate(&self) -> Result<()> {
+        if self.prefetch_interval == 0 {
+            return Err(anyhow::anyhow!("DNS 预解析间隔必须大于 0"));
+        }
+
+        if self.health_check_interval == 0 {
+            return Err(anyhow::anyhow!("DNS 健康检查间隔必须大于 0"));
+        }
+
+        Ok(())
+    }
+
+    pub fn to_dns_config_mapping(&self) -> Mapping {
+        let using_fake_ip = matches!(
+            self.leak_protection_level,
+            DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
+        );
+        let force_doh = matches!(
+            self.leak_protection_level,
+            DnsLeakProtectionLevel::Basic
+                | DnsLeakProtectionLevel::Strict
+                | DnsLeakProtectionLevel::Paranoid
+        );
+        let block_plain_dns = matches!(
+            self.leak_protection_level,
+            DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
+        );
+        let block_ipv6_dns = matches!(self.leak_protection_level, DnsLeakProtectionLevel::Paranoid);
+
+        let domestic_plain = vec!["223.5.5.5", "119.29.29.29"];
+        let domestic_doh = vec![
+            "https://dns.alidns.com/dns-query",
+            "https://doh.pub/dns-query",
+        ];
+        let foreign_plain = vec!["1.1.1.1", "8.8.8.8", "9.9.9.9"];
+        let foreign_doh = vec![
+            "https://dns.google/dns-query",
+            "https://cloudflare-dns.com/dns-query",
+            "https://dns.quad9.net/dns-query",
+        ];
+
+        let effective_mode = match self.routing_mode {
+            DnsRoutingMode::Custom => DnsRoutingMode::Balanced,
+            _ => self.routing_mode.clone(),
+        };
+
+        let (cn_servers, foreign_servers) = match effective_mode {
+            DnsRoutingMode::Speed => {
+                if force_doh {
+                    (domestic_doh.clone(), domestic_doh.clone())
+                } else {
+                    (domestic_plain.clone(), domestic_plain.clone())
+                }
+            }
+            DnsRoutingMode::Privacy => (foreign_doh.clone(), foreign_doh.clone()),
+            DnsRoutingMode::Balanced | DnsRoutingMode::Custom => {
+                if force_doh {
+                    (domestic_doh.clone(), foreign_doh.clone())
+                } else {
+                    (domestic_plain.clone(), foreign_doh.clone())
+                }
+            }
+        };
+
+        let mut nameserver = Vec::<String>::new();
+        for server in cn_servers.iter().chain(foreign_servers.iter()) {
+            if !nameserver.iter().any(|existing| existing == server) {
+                nameserver.push((*server).to_string());
+            }
+        }
+
+        let fallback = if force_doh {
+            foreign_doh
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect::<Vec<String>>()
+        } else {
+            foreign_plain
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect::<Vec<String>>()
+        };
+
+        let mut dns_mapping = Mapping::new();
+        dns_mapping.insert("enable".into(), Value::Bool(true));
+        dns_mapping.insert("listen".into(), Value::String(":53".into()));
+        dns_mapping.insert("respect-rules".into(), Value::Bool(true));
+        dns_mapping.insert("use-hosts".into(), Value::Bool(true));
+        dns_mapping.insert("use-system-hosts".into(), Value::Bool(true));
+        dns_mapping.insert("prefer-h3".into(), Value::Bool(force_doh));
+        dns_mapping.insert("ipv6".into(), Value::Bool(!block_ipv6_dns));
+        dns_mapping.insert(
+            "enhanced-mode".into(),
+            Value::String(if using_fake_ip {
+                "fake-ip".into()
+            } else {
+                "redir-host".into()
+            }),
+        );
+
+        if using_fake_ip {
+            dns_mapping.insert("fake-ip-range".into(), Value::String("198.18.0.1/16".into()));
+            dns_mapping.insert(
+                "fake-ip-filter".into(),
+                Value::Sequence(
+                    [
+                        "*.lan",
+                        "localhost.ptlogin2.qq.com",
+                        "+.stun.*.*",
+                        "+.stun.*.*.*",
+                        "+.stun.*.*.*.*",
+                        "+.stun.*.*.*.*.*",
+                        "*.n.n.srv.nintendo.net",
+                        "+.stun.playstation.net",
+                        "xbox.*.*.microsoft.com",
+                        "*.*.xboxlive.com",
+                        "*.msftncsi.com",
+                        "*.msftconnecttest.com",
+                        "WORKGROUP",
+                    ]
+                    .into_iter()
+                    .map(Value::from)
+                    .collect(),
+                ),
+            );
+        }
+
+        dns_mapping.insert(
+            "default-nameserver".into(),
+            Value::Sequence(
+                if block_plain_dns {
+                    Vec::<Value>::new()
+                } else {
+                    domestic_plain.into_iter().map(Value::from).collect()
+                },
+            ),
+        );
+        dns_mapping.insert(
+            "nameserver".into(),
+            Value::Sequence(nameserver.iter().map(|item| Value::from(item.as_str())).collect()),
+        );
+        dns_mapping.insert(
+            "fallback".into(),
+            Value::Sequence(fallback.iter().map(|item| Value::from(item.as_str())).collect()),
+        );
+
+        let mut fallback_filter = Mapping::new();
+        fallback_filter.insert("geoip".into(), Value::Bool(true));
+        fallback_filter.insert("geoip-code".into(), Value::String("CN".into()));
+        fallback_filter.insert(
+            "ipcidr".into(),
+            Value::Sequence(["240.0.0.0/4", "0.0.0.0/32"].into_iter().map(Value::from).collect()),
+        );
+        fallback_filter.insert(
+            "domain".into(),
+            Value::Sequence(
+                [
+                    "+.google.com",
+                    "+.facebook.com",
+                    "+.youtube.com",
+                    "+.twitter.com",
+                    "+.github.com",
+                ]
+                .into_iter()
+                .map(Value::from)
+                .collect(),
+            ),
+        );
+        dns_mapping.insert("fallback-filter".into(), Value::Mapping(fallback_filter));
+
+        let mut nameserver_policy = Mapping::new();
+        nameserver_policy.insert(
+            "geosite:cn".into(),
+            Value::Sequence(cn_servers.iter().map(|item| Value::from(*item)).collect()),
+        );
+        nameserver_policy.insert(
+            "geosite:geolocation-!cn".into(),
+            Value::Sequence(foreign_servers.iter().map(|item| Value::from(*item)).collect()),
+        );
+        dns_mapping.insert("nameserver-policy".into(), Value::Mapping(nameserver_policy));
+
+        let mut root = Mapping::new();
+        root.insert("dns".into(), Value::Mapping(dns_mapping));
+        root.insert("hosts".into(), Value::Mapping(Mapping::new()));
+        root
+    }
+}
 
 // 实现 ConfigFile trait
 impl ConfigFile for AdvancedConfig {}
@@ -139,6 +423,9 @@ impl AdvancedConfig {
             }
         }
 
+        self.egress_identity.validate()?;
+        self.dns.validate()?;
+
         // 验证 XDP 配置（Linux）
         #[cfg(target_os = "linux")]
         if self.xdp.enabled {
@@ -162,6 +449,21 @@ impl AdvancedConfig {
             self.multipath = other.multipath.clone();
         }
 
+        // 合并会话绑定配置
+        if other.session_affinity.enabled {
+            self.session_affinity = other.session_affinity.clone();
+        }
+
+        if other.egress_identity.enabled {
+            self.egress_identity = other.egress_identity.clone();
+        }
+
+        self.dns = other.dns.clone();
+
+        if other.traffic_padding.enabled {
+            self.traffic_padding = other.traffic_padding.clone();
+        }
+
         // 合并 XDP 配置（Linux）
         #[cfg(target_os = "linux")]
         if other.xdp.enabled {
@@ -174,7 +476,7 @@ impl AdvancedConfig {
 impl AdvancedConfig {
     /// 生成推荐配置
     pub fn recommended() -> Self {
-        use crate::multipath::{NodePool, PoolType, SlicingStrategy};
+        use crate::multipath::{NodePool, PoolType, SessionBinding, SlicingStrategy};
 
         Self {
             security: SecurityConfig {
@@ -214,6 +516,14 @@ impl AdvancedConfig {
                 max_fragment_size: 65536,
                 reassembly_timeout: 5000,
                 session_persistence: true,
+                bindings: SessionBinding::all_predefined(),
+            },
+            session_affinity: SessionAffinityConfig::default(),
+            egress_identity: EgressIdentityConfig::recommended(),
+            dns: DnsAdvancedConfig::default(),
+            traffic_padding: TrafficPaddingConfig {
+                enabled: true,
+                ..TrafficPaddingConfig::default()
             },
             #[cfg(target_os = "linux")]
             xdp: XdpConfig {

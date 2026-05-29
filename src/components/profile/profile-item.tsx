@@ -24,7 +24,6 @@ import { showNotice } from '@/services/notice-service'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { debugLog } from '@/utils/misc'
-import parseTraffic from '@/utils/format'
 
 import { ProfileItemUI } from './profile-item-ui'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'
@@ -793,7 +792,8 @@ export const ProfileItem = (props: Props) => {
         open={confirmOpen}
         okBtn={t('shared.actions.confirm')}
         cancelBtn={t('shared.actions.cancel')}
-        contentSx={{ width: { xs: 320, sm: 420 }, userSelect: 'text' }}
+        panelStyle={{ width: 'min(420px, calc(100vw - 56px))' }}
+        contentClassName="select-text"
         onCancel={() => setConfirmOpen(false)}
         onClose={() => setConfirmOpen(false)}
         onOk={() => {
@@ -812,7 +812,7 @@ export const ProfileItem = (props: Props) => {
           onClose={() => setQrOpen(false)}
         />
       )}
-    </Box>
+    </>
   )
 }
 

@@ -1,71 +1,67 @@
 /**
- * 安全防御模块
+ * 安全模块
  * 
  * 包含：
- * 1. 反调试检测
- * 2. 内存蜜罐
- * 3. 配置文件欺骗
- * 4. 自毁机制
+ * - local_security: 本地安全监控
+ * - firewall: 防火墙管理
+ * - leak_monitor: 泄漏监控循环
  */
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 pub mod anti_debug;
-pub mod memory_honeypot;
 pub mod config_decoy;
+pub mod local_security;
+pub mod firewall;
+pub mod leak_monitor;
+pub mod memory_honeypot;
 pub mod self_destruct;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
-/// 安全状态
 static SECURITY_COMPROMISED: AtomicBool = AtomicBool::new(false);
 
-/// 检查安全状态是否被破坏
-pub fn is_security_compromised() -> bool {
-    SECURITY_COMPROMISED.load(Ordering::Relaxed)
-}
-
-/// 标记安全状态为已破坏
-pub fn mark_security_compromised() {
-    SECURITY_COMPROMISED.store(true, Ordering::Relaxed);
-}
-
-/// 安全监控服务
+#[derive(Debug)]
 pub struct SecurityMonitor {
-    enabled: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
 }
 
 impl SecurityMonitor {
     pub fn new() -> Self {
         Self {
-            enabled: Arc::new(AtomicBool::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
         }
     }
 
-    /// 启动安全监控
     pub fn start(&self) {
-        self.enabled.store(true, Ordering::Relaxed);
-        
-        // 启动反调试监控
-        let enabled = self.enabled.clone();
-        std::thread::spawn(move || {
-            anti_debug::monitor_loop(enabled);
-        });
-
-        // 启动内存蜜罐监控
-        let enabled = self.enabled.clone();
-        std::thread::spawn(move || {
-            memory_honeypot::monitor_loop(enabled);
-        });
+        self.running.store(true, Ordering::Relaxed);
     }
 
-    /// 停止安全监控
     pub fn stop(&self) {
-        self.enabled.store(false, Ordering::Relaxed);
+        self.running.store(false, Ordering::Relaxed);
+    }
+
+    #[allow(dead_code)]
+    pub fn is_running(&self) -> bool {
+        self.running.load(Ordering::Relaxed)
     }
 }
 
-impl Default for SecurityMonitor {
-    fn default() -> Self {
-        Self::new()
-    }
+pub fn mark_security_compromised() {
+    SECURITY_COMPROMISED.store(true, Ordering::SeqCst);
 }
+
+pub fn is_security_compromised() -> bool {
+    SECURITY_COMPROMISED.load(Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub fn reset_security_compromised() {
+    SECURITY_COMPROMISED.store(false, Ordering::SeqCst);
+}
+
+#[allow(unused_imports)]
+pub use local_security::{LocalSecurityConfig, LocalSecurityMonitor, LeakMonitorStatus, SecurityError};
+#[allow(unused_imports)]
+pub use firewall::{FirewallManager, FirewallRule, Protocol, Action};
+#[allow(unused_imports)]
+pub use leak_monitor::{LeakMonitor, LeakType, detect_leak_types};

@@ -1,5 +1,5 @@
 import { Check, X, Trash2, Edit, ExternalLink } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Stack, TextField, IconButton, Divider, Box } from '@/components/tailwind'
 
@@ -43,7 +43,7 @@ export const WebUIItem = (props: Props) => {
             fullWidth
             size="small"
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setEditValue(e.target.value)}
             placeholder={t(
               'settings.modals.webUI.messages.supportedPlaceholders',
             )}

@@ -1,0 +1,17 @@
+﻿node.exe : npm error Missing script: "check"
+所在位置 行:1 字符: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\P16V\A
+ppData\Roaming\n ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm error 
+    Missing script: "check":String) [], RemoteExcepti  
+  on
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm error
+npm error To see a list of scripts, run:
+npm error   npm run
+npm error A complete log of this run can be found in: C
+:\Users\P16V\AppData\Local\npm-cache\_logs\2026-05-28T0
+0_09_20_494Z-debug-0.log

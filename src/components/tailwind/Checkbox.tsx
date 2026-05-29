@@ -9,10 +9,11 @@ export interface CheckboxProps {
   className?: string
   color?: 'primary' | 'secondary' | 'default'
   size?: 'small' | 'medium'
+  edge?: 'start' | 'end' | false
 }
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ checked, onChange, disabled, className, color = 'primary', size = 'medium' }, ref) => {
+  ({ checked, onChange, disabled, className, color = 'primary', size = 'medium', edge = false }, ref) => {
     const sizeClasses = {
       small: 'h-4 w-4',
       medium: 'h-5 w-5',
@@ -24,8 +25,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
       default: 'border-gray-400 checked:bg-gray-600',
     }
 
+    const edgeClasses = edge === 'start' ? '-ml-2' : edge === 'end' ? '-mr-2' : ''
+
     return (
-      <div className="relative inline-flex items-center">
+      <div className={cn('relative inline-flex items-center', edgeClasses)}>
         <input
           ref={ref}
           type="checkbox"

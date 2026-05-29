@@ -138,14 +138,11 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Box>
         </Box>
       }
-      contentSx={{
-        pb: 0,
+      panelStyle={{
         width: 400,
         height: 180,
-        overflowY: 'auto',
-        userSelect: 'text',
-        marginTop: '-8px',
       }}
+      contentClassName="-mt-2 overflow-y-auto select-text pb-0"
       disableOk
       cancelBtn={t('shared.actions.close')}
       onClose={() => setOpen(false)}

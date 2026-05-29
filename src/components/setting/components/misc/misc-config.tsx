@@ -1,5 +1,5 @@
 import { useLockFn } from 'ahooks'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { forwardRef, useImperativeHandle, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
@@ -12,6 +12,7 @@ import {
   Select,
   TextField,
 } from '@/components/tailwind'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
@@ -84,7 +85,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.modals.misc.title')}
-      contentSx={{ width: 450 }}
+      panelStyle={{ width: 450 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
@@ -100,7 +101,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             size="small"
             className="w-[100px]"
             value={values.appLogLevel}
-            onChange={(e) =>
+            onChange={(e: SelectChangeEvent) =>
               setValues((v) => ({
                 ...v,
                 appLogLevel: e.target.value as string,
@@ -129,7 +130,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             spellCheck="false"
             className="w-[140px] ml-auto"
             value={values.appLogMaxSize}
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({
                 ...v,
                 appLogMaxSize: Math.max(1, parseInt(e.target.value) || 128),
@@ -161,7 +162,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             spellCheck="false"
             className="w-[140px] ml-auto"
             value={values.appLogMaxCount}
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({
                 ...v,
                 appLogMaxCount: Math.max(1, parseInt(e.target.value) || 1),
@@ -189,10 +190,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             className="opacity-70"
           />
           <Switch
-            edge="end"
             checked={values.autoCloseConnection}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoCloseConnection: c }))
+            onCheckedChange={(checked) =>
+              setValues((v) => ({ ...v, autoCloseConnection: checked }))
             }
             className="ml-auto"
           />
@@ -203,10 +203,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             primary={t('settings.modals.misc.fields.autoCheckUpdate')}
           />
           <Switch
-            edge="end"
             checked={values.autoCheckUpdate}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoCheckUpdate: c }))
+            onCheckedChange={(checked) =>
+              setValues((v) => ({ ...v, autoCheckUpdate: checked }))
             }
           />
         </ListItem>
@@ -221,10 +220,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             className="opacity-70"
           />
           <Switch
-            edge="end"
             checked={values.enableBuiltinEnhanced}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, enableBuiltinEnhanced: c }))
+            onCheckedChange={(checked) =>
+              setValues((v) => ({ ...v, enableBuiltinEnhanced: checked }))
             }
             className="ml-auto"
           />
@@ -238,10 +236,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             size="small"
             className="w-[160px]"
             value={values.proxyLayoutColumn}
-            onChange={(e) =>
+            onChange={(e: SelectChangeEvent) =>
               setValues((v) => ({
                 ...v,
-                proxyLayoutColumn: e.target.value as number,
+                proxyLayoutColumn: Number(e.target.value),
               }))
             }
           >
@@ -264,10 +262,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             size="small"
             className="w-[160px]"
             value={values.autoLogClean}
-            onChange={(e) =>
+            onChange={(e: SelectChangeEvent) =>
               setValues((v) => ({
                 ...v,
-                autoLogClean: e.target.value as number,
+                autoLogClean: Number(e.target.value),
               }))
             }
           >
@@ -319,10 +317,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             className="opacity-70"
           />
           <Switch
-            edge="end"
             checked={values.enableAutoDelayDetection}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, enableAutoDelayDetection: c }))
+            onCheckedChange={(checked) =>
+              setValues((v) => ({ ...v, enableAutoDelayDetection: checked }))
             }
             className="ml-auto"
           />
@@ -345,7 +342,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             className="w-[160px] ml-auto"
             value={values.autoDelayDetectionIntervalMinutes}
             disabled={!values.enableAutoDelayDetection}
-            onChange={(e) => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               const parsed = parseInt(e.target.value, 10)
               const intervalMinutes =
                 Number.isFinite(parsed) && parsed > 0 ? parsed : 1
@@ -384,7 +381,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             className="w-[250px] ml-auto"
             value={values.defaultLatencyTest}
             placeholder="http://cp.cloudflare.com/generate_204"
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({ ...v, defaultLatencyTest: e.target.value }))
             }
           />
@@ -404,7 +401,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             className="w-[250px]"
             value={values.defaultLatencyTimeout}
             placeholder="10000"
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({
                 ...v,
                 defaultLatencyTimeout: parseInt(e.target.value),

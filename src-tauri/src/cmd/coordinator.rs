@@ -2,8 +2,12 @@
  * 核心协调器 Tauri 命令
  */
 
-use crate::core::coordinator::{CoreCoordinator, CoordinatorConfig};
 use crate::config::AdvancedConfig;
+use crate::core::coordinator::{CoreCoordinator, CoordinatorConfig};
+use crate::core::{
+    coordinator_status::CoordinatorStatus,
+    stable_egress::project_runtime_status,
+};
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
@@ -15,6 +19,18 @@ static COORDINATOR: Lazy<Arc<CoreCoordinator>> = Lazy::new(|| {
 /// 获取协调器实例
 pub fn get_coordinator() -> Arc<CoreCoordinator> {
     COORDINATOR.clone()
+}
+
+pub fn sync_coordinator_from_advanced_config() -> Result<(), String> {
+    use crate::utils::dirs;
+
+    let path = dirs::app_home_dir()
+        .map_err(|e| e.to_string())?
+        .join("advanced.yaml");
+    let config = AdvancedConfig::load(&path).map_err(|e| e.to_string())?;
+    COORDINATOR
+        .hydrate_from_advanced_config(&config)
+        .map_err(|e| e.to_string())
 }
 
 /// 初始化协调器
@@ -58,7 +74,7 @@ pub fn get_advanced_config() -> Result<AdvancedConfig, String> {
 
 /// 保存高级配置
 #[tauri::command]
-pub fn save_advanced_config(config: AdvancedConfig) -> Result<(), String> {
+pub async fn save_advanced_config(config: AdvancedConfig) -> Result<(), String> {
     use crate::utils::dirs;
     
     // 验证配置
@@ -72,34 +88,20 @@ pub fn save_advanced_config(config: AdvancedConfig) -> Result<(), String> {
     
     config.save(&path)
         .map_err(|e| e.to_string())?;
+
+    crate::cmd::clash::save_dns_config_mapping(&config.dns.to_dns_config_mapping()).await?;
+
+    // 同步流量填充配置：启用则启动/更新，禁用则停止
+    crate::cmd::traffic::apply_traffic_padding_config(config.traffic_padding.clone()).await?;
     
     // 应用到协调器
-    let coordinator_config = CoordinatorConfig {
-        security_enabled: config.security.enabled,
-        anti_probe_enabled: config.security.anti_probe.enabled,
-        tls_fingerprint: config.security.tls_fingerprint.clone(),
-        multipath_enabled: config.multipath.enabled,
-        #[cfg(target_os = "linux")]
-        xdp_enabled: config.xdp.enabled,
-    };
-    
-    COORDINATOR.update_config(coordinator_config)
+    COORDINATOR.apply_advanced_config(&config)
         .map_err(|e| e.to_string())?;
-    
-    // 更新各个服务的配置
-    if config.security.anti_probe.enabled {
-        COORDINATOR.anti_probe().update_config(config.security.anti_probe);
-    }
-    
-    if config.multipath.enabled {
-        COORDINATOR.multipath_manager().update_config(config.multipath);
-    }
-    
-    #[cfg(target_os = "linux")]
-    if config.xdp.enabled {
-        COORDINATOR.xdp_manager().update_config(config.xdp)
-            .map_err(|e| e.to_string())?;
-    }
+
+    crate::cmd::session_affinity::get_session_affinity_manager()
+        .update_config(config.session_affinity)
+        .await
+        .map_err(|e| e.to_string())?;
     
     Ok(())
 }
@@ -119,9 +121,23 @@ pub fn validate_advanced_config(config: AdvancedConfig) -> Result<(), String> {
 
 /// 获取协调器状态
 #[tauri::command]
-pub fn coordinator_get_status() -> Result<CoordinatorStatus, String> {
+pub async fn coordinator_get_status() -> Result<CoordinatorStatus, String> {
+    let _ = sync_coordinator_from_advanced_config();
     let config = COORDINATOR.get_config();
+    // 读取反探测与出站身份配置以保持同步
+    let _anti_probe_cfg = COORDINATOR.anti_probe().get_config();
+    let _egress_cfg = COORDINATOR.egress_identity_manager().get_config();
     let security_compromised = crate::security::is_security_compromised();
+    let runtime_state = project_runtime_status(
+        COORDINATOR.egress_identity_manager().get_active_assignments(),
+        crate::cmd::session_affinity::get_session_affinity_manager()
+            .get_all_bindings()
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+    .await;
+    let egress_identity_active_assignments = runtime_state.egress_identity_assignments.len();
+    let session_affinity_active_bindings = runtime_state.session_affinity_bindings.len();
     
     Ok(CoordinatorStatus {
         initialized: true,
@@ -129,6 +145,11 @@ pub fn coordinator_get_status() -> Result<CoordinatorStatus, String> {
         security_compromised,
         anti_probe_enabled: config.anti_probe_enabled,
         tls_fingerprint: config.tls_fingerprint.clone(),
+        egress_identity_enabled: config.egress_identity_enabled,
+        session_affinity_enabled: config.session_affinity_enabled,
+        egress_identity_active_assignments,
+        session_affinity_active_bindings,
+        runtime_state,
         multipath_enabled: config.multipath_enabled,
         #[cfg(target_os = "linux")]
         xdp_enabled: config.xdp_enabled,
@@ -137,17 +158,3 @@ pub fn coordinator_get_status() -> Result<CoordinatorStatus, String> {
     })
 }
 
-/// 协调器状态
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct CoordinatorStatus {
-    pub initialized: bool,
-    pub security_enabled: bool,
-    pub security_compromised: bool,
-    pub anti_probe_enabled: bool,
-    pub tls_fingerprint: Option<String>,
-    pub multipath_enabled: bool,
-    #[cfg(target_os = "linux")]
-    pub xdp_enabled: bool,
-    #[cfg(target_os = "linux")]
-    pub xdp_running: bool,
-}

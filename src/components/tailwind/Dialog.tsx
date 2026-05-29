@@ -1,8 +1,10 @@
 import { Dialog as HeadlessDialog, Transition } from '@headlessui/react'
 import { X } from 'lucide-react'
-import { Fragment, forwardRef, type ReactNode } from 'react'
-import { IconButton } from './IconButton'
+import { Fragment, forwardRef, type CSSProperties, type ReactNode } from 'react'
+
 import { cn } from '@/utils/cn'
+
+import { IconButton } from './IconButton'
 
 export interface DialogProps {
   open: boolean
@@ -11,10 +13,17 @@ export interface DialogProps {
   description?: string
   children: ReactNode
   actions?: ReactNode
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl'
+  maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   fullWidth?: boolean
   showCloseButton?: boolean
   className?: string
+  disableEnforceFocus?: boolean
+  slotProps?: {
+    paper?: {
+      className?: string
+      style?: CSSProperties
+    }
+  }
 }
 
 export interface DialogTitleProps {
@@ -43,13 +52,19 @@ export const Dialog = ({
   fullWidth = false,
   showCloseButton = false,
   className,
+  disableEnforceFocus: _disableEnforceFocus,
+  slotProps,
 }: DialogProps) => {
   const maxWidthClasses = {
+    xs: 'max-w-xs',
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
   }
+
+  const paperClassName = slotProps?.paper?.className
+  const paperStyle = slotProps?.paper?.style
 
   return (
     <Transition show={open} as={Fragment}>
@@ -79,11 +94,13 @@ export const Dialog = ({
             leaveTo="opacity-0 scale-95"
           >
             <HeadlessDialog.Panel
+              style={paperStyle}
               className={cn(
                 fullWidth ? 'w-full' : 'w-auto',
                 maxWidthClasses[maxWidth],
                 'rounded-dialog bg-card-light dark:bg-card-dark shadow-dialog dark:shadow-dialog-dark',
-                className
+                className,
+                paperClassName,
               )}
             >
               {/* 关闭按钮 */}

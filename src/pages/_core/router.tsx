@@ -1,8 +1,10 @@
 import { createBrowserRouter, RouteObject } from 'react-router'
 
 import Layout from '../_layout/layout'
+import AdvancedPage from '../advanced'
 import ConnectionsPage from '../connections'
 import HomePage from '../home'
+import NetworkDiagnosticPage from '../network-diagnostic'
 import ProfilesPage from '../profiles'
 import ProxiesPage from '../proxies'
 import RulesPage from '../rules'
@@ -53,6 +55,12 @@ export const navItems = [
     Component: UnlockPage,
   },
   {
+    label: 'layout.components.navigation.tabs.networkDiagnostic',
+    path: '/network-diagnostic',
+    icon: [],
+    Component: NetworkDiagnosticPage,
+  },
+  {
     label: 'layout.components.navigation.tabs.settings',
     path: '/settings',
     icon: [],
@@ -64,12 +72,18 @@ export const router = createBrowserRouter([
   {
     path: '/',
     Component: Layout,
-    children: navItems.map(
-      (item) =>
-        ({
-          path: item.path,
-          Component: item.Component,
-        }) as RouteObject,
-    ),
+    children: [
+      ...navItems.map(
+        (item) =>
+          ({
+            path: item.path,
+            Component: item.Component,
+          }) as RouteObject,
+      ),
+      {
+        path: '/advanced',
+        Component: AdvancedPage,
+      },
+    ],
   },
 ])

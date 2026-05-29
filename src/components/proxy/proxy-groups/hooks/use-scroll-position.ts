@@ -144,6 +144,8 @@ export function useScrollListener(
   useEffect(() => {
     const node = parentRef.current
     if (!node) return
+    const restoredScrollKey = restoredScrollKeyRef.current
+    const savedScrollTop = scrollTopRef.current
 
     const listener = handleScroll as EventListener
     const options: AddEventListenerOptions = { passive: true }
@@ -151,8 +153,8 @@ export function useScrollListener(
     node.addEventListener('scroll', listener, options)
 
     return () => {
-      if (restoredScrollKeyRef.current === scrollPositionKey) {
-        saveScrollPosition(scrollTopRef.current)
+      if (restoredScrollKey === scrollPositionKey) {
+        saveScrollPosition(savedScrollTop)
       }
       node.removeEventListener('scroll', listener, options)
     }

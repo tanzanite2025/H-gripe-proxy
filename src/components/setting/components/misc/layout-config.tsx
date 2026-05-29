@@ -77,7 +77,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.components.verge.layout.title')}
-      contentSx={{ width: 450 }}
+      panelStyle={{ width: 450 }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onClose={() => setOpen(false)}
@@ -99,7 +99,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               await toggleDecorations()
             }}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -115,7 +115,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(e) => onChangeData({ traffic_graph: e })}
             onGuard={(e) => patchVerge({ traffic_graph: e })}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -131,7 +131,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(e) => onChangeData({ enable_memory_usage: e })}
             onGuard={(e) => patchVerge({ enable_memory_usage: e })}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -149,7 +149,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(e) => onChangeData({ enable_group_icon: e })}
             onGuard={(e) => patchVerge({ enable_group_icon: e })}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -171,7 +171,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               patchVerge({ pause_render_traffic_stats_on_blur: e })
             }
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -235,7 +235,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(e) => onChangeData({ enable_hover_jump_navigator: e })}
             onGuard={(e) => patchVerge({ enable_hover_jump_navigator: e })}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -337,7 +337,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(e) => onChangeData({ collapse_navbar: e })}
             onGuard={(e) => patchVerge({ collapse_navbar: e })}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 
@@ -381,7 +381,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               onChange={(e) => onChangeData({ enable_tray_speed: e })}
               onGuard={(e) => patchVerge({ enable_tray_speed: e })}
             >
-              <Switch edge="end" />
+              <Switch />
             </GuardState>
           </ListItem>
         )}
@@ -401,7 +401,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
               onChange={(e) => onChangeData({ enable_tray_icon: e })}
               onGuard={(e) => patchVerge({ enable_tray_icon: e })}
             >
-              <Switch edge="end" />
+              <Switch />
             </GuardState>
           </ListItem>
         )} */}
@@ -455,7 +455,7 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
             onChange={(e) => onChangeData({ tray_inline_outbound_modes: e })}
             onGuard={(e) => patchVerge({ tray_inline_outbound_modes: e })}
           >
-            <Switch edge="end" />
+            <Switch />
           </GuardState>
         </ListItem>
 

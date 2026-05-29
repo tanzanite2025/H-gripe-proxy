@@ -1,4 +1,5 @@
 import { Edit } from 'lucide-react'
+import type { ChangeEvent } from 'react'
 import {
   Button,
   Chip,
@@ -137,7 +138,7 @@ export const SystemProxyUI = ({
             <select
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
               value={value.proxy_host}
-              onChange={(e) => {
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => {
                 setValue((v: any) => ({
                   ...v,
                   proxy_host: e.target.value || '127.0.0.1',
@@ -160,7 +161,7 @@ export const SystemProxyUI = ({
           <Switch
             disabled={!enabled}
             checked={value.pac}
-            onChange={(_, e) => setValue((v: any) => ({ ...v, pac: e }))}
+            onCheckedChange={(checked) => setValue((v: any) => ({ ...v, pac: checked }))}
           />
         </ListItem>
 
@@ -176,7 +177,7 @@ export const SystemProxyUI = ({
           <Switch
             disabled={!enabled}
             checked={value.guard}
-            onChange={(_, e) => setValue((v: any) => ({ ...v, guard: e }))}
+            onCheckedChange={(checked) => setValue((v: any) => ({ ...v, guard: checked }))}
             className="ml-auto"
           />
         </ListItem>
@@ -189,7 +190,7 @@ export const SystemProxyUI = ({
             disabled={!enabled}
             value={value.duration}
             className="w-[100px]"
-            onChange={(e) => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               setValue((v: any) => ({
                 ...v,
                 duration: +e.target.value.replace(/\D/, ''),
@@ -210,17 +211,17 @@ export const SystemProxyUI = ({
             <Switch
               disabled={!enabled}
               checked={value.use_default}
-              onChange={(_, e) => {
-                if (!e && !value.bypass) {
+              onCheckedChange={(checked) => {
+                if (!checked && !value.bypass) {
                   const nextBypass = defaultBypass()
                   setValue((v: any) => ({
                     ...v,
-                    use_default: e,
+                    use_default: checked,
                     bypass: nextBypass,
                   }))
                   return
                 }
-                setValue((v: any) => ({ ...v, use_default: e }))
+                setValue((v: any) => ({ ...v, use_default: checked }))
               }}
             />
           </ListItem>
@@ -234,8 +235,8 @@ export const SystemProxyUI = ({
             <Switch
               disabled={!enabled}
               checked={value.enable_bypass_check}
-              onChange={(_, e) =>
-                setValue((v: any) => ({ ...v, enable_bypass_check: e }))
+              onCheckedChange={(checked) =>
+                setValue((v: any) => ({ ...v, enable_bypass_check: checked }))
               }
             />
           </ListItem>

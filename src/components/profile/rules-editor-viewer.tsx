@@ -17,6 +17,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,6 +36,7 @@ import { List } from '@/components/tailwind/List'
 import { ListItem } from '@/components/tailwind/ListItem'
 import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Select } from '@/components/tailwind/Select'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
 import { RuleItem } from '@/components/profile/rule-item'
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
@@ -637,7 +639,7 @@ export const RulesEditorViewer = (props: Props) => {
                     size="small"
                     className="min-w-[240px]"
                     value={ruleContent}
-                    onChange={(e) => setRuleContent(e.target.value)}
+                    onChange={(e: SelectChangeEvent) => setRuleContent(e.target.value as string)}
                   >
                     {ruleSetList.map((option) => (
                       <option key={option} value={option}>
@@ -670,7 +672,7 @@ export const RulesEditorViewer = (props: Props) => {
                       required={ruleType.required ?? true}
                       error={(ruleType.required ?? true) && !ruleContent}
                       placeholder={ruleType.example}
-                      onChange={(e) => setRuleContent(e.target.value)}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setRuleContent(e.target.value)}
                     />
                   )}
               </ListItem>
@@ -683,7 +685,7 @@ export const RulesEditorViewer = (props: Props) => {
                   size="small"
                   className="min-w-[240px]"
                   value={proxyPolicy}
-                  onChange={(e) => setProxyPolicy(e.target.value)}
+                  onChange={(e: SelectChangeEvent) => setProxyPolicy(e.target.value as string)}
                 >
                   {proxyPolicyList.map((option) => (
                     <option key={option} value={option}>

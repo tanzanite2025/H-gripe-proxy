@@ -255,6 +255,18 @@ pub struct IVerge {
     /// 代理页面自动滚动延迟（毫秒）
     pub hover_jump_navigator_delay: Option<u64>,
 
+    pub enable_tor_proxy: Option<bool>,
+
+    pub tor_socks_host: Option<String>,
+
+    pub tor_socks_port: Option<u16>,
+
+    pub tor_control_port: Option<u16>,
+
+    pub tor_use_bridges: Option<bool>,
+
+    pub tor_bridges: Option<Vec<String>>,
+
     /// 启用外部控制器
     pub enable_external_controller: Option<bool>,
 }
@@ -451,6 +463,12 @@ impl IVerge {
             auto_light_weight_minutes: Some(10),
             enable_dns_settings: Some(false),
             home_cards: None,
+            enable_tor_proxy: Some(false),
+            tor_socks_host: Some("127.0.0.1".into()),
+            tor_socks_port: Some(9050),
+            tor_control_port: Some(9051),
+            tor_use_bridges: Some(false),
+            tor_bridges: Some(Vec::new()),
             enable_external_controller: Some(false),
             ..Self::default()
         }

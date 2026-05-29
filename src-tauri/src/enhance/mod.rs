@@ -14,8 +14,22 @@ use self::{
     tun::use_tun,
 };
 use crate::utils::dirs;
-use crate::{config::Config, utils::tmpl};
-use crate::{config::IVerge, constants};
+use crate::core::{
+    egress_identity::{
+        DnsMode, EgressIdentityManager, EgressNodeMetadata, EgressSelectionContext,
+        ResolvedEgressIdentity,
+    },
+    session_affinity::{DomainBindingRule, FallbackPolicy},
+    stable_egress::{
+        STABLE_EGRESS_GROUP_PREFIX, domain_probe_for_pattern, stable_egress_group_name,
+        stable_egress_rule_line,
+    },
+};
+use crate::{
+    config::{AdvancedConfig, Config, IVerge},
+    constants,
+    utils::tmpl,
+};
 use anyhow::{Context as _, Result};
 use clash_verge_logging::{Type, logging};
 use regex::Regex;
@@ -46,6 +60,12 @@ impl StandardRegionPoolSpec {
     fn matches(self, value: &str) -> bool {
         Regex::new(self.filter).map(|re| re.is_match(value)).unwrap_or(false)
     }
+}
+
+#[derive(Debug, Clone)]
+struct StaticProxySpec {
+    name: std::string::String,
+    server: Option<std::string::String>,
 }
 
 const STANDARD_REGION_POOL_SPECS: [StandardRegionPoolSpec; 6] = [
@@ -699,6 +719,468 @@ fn append_standard_region_pools(mut config: Mapping) -> Mapping {
     config
 }
 
+fn load_advanced_config_for_stable_egress() -> AdvancedConfig {
+    dirs::app_home_dir()
+        .ok()
+        .map(|dir| dir.join("advanced.yaml"))
+        .and_then(|path| AdvancedConfig::load(&path).ok())
+        .unwrap_or_default()
+}
+
+pub(crate) fn apply_stable_egress_policy(config: Mapping) -> Mapping {
+    let advanced_config = load_advanced_config_for_stable_egress();
+    apply_stable_egress_policy_with_advanced(config, &advanced_config)
+}
+
+fn apply_stable_egress_policy_with_advanced(
+    mut config: Mapping,
+    advanced_config: &AdvancedConfig,
+) -> Mapping {
+    if !advanced_config.session_affinity.enabled || !advanced_config.egress_identity.enabled {
+        return config;
+    }
+
+    let domain_rules = advanced_config
+        .session_affinity
+        .domain_rules
+        .iter()
+        .filter(|rule| {
+            rule.enabled && matches!(rule.fallback_policy.clone(), FallbackPolicy::Manual)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if domain_rules.is_empty() {
+        return config;
+    }
+
+    let static_proxies = collect_static_proxy_specs(&config);
+    let provider_names = collect_provider_names(&config);
+
+    if static_proxies.is_empty() && provider_names.is_empty() {
+        return config;
+    }
+
+    let egress_manager =
+        EgressIdentityManager::new_with_config(advanced_config.egress_identity.clone());
+    let metadata = build_static_egress_metadata(&static_proxies, advanced_config);
+    let static_proxy_names = static_proxies
+        .iter()
+        .map(|proxy| proxy.name.clone())
+        .collect::<Vec<_>>();
+
+    let mut groups = config
+        .get("proxy-groups")
+        .and_then(Value::as_sequence)
+        .cloned()
+        .unwrap_or_default();
+    groups.retain(|group| {
+        group
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|name| !name.starts_with(STABLE_EGRESS_GROUP_PREFIX))
+            .unwrap_or(true)
+    });
+
+    let mut generated_group_names = HashSet::<std::string::String>::new();
+    let mut generated_rules = Sequence::new();
+    let mut generated_dns_policy = Mapping::new();
+
+    for rule in domain_rules {
+        let group_name = stable_egress_group_name(&rule.domain_pattern);
+        let Some(rule_line) = stable_egress_rule_line(&rule.domain_pattern, &group_name) else {
+            continue;
+        };
+        let resolved_identity =
+            preview_stable_egress_identity(&egress_manager, &rule, &static_proxy_names, &metadata);
+
+        if generated_group_names.insert(group_name.clone()) {
+            let mut ordered_nodes = static_proxy_names.clone();
+
+            if let Some(resolved_identity) = resolved_identity.as_ref() {
+                ordered_nodes = prioritize_node_names(
+                    ordered_nodes,
+                    &resolved_identity.selected_node,
+                    !provider_names.is_empty(),
+                );
+            }
+
+            if let Some(bound_node) = rule.bound_node.as_ref() {
+                ordered_nodes =
+                    prioritize_node_names(ordered_nodes, bound_node, !provider_names.is_empty());
+            }
+
+            ordered_nodes = dedupe_node_names(ordered_nodes);
+
+            if ordered_nodes.is_empty() && provider_names.is_empty() {
+                continue;
+            }
+
+            let mut group = Mapping::new();
+            group.insert("name".into(), Value::from(group_name.as_str()));
+            group.insert("type".into(), Value::from("select"));
+
+            if !ordered_nodes.is_empty() {
+                group.insert(
+                    "proxies".into(),
+                    Value::Sequence(
+                        ordered_nodes
+                            .iter()
+                            .map(|name| Value::from(name.as_str()))
+                            .collect(),
+                    ),
+                );
+            }
+
+            if !provider_names.is_empty() {
+                group.insert(
+                    "use".into(),
+                    Value::Sequence(
+                        provider_names
+                            .iter()
+                            .map(|name| Value::from(name.as_str()))
+                            .collect(),
+                    ),
+                );
+            }
+
+            groups.push(Value::Mapping(group));
+        }
+
+        if let Some(policy_key) = stable_dns_policy_key(&rule.domain_pattern)
+            && let Some(resolved_identity) = resolved_identity.as_ref()
+            && let Some(nameservers) =
+                stable_dns_server_override(&config, advanced_config, resolved_identity)
+        {
+            generated_dns_policy.insert(
+                Value::from(policy_key.as_str()),
+                Value::Sequence(
+                    nameservers
+                        .iter()
+                        .map(|server| Value::from(server.as_str()))
+                        .collect(),
+                ),
+            );
+        }
+
+        generated_rules.push(Value::from(rule_line.as_str()));
+    }
+
+    if generated_rules.is_empty() {
+        return config;
+    }
+
+    let mut existing_rules = config
+        .get("rules")
+        .and_then(Value::as_sequence)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|rule| {
+            rule.as_str()
+                .map(|line| !line.contains(STABLE_EGRESS_GROUP_PREFIX))
+                .unwrap_or(true)
+        })
+        .collect::<Sequence>();
+
+    generated_rules.append(&mut existing_rules);
+
+    let mut profile = config
+        .get("profile")
+        .and_then(Value::as_mapping)
+        .cloned()
+        .unwrap_or_default();
+    profile.insert("store-selected".into(), Value::Bool(true));
+
+    config.insert("profile".into(), Value::Mapping(profile));
+    config.insert("proxy-groups".into(), Value::Sequence(groups));
+    config.insert("rules".into(), Value::Sequence(generated_rules));
+    apply_stable_egress_dns_overrides(&mut config, generated_dns_policy);
+    config
+}
+
+fn collect_static_proxy_specs(config: &Mapping) -> Vec<StaticProxySpec> {
+    config
+        .get("proxies")
+        .and_then(Value::as_sequence)
+        .map(|proxies| {
+            proxies
+                .iter()
+                .filter_map(|proxy| match proxy {
+                    Value::Mapping(mapping) => {
+                        mapping.get("name").and_then(Value::as_str).map(|name| StaticProxySpec {
+                            name: name.to_string(),
+                            server: mapping
+                                .get("server")
+                                .and_then(Value::as_str)
+                                .map(|server| server.to_string()),
+                        })
+                    }
+                    Value::String(name) => Some(StaticProxySpec {
+                        name: name.to_string(),
+                        server: None,
+                    }),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn collect_provider_names(config: &Mapping) -> Vec<std::string::String> {
+    config
+        .get("proxy-providers")
+        .and_then(Value::as_mapping)
+        .map(|providers| {
+            providers
+                .keys()
+                .filter_map(Value::as_str)
+                .map(|name| name.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn build_static_egress_metadata(
+    static_proxies: &[StaticProxySpec],
+    advanced_config: &AdvancedConfig,
+) -> Vec<EgressNodeMetadata> {
+    static_proxies
+        .iter()
+        .map(|proxy| {
+            let mut metadata = EgressNodeMetadata {
+                name: proxy.name.clone(),
+                server: proxy.server.clone(),
+                ..Default::default()
+            };
+
+            if let Some((pool_name, pool_type, server)) = advanced_config
+                .multipath
+                .node_pools
+                .iter()
+                .filter(|pool| pool.enabled)
+                .find_map(|pool| {
+                    pool.nodes
+                        .iter()
+                        .find(|node| node.enabled && node.name.eq_ignore_ascii_case(&proxy.name))
+                        .map(|node| {
+                            (
+                                pool.name.clone(),
+                                format!("{:?}", pool.pool_type),
+                                node.server.clone(),
+                            )
+                        })
+                })
+            {
+                metadata.pool_name = Some(pool_name);
+                metadata.pool_type = Some(pool_type);
+                if metadata.server.is_none() {
+                    metadata.server = Some(server);
+                }
+            }
+
+            metadata
+        })
+        .collect::<Vec<_>>()
+}
+
+fn preview_stable_egress_identity(
+    manager: &EgressIdentityManager,
+    rule: &DomainBindingRule,
+    static_proxy_names: &[std::string::String],
+    metadata: &[EgressNodeMetadata],
+) -> Option<ResolvedEgressIdentity> {
+    let domain = domain_probe_for_pattern(&rule.domain_pattern)?;
+    manager
+        .preview_match(EgressSelectionContext {
+            domain: Some(domain),
+            available_nodes: static_proxy_names.to_vec(),
+            available_node_metadata: metadata.to_vec(),
+            ..Default::default()
+        })
+        .ok()
+}
+
+fn stable_dns_policy_key(pattern: &str) -> Option<std::string::String> {
+    if let Some(suffix) = pattern.strip_prefix("*.").or_else(|| pattern.strip_prefix('*')) {
+        let suffix = suffix.trim_start_matches('.').trim();
+        if suffix.is_empty() {
+            None
+        } else {
+            Some(format!("+.{suffix}"))
+        }
+    } else if pattern.contains('*') {
+        None
+    } else {
+        let domain = pattern.trim();
+        if domain.is_empty() {
+            None
+        } else {
+            Some(domain.to_string())
+        }
+    }
+}
+
+fn stable_dns_server_override(
+    config: &Mapping,
+    advanced_config: &AdvancedConfig,
+    resolved_identity: &ResolvedEgressIdentity,
+) -> Option<Vec<std::string::String>> {
+    let dns_mapping = config.get("dns").and_then(Value::as_mapping)?;
+    let profile = advanced_config
+        .egress_identity
+        .profiles
+        .iter()
+        .find(|profile| profile.id == resolved_identity.profile_id)?;
+
+    let remote_dns = matches!(resolved_identity.dns_mode, DnsMode::Remote)
+        || profile.dns_policy.force_remote_dns;
+    let hijack_dns = matches!(resolved_identity.dns_mode, DnsMode::Hijack);
+
+    if !remote_dns && !hijack_dns {
+        return None;
+    }
+
+    let domestic_nameservers =
+        mapping_nested_string_sequence(dns_mapping, "nameserver-policy", "geosite:cn");
+    let foreign_nameservers = mapping_nested_string_sequence(
+        dns_mapping,
+        "nameserver-policy",
+        "geosite:geolocation-!cn",
+    );
+    let nameserver = mapping_string_sequence(dns_mapping, "nameserver");
+    let fallback = mapping_string_sequence(dns_mapping, "fallback");
+
+    if remote_dns {
+        first_non_empty_string_sequence([
+            foreign_nameservers,
+            fallback,
+            nameserver,
+            domestic_nameservers,
+        ])
+        .map(dedupe_string_sequence)
+    } else {
+        first_non_empty_string_sequence([
+            nameserver,
+            domestic_nameservers,
+            fallback,
+            foreign_nameservers,
+        ])
+        .map(dedupe_string_sequence)
+    }
+}
+
+fn apply_stable_egress_dns_overrides(config: &mut Mapping, overrides: Mapping) {
+    if overrides.is_empty() {
+        return;
+    }
+
+    let Some(Value::Mapping(dns_mapping)) = config.get_mut("dns") else {
+        return;
+    };
+
+    let mut nameserver_policy = dns_mapping
+        .get("nameserver-policy")
+        .and_then(Value::as_mapping)
+        .cloned()
+        .unwrap_or_default();
+
+    for (key, value) in overrides {
+        nameserver_policy.insert(key, value);
+    }
+
+    dns_mapping.insert("nameserver-policy".into(), Value::Mapping(nameserver_policy));
+}
+
+fn mapping_string_sequence(mapping: &Mapping, key: &str) -> Vec<std::string::String> {
+    mapping
+        .get(key)
+        .and_then(Value::as_sequence)
+        .map(|sequence| {
+            sequence
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn mapping_nested_string_sequence(
+    mapping: &Mapping,
+    key: &str,
+    nested_key: &str,
+) -> Vec<std::string::String> {
+    mapping
+        .get(key)
+        .and_then(Value::as_mapping)
+        .and_then(|nested_mapping| nested_mapping.get(nested_key))
+        .and_then(Value::as_sequence)
+        .map(|sequence| {
+            sequence
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn first_non_empty_string_sequence<const N: usize>(
+    sequences: [Vec<std::string::String>; N],
+) -> Option<Vec<std::string::String>> {
+    sequences.into_iter().find(|sequence| !sequence.is_empty())
+}
+
+fn dedupe_string_sequence(values: Vec<std::string::String>) -> Vec<std::string::String> {
+    let mut seen = HashSet::<std::string::String>::new();
+    let mut deduped = Vec::with_capacity(values.len());
+
+    for value in values {
+        if seen.insert(value.clone()) {
+            deduped.push(value);
+        }
+    }
+
+    deduped
+}
+
+fn prioritize_node_names(
+    mut available_nodes: Vec<std::string::String>,
+    preferred_node: &str,
+    allow_insert_missing: bool,
+) -> Vec<std::string::String> {
+    if preferred_node.trim().is_empty() {
+        return available_nodes;
+    }
+
+    if let Some(index) = available_nodes
+        .iter()
+        .position(|node| node.eq_ignore_ascii_case(preferred_node))
+    {
+        let preferred = available_nodes.remove(index);
+        available_nodes.insert(0, preferred);
+    } else if allow_insert_missing {
+        available_nodes.insert(0, preferred_node.to_string());
+    }
+
+    available_nodes
+}
+
+fn dedupe_node_names(nodes: Vec<std::string::String>) -> Vec<std::string::String> {
+    let mut seen = HashSet::<std::string::String>::new();
+    let mut deduped = Vec::with_capacity(nodes.len());
+
+    for node in nodes {
+        let key = node.to_ascii_lowercase();
+        if seen.insert(key) {
+            deduped.push(node);
+        }
+    }
+
+    deduped
+}
+
 async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> Mapping {
     if enable_dns_settings && let Ok(app_dir) = dirs::app_home_dir() {
         let dns_path = app_dir.join(constants::files::DNS_CONFIG);
@@ -802,6 +1284,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     // dns settings
     config = apply_dns_settings(config, enable_dns_settings).await;
+    config = apply_stable_egress_policy(config);
+    config = use_sort(config);
 
     let mut exists_keys_set = HashSet::new();
     exists_keys_set.extend(exists_keys);
@@ -812,7 +1296,10 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[allow(clippy::expect_used)]
 #[cfg(test)]
 mod tests {
-    use super::{append_standard_region_pools, cleanup_proxy_groups};
+    use super::{
+        append_standard_region_pools, apply_stable_egress_policy_with_advanced,
+        cleanup_proxy_groups,
+    };
 
     #[test]
     fn remove_missing_proxies_from_groups() {
@@ -1047,5 +1534,116 @@ proxy-groups: []
         assert_eq!(uses.len(), 1);
         assert_eq!(uses[0].as_str(), Some("providerA"));
         assert!(tw_group.get("filter").and_then(serde_yaml_ng::Value::as_str).is_some());
+    }
+
+    #[test]
+    fn append_stable_egress_groups_for_high_risk_domains() {
+        let config_str = r#"
+proxies:
+  - name: "node-a"
+    type: ss
+  - name: "node-b"
+    type: ss
+dns:
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://dns.google/dns-query
+  fallback:
+    - https://cloudflare-dns.com/dns-query
+  nameserver-policy:
+    geosite:cn:
+      - https://dns.alidns.com/dns-query
+    geosite:geolocation-!cn:
+      - https://dns.google/dns-query
+proxy-groups: []
+rules:
+  - MATCH,Proxy
+"#;
+
+        let config: serde_yaml_ng::Mapping =
+            serde_yaml_ng::from_str(config_str).expect("Failed to parse test yaml");
+        let mut advanced = crate::config::AdvancedConfig::default();
+        advanced.egress_identity = crate::core::egress_identity::EgressIdentityConfig::recommended();
+        advanced.egress_identity.enabled = true;
+        if let Some(profile) = advanced
+            .egress_identity
+            .profiles
+            .iter_mut()
+            .find(|profile| profile.id == "ai-strict")
+        {
+            profile.preferred_nodes = vec!["node-b".to_string()];
+        }
+        advanced.session_affinity.enabled = true;
+        advanced.session_affinity.domain_rules = vec![crate::core::session_affinity::DomainBindingRule {
+            domain_pattern: "*.openai.com".to_string(),
+            enabled: true,
+            bound_node: None,
+            ttl: 86400,
+            fallback_policy: crate::core::session_affinity::FallbackPolicy::Manual,
+            description: "test".to_string(),
+        }];
+
+        let config = apply_stable_egress_policy_with_advanced(config, &advanced);
+
+        let profile = config
+            .get("profile")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("profile should exist");
+        assert_eq!(
+            profile
+                .get("store-selected")
+                .and_then(serde_yaml_ng::Value::as_bool),
+            Some(true)
+        );
+
+        let groups = config
+            .get("proxy-groups")
+            .and_then(|v| v.as_sequence())
+            .cloned()
+            .expect("proxy-groups should be a sequence");
+
+        let stable_group = groups
+            .iter()
+            .find(|group| {
+                group.get("name").and_then(serde_yaml_ng::Value::as_str)
+                    == Some("VERGE-STABLE-STAR-OPENAI-COM")
+            })
+            .and_then(|group| group.as_mapping())
+            .expect("stable group should exist");
+
+        let proxies = stable_group
+            .get("proxies")
+            .and_then(|v| v.as_sequence())
+            .expect("stable group proxies should exist");
+        assert_eq!(proxies[0].as_str(), Some("node-b"));
+
+        let rules = config
+            .get("rules")
+            .and_then(|v| v.as_sequence())
+            .cloned()
+            .expect("rules should be a sequence");
+        assert_eq!(
+            rules[0].as_str(),
+            Some("DOMAIN-SUFFIX,openai.com,VERGE-STABLE-STAR-OPENAI-COM")
+        );
+        assert_eq!(rules[1].as_str(), Some("MATCH,Proxy"));
+
+        let dns = config
+            .get("dns")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("dns should exist");
+        let nameserver_policy = dns
+            .get("nameserver-policy")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("nameserver-policy should exist");
+        let high_risk_policy = nameserver_policy
+            .get("+.openai.com")
+            .and_then(serde_yaml_ng::Value::as_sequence)
+            .expect("high-risk domain dns policy should exist");
+        assert_eq!(high_risk_policy.len(), 1);
+        assert_eq!(
+            high_risk_policy[0].as_str(),
+            Some("https://dns.google/dns-query")
+        );
     }
 }

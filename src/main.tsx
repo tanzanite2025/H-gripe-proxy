@@ -26,7 +26,6 @@ import {
   UpdateStateProvider,
 } from './services/states'
 import { disableWebViewShortcuts } from './utils/misc/disable-webview-shortcuts'
-import { dnsManager } from './services/dns-manager'
 
 if (!window.ResizeObserver) {
   window.ResizeObserver = ResizeObserver
@@ -68,21 +67,7 @@ const initializeApp = (initialThemeMode: 'light' | 'dark') => {
 
 const bootstrap = async () => {
   const { initialThemeMode } = await preloadAppData()
-  
-  // 初始化 DNS 管理器
-  try {
-    await dnsManager.initialize({
-      enableCache: true,
-      enablePrefetch: true,
-      enableHealthCheck: true,
-      prefetchInterval: 300000, // 5 分钟
-      healthCheckInterval: 60000, // 1 分钟
-    })
-    console.log('[main.tsx] DNS Manager initialized successfully')
-  } catch (error) {
-    console.error('[main.tsx] Failed to initialize DNS Manager:', error)
-  }
-  
+
   initializeApp(initialThemeMode)
 }
 
@@ -116,9 +101,6 @@ window.addEventListener('unhandledrejection', (event) => {
 window.addEventListener('beforeunload', () => {
   // Clean up all WebSocket instances to prevent memory leaks
   MihomoWebSocket.cleanupAll()
-  
-  // Shutdown DNS Manager
-  dnsManager.shutdown()
 })
 
 // Page loaded event

@@ -1,4 +1,4 @@
-import { RefreshRounded, StorageOutlined } from '@mui/icons-material'
+import { Database, RefreshCw } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useState } from 'react'
@@ -118,7 +118,7 @@ export const ProviderButton = () => {
       <Button
         variant="outlined"
         size="small"
-        startIcon={<StorageOutlined />}
+        startIcon={<Database className="h-4 w-4" />}
         onClick={() => setOpen(true)}
         className="mr-2"
       >
@@ -247,7 +247,7 @@ export const ProviderButton = () => {
                         title={t('proxies.page.provider.actions.update')}
                         aria-label={t('proxies.page.provider.actions.update')}
                       >
-                        <RefreshRounded />
+                        <RefreshCw className="h-4 w-4" />
                       </IconButton>
                     </div>
                   </ListItem>

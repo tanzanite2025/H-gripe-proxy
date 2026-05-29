@@ -17,6 +17,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -393,7 +394,7 @@ export const ProxiesEditorViewer = (props: Props) => {
                     className="w-full"
                     rows={9}
                     multiline
-                    onChange={(e) => setProxyUri(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setProxyUri(e.target.value)}
                   />
                 </ListItem>
               </div>

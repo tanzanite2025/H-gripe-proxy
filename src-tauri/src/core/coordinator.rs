@@ -12,6 +12,8 @@ use parking_lot::RwLock;
 use anyhow::Result;
 
 use crate::anti_probe::{AntiProbeService, AntiProbeConfig};
+use crate::config::AdvancedConfig;
+use crate::core::egress_identity::EgressIdentityManager;
 use crate::tls_fingerprint::TlsFingerprintService;
 use crate::security::SecurityMonitor;
 use crate::multipath::MultipathManager;
@@ -28,6 +30,8 @@ pub struct CoordinatorConfig {
     pub anti_probe_enabled: bool,
     /// TLS 指纹名称
     pub tls_fingerprint: Option<String>,
+    pub egress_identity_enabled: bool,
+    pub session_affinity_enabled: bool,
     /// 启用多路径路由
     pub multipath_enabled: bool,
     /// 启用 XDP（仅 Linux）
@@ -41,6 +45,8 @@ impl Default for CoordinatorConfig {
             security_enabled: false,
             anti_probe_enabled: false,
             tls_fingerprint: None,
+            egress_identity_enabled: false,
+            session_affinity_enabled: false,
             multipath_enabled: false,
             #[cfg(target_os = "linux")]
             xdp_enabled: false,
@@ -87,6 +93,7 @@ pub struct CoreCoordinator {
     tls_fingerprint: Arc<TlsFingerprintService>,
     /// 多路径管理器
     multipath_manager: Arc<MultipathManager>,
+    egress_identity_manager: Arc<EgressIdentityManager>,
     /// XDP 管理器（Linux）
     #[cfg(target_os = "linux")]
     xdp_manager: Arc<XdpManager>,
@@ -102,6 +109,7 @@ impl CoreCoordinator {
             anti_probe: Arc::new(AntiProbeService::new(AntiProbeConfig::default())),
             tls_fingerprint: Arc::new(TlsFingerprintService::new()),
             multipath_manager: Arc::new(MultipathManager::new()),
+            egress_identity_manager: Arc::new(EgressIdentityManager::new()),
             #[cfg(target_os = "linux")]
             xdp_manager: Arc::new(XdpManager::new()),
             config: Arc::new(RwLock::new(CoordinatorConfig::default())),
@@ -109,7 +117,49 @@ impl CoreCoordinator {
     }
 
     /// 初始化所有模块
+    fn config_from_advanced(config: &AdvancedConfig) -> CoordinatorConfig {
+        CoordinatorConfig {
+            security_enabled: config.security.enabled,
+            anti_probe_enabled: config.security.anti_probe.enabled,
+            tls_fingerprint: config.security.tls_fingerprint.clone(),
+            egress_identity_enabled: config.egress_identity.enabled,
+            session_affinity_enabled: config.session_affinity.enabled,
+            multipath_enabled: config.multipath.enabled,
+            #[cfg(target_os = "linux")]
+            xdp_enabled: config.xdp.enabled,
+        }
+    }
+
+    pub fn hydrate_from_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
+        *self.config.write() = Self::config_from_advanced(config);
+        self.anti_probe.update_config(config.security.anti_probe.clone());
+        self.multipath_manager.update_config(config.multipath.clone());
+        self.egress_identity_manager
+            .update_config(config.egress_identity.clone())?;
+        #[cfg(target_os = "linux")]
+        self.xdp_manager.update_config(config.xdp.clone());
+        Ok(())
+    }
+
+    fn load_persisted_advanced_config(&self) -> Result<()> {
+        let path = crate::utils::dirs::app_home_dir()?.join("advanced.yaml");
+        let config = AdvancedConfig::load(&path)?;
+        self.hydrate_from_advanced_config(&config)
+    }
+
+    pub fn apply_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
+        self.update_config(Self::config_from_advanced(config))?;
+        self.anti_probe.update_config(config.security.anti_probe.clone());
+        self.multipath_manager.update_config(config.multipath.clone());
+        self.egress_identity_manager
+            .update_config(config.egress_identity.clone())?;
+        #[cfg(target_os = "linux")]
+        self.xdp_manager.update_config(config.xdp.clone());
+        Ok(())
+    }
+
     pub fn initialize(&self) -> Result<()> {
+        self.load_persisted_advanced_config()?;
         let config = self.config.read();
 
         // 1. 启动安全监控
@@ -267,6 +317,10 @@ impl CoreCoordinator {
     /// 获取多路径管理器
     pub fn multipath_manager(&self) -> Arc<MultipathManager> {
         self.multipath_manager.clone()
+    }
+
+    pub fn egress_identity_manager(&self) -> Arc<EgressIdentityManager> {
+        self.egress_identity_manager.clone()
     }
 
     /// 获取 XDP 管理器（Linux）

@@ -1,9 +1,4 @@
-import {
-  ComputerRounded,
-  TroubleshootRounded,
-  HelpOutlineRounded,
-  SvgIconComponent,
-} from '@mui/icons-material'
+import { HelpCircle, Monitor, type LucideIcon, ShieldCheck } from 'lucide-react'
 import { useState, useMemo, memo, FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,7 +13,7 @@ const LOCAL_STORAGE_TAB_KEY = 'clash-verge-proxy-active-tab'
 interface TabButtonProps {
   isActive: boolean
   onClick: () => void
-  icon: SvgIconComponent
+  icon: LucideIcon
   label: string
   hasIndicator?: boolean
 }
@@ -38,7 +33,7 @@ const TabButton: FC<TabButtonProps> = memo(
         'active:scale-[0.98]'
       )}
     >
-      <Icon fontSize="small" />
+      <Icon className="h-4 w-4" />
       <span
         className={cn(
           'text-[11px] tracking-[0.02em]',
@@ -75,7 +70,7 @@ const TabDescription: FC<TabDescriptionProps> = memo(
       <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight flex items-center gap-1">
         {description}
         <Tooltip title={tooltipTitle}>
-          <HelpOutlineRounded className="text-xs opacity-70 flex-shrink-0 cursor-pointer" />
+          <HelpCircle className="h-3.5 w-3.5 opacity-70 flex-shrink-0 cursor-pointer" />
         </Tooltip>
       </p>
     </div>
@@ -136,14 +131,14 @@ export const ProxyTunCard: FC = () => {
         <TabButton
           isActive={activeTab === 'system'}
           onClick={() => handleTabChange('system')}
-          icon={ComputerRounded}
+          icon={Monitor}
           label={t('settings.sections.system.toggles.systemProxy')}
           hasIndicator={systemProxyConfigState}
         />
         <TabButton
           isActive={activeTab === 'tun'}
           onClick={() => handleTabChange('tun')}
-          icon={TroubleshootRounded}
+          icon={ShieldCheck}
           label={t('settings.sections.system.toggles.tunMode')}
           hasIndicator={enable_tun_mode && isTunModeAvailable}
         />

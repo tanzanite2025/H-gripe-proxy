@@ -3,6 +3,8 @@
  */
 
 import { AlertTriangle, Copy, RefreshCw, Shield, Trash2 } from 'lucide-react'
+import type { ChangeEvent } from 'react'
+
 import { Button, Switch, TextField } from '@/components/tailwind'
 import type { AntiProbeConfig } from '@/services/anti-probe'
 
@@ -89,10 +91,10 @@ export default function AntiProbeConfigUI({
               label="时间窗口（秒）"
               type="number"
               value={config.time_window.toString()}
-              onChange={(e) =>
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 onConfigChange({
                   ...config,
-                  time_window: Number.parseInt(e.target.value),
+                  time_window: Number.parseInt(event.target.value),
                 })
               }
               disabled={!config.enabled}
@@ -109,8 +111,8 @@ export default function AntiProbeConfigUI({
             <TextField
               label="私钥"
               value={config.secret_key}
-              onChange={(e) =>
-                onConfigChange({ ...config, secret_key: e.target.value })
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                onConfigChange({ ...config, secret_key: event.target.value })
               }
               disabled={!config.enabled}
               fullWidth
@@ -178,7 +180,7 @@ export default function AntiProbeConfigUI({
               <TextField
                 label="添加 IP 地址"
                 value={newIp}
-                onChange={(e) => onNewIpChange(e.target.value)}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => onNewIpChange(event.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && onAddIp()}
                 disabled={!config.enabled}
                 placeholder="192.168.1.1 或 2001:db8::1"

@@ -294,7 +294,7 @@ export const BackupHistoryViewer = ({
     <BaseDialog
       open={open}
       title={t('settings.modals.backup.history.title')}
-      contentSx={{ width: 520 }}
+      panelStyle={{ width: 'min(520px, calc(100vw - 56px))' }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onCancel={onClose}
@@ -438,7 +438,7 @@ export const BackupHistoryViewer = ({
         title={confirmTitle}
         okBtn={t('shared.actions.confirm')}
         cancelBtn={t('shared.actions.cancel')}
-        contentSx={{ width: { xs: 320, sm: 420 } }}
+        panelStyle={{ width: 'min(420px, calc(100vw - 56px))' }}
         loading={isConfirming}
         onCancel={closeConfirmDialog}
         onClose={closeConfirmDialog}

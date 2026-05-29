@@ -1,4 +1,4 @@
-import { forwardRef, type ReactNode } from 'react'
+import { forwardRef, type CSSProperties, type ReactNode } from 'react'
 import { cn } from '@/utils/cn'
 
 export interface ListItemProps {
@@ -7,14 +7,16 @@ export interface ListItemProps {
   disableGutters?: boolean
   divider?: boolean
   onClick?: () => void
+  style?: CSSProperties
 }
 
 export const ListItem = forwardRef<HTMLLIElement, ListItemProps>(
-  ({ children, className, disableGutters, divider, onClick }, ref) => {
+  ({ children, className, disableGutters, divider, onClick, style }, ref) => {
     return (
       <li
         ref={ref}
         onClick={onClick}
+        style={style}
         className={cn(
           'flex items-center',
           !disableGutters && 'px-4 py-2',

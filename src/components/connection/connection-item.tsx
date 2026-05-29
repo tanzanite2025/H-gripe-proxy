@@ -1,4 +1,4 @@
-import { CloseRounded } from '@mui/icons-material'
+import { X } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
@@ -30,13 +30,12 @@ export const ConnectionItem = (props: Props) => {
       secondaryAction={
         !closed && (
           <IconButton
-            edge="end"
             color="inherit"
             onClick={onDelete}
             title={t('connections.components.actions.closeConnection')}
             aria-label={t('connections.components.actions.closeConnection')}
           >
-            <CloseRounded />
+            <X className="h-4 w-4" />
           </IconButton>
         )
       }

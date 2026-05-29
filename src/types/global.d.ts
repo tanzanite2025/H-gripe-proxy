@@ -1001,6 +1001,12 @@ interface IVergeConfig {
   home_cards?: Record<string, boolean>
   enable_hover_jump_navigator?: boolean
   hover_jump_navigator_delay?: number
+  enable_tor_proxy?: boolean
+  tor_socks_host?: string
+  tor_socks_port?: number
+  tor_control_port?: number
+  tor_use_bridges?: boolean
+  tor_bridges?: string[]
   enable_external_controller?: boolean
 }
 

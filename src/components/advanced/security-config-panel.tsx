@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { Info } from 'lucide-react'
 import { Switch, TextField } from '@/components/tailwind'
 import type { SecurityConfig } from '@/services/coordinator'
@@ -82,7 +83,7 @@ export function SecurityConfigPanel({ config, onChange }: Props) {
                 label="时间窗口（秒）"
                 type="number"
                 value={config.anti_probe.time_window.toString()}
-                onChange={(e) =>
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
                   onChange({
                     ...config,
                     anti_probe: {

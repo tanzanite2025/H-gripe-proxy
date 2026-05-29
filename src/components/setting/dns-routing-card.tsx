@@ -2,45 +2,25 @@
  * DNS 智能分流配置卡片
  */
 
-import { Balance as BalanceIcon, Settings as SettingsIcon, Shield as SecurityIcon, Zap as SpeedIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Scale as BalanceIcon, Settings as SettingsIcon, Shield as SecurityIcon, Zap as SpeedIcon } from 'lucide-react'
 
 import { Alert } from '@/components/tailwind/Alert'
 import { Chip } from '@/components/tailwind/Chip'
 import { ToggleButton, ToggleButtonGroup } from '@/components/tailwind/ToggleButtonGroup'
-import { dnsSmartRoutingService, type DnsRoutingMode } from '@/services/dns-smart-routing'
-import { cn } from '@/utils/cn'
+import type { DnsRuntimeStatus } from '@/services/cmds'
+import type { DnsRoutingMode } from '@/services/coordinator'
 
-export const DnsRoutingCard = () => {
-  const [mode, setMode] = useState<DnsRoutingMode>('balanced')
-  const [stats, setStats] = useState({
-    mode: 'balanced' as DnsRoutingMode,
-    domesticDns: '',
-    foreignDns: '',
-    customRulesCount: 0,
-  })
+interface Props {
+  mode: DnsRoutingMode
+  runtimeStatus?: DnsRuntimeStatus
+  onChange: (mode: DnsRoutingMode) => void
+}
 
-  useEffect(() => {
-    // 初始化
-    const config = dnsSmartRoutingService.getConfig()
-    setMode(config.mode)
-    updateStats()
-
-    // 定期更新统计
-    const interval = setInterval(updateStats, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const updateStats = () => {
-    const newStats = dnsSmartRoutingService.getStats()
-    setStats(newStats)
-  }
-
-  const handleModeChange = (_event: React.MouseEvent<HTMLElement>, newMode: DnsRoutingMode) => {
-    if (newMode !== null) {
-      setMode(newMode)
-      dnsSmartRoutingService.setMode(newMode)
-      updateStats()
+export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
+  const handleModeChange = (_event: React.MouseEvent<HTMLElement>, value: string | string[]) => {
+    if (typeof value === 'string') {
+      const newMode = value as DnsRoutingMode
+      onChange(newMode)
     }
   }
 
@@ -69,6 +49,10 @@ export const DnsRoutingCard = () => {
         return 'default'
     }
   }
+
+  const runtimeMode = (runtimeStatus?.derived.routing_mode as DnsRoutingMode | null) ?? null
+  const runtimeDomesticDns = runtimeStatus?.derived.domestic_dns.join(', ') || '未配置'
+  const runtimeForeignDns = runtimeStatus?.derived.foreign_dns.join(', ') || '未配置'
 
   return (
     <div>
@@ -118,7 +102,7 @@ export const DnsRoutingCard = () => {
 
       <div>
         <div className="mb-1.5 text-sm text-gray-500 dark:text-gray-400">
-          当前配置
+          后端确认的当前运行态
         </div>
 
         <div className="space-y-1.5">
@@ -129,15 +113,17 @@ export const DnsRoutingCard = () => {
             <div className="mt-0.5">
               <Chip
                 label={
-                  mode === 'speed'
+                  runtimeMode === 'speed'
                     ? '速度优先'
-                    : mode === 'privacy'
+                    : runtimeMode === 'privacy'
                       ? '隐私优先'
-                      : mode === 'balanced'
+                      : runtimeMode === 'balanced'
                         ? '平衡模式'
-                        : '自定义'
+                        : runtimeMode === 'custom'
+                          ? '自定义'
+                          : 'N/A'
                 }
-                color={getModeColor(mode)}
+                color={runtimeMode ? getModeColor(runtimeMode) : 'default'}
                 size="small"
               />
             </div>
@@ -148,7 +134,7 @@ export const DnsRoutingCard = () => {
               国内域名 DNS
             </div>
             <div className="mt-0.5 text-sm">
-              {stats.domesticDns || '未配置'}
+              {runtimeDomesticDns}
             </div>
           </div>
 
@@ -157,20 +143,20 @@ export const DnsRoutingCard = () => {
               国外域名 DNS
             </div>
             <div className="mt-0.5 text-sm">
-              {stats.foreignDns || '未配置'}
+              {runtimeForeignDns}
             </div>
           </div>
 
-          {stats.customRulesCount > 0 && (
+          {runtimeStatus?.snapshot.nameserver_policy_count ? (
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                自定义规则
+                策略组数量
               </div>
               <div className="mt-0.5 text-sm">
-                {stats.customRulesCount} 条规则
+                {runtimeStatus.snapshot.nameserver_policy_count} 个策略组
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

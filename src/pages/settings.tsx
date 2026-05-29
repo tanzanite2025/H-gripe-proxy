@@ -1,14 +1,15 @@
-import { Github as GithubIcon, HelpCircle, Send } from 'lucide-react'
-import { Box, ButtonGroup, IconButton, Grid } from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
+import { HelpCircle, Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { BasePage } from '@/components/base'
 import SettingClash from '@/components/setting/setting-clash'
-import { TorConfigCard } from '@/components/setting/tor-config-card'
+import SettingDns from '@/components/setting/setting-dns'
 import SettingSystem from '@/components/setting/setting-system'
-import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
+import SettingVergeTools from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
+import { TorConfigCard } from '@/components/setting/tor-config-card'
+import { Box, ButtonGroup, IconButton, Grid } from '@/components/tailwind'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -54,7 +55,7 @@ const SettingPage = () => {
             title={t('settings.page.actions.telegram')}
             onClick={toTelegramChannel}
           >
-            <Send className="h-5 w-5" fontSize="inherit" />
+            <Send className="h-5 w-5" />
           </IconButton>
 
           <IconButton
@@ -63,7 +64,7 @@ const SettingPage = () => {
             title={t('settings.page.actions.github')}
             onClick={toGithubRepo}
           >
-            <GithubIcon className="h-5 w-5" />
+            <span className="text-xs font-black tracking-wide">GH</span>
           </IconButton>
         </ButtonGroup>
       }
@@ -81,6 +82,9 @@ const SettingPage = () => {
           <Box className="uds-card-container settings-page-card">
             <SettingClash onError={onError} />
           </Box>
+          <Box className="uds-card-container settings-page-card">
+            <SettingDns />
+          </Box>
         </Grid>
         <Grid item xs={6} sm={6} md={6} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
@@ -89,7 +93,7 @@ const SettingPage = () => {
         </Grid>
         <Grid item xs={6} sm={6} md={12} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
-            <SettingVergeAdvanced onError={onError} />
+            <SettingVergeTools onError={onError} />
           </Box>
           <Box className="uds-card-container settings-page-card">
             <TorConfigCard />

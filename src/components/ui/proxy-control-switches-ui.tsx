@@ -84,7 +84,6 @@ export const SwitchRow = ({
         </div>
 
         <Switch
-          edge="end"
           disabled={disabled}
           checked={checked}
           onChange={handleChange}
@@ -122,7 +121,6 @@ export const SwitchRow = ({
 
         <div className="uds-settings-item__control">
           <Switch
-            edge="end"
             disabled={disabled}
             checked={checked}
             onChange={handleChange}

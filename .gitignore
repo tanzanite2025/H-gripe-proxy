@@ -10,6 +10,28 @@ cargo_home_temp/
 # === 前端构建产物 ===
 dist/
 
+# === 本地缓存/临时产物 ===
+.tmp/
+.cache/
+*.tmp
+*.bak
+*.orig
+
+# === 日志 ===
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# === 运行/测试覆盖率 ===
+coverage/
+*.lcov
+
+# === 环境变量文件（本地私有） ===
+.env
+.env.*.local
+.env.local
+
 # === IDE / 编辑器 ===
 .vscode/
 .idea/

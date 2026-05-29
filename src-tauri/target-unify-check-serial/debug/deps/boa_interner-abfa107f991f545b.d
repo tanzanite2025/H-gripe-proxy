@@ -1,0 +1,10 @@
+C:\Users\P16V\Desktop\个人开发\clashverge-clean\src-tauri\target-unify-check-serial\debug\deps\boa_interner-abfa107f991f545b.d: C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\lib.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\fixed_string.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\interned_str.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\raw.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\sym.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\../ABOUT.md
+
+C:\Users\P16V\Desktop\个人开发\clashverge-clean\src-tauri\target-unify-check-serial\debug\deps\libboa_interner-abfa107f991f545b.rmeta: C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\lib.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\fixed_string.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\interned_str.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\raw.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\sym.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\../ABOUT.md
+
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\lib.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\fixed_string.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\interned_str.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\raw.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\sym.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\boa_interner-0.21.1\src\../ABOUT.md:

@@ -906,7 +906,7 @@ const ProfilePage = () => {
         <BaseStyledTextField
           value={url}
           variant="outlined"
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
           onKeyDown={(event) => {
             if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
               return

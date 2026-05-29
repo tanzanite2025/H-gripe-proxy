@@ -5,6 +5,7 @@ export interface ListProps {
   children?: ReactNode
   className?: string
   disablePadding?: boolean
+  dense?: boolean
   subheader?: ReactNode
   component?: string
 }
@@ -14,6 +15,9 @@ export interface ListItemProps {
   className?: string
   button?: boolean
   onClick?: () => void
+  secondaryAction?: ReactNode
+  style?: React.CSSProperties
+  ref?: React.Ref<HTMLLIElement>
 }
 
 export interface ListItemIconProps {
@@ -25,10 +29,13 @@ export interface ListItemTextProps {
   primary?: ReactNode
   secondary?: ReactNode
   className?: string
+  onClick?: () => void
+  secondaryClassName?: string
+  ref?: React.Ref<HTMLDivElement>
 }
 
 export const List = forwardRef<HTMLUListElement, ListProps>(
-  ({ children, className, disablePadding, subheader, component = 'ul' }, ref) => {
+  ({ children, className, disablePadding, dense, subheader, component = 'ul' }, ref) => {
     const Component = component as any
 
     return (
@@ -36,7 +43,7 @@ export const List = forwardRef<HTMLUListElement, ListProps>(
         ref={ref}
         className={cn(
           'list-none',
-          !disablePadding && 'py-2',
+          !disablePadding && (dense ? 'py-1' : 'py-2'),
           className
         )}
       >
@@ -50,18 +57,20 @@ export const List = forwardRef<HTMLUListElement, ListProps>(
 List.displayName = 'List'
 
 export const ListItem = forwardRef<HTMLLIElement, ListItemProps>(
-  ({ children, className, button, onClick }, ref) => {
+  ({ children, className, button, onClick, secondaryAction, style }, ref) => {
     return (
       <li
         ref={ref}
+        style={style}
         className={cn(
-          'flex items-start py-2 px-4',
+          'flex items-start py-2 px-4 relative',
           button && 'cursor-pointer hover:bg-action-hover',
           className
         )}
         onClick={onClick}
       >
-        {children}
+        <div className="flex-1">{children}</div>
+        {secondaryAction && <div className="ml-auto flex-shrink-0">{secondaryAction}</div>}
       </li>
     )
   }
@@ -85,16 +94,16 @@ export const ListItemIcon = forwardRef<HTMLDivElement, ListItemIconProps>(
 ListItemIcon.displayName = 'ListItemIcon'
 
 export const ListItemText = forwardRef<HTMLDivElement, ListItemTextProps>(
-  ({ primary, secondary, className }, ref) => {
+  ({ primary, secondary, className, onClick, secondaryClassName }, ref) => {
     return (
-      <div ref={ref} className={cn('flex-1 min-w-0', className)}>
+      <div ref={ref} className={cn('flex-1 min-w-0', className)} onClick={onClick}>
         {primary && (
           <div className="text-sm font-medium text-text-primary">
             {primary}
           </div>
         )}
         {secondary && (
-          <div className="text-xs text-text-secondary mt-0.5">
+          <div className={cn('text-xs text-text-secondary mt-0.5', secondaryClassName)}>
             {secondary}
           </div>
         )}

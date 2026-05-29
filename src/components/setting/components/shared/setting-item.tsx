@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import React, { ReactNode, useState } from 'react'
+import React, { type ReactNode, useState } from 'react'
 
 import { Box, CircularProgress } from '@/components/tailwind'
 import isAsyncFunction from '@/utils/misc/is-async-function'
@@ -47,19 +47,11 @@ export const SettingItem: React.FC<ItemProps> = ({
 
   return clickable ? (
     <Box as="li" className="uds-settings-item uds-settings-item--clickable p-0">
-      <Box
-        as="button"
+      <button
+        type="button"
         className="uds-settings-item__button w-full text-left"
         onClick={handleClick}
         disabled={isLoading}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e: React.KeyboardEvent) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            handleClick()
-          }
-        }}
       >
         <Box className="uds-settings-item__body">
           <Box className="uds-settings-item__main">
@@ -74,7 +66,7 @@ export const SettingItem: React.FC<ItemProps> = ({
             )}
           </Box>
         </Box>
-      </Box>
+      </button>
     </Box>
   ) : (
     <Box as="li" className="uds-settings-item p-0">

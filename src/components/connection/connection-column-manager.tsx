@@ -8,8 +8,8 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DragIndicatorRounded } from '@mui/icons-material'
 import type { Column } from '@tanstack/react-table'
+import { GripVertical } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -146,7 +146,6 @@ const SortableColumnItem = ({
       style={style}
     >
       <Checkbox
-        edge="start"
         checked={column.getIsVisible()}
         disabled={disableToggle}
         onChange={(event) => column.toggleVisibility(event.target.checked)}
@@ -156,14 +155,13 @@ const SortableColumnItem = ({
         className="mr-2 text-sm"
       />
       <IconButton
-        edge="end"
         size="small"
         className={cn(isDragging ? 'cursor-grabbing' : 'cursor-grab')}
         aria-label={dragHandleLabel}
         {...attributes}
         {...listeners}
       >
-        <DragIndicatorRounded fontSize="small" />
+        <GripVertical className="h-4 w-4" />
       </IconButton>
     </ListItem>
   )

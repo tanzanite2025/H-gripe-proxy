@@ -1,9 +1,8 @@
 use clash_verge_logging::{Type, logging};
+use tokio::process::Command;
 
 pub async fn set_public_dns(dns_server: String) {
-    use crate::{core::handle, utils::dirs};
-    use tauri_plugin_shell::ShellExt as _;
-    let app_handle = handle::Handle::app_handle();
+    use crate::utils::dirs;
 
     logging!(info, Type::Config, "try to set system dns");
     let resource_dir = match dirs::app_resources_dir() {
@@ -18,11 +17,9 @@ pub async fn set_public_dns(dns_server: String) {
         logging!(error, Type::Config, "set_dns.sh not found");
         return;
     }
-    let script = script.to_string_lossy().into_owned();
-    match app_handle
-        .shell()
-        .command("bash")
-        .args([script, dns_server])
+    match Command::new("bash")
+        .arg(&script)
+        .arg(&dns_server)
         .current_dir(resource_dir)
         .status()
         .await
@@ -43,9 +40,8 @@ pub async fn set_public_dns(dns_server: String) {
 
 #[cfg(target_os = "macos")]
 pub async fn restore_public_dns() {
-    use crate::{core::handle, utils::dirs};
-    use tauri_plugin_shell::ShellExt as _;
-    let app_handle = handle::Handle::app_handle();
+    use crate::utils::dirs;
+
     logging!(info, Type::Config, "try to unset system dns");
     let resource_dir = match dirs::app_resources_dir() {
         Ok(dir) => dir,
@@ -59,11 +55,8 @@ pub async fn restore_public_dns() {
         logging!(error, Type::Config, "unset_dns.sh not found");
         return;
     }
-    let script = script.to_string_lossy().into_owned();
-    match app_handle
-        .shell()
-        .command("bash")
-        .args([script])
+    match Command::new("bash")
+        .arg(&script)
         .current_dir(resource_dir)
         .status()
         .await

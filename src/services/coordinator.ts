@@ -4,29 +4,63 @@
 
 import { invoke } from '@tauri-apps/api/core'
 
-/**
- * 协调器配置
- */
-export interface CoordinatorConfig {
-  security_enabled: boolean
-  anti_probe_enabled: boolean
-  tls_fingerprint: string | null
-  multipath_enabled: boolean
-  xdp_enabled?: boolean
-}
+import type { ResolvedEgressIdentity } from '@/services/egress-identity'
+import type { MultipathConfig } from '@/services/multipath'
+import type { BindingInfo, SessionAffinityConfig } from '@/services/session-affinity'
+
+export type {
+  MultipathConfig,
+  NodePool,
+  PathNode,
+  PoolType,
+  SessionBinding,
+  SlicingStrategy,
+} from '@/services/multipath'
+export type {
+  ConnectionBindingConfig,
+  DomainBindingRule,
+  ProcessBindingRule,
+  SessionAffinityConfig,
+} from '@/services/session-affinity'
 
 /**
  * 协调器状态
  */
+export interface CoordinatorResolvedEgressIdentity extends ResolvedEgressIdentity {
+  sourceGroupName?: string | null
+  sourceGroupSelectedNode?: string | null
+}
+
+export interface CoordinatorBindingInfo extends BindingInfo {
+  sourceGroupName?: string | null
+  sourceGroupSelectedNode?: string | null
+}
+
+export interface StableEgressBackwriteStatus {
+  domainPatternAssignments: CoordinatorResolvedEgressIdentity[]
+  domainRuleBindings: CoordinatorBindingInfo[]
+}
+
+export interface CoordinatorRuntimeState {
+  egressIdentityAssignments: CoordinatorResolvedEgressIdentity[]
+  sessionAffinityBindings: CoordinatorBindingInfo[]
+  stableEgressBackwrite: StableEgressBackwriteStatus
+}
+
 export interface CoordinatorStatus {
   initialized: boolean
-  security_enabled: boolean
-  security_compromised: boolean
-  anti_probe_enabled: boolean
-  tls_fingerprint: string | null
-  multipath_enabled: boolean
-  xdp_enabled?: boolean
-  xdp_running?: boolean
+  securityEnabled: boolean
+  securityCompromised: boolean
+  antiProbeEnabled: boolean
+  tlsFingerprint: string | null
+  egressIdentityEnabled: boolean
+  sessionAffinityEnabled: boolean
+  egressIdentityActiveAssignments: number
+  sessionAffinityActiveBindings: number
+  runtimeState: CoordinatorRuntimeState
+  multipathEnabled: boolean
+  xdpEnabled?: boolean
+  xdpRunning?: boolean
 }
 
 /**
@@ -35,6 +69,9 @@ export interface CoordinatorStatus {
 export interface AdvancedConfig {
   security: SecurityConfig
   multipath: MultipathConfig
+  session_affinity: SessionAffinityConfig
+  egress_identity: EgressIdentityConfig
+  dns: AdvancedDnsConfig
   xdp?: XdpConfig
 }
 
@@ -58,47 +95,73 @@ export interface ConfigDecoyConfig {
   decoy_path: string | null
 }
 
-export interface MultipathConfig {
-  enabled: boolean
-  strategy: SlicingStrategy
-  node_pools: NodePool[]
-  min_fragment_size: number
-  max_fragment_size: number
-  reassembly_timeout: number
-  session_persistence: boolean
+export type IpType = 'Datacenter' | 'Residential' | 'Mobile' | 'Unknown'
+
+export interface AdvancedDnsConfig {
+  enable_cache: boolean
+  enable_prefetch: boolean
+  enable_health_check: boolean
+  prefetch_interval: number
+  health_check_interval: number
+  routing_mode: DnsRoutingMode
+  leak_protection_level: DnsLeakProtectionLevel
 }
 
-export type SlicingStrategy = 
-  | 'RoundRobin'
-  | 'Random'
-  | 'Weighted'
-  | 'LeastConnections'
-  | 'LatencyBased'
+export type DnsRoutingMode = 'speed' | 'privacy' | 'balanced' | 'custom'
 
-export interface NodePool {
+export type DnsLeakProtectionLevel = 'none' | 'basic' | 'strict' | 'paranoid'
+
+export interface EgressIdentityConfig {
+  enabled: boolean
+  default_profile: string | null
+  profiles: EgressIdentityProfile[]
+  app_rules: AppEgressRule[]
+  shortcut_rules: ShortcutEgressRule[]
+}
+
+export interface EgressIdentityProfile {
+  id: string
   name: string
-  pool_type: PoolType
-  nodes: PathNode[]
+  enabled: boolean
+  preferred_nodes: string[]
+  preferred_pools: string[]
+  required_ip_type: IpType | null
+  max_fraud_score: number | null
+  dns_policy: DnsPolicy
+  tls_fingerprint: string | null
+  session_policy: IdentitySessionPolicy
+  failover_policy: EgressFailoverPolicy
+  description: string
+}
+
+export interface AppEgressRule {
+  process_name: string | null
+  exe_path: string | null
+  domains: string[]
+  profile_id: string
+  priority: number
   enabled: boolean
 }
 
-export type PoolType = 
-  | 'General'
-  | 'Streaming'
-  | 'Gaming'
-  | 'Download'
-  | 'Social'
-
-export interface PathNode {
-  name: string
-  server: string
-  port: number
-  protocol: string
-  weight: number
+export interface ShortcutEgressRule {
+  shortcut_id: string
+  profile_id: string
   enabled: boolean
-  location?: string
-  max_connections?: number
 }
+
+export interface DnsPolicy {
+  mode: DnsMode
+  force_remote_dns: boolean
+}
+
+export type DnsMode = 'Inherit' | 'Hijack' | 'Remote'
+
+export interface IdentitySessionPolicy {
+  strict_affinity: boolean
+  ttl_override: number | null
+}
+
+export type EgressFailoverPolicy = 'Block' | 'Manual' | 'AutoSwitch'
 
 export interface XdpConfig {
   enabled: boolean
@@ -114,20 +177,6 @@ export type XdpMode = 'Native' | 'Skb' | 'Generic'
  */
 export async function coordinatorInitialize(): Promise<void> {
   await invoke('coordinator_initialize')
-}
-
-/**
- * 获取协调器配置
- */
-export async function coordinatorGetConfig(): Promise<CoordinatorConfig> {
-  return await invoke('coordinator_get_config')
-}
-
-/**
- * 更新协调器配置
- */
-export async function coordinatorUpdateConfig(config: CoordinatorConfig): Promise<void> {
-  await invoke('coordinator_update_config', { config })
 }
 
 /**

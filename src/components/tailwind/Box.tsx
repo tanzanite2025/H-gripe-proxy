@@ -1,16 +1,18 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
+import { forwardRef, type ElementType, type HTMLAttributes, type ReactNode } from 'react'
 
 export interface BoxProps extends HTMLAttributes<HTMLDivElement> {
-  as?: keyof JSX.IntrinsicElements
+  as?: ElementType
+  component?: ElementType
   children?: ReactNode
 }
 
 export const Box = forwardRef<HTMLDivElement, BoxProps>(
-  ({ as: Component = 'div', className = '', children, ...props }, ref) => {
+  ({ as: asComponent, component, className = '', children, ...props }, ref) => {
+    const Comp = (component ?? asComponent ?? 'div') as ElementType
     return (
-      <Component ref={ref} className={className} {...props}>
+      <Comp ref={ref} className={className} {...props}>
         {children}
-      </Component>
+      </Comp>
     )
   },
 )

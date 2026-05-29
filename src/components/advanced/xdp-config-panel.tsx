@@ -2,8 +2,10 @@
  * XDP 代理配置面板（仅 Linux）
  */
 
+import type { ChangeEvent } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Switch, TextField, Select } from '@/components/tailwind'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import type { XdpConfig, XdpMode } from '@/services/coordinator'
 
 interface Props {
@@ -63,7 +65,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
             <TextField
               label="网卡接口"
               value={config.interface}
-              onChange={(e) =>
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 onChange({ ...config, interface: e.target.value })
               }
               helperText="例如：eth0, ens33, wlan0"
@@ -77,7 +79,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
             <Select
               label="模式"
               value={config.mode}
-              onChange={(e) =>
+              onChange={(e: SelectChangeEvent) =>
                 onChange({
                   ...config,
                   mode: e.target.value as XdpMode,
@@ -123,7 +125,7 @@ export function XdpConfigPanel({ config, onChange }: Props) {
               label="队列大小"
               type="number"
               value={config.queue_size.toString()}
-              onChange={(e) =>
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 onChange({
                   ...config,
                   queue_size: Number.parseInt(e.target.value) || 4096,

@@ -4,7 +4,9 @@ interface ProfileBoxProps {
   selected?: boolean
   children: React.ReactNode
   className?: string
-  onClick?: () => void
+  onClick?: React.MouseEventHandler<HTMLDivElement>
+  onDoubleClick?: React.MouseEventHandler<HTMLDivElement>
+  onContextMenu?: React.MouseEventHandler<HTMLDivElement>
 }
 
 export const ProfileBox = ({
@@ -12,12 +14,16 @@ export const ProfileBox = ({
   children,
   className,
   onClick,
+  onDoubleClick,
+  onContextMenu,
 }: ProfileBoxProps) => {
   return (
     <div
       role="button"
       aria-selected={selected}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
       className={cn(
         'relative block cursor-pointer rounded-lg p-4 text-left',
         'bg-white dark:bg-[#282A36]',

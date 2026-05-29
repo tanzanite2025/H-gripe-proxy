@@ -4,11 +4,11 @@
  */
 
 import {
-  ErrorOutlined,
-  PlayArrowOutlined,
-  SpeedOutlined,
-  StopOutlined,
-} from '@mui/icons-material'
+  AlertCircle,
+  Gauge,
+  Play,
+  Square,
+} from 'lucide-react'
 import { forwardRef, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,7 +36,7 @@ const SpeedTestCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
     return (
       <EnhancedCard
         title="网络速度测试"
-        icon={<SpeedOutlined />}
+        icon={<Gauge className="h-5 w-5" />}
         iconColor="info"
         ref={ref}
       >
@@ -122,9 +122,9 @@ const SpeedTestCardUI = ({
   if (error && !isRunning) {
     return (
       <div className="flex flex-col items-center justify-center py-6 text-error">
-        <ErrorOutlined className="text-4xl mb-2" />
+        <AlertCircle className="mb-2 h-10 w-10" />
         <p className="text-base text-error mb-4">{error}</p>
-        <Button onClick={onStart} startIcon={<PlayArrowOutlined />}>
+        <Button onClick={onStart} startIcon={<Play className="h-4 w-4" />}>
           重新测试
         </Button>
       </div>
@@ -168,7 +168,7 @@ const SpeedTestCardUI = ({
         <Button
           onClick={onStop}
           variant="outlined"
-          startIcon={<StopOutlined />}
+          startIcon={<Square className="h-4 w-4" />}
           className="mt-2"
         >
           停止测试
@@ -261,7 +261,7 @@ const SpeedTestCardUI = ({
         <Button
           onClick={onStart}
           variant="outlined"
-          startIcon={<PlayArrowOutlined />}
+          startIcon={<Play className="h-4 w-4" />}
           className="mt-2"
         >
           重新测试
@@ -278,7 +278,7 @@ const SpeedTestCardUI = ({
   // 初始状态
   return (
     <div className="flex flex-col items-center justify-center py-8">
-      <SpeedOutlined className="text-6xl text-text-secondary opacity-50 mb-4" />
+      <Gauge className="mb-4 h-14 w-14 text-text-secondary opacity-50" />
       <p className="text-base text-text-secondary mb-4">
         点击开始测试网络速度
       </p>
@@ -286,7 +286,7 @@ const SpeedTestCardUI = ({
         onClick={onStart}
         variant="contained"
         size="large"
-        startIcon={<PlayArrowOutlined />}
+        startIcon={<Play className="h-4 w-4" />}
       >
         开始测试
       </Button>

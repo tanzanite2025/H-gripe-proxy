@@ -1,33 +1,82 @@
-import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import {
+  forwardRef,
+  type CSSProperties,
+  type ChangeEventHandler,
+  type FocusEventHandler,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from 'react'
 
 interface BaseTextFieldProps {
   label?: string
-  error?: string
+  error?: ReactNode | boolean
   helperText?: string
   multiline?: boolean
   rows?: number
+  variant?: 'outlined' | 'filled' | 'standard'
+  fullWidth?: boolean
+  size?: 'small' | 'medium' | 'large'
+  inputClassName?: string
+  onChange?:
+    | ChangeEventHandler<HTMLInputElement>
+    | ChangeEventHandler<HTMLTextAreaElement>
+  onBlur?:
+    | FocusEventHandler<HTMLInputElement>
+    | FocusEventHandler<HTMLTextAreaElement>
+  InputProps?: {
+    startAdornment?: ReactNode
+    endAdornment?: ReactNode
+    className?: string
+    style?: CSSProperties
+  }
+  slotProps?: {
+    input?: {
+      startAdornment?: ReactNode
+      endAdornment?: ReactNode
+      className?: string
+      style?: CSSProperties
+      sx?: unknown
+    }
+    htmlInput?: InputHTMLAttributes<HTMLInputElement>
+  }
 }
 
 type TextFieldProps = BaseTextFieldProps &
-  (
-    | ({ multiline?: false } & InputHTMLAttributes<HTMLInputElement>)
-    | ({ multiline: true } & TextareaHTMLAttributes<HTMLTextAreaElement>)
-  )
+  Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'onChange' | 'onBlur'> &
+  Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange' | 'onBlur'>
 
 export const TextField = forwardRef<
   HTMLInputElement | HTMLTextAreaElement,
   TextFieldProps
->(({ label, error, helperText, multiline = false, rows = 3, className = '', ...props }, ref) => {
-  const baseClasses =
-    'w-full px-4 rounded-input bg-gray-50 dark:bg-gray-800/50 border-0 text-sm font-semibold text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:bg-white dark:focus:bg-gray-800'
+>(({ label, error, helperText, multiline = false, rows = 3, variant = 'outlined', fullWidth = false, size = 'medium', className = '', inputClassName = '', type, InputProps, slotProps, ...props }, ref) => {
+  const sizeClasses = {
+    small: 'h-10 text-xs',
+    medium: 'h-12 text-sm',
+    large: 'h-14 text-base',
+  }
 
-  const errorClasses = error
+  const baseClasses =
+    'px-4 rounded-input bg-gray-50 dark:bg-gray-800/50 border-0 font-semibold text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:bg-white dark:focus:bg-gray-800'
+
+  const hasError = Boolean(error)
+  const mergedInputProps = slotProps?.input ?? InputProps
+  const startAdornment = mergedInputProps?.startAdornment
+  const endAdornment = mergedInputProps?.endAdornment
+  const adornmentClassName = mergedInputProps?.className ?? ''
+  const adornmentStyle = mergedInputProps?.style
+  const htmlInputProps = slotProps?.htmlInput
+
+  const errorClasses = hasError
     ? 'ring-2 ring-red-500 dark:ring-red-400 focus:ring-red-500 dark:focus:ring-red-400'
     : 'focus:ring-primary dark:focus:ring-primary-dark-mode'
 
-  const heightClasses = multiline ? '' : 'h-12'
+  const normalizedSize = size === 'small' || size === 'medium' || size === 'large' ? size : 'medium'
+  const heightClasses = multiline ? '' : sizeClasses[normalizedSize]
+  const widthClass = fullWidth ? 'w-full' : ''
 
-  const inputClasses = `${baseClasses} ${errorClasses} ${heightClasses} ${className}`
+  const inputClasses = `${baseClasses} ${errorClasses} ${heightClasses} ${widthClass} ${startAdornment ? 'pl-10' : ''} ${endAdornment ? 'pr-10' : ''} ${className} ${inputClassName} ${adornmentClassName}`
+  const errorContent = error === true ? null : error
 
   const id = props.id || label?.toLowerCase().replace(/\s+/g, '-')
 
@@ -41,32 +90,46 @@ export const TextField = forwardRef<
           {label}
         </label>
       )}
-      {multiline ? (
-        <textarea
-          ref={ref as React.Ref<HTMLTextAreaElement>}
-          id={id}
-          rows={rows}
-          className={inputClasses}
-          aria-invalid={!!error}
-          aria-describedby={error ? `${id}-error` : helperText ? `${id}-helper` : undefined}
-          {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)}
-        />
-      ) : (
-        <input
-          ref={ref as React.Ref<HTMLInputElement>}
-          id={id}
-          className={inputClasses}
-          aria-invalid={!!error}
-          aria-describedby={error ? `${id}-error` : helperText ? `${id}-helper` : undefined}
-          {...(props as InputHTMLAttributes<HTMLInputElement>)}
-        />
-      )}
-      {error && (
+      <div className="relative w-full" style={adornmentStyle}>
+        {startAdornment && (
+          <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+            {startAdornment}
+          </div>
+        )}
+        {multiline ? (
+          <textarea
+            ref={ref as React.Ref<HTMLTextAreaElement>}
+            id={id}
+            rows={rows}
+            className={inputClasses}
+            aria-invalid={hasError}
+            aria-describedby={hasError ? `${id}-error` : helperText ? `${id}-helper` : undefined}
+            {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)}
+          />
+        ) : (
+          <input
+            ref={ref as React.Ref<HTMLInputElement>}
+            id={id}
+            type={type}
+            className={inputClasses}
+            aria-invalid={hasError}
+            aria-describedby={hasError ? `${id}-error` : helperText ? `${id}-helper` : undefined}
+            {...htmlInputProps}
+            {...(props as InputHTMLAttributes<HTMLInputElement>)}
+          />
+        )}
+        {endAdornment && (
+          <div className="absolute inset-y-0 right-3 flex items-center">
+            {endAdornment}
+          </div>
+        )}
+      </div>
+      {hasError && errorContent && (
         <p id={`${id}-error`} className="mt-1 text-xs text-red-500 dark:text-red-400">
-          {error}
+          {errorContent}
         </p>
       )}
-      {helperText && !error && (
+      {helperText && !hasError && (
         <p
           id={`${id}-helper`}
           className="mt-1 text-xs text-gray-500 dark:text-gray-400"

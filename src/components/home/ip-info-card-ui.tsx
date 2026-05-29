@@ -1,4 +1,4 @@
-import { VisibilityOffOutlined, VisibilityOutlined } from '@mui/icons-material'
+import { Eye, EyeOff } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -115,9 +115,9 @@ export const IPInfoCardUI = ({
               </p>
               <IconButton size="small" onClick={onToggleShowIp}>
                 {showIp ? (
-                  <VisibilityOffOutlined fontSize="small" />
+                  <EyeOff className="h-4 w-4" />
                 ) : (
-                  <VisibilityOutlined fontSize="small" />
+                  <Eye className="h-4 w-4" />
                 )}
               </IconButton>
             </div>

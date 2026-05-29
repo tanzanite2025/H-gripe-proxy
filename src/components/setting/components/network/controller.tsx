@@ -1,6 +1,6 @@
 import { useLockFn } from 'ahooks'
 import { Copy } from 'lucide-react'
-import { useImperativeHandle, useState, type Ref } from 'react'
+import { useImperativeHandle, useState, type ChangeEvent, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch } from '@/components/base'
@@ -108,7 +108,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     <BaseDialog
       open={open}
       title={t('settings.sections.externalController.title')}
-      contentSx={{ width: 400 }}
+      panelStyle={{ width: 400 }}
       okBtn={
         isSaving ? (
           <Box className="flex items-center gap-4">
@@ -130,9 +130,8 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
             primary={t('settings.sections.externalController.fields.enable')}
           />
           <Switch
-            edge="end"
             checked={enableController}
-            onChange={(e) => setEnableController(e.target.checked)}
+            onCheckedChange={setEnableController}
             disabled={isSaving}
           />
         </ListItem>
@@ -149,7 +148,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
               placeholder={t(
                 'settings.sections.externalController.placeholders.address',
               )}
-              onChange={(e) => setController(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setController(e.target.value)}
               disabled={isSaving || !enableController}
             />
             <Tooltip
@@ -179,7 +178,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
               placeholder={t(
                 'settings.sections.externalController.placeholders.secret',
               )}
-              onChange={(e) => setSecret(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setSecret(e.target.value)}
               disabled={isSaving || !enableController}
             />
             <Tooltip

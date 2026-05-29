@@ -9,8 +9,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import matchCaseIcon from '@/assets/image/component/match_case.svg?react'
-import matchWholeWordIcon from '@/assets/image/component/match_whole_word.svg?react'
+import MatchCaseIcon from '@/assets/image/component/match_case.svg?react'
+import MatchWholeWordIcon from '@/assets/image/component/match_whole_word.svg?react'
 import UseRegularExpressionIcon from '@/assets/image/component/use_regular_expression.svg?react'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { TextField } from '@/components/tailwind/TextField'
@@ -171,7 +171,7 @@ export const BaseSearchBox = ({
   }
 
   return (
-    <Tooltip title={effectiveErrorMessage || ''} placement="bottom-start">
+    <Tooltip title={effectiveErrorMessage || ''} placement="bottom">
       <TextField
         autoComplete="new-password"
         fullWidth
@@ -205,14 +205,14 @@ export const BaseSearchBox = ({
                   </Tooltip>
                 )}
                 <Tooltip title={t('shared.placeholders.matchCase')}>
-                  <matchCaseIcon
+                  <MatchCaseIcon
                     {...iconStyle}
                     aria-label={matchCase ? 'active' : 'inactive'}
                     onClick={handleToggleMatchCase}
                   />
                 </Tooltip>
                 <Tooltip title={t('shared.placeholders.matchWholeWord')}>
-                  <matchWholeWordIcon
+                  <MatchWholeWordIcon
                     {...iconStyle}
                     aria-label={matchWholeWord ? 'active' : 'inactive'}
                     onClick={handleToggleMatchWholeWord}

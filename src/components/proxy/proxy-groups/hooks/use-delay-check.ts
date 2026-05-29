@@ -27,8 +27,7 @@ export function useDelayCheck(options: UseDelayCheckOptions) {
   const fnRef = useRef<(groupName: string) => Promise<void>>(async () => {})
 
   // 测试全部延迟
-  const handleCheckAll = useCallback(
-    useLockFn(async (groupName: string) => {
+  const handleCheckAll = useLockFn(async (groupName: string) => {
       debugLog(`[ProxyGroups] 开始测试所有延迟，组: ${groupName}`)
 
       const proxies = renderList
@@ -80,9 +79,7 @@ export function useDelayCheck(options: UseDelayCheckOptions) {
         }
         onProxies()
       }
-    }),
-    [getGroupHeadState, onHeadState, onProxies, renderList, timeout],
-  )
+    })
 
   fnRef.current = handleCheckAll
 

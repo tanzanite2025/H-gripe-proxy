@@ -1,6 +1,6 @@
-import { SelectChangeEvent } from '@mui/material'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { SelectChangeEvent } from '@/components/tailwind/Select'
 import { useProxySelection } from '@/hooks/data'
 import delayManager from '@/services/delay'
 
@@ -58,7 +58,7 @@ interface UseCurrentProxyDataProps {
 export const useCurrentProxyData = ({
   proxies,
   rules,
-  clashConfig,
+  clashConfig: _clashConfig,
   currentProfileId,
   isGlobalMode,
   isDirectMode,
@@ -312,10 +312,10 @@ export const useCurrentProxyData = ({
 
   // 处理代理组变更
   const handleGroupChange = useCallback(
-    (event: SelectChangeEvent<string>) => {
+    (value: string | number) => {
       if (isGlobalMode || isDirectMode) return
 
-      const newGroup = event.target.value
+      const newGroup = String(value)
 
       writeProfileScopedItem(STORAGE_KEY_GROUP, newGroup)
 

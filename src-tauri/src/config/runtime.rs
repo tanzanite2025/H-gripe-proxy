@@ -2,7 +2,7 @@ use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 
-use crate::enhance::field::use_keys;
+use crate::enhance::{apply_stable_egress_policy, field::use_keys};
 
 const PATCH_CONFIG_INNER: [&str; 5] = ["allow-lan", "ipv6", "log-level", "unified-delay", "tunnels"];
 
@@ -136,5 +136,8 @@ impl IRuntime {
                 }
             }
         }
+
+        let stabilized = apply_stable_egress_policy(config.clone());
+        *config = stabilized;
     }
 }

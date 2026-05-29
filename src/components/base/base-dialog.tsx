@@ -1,3 +1,5 @@
+import { type CSSProperties, type ReactNode } from 'react'
+
 import {
   Button,
   Dialog,
@@ -5,7 +7,6 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/tailwind'
-import { ReactNode } from 'react'
 
 interface Props {
   title: ReactNode
@@ -17,6 +18,9 @@ interface Props {
   disableCancel?: boolean
   disableFooter?: boolean
   className?: string
+  panelClassName?: string
+  panelStyle?: CSSProperties
+  contentClassName?: string
   children?: ReactNode
   loading?: boolean
   onOk?: () => void
@@ -35,8 +39,11 @@ export const BaseDialog: React.FC<Props> = ({
   children,
   okBtn,
   cancelBtn,
-  disableEnforceFocus,
+  disableEnforceFocus: _disableEnforceFocus,
   className,
+  panelClassName,
+  panelStyle,
+  contentClassName,
   disableCancel,
   disableOk,
   disableFooter,
@@ -45,15 +52,23 @@ export const BaseDialog: React.FC<Props> = ({
   onCancel,
   onClose,
 }) => {
+  const handleClose = onClose ?? (() => {})
+
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       className={`uds-dialog ${className || ''}`}
+      slotProps={{
+        paper: {
+          className: panelClassName,
+          style: panelStyle,
+        },
+      }}
     >
       <DialogTitle className="uds-title-h2">{title}</DialogTitle>
 
-      <DialogContent className={`uds-dialog__content ${className || ''}`}>
+      <DialogContent className={`uds-dialog__content ${className || ''} ${contentClassName || ''}`}>
         {children}
       </DialogContent>
 

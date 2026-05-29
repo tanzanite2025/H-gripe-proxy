@@ -2,7 +2,9 @@ use super::CmdResult;
 use crate::core::autostart;
 use crate::{cmd::StringifyErr as _, feat, utils::dirs};
 use smartstring::alias::String;
-use tauri::{AppHandle, Manager as _, Url};
+#[cfg(debug_assertions)]
+use tauri::{AppHandle, Manager as _};
+use tauri::Url;
 
 fn parse_web_url(url: &str) -> CmdResult<Url> {
     let url = url.trim();
@@ -78,6 +80,7 @@ pub async fn open_core_log() -> CmdResult<()> {
 }
 
 /// 打开/关闭开发者工具
+#[cfg(debug_assertions)]
 #[tauri::command]
 pub fn open_devtools(app_handle: AppHandle) {
     if let Some(window) = app_handle.get_webview_window("main") {

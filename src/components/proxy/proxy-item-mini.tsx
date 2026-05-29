@@ -1,4 +1,4 @@
-import { CheckCircleOutlineRounded } from '@mui/icons-material'
+import { CheckCircle2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
@@ -176,9 +176,7 @@ export const ProxyItemMini = (props: Props) => {
           delayValue < 0 &&
           selected && (
             // 展示已选择的 icon
-            <CheckCircleOutlineRounded
-              className="the-icon block text-base mr-1"
-            />
+            <CheckCircle2 className="the-icon mr-1 block h-4 w-4" />
           )}
       </div>
       {group.fixed && group.fixed === proxy.name && (

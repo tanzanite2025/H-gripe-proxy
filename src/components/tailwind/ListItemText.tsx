@@ -5,6 +5,7 @@ export interface ListItemTextProps {
   primary?: ReactNode
   secondary?: ReactNode
   className?: string
+  title?: string
   slotProps?: {
     primary?: { className?: string }
     secondary?: { component?: string; className?: string }
@@ -12,9 +13,9 @@ export interface ListItemTextProps {
 }
 
 export const ListItemText = forwardRef<HTMLDivElement, ListItemTextProps>(
-  ({ primary, secondary, className, slotProps }, ref) => {
+  ({ primary, secondary, className, title, slotProps }, ref) => {
     return (
-      <div ref={ref} className={cn('flex-1 min-w-0', className)}>
+      <div ref={ref} title={title} className={cn('flex-1 min-w-0', className)}>
         {primary && (
           <div className={cn('text-sm font-medium', slotProps?.primary?.className)}>
             {primary}

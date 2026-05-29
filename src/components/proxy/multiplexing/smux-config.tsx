@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 
-import { Select } from '@/components/tailwind/Select'
+import { Select, type SelectChangeEvent } from '@/components/tailwind/Select'
 import { Switch } from '@/components/tailwind/Switch'
 import { TextField } from '@/components/tailwind/TextField'
 
@@ -46,7 +46,7 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
       <label className="flex items-center gap-2">
         <Switch
           checked={localConfig.enabled}
-          onChange={(e) => handleChange({ enabled: e.target.checked })}
+          onCheckedChange={(checked) => handleChange({ enabled: checked })}
         />
         <span>启用 SMUX</span>
       </label>
@@ -56,8 +56,8 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
           <Select
             value={localConfig.protocol}
             label="协议"
-            onChange={(e) =>
-              handleChange({ protocol: e.target.value as any })
+            onChange={(event: SelectChangeEvent) =>
+              handleChange({ protocol: event.target.value as SmuxConfig['protocol'] })
             }
             fullWidth
           >
@@ -70,10 +70,10 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
             label="最大连接数"
             type="number"
             value={localConfig['max-connections'] || ''}
-            onChange={(e) =>
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
               handleChange({
-                'max-connections': e.target.value
-                  ? parseInt(e.target.value)
+                'max-connections': event.target.value
+                  ? parseInt(event.target.value)
                   : undefined,
               })
             }
@@ -84,10 +84,10 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
             label="最小流数"
             type="number"
             value={localConfig['min-streams'] || ''}
-            onChange={(e) =>
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
               handleChange({
-                'min-streams': e.target.value
-                  ? parseInt(e.target.value)
+                'min-streams': event.target.value
+                  ? parseInt(event.target.value)
                   : undefined,
               })
             }
@@ -98,10 +98,10 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
             label="最大流数"
             type="number"
             value={localConfig['max-streams'] || ''}
-            onChange={(e) =>
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
               handleChange({
-                'max-streams': e.target.value
-                  ? parseInt(e.target.value)
+                'max-streams': event.target.value
+                  ? parseInt(event.target.value)
                   : undefined,
               })
             }
@@ -111,7 +111,7 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
           <label className="flex items-center gap-2">
             <Switch
               checked={localConfig.padding || false}
-              onChange={(e) => handleChange({ padding: e.target.checked })}
+              onCheckedChange={(checked) => handleChange({ padding: checked })}
             />
             <span>启用填充</span>
           </label>
@@ -119,7 +119,7 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
           <label className="flex items-center gap-2">
             <Switch
               checked={localConfig.statistic || false}
-              onChange={(e) => handleChange({ statistic: e.target.checked })}
+              onCheckedChange={(checked) => handleChange({ statistic: checked })}
             />
             <span>启用统计</span>
           </label>
@@ -127,7 +127,7 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
           <label className="flex items-center gap-2">
             <Switch
               checked={localConfig['only-tcp'] || false}
-              onChange={(e) => handleChange({ 'only-tcp': e.target.checked })}
+              onCheckedChange={(checked) => handleChange({ 'only-tcp': checked })}
             />
             <span>仅 TCP</span>
           </label>
@@ -138,8 +138,8 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
             <label className="flex items-center gap-2 mb-2">
               <Switch
                 checked={localConfig['brutal-opts']?.enabled || false}
-                onChange={(e) =>
-                  handleBrutalChange({ enabled: e.target.checked })
+                onCheckedChange={(checked) =>
+                  handleBrutalChange({ enabled: checked })
                 }
               />
               <span>启用 Brutal</span>
@@ -150,14 +150,14 @@ export function SmuxConfigComponent({ config, onChange }: SmuxConfigProps) {
                 <TextField
                   label="上传速度"
                   value={localConfig['brutal-opts']?.up || ''}
-                  onChange={(e) => handleBrutalChange({ up: e.target.value })}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => handleBrutalChange({ up: event.target.value })}
                   helperText="例如: 100 Mbps"
                   className="flex-1"
                 />
                 <TextField
                   label="下载速度"
                   value={localConfig['brutal-opts']?.down || ''}
-                  onChange={(e) => handleBrutalChange({ down: e.target.value })}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => handleBrutalChange({ down: event.target.value })}
                   helperText="例如: 200 Mbps"
                   className="flex-1"
                 />

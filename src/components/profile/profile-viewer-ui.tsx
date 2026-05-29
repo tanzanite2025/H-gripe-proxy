@@ -15,13 +15,13 @@ interface ProfileViewerUIProps {
   openType: 'new' | 'edit'
   loading: boolean
   control: Control<IProfileItem>
-  formType: string
+  formType: IProfileItem['type'] | undefined
   onClose: () => void
   onCancel: () => void
   onOk: () => void
   setValue: UseFormSetValue<IProfileItem>
   getValues: UseFormGetValues<IProfileItem>
-  fileDataRef: React.MutableRefObject<string | null>
+  onFileDataChange: (value: string | null) => void
 }
 
 export function ProfileViewerUI({
@@ -35,17 +35,17 @@ export function ProfileViewerUI({
   onOk,
   setValue,
   getValues,
-  fileDataRef,
+  onFileDataChange,
 }: ProfileViewerUIProps) {
   const { t } = useTranslation()
 
   const text = {
     fullWidth: true,
     size: 'small',
-    margin: 'normal',
     variant: 'outlined',
     autoComplete: 'off',
     autoCorrect: 'off',
+    className: 'my-2',
   } as const
 
   const isRemote = formType === 'remote'
@@ -59,7 +59,8 @@ export function ProfileViewerUI({
           ? t('profiles.modals.profileForm.title.create')
           : t('profiles.modals.profileForm.title.edit')
       }
-      contentSx={{ width: 375, pb: 0, maxHeight: '80%' }}
+      panelStyle={{ width: 375, maxHeight: '80%' }}
+      contentClassName="pb-0"
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={onClose}
@@ -76,7 +77,6 @@ export function ProfileViewerUI({
             label={t('profiles.modals.profileForm.fields.type')}
             className="mt-2 mb-2"
             fullWidth
-            autoFocus
           >
             <option value="remote">Remote</option>
             <option value="local">Local</option>
@@ -185,7 +185,7 @@ export function ProfileViewerUI({
         <FileInput
           onChange={(file, val) => {
             setValue('name', getValues('name') || file.name)
-            fileDataRef.current = val
+            onFileDataChange(val)
           }}
         />
       )}
@@ -200,7 +200,10 @@ export function ProfileViewerUI({
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.useSystemProxy')}
                 </label>
-                <Switch checked={field.value} {...field} color="primary" />
+                <Switch
+                  checked={field.value ?? false}
+                  onCheckedChange={field.onChange}
+                />
               </div>
             )}
           />
@@ -213,7 +216,10 @@ export function ProfileViewerUI({
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.useClashProxy')}
                 </label>
-                <Switch checked={field.value} {...field} color="primary" />
+                <Switch
+                  checked={field.value ?? false}
+                  onCheckedChange={field.onChange}
+                />
               </div>
             )}
           />
@@ -226,7 +232,10 @@ export function ProfileViewerUI({
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.acceptInvalidCerts')}
                 </label>
-                <Switch checked={field.value} {...field} color="primary" />
+                <Switch
+                  checked={field.value ?? false}
+                  onCheckedChange={field.onChange}
+                />
               </div>
             )}
           />
@@ -239,7 +248,10 @@ export function ProfileViewerUI({
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.allowAutoUpdate')}
                 </label>
-                <Switch checked={field.value} {...field} color="primary" />
+                <Switch
+                  checked={field.value ?? false}
+                  onCheckedChange={field.onChange}
+                />
               </div>
             )}
           />

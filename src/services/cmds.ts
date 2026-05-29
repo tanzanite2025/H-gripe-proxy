@@ -101,6 +101,155 @@ export async function getRuntimeYaml() {
   return invoke<string | null>('get_runtime_yaml')
 }
 
+export interface DnsRuntimeSnapshot {
+  enhanced_mode: string | null
+  ipv6: boolean | null
+  nameserver_count: number
+  fallback_count: number
+  nameserver_policy_count: number
+  use_hosts: boolean | null
+  use_system_hosts: boolean | null
+  respect_rules: boolean | null
+}
+
+export interface DnsRuntimeDerivedState {
+  routing_mode: string | null
+  domestic_dns: string[]
+  foreign_dns: string[]
+  default_nameserver_count: number
+  prefer_h3: boolean | null
+  leak_protection_level: string | null
+  leak_protection_security: string | null
+  leak_protection_safe: boolean | null
+}
+
+export interface DnsRuntimeStatus {
+  enable_dns_settings: boolean
+  dns_config_exists: boolean
+  dns_config_valid: boolean
+  runtime_has_dns: boolean
+  runtime_has_hosts: boolean
+  runtime_dns_matches_saved: boolean
+  runtime_hosts_matches_saved: boolean
+  runtime_matches_saved: boolean
+  snapshot: DnsRuntimeSnapshot
+  derived: DnsRuntimeDerivedState
+}
+
+export async function getDnsRuntimeStatus() {
+  return invoke<DnsRuntimeStatus>('get_dns_runtime_status')
+}
+
+export interface DnsLeakServer {
+  ip: string
+  hostname: string | null
+  country: string | null
+  city: string | null
+  isp: string | null
+}
+
+export interface DnsLeakTestResult {
+  has_leak: boolean
+  observed_leak: boolean
+  runtime_risk_detected: boolean
+  observation_incomplete: boolean
+  confidence: 'high' | 'medium' | 'low' | string
+  assessment: 'safe' | 'observed-leak' | 'runtime-risk' | 'inconclusive' | string
+  leak_type: string[]
+  observed_leak_type: string[]
+  runtime_risk_type: string[]
+  warnings: string[]
+  recommendations: string[]
+  dns_servers: DnsLeakServer[]
+  dns_location: string | null
+  ip_location: string
+  location_match: boolean
+  location_comparable: boolean
+  risk_level: 'safe' | 'warning' | 'danger' | string
+  timestamp: number
+  checked_via_core_proxy: boolean
+  observation_path: 'core-proxy' | 'core-proxy-fallback-direct' | 'direct' | string
+  error: string | null
+}
+
+export async function testDnsLeak() {
+  return invoke<DnsLeakTestResult>('test_dns_leak')
+}
+
+export interface ProxyDetectionLocation {
+  country_code: string | null
+  country: string | null
+  region: string | null
+  city: string | null
+  organization: string | null
+  asn: number | null
+  asn_organization: string | null
+}
+
+export interface ProxyDetectionResult {
+  checked: boolean
+  core_running: boolean
+  direct_observed: boolean
+  proxy_observed: boolean
+  checked_via_core_proxy: boolean
+  proxy_effective: boolean
+  ip_changed: boolean
+  location_changed: boolean
+  observation_incomplete: boolean
+  runtime_risk_detected: boolean
+  confidence: 'high' | 'medium' | 'low' | string
+  assessment: 'effective' | 'same-egress' | 'runtime-risk' | 'inconclusive' | string
+  runtime_risk_type: string[]
+  warnings: string[]
+  recommendations: string[]
+  direct_ip: string | null
+  proxy_ip: string | null
+  direct_location: ProxyDetectionLocation | null
+  proxy_location: ProxyDetectionLocation | null
+  observation_path: 'direct-vs-core-proxy' | 'direct-only' | 'core-proxy-only' | string
+  error: string | null
+  timestamp: number
+}
+
+export async function testProxyDetection() {
+  return invoke<ProxyDetectionResult>('test_proxy_detection')
+}
+
+export interface TorRuntimeStatus {
+  enabled: boolean
+  socks_host: string
+  socks_port: number
+  control_port: number | null
+  use_bridges: boolean
+  bridge_count: number
+  configured_proxy_url: string
+  checked: boolean
+  status: 'disabled' | 'connected' | 'failed' | string
+  connected: boolean
+  circuit_established: boolean
+  observation_incomplete: boolean
+  runtime_risk_detected: boolean
+  confidence: 'high' | 'medium' | 'low' | string
+  assessment: 'disabled' | 'connected' | 'runtime-risk' | 'inconclusive' | string
+  runtime_risk_type: string[]
+  current_ip: string | null
+  exit_node: string | null
+  check_method: string
+  observation_path: string
+  observation_source: string | null
+  warnings: string[]
+  error: string | null
+  timestamp: number
+}
+
+export async function getTorStatus() {
+  return invoke<TorRuntimeStatus>('get_tor_status')
+}
+
+export async function testTorConnection() {
+  return invoke<TorRuntimeStatus>('test_tor_connection')
+}
+
 export async function getRuntimeExists() {
   return invoke<string[]>('get_runtime_exists')
 }
@@ -274,6 +423,10 @@ export async function patchVergeConfig(payload: IVergeConfig) {
   return invoke<void>('patch_verge_config', { payload })
 }
 
+export async function applyDnsConfig(apply: boolean) {
+  return invoke<void>('apply_dns_config', { apply })
+}
+
 export async function getSystemProxy() {
   return invoke<{
     enable: boolean
@@ -400,6 +553,10 @@ export async function getPortableFlag() {
 }
 
 export async function openDevTools() {
+  if (!import.meta.env.DEV) {
+    throw new Error('DevTools are only available in development builds')
+  }
+
   return invoke('open_devtools')
 }
 

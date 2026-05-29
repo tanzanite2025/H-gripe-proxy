@@ -1,4 +1,4 @@
-import { LocationOnOutlined, RefreshOutlined } from '@mui/icons-material'
+import { MapPin, RefreshCw } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useEffect } from 'foxact/use-abortable-effect'
@@ -42,12 +42,12 @@ const IPInfoCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
     return (
       <EnhancedCard
         title={t('home.components.ipInfo.title')}
-        icon={<LocationOnOutlined />}
+        icon={<MapPin className="h-5 w-5" />}
         iconColor="info"
         ref={ref}
         action={
           <IconButton size="small" onClick={() => mutate()}>
-            <RefreshOutlined />
+            <RefreshCw className="h-4 w-4" />
           </IconButton>
         }
       >

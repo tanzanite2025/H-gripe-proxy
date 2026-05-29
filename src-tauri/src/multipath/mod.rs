@@ -26,6 +26,9 @@ pub struct MultipathConfig {
     pub reassembly_timeout: u64,
     /// 是否启用会话保持
     pub session_persistence: bool,
+    /// 域名绑定规则
+    #[serde(default = "SessionBinding::all_predefined")]
+    pub bindings: Vec<SessionBinding>,
 }
 
 impl Default for MultipathConfig {
@@ -38,6 +41,7 @@ impl Default for MultipathConfig {
             max_fragment_size: 65536,     // 64KB
             reassembly_timeout: 5000,     // 5秒
             session_persistence: true,
+            bindings: SessionBinding::all_predefined(),
         }
     }
 }
@@ -283,7 +287,6 @@ pub struct MultipathManager {
     config: Arc<RwLock<MultipathConfig>>,
     #[allow(dead_code)]
     sessions: Arc<RwLock<HashMap<u64, StreamSession>>>,
-    bindings: Arc<RwLock<Vec<SessionBinding>>>,
     #[allow(dead_code)]
     node_stats: Arc<RwLock<HashMap<String, NodeStats>>>,
 }
@@ -300,12 +303,9 @@ pub struct NodeStats {
 
 impl MultipathManager {
     pub fn new() -> Self {
-        let bindings = SessionBinding::all_predefined();
-        
         Self {
             config: Arc::new(RwLock::new(MultipathConfig::default())),
             sessions: Arc::new(RwLock::new(HashMap::new())),
-            bindings: Arc::new(RwLock::new(bindings)),
             node_stats: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -322,30 +322,28 @@ impl MultipathManager {
 
     /// 获取会话绑定规则
     pub fn get_bindings(&self) -> Vec<SessionBinding> {
-        self.bindings.read().clone()
+        self.config.read().bindings.clone()
     }
 
     /// 添加会话绑定规则
+    #[allow(dead_code)]
     pub fn add_binding(&self, binding: SessionBinding) {
-        self.bindings.write().push(binding);
+        let mut config = self.config.write();
+        config.bindings.push(binding);
     }
 
     /// 删除会话绑定规则
+    #[allow(dead_code)]
     pub fn remove_binding(&self, domain_pattern: &str) {
-        self.bindings.write().retain(|b| b.domain_pattern != domain_pattern);
+        let mut config = self.config.write();
+        config.bindings.retain(|b| b.domain_pattern != domain_pattern);
     }
 
     /// 检查域名是否需要单节点
+    #[allow(dead_code)]
     pub fn should_use_single_node(&self, domain: &str) -> (bool, PoolType) {
-        let bindings = self.bindings.read();
-        
-        for binding in bindings.iter() {
-            if Self::match_domain(&binding.domain_pattern, domain) {
-                return (binding.force_single_node, binding.pool_type);
-            }
-        }
-
-        (false, PoolType::General)
+        let config = self.config.read();
+        Self::resolve_binding(domain, &config.bindings)
     }
 
     /// 域名匹配（支持通配符）
@@ -362,6 +360,16 @@ impl MultipathManager {
         false
     }
 
+    fn resolve_binding(domain: &str, bindings: &[SessionBinding]) -> (bool, PoolType) {
+        for binding in bindings {
+            if Self::match_domain(&binding.domain_pattern, domain) {
+                return (binding.force_single_node, binding.pool_type);
+            }
+        }
+
+        (false, PoolType::General)
+    }
+
     /// 选择节点
     pub fn select_node(&self, domain: &str, session_id: u64) -> Option<String> {
         let config = self.config.read();
@@ -370,7 +378,7 @@ impl MultipathManager {
             return None;
         }
 
-        let (force_single, pool_type) = self.should_use_single_node(domain);
+        let (force_single, pool_type) = Self::resolve_binding(domain, &config.bindings);
 
         // 检查是否已有会话
         if config.session_persistence || force_single {

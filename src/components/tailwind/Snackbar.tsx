@@ -11,10 +11,12 @@ export interface SnackbarProps {
     vertical: 'top' | 'bottom'
     horizontal: 'left' | 'center' | 'right'
   }
+  message?: ReactNode
+  style?: React.CSSProperties
 }
 
 export const Snackbar = forwardRef<HTMLDivElement, SnackbarProps>(
-  ({ children, className, open, anchorOrigin = { vertical: 'bottom', horizontal: 'left' } }, ref) => {
+  ({ children, className, open, anchorOrigin = { vertical: 'bottom', horizontal: 'left' }, message, style }, ref) => {
     if (!open) return null
 
     const positionClasses = {
@@ -31,13 +33,14 @@ export const Snackbar = forwardRef<HTMLDivElement, SnackbarProps>(
     return (
       <div
         ref={ref}
+        style={style}
         className={cn(
           'fixed z-50',
           positionClasses[positionKey],
           className
         )}
       >
-        {children}
+        {message || children}
       </div>
     )
   }

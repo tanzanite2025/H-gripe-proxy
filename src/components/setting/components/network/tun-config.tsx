@@ -1,6 +1,6 @@
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
-import { useImperativeHandle, useState } from 'react'
+import { useImperativeHandle, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -187,7 +187,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Button>
         </Box>
       }
-      contentSx={{ width: 450 }}
+      panelStyle={{ width: 450 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
@@ -219,7 +219,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             className="w-[250px]"
             value={values.device}
             placeholder="Mihomo"
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({ ...v, device: e.target.value }))
             }
           />
@@ -228,13 +228,12 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         <ListItem className="py-[5px] px-[2px]">
           <ListItemText primary={t('settings.modals.tun.fields.autoRoute')} />
           <Switch
-            edge="end"
             checked={values.autoRoute}
-            onChange={(_, c) =>
+            onCheckedChange={(checked) =>
               setValues((v) => ({
                 ...v,
-                autoRoute: c,
-                autoRedirect: c ? v.autoRedirect : false,
+                autoRoute: checked,
+                autoRedirect: checked ? v.autoRedirect : false,
               }))
             }
           />
@@ -251,12 +250,11 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
               className={values.autoRoute ? 'opacity-70' : 'opacity-30'}
             />
             <Switch
-              edge="end"
               checked={values.autoRedirect}
-              onChange={(_, c) =>
+              onCheckedChange={(checked) =>
                 setValues((v) => ({
                   ...v,
-                  autoRedirect: v.autoRoute ? c : v.autoRedirect,
+                  autoRedirect: v.autoRoute ? checked : v.autoRedirect,
                 }))
               }
               disabled={!values.autoRoute}
@@ -268,9 +266,8 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         <ListItem className="py-[5px] px-[2px]">
           <ListItemText primary={t('settings.modals.tun.fields.strictRoute')} />
           <Switch
-            edge="end"
             checked={values.strictRoute}
-            onChange={(_, c) => setValues((v) => ({ ...v, strictRoute: c }))}
+            onCheckedChange={(checked) => setValues((v) => ({ ...v, strictRoute: checked }))}
           />
         </ListItem>
 
@@ -279,10 +276,9 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             primary={t('settings.modals.tun.fields.autoDetectInterface')}
           />
           <Switch
-            edge="end"
             checked={values.autoDetectInterface}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoDetectInterface: c }))
+            onCheckedChange={(checked) =>
+              setValues((v) => ({ ...v, autoDetectInterface: checked }))
             }
           />
         </ListItem>
@@ -298,7 +294,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             className="w-[250px]"
             value={values.dnsHijack.join(',')}
             placeholder={t('settings.modals.tun.tooltips.dnsHijack')}
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({ ...v, dnsHijack: e.target.value.split(',') }))
             }
           />
@@ -316,7 +312,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             className="w-[250px]"
             value={values.mtu}
             placeholder="1500"
-            onChange={(e) =>
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({
                 ...v,
                 mtu: parseInt(e.target.value),

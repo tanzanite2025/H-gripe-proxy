@@ -1,9 +1,9 @@
 import { Select } from '@/components/tailwind'
-import type { ComponentProps } from 'react'
+import type { NativeSelectProps } from '@/components/tailwind/Select'
 
-type BaseStyledSelectProps = Omit<ComponentProps<typeof Select>, 'options'>
+type BaseStyledSelectProps = NativeSelectProps
 
-export const BaseStyledSelect = (props: BaseStyledSelectProps & { options: Array<{ value: string | number; label: string }> }) => {
+export const BaseStyledSelect = (props: BaseStyledSelectProps) => {
   return (
     <div className="mr-1 w-[120px]">
       <Select {...props} />

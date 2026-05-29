@@ -10,7 +10,6 @@ import {
   type PathNode,
   type PoolType,
   type SlicingStrategy,
-  multipathAddBinding,
   multipathAddNode,
   multipathAddPool,
   multipathExportNodes,
@@ -19,11 +18,9 @@ import {
   multipathGetPredefinedBindings,
   multipathGetRecommendedConfig,
   multipathImportNodes,
-  multipathRemoveBinding,
   multipathRemoveNode,
   multipathRemovePool,
   multipathUpdateConfig,
-  multipathUpdatePool,
 } from '@/services/multipath'
 import { showNotice } from '@/services/notice-service'
 import { useMultiConfigLoader, useConfigSaver } from '@/hooks'

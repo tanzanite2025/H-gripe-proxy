@@ -1,10 +1,10 @@
-import React from 'react'
+import React, { type ElementType } from 'react'
 
 export interface TypographyProps {
   children?: React.ReactNode
   variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'subtitle1' | 'subtitle2' | 'body1' | 'body2' | 'caption' | 'overline'
   className?: string
-  component?: keyof JSX.IntrinsicElements
+  component?: ElementType
 }
 
 export const Typography = React.forwardRef<HTMLElement, TypographyProps>(

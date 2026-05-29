@@ -1,4 +1,3 @@
-import { alpha, createTheme, Shadows, type ThemeOptions } from '@mui/material'
 import {
   getCurrentWebviewWindow,
   WebviewWindow,
@@ -140,6 +139,21 @@ const resolveCssColorToRgbString = (
   return fallback
 }
 
+// Helper function to create alpha color
+const alpha = (color: string, opacity: number) => {
+  const rgb = resolveCssColorToRgbString(color)
+  return `rgba(${rgb}, ${opacity})`
+}
+
+// Helper function to darken color
+const darkenColor = (color: string, amount: number = 0.2) => {
+  const hex = color.replace('#', '')
+  const r = Math.max(0, parseInt(hex.substring(0, 2), 16) * (1 - amount))
+  const g = Math.max(0, parseInt(hex.substring(2, 4), 16) * (1 - amount))
+  const b = Math.max(0, parseInt(hex.substring(4, 6), 16) * (1 - amount))
+  return `#${Math.round(r).toString(16).padStart(2, '0')}${Math.round(g).toString(16).padStart(2, '0')}${Math.round(b).toString(16).padStart(2, '0')}`
+}
+
 /**
  * custom theme
  */
@@ -224,325 +238,33 @@ export const useCustomTheme = () => {
     }
   }, [mode, appWindow, theme_mode])
 
+  // Create theme object for compatibility
   const theme = useMemo(() => {
     const resolvedPrimaryColor = setting.primary_color || dt.primary_color
     const resolvedSecondaryColor = setting.secondary_color || dt.secondary_color
     const resolvedPrimaryText = setting.primary_text || dt.primary_text
     const resolvedSecondaryText = setting.secondary_text || dt.secondary_text
-    const resolvedFontFamily = setting.font_family || dt.font_family
-    const flatShadows = Array(25).fill('none') as Shadows
 
-    const createThemeOptions = (): ThemeOptions => {
-      const themeOptions: ThemeOptions = {
-        breakpoints: {
-          values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
+    return {
+      palette: {
+        mode,
+        primary: {
+          main: resolvedPrimaryColor,
+          dark: darkenColor(resolvedPrimaryColor),
         },
-        palette: {
-          mode,
-          primary: {
-            main: resolvedPrimaryColor,
-          },
-          secondary: {
-            main: resolvedSecondaryColor,
-          },
-          text: {
-            primary: resolvedPrimaryText,
-            secondary: resolvedSecondaryText,
-          },
-          background: {
-            paper: dt.background_color,
-            default: dt.background_color,
-          },
+        secondary: {
+          main: resolvedSecondaryColor,
         },
-        typography: {
-          fontFamily: resolvedFontFamily,
-          h1: {
-            fontSize: '18px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-            textTransform: 'uppercase',
-          },
-          h2: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h3: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h4: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h5: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          h6: {
-            fontSize: '14px',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '-0.05em',
-          },
-          body1: {
-            fontSize: '12px',
-            fontWeight: 500,
-          },
-          body2: {
-            fontSize: '12px',
-            fontWeight: 500,
-          },
-          caption: {
-            fontSize: '10px',
-            fontWeight: 900,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-          },
+        text: {
+          primary: resolvedPrimaryText,
+          secondary: resolvedSecondaryText,
         },
-        components: {
-          MuiSvgIcon: {
-            defaultProps: {
-              fontSize: 'medium', // 设置所有图标的默认尺寸
-            },
-            styleOverrides: {
-              root: {
-                fontSize: '1.5rem', // 24px - medium
-              },
-              fontSizeSmall: {
-                fontSize: '1.25rem', // 20px
-              },
-              fontSizeLarge: {
-                fontSize: '2.1875rem', // 35px
-              },
-              fontSizeInherit: {
-                fontSize: 'inherit',
-              },
-            },
-          },
-          MuiButton: {
-            defaultProps: {
-              disableElevation: true,
-            },
-            styleOverrides: {
-              root: {
-                borderRadius: '9999px',
-                textTransform: 'uppercase',
-                fontWeight: 900,
-                letterSpacing: '0.15em',
-                fontSize: '10px',
-                height: '44px',
-                padding: '0 24px',
-                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-              },
-              contained: {
-                backgroundColor: resolvedPrimaryColor,
-                color: '#ffffff',
-                '&:hover': {
-                  backgroundColor: resolvedPrimaryColor,
-                  opacity: 0.9,
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                },
-              },
-              outlined: {
-                border:
-                  mode === 'light'
-                    ? '1px dashed rgba(0, 0, 0, 0.15)'
-                    : '1px dashed rgba(255, 255, 255, 0.15)',
-                backgroundColor: 'transparent',
-                color: mode === 'light' ? '#111827' : '#ffffff',
-                '&:hover': {
-                  border:
-                    mode === 'light'
-                      ? '1px dashed rgba(0, 0, 0, 0.3)'
-                      : '1px dashed rgba(255, 255, 255, 0.3)',
-                  backgroundColor:
-                    mode === 'light'
-                      ? 'rgba(0, 0, 0, 0.03)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                  transform: 'translateY(-1px)',
-                },
-              },
-            },
-          },
-          MuiOutlinedInput: {
-            styleOverrides: {
-              root: {
-                borderRadius: '16px',
-                height: '48px',
-                backgroundColor:
-                  mode === 'light'
-                    ? 'rgba(0, 0, 0, 0.03)'
-                    : 'rgba(255, 255, 255, 0.04)',
-                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                fontSize: '12px',
-                fontWeight: 600,
-                '& .MuiOutlinedInput-notchedOutline': {
-                  border: 'none',
-                },
-                '&:hover': {
-                  backgroundColor:
-                    mode === 'light'
-                      ? 'rgba(0, 0, 0, 0.05)'
-                      : 'rgba(255, 255, 255, 0.07)',
-                },
-                '&.Mui-focused': {
-                  backgroundColor:
-                    mode === 'light'
-                      ? 'rgba(0, 0, 0, 0.02)'
-                      : 'rgba(255, 255, 255, 0.02)',
-                  boxShadow: `0 0 0 2px ${alpha(resolvedPrimaryColor, 0.2)}`,
-                },
-              },
-              input: {
-                padding: '0 16px',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-              },
-            },
-          },
-          MuiInputBase: {
-            styleOverrides: {
-              root: {
-                borderRadius: '16px',
-                fontSize: '12px',
-                fontWeight: 600,
-              },
-            },
-          },
-          MuiSelect: {
-            styleOverrides: {
-              select: {
-                height: '48px',
-                display: 'flex',
-                alignItems: 'center',
-                boxSizing: 'border-box',
-                paddingLeft: '16px',
-                paddingRight: '32px',
-              },
-            },
-          },
-          MuiDialog: {
-            styleOverrides: {
-              paper: {
-                borderRadius: '32px',
-                border: 'none',
-                boxShadow:
-                  mode === 'light'
-                    ? '0 25px 50px -12px rgba(0, 0, 0, 0.15)'
-                    : '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                backgroundImage: 'none',
-              },
-            },
-          },
-          MuiDialogTitle: {
-            styleOverrides: {
-              root: {
-                padding: '24px 24px 12px',
-                fontSize: '14px',
-                fontWeight: 900,
-                fontStyle: 'italic',
-                letterSpacing: '-0.05em',
-              },
-            },
-          },
-          MuiDialogContent: {
-            styleOverrides: {
-              root: {
-                padding: '12px 24px 20px',
-              },
-            },
-          },
-          MuiDialogActions: {
-            styleOverrides: {
-              root: {
-                padding: '0 24px 24px',
-                gap: '8px',
-              },
-            },
-          },
-          MuiMenu: {
-            styleOverrides: {
-              paper: {
-                borderRadius: '16px',
-                boxShadow:
-                  mode === 'light'
-                    ? '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)'
-                    : '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
-                border:
-                  mode === 'light'
-                    ? '1px solid rgba(0, 0, 0, 0.06)'
-                    : '1px solid rgba(255, 255, 255, 0.04)',
-              },
-            },
-          },
-          MuiPopover: {
-            styleOverrides: {
-              paper: {
-                borderRadius: '16px',
-                boxShadow:
-                  mode === 'light'
-                    ? '0 10px 25px -5px rgba(0, 0, 0, 0.08)'
-                    : '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
-                border:
-                  mode === 'light'
-                    ? '1px solid rgba(0, 0, 0, 0.06)'
-                    : '1px solid rgba(255, 255, 255, 0.04)',
-              },
-            },
-          },
-          MuiTooltip: {
-            styleOverrides: {
-              tooltip: {
-                borderRadius: '8px',
-                fontSize: '10px',
-                fontWeight: 900,
-                backgroundColor: '#111827',
-                color: '#ffffff',
-                letterSpacing: '0.05em',
-                padding: '6px 10px',
-              },
-              arrow: {
-                color: '#111827',
-              },
-            },
-          },
-          MuiFormControlLabel: {
-            styleOverrides: {
-              root: {
-                marginLeft: 0,
-                marginRight: 0,
-                padding: '4px 10px',
-                borderRadius: '12px',
-                transition: 'background-color 0.2s ease',
-                '&:hover': {
-                  backgroundColor:
-                    mode === 'light'
-                      ? 'rgba(0, 0, 0, 0.03)'
-                      : 'rgba(255, 255, 255, 0.03)',
-                },
-              },
-            },
-          },
+        background: {
+          paper: dt.background_color,
+          default: dt.background_color,
         },
-      }
-
-      themeOptions.shadows = flatShadows
-
-      return themeOptions
+      },
     }
-
-    return createTheme(createThemeOptions())
   }, [dt, mode, setting])
 
   useLayoutEffect(() => {
@@ -552,7 +274,7 @@ export const useCustomTheme = () => {
       const selectColor = mode === 'light' ? '#f5f5f5' : '#3E3E3E'
       const scrollColor = mode === 'light' ? '#90939980' : '#555555'
       const dividerColor =
-        mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)' // 极淡灰色虚线
+        mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)'
       
       // 设置字体 CSS 变量（唯一数据源）
       const resolvedFontFamily = setting.font_family || dt.font_family
@@ -669,7 +391,6 @@ export const useCustomTheme = () => {
         /* 移除可能的白色点或线条 */
         * {
           outline: none !important;
-          box-shadow: none !important;
         }
       `
 

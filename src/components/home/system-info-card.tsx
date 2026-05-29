@@ -1,11 +1,11 @@
-import {
-  InfoOutlined,
-  SettingsOutlined,
-  AdminPanelSettingsOutlined,
-  DnsOutlined,
-  ExtensionOutlined,
-} from '@mui/icons-material'
 import { useLockFn } from 'ahooks'
+import {
+  Info,
+  Settings,
+  ShieldCheck,
+  Plug,
+  Puzzle,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -126,10 +126,9 @@ export const SystemInfoCard = () => {
   const getModeIcon = () => {
     if (isNotRunningMode) {
       return (
-        <ExtensionOutlined
-          className="text-warning text-base"
-          titleAccess={t('shared.statuses.disabled')}
-        />
+        <span title={t('shared.statuses.disabled')}>
+          <Puzzle className="text-warning text-base" />
+        </span>
       )
     }
 
@@ -138,36 +137,31 @@ export const SystemInfoCard = () => {
       if (!isSidecarMode) {
         return (
           <>
-            <AdminPanelSettingsOutlined
-              className="text-primary text-base"
-              titleAccess={t('home.components.systemInfo.badges.adminMode')}
-            />
-            <DnsOutlined
-              className="text-success text-base ml-1"
-              titleAccess={t('home.components.systemInfo.badges.serviceMode')}
-            />
+            <span title={t('home.components.systemInfo.badges.adminMode')}>
+              <ShieldCheck className="text-primary text-base" />
+            </span>
+            <span title={t('home.components.systemInfo.badges.serviceMode')}>
+              <Plug className="text-success text-base ml-1" />
+            </span>
           </>
         )
       }
       return (
-        <AdminPanelSettingsOutlined
-          className="text-primary text-base"
-          titleAccess={t('home.components.systemInfo.badges.adminMode')}
-        />
+        <span title={t('home.components.systemInfo.badges.adminMode')}>
+          <ShieldCheck className="text-primary text-base" />
+        </span>
       )
     } else if (isSidecarMode) {
       return (
-        <ExtensionOutlined
-          className="text-info text-base"
-          titleAccess={t('home.components.systemInfo.badges.sidecarMode')}
-        />
+        <span title={t('home.components.systemInfo.badges.sidecarMode')}>
+          <Puzzle className="text-info text-base" />
+        </span>
       )
     } else {
       return (
-        <DnsOutlined
-          className="text-success text-base"
-          titleAccess={t('home.components.systemInfo.badges.serviceMode')}
-        />
+        <span title={t('home.components.systemInfo.badges.serviceMode')}>
+          <Plug className="text-success text-base" />
+        </span>
       )
     }
   }
@@ -197,7 +191,7 @@ export const SystemInfoCard = () => {
   return (
     <EnhancedCard
       title={t('home.components.systemInfo.title')}
-      icon={<InfoOutlined />}
+      icon={<Info className="h-5 w-5" />}
       iconColor="error"
       action={
         <IconButton
@@ -205,7 +199,7 @@ export const SystemInfoCard = () => {
           onClick={goToSettings}
           title={t('home.components.systemInfo.actions.settings')}
         >
-          <SettingsOutlined fontSize="small" />
+          <Settings className="h-4 w-4" />
         </IconButton>
       }
     >

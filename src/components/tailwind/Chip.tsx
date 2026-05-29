@@ -1,7 +1,7 @@
 import React from 'react'
 
-export interface ChipProps {
-  label: string
+export interface ChipProps extends React.HTMLAttributes<HTMLDivElement> {
+  label: React.ReactNode
   color?: 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success'
   size?: 'small' | 'medium'
   variant?: 'filled' | 'outlined'

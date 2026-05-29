@@ -26,6 +26,7 @@ export interface MultipathConfig {
   max_fragment_size: number
   reassembly_timeout: number
   session_persistence: boolean
+  bindings: SessionBinding[]
 }
 
 export interface NodePool {

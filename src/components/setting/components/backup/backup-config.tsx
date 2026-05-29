@@ -53,6 +53,9 @@ export const BackupConfigViewer = memo(
         password: webdav_password,
       },
     })
+    const urlField = register('url')
+    const usernameField = register('username')
+    const passwordField = register('password')
     const url = watch('url')
     const username = watch('username')
     const password = watch('password')
@@ -181,11 +184,14 @@ export const BackupConfigViewer = memo(
                   label={t('settings.modals.backup.fields.webdavUrl')}
                   variant="outlined"
                   size="small"
-                  {...register('url')}
+                  {...urlField}
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
-                  inputRef={urlRef}
+                  ref={(node) => {
+                    urlField.ref(node)
+                    urlRef.current = node as HTMLInputElement | null
+                  }}
                   className="mt-4"
                 />
               </Grid>
@@ -194,11 +200,14 @@ export const BackupConfigViewer = memo(
                   label={t('settings.modals.backup.fields.username')}
                   variant="outlined"
                   size="small"
-                  {...register('username')}
+                  {...usernameField}
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
-                  inputRef={usernameRef}
+                  ref={(node) => {
+                    usernameField.ref(node)
+                    usernameRef.current = node as HTMLInputElement | null
+                  }}
                 />
               </Grid>
               <Grid size={{ xs: 6 }}>
@@ -210,15 +219,17 @@ export const BackupConfigViewer = memo(
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck="false"
-                  inputRef={passwordRef}
-                  {...register('password')}
+                  {...passwordField}
+                  ref={(node) => {
+                    passwordField.ref(node)
+                    passwordRef.current = node as HTMLInputElement | null
+                  }}
                   slotProps={{
                     input: {
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
                             onClick={handleClickShowPassword}
-                            edge="end"
                           >
                             {showPassword ? (
                               <EyeOff className="h-5 w-5" />

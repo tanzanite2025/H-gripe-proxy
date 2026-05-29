@@ -1,0 +1,12 @@
+C:\Users\P16V\Desktop\个人开发\clashverge-clean\src-tauri\target-unify-check-serial\debug\deps\ignore-1709dd0f7a2ce559.d: C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\lib.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\default_types.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\dir.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\gitignore.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\overrides.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\pathutil.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\types.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\walk.rs
+
+C:\Users\P16V\Desktop\个人开发\clashverge-clean\src-tauri\target-unify-check-serial\debug\deps\libignore-1709dd0f7a2ce559.rmeta: C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\lib.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\default_types.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\dir.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\gitignore.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\overrides.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\pathutil.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\types.rs C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\walk.rs
+
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\lib.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\default_types.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\dir.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\gitignore.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\overrides.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\pathutil.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\types.rs:
+C:\Users\P16V\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ignore-0.4.25\src\walk.rs:

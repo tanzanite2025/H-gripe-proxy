@@ -1,10 +1,9 @@
-import { Code as CodeRounded, Grid as ViewModuleRounded } from 'lucide-react'
+import { Code as CodeRounded, Grid as ViewModuleRounded, X } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/tailwind/Button'
-import { Chip } from '@/components/tailwind/Chip'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { TextField } from '@/components/tailwind/TextField'
 import { Tooltip } from '@/components/tailwind/Tooltip'
@@ -108,9 +107,10 @@ export const BaseSplitChipEditor = ({
   const ToggleIcon = nextMode === 'visual' ? ViewModuleRounded : CodeRounded
   const resolvedAriaLabel =
     ariaLabel ?? (typeof toggleLabel === 'string' ? toggleLabel : undefined)
+  const toggleTooltip = typeof toggleLabel === 'string' ? toggleLabel : undefined
 
   const modeToggle = showModeToggle ? (
-    <Tooltip title={toggleLabel}>
+    <Tooltip title={toggleTooltip}>
       <IconButton
         size="small"
         aria-label={resolvedAriaLabel}
@@ -134,14 +134,22 @@ export const BaseSplitChipEditor = ({
           <div className="flex min-h-8 flex-wrap gap-1">
             {items.length ? (
               items.map((item, index) => (
-                <Chip
+                <div
                   key={item.key}
-                  label={item.value}
-                  size="small"
-                  onDelete={
-                    disabled ? undefined : () => handleRemoveItem(index)
-                  }
-                />
+                  className="inline-flex h-6 items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                >
+                  <span>{item.value}</span>
+                  {!disabled && (
+                    <button
+                      type="button"
+                      aria-label={t('shared.actions.delete')}
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10"
+                      onClick={() => handleRemoveItem(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               ))
             ) : (
               <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -158,7 +166,9 @@ export const BaseSplitChipEditor = ({
               placeholder={placeholder}
               error={error}
               className="[&_.MuiInputBase-root]:min-h-8 [&_.MuiInputBase-input]:px-2 [&_.MuiInputBase-input]:py-1"
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                setDraft(event.target.value)
+              }
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault()
@@ -183,19 +193,26 @@ export const BaseSplitChipEditor = ({
           )}
         </div>
       ) : (
-        <TextField
-          error={error}
-          disabled={disabled}
-          size="small"
-          multiline
-          rows={rows}
-          className="w-full"
-          value={value}
-          helperText={helperText}
-          onChange={(event) => {
-            onChange(event.target.value)
-          }}
-        />
+        <>
+          <TextField
+            error={error}
+            disabled={disabled}
+            size="small"
+            multiline
+            rows={rows}
+            className="w-full"
+            value={value}
+            helperText={typeof helperText === 'string' ? helperText : undefined}
+            onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
+              onChange(event.target.value)
+            }}
+          />
+          {helperText && typeof helperText !== 'string' && (
+            <div className={`mt-1 text-xs ${error ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+              {helperText}
+            </div>
+          )}
+        </>
       )}
     </>
   )

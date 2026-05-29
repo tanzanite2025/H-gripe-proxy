@@ -3,7 +3,7 @@
  */
 
 import { Tabs, Tab } from '@/components/tailwind'
-import { useState } from 'react'
+import { useState, type SyntheticEvent } from 'react'
 
 import AntiProbeConfigComponent from './anti-probe-config'
 import TlsFingerprintSelector from './tls-fingerprint-selector'
@@ -34,8 +34,8 @@ function TabPanel(props: TabPanelProps) {
 export default function SecurityConfig() {
   const [tabValue, setTabValue] = useState(0)
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue)
+  const handleTabChange = (_event: SyntheticEvent, newValue: string | number) => {
+    setTabValue(Number(newValue))
   }
 
   return (

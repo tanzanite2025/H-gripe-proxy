@@ -1,3 +1,4 @@
+import type { ChangeEvent } from 'react'
 import { Control, Controller, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +9,7 @@ import { List } from '@/components/tailwind/List'
 import { ListItem } from '@/components/tailwind/ListItem'
 import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Select } from '@/components/tailwind/Select'
+import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
 
 interface GroupFormProps {
@@ -191,7 +193,7 @@ export const GroupForm = ({
                 placeholder="*"
                 size="small"
                 className="w-[calc(100%-150px)]"
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
               />
@@ -212,7 +214,7 @@ export const GroupForm = ({
                 type="number"
                 size="small"
                 className="w-[calc(100%-150px)]"
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
                 InputProps={{
@@ -238,7 +240,7 @@ export const GroupForm = ({
                 type="number"
                 size="small"
                 className="w-[calc(100%-150px)]"
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
                 InputProps={{
@@ -268,7 +270,7 @@ export const GroupForm = ({
                 type="number"
                 size="small"
                 className="w-[calc(100%-150px)]"
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
               />
@@ -289,7 +291,7 @@ export const GroupForm = ({
                 size="small"
                 className="w-[calc(100%-150px)]"
                 value={field.value || ''}
-                onChange={(e) => field.onChange(e.target.value)}
+                onChange={(e: SelectChangeEvent) => field.onChange(e.target.value)}
               >
                 {interfaceNameList.map((option) => (
                   <option key={option} value={option}>
@@ -313,7 +315,7 @@ export const GroupForm = ({
                 type="number"
                 size="small"
                 className="w-[calc(100%-150px)]"
-                onChange={(e) => {
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
               />
