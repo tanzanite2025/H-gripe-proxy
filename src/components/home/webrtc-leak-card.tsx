@@ -3,12 +3,12 @@
  * 显示 WebRTC 是否泄漏真实 IP
  */
 
+import { useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
   RefreshCw,
   ShieldAlert,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
 import { forwardRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

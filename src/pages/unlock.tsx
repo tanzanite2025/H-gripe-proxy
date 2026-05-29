@@ -1,4 +1,10 @@
-import { Clock, XCircle, CheckCircle, HelpCircle, Clock as Pending, RefreshCw } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
+import { useLockFn } from 'ahooks'
+import { Clock, XCircle, CheckCircle, HelpCircle, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseEmpty, BasePage } from '@/components/base'
 import {
   Box,
   Button,
@@ -10,12 +16,6 @@ import {
   Tooltip,
   Typography,
 } from '@/components/tailwind'
-import { invoke } from '@tauri-apps/api/core'
-import { useLockFn } from 'ahooks'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseEmpty, BasePage } from '@/components/base'
 import { showNotice } from '@/services/notice-service'
 
 interface UnlockItem {
@@ -88,7 +88,11 @@ const UnlockPage = () => {
   // 检测暗色模式
   useEffect(() => {
     const checkDarkMode = () => {
-      setIsDark(document.documentElement.classList.contains('dark'))
+      const next = document.documentElement.classList.contains('dark')
+      // defer state update to avoid synchronous set warning
+      requestAnimationFrame(() => {
+        setIsDark((prev) => (prev === next ? prev : next))
+      })
     }
     checkDarkMode()
     

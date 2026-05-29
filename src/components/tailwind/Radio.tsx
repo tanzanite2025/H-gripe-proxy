@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useMemo,
   type ChangeEvent,
   type ReactNode,
 } from 'react'
@@ -30,8 +31,9 @@ export const RadioGroup = ({
   name,
   className,
 }: RadioGroupProps) => {
+  const contextValue = useMemo(() => ({ value, onChange, name }), [name, onChange, value])
   return (
-    <RadioGroupContext.Provider value={{ value, onChange, name }}>
+    <RadioGroupContext.Provider value={contextValue}>
       <div role="radiogroup" className={className}>
         {children}
       </div>

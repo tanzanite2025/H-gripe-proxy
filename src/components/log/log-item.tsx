@@ -1,7 +1,7 @@
-import { cn } from '@/utils/cn'
 import type { ReactNode } from 'react'
 
 import type { SearchState } from '@/components/base'
+import { cn } from '@/utils/cn'
 
 interface Props {
   value: ILogItem

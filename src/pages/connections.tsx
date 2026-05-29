@@ -1,15 +1,5 @@
-import { Trash2, Table, Rows, Columns } from 'lucide-react'
-import {
-  Box,
-  Button,
-  ButtonGroup,
-  Fab,
-  IconButton,
-  MenuItem,
-  Tooltip,
-  Zoom,
-} from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
+import { Trash2, Table, Rows, Columns } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
@@ -27,6 +17,16 @@ import {
 } from '@/components/connection/connection-detail'
 import { ConnectionItem } from '@/components/connection/connection-item'
 import { ConnectionTable } from '@/components/connection/connection-table'
+import {
+  Box,
+  Button,
+  ButtonGroup,
+  Fab,
+  IconButton,
+  MenuItem,
+  Tooltip,
+  Zoom,
+} from '@/components/tailwind'
 import { useConnectionData } from '@/hooks/data'
 import { useConnectionSetting } from '@/hooks/system'
 import parseTraffic from '@/utils/format'

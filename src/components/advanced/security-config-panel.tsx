@@ -2,9 +2,10 @@
  * 安全防御配置面板
  */
 
+import { Info } from 'lucide-react'
 import { useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { Info } from 'lucide-react'
+
 import { Switch, TextField } from '@/components/tailwind'
 import type { SecurityConfig } from '@/services/coordinator'
 import { tlsFingerprintGetAll } from '@/services/tls-fingerprint'

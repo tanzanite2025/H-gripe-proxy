@@ -1,10 +1,11 @@
+import { Eye, EyeOff } from 'lucide-react'
 import { useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff } from 'lucide-react'
+
 import { Button } from '@/components/tailwind/Button'
 import { Dialog } from '@/components/tailwind/Dialog'
-import { TextField } from '@/components/tailwind/TextField'
 import { IconButton } from '@/components/tailwind/IconButton'
+import { TextField } from '@/components/tailwind/TextField'
 
 interface Props {
   onConfirm: (passwd: string) => Promise<void>

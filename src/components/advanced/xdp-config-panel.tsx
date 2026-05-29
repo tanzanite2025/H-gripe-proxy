@@ -2,8 +2,9 @@
  * XDP 代理配置面板（仅 Linux）
  */
 
-import type { ChangeEvent } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
+import type { ChangeEvent } from 'react'
+
 import { Switch, TextField, Select } from '@/components/tailwind'
 import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import type { XdpConfig, XdpMode } from '@/services/coordinator'

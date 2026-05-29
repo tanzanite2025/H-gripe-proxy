@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useState, type ReactNode } from 'react'
 
 export interface TooltipProps {
   content?: string

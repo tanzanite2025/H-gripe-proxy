@@ -1,15 +1,15 @@
 import { ChevronDown, ChevronUp, Inbox } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Chip,
   ListItemText,
   Tooltip,
 } from '@/components/tailwind'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import { cn } from '@/utils/cn'
-
 import { useIconCache, useVerge } from '@/hooks/system'
 import { useThemeMode } from '@/services/states'
+import { cn } from '@/utils/cn'
 
 import { ProxyHead } from './proxy-head'
 import { ProxyItem } from './proxy-item'

@@ -1,7 +1,8 @@
 import { AlertCircle, Bug, RefreshCw } from 'lucide-react'
-import { Button, Alert, Collapse } from '@/components/tailwind'
 import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Alert, Collapse } from '@/components/tailwind'
 
 interface Props {
   children: ReactNode

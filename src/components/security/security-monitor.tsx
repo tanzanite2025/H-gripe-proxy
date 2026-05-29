@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { showNotice } from '@/services/notice-service'
 import {
   type SecurityStatus,
   securityCheckDecoyAccess,
@@ -16,7 +17,7 @@ import {
   securityStartMonitor,
   securityStopMonitor,
 } from '@/services/security'
-import { showNotice } from '@/services/notice-service'
+
 import SecurityMonitorUI from './security-monitor-ui'
 
 export default function SecurityMonitor() {

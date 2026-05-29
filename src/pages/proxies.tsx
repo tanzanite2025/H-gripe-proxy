@@ -1,6 +1,5 @@
-import { Network, AlertTriangle } from 'lucide-react'
-import { Box, Button, ButtonGroup } from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
+import { Network, AlertTriangle } from 'lucide-react'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
@@ -8,6 +7,7 @@ import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
+import { Box, Button, ButtonGroup } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,

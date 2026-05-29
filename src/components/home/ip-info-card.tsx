@@ -1,9 +1,9 @@
-import { MapPin, RefreshCw } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useEffect } from 'foxact/use-abortable-effect'
 import { useIntersection } from 'foxact/use-intersection'
 import type { XOR } from 'foxts/ts-xor'
+import { MapPin, RefreshCw } from 'lucide-react'
 import {
   forwardRef,
   useCallback,

@@ -1,6 +1,7 @@
 import { flexRender, Row, Table } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, useCallback, useRef } from 'react'
+
 import { cn } from '@/utils/cn'
 
 const ROW_HEIGHT = 40

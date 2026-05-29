@@ -1,8 +1,8 @@
 import { Trash2 } from 'lucide-react'
-import { Box, IconButton } from '@/components/tailwind'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Box, IconButton } from '@/components/tailwind'
 import { parseHotkey } from '@/utils/format'
 
 interface Props {

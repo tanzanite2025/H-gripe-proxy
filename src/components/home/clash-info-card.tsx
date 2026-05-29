@@ -1,8 +1,8 @@
 import { Cpu } from 'lucide-react'
-import { Divider, Stack } from '@/components/tailwind'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Divider, Stack } from '@/components/tailwind'
 import { useClash } from '@/hooks/data'
 import {
   useClashConfigData,

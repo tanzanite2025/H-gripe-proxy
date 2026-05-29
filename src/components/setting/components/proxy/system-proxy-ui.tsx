@@ -1,14 +1,5 @@
 import { Edit } from 'lucide-react'
 import type { ChangeEvent } from 'react'
-import {
-  Button,
-  Chip,
-  InputAdornment,
-  List,
-  ListItem,
-  ListItemText,
-  TextField,
-} from '@/components/tailwind'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -19,6 +10,15 @@ import {
   TooltipIcon,
 } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
+import {
+  Button,
+  Chip,
+  InputAdornment,
+  List,
+  ListItem,
+  ListItemText,
+  TextField,
+} from '@/components/tailwind'
 
 interface SystemProxyUIProps {
   open: boolean

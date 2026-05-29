@@ -2,8 +2,8 @@ import { useLockFn } from 'ahooks'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Dialog, Box } from '@/components/tailwind'
 import { DialogRef, Switch } from '@/components/base'
+import { Dialog, Box } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 

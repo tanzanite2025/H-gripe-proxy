@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 
+import { useConfigLoader, useConfigSaver } from '@/hooks'
 import {
   type AntiProbeConfig,
   antiProbeCleanup,
@@ -12,7 +13,7 @@ import {
   antiProbeUpdateConfig,
 } from '@/services/anti-probe'
 import { showNotice } from '@/services/notice-service'
-import { useConfigLoader, useConfigSaver } from '@/hooks'
+
 import AntiProbeConfigUI from './anti-probe-config-ui'
 
 export default function AntiProbeConfigComponent() {

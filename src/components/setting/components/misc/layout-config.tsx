@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
+import { DEFAULT_HOVER_DELAY } from '@/components/proxy/proxy-group-navigator'
 import {
   Box,
   Button,
@@ -15,7 +16,6 @@ import {
   Select,
   TextField,
 } from '@/components/tailwind'
-import { DEFAULT_HOVER_DELAY } from '@/components/proxy/proxy-group-navigator'
 import { useVerge } from '@/hooks/system'
 import { useWindowDecorations } from '@/hooks/ui'
 import { copyIconFile, getTrayIconPath } from '@/services/cmds'

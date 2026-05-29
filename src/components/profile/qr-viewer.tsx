@@ -1,6 +1,7 @@
-import { Dialog, DialogContent, DialogTitle } from '@/components/tailwind'
 import { QRCodeSVG } from 'qrcode.react'
 import { useTranslation } from 'react-i18next'
+
+import { Dialog, DialogContent, DialogTitle } from '@/components/tailwind'
 
 interface Props {
   open: boolean

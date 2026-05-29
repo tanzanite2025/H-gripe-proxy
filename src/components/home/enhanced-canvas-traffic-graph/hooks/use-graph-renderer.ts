@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useMemo, useCallback, useEffect, useRef } from 'react'
 
 import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
 import { useThemeMode } from '@/services/states'
 
+import { drawYAxis, drawTimeAxis } from '../renderers/axis-renderer'
+import { drawGrid } from '../renderers/grid-renderer'
+import { drawTrafficLine, drawHoverIndicator } from '../renderers/line-renderer'
 import type { ChartStyle, TimeRange } from '../utils/graph-config'
 import { STALE_DATA_THRESHOLD } from '../utils/graph-config'
-import { drawGrid } from '../renderers/grid-renderer'
-import { drawYAxis, drawTimeAxis } from '../renderers/axis-renderer'
-import { drawTrafficLine, drawHoverIndicator } from '../renderers/line-renderer'
 import { syncCanvasSize, clearCanvas } from '../utils/graph-helpers'
+
 import type { TooltipData } from './use-graph-interaction'
 
 interface UseGraphRendererProps {
@@ -17,7 +18,6 @@ interface UseGraphRendererProps {
   chartStyle: ChartStyle
   timeRange: TimeRange
   tooltipData: TooltipData
-  tooltipDataRef: React.MutableRefObject<TooltipData>
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   hoverCanvasRef: React.RefObject<HTMLCanvasElement | null>
   isWindowFocused: boolean
@@ -37,7 +37,6 @@ export const useGraphRenderer = ({
   chartStyle,
   timeRange,
   tooltipData,
-  tooltipDataRef,
   canvasRef,
   hoverCanvasRef,
   isWindowFocused,
@@ -55,13 +54,16 @@ export const useGraphRenderer = ({
   const scheduleDrawGraphRef = useRef<() => void>(() => {})
 
   // 主题颜色配置
-  const colors = {
-    up: theme.secondary_color,
-    down: theme.primary_color,
-    grid: mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
-    text: theme.secondary_text,
-    background: theme.background_color,
-  }
+  const colors = useMemo(
+    () => ({
+      up: theme.secondary_color,
+      down: theme.primary_color,
+      grid: mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+      text: theme.secondary_text,
+      background: theme.background_color,
+    }),
+    [mode, theme.background_color, theme.primary_color, theme.secondary_color, theme.secondary_text],
+  )
 
   // 主绘制函数
   const drawGraph = useCallback(() => {
@@ -146,7 +148,7 @@ export const useGraphRenderer = ({
 
     ctx.clearRect(0, 0, cssWidth, cssHeight)
 
-    const currentTooltip = tooltipDataRef.current
+    const currentTooltip = tooltipData
     if (currentTooltip.visible && currentTooltip.dataIndex >= 0) {
       drawHoverIndicator(
         ctx,
@@ -158,25 +160,24 @@ export const useGraphRenderer = ({
         colors.text,
       )
     }
-  }, [displayData, colors.text, tooltipDataRef, hoverCanvasRef])
+  }, [displayData, colors.text, tooltipData, hoverCanvasRef])
 
   // 检查是否应该跳过绘制
   const shouldSkipGraphDraw = useCallback(() => {
     if (!isDocumentVisible) return true
-
+ 
     if (!isWindowFocused && pauseRenderOnBlur) {
       return true
     }
-
+ 
     const lastDataTimestamp = lastDataTimestampRef.current
     if (
       lastDataTimestamp > 0 &&
       Date.now() - lastDataTimestamp > STALE_DATA_THRESHOLD
     ) {
-      dataStaleRef.current = true
       return true
     }
-
+ 
     return dataStaleRef.current
   }, [
     isDocumentVisible,
@@ -212,9 +213,8 @@ export const useGraphRenderer = ({
 
   // 更新 tooltip 时重绘悬浮层
   useEffect(() => {
-    tooltipDataRef.current = tooltipData
     scheduleHoverDraw()
-  }, [tooltipData, scheduleHoverDraw, tooltipDataRef])
+  }, [tooltipData, scheduleHoverDraw])
 
   // 窗口状态变化时重绘
   useEffect(() => {
@@ -252,19 +252,14 @@ export const useGraphRenderer = ({
   // 清理函数
   useEffect(() => {
     return () => {
-      if (drawFrameRef.current !== undefined) {
-        cancelAnimationFrame(drawFrameRef.current)
-        drawFrameRef.current = undefined
+      const drawId = drawFrameRef.current
+      if (drawId !== undefined) {
+        cancelAnimationFrame(drawId)
       }
-      if (hoverFrameRef.current !== undefined) {
-        cancelAnimationFrame(hoverFrameRef.current)
-        hoverFrameRef.current = undefined
+      const hoverId = hoverFrameRef.current
+      if (hoverId !== undefined) {
+        cancelAnimationFrame(hoverId)
       }
     }
   }, [])
-
-  return {
-    scheduleDrawGraph,
-    colors,
-  }
 }

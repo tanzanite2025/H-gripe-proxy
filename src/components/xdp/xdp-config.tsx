@@ -2,8 +2,10 @@
  * XDP 代理配置组件
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
+import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
+import { showNotice } from '@/services/notice-service'
 import {
   type XdpConfig,
   type XdpSupportInfo,
@@ -16,8 +18,7 @@ import {
   xdpUpdateConfig,
   xdpUpdateStats,
 } from '@/services/xdp'
-import { showNotice } from '@/services/notice-service'
-import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
+
 import XdpConfigUI from './xdp-config-ui'
 
 export default function XdpConfigComponent() {
@@ -49,49 +50,48 @@ export default function XdpConfigComponent() {
     successMessage: '配置已保存',
   })
 
-  // 加载支持信息和网卡列表
-  useEffect(() => {
-    checkSupport()
-    loadInterfaces()
-
-    // 定期更新状态
-    const interval = setInterval(() => {
-      reload()
-      if (data?.status?.running) {
-        updateStats()
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.status?.running])
-
-  const checkSupport = async () => {
+  const checkSupport = useCallback(async () => {
     try {
       const info = await xdpCheckSupport()
       setSupportInfo(info)
     } catch (error) {
       console.error('检查支持失败:', error)
     }
-  }
+  }, [])
 
-  const loadInterfaces = async () => {
+  const loadInterfaces = useCallback(async () => {
     try {
       const ifaces = await xdpGetInterfaces()
       setInterfaces(ifaces)
     } catch (error) {
       console.error('加载网卡列表失败:', error)
     }
-  }
+  }, [])
 
-  const updateStats = async () => {
+  const updateStats = useCallback(async () => {
     try {
       await xdpUpdateStats()
       await reload()
     } catch (error) {
       console.error('更新统计失败:', error)
     }
-  }
+  }, [reload])
+
+  // 加载支持信息和网卡列表
+  useEffect(() => {
+    void checkSupport()
+    void loadInterfaces()
+
+    // 定期更新状态
+    const interval = setInterval(() => {
+      void reload()
+      if (data?.status?.running) {
+        void updateStats()
+      }
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [checkSupport, loadInterfaces, reload, data?.status?.running, updateStats])
 
   const handleSaveConfig = () => {
     save(localConfig)
@@ -126,14 +126,11 @@ export default function XdpConfigComponent() {
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
-    if (bytes < 1024 * 1024 * 1024)
-      return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
     return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
   }
 
-  const formatNumber = (num: number) => {
-    return num.toLocaleString()
-  }
+  const formatNumber = (num: number) => num.toLocaleString()
 
   const status = data?.status
 

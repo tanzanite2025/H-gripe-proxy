@@ -5,8 +5,8 @@ import { LightweightTrafficErrorBoundary } from '@/components/ui/traffic-error-b
 import { useMemoryData, useTrafficData } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useVisibility } from '@/hooks/ui'
-import parseTraffic from '@/utils/format'
 import { cn } from '@/utils/cn'
+import parseTraffic from '@/utils/format'
 
 import { TrafficGraph, type TrafficRef } from './traffic-graph'
 

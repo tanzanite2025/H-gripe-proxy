@@ -90,7 +90,7 @@ class NetworkMonitor {
       if (previousQuality !== this.quality) {
         this.notifyListeners()
       }
-    } catch (error) {
+    } catch (ignore) {
       console.debug('[NetworkMonitor] 网络质量检测失败，判定为弱网')
       this.quality = 'poor'
       this.lastCheck = Date.now()

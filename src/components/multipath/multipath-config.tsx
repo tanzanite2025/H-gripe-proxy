@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 
+import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
 import {
   type MultipathConfig,
   type NodePool,
@@ -23,7 +24,7 @@ import {
   multipathUpdateConfig,
 } from '@/services/multipath'
 import { showNotice } from '@/services/notice-service'
-import { useMultiConfigLoader, useConfigSaver } from '@/hooks'
+
 import MultipathConfigUI from './multipath-config-ui'
 
 export default function MultipathConfig() {

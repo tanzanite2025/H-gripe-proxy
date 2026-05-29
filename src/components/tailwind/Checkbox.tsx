@@ -1,5 +1,6 @@
-import { forwardRef, type ChangeEvent } from 'react'
 import { Check } from 'lucide-react'
+import { forwardRef, type ChangeEvent } from 'react'
+
 import { cn } from '@/utils/cn'
 
 export interface CheckboxProps {

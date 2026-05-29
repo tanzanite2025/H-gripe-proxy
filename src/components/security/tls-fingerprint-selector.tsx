@@ -2,9 +2,11 @@
  * TLS 指纹选择器组件
  */
 
-import { useEffect, useState } from 'react'
 import { CheckCircle, Fingerprint, Info } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
+import { Button } from '@/components/tailwind'
+import { showNotice } from '@/services/notice-service'
 import {
   type TlsFingerprint,
   tlsFingerprintClear,
@@ -12,8 +14,6 @@ import {
   tlsFingerprintGetCurrent,
   tlsFingerprintSetByName,
 } from '@/services/tls-fingerprint'
-import { showNotice } from '@/services/notice-service'
-import { Button } from '@/components/tailwind'
 import { cn } from '@/utils/cn'
 
 export default function TlsFingerprintSelector() {

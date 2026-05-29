@@ -1,9 +1,9 @@
-import { Alert, Snackbar } from '@/components/tailwind'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
 import { BaseEmpty } from '@/components/base'
+import { Alert, Snackbar } from '@/components/tailwind'
 
 import { ScrollTopButton } from '../../layout/scroll-top-button'
 import { ProxyChain } from '../proxy-chain'

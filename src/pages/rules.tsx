@@ -1,4 +1,3 @@
-import { Box } from '@/components/tailwind'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +11,7 @@ import {
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { ProviderButton } from '@/components/rule/provider-button'
 import RuleItem from '@/components/rule/rule-item'
+import { Box } from '@/components/tailwind'
 import { useVisibility } from '@/hooks/ui'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 

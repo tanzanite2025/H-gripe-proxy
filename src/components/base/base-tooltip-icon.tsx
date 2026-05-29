@@ -1,6 +1,7 @@
 import { Info } from 'lucide-react'
-import { Tooltip, IconButton } from '@/components/tailwind'
 import type { ComponentProps } from 'react'
+
+import { Tooltip, IconButton } from '@/components/tailwind'
 
 interface Props extends Omit<ComponentProps<typeof IconButton>, 'children'> {
   title?: string

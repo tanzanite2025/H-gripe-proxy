@@ -3,11 +3,11 @@
  * 显示当前网络状态（在线/离线/弱网）
  */
 
-import { Collapse } from '@/components/tailwind'
 import { AlertTriangle, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Collapse } from '@/components/tailwind'
 import {
   networkMonitor,
   type NetworkQuality,

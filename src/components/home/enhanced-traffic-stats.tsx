@@ -14,8 +14,8 @@ import { TrafficErrorBoundary } from '@/components/ui/traffic-error-boundary'
 import { useConnectionData, useMemoryData, useTrafficData } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useVisibility } from '@/hooks/ui'
-import parseTraffic from '@/utils/format'
 import { cn } from '@/utils/cn'
+import parseTraffic from '@/utils/format'
 
 import {
   EnhancedCanvasTrafficGraph,

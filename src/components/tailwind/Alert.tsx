@@ -1,5 +1,6 @@
-import React from 'react'
 import { AlertCircle, AlertTriangle, Info, CheckCircle } from 'lucide-react'
+import React from 'react'
+
 import { cn } from '@/utils/cn'
 
 export interface AlertProps {

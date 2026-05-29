@@ -9,7 +9,6 @@ import {
 } from 'react'
 
 import { DialogRef } from '@/components/base'
-import { SystemProxyUI } from './system-proxy-ui'
 import { useSystemProxyState, useVerge } from '@/hooks/system'
 import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
 import {
@@ -22,6 +21,8 @@ import {
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/misc'
 import getSystem from '@/utils/misc'
+
+import { SystemProxyUI } from './system-proxy-ui'
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {

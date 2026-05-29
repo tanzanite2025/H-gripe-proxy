@@ -3,8 +3,9 @@
  * 显示批量延迟测试的进度和取消按钮
  */
 
-import { Button } from '@/components/tailwind'
 import { useEffect, useState } from 'react'
+
+import { Button } from '@/components/tailwind'
 
 interface DelayTestProgressProps {
   total: number

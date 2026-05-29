@@ -3,6 +3,7 @@
  */
 
 import { AlertTriangle } from 'lucide-react'
+
 import { Switch, Select, Button } from '@/components/tailwind'
 import type { MultipathConfig, SlicingStrategy, PoolType } from '@/services/coordinator'
 

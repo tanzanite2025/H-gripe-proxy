@@ -9,7 +9,7 @@ export interface ButtonGroupProps {
 }
 
 export const ButtonGroup = React.forwardRef<HTMLDivElement, ButtonGroupProps>(
-  ({ children, className = '', variant, size, style, ...props }, ref) => {
+  ({ children, className = '', variant: _variant, size: _size, style, ...props }, ref) => {
     return (
       <div
         ref={ref}

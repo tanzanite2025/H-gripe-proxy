@@ -68,7 +68,10 @@ export const useGraphData = (timeRange: TimeRange) => {
     if (displayData.length === 0) {
       lastDataTimestampRef.current = 0
       dataStaleRef.current = false
-      setCurrentFPS(TARGET_FPS)
+      // 避免在 effect 中同步调用 setState，用 RAF 延迟
+      requestAnimationFrame(() => {
+        setCurrentFPS(TARGET_FPS)
+      })
       return
     }
 

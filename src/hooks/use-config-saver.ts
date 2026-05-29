@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+
 import { showNotice } from '@/services/notice-service'
 
 export interface UseConfigSaverOptions<T> {
@@ -217,10 +218,9 @@ export function useConfigManager<T>(options: {
   // 自动加载
   useEffect(() => {
     if (autoLoad) {
-      load()
+      void load()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [autoLoad, load])
 
   return {
     data,

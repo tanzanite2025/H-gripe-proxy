@@ -3,8 +3,8 @@ import React, { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef } from '@/components/base'
-import { SysproxyViewer } from '@/components/setting/components/proxy/system-proxy'
 import { TunViewer } from '@/components/setting/components/network/tun-config'
+import { SysproxyViewer } from '@/components/setting/components/proxy/system-proxy'
 import {
   useServiceInstaller,
   useServiceUninstaller,
@@ -13,6 +13,7 @@ import {
   useVerge,
 } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
+
 import { SwitchRow, TunModeExtraIcons } from './proxy-control-switches-ui'
 
 interface ProxySwitchProps {

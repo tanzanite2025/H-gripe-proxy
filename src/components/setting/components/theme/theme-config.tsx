@@ -1,5 +1,5 @@
-import { Edit } from 'lucide-react'
 import { useLockFn } from 'ahooks'
+import { Edit } from 'lucide-react'
 import {
   useEffect,
   useImperativeHandle,
@@ -9,9 +9,9 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Dialog, Button, TextField, Box } from '@/components/tailwind'
 import { DialogRef } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
+import { Dialog, Button, TextField, Box } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
 import { showNotice } from '@/services/notice-service'

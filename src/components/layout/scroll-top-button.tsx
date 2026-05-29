@@ -1,6 +1,7 @@
-import { ChevronUp } from 'lucide-react'
-import { IconButton } from '@/components/tailwind'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronUp } from 'lucide-react'
+
+import { IconButton } from '@/components/tailwind'
 
 interface Props {
   onClick: () => void

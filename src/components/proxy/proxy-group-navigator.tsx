@@ -1,5 +1,6 @@
-import { Button, Tooltip } from '@/components/tailwind'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+import { Button, Tooltip } from '@/components/tailwind'
 
 interface ProxyGroupNavigatorProps {
   proxyGroupNames: string[]

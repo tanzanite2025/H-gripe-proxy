@@ -1,10 +1,11 @@
-/**
+﻿/**
  * 通用配置加载 Hook
  * 
- * 提供统一的配置加载、错误处理、加载状态管理
+ * 提供统一的配置加载、错误处理、加载状态管�?
  */
 
 import { useState, useEffect, useCallback } from 'react'
+
 import { showNotice } from '@/services/notice-service'
 
 export interface UseConfigLoaderOptions<T> {
@@ -14,14 +15,14 @@ export interface UseConfigLoaderOptions<T> {
   onSuccess?: (data: T) => void
   /** 加载失败回调 */
   onError?: (error: Error) => void
-  /** 是否自动加载（默认 true） */
+  /** 是否自动加载（默�?true�?*/
   autoLoad?: boolean
-  /** 是否显示错误通知（默认 true） */
+  /** 是否显示错误通知（默�?true�?*/
   showErrorNotice?: boolean
 }
 
 export interface UseConfigLoaderResult<T> {
-  /** 加载的数据 */
+  /** 加载的数�?*/
   data: T | null
   /** 是否正在加载 */
   loading: boolean
@@ -43,7 +44,7 @@ export interface UseConfigLoaderResult<T> {
  *   loadFn: getAdvancedConfig,
  * })
  * 
- * // 带回调
+ * // 带回�?
  * const { data, loading } = useConfigLoader({
  *   loadFn: getAdvancedConfig,
  *   onSuccess: (config) => console.log('加载成功', config),
@@ -96,10 +97,9 @@ export function useConfigLoader<T>(
   // 自动加载
   useEffect(() => {
     if (autoLoad) {
-      load()
+      void load()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [autoLoad, load])
 
   return {
     data,
@@ -145,7 +145,7 @@ export function useMultiConfigLoader<T extends Record<string, () => Promise<any>
       setLoading(true)
       setError(null)
 
-      // 并行加载所有配置
+      // 并行加载所有配�?
       const keys = Object.keys(loaders) as Array<keyof T>
       const promises = keys.map((key) => loaders[key]())
       const results = await Promise.all(promises)
@@ -175,10 +175,9 @@ export function useMultiConfigLoader<T extends Record<string, () => Promise<any>
   // 自动加载
   useEffect(() => {
     if (autoLoad) {
-      load()
+      void load()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [autoLoad, load])
 
   return {
     data,

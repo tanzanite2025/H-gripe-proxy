@@ -20,9 +20,9 @@ import google from '@/assets/image/test/google.svg?raw'
 import youtube from '@/assets/image/test/youtube.svg?raw'
 import { BasePage } from '@/components/base'
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
+import { Button, Grid } from '@/components/tailwind'
 import { TestItem } from '@/components/test/test-item'
 import { TestViewer, TestViewerRef } from '@/components/test/test-viewer'
-import { Box, Button, Grid } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 
 const TestPage = () => {

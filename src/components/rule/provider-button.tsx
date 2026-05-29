@@ -1,6 +1,6 @@
-import { Database, RefreshCw } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
+import { Database, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateRuleProvider } from 'tauri-plugin-mihomo-api'

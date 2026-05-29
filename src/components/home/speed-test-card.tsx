@@ -13,9 +13,7 @@ import { forwardRef, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/tailwind/Button'
-import { IconButton } from '@/components/tailwind/IconButton'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
-import { Skeleton } from '@/components/tailwind/Skeleton'
 import {
   formatLatency,
   formatSpeed,

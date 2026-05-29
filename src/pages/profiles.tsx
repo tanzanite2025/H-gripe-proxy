@@ -9,13 +9,12 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { Square, CheckSquare, X, Clipboard, Trash2, MinusSquare, Flame, RefreshCw, FileText, Check } from 'lucide-react'
-import { Box, Button, Divider, Grid, IconButton, Stack } from '@/components/tailwind'
 import { useQuery } from '@tanstack/react-query'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
+import { Square, CheckSquare, X, Clipboard, Trash2, MinusSquare, Flame, RefreshCw, FileText, Check } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -36,8 +35,9 @@ import {
   ProfileViewerRef,
 } from '@/components/profile/profile-viewer'
 import { ConfigViewer } from '@/components/setting/components/misc/config-editor'
-import { useListen } from '@/hooks/system'
+import { Box, Button, Divider, Grid, IconButton, Stack } from '@/components/tailwind'
 import { useProfiles } from '@/hooks/data'
+import { useListen } from '@/hooks/system'
 import {
   createProfileFromLocalPath,
   deleteProfile,

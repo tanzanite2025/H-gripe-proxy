@@ -5,12 +5,12 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
-import { Menu } from '@/components/tailwind/Menu'
-import { MenuItem } from '@/components/tailwind/MenuItem'
-import { Typography } from '@/components/tailwind/Typography'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
+import { Menu } from '@/components/tailwind/Menu'
+import { MenuItem } from '@/components/tailwind/MenuItem'
+import { Typography } from '@/components/tailwind/Typography'
 import { useEditorDocument } from '@/hooks/ui'
 import {
   getNextUpdateTime,

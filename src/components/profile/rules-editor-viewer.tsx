@@ -27,6 +27,7 @@ import {
   Switch,
   VirtualList,
 } from '@/components/base'
+import { RuleItem } from '@/components/profile/rule-item'
 import { Button } from '@/components/tailwind/Button'
 import { Dialog } from '@/components/tailwind/Dialog'
 import { DialogActions } from '@/components/tailwind/DialogActions'
@@ -38,7 +39,6 @@ import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Select } from '@/components/tailwind/Select'
 import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
-import { RuleItem } from '@/components/profile/rule-item'
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'

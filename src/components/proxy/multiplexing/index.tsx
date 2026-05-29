@@ -1,5 +1,6 @@
-import { Tabs, Tab } from '@/components/tailwind'
 import { useState } from 'react'
+
+import { Tabs, Tab } from '@/components/tailwind'
 
 import { MieruMultiplexConfig } from './mieru-multiplex-config'
 import { SmuxConfigComponent } from './smux-config'

@@ -3,6 +3,7 @@
  */
 
 import { AlertCircle, CheckCircle, Info, Rocket, Zap } from 'lucide-react'
+
 import { Button, Switch, Select } from '@/components/tailwind'
 import type { XdpConfig, XdpStatus, XdpSupportInfo } from '@/services/xdp'
 

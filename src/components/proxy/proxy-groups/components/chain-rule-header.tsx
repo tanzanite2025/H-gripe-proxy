@@ -1,6 +1,7 @@
 import { ChevronDown } from 'lucide-react'
-import { Chip, IconButton } from '@/components/tailwind'
 import type { MouseEvent } from 'react'
+
+import { Chip, IconButton } from '@/components/tailwind'
 
 interface ProxyGroupOption {
   name: string

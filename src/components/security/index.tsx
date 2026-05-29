@@ -2,12 +2,13 @@
  * 安全配置主组件
  */
 
-import { Tabs, Tab } from '@/components/tailwind'
 import { useState, type SyntheticEvent } from 'react'
 
+import { Tabs, Tab } from '@/components/tailwind'
+
 import AntiProbeConfigComponent from './anti-probe-config'
-import TlsFingerprintSelector from './tls-fingerprint-selector'
 import SecurityMonitor from './security-monitor'
+import TlsFingerprintSelector from './tls-fingerprint-selector'
 
 interface TabPanelProps {
   children?: React.ReactNode

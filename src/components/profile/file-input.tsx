@@ -1,7 +1,8 @@
-import { Button } from '@/components/tailwind'
 import { useLockFn } from 'ahooks'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/tailwind'
 
 interface Props {
   onChange: (file: File, value: string) => void

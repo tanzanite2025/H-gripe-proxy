@@ -2,8 +2,9 @@
  * 代理控制开关 UI 组件
  */
 
-import { useState, useRef } from 'react'
 import { Pause, Play, Settings, AlertTriangle, Wrench, Trash2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+
 import { Switch, TooltipIcon } from '@/components/base'
 import { cn } from '@/utils/cn'
 

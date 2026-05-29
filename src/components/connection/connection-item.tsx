@@ -1,13 +1,12 @@
-import { X } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
+import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { IconButton } from '@/components/tailwind/IconButton'
 import { ListItem, ListItemText } from '@/components/tailwind/List'
 import parseTraffic from '@/utils/format'
-import { cn } from '@/utils/cn'
 
 interface Props {
   value: IConnectionsItem

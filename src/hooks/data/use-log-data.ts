@@ -3,10 +3,10 @@ import dayjs from 'dayjs'
 import { useEffect, useRef } from 'react'
 import { MihomoWebSocket, type LogLevel } from 'tauri-plugin-mihomo-api'
 
+import { useMihomoWsSubscription } from '@/hooks/network'
+import { useClashLog } from '@/hooks/system'
 import { getClashLogs } from '@/services/cmds'
 
-import { useClashLog } from '@/hooks/system'
-import { useMihomoWsSubscription } from '@/hooks/network'
 
 const MAX_LOG_NUM = 1000
 const FLUSH_DELAY_MS = 50

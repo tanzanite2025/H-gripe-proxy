@@ -1,5 +1,4 @@
 import { PlayCircle, PauseCircle, ArrowUpDown } from 'lucide-react'
-import { Box, Button, IconButton, MenuItem } from '@/components/tailwind'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,8 +12,9 @@ import {
   type VirtualListHandle,
 } from '@/components/base'
 import LogItem from '@/components/log/log-item'
-import { useClashLog } from '@/hooks/system'
+import { Box, Button, IconButton, MenuItem } from '@/components/tailwind'
 import { useLogData } from '@/hooks/data'
+import { useClashLog } from '@/hooks/system'
 
 const LogPage = () => {
   const { t } = useTranslation()

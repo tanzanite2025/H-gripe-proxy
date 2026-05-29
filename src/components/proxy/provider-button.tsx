@@ -1,6 +1,6 @@
-import { Database, RefreshCw } from 'lucide-react'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
+import { Database, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateProxyProvider } from 'tauri-plugin-mihomo-api'
@@ -8,12 +8,12 @@ import { updateProxyProvider } from 'tauri-plugin-mihomo-api'
 import { Button } from '@/components/tailwind/Button'
 import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
 import { IconButton } from '@/components/tailwind/IconButton'
-import { List, ListItem, ListItemText } from '@/components/tailwind/List'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
+import { List, ListItem, ListItemText } from '@/components/tailwind/List'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
-import parseTraffic from '@/utils/format'
 import { cn } from '@/utils/cn'
+import parseTraffic from '@/utils/format'
 
 // 解析过期时间
 const parseExpire = (expire?: number) => {

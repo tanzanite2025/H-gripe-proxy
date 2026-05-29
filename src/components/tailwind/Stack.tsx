@@ -16,7 +16,7 @@ export const Stack = forwardRef<HTMLDivElement, StackProps>(
       spacing = 2,
       align = 'stretch',
       justify = 'start',
-      useFlexGap = true, // ignored in Tailwind, gap is always flex gap
+      useFlexGap: _useFlexGap = true, // ignored in Tailwind, gap is always flex gap
       className = '',
       children,
       ...props

@@ -1,7 +1,7 @@
-import { Button } from '@/components/tailwind'
 import { useRef } from 'react'
 
 import { DialogRef } from '@/components/base'
+import { Button } from '@/components/tailwind'
 import { useUpdate } from '@/hooks/system'
 
 import { UpdateViewer } from '../setting/components/misc/update-config'

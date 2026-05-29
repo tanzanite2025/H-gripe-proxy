@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react'
+import React, { createContext, useContext, useMemo } from 'react'
 
 interface TabsContextValue {
   value: string | number
@@ -19,12 +19,13 @@ export interface TabsProps {
 }
 
 export const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
-  ({ children, value, onChange, className = '', variant = 'standard', textColor, indicatorColor, ...props }, ref) => {
+  ({ children, value, onChange, className = '', variant: _variant = 'standard', textColor: _textColor, indicatorColor: _indicatorColor, ...props }, ref) => {
+    const contextValue = useMemo(() => ({ value, onChange }), [onChange, value])
     return (
-      <TabsContext.Provider value={{ value, onChange }}>
+      <TabsContext.Provider value={contextValue}>
         <div
           ref={ref}
-          className={`flex ${variant === 'scrollable' ? 'overflow-x-auto' : ''} ${className}`}
+          className={`flex ${_variant === 'scrollable' ? 'overflow-x-auto' : ''} ${className}`}
           role="tablist"
           {...props}
         >

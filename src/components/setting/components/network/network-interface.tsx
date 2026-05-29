@@ -1,5 +1,5 @@
-import { Copy } from 'lucide-react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+import { Copy } from 'lucide-react'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'

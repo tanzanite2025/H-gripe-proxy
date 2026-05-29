@@ -1,5 +1,11 @@
-import { ClipboardPaste, Minimize2, Paintbrush, Maximize2 } from 'lucide-react'
 
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { useLockFn } from 'ahooks'
+import { ClipboardPaste, Minimize2, Paintbrush, Maximize2 } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
 import { Button } from '@/components/tailwind/Button'
 import {
   Dialog,
@@ -8,17 +14,11 @@ import {
   DialogTitle,
 } from '@/components/tailwind/Dialog'
 import { IconButton } from '@/components/tailwind/IconButton'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { useLockFn } from 'ahooks'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
-import debounce from '@/utils/misc/debounce'
 import getSystem from '@/utils/misc'
+import debounce from '@/utils/misc/debounce'
 
 const appWindow = getCurrentWebviewWindow()
 

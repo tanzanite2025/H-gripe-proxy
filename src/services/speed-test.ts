@@ -112,7 +112,7 @@ export class SpeedTestService {
     } catch (error) {
       debugLog('[SpeedTest] 测试失败:', error)
       
-      throw new Error(extractErrorMessage(error) || '速度测试失败')
+      throw new Error(extractErrorMessage(error) || '速度测试失败', { cause: error })
     } finally {
       this.abortController = null
     }
@@ -184,7 +184,7 @@ export class SpeedTestService {
       }
     } catch (error) {
       debugLog('[SpeedTest] 下载测试失败:', error)
-      throw error
+      throw new Error(extractErrorMessage(error) || '下载测试失败', { cause: error })
     }
   }
   
@@ -245,7 +245,7 @@ export class SpeedTestService {
       }
     } catch (error) {
       debugLog('[SpeedTest] 上传测试失败:', error)
-      throw error
+      throw new Error(extractErrorMessage(error) || '上传测试失败', { cause: error })
     }
   }
   

@@ -1,4 +1,5 @@
 import { forwardRef, type ReactNode } from 'react'
+
 import { cn } from '@/utils/cn'
 
 export interface SnackbarProps {
@@ -15,8 +16,10 @@ export interface SnackbarProps {
   style?: React.CSSProperties
 }
 
+const DEFAULT_ANCHOR_ORIGIN = { vertical: 'bottom', horizontal: 'left' } as const
+
 export const Snackbar = forwardRef<HTMLDivElement, SnackbarProps>(
-  ({ children, className, open, anchorOrigin = { vertical: 'bottom', horizontal: 'left' }, message, style }, ref) => {
+  ({ children, className, open, anchorOrigin = DEFAULT_ANCHOR_ORIGIN, message, style }, ref) => {
     if (!open) return null
 
     const positionClasses = {

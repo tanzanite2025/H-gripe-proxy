@@ -15,7 +15,7 @@ import { CSS } from '@dnd-kit/utilities'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { CSSProperties } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
@@ -27,10 +27,13 @@ import { NoticeManager } from '@/components/layout/notice-manager'
 import { UpdateButton } from '@/components/layout/update-button'
 import { WindowControls } from '@/components/layout/window-controller'
 import { Menu, MenuItem, Box } from '@/components/tailwind'
-import { useI18n, useWindowDecorations } from '@/hooks/ui'
 import { useVerge } from '@/hooks/system'
+import { useI18n, useWindowDecorations } from '@/hooks/ui'
+import { navItems } from '@/pages/_core/router'
 import { useThemeMode } from '@/services/states'
 import getSystem from '@/utils/misc'
+
+import LogsPage from '../logs'
 
 import {
   useLayoutEvents,
@@ -39,8 +42,6 @@ import {
   useCssVariables,
 } from './hooks'
 import { handleNoticeMessage } from './utils'
-import { navItems } from '@/pages/_core/router'
-import LogsPage from '../logs'
 
 import 'dayjs/locale/ru'
 import 'dayjs/locale/zh-cn'

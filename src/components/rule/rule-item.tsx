@@ -1,5 +1,6 @@
-import { cn } from '@/utils/cn'
 import { Rule } from 'tauri-plugin-mihomo-api'
+
+import { cn } from '@/utils/cn'
 
 const COLOR = [
   'text-primary dark:text-primary-dark-mode',

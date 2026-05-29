@@ -3,11 +3,11 @@
  * 集中所有网络检测功能，提供专业的网络诊断工具
  */
 
-import { Grid, Skeleton } from '@/components/tailwind'
 import { Suspense, lazy } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BasePage } from '@/components/base'
+import { Grid, Skeleton } from '@/components/tailwind'
 
 // 懒加载所有诊断卡片
 const LazyIpInfoCard = lazy(() =>
@@ -41,7 +41,7 @@ const LazySpeedTestCard = lazy(() =>
 )
 
 const NetworkDiagnosticPage = () => {
-  const { t } = useTranslation()
+  useTranslation()
 
   return (
     <BasePage
