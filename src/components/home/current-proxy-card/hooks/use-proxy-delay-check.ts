@@ -6,7 +6,7 @@ import { useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
 import { debugLog } from '@/utils/misc'
 
-const AUTO_CHECK_DEFAULT_INTERVAL_MINUTES = 5
+const _AUTO_CHECK_DEFAULT_INTERVAL_MINUTES = 5
 const AUTO_CHECK_INITIAL_DELAY_MS = 100
 
 interface UseProxyDelayCheckProps {

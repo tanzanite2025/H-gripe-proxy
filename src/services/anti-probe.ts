@@ -1,16 +1,12 @@
 /**
  * 反主动探测服务
  */
-
+ 
 import { invoke } from '@tauri-apps/api/core'
 
-export interface AntiProbeConfig {
-  enabled: boolean
-  secret_key: string
-  time_window: number
-  whitelist: string[]
-  strict_mode: boolean
-}
+import type { AntiProbeConfig as CoordinatorAntiProbeConfig } from './coordinator'
+
+export type AntiProbeConfig = CoordinatorAntiProbeConfig
 
 /**
  * 验证握手暗号

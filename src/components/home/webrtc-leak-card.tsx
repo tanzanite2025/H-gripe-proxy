@@ -10,7 +10,6 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { forwardRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/tailwind/Button'
 import { IconButton } from '@/components/tailwind/IconButton'
@@ -28,7 +27,6 @@ const WebRTCLeakCardContainer = forwardRef<
   HTMLElement,
   React.PropsWithChildren
 >(({ children }, ref) => {
-  const { t } = useTranslation()
   const { refetch } = useWebRTCLeakDetection()
 
   return (
@@ -168,7 +166,7 @@ const WebRTCLeakCardUI = ({
       {showDetails && (result.localIPs.length > 0 || result.publicIPs.length > 0) && (
         <div className="p-2 bg-surface-variant rounded">
           <p className="text-xs font-medium mb-2">检测到的 IP：</p>
-          
+
           {/* 本地 IP */}
           {result.localIPs.length > 0 && (
             <div className="mb-2">
@@ -176,8 +174,8 @@ const WebRTCLeakCardUI = ({
                 本地 IP ({result.localIPs.length}):
               </p>
               <div className="space-y-0.5">
-                {result.localIPs.map((ip, index) => (
-                  <p key={index} className="uds-mono text-xs">
+                {result.localIPs.map((ip) => (
+                  <p key={ip} className="uds-mono text-xs">
                     {ip}
                   </p>
                 ))}
@@ -192,9 +190,9 @@ const WebRTCLeakCardUI = ({
                 公网 IP ({result.publicIPs.length}):
               </p>
               <div className="space-y-0.5">
-                {result.publicIPs.map((ip, index) => (
+                {result.publicIPs.map((ip) => (
                   <p
-                    key={index}
+                    key={ip}
                     className={`uds-mono text-xs ${
                       result.leakedIPs.includes(ip) ? 'text-error font-medium' : ''
                     }`}
@@ -214,8 +212,8 @@ const WebRTCLeakCardUI = ({
         <div className="p-2 bg-surface-variant rounded text-xs">
           <p className="font-medium mb-1">修复建议：</p>
           <div className="space-y-0.5 text-text-secondary">
-            {result.recommendations.map((item, index) => (
-              <p key={index}>{item}</p>
+            {result.recommendations.map((item) => (
+              <p key={item}>{item}</p>
             ))}
           </div>
         </div>

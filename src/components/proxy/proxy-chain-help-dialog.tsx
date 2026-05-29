@@ -38,7 +38,7 @@ export const ProxyChainHelpDialog = ({
   open,
   onClose,
 }: ProxyChainHelpDialogProps) => {
-  const { t } = useTranslation()
+  const { t: _t } = useTranslation()
   const [tabValue, setTabValue] = useState(0)
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string | number) => {

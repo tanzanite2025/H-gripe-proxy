@@ -2,16 +2,16 @@
  * 反主动探测配置组件
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useConfigLoader, useConfigSaver } from '@/hooks'
+import { antiProbeCleanup, antiProbeGenerateToken } from '@/services/anti-probe'
 import {
+  type AdvancedConfig,
   type AntiProbeConfig,
-  antiProbeCleanup,
-  antiProbeGenerateToken,
-  antiProbeGetConfig,
-  antiProbeUpdateConfig,
-} from '@/services/anti-probe'
+  getAdvancedConfig,
+  saveAdvancedConfig,
+} from '@/services/coordinator'
 import { showNotice } from '@/services/notice-service'
 
 import AntiProbeConfigUI from './anti-probe-config-ui'
@@ -20,39 +20,47 @@ export default function AntiProbeConfigComponent() {
   const [newIp, setNewIp] = useState('')
   const [token, setToken] = useState('')
 
-  // 使用通用 Hook 加载配置
-  const { data: config, loading, reload } = useConfigLoader({
-    loadFn: antiProbeGetConfig,
+  // 使用通用 Hook 加载配置（AdvancedConfig）
+  const { data: advancedConfig, loading, reload } = useConfigLoader<AdvancedConfig>({
+    loadFn: getAdvancedConfig,
   })
 
-  // 使用通用 Hook 保存配置
-  const { save, saving } = useConfigSaver({
-    saveFn: antiProbeUpdateConfig,
+  // 使用通用 Hook 保存配置（AdvancedConfig）
+  const { save, saving } = useConfigSaver<AdvancedConfig>({
+    saveFn: saveAdvancedConfig,
     onSuccess: reload,
     successMessage: '配置已保存',
   })
 
-  // 本地配置状态（用于编辑）
-  const [localConfig, setLocalConfig] = useState<AntiProbeConfig>(
-    config || {
-      enabled: false,
-      secret_key: '',
-      time_window: 300,
-      whitelist: [],
-      strict_mode: false,
-    }
-  )
-
-  // 当配置加载完成时，更新本地配置
-  useState(() => {
-    if (config) {
-      setLocalConfig(config)
-    }
+  // 本地 AntiProbe 配置状态（用于编辑）
+  const [localConfig, setLocalConfig] = useState<AntiProbeConfig>({
+    enabled: false,
+    secret_key: '',
+    time_window: 300,
+    whitelist: [],
+    strict_mode: false,
   })
 
-  // 保存配置
+  // 当 AdvancedConfig 加载完成时，更新本地 AntiProbe 配置
+  useEffect(() => {
+    if (advancedConfig) {
+      setLocalConfig(advancedConfig.security.anti_probe)
+    }
+  }, [advancedConfig])
+
+  // 保存配置：只更新 AdvancedConfig.security.anti_probe
   const handleSave = () => {
-    save(localConfig)
+    if (!advancedConfig) return
+
+    const updatedConfig: AdvancedConfig = {
+      ...advancedConfig,
+      security: {
+        ...advancedConfig.security,
+        anti_probe: localConfig,
+      },
+    }
+
+    void save(updatedConfig)
   }
 
   // 生成新密钥
@@ -110,7 +118,7 @@ export default function AntiProbeConfigComponent() {
   const handleRemoveIp = (ip: string) => {
     setLocalConfig({
       ...localConfig,
-      whitelist: localConfig.whitelist.filter((i) => i !== ip),
+      whitelist: localConfig.whitelist.filter((i: string) => i !== ip),
     })
   }
 
@@ -124,7 +132,7 @@ export default function AntiProbeConfigComponent() {
     }
   }
 
-  if (loading || !config) {
+  if (loading || !advancedConfig) {
     return (
       <div className="p-6">
         <p>加载中...</p>

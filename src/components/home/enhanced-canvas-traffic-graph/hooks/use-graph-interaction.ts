@@ -20,6 +20,8 @@ export interface TooltipData {
   highlightY: number
 }
 
+export type TooltipDataRef = React.MutableRefObject<TooltipData>
+
 /**
  * 图表交互处理 Hook
  * 处理鼠标悬浮、点击等交互

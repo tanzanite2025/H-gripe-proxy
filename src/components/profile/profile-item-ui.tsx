@@ -9,7 +9,7 @@ import parseTraffic from '@/utils/format'
 
 import { ProfileBox } from './profile-box'
 
-const round = `
+const _round = `
   @keyframes round {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }

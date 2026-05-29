@@ -42,7 +42,6 @@ export const ProxyItem = (props: Props) => {
 
   const bgcolor = isDark ? '#24252f' : '#ffffff'
   const selectColor = isDark ? '#90caf9' : '#1976d2'
-  const showDelay = delayValue > 0
 
   return (
     <ListItem className="py-0 pl-2">
@@ -51,7 +50,7 @@ export const ProxyItem = (props: Props) => {
         tabIndex={0}
         className={`rounded mb-2 h-10 group ${
           selected
-            ? `border-l-[3px] ml-[-3px] w-[calc(100%+3px)]`
+            ? 'border-l-[3px] ml-[-3px] w-[calc(100%+3px)]'
             : ''
         }`}
         style={{

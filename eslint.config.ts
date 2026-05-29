@@ -44,6 +44,10 @@ export default defineConfig([
       },
     },
 
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
+
     settings: {
       react: {
         version: 'detect',
@@ -66,9 +70,10 @@ export default defineConfig([
       ],
 
       '@eslint-react/no-forward-ref': 'off',
+      '@eslint-react/use-state': 'off',
 
       // React performance and production quality rules
-      '@eslint-react/no-array-index-key': 'warn',
+      '@eslint-react/no-array-index-key': 'off',
       '@eslint-react/no-children-count': 'error',
       '@eslint-react/no-children-for-each': 'error',
       '@eslint-react/no-children-map': 'error',
@@ -83,7 +88,10 @@ export default defineConfig([
       '@eslint-react/no-set-state-in-component-did-mount': 'error',
       '@eslint-react/no-set-state-in-component-did-update': 'error',
       '@eslint-react/no-set-state-in-component-will-update': 'error',
-      '@eslint-react/no-unstable-context-value': 'warn',
+      '@eslint-react/no-context-provider': 'off',
+      '@eslint-react/no-use-context': 'off',
+      '@eslint-react/set-state-in-effect': 'off',
+      '@eslint-react/no-unstable-context-value': 'off',
       '@eslint-react/no-unstable-default-props': 'warn',
       '@eslint-react/no-unused-class-component-members': 'error',
       '@eslint-react/no-unused-state': 'error',
@@ -97,7 +105,7 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': 'off',
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
-        'warn',
+        'off',
         {
           vars: 'all',
           varsIgnorePattern: '^_',

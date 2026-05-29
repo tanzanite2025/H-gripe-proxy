@@ -10,7 +10,7 @@ import type { ChartStyle, TimeRange } from '../utils/graph-config'
 import { STALE_DATA_THRESHOLD } from '../utils/graph-config'
 import { syncCanvasSize, clearCanvas } from '../utils/graph-helpers'
 
-import type { TooltipData } from './use-graph-interaction'
+import type { TooltipData, TooltipDataRef } from './use-graph-interaction'
 
 interface UseGraphRendererProps {
   displayData: ITrafficDataPoint[]
@@ -18,6 +18,7 @@ interface UseGraphRendererProps {
   chartStyle: ChartStyle
   timeRange: TimeRange
   tooltipData: TooltipData
+  tooltipDataRef: TooltipDataRef
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   hoverCanvasRef: React.RefObject<HTMLCanvasElement | null>
   isWindowFocused: boolean
@@ -37,6 +38,7 @@ export const useGraphRenderer = ({
   chartStyle,
   timeRange,
   tooltipData,
+  tooltipDataRef,
   canvasRef,
   hoverCanvasRef,
   isWindowFocused,
@@ -262,4 +264,8 @@ export const useGraphRenderer = ({
       }
     }
   }, [])
+
+  return {
+    colors,
+  }
 }

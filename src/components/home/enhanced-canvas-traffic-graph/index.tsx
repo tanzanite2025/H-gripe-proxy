@@ -86,7 +86,7 @@ export const EnhancedCanvasTrafficGraph = memo(
     } = useGraphInteraction(displayData, yScale, canvasRef)
 
     // 渲染调度
-    const { scheduleDrawGraph, colors } = useGraphRenderer({
+    const { colors } = useGraphRenderer({
       displayData,
       yScale,
       chartStyle,

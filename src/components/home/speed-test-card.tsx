@@ -10,7 +10,6 @@ import {
   Square,
 } from 'lucide-react'
 import { forwardRef, useCallback, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/tailwind/Button'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
@@ -29,8 +28,6 @@ import { EnhancedCard } from './enhanced-card'
 
 const SpeedTestCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
   ({ children }, ref) => {
-    const { t } = useTranslation()
-
     return (
       <EnhancedCard
         title="网络速度测试"
@@ -41,7 +38,7 @@ const SpeedTestCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
         {children}
       </EnhancedCard>
     )
-  }
+  },
 )
 
 SpeedTestCardContainer.displayName = 'SpeedTestCardContainer'
@@ -193,7 +190,9 @@ const SpeedTestCardUI = ({
             </span>
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold">{formatSpeed(result.download.speed)}</p>
+            <p className="text-2xl font-bold">
+              {formatSpeed(result.download.speed)}
+            </p>
             <p className="text-xs text-text-secondary">
               稳定性: {result.download.stability}%
             </p>
@@ -216,7 +215,9 @@ const SpeedTestCardUI = ({
             </span>
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold">{formatSpeed(result.upload.speed)}</p>
+            <p className="text-2xl font-bold">
+              {formatSpeed(result.upload.speed)}
+            </p>
             <p className="text-xs text-text-secondary">
               稳定性: {result.upload.stability}%
             </p>
@@ -258,39 +259,25 @@ const SpeedTestCardUI = ({
         {/* 重新测试按钮 */}
         <Button
           onClick={onStart}
-          variant="outlined"
           startIcon={<Play className="h-4 w-4" />}
-          className="mt-2"
+          className="mt-4"
         >
           重新测试
         </Button>
-
-        {/* 测试时间 */}
-        <p className="text-xs text-text-secondary text-center opacity-70">
-          测试时间: {new Date(result.timestamp).toLocaleTimeString()}
-        </p>
       </div>
     )
   }
 
   // 初始状态
   return (
-    <div className="flex flex-col items-center justify-center py-8">
-      <Gauge className="mb-4 h-14 w-14 text-text-secondary opacity-50" />
+    <div className="flex flex-col items-center justify-center py-6">
+      <Gauge className="mb-2 h-10 w-10 text-primary" />
       <p className="text-base text-text-secondary mb-4">
-        点击开始测试网络速度
+        点击下方按钮开始测试网络速度
       </p>
-      <Button
-        onClick={onStart}
-        variant="contained"
-        size="large"
-        startIcon={<Play className="h-4 w-4" />}
-      >
+      <Button onClick={onStart} startIcon={<Play className="h-4 w-4" />}>
         开始测试
       </Button>
-      <p className="text-xs text-text-secondary mt-4 text-center">
-        测试包括：下载速度、上传速度、延迟、丢包率
-      </p>
     </div>
   )
 }
@@ -307,5 +294,7 @@ function getPhaseLabel(phase: SpeedTestProgress['phase']): string {
       return '丢包测试'
     case 'complete':
       return '测试完成'
+    default:
+      return '测试中'
   }
 }

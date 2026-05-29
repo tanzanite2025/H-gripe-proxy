@@ -5,7 +5,6 @@
 
 import { AlertTriangle, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { Collapse } from '@/components/tailwind'
 import {
@@ -15,7 +14,6 @@ import {
 } from '@/services/network-monitor'
 
 export const NetworkStatusIndicator = () => {
-  const { t } = useTranslation()
   const [status, setStatus] = useState<NetworkStatus>(
     networkMonitor.getStatus(),
   )

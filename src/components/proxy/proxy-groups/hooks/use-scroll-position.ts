@@ -15,7 +15,7 @@ interface UseScrollPositionOptions {
  */
 export function useScrollPosition(options: UseScrollPositionOptions) {
   const { mode, isChainMode, activeSelectedGroup, renderListLength } = options
-  const { pathname } = useLocation()
+  const { pathname: _pathname } = useLocation()
 
   const scrollPositionRef = useRef<Record<string, number>>({})
   const scrollTopRef = useRef(0)

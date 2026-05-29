@@ -37,8 +37,6 @@ export const ProxyItemMini = (props: Props) => {
     group.name,
   )
 
-  const showDelay = delayValue > 0
-
   return (
     <ListItemButton
       selected={selected}
@@ -47,7 +45,8 @@ export const ProxyItemMini = (props: Props) => {
         'h-14 rounded-xl pl-3 pr-2 justify-between items-center relative',
         'bg-white dark:bg-[#24252f]',
         'group',
-        selected && 'w-[calc(100%+3px)] -ml-[3px] border-l-[3px] border-primary bg-primary/15 dark:bg-primary/35'
+        selected &&
+          'w-[calc(100%+3px)] -ml-[3px] border-l-[3px] border-primary bg-primary/15 dark:bg-primary/35',
       )}
     >
       <div
@@ -158,7 +157,7 @@ export const ProxyItemMini = (props: Props) => {
           <div
             className={cn(
               'the-delay p-0.5 px-1 text-sm rounded',
-              !proxy.provider && 'hover:bg-primary/15'
+              !proxy.provider && 'hover:bg-primary/15',
             )}
             style={{ color: delayManager.formatDelayColor(delayValue, timeout) }}
             onClick={(e) => {
@@ -184,7 +183,7 @@ export const ProxyItemMini = (props: Props) => {
         <span
           className={cn(
             'absolute text-xs -top-1 -right-1',
-            proxy.name === group.now ? 'the-pin' : 'the-unpin grayscale'
+            proxy.name === group.now ? 'the-pin' : 'the-unpin grayscale',
           )}
           title={
             group.type === 'URLTest'
