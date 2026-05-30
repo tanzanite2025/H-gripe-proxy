@@ -125,9 +125,9 @@ impl RebindStrategy for RoundRobinRebind {
 /// 重绑定后回写 egress_identity 和 session_affinity
 async fn backwrite_after_rebind() {
     if let Some(runtime_config) = crate::config::Config::runtime().await.latest_arc().config.clone() {
-        let coordinator = crate::cmd::coordinator::get_coordinator();
-        let session_affinity = crate::cmd::session_affinity::get_session_affinity_manager();
-        let ip_reputation = crate::cmd::ip_reputation::get_ip_reputation_manager();
+        let coordinator = crate::feat::get_coordinator();
+        let session_affinity = crate::feat::get_session_affinity_manager();
+        let ip_reputation = crate::feat::get_ip_reputation_manager();
         if let Err(e) = crate::core::stable_egress::sync_runtime_stable_egress_selection(
             &coordinator,
             &session_affinity,
@@ -174,7 +174,7 @@ impl RebindStrategy for SmartRebind {
                 }
             };
 
-            let ip_reputation_manager = crate::cmd::ip_reputation::get_ip_reputation_manager();
+            let ip_reputation_manager = crate::feat::get_ip_reputation_manager();
 
             let stable_groups: Vec<_> = proxies
                 .proxies
@@ -200,7 +200,7 @@ impl RebindStrategy for SmartRebind {
             }
 
             // 使用 enrich_egress_selection_context 批量获取节点元数据
-            let coordinator = crate::cmd::coordinator::get_coordinator();
+            let coordinator = crate::feat::get_coordinator();
             let ctx = crate::core::egress_identity::EgressSelectionContext {
                 available_nodes: all_candidate_nodes.clone(),
                 ..Default::default()
@@ -350,7 +350,7 @@ async fn score_node(
 
         // 如果有 server IP，额外查询国家代码
         if let Some(ref server) = metadata.server {
-            let ip_reputation_manager = crate::cmd::ip_reputation::get_ip_reputation_manager();
+            let ip_reputation_manager = crate::feat::get_ip_reputation_manager();
             if let Some(server_ip) = crate::core::stable_egress::resolve_server_ip(server).await {
                 if let Ok(reputation) = ip_reputation_manager.inspect_ip_metadata(&server_ip).await {
                     // 同国家 +40

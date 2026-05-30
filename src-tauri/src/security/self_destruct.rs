@@ -7,26 +7,36 @@
 use std::fs;
 use std::path::PathBuf;
 
-/// 自毁配置
+/// 自毁配置（与 config::advanced::SelfDestructConfig 同步）
 #[derive(Debug, Clone)]
 pub struct SelfDestructConfig {
-    /// 是否清除内存中的密钥
+    pub enabled: bool,
     pub clear_memory: bool,
-    /// 是否删除配置文件
     pub delete_configs: bool,
-    /// 是否删除日志文件
     pub delete_logs: bool,
-    /// 是否立即退出程序
     pub exit_immediately: bool,
 }
 
 impl Default for SelfDestructConfig {
     fn default() -> Self {
         Self {
+            enabled: false,
             clear_memory: true,
-            delete_configs: false, // 默认不删除配置，避免误触
+            delete_configs: false,
             delete_logs: true,
             exit_immediately: true,
+        }
+    }
+}
+
+impl From<crate::config::advanced::SelfDestructConfig> for SelfDestructConfig {
+    fn from(c: crate::config::advanced::SelfDestructConfig) -> Self {
+        Self {
+            enabled: c.enabled,
+            clear_memory: c.clear_memory,
+            delete_configs: c.delete_configs,
+            delete_logs: c.delete_logs,
+            exit_immediately: c.exit_immediately,
         }
     }
 }
@@ -134,19 +144,22 @@ pub fn execute_with_config(config: SelfDestructConfig) {
 
     // 2. 删除配置文件
     if config.delete_configs {
-        // 这里应该从应用配置中获取实际的配置文件路径
-        let config_paths = vec![
-            // PathBuf::from("config.yaml"),
-            // PathBuf::from("profiles.yaml"),
-        ];
-        delete_config_files(&config_paths);
+        if let Ok(app_dir) = crate::utils::dirs::app_home_dir() {
+            let config_paths = vec![
+                app_dir.join("advanced.yaml"),
+                app_dir.join("profiles.yaml"),
+                app_dir.join("verge.yaml"),
+            ];
+            delete_config_files(&config_paths);
+        }
     }
 
     // 3. 删除日志文件
     if config.delete_logs {
-        // 这里应该从应用配置中获取实际的日志目录
-        // let log_dir = PathBuf::from("logs");
-        // delete_log_files(&log_dir);
+        if let Ok(app_dir) = crate::utils::dirs::app_home_dir() {
+            let log_dir = app_dir.join("logs");
+            delete_log_files(&log_dir);
+        }
     }
 
     // 4. 退出程序
@@ -172,6 +185,12 @@ pub fn emergency_destruct() {
 /// 检查是否应该触发自毁
 #[allow(dead_code)]
 pub fn should_self_destruct() -> bool {
+    // 检查自毁是否启用
+    let config = SelfDestructConfig::from(load_advanced_self_destruct_config());
+    if !config.enabled {
+        return false;
+    }
+
     // 检查环境变量中的紧急停止标志
     if let Ok(val) = std::env::var("CLASH_VERGE_EMERGENCY_STOP") {
         if val == "1" || val.to_lowercase() == "true" {
@@ -185,6 +204,21 @@ pub fn should_self_destruct() -> bool {
     }
 
     false
+}
+
+/// 从 advanced.yaml 加载自毁配置并执行
+pub fn execute_from_advanced_config() {
+    let config = SelfDestructConfig::from(load_advanced_self_destruct_config());
+    if config.enabled {
+        execute_with_config(config);
+    }
+}
+
+fn load_advanced_self_destruct_config() -> crate::config::advanced::SelfDestructConfig {
+    crate::feat::get_coordinator()
+        .get_advanced_config()
+        .security
+        .self_destruct
 }
 
 #[cfg(test)]

@@ -71,6 +71,7 @@ export interface AdvancedConfig {
   multipath: MultipathConfig
   session_affinity: SessionAffinityConfig
   egress_identity: EgressIdentityConfig
+  egress_monitor: EgressMonitorConfig
   dns: AdvancedDnsConfig
   xdp?: XdpConfig
 }
@@ -164,6 +165,46 @@ export interface IdentitySessionPolicy {
 }
 
 export type EgressFailoverPolicy = 'Block' | 'Manual' | 'AutoSwitch'
+
+export type RebindStrategyType = 'smart' | 'round-robin'
+
+export interface EgressMonitorConfig {
+  enabled: boolean
+  probeIntervalSecs: number
+  autoRebindOnChange: boolean
+  notifyOnChange: boolean
+  probeTimeoutSecs: number
+  watchPollIntervalSecs: number
+  watchDebounceSecs: number
+  rebindStrategy: RebindStrategyType
+}
+
+export interface EgressIpProbeResult {
+  ip: string
+  countryCode: string | null
+  probedAtMs: number
+  latencyMs: number
+}
+
+export interface EgressIpChangeEvent {
+  previousIp: string
+  currentIp: string
+  previousCountry: string | null
+  currentCountry: string | null
+  timestampMs: number
+  autoRebindApplied: boolean
+}
+
+export interface EgressMonitorStats {
+  totalProbes: number
+  successfulProbes: number
+  failedProbes: number
+  ipChangeCount: number
+  autoRebindCount: number
+  lastProbe: EgressIpProbeResult | null
+  lastChange: EgressIpChangeEvent | null
+  uptimeSecs: number
+}
 
 export interface XdpConfig {
   enabled: boolean

@@ -77,36 +77,19 @@ const CompactStatCard = memo(
       <Paper
         elevation={0}
         className={cn(
-          'flex items-center rounded-lg border p-2 transition-all duration-200',
+          'flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 transition-all duration-200',
           bgColorMap[color],
           onClick ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
         )}
         onClick={onClick}
       >
-        {/* 图标容器 */}
-        <div
-          className={cn(
-            'mr-2 ml-0.5 flex items-center justify-center w-8 h-8 rounded-full',
-            iconBgMap[color],
-            colorMap[color]
-          )}
-        >
+        <div className={cn('flex items-center justify-center w-5 h-5 rounded-full', iconBgMap[color], colorMap[color])}>
           {icon}
         </div>
-
-        {/* 文本内容 */}
-        <div className="flex-grow min-w-0">
-          <p className="text-xs text-text-secondary truncate">
-            {title}
-          </p>
-          <div className="flex items-baseline">
-            <span className="text-base font-bold mr-1 truncate">
-              {value}
-            </span>
-            <span className="text-xs text-text-secondary">
-              {unit}
-            </span>
-          </div>
+        <div className="flex items-baseline min-w-0 gap-0.5">
+          <span className="text-xs text-text-secondary truncate">{title}</span>
+          <span className="text-sm font-bold truncate">{value}</span>
+          <span className="text-[10px] text-text-secondary">{unit}</span>
         </div>
       </Paper>
     )
@@ -246,7 +229,7 @@ export const EnhancedTrafficStats = () => {
         )}
         {/* 统计卡片区域 */}
         {statCards.map((card) => (
-          <div key={card.title} className="col-span-4">
+          <div key={card.title} className="col-span-2">
             <CompactStatCard {...(card as StatCardProps)} />
           </div>
         ))}

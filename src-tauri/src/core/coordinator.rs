@@ -22,40 +22,6 @@ use crate::multipath::MultipathManager;
 #[cfg(target_os = "linux")]
 use crate::xdp::XdpManager;
 
-/// 协调器配置
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct CoordinatorConfig {
-    /// 启用安全监控
-    pub security_enabled: bool,
-    /// 启用反探测
-    pub anti_probe_enabled: bool,
-    /// TLS 指纹名称
-    pub tls_fingerprint: Option<String>,
-    pub egress_identity_enabled: bool,
-    pub session_affinity_enabled: bool,
-    pub egress_monitor_enabled: bool,
-    /// 启用多路径路由
-    pub multipath_enabled: bool,
-    /// 启用 XDP（仅 Linux）
-    #[cfg(target_os = "linux")]
-    pub xdp_enabled: bool,
-}
-
-impl Default for CoordinatorConfig {
-    fn default() -> Self {
-        Self {
-            security_enabled: false,
-            anti_probe_enabled: false,
-            tls_fingerprint: None,
-            egress_identity_enabled: false,
-            session_affinity_enabled: false,
-            egress_monitor_enabled: false,
-            multipath_enabled: false,
-            #[cfg(target_os = "linux")]
-            xdp_enabled: false,
-        }
-    }
-}
 
 
 /// 核心协调器
@@ -73,8 +39,8 @@ pub struct CoreCoordinator {
     /// XDP 管理器（Linux）
     #[cfg(target_os = "linux")]
     xdp_manager: Arc<XdpManager>,
-    /// 配置
-    config: Arc<RwLock<CoordinatorConfig>>,
+    /// 完整高级配置（内存缓存，避免各模块各自 load_default 读磁盘）
+    advanced_config: Arc<RwLock<AdvancedConfig>>,
 }
 
 impl CoreCoordinator {
@@ -89,40 +55,32 @@ impl CoreCoordinator {
             egress_monitor: Arc::new(EgressMonitor::new()),
             #[cfg(target_os = "linux")]
             xdp_manager: Arc::new(XdpManager::new()),
-            config: Arc::new(RwLock::new(CoordinatorConfig::default())),
-        }
-    }
-
-    /// 初始化所有模块
-    fn config_from_advanced(config: &AdvancedConfig) -> CoordinatorConfig {
-        CoordinatorConfig {
-            security_enabled: config.security.enabled,
-            anti_probe_enabled: config.security.anti_probe.enabled,
-            tls_fingerprint: config.security.tls_fingerprint.clone(),
-            egress_identity_enabled: config.egress_identity.enabled,
-            session_affinity_enabled: config.session_affinity.enabled,
-            egress_monitor_enabled: config.egress_monitor.enabled,
-            multipath_enabled: config.multipath.enabled,
-            #[cfg(target_os = "linux")]
-            xdp_enabled: config.xdp.enabled,
+            advanced_config: Arc::new(RwLock::new(AdvancedConfig::default())),
         }
     }
 
     pub fn hydrate_from_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
         self.apply_sub_configs(config);
-        *self.config.write() = Self::config_from_advanced(config);
+        *self.advanced_config.write() = config.clone();
         Ok(())
     }
 
+    /// 获取当前内存中的完整高级配置（只读快照）
+    pub fn get_advanced_config(&self) -> AdvancedConfig {
+        self.advanced_config.read().clone()
+    }
+
     fn load_persisted_advanced_config(&self) -> Result<()> {
-        let path = crate::utils::dirs::app_home_dir()?.join("advanced.yaml");
+        let path = AdvancedConfig::default_path()?;
         let config = AdvancedConfig::load(&path)?;
         self.hydrate_from_advanced_config(&config)
     }
 
     pub fn apply_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
+        let old = self.advanced_config.read().clone();
         self.apply_sub_configs(config);
-        self.update_config(Self::config_from_advanced(config))
+        *self.advanced_config.write() = config.clone();
+        self.apply_runtime_changes(&old, config)
     }
 
     /// 将 AdvancedConfig 中的子配置分发到各管理器
@@ -139,86 +97,21 @@ impl CoreCoordinator {
         self.xdp_manager.update_config(config.xdp.clone());
     }
 
-    pub fn initialize(&self) -> Result<()> {
-        self.load_persisted_advanced_config()?;
-        let config = self.config.read();
-
-        // 1. 启动安全监控
-        if config.security_enabled {
-            log::info!("[Coordinator] 启动安全监控");
-            self.security_monitor.start();
-        }
-
-        // 2. 配置反探测
-        if config.anti_probe_enabled {
-            log::info!("[Coordinator] 启用反探测");
-            // 反探测服务已在创建时初始化
-        }
-
-        // 3. 设置 TLS 指纹
-        if let Some(ref fingerprint_name) = config.tls_fingerprint {
-            log::info!("[Coordinator] 设置 TLS 指纹: {}", fingerprint_name);
-            if let Err(e) = self.tls_fingerprint.set_by_name(fingerprint_name) {
-                log::warn!("[Coordinator] 设置 TLS 指纹失败: {}", e);
-            }
-        }
-
-        // 4. 启动出口 IP 监控
-        if config.egress_monitor_enabled {
-            log::info!("[Coordinator] 启动出口 IP 监控");
-            self.egress_monitor.start();
-        }
-
-        // 5. 启动多路径路由
-        if config.multipath_enabled {
-            log::info!("[Coordinator] 启用多路径路由");
-            // 多路径管理器已在创建时初始化
-        }
-
-        // 6. 启动 XDP（Linux）
-        #[cfg(target_os = "linux")]
-        if config.xdp_enabled {
-            log::info!("[Coordinator] 启动 XDP 代理");
-            if let Err(e) = self.xdp_manager.start() {
-                log::error!("[Coordinator] XDP 启动失败: {}", e);
-                return Err(e);
-            }
-        }
-
-        log::info!("[Coordinator] 初始化完成");
-        Ok(())
-    }
-
-
-    /// 更新配置
-    pub fn update_config(&self, new_config: CoordinatorConfig) -> Result<()> {
-        let mut config = self.config.write();
-        
-        // 检查变化并应用
-        let security_changed = config.security_enabled != new_config.security_enabled;
-        let _anti_probe_changed = config.anti_probe_enabled != new_config.anti_probe_enabled;
-        let tls_changed = config.tls_fingerprint != new_config.tls_fingerprint;
-        let _multipath_changed = config.multipath_enabled != new_config.multipath_enabled;
-        let egress_monitor_changed = config.egress_monitor_enabled != new_config.egress_monitor_enabled;
-
-        #[cfg(target_os = "linux")]
-        let xdp_changed = config.xdp_enabled != new_config.xdp_enabled;
-
-        *config = new_config.clone();
-        drop(config);
-
-        // 应用变化
-        if security_changed {
-            if new_config.security_enabled {
+    /// 对比新旧配置，应用运行时副作用（启停服务）
+    fn apply_runtime_changes(&self, old: &AdvancedConfig, new: &AdvancedConfig) -> Result<()> {
+        // 安全监控
+        if old.security.enabled != new.security.enabled {
+            if new.security.enabled {
                 self.security_monitor.start();
             } else {
                 self.security_monitor.stop();
             }
         }
 
-        if tls_changed {
-            if let Some(ref fingerprint_name) = new_config.tls_fingerprint {
-                if let Err(e) = self.tls_fingerprint.set_by_name(fingerprint_name) {
+        // TLS 指纹
+        if old.security.tls_fingerprint != new.security.tls_fingerprint {
+            if let Some(ref name) = new.security.tls_fingerprint {
+                if let Err(e) = self.tls_fingerprint.set_by_name(name) {
                     return Err(anyhow::anyhow!(e));
                 }
             } else {
@@ -226,8 +119,9 @@ impl CoreCoordinator {
             }
         }
 
-        if egress_monitor_changed {
-            if new_config.egress_monitor_enabled {
+        // 出口 IP 监控
+        if old.egress_monitor.enabled != new.egress_monitor.enabled {
+            if new.egress_monitor.enabled {
                 log::info!("[Coordinator] 启动出口 IP 监控");
                 self.egress_monitor.start();
             } else {
@@ -236,9 +130,10 @@ impl CoreCoordinator {
             }
         }
 
+        // XDP（Linux）
         #[cfg(target_os = "linux")]
-        if xdp_changed {
-            if new_config.xdp_enabled {
+        if old.xdp.enabled != new.xdp.enabled {
+            if new.xdp.enabled {
                 self.xdp_manager.start()?;
             } else {
                 self.xdp_manager.stop()?;
@@ -249,9 +144,54 @@ impl CoreCoordinator {
         Ok(())
     }
 
-    /// 获取配置
-    pub fn get_config(&self) -> CoordinatorConfig {
-        self.config.read().clone()
+    pub fn initialize(&self) -> Result<()> {
+        self.load_persisted_advanced_config()?;
+        let config = self.advanced_config.read();
+
+        // 1. 启动安全监控
+        if config.security.enabled {
+            log::info!("[Coordinator] 启动安全监控");
+            self.security_monitor.start();
+        }
+
+        // 2. 配置反探测
+        if config.security.anti_probe.enabled {
+            log::info!("[Coordinator] 启用反探测");
+            // 反探测服务已在创建时初始化
+        }
+
+        // 3. 设置 TLS 指纹
+        if let Some(ref fingerprint_name) = config.security.tls_fingerprint {
+            log::info!("[Coordinator] 设置 TLS 指纹: {}", fingerprint_name);
+            if let Err(e) = self.tls_fingerprint.set_by_name(fingerprint_name) {
+                log::warn!("[Coordinator] 设置 TLS 指纹失败: {}", e);
+            }
+        }
+
+        // 4. 启动出口 IP 监控
+        if config.egress_monitor.enabled {
+            log::info!("[Coordinator] 启动出口 IP 监控");
+            self.egress_monitor.start();
+        }
+
+        // 5. 启动多路径路由
+        if config.multipath.enabled {
+            log::info!("[Coordinator] 启用多路径路由");
+            // 多路径管理器已在创建时初始化
+        }
+
+        // 6. 启动 XDP（Linux）
+        #[cfg(target_os = "linux")]
+        if config.xdp.enabled {
+            log::info!("[Coordinator] 启动 XDP 代理");
+            if let Err(e) = self.xdp_manager.start() {
+                log::error!("[Coordinator] XDP 启动失败: {}", e);
+                return Err(e);
+            }
+        }
+
+        log::info!("[Coordinator] 初始化完成");
+        Ok(())
     }
 
     /// 获取安全监控器
@@ -303,7 +243,7 @@ impl CoreCoordinator {
 
         // 停止 XDP（Linux）
         #[cfg(target_os = "linux")]
-        if self.config.read().xdp_enabled {
+        if self.advanced_config.read().xdp.enabled {
             self.xdp_manager.stop()?;
         }
 
@@ -318,30 +258,3 @@ impl Default for CoreCoordinator {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_coordinator_creation() {
-        let coordinator = CoreCoordinator::new();
-        let config = coordinator.get_config();
-        assert!(!config.security_enabled);
-        assert!(!config.anti_probe_enabled);
-    }
-
-    #[test]
-    fn test_config_update() {
-        let coordinator = CoreCoordinator::new();
-        
-        let mut config = CoordinatorConfig::default();
-        config.security_enabled = true;
-        config.anti_probe_enabled = true;
-        
-        coordinator.update_config(config.clone()).unwrap();
-        
-        let updated = coordinator.get_config();
-        assert!(updated.security_enabled);
-        assert!(updated.anti_probe_enabled);
-    }
-}

@@ -3,14 +3,16 @@ use crate::{
     core::{CoreManager, handle, tray},
     feat::clean_async,
     process::AsyncHandler,
-    utils,
+    utils::{self, dirs},
 };
 use bytes::BytesMut;
-use clash_verge_logging::{Type, logging};
+use clash_verge_logging::{Type, logging, logging_error};
+use compact_str::CompactString;
 use once_cell::sync::Lazy;
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::sync::Arc;
+use tokio::fs;
 
 #[allow(clippy::expect_used)]
 static TLS_CONFIG: Lazy<Arc<rustls::ClientConfig>> = Lazy::new(|| {
@@ -182,4 +184,131 @@ pub async fn test_delay(url: String) -> anyhow::Result<u32> {
     })
     .await
     .unwrap_or(Ok(10000u32))
+}
+
+/// 保存 DNS 配置映射到文件
+pub async fn save_dns_config_mapping(dns_config: &Mapping) -> anyhow::Result<()> {
+    let dns_path = dirs::app_home_dir()?.join(crate::constants::files::DNS_CONFIG);
+    let yaml_str = serde_yaml_ng::to_string(dns_config)?;
+    fs::write(&dns_path, yaml_str).await?;
+    logging!(info, Type::Config, "DNS config saved to {dns_path:?}");
+    Ok(())
+}
+
+/// 切换 Clash 核心
+pub async fn change_clash_core(clash_core: &str) -> anyhow::Result<Option<String>> {
+    logging!(info, Type::Config, "changing core to {clash_core}");
+    let clash_core: String = clash_core.into();
+    match CoreManager::global().change_core(&clash_core).await {
+        Ok(_) => {
+            logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
+
+            match CoreManager::global().restart_core().await {
+                Ok(_) => {
+                    logging!(info, Type::Core, "core changed and restarted to {clash_core}");
+                    handle::Handle::notice_message("config_core::change_success", clash_core);
+                    handle::Handle::refresh_clash();
+                    Ok(None)
+                }
+                Err(err) => {
+                    let error_msg: String = format!("Core changed but failed to restart: {err}").into();
+                    handle::Handle::notice_message("config_core::change_error", error_msg.clone());
+                    logging!(error, Type::Core, "{error_msg}");
+                    Ok(Some(error_msg))
+                }
+            }
+        }
+        Err(err) => {
+            let error_msg: String = err;
+            logging!(error, Type::Core, "failed to change core: {error_msg}");
+            handle::Handle::notice_message("config_core::change_error", error_msg.clone());
+            Ok(Some(error_msg))
+        }
+    }
+}
+
+/// 启动核心
+pub async fn start_core() -> anyhow::Result<()> {
+    CoreManager::global().start_core().await?;
+    handle::Handle::refresh_clash();
+    Ok(())
+}
+
+/// 关闭核心
+pub async fn stop_core() -> anyhow::Result<()> {
+    logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
+    CoreManager::global().stop_core().await?;
+    handle::Handle::refresh_clash();
+    Ok(())
+}
+
+/// 重启核心
+pub async fn restart_core() -> anyhow::Result<()> {
+    logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
+    CoreManager::global().restart_core().await?;
+    handle::Handle::refresh_clash();
+    Ok(())
+}
+
+/// 应用或撤销 DNS 配置
+pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
+    if apply {
+        let dns_path = dirs::app_home_dir()?.join(crate::constants::files::DNS_CONFIG);
+
+        if !dns_path.exists() {
+            logging!(warn, Type::Config, "DNS config file not found");
+            anyhow::bail!("DNS config file not found");
+        }
+
+        let dns_yaml = fs::read_to_string(&dns_path).await.map_err(|e| {
+            logging!(error, Type::Config, "Failed to read DNS config: {e}");
+            e
+        })?;
+
+        let patch_config = serde_yaml_ng::from_str::<Mapping>(&dns_yaml).map_err(|e| {
+            logging!(error, Type::Config, "Failed to parse DNS config: {e}");
+            e
+        })?;
+
+        logging!(info, Type::Config, "Applying DNS config from file");
+
+        let mut patch = Mapping::new();
+        patch.insert("dns".into(), patch_config.into());
+
+        Config::runtime().await.edit_draft(|d| {
+            d.patch_config(&patch);
+        });
+
+        CoreManager::global()
+            .update_config_checked()
+            .await
+            .map_err(|err| {
+                let err = format!("Failed to apply config with DNS: {err}");
+                logging!(error, Type::Config, "{err}");
+                anyhow::anyhow!("{err}")
+            })?;
+
+        logging!(info, Type::Config, "DNS config successfully applied");
+    } else {
+        logging!(info, Type::Config, "DNS settings disabled, regenerating config");
+
+        CoreManager::global()
+            .update_config_checked()
+            .await
+            .map_err(|err| {
+                let err = format!("Failed to apply regenerated config: {err}");
+                logging!(error, Type::Config, "{err}");
+                anyhow::anyhow!("{err}")
+            })?;
+
+        logging!(info, Type::Config, "Config regenerated successfully");
+    }
+
+    handle::Handle::refresh_clash();
+    Ok(())
+}
+
+/// 获取 Clash 日志
+pub async fn get_clash_logs() -> Vec<CompactString> {
+    CoreManager::global().get_clash_logs().await.unwrap_or_default()
 }

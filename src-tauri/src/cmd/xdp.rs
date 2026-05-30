@@ -2,98 +2,65 @@
  * XDP 代理 Tauri 命令
  */
 
-use crate::xdp::{
-    get_xdp_manager, XdpAction, XdpConfig, XdpRoute, XdpStatus, XdpSupportInfo,
-};
+use crate::xdp::{XdpConfig, XdpRoute, XdpStatus, XdpSupportInfo};
+use super::{CmdResult, StringifyErr};
 
 /// 获取 XDP 配置
 #[tauri::command]
-pub fn xdp_get_config() -> Result<XdpConfig, String> {
-    let manager = get_xdp_manager();
-    Ok(manager.get_config())
+pub fn xdp_get_config() -> CmdResult<XdpConfig> {
+    Ok(crate::feat::xdp_get_config())
 }
 
 /// 更新 XDP 配置
 #[tauri::command]
-pub fn xdp_update_config(config: XdpConfig) -> Result<(), String> {
-    let manager = get_xdp_manager();
-    manager.update_config(config);
-    Ok(())
+pub fn xdp_update_config(config: XdpConfig) -> CmdResult<()> {
+    crate::feat::xdp_update_config(config).stringify_err()
 }
 
 /// 获取 XDP 状态
 #[tauri::command]
-pub fn xdp_get_status() -> Result<XdpStatus, String> {
-    let manager = get_xdp_manager();
-    Ok(manager.get_status())
+pub fn xdp_get_status() -> CmdResult<XdpStatus> {
+    Ok(crate::feat::xdp_get_status())
 }
 
 /// 启动 XDP 代理
 #[tauri::command]
-pub fn xdp_start() -> Result<(), String> {
-    let manager = get_xdp_manager();
-    manager.start()
+pub fn xdp_start() -> CmdResult<()> {
+    crate::feat::xdp_start().stringify_err()
 }
 
 /// 停止 XDP 代理
 #[tauri::command]
-pub fn xdp_stop() -> Result<(), String> {
-    let manager = get_xdp_manager();
-    manager.stop()
+pub fn xdp_stop() -> CmdResult<()> {
+    crate::feat::xdp_stop().stringify_err()
 }
 
 /// 添加路由规则
 #[tauri::command]
-pub fn xdp_add_route(route: XdpRoute) -> Result<(), String> {
-    let manager = get_xdp_manager();
-    manager.add_route(route)
+pub fn xdp_add_route(route: XdpRoute) -> CmdResult<()> {
+    crate::feat::xdp_add_route(route).stringify_err()
 }
 
 /// 删除路由规则
 #[tauri::command]
-pub fn xdp_remove_route(dest_ip: String) -> Result<(), String> {
-    let manager = get_xdp_manager();
-    manager.remove_route(&dest_ip)
+pub fn xdp_remove_route(dest_ip: String) -> CmdResult<()> {
+    crate::feat::xdp_remove_route(&dest_ip).stringify_err()
 }
 
 /// 更新统计信息
 #[tauri::command]
-pub fn xdp_update_stats() -> Result<(), String> {
-    let manager = get_xdp_manager();
-    manager.update_stats()
+pub fn xdp_update_stats() -> CmdResult<()> {
+    crate::feat::xdp_update_stats().stringify_err()
 }
 
 /// 检查系统支持
 #[tauri::command]
-pub fn xdp_check_support() -> Result<XdpSupportInfo, String> {
-    crate::xdp::XdpManager::check_support()
+pub fn xdp_check_support() -> CmdResult<XdpSupportInfo> {
+    crate::feat::xdp_check_support().stringify_err()
 }
 
 /// 获取可用网卡列表
 #[tauri::command]
-pub fn xdp_get_interfaces() -> Result<Vec<String>, String> {
-    #[cfg(target_os = "linux")]
-    {
-        use std::fs;
-        
-        let mut interfaces = Vec::new();
-        
-        if let Ok(entries) = fs::read_dir("/sys/class/net") {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    // 排除回环接口
-                    if name != "lo" {
-                        interfaces.push(name.to_string());
-                    }
-                }
-            }
-        }
-        
-        Ok(interfaces)
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        Err("XDP 仅支持 Linux 系统".to_string())
-    }
+pub fn xdp_get_interfaces() -> CmdResult<Vec<String>> {
+    crate::feat::xdp_get_interfaces().stringify_err()
 }

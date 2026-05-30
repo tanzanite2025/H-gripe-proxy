@@ -42,51 +42,45 @@ export const ProxyInfoDisplay = ({
         'bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20',
       )}
     >
-      <div>
-        <div className="text-sm font-medium">
-          {proxy.name}
+      <div className="flex flex-wrap items-center">
+        <div className="mr-1 text-xs text-gray-500 dark:text-gray-400">
+          {proxy.type}
         </div>
 
-        <div className="flex flex-wrap items-center">
-          <div className="mr-1 text-xs text-gray-500 dark:text-gray-400">
-            {proxy.type}
-          </div>
+        {/* 模式标签 */}
+        {isGlobalMode && (
+          <Chip
+            size="small"
+            label={t('home.components.currentProxy.labels.globalMode')}
+            color="primary"
+            className="mr-0.5"
+          />
+        )}
+        {isDirectMode && (
+          <Chip
+            size="small"
+            label={t('home.components.currentProxy.labels.directMode')}
+            color="success"
+            className="mr-0.5"
+          />
+        )}
 
-          {/* 模式标签 */}
-          {isGlobalMode && (
-            <Chip
-              size="small"
-              label={t('home.components.currentProxy.labels.globalMode')}
-              color="primary"
-              className="mr-0.5"
-            />
-          )}
-          {isDirectMode && (
-            <Chip
-              size="small"
-              label={t('home.components.currentProxy.labels.directMode')}
-              color="success"
-              className="mr-0.5"
-            />
-          )}
-
-          {/* 节点特性 */}
-          {proxy.udp && (
-            <Chip size="small" label="UDP" variant="outlined" className="mr-0.5" />
-          )}
-          {proxy.tfo && (
-            <Chip size="small" label="TFO" variant="outlined" className="mr-0.5" />
-          )}
-          {proxy.xudp && (
-            <Chip size="small" label="XUDP" variant="outlined" className="mr-0.5" />
-          )}
-          {proxy.mptcp && (
-            <Chip size="small" label="MPTCP" variant="outlined" className="mr-0.5" />
-          )}
-          {proxy.smux && (
-            <Chip size="small" label="SMUX" variant="outlined" className="mr-0.5" />
-          )}
-        </div>
+        {/* 节点特性 */}
+        {proxy.udp && (
+          <Chip size="small" label="UDP" variant="outlined" className="mr-0.5" />
+        )}
+        {proxy.tfo && (
+          <Chip size="small" label="TFO" variant="outlined" className="mr-0.5" />
+        )}
+        {proxy.xudp && (
+          <Chip size="small" label="XUDP" variant="outlined" className="mr-0.5" />
+        )}
+        {proxy.mptcp && (
+          <Chip size="small" label="MPTCP" variant="outlined" className="mr-0.5" />
+        )}
+        {proxy.smux && (
+          <Chip size="small" label="SMUX" variant="outlined" className="mr-0.5" />
+        )}
       </div>
 
       {/* 显示延迟 */}

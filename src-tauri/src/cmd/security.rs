@@ -73,14 +73,26 @@ pub fn security_check_encryption_key() -> CmdResult<bool> {
 
 /// 触发自毁（需要确认）
 #[tauri::command]
-pub fn security_self_destruct(confirmation: String) -> Result<(), String> {
+pub fn security_self_destruct(confirmation: String) -> CmdResult {
     if confirmation != "CONFIRM_SELF_DESTRUCT" {
-        return Err("需要确认码".to_string());
+        return Err("需要确认码".into());
     }
 
     log::warn!("🚨 用户手动触发自毁");
-    crate::security::self_destruct::execute();
+    crate::security::self_destruct::execute_from_advanced_config();
     Ok(())
+}
+
+/// 获取蜜罐状态
+#[tauri::command]
+pub fn security_honeypot_get_status() -> CmdResult<crate::security::memory_honeypot::HoneypotStats> {
+    Ok(crate::security::memory_honeypot::get_global_honeypot_stats())
+}
+
+/// 检查蜜罐是否被触发
+#[tauri::command]
+pub fn security_honeypot_is_triggered() -> CmdResult<bool> {
+    Ok(crate::security::memory_honeypot::check_global_honeypot())
 }
 
 /// 安全状态
@@ -145,7 +157,7 @@ pub async fn local_security_find_available_port() -> CmdResult<u16> {
 pub async fn local_security_configure_firewall(port: u16) -> CmdResult {
     security_runtime::local_security_configure_firewall(port)
         .await
-        .map_err(|e| e.to_string())?;
+        .stringify_err()?;
     log::info!("✅ 防火墙规则已配置 (端口: {})", port);
     Ok(())
 }
@@ -155,7 +167,7 @@ pub async fn local_security_configure_firewall(port: u16) -> CmdResult {
 pub async fn local_security_remove_firewall(port: u16) -> CmdResult {
     security_runtime::local_security_remove_firewall(port)
         .await
-        .map_err(|e| e.to_string())?;
+        .stringify_err()?;
     log::info!("✅ 防火墙规则已删除 (端口: {})", port);
     Ok(())
 }
@@ -177,7 +189,7 @@ pub async fn leak_monitor_start(port: u16) -> CmdResult {
 pub async fn leak_monitor_stop() -> CmdResult {
     security_runtime::leak_monitor_stop()
         .await
-        .map_err(|e| e.to_string())?;
+        .stringify_err()?;
     log::info!("✅ 泄漏监控已停止");
     Ok(())
 }
@@ -193,7 +205,7 @@ pub async fn leak_monitor_is_running() -> CmdResult<bool> {
 pub async fn leak_monitor_set_port(port: u16) -> CmdResult {
     security_runtime::leak_monitor_set_port(port)
         .await
-        .map_err(|e| e.to_string())?;
+        .stringify_err()?;
     log::info!("✅ 泄漏监控端口已更新: {}", port);
     Ok(())
 }

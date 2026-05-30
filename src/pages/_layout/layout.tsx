@@ -328,7 +328,7 @@ const Layout = () => {
 
             <UpdateButton className="the-newbtn" />
 
-            {!decorated && OS !== 'macos' && (
+            {OS !== 'macos' && (
               <div className="the-window-ctrls">
                 <WindowControls ref={windowControlsRef} />
               </div>

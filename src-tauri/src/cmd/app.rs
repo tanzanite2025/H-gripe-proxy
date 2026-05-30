@@ -111,5 +111,5 @@ pub fn get_auto_launch_status() -> CmdResult<bool> {
 /// 下载图标缓存
 #[tauri::command]
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
-    feat::download_icon_cache(url, name).await
+    feat::download_icon_cache(url.to_string(), name.to_string()).await.map(Into::into).stringify_err()
 }

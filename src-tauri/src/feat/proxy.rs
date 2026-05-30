@@ -1,7 +1,8 @@
 use crate::{
     config::{Config, IVerge},
-    core::handle,
+    core::{handle, stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress},
 };
+use anyhow::Result;
 use clash_verge_logging::{Type, logging};
 use std::env;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
@@ -116,4 +117,26 @@ pub async fn copy_clash_env() {
     if clipboard.write_text(&export_text).is_err() {
         logging!(error, Type::ProxyMode, "Failed to write to clipboard");
     }
+}
+
+/// 同步运行时稳定出口选择状态（从 Mihomo 回写到管理器）
+pub async fn sync_runtime_stable_egress_selection() -> Result<()> {
+    super::coordinator::sync_coordinator_from_advanced_config()?;
+
+    let runtime_config = Config::runtime().await.latest_arc().config.clone();
+    let Some(runtime_config) = runtime_config else {
+        return Ok(());
+    };
+
+    let coordinator = super::coordinator::get_coordinator();
+    let session_affinity_manager = super::session_affinity::get_session_affinity_manager();
+    let ip_reputation_manager = super::ip_reputation::get_ip_reputation_manager();
+
+    core_sync_stable_egress(
+        &coordinator,
+        &session_affinity_manager,
+        &ip_reputation_manager,
+        &runtime_config,
+    )
+    .await
 }

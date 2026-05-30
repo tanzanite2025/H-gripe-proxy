@@ -251,7 +251,8 @@ mod tests {
     #[test]
     fn test_secure_storage() {
         // 设置测试密钥
-        std::env::set_var("CLASH_VERGE_SECURE_KEY", generate_encryption_key());
+        // SAFETY: 测试环境中设置环境变量，无并发风险
+        unsafe { std::env::set_var("CLASH_VERGE_SECURE_KEY", generate_encryption_key()); }
         
         let storage = SecureConfigStorage::new();
         assert!(storage.is_key_available());

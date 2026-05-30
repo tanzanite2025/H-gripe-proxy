@@ -1,9 +1,6 @@
-use crate::{
-    cmd::{CmdResult, StringifyErr as _},
-    utils::dirs::{self, PathBufExec as _},
-};
+use crate::utils::dirs::{self, PathBufExec as _};
+use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging};
-use smartstring::alias::String;
 use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 use tokio::io::AsyncWriteExt as _;
@@ -16,26 +13,26 @@ pub struct IconInfo {
     current_t: String,
 }
 
-fn normalize_icon_segment(name: &str) -> CmdResult<String> {
+fn normalize_icon_segment(name: &str) -> Result<std::string::String> {
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
-        return Err("invalid icon cache file name".into());
+        bail!("invalid icon cache file name");
     }
 
     let mut components = Path::new(trimmed).components();
     match (components.next(), components.next()) {
-        (Some(Component::Normal(_)), None) => Ok(trimmed.into()),
-        _ => Err("invalid icon cache file name".into()),
+        (Some(Component::Normal(_)), None) => Ok(trimmed.to_owned()),
+        _ => bail!("invalid icon cache file name"),
     }
 }
 
-fn ensure_icon_cache_target(icon_cache_dir: &Path, file_name: &str) -> CmdResult<PathBuf> {
+fn ensure_icon_cache_target(icon_cache_dir: &Path, file_name: &str) -> Result<PathBuf> {
     let icon_path = icon_cache_dir.join(file_name);
     let is_direct_child =
         icon_path.parent().is_some_and(|parent| parent == icon_cache_dir) && icon_path.starts_with(icon_cache_dir);
 
     if !is_direct_child {
-        return Err("invalid icon cache file name".into());
+        bail!("invalid icon cache file name");
     }
 
     Ok(icon_path)
@@ -71,29 +68,29 @@ fn is_supported_icon_content(content: &[u8]) -> bool {
     tauri::image::Image::from_bytes(content).is_ok() || looks_like_svg(content)
 }
 
-pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
-    let icon_cache_dir = dirs::app_home_dir().stringify_err()?.join("icons").join("cache");
+pub async fn download_icon_cache(url: String, name: String) -> Result<std::string::String> {
+    let icon_cache_dir = dirs::app_home_dir()?.join("icons").join("cache");
     let icon_name = normalize_icon_segment(name.as_str())?;
     let icon_path = ensure_icon_cache_target(&icon_cache_dir, icon_name.as_str())?;
 
     if icon_path.exists() {
-        return Ok(icon_path.to_string_lossy().into());
+        return Ok(icon_path.to_string_lossy().to_string());
     }
 
     if !icon_cache_dir.exists() {
-        fs::create_dir_all(&icon_cache_dir).await.stringify_err()?;
+        fs::create_dir_all(&icon_cache_dir).await?;
     }
 
     let temp_name = format!("{icon_name}.downloading");
     let temp_path = ensure_icon_cache_target(&icon_cache_dir, temp_name.as_str())?;
 
-    let response = reqwest::get(url.as_str()).await.stringify_err()?;
-    let response = response.error_for_status().stringify_err()?;
-    let content = response.bytes().await.stringify_err()?;
+    let response = reqwest::get(url.as_str()).await?;
+    let response = response.error_for_status()?;
+    let content = response.bytes().await?;
 
     if !is_supported_icon_content(&content) {
         let _ = temp_path.remove_if_exists().await;
-        return Err(format!("Downloaded content is not a valid image: {}", url.as_str()).into());
+        bail!("Downloaded content is not a valid image: {}", url.as_str());
     }
 
     {
@@ -101,13 +98,13 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
             Ok(file) => file,
             Err(_) => {
                 if icon_path.exists() {
-                    return Ok(icon_path.to_string_lossy().into());
+                    return Ok(icon_path.to_string_lossy().to_string());
                 }
-                return Err("Failed to create temporary file".into());
+                bail!("Failed to create temporary file");
             }
         };
-        file.write_all(content.as_ref()).await.stringify_err()?;
-        file.flush().await.stringify_err()?;
+        file.write_all(content.as_ref()).await?;
+        file.flush().await?;
     }
 
     if !icon_path.exists() {
@@ -116,7 +113,7 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
             Err(_) => {
                 let _ = temp_path.remove_if_exists().await;
                 if icon_path.exists() {
-                    return Ok(icon_path.to_string_lossy().into());
+                    return Ok(icon_path.to_string_lossy().to_string());
                 }
             }
         }
@@ -124,11 +121,11 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
         let _ = temp_path.remove_if_exists().await;
     }
 
-    Ok(icon_path.to_string_lossy().into())
+    Ok(icon_path.to_string_lossy().to_string())
 }
 
 #[allow(dead_code)]
-pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<String> {
+pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> Result<std::string::String> {
     let file_path = Path::new(path.as_str());
     let icon_name = normalize_icon_segment(icon_info.name.as_str())?;
     let current_t = normalize_icon_segment(icon_info.current_t.as_str())?;
@@ -138,14 +135,14 @@ pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<Stri
         Some(normalize_icon_segment(icon_info.previous_t.as_str())?)
     };
 
-    let icon_dir = dirs::app_home_dir().stringify_err()?.join("icons");
+    let icon_dir = dirs::app_home_dir()?.join("icons");
     if !icon_dir.exists() {
-        fs::create_dir_all(&icon_dir).await.stringify_err()?;
+        fs::create_dir_all(&icon_dir).await?;
     }
 
-    let ext: String = match file_path.extension() {
-        Some(e) => e.to_string_lossy().into(),
-        None => "ico".into(),
+    let ext: std::string::String = match file_path.extension() {
+        Some(e) => e.to_string_lossy().to_string(),
+        None => "ico".to_string(),
     };
 
     let dest_file_name = format!("{icon_name}-{current_t}.{ext}");
@@ -168,11 +165,11 @@ pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<Stri
         );
 
         match fs::copy(file_path, &dest_path).await {
-            Ok(_) => Ok(dest_path.to_string_lossy().into()),
-            Err(err) => Err(err.to_string().into()),
+            Ok(_) => Ok(dest_path.to_string_lossy().to_string()),
+            Err(err) => Err(err.into()),
         }
     } else {
-        Err("file not found".into())
+        bail!("file not found");
     }
 }
 
@@ -183,8 +180,8 @@ mod tests {
 
     #[test]
     fn normalize_icon_segment_accepts_single_name() {
-        assert!(normalize_icon_segment("group-icon.png").is_ok());
-        assert!(normalize_icon_segment("alpha_1.webp").is_ok());
+        assert!(normalize_icon_segment("group-icon.png").unwrap().ends_with("group-icon.png"));
+        assert!(normalize_icon_segment("alpha_1.webp").unwrap().ends_with("alpha_1.webp"));
     }
 
     #[test]

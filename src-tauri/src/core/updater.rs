@@ -601,6 +601,7 @@ mod tests {
         let meta = UpdateCacheMeta {
             version: "2.5.0".to_string(),
             downloaded_at: "2026-03-31T00:00:00Z".to_string(),
+            source_key: None,
         };
         let json = serde_json::to_string(&meta).unwrap();
         let parsed: UpdateCacheMeta = serde_json::from_str(&json).unwrap();

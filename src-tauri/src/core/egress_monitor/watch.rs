@@ -9,6 +9,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use parking_lot::RwLock;
 use tokio::sync::Notify;
@@ -23,6 +24,12 @@ pub struct ProxyGroupWatcher {
     snapshot: Arc<RwLock<HashMap<String, String>>>,
     /// 轮询间隔（秒）
     poll_interval_secs: Arc<RwLock<u64>>,
+    /// 防抖冷却窗口（秒）：两次回写之间的最小间隔
+    debounce_secs: Arc<RwLock<u64>>,
+    /// 上次回写时间
+    last_backwrite: Arc<RwLock<Option<Instant>>>,
+    /// 待处理的变更（debounce 期间累积）
+    pending_changes: Arc<RwLock<bool>>,
     /// 取消通知
     cancel_notify: Arc<Notify>,
     /// 是否运行中
@@ -34,6 +41,9 @@ impl ProxyGroupWatcher {
         Self {
             snapshot: Arc::new(RwLock::new(HashMap::new())),
             poll_interval_secs: Arc::new(RwLock::new(30)),
+            debounce_secs: Arc::new(RwLock::new(10)),
+            last_backwrite: Arc::new(RwLock::new(None)),
+            pending_changes: Arc::new(RwLock::new(false)),
             cancel_notify: Arc::new(Notify::new()),
             running: Arc::new(RwLock::new(false)),
         }
@@ -41,6 +51,11 @@ impl ProxyGroupWatcher {
 
     pub fn set_poll_interval(&self, secs: u64) {
         *self.poll_interval_secs.write() = secs.max(5);
+    }
+
+    /// 设置防抖冷却窗口（秒），最小 5 秒
+    pub fn set_debounce_secs(&self, secs: u64) {
+        *self.debounce_secs.write() = secs.max(5);
     }
 
     /// 启动代理组变化检测循环
@@ -52,6 +67,9 @@ impl ProxyGroupWatcher {
 
         let snapshot = self.snapshot.clone();
         let poll_interval_secs = self.poll_interval_secs.clone();
+        let debounce_secs = self.debounce_secs.clone();
+        let last_backwrite = self.last_backwrite.clone();
+        let pending_changes = self.pending_changes.clone();
         let cancel_notify = self.cancel_notify.clone();
         let running = self.running.clone();
 
@@ -100,8 +118,37 @@ impl ProxyGroupWatcher {
                         );
                     }
 
-                    // 触发回写
-                    trigger_backwrite().await;
+                    // 防抖：距离上次回写不足冷却窗口时，标记待处理但不立即回写
+                    let debounce = Duration::from_secs(*debounce_secs.read());
+                    let now = Instant::now();
+                    let last = *last_backwrite.read();
+                    let can_write = last.map_or(true, |t| now.duration_since(t) >= debounce);
+
+                    if can_write {
+                        trigger_backwrite().await;
+                        *last_backwrite.write() = Some(now);
+                        *pending_changes.write() = false;
+                    } else {
+                        // 标记有待处理的变更，下次轮询时如果冷却期已过则回写
+                        *pending_changes.write() = true;
+                        log::info!(
+                            "[ProxyGroupWatcher] 防抖中，延迟回写（冷却窗口 {}s）",
+                            debounce.as_secs(),
+                        );
+                    }
+                } else if *pending_changes.read() {
+                    // 无新变化但有待处理的变更，检查冷却窗口是否已过
+                    let debounce = Duration::from_secs(*debounce_secs.read());
+                    let now = Instant::now();
+                    let last = *last_backwrite.read();
+                    let can_write = last.map_or(true, |t| now.duration_since(t) >= debounce);
+
+                    if can_write {
+                        log::info!("[ProxyGroupWatcher] 防抖冷却结束，执行延迟回写");
+                        trigger_backwrite().await;
+                        *last_backwrite.write() = Some(now);
+                        *pending_changes.write() = false;
+                    }
                 }
 
                 // 更新快照
@@ -158,9 +205,9 @@ fn detect_changes(
 /// 触发 sync_runtime_stable_egress_selection 回写
 async fn trigger_backwrite() {
     if let Some(runtime_config) = crate::config::Config::runtime().await.latest_arc().config.clone() {
-        let coordinator = crate::cmd::coordinator::get_coordinator();
-        let session_affinity = crate::cmd::session_affinity::get_session_affinity_manager();
-        let ip_reputation = crate::cmd::ip_reputation::get_ip_reputation_manager();
+        let coordinator = crate::feat::get_coordinator();
+        let session_affinity = crate::feat::get_session_affinity_manager();
+        let ip_reputation = crate::feat::get_ip_reputation_manager();
         if let Err(e) = crate::core::stable_egress::sync_runtime_stable_egress_selection(
             &coordinator,
             &session_affinity,

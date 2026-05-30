@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
+use super::CmdResult;
 
 static HEADER_SANITIZER: Lazy<Arc<RwLock<HeaderSanitizer>>> = Lazy::new(|| {
     Arc::new(RwLock::new(HeaderSanitizer::new(
@@ -18,7 +19,7 @@ static HEADER_SANITIZER: Lazy<Arc<RwLock<HeaderSanitizer>>> = Lazy::new(|| {
 
 /// 获取 HTTP 头净化配置
 #[tauri::command]
-pub fn header_sanitization_get_config() -> Result<HeaderSanitizationConfig, String> {
+pub fn header_sanitization_get_config() -> CmdResult<HeaderSanitizationConfig> {
     let sanitizer = HEADER_SANITIZER.read();
     Ok(sanitizer.config())
 }
@@ -27,7 +28,7 @@ pub fn header_sanitization_get_config() -> Result<HeaderSanitizationConfig, Stri
 #[tauri::command]
 pub fn header_sanitization_update_config(
     config: HeaderSanitizationConfig,
-) -> Result<(), String> {
+) -> CmdResult<()> {
     let mut sanitizer = HEADER_SANITIZER.write();
     *sanitizer = HeaderSanitizer::new(config);
     log::info!("✅ HTTP 头净化配置已更新");

@@ -148,8 +148,7 @@ impl Default for MemoryHoneypot {
 }
 
 /// 蜜罐统计信息
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HoneypotStats {
     pub total_tokens: usize,
     pub compromised_tokens: usize,
@@ -160,16 +159,31 @@ pub struct HoneypotStats {
 static GLOBAL_HONEYPOT: Lazy<RwLock<Option<MemoryHoneypot>>> =
     Lazy::new(|| RwLock::new(None));
 
-/// 初始化全局蜜罐
-pub fn init_global_honeypot() {
+/// 初始化全局蜜罐（使用配置中的令牌数量）
+pub fn init_global_honeypot_with_count(token_count: usize) {
     let mut guard = GLOBAL_HONEYPOT.write().unwrap();
-    *guard = Some(MemoryHoneypot::new(10));
+    *guard = Some(MemoryHoneypot::new(token_count));
+}
+
+/// 初始化全局蜜罐（默认 10 个令牌）
+pub fn init_global_honeypot() {
+    init_global_honeypot_with_count(10);
 }
 
 /// 检查全局蜜罐
 pub fn check_global_honeypot() -> bool {
     let guard = GLOBAL_HONEYPOT.read().unwrap();
     guard.as_ref().map(|h| h.check_compromise()).unwrap_or(false)
+}
+
+/// 获取全局蜜罐统计
+pub fn get_global_honeypot_stats() -> HoneypotStats {
+    let guard = GLOBAL_HONEYPOT.read().unwrap();
+    guard.as_ref().map(|h| h.get_stats()).unwrap_or(HoneypotStats {
+        total_tokens: 0,
+        compromised_tokens: 0,
+        total_accesses: 0,
+    })
 }
 
 /// 内存扫描检测

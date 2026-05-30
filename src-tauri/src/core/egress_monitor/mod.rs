@@ -103,7 +103,9 @@ impl EgressMonitor {
 
         // 启动代理组变化检测
         let watch_interval = self.config.read().watch_poll_interval_secs;
+        let watch_debounce = self.config.read().watch_debounce_secs;
         self.watcher.set_poll_interval(watch_interval);
+        self.watcher.set_debounce_secs(watch_debounce);
         self.watcher.start();
 
         let config = self.config.clone();

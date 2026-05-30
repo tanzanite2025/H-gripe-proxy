@@ -55,6 +55,9 @@ pub struct CoordinatorStatus {
     pub session_affinity_active_bindings: usize,
     pub runtime_state: CoordinatorRuntimeState,
     pub multipath_enabled: bool,
+    pub traffic_obfuscation_enabled: bool,
+    pub honeypot_enabled: bool,
+    pub self_destruct_enabled: bool,
     #[cfg(target_os = "linux")]
     pub xdp_enabled: bool,
     #[cfg(target_os = "linux")]

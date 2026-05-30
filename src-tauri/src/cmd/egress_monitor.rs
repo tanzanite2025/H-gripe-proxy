@@ -1,61 +1,53 @@
-use crate::core::egress_monitor::{
-    egress_monitor, EgressMonitorConfig, EgressMonitorStats, EgressIpProbeResult,
-};
+use crate::core::egress_monitor::{EgressMonitorConfig, EgressMonitorStats, EgressIpProbeResult};
+use super::{CmdResult, StringifyErr};
 
 /// 获取出口监控配置
 #[tauri::command]
-pub async fn egress_monitor_get_config() -> Result<EgressMonitorConfig, String> {
-    Ok(egress_monitor().get_config())
+pub async fn egress_monitor_get_config() -> CmdResult<EgressMonitorConfig> {
+    Ok(crate::feat::egress_monitor_get_config().await)
 }
 
 /// 更新出口监控配置
 #[tauri::command]
-pub async fn egress_monitor_update_config(
-    config: EgressMonitorConfig,
-) -> Result<(), String> {
-    egress_monitor()
-        .update_config(config)
-        .map_err(|e| e.to_string())
+pub async fn egress_monitor_update_config(config: EgressMonitorConfig) -> CmdResult<()> {
+    crate::feat::egress_monitor_update_config(config).await.stringify_err()
 }
 
 /// 启动出口监控
 #[tauri::command]
-pub async fn egress_monitor_start() -> Result<(), String> {
-    egress_monitor().start();
+pub async fn egress_monitor_start() -> CmdResult<()> {
+    crate::feat::egress_monitor_start().await;
     Ok(())
 }
 
 /// 停止出口监控
 #[tauri::command]
-pub async fn egress_monitor_stop() -> Result<(), String> {
-    egress_monitor().stop();
+pub async fn egress_monitor_stop() -> CmdResult<()> {
+    crate::feat::egress_monitor_stop().await;
     Ok(())
 }
 
 /// 获取出口监控统计
 #[tauri::command]
-pub async fn egress_monitor_get_stats() -> Result<EgressMonitorStats, String> {
-    Ok(egress_monitor().get_stats())
+pub async fn egress_monitor_get_stats() -> CmdResult<EgressMonitorStats> {
+    Ok(crate::feat::egress_monitor_get_stats().await)
 }
 
 /// 重置出口监控统计
 #[tauri::command]
-pub async fn egress_monitor_reset_stats() -> Result<(), String> {
-    egress_monitor().reset_stats();
+pub async fn egress_monitor_reset_stats() -> CmdResult<()> {
+    crate::feat::egress_monitor_reset_stats().await;
     Ok(())
 }
 
 /// 手动探测出口 IP
 #[tauri::command]
-pub async fn egress_monitor_probe_now() -> Result<EgressIpProbeResult, String> {
-    egress_monitor()
-        .probe_now()
-        .await
-        .map_err(|e| e.to_string())
+pub async fn egress_monitor_probe_now() -> CmdResult<EgressIpProbeResult> {
+    crate::feat::egress_monitor_probe_now().await.stringify_err()
 }
 
 /// 查询出口监控是否运行中
 #[tauri::command]
-pub async fn egress_monitor_is_running() -> Result<bool, String> {
-    Ok(egress_monitor().is_running())
+pub async fn egress_monitor_is_running() -> CmdResult<bool> {
+    Ok(crate::feat::egress_monitor_is_running().await)
 }

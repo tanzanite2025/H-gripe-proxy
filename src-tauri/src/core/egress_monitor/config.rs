@@ -40,6 +40,8 @@ pub struct EgressMonitorConfig {
     pub probe_timeout_secs: u64,
     /// 代理组变化检测轮询间隔（秒），默认 30，最小 5
     pub watch_poll_interval_secs: u64,
+    /// 代理组变化回写防抖冷却窗口（秒），默认 10，最小 5
+    pub watch_debounce_secs: u64,
     /// 重绑定策略，默认 smart
     pub rebind_strategy: RebindStrategyType,
 }
@@ -53,6 +55,7 @@ impl Default for EgressMonitorConfig {
             notify_on_change: true,
             probe_timeout_secs: 10,
             watch_poll_interval_secs: 30,
+            watch_debounce_secs: 10,
             rebind_strategy: RebindStrategyType::default(),
         }
     }
@@ -68,6 +71,9 @@ impl EgressMonitorConfig {
         }
         if self.watch_poll_interval_secs < 5 {
             return Err(anyhow!("watch_poll_interval_secs 必须 >= 5"));
+        }
+        if self.watch_debounce_secs < 5 {
+            return Err(anyhow!("watch_debounce_secs 必须 >= 5"));
         }
         Ok(())
     }

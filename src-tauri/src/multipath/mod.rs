@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
@@ -285,15 +286,14 @@ pub struct StreamSession {
 /// 多路径管理器
 pub struct MultipathManager {
     config: Arc<RwLock<MultipathConfig>>,
-    #[allow(dead_code)]
     sessions: Arc<RwLock<HashMap<u64, StreamSession>>>,
-    #[allow(dead_code)]
     node_stats: Arc<RwLock<HashMap<String, NodeStats>>>,
+    /// RoundRobin 轮询计数器
+    rr_counter: AtomicU64,
 }
 
 /// 节点统计
-#[allow(dead_code)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NodeStats {
     pub active_connections: u32,
     pub total_bytes: u64,
@@ -307,6 +307,7 @@ impl MultipathManager {
             config: Arc::new(RwLock::new(MultipathConfig::default())),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             node_stats: Arc::new(RwLock::new(HashMap::new())),
+            rr_counter: AtomicU64::new(0),
         }
     }
 
@@ -371,7 +372,6 @@ impl MultipathManager {
     }
 
     /// 选择节点
-    #[allow(dead_code)]
     pub fn select_node(&self, domain: &str, session_id: u64) -> Option<String> {
         let config = self.config.read();
         
@@ -386,7 +386,13 @@ impl MultipathManager {
             let sessions = self.sessions.read();
             if let Some(session) = sessions.get(&session_id) {
                 if let Some(ref node) = session.bound_node {
-                    return Some(node.clone());
+                    let node_clone = node.clone();
+                    drop(sessions);
+                    let mut sessions = self.sessions.write();
+                    if let Some(s) = sessions.get_mut(&session_id) {
+                        s.last_activity = Self::current_timestamp();
+                    }
+                    return Some(node_clone);
                 }
             }
         }
@@ -405,15 +411,18 @@ impl MultipathManager {
             SlicingStrategy::LatencyBased => self.select_latency_based(&pool.nodes),
         }?;
 
-        // 如果需要单节点，创建会话绑定
-        if force_single {
+        // 更新节点统计：活跃连接 +1
+        self.record_connection_start(&node.name);
+
+        // 如果需要单节点或会话保持，创建会话绑定
+        if force_single || config.session_persistence {
             let mut sessions = self.sessions.write();
             sessions.insert(session_id, StreamSession {
                 session_id,
                 domain: domain.to_string(),
                 bound_node: Some(node.name.clone()),
                 pool_type,
-                force_single_node: true,
+                force_single_node: force_single,
                 created_at: Self::current_timestamp(),
                 last_activity: Self::current_timestamp(),
             });
@@ -422,9 +431,13 @@ impl MultipathManager {
         Some(node.name.clone())
     }
 
-    #[allow(dead_code)]
     fn select_round_robin(&self, nodes: &[PathNode]) -> Option<PathNode> {
-        nodes.iter().find(|n| n.enabled).cloned()
+        let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).cloned().collect();
+        if enabled.is_empty() {
+            return None;
+        }
+        let idx = self.rr_counter.fetch_add(1, AtomicOrdering::Relaxed) as usize % enabled.len();
+        Some(enabled[idx].clone())
     }
 
     #[allow(dead_code)]
@@ -490,6 +503,65 @@ impl MultipathManager {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs()
+    }
+
+    /// 记录连接开始（活跃连接 +1）
+    pub fn record_connection_start(&self, node_name: &str) {
+        let mut stats = self.node_stats.write();
+        stats.entry(node_name.to_string())
+            .or_default()
+            .active_connections += 1;
+    }
+
+    /// 记录连接结束（活跃连接 -1，累计字节数）
+    pub fn record_connection_end(&self, node_name: &str, bytes: u64) {
+        let mut stats = self.node_stats.write();
+        if let Some(s) = stats.get_mut(node_name) {
+            s.active_connections = s.active_connections.saturating_sub(1);
+            s.total_bytes += bytes;
+        }
+    }
+
+    /// 记录延迟测量（指数移动平均）
+    pub fn record_latency(&self, node_name: &str, latency_us: u64) {
+        let mut stats = self.node_stats.write();
+        let s = stats.entry(node_name.to_string()).or_default();
+        if s.avg_latency == 0 {
+            s.avg_latency = latency_us;
+        } else {
+            // EMA with α=0.2
+            s.avg_latency = (s.avg_latency * 8 + latency_us * 2) / 10;
+        }
+    }
+
+    /// 记录错误
+    pub fn record_error(&self, node_name: &str) {
+        let mut stats = self.node_stats.write();
+        stats.entry(node_name.to_string())
+            .or_default()
+            .error_count += 1;
+    }
+
+    /// 清理过期会话（超过 reassembly_timeout 未活动）
+    pub fn cleanup_expired_sessions(&self) {
+        let config = self.config.read();
+        let timeout = config.reassembly_timeout / 1000; // ms -> s
+        let now = Self::current_timestamp();
+
+        let mut sessions = self.sessions.write();
+        sessions.retain(|_, session| {
+            now.saturating_sub(session.last_activity) < timeout
+        });
+    }
+
+    /// 获取节点统计
+    pub fn get_node_stats(&self) -> HashMap<String, NodeStats> {
+        self.node_stats.read().clone()
+    }
+
+    /// 获取活跃会话数
+    pub fn active_session_count(&self) -> usize {
+        self.sessions.read().len()
     }
 }
 

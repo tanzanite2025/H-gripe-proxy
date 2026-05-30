@@ -6,6 +6,7 @@ import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 
 import { EgressIdentityPanel } from '@/components/advanced/egress-identity-panel'
+import { EgressMonitorPanel } from '@/components/advanced/egress-monitor-panel'
 import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
 import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
 import { SecurityConfigPanel } from '@/components/advanced/security-config-panel'
@@ -93,9 +94,10 @@ export default function AdvancedPage() {
   const securityTabIndex = 0
   const egressIdentityTabIndex = 1
   const sessionAffinityTabIndex = 2
-  const multipathTabIndex = 3
-  const xdpTabIndex = 4
-  const performanceTabIndex = isLinux ? 5 : 4
+  const egressMonitorTabIndex = 3
+  const multipathTabIndex = 4
+  const xdpTabIndex = 5
+  const performanceTabIndex = isLinux ? 6 : 5
 
 
   if (configLoading || statusLoading || !loadedConfig || !status || !localConfig) {
@@ -146,6 +148,7 @@ export default function AdvancedPage() {
           <Tab label="安全防御" value={securityTabIndex} />
           <Tab label="出口身份" value={egressIdentityTabIndex} />
           <Tab label="会话绑定" value={sessionAffinityTabIndex} />
+          <Tab label="出口监控" value={egressMonitorTabIndex} />
           <Tab label="多路径路由" value={multipathTabIndex} />
           {isLinux && (
             <Tab label="XDP 代理" value={xdpTabIndex} />
@@ -182,6 +185,15 @@ export default function AdvancedPage() {
           />
           <SessionAffinityBindingsPanel status={status} onRefreshStatus={reloadStatus} />
         </div>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={egressMonitorTabIndex}>
+        <EgressMonitorPanel
+          config={localConfig.egress_monitor}
+          onChange={(egress_monitor) =>
+            setLocalConfig({ ...localConfig, egress_monitor })
+          }
+        />
       </TabPanel>
 
       <TabPanel value={tabValue} index={multipathTabIndex}>

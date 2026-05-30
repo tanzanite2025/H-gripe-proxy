@@ -48,8 +48,16 @@ pub async fn start_monitor() {
         monitor.start();
     }
 
-    // 初始化内存蜜罐以检测内存扫描
-    memory_honeypot::init_global_honeypot();
+    // 初始化内存蜜罐以检测内存扫描（从 coordinator 内存配置读取）
+    let hp_cfg = crate::feat::get_coordinator()
+        .get_advanced_config()
+        .security
+        .honeypot;
+    if hp_cfg.enabled {
+        memory_honeypot::init_global_honeypot_with_count(hp_cfg.token_count);
+    } else {
+        memory_honeypot::init_global_honeypot();
+    }
 
     // 启动蜜罐监控线程（幂等）
     if !HONEYPOT_FLAG.load(Ordering::SeqCst) {

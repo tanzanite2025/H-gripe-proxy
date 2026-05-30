@@ -1,4 +1,4 @@
-mod advanced;
+pub mod advanced;
 mod clash;
 #[allow(clippy::module_inception)]
 mod config;

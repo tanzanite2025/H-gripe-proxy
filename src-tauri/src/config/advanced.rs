@@ -52,6 +52,10 @@ pub struct AdvancedConfig {
     #[serde(default)]
     pub traffic_padding: TrafficPaddingConfig,
 
+    /// 多路复用配置（smux + brutal，推荐但默认关闭）
+    #[serde(default)]
+    pub multiplex: MultiplexConfig,
+
     /// XDP 代理配置（仅 Linux）
     #[cfg(target_os = "linux")]
     #[serde(default)]
@@ -69,6 +73,7 @@ impl Default for AdvancedConfig {
             egress_monitor: EgressMonitorConfig::default(),
             traffic_obfuscation: TrafficObfuscationConfig::default(),
             traffic_padding: TrafficPaddingConfig::default(),
+            multiplex: MultiplexConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig::default(),
         }
@@ -93,6 +98,14 @@ pub struct SecurityConfig {
     /// 配置欺骗配置
     #[serde(default)]
     pub config_decoy: ConfigDecoyConfig,
+
+    /// 自毁配置
+    #[serde(default)]
+    pub self_destruct: SelfDestructConfig,
+
+    /// 内存蜜罐配置
+    #[serde(default)]
+    pub honeypot: HoneypotConfig,
 }
 
 impl Default for SecurityConfig {
@@ -102,6 +115,8 @@ impl Default for SecurityConfig {
             anti_probe: AntiProbeConfig::default(),
             tls_fingerprint: None,
             config_decoy: ConfigDecoyConfig::default(),
+            self_destruct: SelfDestructConfig::default(),
+            honeypot: HoneypotConfig::default(),
         }
     }
 }
@@ -131,6 +146,66 @@ impl Default for ConfigDecoyConfig {
         }
     }
 }
+
+/// 自毁配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelfDestructConfig {
+    /// 启用自毁机制
+    #[serde(default)]
+    pub enabled: bool,
+    /// 是否清除内存中的密钥
+    #[serde(default = "default_true")]
+    pub clear_memory: bool,
+    /// 是否删除配置文件
+    #[serde(default)]
+    pub delete_configs: bool,
+    /// 是否删除日志文件
+    #[serde(default = "default_true")]
+    pub delete_logs: bool,
+    /// 是否立即退出程序
+    #[serde(default = "default_true")]
+    pub exit_immediately: bool,
+}
+
+impl Default for SelfDestructConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            clear_memory: true,
+            delete_configs: false,
+            delete_logs: true,
+            exit_immediately: true,
+        }
+    }
+}
+
+/// 内存蜜罐配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HoneypotConfig {
+    /// 启用内存蜜罐
+    #[serde(default)]
+    pub enabled: bool,
+    /// 蜜罐令牌数量
+    #[serde(default = "default_honeypot_token_count")]
+    pub token_count: usize,
+    /// 监控间隔（秒）
+    #[serde(default = "default_honeypot_interval")]
+    pub monitor_interval_secs: u64,
+}
+
+impl Default for HoneypotConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            token_count: 10,
+            monitor_interval_secs: 2,
+        }
+    }
+}
+
+fn default_honeypot_token_count() -> usize { 10 }
+fn default_honeypot_interval() -> u64 { 2 }
+fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsAdvancedConfig {
@@ -395,10 +470,138 @@ impl DnsAdvancedConfig {
     }
 }
 
+/// 多路复用配置（smux + brutal，推荐但默认关闭）
+/// 需要服务端支持，开启后弱网环境下可显著提升连接稳定性和吞吐
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiplexConfig {
+    /// 是否启用 smux 多路复用注入
+    #[serde(default)]
+    pub enabled: bool,
+    /// 多路复用协议：h2mux / smux / yamux
+    #[serde(default = "MultiplexConfig::default_protocol")]
+    pub protocol: String,
+    /// 最大连接数（与 max-streams 冲突）
+    #[serde(default = "MultiplexConfig::default_max_connections")]
+    pub max_connections: u32,
+    /// 最小流数量
+    #[serde(default = "MultiplexConfig::default_min_streams")]
+    pub min_streams: u32,
+    /// 最大流数量（与 max-connections / min-streams 冲突）
+    #[serde(default)]
+    pub max_streams: Option<u32>,
+    /// 是否在面板显示底层连接统计
+    #[serde(default)]
+    pub statistic: bool,
+    /// 仅 TCP 走多路复用，UDP 直连
+    #[serde(default)]
+    pub only_tcp: bool,
+    /// 启用填充
+    #[serde(default)]
+    pub padding: bool,
+    /// TCP Brutal 拥塞控制（需服务端支持）
+    #[serde(default)]
+    pub brutal: BrutalConfig,
+}
+
+impl MultiplexConfig {
+    fn default_protocol() -> String { "h2mux".to_string() }
+    fn default_max_connections() -> u32 { 4 }
+    fn default_min_streams() -> u32 { 4 }
+
+    /// 推荐配置（默认关闭，用户主动开启时使用）
+    pub fn recommended() -> Self {
+        Self {
+            enabled: false,
+            protocol: "h2mux".to_string(),
+            max_connections: 4,
+            min_streams: 4,
+            max_streams: None,
+            statistic: true,
+            only_tcp: false,
+            padding: true,
+            brutal: BrutalConfig::recommended(),
+        }
+    }
+}
+
+impl Default for MultiplexConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            protocol: Self::default_protocol(),
+            max_connections: Self::default_max_connections(),
+            min_streams: Self::default_min_streams(),
+            max_streams: None,
+            statistic: false,
+            only_tcp: false,
+            padding: false,
+            brutal: BrutalConfig::default(),
+        }
+    }
+}
+
+/// TCP Brutal 拥塞控制配置（需服务端支持）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrutalConfig {
+    /// 是否启用 TCP Brutal
+    #[serde(default)]
+    pub enabled: bool,
+    /// 上传带宽（Mbps）
+    #[serde(default = "BrutalConfig::default_up")]
+    pub up: u32,
+    /// 下载带宽（Mbps）
+    #[serde(default = "BrutalConfig::default_down")]
+    pub down: u32,
+}
+
+impl BrutalConfig {
+    fn default_up() -> u32 { 20 }
+    fn default_down() -> u32 { 50 }
+
+    /// 推荐配置
+    pub fn recommended() -> Self {
+        Self {
+            enabled: false,
+            up: 20,
+            down: 50,
+        }
+    }
+}
+
+impl Default for BrutalConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            up: Self::default_up(),
+            down: Self::default_down(),
+        }
+    }
+}
+
 // 实现 ConfigFile trait
 impl ConfigFile for AdvancedConfig {}
 
 impl AdvancedConfig {
+    /// 获取 advanced.yaml 默认路径
+    pub fn default_path() -> Result<PathBuf> {
+        crate::utils::dirs::app_home_dir()
+            .map(|dir| dir.join("advanced.yaml"))
+    }
+
+    /// 从默认路径加载配置，文件不存在则返回默认值
+    pub fn load_default() -> Self {
+        Self::default_path()
+            .ok()
+            .and_then(|path| Self::load(&path).ok())
+            .unwrap_or_default()
+    }
+
+    /// 保存配置到默认路径
+    pub fn save_default(&self) -> Result<()> {
+        let path = Self::default_path()?;
+        self.save_to_file(&path)
+    }
+
     /// 从文件加载配置（使用 trait 默认实现）
     pub fn load(path: &PathBuf) -> Result<Self> {
         Self::load_from_file(path)
@@ -489,6 +692,10 @@ impl AdvancedConfig {
             self.traffic_padding = other.traffic_padding.clone();
         }
 
+        if other.multiplex.enabled {
+            self.multiplex = other.multiplex.clone();
+        }
+
         // 合并 XDP 配置（Linux）
         #[cfg(target_os = "linux")]
         if other.xdp.enabled {
@@ -519,6 +726,8 @@ impl AdvancedConfig {
                     decoy_path: Some("config_decoy.yaml".to_string()),
                     encryption_key: None,
                 },
+                self_destruct: SelfDestructConfig::default(),
+                honeypot: HoneypotConfig::default(),
             },
             multipath: MultipathConfig {
                 enabled: true,
@@ -553,6 +762,7 @@ impl AdvancedConfig {
                 notify_on_change: true,
                 probe_timeout_secs: 10,
                 watch_poll_interval_secs: 30,
+                watch_debounce_secs: 10,
                 rebind_strategy: crate::core::egress_monitor::RebindStrategyType::Smart,
             },
             traffic_obfuscation: TrafficObfuscationConfig {
@@ -563,6 +773,10 @@ impl AdvancedConfig {
             traffic_padding: TrafficPaddingConfig {
                 enabled: true,
                 ..TrafficPaddingConfig::default()
+            },
+            multiplex: MultiplexConfig {
+                enabled: false,
+                ..MultiplexConfig::recommended()
             },
             #[cfg(target_os = "linux")]
             xdp: XdpConfig {

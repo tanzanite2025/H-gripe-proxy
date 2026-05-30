@@ -41,23 +41,7 @@ export const ProxySelectors = ({
   // 自定义渲染选择框中的值
   const renderProxyValue = (selected: SelectPrimitiveValue) => {
     const selectedValue = String(selected)
-    if (!selectedValue || !state.proxyData.records[selectedValue]) return selectedValue
-
-    const delayValue = delayManager.getDelayFix(
-      state.proxyData.records[selectedValue],
-      state.selection.group,
-    )
-
-    return (
-      <div className="flex justify-between">
-        <div className="truncate">{selectedValue}</div>
-        <Chip
-          size="small"
-          label={delayManager.formatDelay(delayValue)}
-          color={convertDelayColor(delayValue)}
-        />
-      </div>
-    )
+    return <div className="truncate">{selectedValue}</div>
   }
 
   const selectClassName = cn(

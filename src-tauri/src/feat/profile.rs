@@ -1,20 +1,155 @@
 use crate::{
-    cmd,
-    config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
+    config::{Config, IProfiles, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
     core::{CoreManager, handle, tray, validate::ValidationOutcome},
     utils::help::{mask_err, mask_url},
 };
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
+use scopeguard::defer;
 use smartstring::alias::String;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tauri::Emitter as _;
 
-/// Toggle proxy profile
+static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
+
+/// Toggle proxy profile — directly calls the same logic as patch_profiles_config_by_profile_index
 pub async fn toggle_proxy_profile(profile_index: String) {
     logging_error!(
         Type::Config,
-        cmd::patch_profiles_config_by_profile_index(profile_index).await
+        patch_profiles_config_by_profile_index(profile_index).await
     );
+}
+
+/// 根据profile name修改profiles (feat 层版本，返回 anyhow::Result)
+pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Result<ValidationOutcome> {
+    let profiles = IProfiles {
+        current: Some(profile_index),
+        items: None,
+    };
+    patch_profiles_config(profiles).await
+}
+
+/// 修改profiles的配置（核心业务逻辑）
+pub async fn patch_profiles_config(profiles: IProfiles) -> Result<ValidationOutcome> {
+    if CURRENT_SWITCHING_PROFILE
+        .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+        .is_err()
+    {
+        logging!(info, Type::Config, "当前正在切换配置，放弃请求");
+        return Ok(ValidationOutcome::Busy);
+    }
+
+    let target_profile = profiles.current.as_ref();
+
+    logging!(info, Type::Config, "开始修改配置文件，目标profile: {:?}", target_profile);
+
+    let previous_profile = Config::profiles().await.data_arc().current.clone();
+    logging!(info, Type::Config, "当前配置: {:?}", previous_profile);
+
+    Config::profiles().await.edit_draft(|d| d.patch_config(&profiles));
+
+    perform_config_update(target_profile, previous_profile.as_ref()).await
+}
+
+async fn restore_previous_profile(prev_profile: &String) -> Result<()> {
+    logging!(info, Type::Config, "尝试恢复到之前的配置: {}", prev_profile);
+    let restore_profiles = IProfiles {
+        current: Some(prev_profile.to_owned()),
+        items: None,
+    };
+    Config::profiles()
+        .await
+        .edit_draft(|d| d.patch_config(&restore_profiles));
+    Config::profiles().await.apply();
+    crate::process::AsyncHandler::spawn(|| async move {
+        if let Err(e) = crate::config::profiles::profiles_save_file_safe().await {
+            logging!(warn, Type::Config, "Warning: 异步保存恢复配置文件失败: {e}");
+        }
+    });
+    logging!(info, Type::Config, "成功恢复到之前的配置");
+    Ok(())
+}
+
+async fn handle_success(current_value: Option<&String>) -> Result<ValidationOutcome> {
+    Config::profiles().await.apply();
+    handle::Handle::refresh_clash();
+
+    if let Err(e) = tray::Tray::global().update_tooltip().await {
+        logging!(warn, Type::Config, "Warning: 异步更新托盘提示失败: {e}");
+    }
+
+    if let Err(e) = tray::Tray::global().update_menu().await {
+        logging!(warn, Type::Config, "Warning: 异步更新托盘菜单失败: {e}");
+    }
+
+    if let Err(e) = crate::config::profiles::profiles_save_file_safe().await {
+        logging!(warn, Type::Config, "Warning: 异步保存配置文件失败: {e}");
+    }
+
+    if let Some(current) = current_value
+        && crate::utils::window_manager::WindowManager::get_main_window().is_some()
+    {
+        logging!(info, Type::Config, "向前端发送配置变更事件: {}", current);
+        handle::Handle::notify_profile_changed(current);
+    }
+
+    Ok(ValidationOutcome::Valid)
+}
+
+async fn discard_and_restore(current_profile: Option<&String>) -> Result<()> {
+    Config::profiles().await.discard();
+    if let Some(prev_profile) = current_profile {
+        restore_previous_profile(prev_profile).await?;
+    }
+    Ok(())
+}
+
+async fn handle_validation_failure(
+    outcome: ValidationOutcome,
+    current_profile: Option<&String>,
+) -> Result<ValidationOutcome> {
+    logging!(warn, Type::Config, "配置验证失败: {}", outcome);
+    discard_and_restore(current_profile).await?;
+    crate::cmd::validate::handle_validation_notice(&outcome, crate::cmd::validate::ValidationNoticeTarget::Runtime, "运行时配置");
+    Ok(outcome)
+}
+
+async fn handle_update_error<E: std::fmt::Display>(
+    e: E,
+    current_profile: Option<&String>,
+) -> Result<ValidationOutcome> {
+    logging!(warn, Type::Config, "更新过程发生错误: {}", e);
+    discard_and_restore(current_profile).await?;
+    let message: String = e.to_string().into();
+    handle::Handle::notice_message("config_validate::boot_error", message.clone());
+    Ok(ValidationOutcome::invalid_from_message(message))
+}
+
+async fn handle_timeout(current_profile: Option<&String>) -> Result<ValidationOutcome> {
+    let timeout_msg: String = "配置更新超时(30秒)，可能是配置验证或核心通信阻塞".into();
+    logging!(error, Type::Config, "{}", timeout_msg);
+    discard_and_restore(current_profile).await?;
+    handle::Handle::notice_message("config_validate::timeout", timeout_msg.clone());
+    Ok(ValidationOutcome::invalid_from_message(timeout_msg))
+}
+
+async fn perform_config_update(
+    current_value: Option<&String>,
+    current_profile: Option<&String>,
+) -> Result<ValidationOutcome> {
+    defer! {
+        CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
+    }
+    let update_result =
+        tokio::time::timeout(Duration::from_secs(30), CoreManager::global().update_config_forced()).await;
+
+    match update_result {
+        Ok(Ok(outcome)) if outcome.is_valid() => handle_success(current_value).await,
+        Ok(Ok(outcome)) => handle_validation_failure(outcome, current_profile).await,
+        Ok(Err(e)) => handle_update_error(e, current_profile).await,
+        Err(_) => handle_timeout(current_profile).await,
+    }
 }
 
 pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
@@ -25,7 +160,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     {
         Ok(_) => {
             logging!(info, Type::Tray, "切换代理成功: {} -> {}", group_name, proxy_name);
-            if let Err(error) = cmd::proxy::sync_runtime_stable_egress_selection().await {
+            if let Err(error) = crate::feat::sync_runtime_stable_egress_selection().await {
                 logging!(
                     warn,
                     Type::Tray,
@@ -58,7 +193,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     {
         Ok(_) => {
             logging!(info, Type::Tray, "代理切换回退成功: {} -> {}", group_name, proxy_name);
-            if let Err(error) = cmd::proxy::sync_runtime_stable_egress_selection().await {
+            if let Err(error) = crate::feat::sync_runtime_stable_egress_selection().await {
                 logging!(
                     warn,
                     Type::Tray,

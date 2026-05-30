@@ -20,11 +20,10 @@ mod xdp;
 mod multipath;
 
 use crate::constants::files;
-use crate::config::AdvancedConfig;
 use crate::{
     core::handle,
     process::AsyncHandler,
-    utils::{dirs, resolve, server},
+    utils::{resolve, server},
 };
 use anyhow::Result;
 use clash_verge_logging::{Type, logging};
@@ -245,9 +244,8 @@ mod app_init {
             cmd::security_decrypt_data,
             cmd::security_check_encryption_key,
             cmd::security_self_destruct,
-            cmd::security_start_monitor,
-            cmd::security_stop_monitor,
-            cmd::security_check_status,
+            cmd::security_honeypot_get_status,
+            cmd::security_honeypot_is_triggered,
             cmd::local_security_get_config,
             cmd::local_security_update_config,
             cmd::local_security_get_status,
@@ -277,9 +275,10 @@ mod app_init {
             cmd::multipath_import_nodes,
             cmd::multipath_export_nodes,
             cmd::multipath_get_recommended_config,
+            cmd::multipath_get_node_stats,
+            cmd::multipath_get_active_session_count,
+            cmd::multipath_cleanup_sessions,
             cmd::coordinator_initialize,
-            cmd::coordinator_get_config,
-            cmd::coordinator_update_config,
             cmd::coordinator_shutdown,
             cmd::get_advanced_config,
             cmd::save_advanced_config,
@@ -309,13 +308,6 @@ mod app_init {
             cmd::header_sanitization_test,
             cmd::header_sanitization_get_templates,
             cmd::header_sanitization_get_fingerprint,
-            cmd::traffic_padding_get_config,
-            cmd::traffic_padding_update_config,
-            cmd::traffic_padding_start,
-            cmd::traffic_padding_stop,
-            cmd::traffic_padding_get_stats,
-            cmd::traffic_padding_reset_stats,
-            cmd::traffic_padding_is_running,
             cmd::traffic_obfuscation_get_config,
             cmd::traffic_obfuscation_update_config,
             cmd::traffic_obfuscation_start,
@@ -388,20 +380,22 @@ pub fn run() {
             resolve::resolve_setup_sync();
             resolve::init_signal();
 
-            // 从高级配置加载流量混淆配置并应用（如启用则自动启动）
-            let obf_cfg = dirs::app_home_dir()
-                .ok()
-                .map(|path| path.join("advanced.yaml"))
-                .and_then(|path| AdvancedConfig::load(&path).ok())
-                .map(|cfg| {
-                    if cfg.traffic_obfuscation.enabled {
-                        cfg.traffic_obfuscation
-                    } else if cfg.traffic_padding.enabled {
-                        crate::traffic::TrafficObfuscationConfig::from_legacy_padding(&cfg.traffic_padding)
-                    } else {
-                        cfg.traffic_obfuscation
-                    }
-                });
+            // 初始化核心协调器（会加载 advanced.yaml 到内存）
+            logging!(info, Type::Setup, "初始化核心协调器...");
+            let coordinator = crate::feat::get_coordinator();
+            if let Err(e) = coordinator.initialize() {
+                logging!(error, Type::Setup, "Failed to initialize coordinator: {}", e);
+            }
+
+            // 从协调器内存配置读取流量混淆配置并应用
+            let cfg = coordinator.get_advanced_config();
+            let obf_cfg = if cfg.traffic_obfuscation.enabled {
+                Some(cfg.traffic_obfuscation)
+            } else if cfg.traffic_padding.enabled {
+                Some(crate::traffic::TrafficObfuscationConfig::from_legacy_padding(&cfg.traffic_padding))
+            } else {
+                None
+            };
 
             if let Some(obf_cfg) = obf_cfg {
                 AsyncHandler::spawn(move || async move {
@@ -411,18 +405,9 @@ pub fn run() {
                 });
             }
 
-            // 初始化核心协调器
-            logging!(info, Type::Setup, "初始化核心协调器...");
-            let coordinator = cmd::coordinator::get_coordinator();
-            if let Err(e) = coordinator.initialize() {
-                logging!(error, Type::Setup, "协调器初始化失败: {}", e);
-            } else {
-                logging!(info, Type::Setup, "协调器初始化成功");
-            }
-
             // 启动会话绑定清理任务
             logging!(info, Type::Setup, "启动会话绑定清理任务...");
-            cmd::session_affinity::start_cleanup_task();
+            crate::feat::start_cleanup_task();
 
             logging!(info, Type::Setup, "初始化已启动");
             Ok(())

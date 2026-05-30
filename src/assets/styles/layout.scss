@@ -10,7 +10,7 @@
   // 顶部一体化导航页眉
   .layout-header {
     position: relative;
-    height: 52px;
+    height: 60px;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -22,13 +22,12 @@
     z-index: 100;
     user-select: none;
     -webkit-user-select: none;
-    -webkit-app-region: drag; // 允许整个顶栏拖拽窗口
+    // 拖拽区域由 layout-header__drag-zone (data-tauri-drag-region) 控制
 
-    // 排除交互元素的拖拽属性
+    // 交互元素需要在拖拽区域之上
     .the-logo,
     .the-menu-wrapper,
     .layout-header__right {
-      -webkit-app-region: no-drag;
       position: relative;
       z-index: 1;
     }
@@ -168,8 +167,26 @@
       .the-window-ctrls {
         display: flex;
         align-items: center;
-        height: 32px;
+        height: 36px;
         margin-left: 4px;
+        gap: 2px;
+
+        button {
+          width: 36px;
+          height: 28px;
+          border-radius: 6px;
+          font-size: 16px;
+          transition: background-color 0.15s;
+
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+
+          &:last-child:hover {
+            background-color: rgba(211, 47, 47, 0.8);
+            color: #fff;
+          }
+        }
       }
     }
   }
