@@ -91,8 +91,15 @@ pub async fn save_advanced_config(config: AdvancedConfig) -> Result<(), String> 
 
     crate::cmd::clash::save_dns_config_mapping(&config.dns.to_dns_config_mapping()).await?;
 
-    // 同步流量填充配置：启用则启动/更新，禁用则停止
-    crate::cmd::traffic::apply_traffic_padding_config(config.traffic_padding.clone()).await?;
+    // 同步流量混淆配置：优先使用 traffic_obfuscation，兼容旧 traffic_padding
+    let obf_config = if config.traffic_obfuscation.enabled {
+        config.traffic_obfuscation.clone()
+    } else if config.traffic_padding.enabled {
+        crate::traffic::TrafficObfuscationConfig::from_legacy_padding(&config.traffic_padding)
+    } else {
+        config.traffic_obfuscation.clone()
+    };
+    crate::cmd::traffic::apply_traffic_obfuscation_config(obf_config).await?;
     
     // 应用到协调器
     COORDINATOR.apply_advanced_config(&config)

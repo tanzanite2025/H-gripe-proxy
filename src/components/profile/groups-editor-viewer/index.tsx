@@ -31,7 +31,7 @@ export const GroupsEditorViewer = (props: Props) => {
   const { mergeUid, proxiesUid, profileUid, property, open, onClose, onSave } =
     props
   const { t } = useTranslation()
-  const themeMode: 'dark' = 'dark'
+  const themeMode = 'dark' as const
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [currData, setCurrData] = useState('')
   const [visualization, setVisualization] = useState(true)
@@ -152,6 +152,7 @@ export const GroupsEditorViewer = (props: Props) => {
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
+      slotProps={{ paper: { className: 'max-h-[95vh]' } }}
     >
       <DialogTitle>
         <div className="flex justify-between">

@@ -14,7 +14,7 @@ use crate::anti_probe::AntiProbeConfig;
 use crate::core::egress_identity::EgressIdentityConfig;
 use crate::core::session_affinity::SessionAffinityConfig;
 use crate::multipath::MultipathConfig;
-use crate::traffic::TrafficPaddingConfig;
+use crate::traffic::{TrafficPaddingConfig, TrafficObfuscationConfig};
 #[cfg(target_os = "linux")]
 use crate::xdp::XdpConfig;
 
@@ -39,10 +39,14 @@ pub struct AdvancedConfig {
     #[serde(default)]
     pub dns: DnsAdvancedConfig,
 
-    /// 流量填充配置
+    /// 流量混淆配置（新）
+    #[serde(default)]
+    pub traffic_obfuscation: TrafficObfuscationConfig,
+
+    /// 流量填充配置（旧，保留兼容）
     #[serde(default)]
     pub traffic_padding: TrafficPaddingConfig,
-    
+
     /// XDP 代理配置（仅 Linux）
     #[cfg(target_os = "linux")]
     #[serde(default)]
@@ -57,6 +61,7 @@ impl Default for AdvancedConfig {
             session_affinity: SessionAffinityConfig::default(),
             egress_identity: EgressIdentityConfig::default(),
             dns: DnsAdvancedConfig::default(),
+            traffic_obfuscation: TrafficObfuscationConfig::default(),
             traffic_padding: TrafficPaddingConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig::default(),
@@ -425,6 +430,8 @@ impl AdvancedConfig {
 
         self.egress_identity.validate()?;
         self.dns.validate()?;
+        self.traffic_obfuscation.validate()
+            .map_err(|e| anyhow::anyhow!("流量混淆配置错误: {}", e))?;
 
         // 验证 XDP 配置（Linux）
         #[cfg(target_os = "linux")]
@@ -459,6 +466,13 @@ impl AdvancedConfig {
         }
 
         self.dns = other.dns.clone();
+
+        if other.traffic_obfuscation.enabled {
+            self.traffic_obfuscation = other.traffic_obfuscation.clone();
+        } else if other.traffic_padding.enabled {
+            // 兼容旧配置：traffic_padding -> traffic_obfuscation
+            self.traffic_obfuscation = TrafficObfuscationConfig::from_legacy_padding(&other.traffic_padding);
+        }
 
         if other.traffic_padding.enabled {
             self.traffic_padding = other.traffic_padding.clone();
@@ -521,6 +535,11 @@ impl AdvancedConfig {
             session_affinity: SessionAffinityConfig::default(),
             egress_identity: EgressIdentityConfig::recommended(),
             dns: DnsAdvancedConfig::default(),
+            traffic_obfuscation: TrafficObfuscationConfig {
+                enabled: true,
+                profile: crate::traffic::ObfuscationProfile::Conservative,
+                ..TrafficObfuscationConfig::default()
+            },
             traffic_padding: TrafficPaddingConfig {
                 enabled: true,
                 ..TrafficPaddingConfig::default()

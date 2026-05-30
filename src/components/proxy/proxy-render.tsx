@@ -188,7 +188,7 @@ export const ProxyRender = (props: RenderProps) => {
   if (type === 4) {
     return (
       <div
-        className="grid h-14 gap-2 px-4 pb-2"
+        className="grid h-16 gap-2 px-4 py-1"
         style={{
           gridTemplateColumns: `repeat(${item.col! || 2}, 1fr)`,
         }}

@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
 import { Control, Controller, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +11,20 @@ import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Select } from '@/components/tailwind/Select'
 import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
+
+interface FieldRowProps {
+  label: ReactNode
+  children: ReactNode
+}
+
+const FieldRow = ({ label, children }: FieldRowProps) => (
+  <ListItem className="py-1.5 px-0.5">
+    <div className="w-[200px] shrink-0 pr-2">
+      <ListItemText primary={label} />
+    </div>
+    <div className="flex-1 min-w-0">{children}</div>
+  </ListItem>
+)
 
 interface GroupFormProps {
   control: Control<IProxyGroupConfig>
@@ -43,13 +57,12 @@ export const GroupForm = ({
           name="type"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.type')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.type')}
+            >
               <Select
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 value={field.value}
                 onChange={(e) => field.onChange(e.target.value)}
               >
@@ -61,56 +74,53 @@ export const GroupForm = ({
                   ),
                 )}
               </Select>
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="name"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.name')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.name')}
+            >
               <TextField
                 autoComplete="new-password"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 {...field}
                 error={field.value === ''}
                 required={true}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="icon"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.icon')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.icon')}
+            >
               <TextField
                 autoComplete="new-password"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 {...field}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="proxies"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.proxies')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.proxies')}
+            >
               <Select
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 multiple
                 value={field.value || []}
                 onChange={(e) => {
@@ -126,20 +136,19 @@ export const GroupForm = ({
                   </option>
                 ))}
               </Select>
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="use"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.provider')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.provider')}
+            >
               <Select
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 multiple
                 value={field.value || []}
                 onChange={(e) => {
@@ -155,65 +164,62 @@ export const GroupForm = ({
                   </option>
                 ))}
               </Select>
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="url"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.healthCheckUrl',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.healthCheckUrl',
+              )}
+            >
               <TextField
                 autoComplete="new-password"
                 placeholder="http://cp.cloudflare.com/generate_204"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 {...field}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="expected-status"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.expectedStatus',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.expectedStatus',
+              )}
+            >
               <TextField
                 autoComplete="new-password"
                 placeholder="*"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="interval"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.interval')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.interval')}
+            >
               <TextField
                 autoComplete="new-password"
                 placeholder="300"
                 type="number"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
@@ -225,21 +231,20 @@ export const GroupForm = ({
                   ),
                 }}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="timeout"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText primary={t('shared.labels.timeout')} />
+            <FieldRow label={t('shared.labels.timeout')}>
               <TextField
                 autoComplete="new-password"
                 placeholder="5000"
                 type="number"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
@@ -251,45 +256,43 @@ export const GroupForm = ({
                   ),
                 }}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="max-failed-times"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.maxFailedTimes',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.maxFailedTimes',
+              )}
+            >
               <TextField
                 autoComplete="new-password"
                 placeholder="5"
                 type="number"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="interface-name"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.interfaceName',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.interfaceName',
+              )}
+            >
               <Select
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 value={field.value || ''}
                 onChange={(e: SelectChangeEvent) => field.onChange(e.target.value)}
               >
@@ -299,77 +302,73 @@ export const GroupForm = ({
                   </option>
                 ))}
               </Select>
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="routing-mark"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.routingMark')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.routingMark')}
+            >
               <TextField
                 autoComplete="new-password"
                 type="number"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   field.onChange(parseInt(e.target.value))
                 }}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="filter"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.filter')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.filter')}
+            >
               <TextField
                 autoComplete="new-password"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 {...field}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="exclude-filter"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.excludeFilter',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.excludeFilter',
+              )}
+            >
               <TextField
                 autoComplete="new-password"
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 {...field}
               />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="exclude-type"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.excludeType')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.excludeType')}
+            >
               <Select
                 multiple
                 size="small"
-                className="w-[calc(100%-150px)]"
+                className="w-full"
                 value={field.value?.split('|') || []}
                 onChange={(e) => {
                   const value = e.target.value
@@ -413,83 +412,77 @@ export const GroupForm = ({
                   </option>
                 ))}
               </Select>
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="include-all"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.fields.includeAll')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.fields.includeAll')}
+            >
               <Switch checked={field.value} {...field} />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="include-all-proxies"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.includeAllProxies',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.includeAllProxies',
+              )}
+            >
               <Switch checked={field.value} {...field} />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="include-all-providers"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t(
-                  'profiles.modals.groupsEditor.fields.includeAllProviders',
-                )}
-              />
+            <FieldRow
+              label={t(
+                'profiles.modals.groupsEditor.fields.includeAllProviders',
+              )}
+            >
               <Switch checked={field.value} {...field} />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="lazy"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.toggles.lazy')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.toggles.lazy')}
+            >
               <Switch checked={field.value} {...field} />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="disable-udp"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.toggles.disableUdp')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.toggles.disableUdp')}
+            >
               <Switch checked={field.value} {...field} />
-            </ListItem>
+            </FieldRow>
           )}
         />
         <Controller
           name="hidden"
           control={control}
           render={({ field }) => (
-            <ListItem className="py-1.5 px-0.5">
-              <ListItemText
-                primary={t('profiles.modals.groupsEditor.toggles.hidden')}
-              />
+            <FieldRow
+              label={t('profiles.modals.groupsEditor.toggles.hidden')}
+            >
               <Switch checked={field.value} {...field} />
-            </ListItem>
+            </FieldRow>
           )}
         />
       </div>

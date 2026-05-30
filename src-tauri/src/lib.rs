@@ -316,6 +316,14 @@ mod app_init {
             cmd::traffic_padding_get_stats,
             cmd::traffic_padding_reset_stats,
             cmd::traffic_padding_is_running,
+            cmd::traffic_obfuscation_get_config,
+            cmd::traffic_obfuscation_update_config,
+            cmd::traffic_obfuscation_start,
+            cmd::traffic_obfuscation_stop,
+            cmd::traffic_obfuscation_get_stats,
+            cmd::traffic_obfuscation_reset_stats,
+            cmd::traffic_obfuscation_is_running,
+            cmd::traffic_obfuscation_apply_profile,
         ]
     }
 
@@ -372,17 +380,25 @@ pub fn run() {
             resolve::resolve_setup_sync();
             resolve::init_signal();
 
-            // 从高级配置加载流量填充配置并应用（如启用则自动启动）
-            let padding_cfg = dirs::app_home_dir()
+            // 从高级配置加载流量混淆配置并应用（如启用则自动启动）
+            let obf_cfg = dirs::app_home_dir()
                 .ok()
                 .map(|path| path.join("advanced.yaml"))
                 .and_then(|path| AdvancedConfig::load(&path).ok())
-                .map(|cfg| cfg.traffic_padding);
+                .map(|cfg| {
+                    if cfg.traffic_obfuscation.enabled {
+                        cfg.traffic_obfuscation
+                    } else if cfg.traffic_padding.enabled {
+                        crate::traffic::TrafficObfuscationConfig::from_legacy_padding(&cfg.traffic_padding)
+                    } else {
+                        cfg.traffic_obfuscation
+                    }
+                });
 
-            if let Some(padding_cfg) = padding_cfg {
+            if let Some(obf_cfg) = obf_cfg {
                 AsyncHandler::spawn(move || async move {
-                    if let Err(e) = crate::cmd::traffic::apply_traffic_padding_config(padding_cfg).await {
-                        logging!(warn, Type::Setup, "Failed to apply traffic padding config at startup: {}", e);
+                    if let Err(e) = crate::cmd::traffic::apply_traffic_obfuscation_config(obf_cfg).await {
+                        logging!(warn, Type::Setup, "Failed to apply traffic obfuscation config at startup: {}", e);
                     }
                 });
             }
