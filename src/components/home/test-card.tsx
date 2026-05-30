@@ -180,6 +180,7 @@ export const TestCard = () => {
           </Tooltip>
         </div>
       }
+      fixedHeight={280}
     >
       <div className="max-h-[180px] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-text-primary/20 scrollbar-thumb-rounded">
         <DndContext

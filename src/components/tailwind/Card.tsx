@@ -10,14 +10,14 @@ export interface CardProps {
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ children, className = '', variant = 'elevation', style, ...props }, ref) => {
     const variantClasses = {
-      outlined: 'border border-gray-200 dark:border-gray-700',
+      outlined: 'border border-divider',
       elevation: 'shadow-md',
     }
 
     return (
       <div
         ref={ref}
-        className={`bg-white dark:bg-gray-800 rounded-lg ${variantClasses[variant]} ${className}`}
+        className={`bg-card rounded-lg ${variantClasses[variant]} ${className}`}
         style={style}
         {...props}
       >

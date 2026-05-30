@@ -1,7 +1,6 @@
 import { useMemo, useCallback, useEffect, useRef } from 'react'
 
-import { defaultDarkTheme, defaultTheme } from '@/pages/_core/theme'
-import { useThemeMode } from '@/services/states'
+import { defaultDarkTheme } from '@/pages/_core/theme'
 
 import { drawYAxis, drawTimeAxis } from '../renderers/axis-renderer'
 import { drawGrid } from '../renderers/grid-renderer'
@@ -47,8 +46,7 @@ export const useGraphRenderer = ({
   lastDataTimestampRef,
   dataStaleRef,
 }: UseGraphRendererProps) => {
-  const mode = useThemeMode()
-  const theme = mode === 'light' ? defaultTheme : defaultDarkTheme
+  const theme = defaultDarkTheme
 
   // 帧请求引用
   const drawFrameRef = useRef<number | undefined>(undefined)
@@ -60,11 +58,11 @@ export const useGraphRenderer = ({
     () => ({
       up: theme.secondary_color,
       down: theme.primary_color,
-      grid: mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+      grid: 'rgba(255, 255, 255, 0.08)',
       text: theme.secondary_text,
       background: theme.background_color,
     }),
-    [mode, theme.background_color, theme.primary_color, theme.secondary_color, theme.secondary_text],
+    [theme.background_color, theme.primary_color, theme.secondary_color, theme.secondary_text],
   )
 
   // 主绘制函数

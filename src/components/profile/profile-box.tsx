@@ -25,22 +25,17 @@ export const ProfileBox = ({
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       className={cn(
-        'relative block cursor-pointer rounded-lg p-4 text-left',
-        'bg-white dark:bg-[#282A36]',
-        'text-gray-600 dark:text-gray-400',
+        'relative block cursor-pointer rounded-lg p-4 text-left bg-card text-text-secondary',
         selected && 'border-l-4 border-blue-500 -ml-1 w-[calc(100%+4px)]',
         !selected && 'w-full',
         className,
       )}
-      style={{
-        boxSizing: 'border-box',
-      }}
     >
       <div
         className={cn(
           selected
             ? 'text-blue-500 [&_h2]:text-blue-500'
-            : '[&_h2]:text-gray-900 dark:[&_h2]:text-gray-100',
+            : '[&_h2]:text-text-primary',
         )}
       >
         {children}

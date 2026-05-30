@@ -15,7 +15,6 @@ import {
 } from '@/components/tailwind/Dialog'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
 import getSystem from '@/utils/misc'
 import debounce from '@/utils/misc/debounce'
@@ -56,7 +55,7 @@ export const EditorViewer = ({
   onValidate,
 }: EditorViewerProps) => {
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
+  const themeMode: 'dark' = 'dark'
   const [isMaximized, setIsMaximized] = useState(false)
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 
@@ -193,7 +192,7 @@ export const EditorViewer = ({
               path={path}
               value={value}
               language={language}
-              theme={themeMode === 'light' ? 'light' : 'vs-dark'}
+              theme='vs-dark'
               loading={null}
               saveViewState
               keepCurrentModel={false}
@@ -225,9 +224,8 @@ export const EditorViewer = ({
                 padding: {
                   top: 33,
                 },
-                fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                  getSystem() === 'windows' ? ', twemoji mozilla' : ''
-                }`,
+                fontFamily:
+                  'Josefin Sans, YouSheBiaoTiHei, twemoji mozilla, Segoe UI Emoji, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft YaHei UI, Microsoft YaHei, Roboto, Helvetica Neue, Arial, sans-serif',
                 fontLigatures: false,
                 smoothScrolling: true,
               }}

@@ -23,7 +23,7 @@ import {
   ButtonGroup,
   Fab,
   IconButton,
-  MenuItem,
+  SelectMenuItem,
   Tooltip,
   Zoom,
 } from '@/components/tailwind'
@@ -199,9 +199,9 @@ const ConnectionsPage = () => {
             onChange={(e) => setCurOrderOpt(e.target.value as OrderKey)}
           >
             {ORDER_OPTIONS.map((option) => (
-              <MenuItem key={option.id} value={option.id}>
+              <SelectMenuItem key={option.id} value={option.id}>
                 <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
-              </MenuItem>
+              </SelectMenuItem>
             ))}
           </BaseStyledSelect>
         )}

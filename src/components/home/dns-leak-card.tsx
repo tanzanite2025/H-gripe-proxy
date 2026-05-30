@@ -32,6 +32,7 @@ const DNSLeakCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
         icon={<Shield className="h-5 w-5" />}
         iconColor="info"
         ref={ref}
+        fixedHeight={280}
         action={
           <IconButton size="small" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
@@ -121,22 +122,14 @@ const DNSLeakCardUI = ({
   return (
     <div className="flex flex-col gap-3">
       {/* 风险状态 */}
-      <div className="flex items-start gap-2">
-        <Shield className={`h-6 w-6 ${riskInfo.color}`} />
-        <div className="flex-1">
-          <p className={`text-base font-medium ${riskInfo.color}`}>
-            {riskInfo.title}
-          </p>
-          <p className="text-xs text-text-secondary mt-0.5">
-            {riskInfo.description}
-          </p>
-          <p className="text-xs text-text-secondary mt-1">
-            {statusMessage}
-          </p>
-        </div>
+      <div className="flex items-center gap-2">
+        <Shield className={`h-5 w-5 shrink-0 ${riskInfo.color}`} />
+        <p className={`text-sm font-medium ${riskInfo.color}`}>
+          {riskInfo.title} — {riskInfo.description}
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="grid grid-cols-4 gap-2 text-sm">
         <div className="p-2 bg-surface-variant rounded">
           <p className="text-xs text-text-secondary mb-1">结果判定</p>
           <p className="text-sm font-medium">
@@ -159,10 +152,6 @@ const DNSLeakCardUI = ({
                 : '低'}
           </p>
         </div>
-      </div>
-
-      {/* 位置对比 */}
-      <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="p-2 bg-surface-variant rounded">
           <p className="text-xs text-text-secondary mb-1">DNS 位置</p>
           <p className="text-sm font-medium">

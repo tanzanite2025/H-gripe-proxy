@@ -9,8 +9,8 @@ use std::path::PathBuf;
 
 /// 启动安全监控
 #[tauri::command]
-pub fn security_start_monitor() -> CmdResult {
-    security_runtime::start_monitor();
+pub async fn security_start_monitor() -> CmdResult {
+    security_runtime::start_monitor().await;
     log::info!("✅ 安全监控已启动");
     Ok(())
 }
@@ -25,8 +25,8 @@ pub fn security_stop_monitor() -> CmdResult {
 
 /// 检查安全状态
 #[tauri::command]
-pub fn security_check_status() -> CmdResult<SecurityStatus> {
-    Ok(security_runtime::check_status())
+pub async fn security_check_status() -> CmdResult<SecurityStatus> {
+    Ok(security_runtime::check_status().await)
 }
 
 /// 部署假配置文件

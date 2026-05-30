@@ -1,8 +1,39 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@reference "tailwindcss";
+@source "../**/*.{ts,tsx,css}";
 
-/* 自定义基础样式 */
+/* ===== 深色模式唯一配色 ===== */
+@theme {
+  --font-sans: 'Josefin Sans', 'YouSheBiaoTiHei', 'twemoji mozilla', 'Segoe UI Emoji', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Josefin Sans', 'YouSheBiaoTiHei', 'twemoji mozilla', 'Segoe UI Emoji', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --color-primary: #14b8a6;
+  --color-primary-hover: #14b8a6;
+  --color-primary-rgb: 20, 184, 166;
+  --color-background: #0b0c0e;
+  --color-background-alpha: rgba(20, 184, 166, 0.1);
+  --color-card: #16181d;
+  --color-divider: rgba(255, 255, 255, 0.04);
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #EBEBF599;
+  --color-window-border: #1E1E1E;
+  --color-scrollbar-bg: #2E303D;
+  --color-scrollbar-thumb: #555555;
+
+  --shadow-card: 0 10px 30px -12px rgba(0, 0, 0, 0.65);
+  --shadow-card-hover: 0 14px 40px -12px rgba(0, 0, 0, 0.7);
+  --shadow-button: 0 10px 20px -12px rgba(20, 184, 166, 0.5);
+  --shadow-dialog: 0 24px 50px -16px rgba(0, 0, 0, 0.65);
+
+  --radius-card: 1rem;
+  --radius-button: 0.75rem;
+  --radius-input: 0.75rem;
+  --radius-dialog: 1.25rem;
+
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ===== 基础样式 ===== */
 @layer base {
   * {
     @apply transition-colors duration-200;
@@ -10,104 +41,65 @@
 
   body {
     @apply font-sans antialiased;
-    @apply bg-background-light dark:bg-background-dark;
-    @apply text-text-primary-light dark:text-text-primary-dark;
+    @apply bg-background text-text-primary;
   }
 
-  /* 滚动条样式 */
   ::-webkit-scrollbar {
     @apply w-2 h-2;
-    @apply bg-gray-100 dark:bg-gray-800;
+    background-color: var(--color-scrollbar-bg);
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-600;
     @apply rounded;
+    background-color: var(--color-scrollbar-thumb);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-gray-500;
+    background-color: var(--color-primary);
   }
 
-  /* 选择文本样式 */
   ::selection {
-    @apply bg-primary/20 dark:bg-primary-dark-mode/20;
+    @apply bg-primary/20;
   }
 }
 
-/* 自定义组件样式 */
+/* ===== 组件样式 ===== */
 @layer components {
-  /* 卡片基础样式 */
   .card {
-    @apply bg-card-light dark:bg-card-dark;
-    @apply rounded-card;
-    @apply shadow-card hover:shadow-card-hover;
-    @apply transition-all duration-300 ease-smooth;
+    @apply bg-card rounded-card shadow-card hover:shadow-card-hover transition-all duration-300 ease-smooth;
   }
 
-  /* 按钮基础样式 */
   .btn {
-    @apply px-6 py-3;
-    @apply rounded-button;
-    @apply font-black text-xs uppercase tracking-widest;
-    @apply transition-all duration-300 ease-smooth;
-    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply px-6 py-3 rounded-button font-semibold text-sm tracking-wide transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
 
   .btn-primary {
-    @apply btn;
-    @apply bg-primary dark:bg-primary-dark-mode;
-    @apply text-white;
-    @apply hover:opacity-90 hover:-translate-y-0.5;
-    @apply shadow-button;
-    @apply focus:ring-primary dark:focus:ring-primary-dark-mode;
+    @apply px-6 py-3 rounded-button font-semibold text-sm tracking-wide transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary text-white hover:opacity-90 hover:-translate-y-0.5 shadow-button focus:ring-primary;
   }
 
   .btn-outlined {
-    @apply btn;
-    @apply border border-dashed;
-    @apply border-gray-300 dark:border-gray-600;
-    @apply text-gray-900 dark:text-gray-100;
-    @apply hover:bg-gray-50 dark:hover:bg-gray-800;
-    @apply hover:-translate-y-0.5;
+    @apply px-6 py-3 rounded-button font-semibold text-sm tracking-wide transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 border border-dashed border-divider text-text-primary hover:bg-card hover:-translate-y-0.5;
   }
 
-  /* 输入框基础样式 */
   .input {
-    @apply w-full h-12;
-    @apply px-4;
-    @apply rounded-input;
-    @apply bg-gray-50 dark:bg-gray-800/50;
-    @apply border-0;
-    @apply text-sm font-semibold;
-    @apply text-gray-900 dark:text-gray-100;
-    @apply placeholder:text-gray-400 dark:placeholder:text-gray-500;
-    @apply transition-all duration-300 ease-smooth;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-dark-mode;
-    @apply focus:bg-white dark:focus:bg-gray-800;
+    @apply w-full h-12 px-4 rounded-input bg-card border-0 text-sm font-semibold text-text-primary placeholder:text-text-secondary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-primary focus:bg-card;
   }
 
-  /* 分隔线 */
   .divider {
-    @apply border-t border-divider-light dark:border-divider-dark;
+    @apply border-t border-divider;
   }
 }
 
-/* 自定义工具类 */
+/* ===== 工具类 ===== */
 @layer utilities {
-  /* 文本渐变 */
   .text-gradient {
-    @apply bg-clip-text text-transparent;
-    @apply bg-gradient-to-r from-primary to-primary-dark;
-    @apply dark:from-primary-dark-mode dark:to-primary-dark-mode-light;
+    @apply bg-clip-text text-transparent bg-linear-to-r from-primary to-primary;
   }
 
-  /* 玻璃态效果 */
   .glass {
-    @apply backdrop-blur-md bg-white/80 dark:bg-gray-900/80;
+    @apply backdrop-blur-md bg-card/80;
   }
 
-  /* 隐藏滚动条 */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;

@@ -9,9 +9,11 @@
    -ms-user-select: none;
  }
 
+/* ===== 所有颜色变量由 tailwind.css @theme 统一定义 ===== */
+
 body {
   margin: 0;
-  font-family: var(--font-family);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 
   user-select: none;
@@ -20,35 +22,9 @@ body {
   -ms-user-select: none;
 }
 
-:root {
-  /* 默认主题颜色 */
-  --primary-main: #5b5c9d;
-  --text-primary: #1f1f1f;
-  --text-secondary: #6b7280;
-  --selection-color: #f5f5f5;
-  --scroller-color: #8c8c8c;
-  --background-color: #f5f5f5;
-  --background-color-alpha: rgba(24, 103, 192, 0.1);
-  --card-bg: #ffffff;
-  --primary-main-hover: #5b5c9d;
-  --border-radius: 8px;
-  --divider-color: rgba(0, 0, 0, 0.06);
-  
-  /* 默认字体（防止闪烁） */
-  --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  
-  /* 默认 RGB 值（用于透明度计算） */
-  --primary-main-rgb: 91, 92, 157;
-  
-  /* 窗口和滚动条颜色 */
-  --window-border-color: #cccccc;
-  --scrollbar-bg: #f1f1f1;
-  --scrollbar-thumb: #c1c1c1;
-}
-
 ::selection {
-  color: var(--selection-color);
-  background-color: var(--primary-main);
+  color: var(--color-text-primary);
+  background-color: var(--color-primary);
 }
 
 *::-webkit-scrollbar {
@@ -58,7 +34,7 @@ body {
 }
 *::-webkit-scrollbar-thumb {
   border-radius: 6px;
-  background-color: var(--scroller-color);
+  background-color: var(--color-scrollbar-thumb);
 }
 *::-webkit-scrollbar-corner {
   background-color: transparent;
@@ -84,64 +60,63 @@ body {
 // ==========================================
 // ERP UDS 视觉系统规范 (v1.0) 样式定义
 // ==========================================
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&family=Inter:wght@400;600;900&display=swap');
-
 // 全局字体设置，通过 CSS 变量统一管理
-body, html {
-  font-family: var(--font-family);
-  font-size: 12px;
+html {
+  font-family: var(--font-sans);
+  font-size: 16px; /* 恢复 16px 以让 rem 比例正常（Tailwind 规范） */
 }
 
-// 1. 排版规范 (Typography)
+body {
+  font-family: var(--font-sans);
+  font-size: 12px; /* 保持 body 的基准字号为 12px */
+}
+
+// 1. 排版规范 (Typography) — 统一中文/英文可读性
 .uds-title-h1 {
-  font-size: 1.125rem; // text-lg - 可以被覆盖
-  font-weight: 900 !important; // font-black - 核心规范，必须保留
-  letter-spacing: -0.05em; // tracking-tighter - 可以被覆盖
-  font-style: italic !important; // italic - 核心规范，必须保留
-  text-transform: uppercase !important; // uppercase - 核心规范，必须保留
+  font-size: 1.125rem; // ≈ text-lg
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .uds-title-h2,
 .uds-card-title {
-  font-size: 0.875rem; // text-sm - 可以被覆盖
-  font-weight: 900 !important; // font-black - 核心规范，必须保留
-  letter-spacing: -0.05em; // tracking-tighter - 可以被覆盖
-  font-style: italic !important; // italic - 核心规范，必须保留
+  font-size: 1rem; // ≈ text-base
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-// 强制所有标题级别必须使用斜体，正文绝对禁止斜体
 .uds-title-h3 {
-  font-style: italic !important; // 核心规范，必须保留
-  font-weight: 900 !important; // 核心规范，必须保留
-  letter-spacing: -0.05em; // 可以被覆盖
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
 }
 
 .uds-label {
-  font-size: 12px; // UDS Level 3: 标签/表头 - 可以被覆盖
-  font-weight: 900 !important; // font-black - 核心规范，必须保留
-  text-transform: uppercase !important; // uppercase - 核心规范，必须保留
-  letter-spacing: 0.15em; // tracking-widest - 可以被覆盖
-  color: var(--text-secondary); // 可以被覆盖
-  opacity: 0.6;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-text-secondary);
+  opacity: 0.8;
 }
 
 .uds-desc {
-  font-size: 9px; // UDS Level 4: 辅助描述 - 可以被覆盖
-  font-weight: 900 !important; // font-black - 核心规范，必须保留
-  text-transform: uppercase !important; // uppercase - 核心规范，必须保留
-  letter-spacing: 0.15em; // tracking-widest - 可以被覆盖
-  opacity: 0.6; // 可以被覆盖
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 0.7;
 }
 
 .uds-mono {
   font-size: 8px; // text-[8px] - 可以被覆盖
-  font-family: monospace, 'Courier New', Courier, monospace !important; // font-mono - 核心规范，必须保留
+  font-family: var(--font-sans) !important; // 统一到全局字体
 }
 
 // 2. 几何与容器 (Geometry)
 .uds-header-bar {
   border-radius: 32px;
-  border: 1px dashed var(--divider-color);
+  border: 1px dashed var(--color-divider);
   background-color: rgba(0, 0, 0, 0.02);
   backdrop-filter: blur(10px);
 }
@@ -149,16 +124,16 @@ body, html {
 .uds-card-container {
   // 使用 CSS 自定义属性提供默认值，允许子组件覆盖
   --card-border-radius: 24px;
-  --card-border: 1px dashed var(--divider-color);
-  --card-bg-color: var(--card-bg);
-  --card-hover-transform: translateY(-4px);
-  --card-hover-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -8px rgba(0, 0, 0, 0.04);
+  --card-border: 1px dashed var(--color-divider);
+  --color-card-color: var(--color-card);
+  --card-hover-transform: none;
+  --card-hover-shadow: none;
   
   position: relative;
   border-radius: var(--card-border-radius);
   border: var(--card-border);
   box-shadow: none;
-  background-color: var(--card-bg-color);
+  background-color: var(--color-card-color);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -169,42 +144,51 @@ body, html {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.06) 0%, transparent 60%);
+    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.06) 0%, transparent 60%);
     pointer-events: none;
     z-index: 1;
     transition: opacity 0.3s ease;
   }
 
   &:hover {
-    border-color: var(--primary-main);
+    border-color: var(--color-divider);
     transform: var(--card-hover-transform);
     box-shadow: var(--card-hover-shadow);
-    
-    &::before {
-      background: linear-gradient(135deg, rgba(var(--primary-main-rgb), 0.08) 0%, transparent 70%);
-    }
   }
 }
 
 .uds-toolbar {
   border-radius: 24px;
-  border: 1px dashed var(--divider-color);
+  border: 1px dashed var(--color-divider);
+}
+
+// 固定高度卡片：防止 Grid/Flex 撑开
+.uds-card-fixed-height {
+  height: var(--card-fixed-h, 280px) !important;
+  min-height: var(--card-fixed-h, 280px) !important;
+  max-height: var(--card-fixed-h, 280px) !important;
+  overflow: hidden !important;
+
+  .uds-card-content {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
 }
 
 .uds-dialog {
   border-radius: 32px;
   border: none;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  background-color: var(--card-bg);
+  background-color: var(--color-card);
 }
 
 .uds-surface {
-  background-color: var(--card-bg);
-  border-color: var(--window-border-color);
+  background-color: var(--color-card);
+  border-color: var(--color-window-border);
 }
 
 .uds-card-header {
-  min-height: 64px;
+  min-height: 40px;
   background-color: transparent;
   backdrop-filter: blur(12px);
   border-bottom: none;
@@ -229,8 +213,8 @@ body, html {
 
 .uds-toolbar {
   border-radius: 16px;
-  border: 1px dashed var(--divider-color);
-  background-color: color-mix(in srgb, var(--card-bg) 90%, transparent);
+  border: 1px dashed var(--color-divider);
+  background-color: color-mix(in srgb, var(--color-card) 90%, transparent);
   backdrop-filter: blur(10px);
   overflow: hidden;
   box-shadow: none;
@@ -289,7 +273,7 @@ body, html {
 }
 
 .uds-settings-list > .uds-settings-item + .uds-settings-item {
-  border-top: 1px dashed var(--divider-color);
+  border-top: 1px dashed var(--color-divider);
 }
 
 // 使用更高优先级选择器代替 !important
@@ -303,7 +287,7 @@ body, html {
 }
 
 .uds-settings-item__button:hover .uds-settings-item__body {
-  background-color: var(--background-color-alpha);
+  background-color: var(--color-background-alpha);
 }
 
 .uds-settings-item__body {
@@ -365,7 +349,7 @@ body, html {
   align-items: center;
   justify-content: flex-end;
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   opacity: 0.65;
 }
 
@@ -408,7 +392,7 @@ body, html {
 
 // 3. 边框与质感 (Aesthetics)
 .uds-border-dashed {
-  border: 1px dashed var(--divider-color);
+  border: 1px dashed var(--color-divider);
 }
 
 // 4. 状态语义 (Status)
@@ -439,75 +423,16 @@ body, html {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-// ==========================================
-// 首页与深色模式细节适配
-// ==========================================
-
-[data-theme='dark'] {
-  .uds-card-container {
-    &:hover {
-      box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4), 0 4px 16px -8px rgba(0, 0, 0, 0.3);
-    }
-  }
-}
 
 // ==========================================
 // 原生表单与按钮 UDS 大圆角兜底重置
 // ==========================================
-button, input:not([type='checkbox']):not([type='radio']), select {
-  &:not(.MuiButton-root):not(.MuiInputBase-input):not(.MuiSelect-select):not(.MuiOutlinedInput-input) {
-    border-radius: 16px;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-}
+// NOTE: 原始全局 button/input/select 重置已移除。
+// Tailwind 组件（Select、TextField、Button 等）自带完整样式，
+// 全局 select { height: 48px } 等会覆盖组件的 size=small 等属性，
+// 全局 button 重置会覆盖 IconButton/TooltipIcon 的样式导致文字变形。
 
-input[type='text'], input[type='password'], input[type='email'], input[type='search'], select, textarea {
-  &:not([class*='Mui']) {
-    border-radius: 16px;
-    border: none;
-    background-color: rgba(0, 0, 0, 0.04);
-    height: 48px;
-    padding: 0 16px;
-    font-size: 12px;
-    font-weight: 600;
-    box-sizing: border-box;
-    outline: none;
-
-    [data-theme='dark'] & {
-      background-color: rgba(255, 255, 255, 0.04);
-      color: #ffffff;
-    }
-
-    &:focus {
-      background-color: rgba(0, 0, 0, 0.02);
-      box-shadow: 0 0 0 2px rgba(var(--primary-main-rgb), 0.2);
-
-      [data-theme='dark'] & {
-        background-color: rgba(255, 255, 255, 0.02);
-      }
-    }
-  }
-}
-
-button:not([class*='Mui']) {
-  border-radius: 9999px;
-  font-family: var(--font-family);
-  text-transform: uppercase;
-  font-weight: 900;
-  letter-spacing: 0.15em;
-  font-size: 10px;
-  height: 44px;
-  padding: 0 24px;
-  border: none;
-  background-color: var(--primary-main);
-  color: #ffffff;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-
-  &:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--primary-main-rgb), 0.15);
-  }
-}
+// NOTE: 原始 button:not([class]) 全局重置已移除。
+// Tailwind 组件（Button、IconButton、Switch 等）自带完整样式，
+// 全局 button 重置会覆盖组件样式导致文字竖排/变形。
 

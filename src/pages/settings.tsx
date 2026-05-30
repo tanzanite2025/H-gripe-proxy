@@ -4,11 +4,9 @@ import { useTranslation } from 'react-i18next'
 
 import { BasePage } from '@/components/base'
 import SettingClash from '@/components/setting/setting-clash'
-import SettingDns from '@/components/setting/setting-dns'
 import SettingSystem from '@/components/setting/setting-system'
 import SettingVergeTools from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
-import { TorConfigCard } from '@/components/setting/tor-config-card'
 import { Box, ButtonGroup, IconButton, Grid } from '@/components/tailwind'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -64,14 +62,14 @@ const SettingPage = () => {
             title={t('settings.page.actions.github')}
             onClick={toGithubRepo}
           >
-            <span className="text-xs font-black tracking-wide">GH</span>
+            <span className="text-xs font-semibold tracking-wide">GH</span>
           </IconButton>
         </ButtonGroup>
       }
     >
       <Grid
         container
-        spacing={1.5}
+        spacing={3}
         columns={{ xs: 6, sm: 6, md: 12, lg: 18 }}
         className="settings-page-grid"
       >
@@ -82,9 +80,6 @@ const SettingPage = () => {
           <Box className="uds-card-container settings-page-card">
             <SettingClash onError={onError} />
           </Box>
-          <Box className="uds-card-container settings-page-card">
-            <SettingDns />
-          </Box>
         </Grid>
         <Grid item xs={6} sm={6} md={6} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
@@ -94,9 +89,6 @@ const SettingPage = () => {
         <Grid item xs={6} sm={6} md={12} lg={6} className="settings-page-grid__column">
           <Box className="uds-card-container settings-page-card">
             <SettingVergeTools onError={onError} />
-          </Box>
-          <Box className="uds-card-container settings-page-card">
-            <TorConfigCard />
           </Box>
         </Grid>
       </Grid>

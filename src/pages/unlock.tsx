@@ -13,6 +13,7 @@ import {
   CircularProgress,
   Divider,
   Grid,
+  IconButton,
   Tooltip,
   Typography,
 } from '@/components/tailwind'
@@ -339,12 +340,12 @@ const UnlockPage = () => {
     if (status === 'Soon') return '#f59e0b' // amber-500
     if (status.includes('Failed')) return '#ef4444' // red-500
     if (status === 'Completed') return '#3b82f6' // blue-500
-    return isDark ? '#374151' : '#e5e7eb' // gray-700 : gray-200
+    return '#374151' // gray-700 : gray-200
   }
 
   return (
     <BasePage
-      title={t('tests.unlock.page.title')}
+      title={t('layout.components.navigation.tabs.unlock')}
       header={
         <Box className="flex items-center gap-1">
           <Button
@@ -372,7 +373,7 @@ const UnlockPage = () => {
           <BaseEmpty textKey="tests.unlock.page.empty" />
         </Box>
       ) : (
-        <Grid container spacing={1.5} columns={{ xs: 1, sm: 2, md: 3 }}>
+        <Grid container spacing={3} columns={{ xs: 1, sm: 2, md: 3 }}>
           {unlockItems.map((item) => (
             <Grid size={1} key={item.name}>
               <Card
@@ -380,7 +381,7 @@ const UnlockPage = () => {
                 className="h-full rounded-lg relative overflow-hidden flex flex-col"
                 style={{
                   borderLeft: `4px solid ${getStatusBorderColor(item.status)}`,
-                  backgroundColor: isDark ? '#282a36' : '#ffffff',
+                  backgroundColor: 'var(--color-card)',
                 }}
               >
                 <Box className="p-[5.2px] flex-1">
@@ -393,20 +394,19 @@ const UnlockPage = () => {
                     </Typography>
                     <Tooltip title={t('tests.components.item.actions.test')}>
                       <span>
-                        <Button
+                        <IconButton
                           size="small"
-                          variant="outlined"
                           color="primary"
                           disabled={
                             loadingItems.includes(item.name) || isCheckingAll
                           }
-                          className="min-w-8 w-8 h-8 rounded-full"
+                          className="border border-dashed border-primary hover:bg-primary/10 dark:hover:bg-primary-dark-mode/10"
                           onClick={() => checkSingleMedia(item.name)}
                         >
                           <RefreshCw 
-                            className={`h-5 w-5 ${loadingItems.includes(item.name) ? 'animate-spin' : ''}`}
+                            className={`h-4 w-4 ${loadingItems.includes(item.name) ? 'animate-spin' : ''}`}
                           />
-                        </Button>
+                        </IconButton>
                       </span>
                     </Tooltip>
                   </Box>

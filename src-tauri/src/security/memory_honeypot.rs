@@ -7,8 +7,7 @@
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::runtime::Handle;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// 蜜罐令牌（Canary Token）
@@ -163,13 +162,13 @@ static GLOBAL_HONEYPOT: Lazy<RwLock<Option<MemoryHoneypot>>> =
 
 /// 初始化全局蜜罐
 pub fn init_global_honeypot() {
-    let mut guard = Handle::current().block_on(GLOBAL_HONEYPOT.write());
+    let mut guard = GLOBAL_HONEYPOT.write().unwrap();
     *guard = Some(MemoryHoneypot::new(10));
 }
 
 /// 检查全局蜜罐
 pub fn check_global_honeypot() -> bool {
-    let guard = Handle::current().block_on(GLOBAL_HONEYPOT.read());
+    let guard = GLOBAL_HONEYPOT.read().unwrap();
     guard.as_ref().map(|h| h.check_compromise()).unwrap_or(false)
 }
 

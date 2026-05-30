@@ -1,13 +1,14 @@
 import { useLockFn } from 'ahooks'
 import { Network, AlertTriangle } from 'lucide-react'
-import { useCallback, useEffect, useReducer, useState } from 'react'
+import { lazy, useCallback, useEffect, useReducer, useState, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BasePage, TooltipIcon } from '@/components/base'
+import { IpInfoCard } from '@/components/home/ip-info-card'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
-import { Box, Button, ButtonGroup } from '@/components/tailwind'
+import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
@@ -19,6 +20,18 @@ import {
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
+
+const LazyProxyDetectionCard = lazy(() =>
+  import('@/components/home/proxy-detection-card').then((module) => ({
+    default: module.ProxyDetectionCard,
+  })),
+)
+
+const LazyDNSLeakCard = lazy(() =>
+  import('@/components/home/dns-leak-card').then((module) => ({
+    default: module.DNSLeakCard,
+  })),
+)
 
 const MODES = ['rule', 'global', 'direct'] as const
 type Mode = (typeof MODES)[number]
@@ -133,7 +146,7 @@ const ProxyPage = () => {
   return (
     <BasePage
       full
-      contentStyle={{ height: '101.5%' }}
+      contentStyle={{ height: '100%', paddingTop: '15px' }}
       title={
         isChainMode ? (
           <Box
@@ -153,46 +166,57 @@ const ProxyPage = () => {
           t('proxies.page.title.default')
         )
       }
-      header={
-        <Box className="flex items-center gap-1">
-          <ProviderButton />
-
-          <ButtonGroup className="uds-toolbar" size="small">
-            {MODES.map((mode) => (
-              <Button
-                key={mode}
-                variant={mode === curMode ? 'primary' : 'outlined'}
-                onClick={() => onChangeMode(mode)}
-                className="capitalize"
-              >
-                {t(`proxies.page.modes.${mode}`)}
-              </Button>
-            ))}
-          </ButtonGroup>
-
-          <Button
-            size="small"
-            variant={isChainMode ? 'primary' : 'outlined'}
-            onClick={onToggleChainMode}
-            className="ml-1"
-            startIcon={
-              isChainMode ? (
-                <Network className="h-5 w-5" />
-              ) : (
-                <Network className="h-5 w-5" />
-              )
-            }
-          >
-            {t('proxies.page.actions.toggleChain')}
-          </Button>
-        </Box>
-      }
     >
-      <ProxyGroups
-        mode={curMode ?? 'rule'}
-        isChainMode={isChainMode}
-        chainConfigData={chainConfigData}
-      />
+      <Grid container spacing={3} style={{ height: '100%' }} columns={12}>
+        <Grid item xs={12} lg={6} xl={6} style={{ height: '100%', overflow: 'hidden' }}>
+          <Box className="flex items-center gap-1 mb-2">
+            <ProviderButton />
+
+            <ButtonGroup className="uds-toolbar" size="small">
+              {MODES.map((mode) => (
+                <Button
+                  key={mode}
+                  variant={mode === curMode ? 'primary' : 'outlined'}
+                  onClick={() => onChangeMode(mode)}
+                  className="capitalize"
+                >
+                  {t(`proxies.page.modes.${mode}`)}
+                </Button>
+              ))}
+            </ButtonGroup>
+
+            <Button
+              size="small"
+              variant={isChainMode ? 'primary' : 'outlined'}
+              onClick={onToggleChainMode}
+              className="ml-1"
+              startIcon={<Network className="h-5 w-5" />}
+            >
+              {t('proxies.page.actions.toggleChain')}
+            </Button>
+          </Box>
+          <div style={{ height: 'calc(100% - 36px)', overflow: 'hidden' }}>
+            <ProxyGroups
+              mode={curMode ?? 'rule'}
+              isChainMode={isChainMode}
+              chainConfigData={chainConfigData}
+            />
+          </div>
+        </Grid>
+        <Grid item xs={12} lg={6} xl={6} style={{ height: '100%', overflow: 'hidden' }}>
+          <div className="h-full flex flex-col gap-4 overflow-y-auto pr-2 pb-4">
+            <Suspense fallback={<Skeleton variant="rectangular" height={250} />}>
+              <IpInfoCard />
+            </Suspense>
+            <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+              <LazyProxyDetectionCard />
+            </Suspense>
+            <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+              <LazyDNSLeakCard />
+            </Suspense>
+          </div>
+        </Grid>
+      </Grid>
     </BasePage>
   )
 }

@@ -13,8 +13,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid var(--divider-color);
-    background-color: color-mix(in srgb, var(--card-bg) 84%, transparent);
+    border-bottom: 1px solid var(--color-divider);
+    background-color: color-mix(in srgb, var(--color-card) 84%, transparent);
     backdrop-filter: blur(14px);
   }
 
@@ -37,7 +37,7 @@
   .base-container {
     height: 100%;
     overflow: hidden;
-    background-color: var(--card-bg);
+    background-color: var(--color-card);
 
     > section {
       position: relative;
@@ -67,7 +67,7 @@
   }
 
   &__section {
-    background-color: var(--background-color);
+    background-color: var(--color-background);
   }
 
   &__content {

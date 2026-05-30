@@ -24,7 +24,7 @@ export { Zoom, type ZoomProps } from './Zoom'
 export { Snackbar, type SnackbarProps } from './Snackbar'
 
 // 输入组件
-export { Select, type SelectProps, type SelectOption } from './Select'
+export { Select, SelectMenuItem, type SelectProps, type SelectOption } from './Select'
 export { Switch, type SwitchProps } from './Switch'
 export { Chip, type ChipProps } from './Chip'
 export { Badge, type BadgeProps } from './Badge'

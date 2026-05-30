@@ -179,7 +179,6 @@ export default function AdvancedPage() {
             onChange={(session_affinity) =>
               setLocalConfig({ ...localConfig, session_affinity })
             }
-            hideSaveButton
           />
           <SessionAffinityBindingsPanel status={status} onRefreshStatus={reloadStatus} />
         </div>

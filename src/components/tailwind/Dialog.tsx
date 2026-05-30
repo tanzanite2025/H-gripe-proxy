@@ -1,6 +1,6 @@
-import { Dialog as HeadlessDialog, Transition } from '@headlessui/react'
+import { Dialog as HeadlessDialog, DialogPanel, DialogBackdrop, DialogTitle as HeadlessDialogTitle } from '@headlessui/react'
 import { X } from 'lucide-react'
-import { Fragment, forwardRef, type CSSProperties, type ReactNode } from 'react'
+import { forwardRef, type CSSProperties, type ReactNode } from 'react'
 
 import { cn } from '@/utils/cn'
 
@@ -67,75 +67,50 @@ export const Dialog = ({
   const paperStyle = slotProps?.paper?.style
 
   return (
-    <Transition show={open} as={Fragment}>
-      <HeadlessDialog onClose={onClose} className="relative z-50">
-        {/* 背景遮罩 */}
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
+    <HeadlessDialog open={open} onClose={onClose} className="relative z-50">
+      {/* 背景遮罩 */}
+      <DialogBackdrop
+        transition
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 data-[closed]:opacity-0 data-[enter]:opacity-100 data-[leave]:opacity-0"
+      />
+
+      {/* 对话框容器 */}
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <DialogPanel
+          transition
+          style={paperStyle}
+          className={cn(
+            fullWidth ? 'w-full' : 'w-auto',
+            maxWidthClasses[maxWidth],
+            'flex flex-col max-h-[90vh] rounded-dialog bg-card shadow-dialog p-6 transition duration-300 data-[closed]:opacity-0 data-[closed]:scale-95 data-[enter]:opacity-100 data-[enter]:scale-100 data-[leave]:opacity-0 data-[leave]:scale-95',
+            className,
+            paperClassName,
+          )}
         >
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
-        </Transition.Child>
+          {/* 关闭按钮 */}
+          {showCloseButton && (
+            <div className="absolute right-4 top-4">
+              <IconButton onClick={onClose} aria-label="Close dialog">
+                <X className="h-5 w-5" />
+              </IconButton>
+            </div>
+          )}
 
-        {/* 对话框容器 */}
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="opacity-0 scale-95"
-            enterTo="opacity-100 scale-100"
-            leave="ease-in duration-200"
-            leaveFrom="opacity-100 scale-100"
-            leaveTo="opacity-0 scale-95"
-          >
-            <HeadlessDialog.Panel
-              style={paperStyle}
-              className={cn(
-                fullWidth ? 'w-full' : 'w-auto',
-                maxWidthClasses[maxWidth],
-                'rounded-dialog bg-card-light dark:bg-card-dark shadow-dialog dark:shadow-dialog-dark',
-                className,
-                paperClassName,
-              )}
-            >
-              {/* 关闭按钮 */}
-              {showCloseButton && (
-                <div className="absolute right-4 top-4">
-                  <IconButton onClick={onClose} aria-label="Close dialog">
-                    <X className="h-5 w-5" />
-                  </IconButton>
-                </div>
-              )}
+          {/* 标题 */}
+          {title && (
+            <HeadlessDialogTitle className="mb-3 pr-8 text-sm font-semibold uppercase tracking-tight text-text-primary">
+              {title}
+            </HeadlessDialogTitle>
+          )}
 
-              {/* 标题 */}
-              {title && (
-                <HeadlessDialog.Title className="mb-3 pr-8 text-sm font-black uppercase tracking-tight text-gray-900 dark:text-gray-100">
-                  {title}
-                </HeadlessDialog.Title>
-              )}
+          {/* 内容 */}
+          {children}
 
-              {/* 描述 */}
-              {description && (
-                <HeadlessDialog.Description className="mb-4 text-xs text-gray-600 dark:text-gray-400">
-                  {description}
-                </HeadlessDialog.Description>
-              )}
-
-              {/* 内容 */}
-              {children}
-
-              {/* 操作按钮 */}
-              {actions && <div className="flex justify-end gap-2">{actions}</div>}
-            </HeadlessDialog.Panel>
-          </Transition.Child>
-        </div>
-      </HeadlessDialog>
-    </Transition>
+          {/* 操作按钮 */}
+          {actions && <div className="flex justify-end gap-2">{actions}</div>}
+        </DialogPanel>
+      </div>
+    </HeadlessDialog>
   )
 }
 
@@ -147,7 +122,7 @@ export const DialogTitle = forwardRef<HTMLDivElement, DialogTitleProps>(
     return (
       <div
         ref={ref}
-        className={cn('px-6 pt-6 pb-4', className)}
+        className={cn('pb-4', className)}
       >
         {children}
       </div>
@@ -163,7 +138,7 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
     return (
       <div
         ref={ref}
-        className={cn('px-6 py-4 overflow-y-auto', className)}
+        className={cn('py-2 overflow-y-auto', className)}
       >
         {children}
       </div>
@@ -179,7 +154,7 @@ export const DialogActions = forwardRef<HTMLDivElement, DialogActionsProps>(
     return (
       <div
         ref={ref}
-        className={cn('px-6 pb-6 pt-4 flex justify-end gap-2', className)}
+        className={cn('pt-4 flex justify-end gap-2', className)}
       >
         {children}
       </div>

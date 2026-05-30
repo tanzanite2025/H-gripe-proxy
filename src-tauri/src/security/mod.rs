@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::Emitter;
 
 pub mod anti_debug;
 pub mod config_decoy;
@@ -48,6 +49,19 @@ impl SecurityMonitor {
 
 pub fn mark_security_compromised() {
     SECURITY_COMPROMISED.store(true, Ordering::SeqCst);
+    emit_security_alert();
+}
+
+/// Emit a security-alert event to the frontend so it can react without polling
+fn emit_security_alert() {
+    let compromised = SECURITY_COMPROMISED.load(Ordering::SeqCst);
+    #[derive(serde::Serialize)]
+    struct AlertPayload {
+        compromised: bool,
+    }
+    if let Err(e) = crate::core::handle::Handle::app_handle().emit("security-alert", &AlertPayload { compromised }) {
+        log::warn!("Failed to emit security-alert event: {}", e);
+    }
 }
 
 pub fn is_security_compromised() -> bool {

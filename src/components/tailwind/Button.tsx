@@ -32,11 +32,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref,
   ) => {
     const baseClasses =
-      'inline-flex items-center justify-center gap-2 rounded-button font-black uppercase tracking-widest transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+      'inline-flex items-center justify-center gap-2 rounded-button font-semibold tracking-wide transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
 
     const containedColorClasses = {
       primary:
-        'bg-primary dark:bg-primary-dark-mode text-white hover:opacity-90 hover:-translate-y-0.5 shadow-button focus:ring-primary dark:focus:ring-primary-dark-mode',
+        'bg-primary text-white hover:opacity-90 hover:-translate-y-0.5 shadow-button focus:ring-primary dark:focus:ring-primary-dark-mode',
       secondary:
         'bg-purple-600 dark:bg-purple-700 text-white hover:bg-purple-700 dark:hover:bg-purple-800 focus:ring-purple-500',
       error:
@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       success:
         'bg-green-600 dark:bg-green-700 text-white hover:bg-green-700 dark:hover:bg-green-800 focus:ring-green-500',
       inherit:
-        'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 focus:ring-gray-300 dark:focus:ring-gray-600',
+        'bg-white/5 text-text-primary hover:bg-gray-200 dark:hover:bg-gray-700 focus:ring-gray-300 dark:focus:ring-gray-600',
     }
 
     const outlinedColorClasses = {
@@ -65,7 +65,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       success:
         'border border-dashed border-green-500 text-green-600 dark:text-green-400 hover:bg-green-500/10 hover:-translate-y-0.5 focus:ring-green-500',
       inherit:
-        'border border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 hover:-translate-y-0.5 focus:ring-gray-300 dark:focus:ring-gray-600',
+        'border border-dashed border-gray-300 dark:border-gray-600 text-text-primary hover:bg-gray-50 dark:hover:bg-gray-800 hover:-translate-y-0.5 focus:ring-gray-300 dark:focus:ring-gray-600',
     }
 
     const textColorClasses = {
@@ -75,14 +75,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       warning: 'text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/10 focus:ring-yellow-500',
       info: 'text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 focus:ring-cyan-500',
       success: 'text-green-600 dark:text-green-400 hover:bg-green-500/10 focus:ring-green-500',
-      inherit: 'text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-300 dark:focus:ring-gray-600',
+      inherit: 'text-text-primary hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-300 dark:focus:ring-gray-600',
     }
 
     const staticVariantClasses = {
       default:
-        'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 focus:ring-gray-300 dark:focus:ring-gray-600',
+        'bg-white/5 text-text-primary hover:bg-gray-200 dark:hover:bg-gray-700 focus:ring-gray-300 dark:focus:ring-gray-600',
       ghost:
-        'text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-300 dark:focus:ring-gray-600',
+        'text-text-primary hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-300 dark:focus:ring-gray-600',
     }
 
     const normalizedVariant =

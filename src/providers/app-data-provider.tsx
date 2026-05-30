@@ -63,6 +63,8 @@ export const AppDataProvider = ({
     queryKey: ['getProxies'],
     queryFn: calcuProxies,
     ...TQ_MIHOMO,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
   })
 
   const {

@@ -3,12 +3,9 @@ import { Suspense, lazy, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BasePage } from '@/components/base'
-import { ClashModeCard } from '@/components/home/clash-mode-card'
 import { CurrentProxyCard } from '@/components/home/current-proxy-card'
 import { EnhancedCard } from '@/components/home/enhanced-card'
 import { EnhancedTrafficStats } from '@/components/home/enhanced-traffic-stats'
-import { HomeProfileCard } from '@/components/home/home-profile-card'
-import { ProxyTunCard } from '@/components/home/proxy-tun-card'
 import {
   Box,
   Button,
@@ -24,7 +21,6 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/tailwind'
-import { useProfiles } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { entry_lightweight_mode, openWebUrl } from '@/services/cmds'
 
@@ -33,11 +29,7 @@ const LazyTestCard = lazy(() =>
     default: module.TestCard,
   })),
 )
-const LazyIpInfoCard = lazy(() =>
-  import('@/components/home/ip-info-card').then((module) => ({
-    default: module.IpInfoCard,
-  })),
-)
+
 const LazyProxyDetectionCard = lazy(() =>
   import('@/components/home/proxy-detection-card').then((module) => ({
     default: module.ProxyDetectionCard,
@@ -46,11 +38,6 @@ const LazyProxyDetectionCard = lazy(() =>
 const LazyDNSLeakCard = lazy(() =>
   import('@/components/home/dns-leak-card').then((module) => ({
     default: module.DNSLeakCard,
-  })),
-)
-const LazySpeedTestCard = lazy(() =>
-  import('@/components/home/speed-test-card').then((module) => ({
-    default: module.SpeedTestCard,
   })),
 )
 const LazyWebRTCLeakCard = lazy(() =>
@@ -146,97 +133,6 @@ const HomeSettingsDialog = ({
           <FormControlLabel
             control={
               <Checkbox
-                checked={cards.profile || false}
-                onChange={() => handleToggle('profile')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.profile')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.proxy || false}
-                onChange={() => handleToggle('proxy')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.currentProxy')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.network || false}
-                onChange={() => handleToggle('network')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.network')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.mode || false}
-                onChange={() => handleToggle('mode')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.proxyMode')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.traffic || false}
-                onChange={() => handleToggle('traffic')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.traffic')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.test || false}
-                onChange={() => handleToggle('test')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.tests')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.ip || false}
-                onChange={() => handleToggle('ip')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.ip')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
                 checked={cards.clashinfo || false}
                 onChange={() => handleToggle('clashinfo')}
               />
@@ -289,19 +185,6 @@ const HomeSettingsDialog = ({
           <FormControlLabel
             control={
               <Checkbox
-                checked={cards.speedTest || false}
-                onChange={() => handleToggle('speedTest')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                速度测试
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
                 checked={cards.webrtcLeak || false}
                 onChange={() => handleToggle('webrtcLeak')}
               />
@@ -327,7 +210,6 @@ const HomeSettingsDialog = ({
 const HomePage = () => {
   const { t } = useTranslation()
   const { verge } = useVerge()
-  const { current, mutateProfiles } = useProfiles()
 
   // 设置弹窗的状态
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -396,7 +278,7 @@ const HomePage = () => {
       if (!effectiveHomeCards[cardKey]) return null
 
       return (
-        <Grid size={size} key={cardKey}>
+        <Grid size={size} key={cardKey} className="min-h-0">
           {component}
         </Grid>
       )
@@ -406,15 +288,15 @@ const HomePage = () => {
 
   const criticalCards = useMemo(
     () => [
-      renderCard(
-        'profile',
-        <HomeProfileCard current={current} onProfileUpdated={mutateProfiles} />,
-      ),
       renderCard('proxy', <CurrentProxyCard />),
-      renderCard('network', <NetworkSettingsCard />),
-      renderCard('mode', <ClashModeEnhancedCard />),
+      renderCard(
+        'systeminfo',
+        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+          <LazySystemInfoCard />
+        </Suspense>,
+      ),
     ],
-    [current, mutateProfiles, renderCard],
+    [renderCard],
   )
 
   // 新增：保存设置时用requestIdleCallback/setTimeout
@@ -457,12 +339,7 @@ const HomePage = () => {
           <LazyTestCard />
         </Suspense>,
       ),
-      renderCard(
-        'ip',
-        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
-          <LazyIpInfoCard />
-        </Suspense>,
-      ),
+      
       renderCard(
         'proxyDetection',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
@@ -476,12 +353,6 @@ const HomePage = () => {
         </Suspense>,
       ),
       renderCard(
-        'speedTest',
-        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
-          <LazySpeedTestCard />
-        </Suspense>,
-      ),
-      renderCard(
         'webrtcLeak',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
           <LazyWebRTCLeakCard />
@@ -491,12 +362,6 @@ const HomePage = () => {
         'clashinfo',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
           <LazyClashInfoCard />
-        </Suspense>,
-      ),
-      renderCard(
-        'systeminfo',
-        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
-          <LazySystemInfoCard />
         </Suspense>,
       ),
     ],
@@ -528,7 +393,7 @@ const HomePage = () => {
         </Box>
       }
     >
-      <Grid container spacing={1.5} columns={{ xs: 6, sm: 6, md: 12 }}>
+      <Grid container spacing={3} columns={{ xs: 6, sm: 6, md: 12 }} className="items-start">
         {criticalCards}
 
         {nonCriticalCards}
@@ -543,36 +408,6 @@ const HomePage = () => {
         onSave={handleSaveSettings}
       />
     </BasePage>
-  )
-}
-
-// 增强版网络设置卡片组件
-const NetworkSettingsCard = () => {
-  const { t } = useTranslation()
-  return (
-    <EnhancedCard
-      title={t('home.page.cards.networkSettings')}
-      icon={null}
-      iconColor="primary"
-      action={null}
-    >
-      <ProxyTunCard />
-    </EnhancedCard>
-  )
-}
-
-// 增强版 Clash 模式卡片组件
-const ClashModeEnhancedCard = () => {
-  const { t } = useTranslation()
-  return (
-    <EnhancedCard
-      title={t('home.page.cards.proxyMode')}
-      icon={null}
-      iconColor="info"
-      action={null}
-    >
-      <ClashModeCard />
-    </EnhancedCard>
   )
 }
 

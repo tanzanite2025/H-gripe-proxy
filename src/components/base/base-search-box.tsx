@@ -182,7 +182,7 @@ export const BaseSearchBox = ({
         placeholder={placeholder ?? t('shared.placeholders.filter')}
         className={cn(
           '[&_input]:px-5 [&_input]:py-[0.65rem]',
-          '[&_.MuiInputBase-root]:bg-white [&_.MuiInputBase-root]:pr-1 dark:[&_.MuiInputBase-root]:bg-transparent',
+          'bg-transparent pr-1',
           "[&_svg[aria-label='active']_path]:fill-primary-400",
           "[&_svg[aria-label='inactive']_path]:fill-gray-400",
         )}

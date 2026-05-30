@@ -9,7 +9,6 @@ import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProxyDelayState } from '@/hooks/network'
 import delayManager from '@/services/delay'
-import { useThemeMode } from '@/services/states'
 
 import {
   getMieruMultiplexShortText,
@@ -31,8 +30,7 @@ interface Props {
 
 export const ProxyItem = (props: Props) => {
   const { group, proxy, selected, showType = true, onClick } = props
-  const mode = useThemeMode()
-  const isDark = mode === 'dark'
+  const isDark = true
 
   // -1/<=0 为不显示，-2 为 loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(

@@ -99,6 +99,7 @@ export const ClashInfoCard = () => {
       icon={<Cpu />}
       iconColor="warning"
       action={null}
+      fixedHeight={280}
     >
       {cardContent}
     </EnhancedCard>

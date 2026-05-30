@@ -165,7 +165,7 @@ export const BaseSplitChipEditor = ({
               value={draft}
               placeholder={placeholder}
               error={error}
-              className="[&_.MuiInputBase-root]:min-h-8 [&_.MuiInputBase-input]:px-2 [&_.MuiInputBase-input]:py-1"
+              className="min-h-8 px-2 py-1"
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setDraft(event.target.value)
               }

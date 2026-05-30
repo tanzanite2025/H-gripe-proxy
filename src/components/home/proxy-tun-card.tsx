@@ -28,18 +28,13 @@ const TabButton: FC<TabButtonProps> = memo(
         'rounded-[20px] border-none transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
         'flex-1 max-w-[160px] relative',
         isActive
-          ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--primary-main-rgb),0.3)]'
+          ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--color-primary-rgb),0.3)]'
           : 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-action-hover/5 hover:scale-[1.02]',
         'active:scale-[0.98]'
       )}
     >
       <Icon className="h-4 w-4" />
-      <span
-        className={cn(
-          'text-[11px] tracking-[0.02em]',
-          isActive ? 'font-black' : 'font-semibold'
-        )}
-      >
+      <span className="text-xs tracking-[0.02em] font-semibold">
         {label}
       </span>
       {hasIndicator && (
@@ -64,15 +59,15 @@ interface TabDescriptionProps {
 const TabDescription: FC<TabDescriptionProps> = memo(
   ({ activeTab, description, tooltipTitle }) => (
     <div className="w-full flex items-center gap-3 px-1 animate-in fade-in duration-200">
-      <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-mono font-black uppercase tracking-[0.1em] flex-shrink-0">
+      <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-sans font-semibold uppercase tracking-[0.1em] flex-shrink-0">
         {activeTab.toUpperCase()}
       </div>
-      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight flex items-center gap-1">
-        {description}
+      <div className="text-[9px] font-semibold uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight flex items-center gap-1">
+        <span>{description}</span>
         <Tooltip title={tooltipTitle}>
           <HelpCircle className="h-3.5 w-3.5 opacity-70 flex-shrink-0 cursor-pointer" />
         </Tooltip>
-      </p>
+      </div>
     </div>
   ),
 )

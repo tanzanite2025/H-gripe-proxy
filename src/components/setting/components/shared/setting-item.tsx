@@ -45,13 +45,23 @@ export const SettingItem: React.FC<ItemProps> = ({
     }
   }
 
+  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }
+
   return clickable ? (
     <Box as="li" className="uds-settings-item uds-settings-item--clickable p-0">
-      <button
-        type="button"
+      <Box
+        as="div"
+        role="button"
+        tabIndex={0}
         className="uds-settings-item__button w-full text-left"
         onClick={handleClick}
-        disabled={isLoading}
+        onKeyDown={handleKeyDown}
+        aria-disabled={isLoading}
       >
         <Box className="uds-settings-item__body">
           <Box className="uds-settings-item__main">
@@ -66,7 +76,7 @@ export const SettingItem: React.FC<ItemProps> = ({
             )}
           </Box>
         </Box>
-      </button>
+      </Box>
     </Box>
   ) : (
     <Box as="li" className="uds-settings-item p-0">

@@ -131,6 +131,8 @@ export interface EgressIdentityProfile {
   tls_fingerprint: string | null
   session_policy: IdentitySessionPolicy
   failover_policy: EgressFailoverPolicy
+  allowed_nodes?: string[]
+  strict_node_scope?: boolean
   description: string
 }
 

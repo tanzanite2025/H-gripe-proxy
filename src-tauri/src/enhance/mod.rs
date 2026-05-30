@@ -791,27 +791,16 @@ fn apply_stable_egress_policy_with_advanced(
         let Some(rule_line) = stable_egress_rule_line(&rule.domain_pattern, &group_name) else {
             continue;
         };
-        let resolved_identity =
-            preview_stable_egress_identity(&egress_manager, &rule, &static_proxy_names, &metadata);
+
+        let (ordered_nodes, resolved_identity) = resolve_stable_egress_ordered_nodes(
+            &egress_manager,
+            &rule,
+            &static_proxy_names,
+            &metadata,
+            &provider_names,
+        );
 
         if generated_group_names.insert(group_name.clone()) {
-            let mut ordered_nodes = static_proxy_names.clone();
-
-            if let Some(resolved_identity) = resolved_identity.as_ref() {
-                ordered_nodes = prioritize_node_names(
-                    ordered_nodes,
-                    &resolved_identity.selected_node,
-                    !provider_names.is_empty(),
-                );
-            }
-
-            if let Some(bound_node) = rule.bound_node.as_ref() {
-                ordered_nodes =
-                    prioritize_node_names(ordered_nodes, bound_node, !provider_names.is_empty());
-            }
-
-            ordered_nodes = dedupe_node_names(ordered_nodes);
-
             if ordered_nodes.is_empty() && provider_names.is_empty() {
                 continue;
             }
@@ -848,9 +837,9 @@ fn apply_stable_egress_policy_with_advanced(
         }
 
         if let Some(policy_key) = stable_dns_policy_key(&rule.domain_pattern)
-            && let Some(resolved_identity) = resolved_identity.as_ref()
+            && let Some(identity) = resolved_identity.as_ref()
             && let Some(nameservers) =
-                stable_dns_server_override(&config, advanced_config, resolved_identity)
+                stable_dns_server_override(&config, advanced_config, identity)
         {
             generated_dns_policy.insert(
                 Value::from(policy_key.as_str()),
@@ -982,6 +971,35 @@ fn build_static_egress_metadata(
             metadata
         })
         .collect::<Vec<_>>()
+}
+
+fn resolve_stable_egress_ordered_nodes(
+    manager: &EgressIdentityManager,
+    rule: &DomainBindingRule,
+    static_proxy_names: &[std::string::String],
+    metadata: &[EgressNodeMetadata],
+    provider_names: &[std::string::String],
+) -> (Vec<std::string::String>, Option<ResolvedEgressIdentity>) {
+    let resolved_identity =
+        preview_stable_egress_identity(manager, rule, static_proxy_names, metadata);
+
+    let mut ordered_nodes = static_proxy_names.to_vec();
+
+    if let Some(identity) = resolved_identity.as_ref() {
+        ordered_nodes = prioritize_node_names(
+            ordered_nodes,
+            &identity.selected_node,
+            !provider_names.is_empty(),
+        );
+    }
+
+    if let Some(bound_node) = rule.bound_node.as_ref() {
+        ordered_nodes = prioritize_node_names(ordered_nodes, bound_node, !provider_names.is_empty());
+    }
+
+    ordered_nodes = dedupe_node_names(ordered_nodes);
+
+    (ordered_nodes, resolved_identity)
 }
 
 fn preview_stable_egress_identity(

@@ -23,8 +23,6 @@ import { MiscViewer } from './components/misc/misc-config'
 import { UpdateViewer } from './components/misc/update-config'
 import { GuardState } from './components/proxy/guard-state'
 import { SettingItem, SettingList } from './components/shared/setting-item'
-import { ThemeViewer } from './components/theme/theme-config'
-import { ThemeModeSwitch } from './components/theme/theme-mode-switch'
 
 interface Props {
   onError?: (err: Error) => void
@@ -67,7 +65,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
   const configRef = useRef<DialogRef>(null)
   const hotkeyRef = useRef<DialogRef>(null)
   const miscRef = useRef<DialogRef>(null)
-  const themeRef = useRef<DialogRef>(null)
   const layoutRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
@@ -83,7 +80,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
 
   return (
     <SettingList title={t('settings.components.verge.basic.title')}>
-      <ThemeViewer ref={themeRef} />
       <ConfigViewer ref={configRef} />
       <HotkeyViewer ref={hotkeyRef} />
       <MiscViewer ref={miscRef} />
@@ -109,18 +105,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
-      <SettingItem
-        label={t('settings.components.verge.basic.fields.themeMode')}
-      >
-        <GuardState
-          value={theme_mode}
-          onCatch={onError}
-          onChange={(e) => onChangeData({ theme_mode: e })}
-          onGuard={(e) => patchVerge({ theme_mode: e })}
-        >
-          <ThemeModeSwitch />
-        </GuardState>
-      </SettingItem>
 
       {OS !== 'linux' && (
         <SettingItem
@@ -208,6 +192,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
           <TextField
             value={startup_script ?? ''}
             disabled
+            readOnly
             className="w-[230px]"
           />
           <Button
@@ -242,11 +227,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
           )}
         </Box>
       </SettingItem>
-
-      <SettingItem
-        onClick={() => themeRef.current?.open()}
-        label={t('settings.components.verge.basic.fields.themeSetting')}
-      />
 
       <SettingItem
         onClick={() => layoutRef.current?.open()}

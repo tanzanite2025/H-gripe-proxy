@@ -15,6 +15,7 @@ dist/
 .cache/
 *.tmp
 *.bak
+*.backup
 *.orig
 
 # === 日志 ===

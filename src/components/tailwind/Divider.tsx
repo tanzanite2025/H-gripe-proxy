@@ -28,7 +28,7 @@ export const Divider = ({
 
   return (
     <hr
-      className={`border-0 bg-divider-light dark:bg-divider-dark ${orientationClasses} ${variantClasses[variant]} ${flexItemClass} ${className}`}
+      className={`border-0 bg-divider ${orientationClasses} ${variantClasses[variant]} ${flexItemClass} ${className}`}
       {...props}
     />
   )

@@ -61,10 +61,9 @@ export const ProxySelectors = ({
   }
 
   const selectClassName = cn(
-    'rounded-2xl border-dashed bg-gray-50/20 dark:bg-gray-800/20',
-    '[&_.MuiOutlinedInput-notchedOutline]:border-dashed [&_.MuiOutlinedInput-notchedOutline]:border-gray-200 dark:[&_.MuiOutlinedInput-notchedOutline]:border-gray-700',
-    'hover:[&_.MuiOutlinedInput-notchedOutline]:border-dashed',
-    '[&.Mui-focused_.MuiOutlinedInput-notchedOutline]:border-dashed [&.Mui-focused_.MuiOutlinedInput-notchedOutline]:border-primary-500',
+    'rounded-2xl border-dashed bg-card/20',
+    'border-divider',
+    'border-primary',
   )
 
   return (

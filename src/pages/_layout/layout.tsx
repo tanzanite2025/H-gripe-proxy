@@ -30,7 +30,6 @@ import { Menu, MenuItem, Box } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { useI18n, useWindowDecorations } from '@/hooks/ui'
 import { navItems } from '@/pages/_core/router'
-import { useThemeMode } from '@/services/states'
 import getSystem from '@/utils/misc'
 
 import LogsPage from '../logs'
@@ -39,7 +38,6 @@ import {
   useLayoutEvents,
   useLoadingOverlay,
   useNavMenuOrder,
-  useCssVariables,
 } from './hooks'
 import { handleNoticeMessage } from './utils'
 
@@ -100,7 +98,6 @@ dayjs.extend(relativeTime)
 const OS = getSystem()
 
 const Layout = () => {
-  const mode = useThemeMode()
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { language } = verge ?? {}
@@ -189,8 +186,6 @@ const Layout = () => {
 
   useLoadingOverlay(themeReady)
 
-  // Apply CSS variables for theming
-  useCssVariables()
 
   const handleNotice = useCallback(
     (payload: [string, string]) => {
@@ -216,7 +211,7 @@ const Layout = () => {
   if (!themeReady) {
     return (
       <div className={`flex items-center justify-center w-screen h-screen transition-colors duration-200 ${
-        mode === 'light' ? 'bg-white text-gray-800' : 'bg-[#181a1b] text-white'
+        'bg-[#181a1b] text-white'
       }`}
       ></div>
     )
@@ -241,7 +236,7 @@ const Layout = () => {
           `}
       </style>
       <div
-        className={`${OS} layout bg-[var(--background-color)]`}
+        className={`${OS} layout bg-background`}
         style={{
           borderTopLeftRadius: '0px',
           borderTopRightRadius: '0px',
@@ -344,11 +339,7 @@ const Layout = () => {
         {/* 导航重新排序时的警示条 */}
         {menuUnlocked && (
           <Box
-            className={`px-6 py-2 w-full text-[11px] font-semibold text-center z-10 ${
-              mode === 'light'
-                ? 'text-amber-900 bg-amber-400'
-                : 'text-amber-100 bg-amber-800'
-            }`}
+            className={`px-6 py-2 w-full text-[11px] font-semibold text-center z-10 text-amber-100 bg-amber-800`}
           >
             {t('layout.components.navigation.menu.reorderMode')}
           </Box>

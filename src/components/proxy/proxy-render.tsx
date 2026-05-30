@@ -8,7 +8,6 @@ import {
   Tooltip,
 } from '@/components/tailwind'
 import { useIconCache, useVerge } from '@/hooks/system'
-import { useThemeMode } from '@/services/states'
 import { cn } from '@/utils/cn'
 
 import { ProxyHead } from './proxy-head'
@@ -44,8 +43,7 @@ export const ProxyRender = (props: RenderProps) => {
   const { type, group, headState, proxy, proxyCol } = item
   const { verge } = useVerge()
   const enable_group_icon = verge?.enable_group_icon ?? true
-  const mode = useThemeMode()
-  const isDark = mode === 'light' ? false : true
+  const isDark = true
   const itembackgroundcolor = isDark ? '#282A36' : '#ffffff'
   const iconCachePath = useIconCache({
     icon: group.icon,

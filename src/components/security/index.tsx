@@ -8,6 +8,7 @@ import { Tabs, Tab } from '@/components/tailwind'
 
 import AntiProbeConfigComponent from './anti-probe-config'
 import SecurityMonitor from './security-monitor'
+import SessionAffinityConfigComponent from './session-affinity-config-wrapper'
 import TlsFingerprintSelector from './tls-fingerprint-selector'
 
 interface TabPanelProps {
@@ -44,8 +45,9 @@ export default function SecurityConfig() {
       <div className="border-b border-divider">
         <Tabs value={tabValue} onChange={handleTabChange} aria-label="安全配置">
           <Tab label="反主动探测" value={0} />
-          <Tab label="TLS 指纹伪装" value={1} />
-          <Tab label="内生欺骗陷阱" value={2} />
+          <Tab label="会话绑定" value={1} />
+          <Tab label="TLS 指纹伪装" value={2} />
+          <Tab label="内生欺骗陷阱" value={3} />
         </Tabs>
       </div>
 
@@ -54,10 +56,14 @@ export default function SecurityConfig() {
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <TlsFingerprintSelector />
+        <SessionAffinityConfigComponent />
       </TabPanel>
 
       <TabPanel value={tabValue} index={2}>
+        <TlsFingerprintSelector />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={3}>
         <SecurityMonitor />
       </TabPanel>
     </div>

@@ -56,22 +56,6 @@ export interface BindingInfo {
 }
 
 /**
- * 获取会话绑定配置
- */
-export async function sessionAffinityGetConfig(): Promise<SessionAffinityConfig> {
-  return await invoke<SessionAffinityConfig>('session_affinity_get_config');
-}
-
-/**
- * 更新会话绑定配置
- */
-export async function sessionAffinityUpdateConfig(
-  config: SessionAffinityConfig
-): Promise<void> {
-  await invoke('session_affinity_update_config', { config });
-}
-
-/**
  * 获取所有绑定信息
  */
 export async function sessionAffinityGetBindings(): Promise<BindingInfo[]> {

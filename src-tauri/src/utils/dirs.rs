@@ -130,6 +130,10 @@ pub fn app_icons_dir() -> Result<PathBuf> {
 
 pub fn find_target_icons(target: &str) -> Result<Option<String>> {
     let icons_dir = app_icons_dir()?;
+    if !icons_dir.exists() {
+        let _ = std::fs::create_dir_all(&icons_dir);
+        return Ok(None);
+    }
     let icon_path = fs::read_dir(&icons_dir)?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .find(|path| {

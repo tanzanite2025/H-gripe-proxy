@@ -34,9 +34,7 @@ import { List, ListItem } from '@/components/tailwind/List'
 import { TextField } from '@/components/tailwind/TextField'
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/misc'
 import parseUri from '@/utils/parser/uri'
 
 interface Props {
@@ -50,7 +48,7 @@ interface Props {
 export const ProxiesEditorViewer = (props: Props) => {
   const { profileUid, property, open, onClose, onSave } = props
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
+  const themeMode: 'dark' = 'dark'
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [prevData, setPrevData] = useState('')
   const [currData, setCurrData] = useState('')
@@ -465,7 +463,7 @@ export const ProxiesEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={currData}
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
+            theme='vs-dark'
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}
@@ -483,9 +481,8 @@ export const ProxiesEditorViewer = (props: Props) => {
               padding: {
                 top: 33, // 顶部padding防止遮挡snippets
               },
-              fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                getSystem() === 'windows' ? ', twemoji mozilla' : ''
-              }`,
+              fontFamily:
+                'Josefin Sans, YouSheBiaoTiHei, twemoji mozilla, Segoe UI Emoji, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft YaHei UI, Microsoft YaHei, Roboto, Helvetica Neue, Arial, sans-serif',
               fontLigatures: false, // 连字符
               smoothScrolling: true, // 平滑滚动
             }}

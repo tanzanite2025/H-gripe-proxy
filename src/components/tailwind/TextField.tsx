@@ -57,7 +57,7 @@ export const TextField = forwardRef<
   }
 
   const baseClasses =
-    'px-4 rounded-input bg-gray-50 dark:bg-gray-800/50 border-0 font-semibold text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:bg-white dark:focus:bg-gray-800'
+    'px-4 rounded-input bg-card border-0 font-semibold text-text-primary placeholder:text-text-secondary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:bg-card'
 
   const hasError = Boolean(error)
   const mergedInputProps = slotProps?.input ?? InputProps
@@ -85,7 +85,7 @@ export const TextField = forwardRef<
       {label && (
         <label
           htmlFor={id}
-          className="mb-2 block text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-300"
+          className="mb-2 block text-xs font-semibold uppercase tracking-widest text-text-secondary"
         >
           {label}
         </label>

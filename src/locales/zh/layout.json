@@ -2,14 +2,17 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "首 页",
-        "proxies": "代 理",
-        "profiles": "订 阅",
-        "connections": "连 接",
-        "rules": "规 则",
-        "logs": "日 志",
-        "unlock": "测 试",
-        "settings": "设 置"
+        "home": "首页",
+        "proxies": "代理",
+        "profiles": "订阅",
+        "connections": "连接",
+        "rules": "规则",
+        "logs": "日志",
+        "unlock": "测试",
+        "networkDiagnostic": "网络诊断",
+        "dns": "DNS",
+        "security": "安全",
+        "settings": "设置"
       },
       "menu": {
         "reorderMode": "菜单排序模式",

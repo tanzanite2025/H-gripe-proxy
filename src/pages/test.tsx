@@ -163,7 +163,7 @@ const TestPage = () => {
       <Box
         ref={containerRef}
         onScroll={handleScroll}
-        className="pt-5 mb-2 px-[10px] h-[calc(100vh-100px)] overflow-auto relative"
+        className="bg-[#0b0c0e] pt-5 mb-2 px-[10px] h-[calc(100vh-100px)] overflow-auto relative"
       >
         <DndContext
           sensors={sensors}

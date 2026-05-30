@@ -3,11 +3,13 @@ import { createBrowserRouter, RouteObject } from 'react-router'
 import Layout from '../_layout/layout'
 import AdvancedPage from '../advanced'
 import ConnectionsPage from '../connections'
+import DnsPage from '../dns'
 import HomePage from '../home'
 import NetworkDiagnosticPage from '../network-diagnostic'
 import ProfilesPage from '../profiles'
 import ProxiesPage from '../proxies'
 import RulesPage from '../rules'
+import SecurityPage from '../security'
 import SettingsPage from '../settings'
 import UnlockPage from '../unlock'
 
@@ -59,6 +61,18 @@ export const navItems = [
     path: '/network-diagnostic',
     icon: [],
     Component: NetworkDiagnosticPage,
+  },
+  {
+    label: 'layout.components.navigation.tabs.dns',
+    path: '/dns',
+    icon: [],
+    Component: DnsPage,
+  },
+  {
+    label: 'layout.components.navigation.tabs.security',
+    path: '/security',
+    icon: [],
+    Component: SecurityPage,
   },
   {
     label: 'layout.components.navigation.tabs.settings',

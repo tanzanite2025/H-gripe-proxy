@@ -63,8 +63,8 @@ export const Switch = ({ checked = false, onChange, onCheckedChange, label, disa
           data-value={value}
           className={cn(
             checked
-              ? 'bg-primary dark:bg-primary-dark-mode'
-              : 'bg-gray-200 dark:bg-gray-700'
+              ? 'bg-primary'
+              : 'bg-card text-text-primary hover:bg-white/10'
             ,
             'relative inline-flex items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-dark-mode focus:ring-offset-2',
             sizeClasses[size].track,
@@ -79,7 +79,7 @@ export const Switch = ({ checked = false, onChange, onCheckedChange, label, disa
           />
         </HeadlessSwitch>
         {label && (
-          <HeadlessSwitch.Label className="text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer">
+          <HeadlessSwitch.Label className="text-sm font-semibold text-text-primary cursor-pointer">
             {label}
           </HeadlessSwitch.Label>
         )}

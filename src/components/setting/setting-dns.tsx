@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useLockFn } from 'ahooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { DnsAdvancedPanel } from '@/components/advanced/dns-advanced-panel'
 import { Box, Button, Stack } from '@/components/tailwind'
@@ -32,12 +32,14 @@ export default function SettingDns() {
     enabled: !!verge,
   })
 
+  const handleConfigLoaded = useCallback((config: AdvancedConfig) => {
+    setLocalConfig(config)
+    setPersistedConfig(config)
+  }, [])
+
   const { loading, reload } = useConfigLoader<AdvancedConfig>({
     loadFn: getAdvancedConfig,
-    onSuccess: (config) => {
-      setLocalConfig(config)
-      setPersistedConfig(config)
-    },
+    onSuccess: handleConfigLoaded,
   })
 
   const { save, saving } = useConfigSaver<AdvancedConfig>({
@@ -109,8 +111,7 @@ export default function SettingDns() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="uds-label">DNS</div>
+      <div className="flex items-center justify-end gap-3">
         <Stack direction="row" spacing={1}>
           <Button
             variant="outlined"

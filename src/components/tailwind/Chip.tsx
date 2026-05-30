@@ -13,8 +13,8 @@ export const Chip = React.forwardRef<HTMLDivElement, ChipProps>(
   ({ label, color = 'default', size = 'medium', variant = 'filled', icon, className = '', ...props }, ref) => {
     const colorClasses = {
       default: variant === 'filled' 
-        ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-        : 'border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100',
+        ? 'bg-card text-text-primary hover:bg-white/10 text-text-primary'
+        : 'border border-gray-300 dark:border-gray-600 text-text-primary',
       primary: variant === 'filled'
         ? 'bg-blue-500 text-white'
         : 'border border-blue-500 text-blue-500',

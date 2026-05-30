@@ -7,6 +7,7 @@ import { ComposeContextProvider } from 'foxact/compose-context-provider'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 import { BaseErrorBoundary } from './components/base'
@@ -14,15 +15,10 @@ import { router } from './pages/_core/router'
 import { AppDataProvider } from './providers/app-data-provider'
 import { WindowProvider } from './providers/window'
 import { FALLBACK_LANGUAGE, initializeLanguage } from './services/i18n'
-import {
-  preloadAppData,
-  resolveThemeMode,
-  getPreloadConfig,
-} from './services/preload'
+import { preloadLanguage } from './services/preload'
 import { queryClient } from './services/query-client'
 import {
   LoadingCacheProvider,
-  ThemeModeProvider,
   UpdateStateProvider,
 } from './services/states'
 import { disableWebViewShortcuts } from './utils/misc/disable-webview-shortcuts'
@@ -40,9 +36,8 @@ if (!container) {
 
 disableWebViewShortcuts()
 
-const initializeApp = (initialThemeMode: 'light' | 'dark') => {
+const initializeApp = () => {
   const contexts = [
-    <ThemeModeProvider key="theme" initialState={initialThemeMode} />,
     <LoadingCacheProvider key="loading" />,
     <UpdateStateProvider key="update" />,
   ]
@@ -66,25 +61,21 @@ const initializeApp = (initialThemeMode: 'light' | 'dark') => {
 }
 
 const bootstrap = async () => {
-  const { initialThemeMode } = await preloadAppData()
-
-  initializeApp(initialThemeMode)
+  const initialLanguage = await preloadLanguage()
+  await initializeLanguage(initialLanguage)
+  // Lock Tauri window to dark theme
+  getCurrentWebviewWindow().setTheme('dark').catch(() => {})
+  initializeApp()
 }
 
 bootstrap().catch((error) => {
-  console.error(
-    '[main.tsx] App bootstrap failed, falling back to default language:',
-    error,
-  )
+  console.error('[main.tsx] App bootstrap failed:', error)
   initializeLanguage(FALLBACK_LANGUAGE)
     .catch((fallbackError) => {
-      console.error(
-        '[main.tsx] Fallback language initialization failed:',
-        fallbackError,
-      )
+      console.error('[main.tsx] Fallback language initialization failed:', fallbackError)
     })
     .finally(() => {
-      initializeApp(resolveThemeMode(getPreloadConfig()))
+      initializeApp()
     })
 })
 

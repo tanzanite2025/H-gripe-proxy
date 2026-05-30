@@ -111,8 +111,10 @@ impl LeakMonitor {
                         }
                     }
 
-                    // 发送状态更新事件（TODO: 实现事件发送）
-                    // emit_status_update(status).await;
+                    // 发送安全警报事件到前端
+                    if status.leak_detected {
+                        super::mark_security_compromised();
+                    }
                 }
                 Err(e) => {
                     log::error!("Security check failed: {}", e);

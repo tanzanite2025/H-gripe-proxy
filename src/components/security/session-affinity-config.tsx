@@ -5,51 +5,29 @@ import { Card } from '@/components/tailwind/Card';
 import { Switch } from '@/components/tailwind/Switch';
 import { showNotice } from '@/services/notice-service';
 import {
-  sessionAffinityGetConfig,
-  sessionAffinityUpdateConfig,
   sessionAffinityGetPredefinedRules,
   type SessionAffinityConfig as SessionAffinityConfigModel,
   type DomainBindingRule,
 } from '@/services/session-affinity';
 
 interface Props {
-  config?: SessionAffinityConfigModel;
-  onChange?: (config: SessionAffinityConfigModel) => void;
-  hideSaveButton?: boolean;
+  config: SessionAffinityConfigModel;
+  onChange: (config: SessionAffinityConfigModel) => void;
 }
 
 /**
  * 会话绑定配置组件
  */
 export function SessionAffinityConfig({
-  config: controlledConfig,
+  config,
   onChange,
-  hideSaveButton = false,
 }: Props) {
-  const [internalConfig, setInternalConfig] = useState<SessionAffinityConfigModel | null>(null);
   const [predefinedRules, setPredefinedRules] = useState<DomainBindingRule[]>([]);
-  const [loading, setLoading] = useState(false);
-  const config = controlledConfig ?? internalConfig;
 
-  // 加载配置
+  // 加载预定义规则
   useEffect(() => {
     loadPredefinedRules();
   }, []);
-
-  useEffect(() => {
-    if (!controlledConfig) {
-      loadConfig();
-    }
-  }, [controlledConfig]);
-
-  const loadConfig = async () => {
-    try {
-      const cfg = await sessionAffinityGetConfig();
-      setInternalConfig(cfg);
-    } catch (error) {
-      showNotice('error', `加载配置失败: ${error}`);
-    }
-  };
 
   const loadPredefinedRules = async () => {
     try {
@@ -60,49 +38,24 @@ export function SessionAffinityConfig({
     }
   };
 
-  const handleSave = async () => {
-    if (!config) return;
-
-    setLoading(true);
-    try {
-      await sessionAffinityUpdateConfig(config);
-      showNotice('success', '配置已保存');
-    } catch (error) {
-      showNotice('error', `保存失败: ${error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const updateConfig = (nextConfig: SessionAffinityConfigModel) => {
-    if (onChange) {
-      onChange(nextConfig);
-      return;
-    }
-    setInternalConfig(nextConfig);
+    onChange(nextConfig);
   };
 
   const handleToggleEnabled = (checked: boolean) => {
-    if (!config) return;
     updateConfig({ ...config, enabled: checked });
   };
 
   const handleToggleRule = (index: number, checked: boolean) => {
-    if (!config) return;
     const newRules = [...config.domainRules];
     newRules[index] = { ...newRules[index], enabled: checked };
     updateConfig({ ...config, domainRules: newRules });
   };
 
   const handleLoadPredefinedRules = () => {
-    if (!config) return;
     updateConfig({ ...config, domainRules: predefinedRules });
     showNotice('success', '已加载预定义规则');
   };
-
-  if (!config) {
-    return <div className="p-4">加载中...</div>;
-  }
 
   return (
     <div className="space-y-4">
@@ -156,18 +109,6 @@ export function SessionAffinityConfig({
           </div>
         </div>
       </Card>
-
-      {!hideSaveButton && (
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSave}
-            loading={loading}
-            disabled={loading}
-          >
-            保存配置
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

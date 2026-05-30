@@ -177,10 +177,10 @@ const SettingClash = ({ onError }: Props) => {
       <SettingItem label={t('settings.sections.clash.form.fields.portConfig')}>
         <TextField
           autoComplete="new-password"
-          disabled={false}
           multiline={false}
           value={verge_mixed_port ?? 7897}
           className="w-[100px] h-10 text-xs cursor-pointer"
+          readOnly
           onClick={(e) => {
             portRef.current?.open()
             ;(e.target as any).blur()

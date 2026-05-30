@@ -59,7 +59,7 @@ export function ProfileViewerUI({
           ? t('profiles.modals.profileForm.title.create')
           : t('profiles.modals.profileForm.title.edit')
       }
-      panelStyle={{ width: 375, maxHeight: '80%' }}
+      className="max-w-2xl"
       contentClassName="pb-0"
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
@@ -68,85 +68,57 @@ export function ProfileViewerUI({
       onOk={onOk}
       loading={loading}
     >
-      <Controller
-        name="type"
-        control={control}
-        render={({ field }) => (
-          <Select
-            {...field}
-            label={t('profiles.modals.profileForm.fields.type')}
-            className="mt-2 mb-2"
-            fullWidth
-          >
-            <option value="remote">Remote</option>
-            <option value="local">Local</option>
-          </Select>
-        )}
-      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+        <Controller
+          name="type"
+          control={control}
+          render={({ field }) => (
+            <Select
+              {...field}
+              label={t('profiles.modals.profileForm.fields.type')}
+              fullWidth
+            >
+              <option value="remote">Remote</option>
+              <option value="local">Local</option>
+            </Select>
+          )}
+        />
 
-      <Controller
-        name="name"
-        control={control}
-        render={({ field }) => (
-          <TextField {...text} {...field} label={t('shared.labels.name')} />
-        )}
-      />
+        <Controller
+          name="name"
+          control={control}
+          render={({ field }) => (
+            <TextField {...text} {...field} label={t('shared.labels.name')} />
+          )}
+        />
 
-      <Controller
-        name="desc"
-        control={control}
-        render={({ field }) => (
-          <TextField
-            {...text}
-            {...field}
-            label={t('profiles.modals.profileForm.fields.description')}
-          />
-        )}
-      />
+        <Controller
+          name="desc"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              {...text}
+              {...field}
+              label={t('profiles.modals.profileForm.fields.description')}
+            />
+          )}
+        />
 
-      {isRemote && (
-        <>
+        {(isRemote || isLocal) && (
           <Controller
-            name="url"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...text}
-                {...field}
-                multiline
-                label={t('profiles.modals.profileForm.fields.subscriptionUrl')}
-              />
-            )}
-          />
-
-          <Controller
-            name="option.user_agent"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...text}
-                {...field}
-                placeholder={`clash-verge/v${version}`}
-                label="User Agent"
-              />
-            )}
-          />
-
-          <Controller
-            name="option.timeout_seconds"
+            name="option.update_interval"
             control={control}
             render={({ field }) => (
               <TextField
                 {...text}
                 {...field}
                 type="number"
-                placeholder="60"
-                label={t('profiles.modals.profileForm.fields.httpTimeout')}
+                label={t('profiles.modals.profileForm.fields.updateInterval')}
                 slotProps={{
                   input: {
                     endAdornment: (
                       <InputAdornment position="end">
-                        {t('shared.units.seconds')}
+                        {t('shared.units.minutes')}
                       </InputAdornment>
                     ),
                   },
@@ -154,49 +126,82 @@ export function ProfileViewerUI({
               />
             )}
           />
-        </>
-      )}
+        )}
 
-      {(isRemote || isLocal) && (
-        <Controller
-          name="option.update_interval"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              {...text}
-              {...field}
-              type="number"
-              label={t('profiles.modals.profileForm.fields.updateInterval')}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {t('shared.units.minutes')}
-                    </InputAdornment>
-                  ),
-                },
-              }}
+        {isRemote && (
+          <>
+            <div className="col-span-1 md:col-span-2">
+              <Controller
+                name="url"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...text}
+                    {...field}
+                    multiline
+                    label={t('profiles.modals.profileForm.fields.subscriptionUrl')}
+                  />
+                )}
+              />
+            </div>
+
+            <Controller
+              name="option.user_agent"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...text}
+                  {...field}
+                  placeholder={`clash-verge/v${version}`}
+                  label="User Agent"
+                />
+              )}
             />
-          )}
-        />
-      )}
+
+            <Controller
+              name="option.timeout_seconds"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...text}
+                  {...field}
+                  type="number"
+                  placeholder="60"
+                  label={t('profiles.modals.profileForm.fields.httpTimeout')}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          {t('shared.units.seconds')}
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              )}
+            />
+          </>
+        )}
+      </div>
 
       {isLocal && openType === 'new' && (
-        <FileInput
-          onChange={(file, val) => {
-            setValue('name', getValues('name') || file.name)
-            onFileDataChange(val)
-          }}
-        />
+        <div className="mt-4">
+          <FileInput
+            onChange={(file, val) => {
+              setValue('name', getValues('name') || file.name)
+              onFileDataChange(val)
+            }}
+          />
+        </div>
       )}
 
       {isRemote && (
-        <>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 mt-4 pl-1">
           <Controller
             name="option.with_proxy"
             control={control}
             render={({ field }) => (
-              <div className="mx-0 my-2 ml-2 flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.useSystemProxy')}
                 </label>
@@ -212,7 +217,7 @@ export function ProfileViewerUI({
             name="option.self_proxy"
             control={control}
             render={({ field }) => (
-              <div className="mx-0 my-2 ml-2 flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.useClashProxy')}
                 </label>
@@ -228,7 +233,7 @@ export function ProfileViewerUI({
             name="option.danger_accept_invalid_certs"
             control={control}
             render={({ field }) => (
-              <div className="mx-0 my-2 ml-2 flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.acceptInvalidCerts')}
                 </label>
@@ -244,7 +249,7 @@ export function ProfileViewerUI({
             name="option.allow_auto_update"
             control={control}
             render={({ field }) => (
-              <div className="mx-0 my-2 ml-2 flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <label className="uds-label">
                   {t('profiles.modals.profileForm.fields.allowAutoUpdate')}
                 </label>
@@ -255,7 +260,7 @@ export function ProfileViewerUI({
               </div>
             )}
           />
-        </>
+        </div>
       )}
     </BaseDialog>
   )

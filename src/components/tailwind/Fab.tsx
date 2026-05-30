@@ -17,7 +17,7 @@ export const Fab = React.forwardRef<HTMLButtonElement, FabProps>(
     }
 
     const colorClasses = {
-      default: 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600',
+      default: 'bg-card text-text-primary hover:bg-white/10',
       primary: 'bg-blue-500 text-white hover:bg-blue-600',
       secondary: 'bg-purple-500 text-white hover:bg-purple-600',
       inherit: 'bg-transparent text-inherit hover:bg-black/5 dark:hover:bg-white/5',

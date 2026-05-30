@@ -106,18 +106,13 @@ export const ClashModeCard = () => {
                 'rounded-[20px] border-none transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
                 'flex-1 max-w-[160px]',
                 isActive
-                  ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--primary-main-rgb),0.3)]'
+                  ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--color-primary-rgb),0.3)]'
                   : 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-action-hover/5 hover:scale-[1.02]',
                 'active:scale-[0.98]'
               )}
             >
               {modeIcons[mode]}
-              <span
-                className={cn(
-                  'text-[11px] capitalize tracking-[0.02em]',
-                  isActive ? 'font-black' : 'font-semibold'
-                )}
-              >
+              <span className="text-[11px] capitalize tracking-[0.02em] font-semibold">
                 {t(MODE_META[mode].label)}
               </span>
             </div>
@@ -127,10 +122,10 @@ export const ClashModeCard = () => {
 
       {/* 说明文本区域 - 微型 Badge 元数据排版 */}
       <div className="w-full mt-3 flex items-center gap-3 px-1">
-        <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-mono font-black uppercase tracking-[0.1em] flex-shrink-0">
+        <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-sans font-semibold uppercase tracking-[0.1em] flex-shrink-0">
           {currentModeKey || 'INFO'}
         </div>
-        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight">
           {modeDescription}
         </p>
       </div>

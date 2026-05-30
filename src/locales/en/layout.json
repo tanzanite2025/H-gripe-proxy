@@ -9,6 +9,9 @@
         "rules": "Rules",
         "logs": "Logs",
         "unlock": "Test",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "settings": "Settings"
       },
       "menu": {

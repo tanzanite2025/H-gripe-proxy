@@ -193,6 +193,7 @@ export const SystemInfoCard = () => {
       title={t('home.components.systemInfo.title')}
       icon={<Info className="h-5 w-5" />}
       iconColor="error"
+      fixedHeight={280}
       action={
         <IconButton
           size="small"

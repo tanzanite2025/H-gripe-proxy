@@ -12,7 +12,7 @@ import {
   type VirtualListHandle,
 } from '@/components/base'
 import LogItem from '@/components/log/log-item'
-import { Box, Button, IconButton, MenuItem } from '@/components/tailwind'
+import { Box, Button, IconButton, SelectMenuItem } from '@/components/tailwind'
 import { useLogData } from '@/hooks/data'
 import { useClashLog } from '@/hooks/system'
 
@@ -150,13 +150,13 @@ const LogPage = () => {
           value={logState}
           onChange={(e) => handleLogLevelChange(e.target.value as LogFilter)}
         >
-          <MenuItem value="all">{t('shared.filters.logLevels.all')}</MenuItem>
-          <MenuItem value="debug">
+          <SelectMenuItem value="all">{t('shared.filters.logLevels.all')}</SelectMenuItem>
+          <SelectMenuItem value="debug">
             {t('shared.filters.logLevels.debug')}
-          </MenuItem>
-          <MenuItem value="info">{t('shared.filters.logLevels.info')}</MenuItem>
-          <MenuItem value="warn">{t('shared.filters.logLevels.warn')}</MenuItem>
-          <MenuItem value="err">{t('shared.filters.logLevels.error')}</MenuItem>
+          </SelectMenuItem>
+          <SelectMenuItem value="info">{t('shared.filters.logLevels.info')}</SelectMenuItem>
+          <SelectMenuItem value="warn">{t('shared.filters.logLevels.warn')}</SelectMenuItem>
+          <SelectMenuItem value="err">{t('shared.filters.logLevels.error')}</SelectMenuItem>
         </BaseStyledSelect>
         <BaseSearchBox
           onSearch={(matcher, state) => {

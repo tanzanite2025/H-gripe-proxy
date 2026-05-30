@@ -166,7 +166,7 @@ const EmptyProfile = ({ onClick }: { onClick: () => void }) => {
       className="flex flex-col items-center justify-center py-6 cursor-pointer hover:bg-action-hover rounded-lg"
       onClick={onClick}
     >
-      <h6 className="text-lg font-semibold uds-card-title mb-2">
+      <h6 className="uds-card-title mb-2">
         {t('profiles.page.actions.import')} {t('profiles.page.title')}
       </h6>
       <p className="text-sm text-text-secondary">
@@ -211,7 +211,7 @@ export const HomeProfileCard = ({
 
     return (
       <button
-        className="uds-card-title text-inherit no-underline flex items-center min-w-0 max-w-full font-medium text-lg hover:underline"
+        className="uds-card-title text-inherit no-underline flex items-center min-w-0 max-w-full hover:underline"
         onClick={() => current.home && openWebUrl(current.home)}
         title={current.name}
       >

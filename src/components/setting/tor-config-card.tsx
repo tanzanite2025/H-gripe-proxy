@@ -3,13 +3,13 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle as CheckIcon, ChevronDown as ExpandMoreIcon, Copy as CopyIcon, AlertCircle as ErrorIcon, Shield as TorIcon } from 'lucide-react'
+import { CheckCircle as CheckIcon, ChevronDown as ExpandMoreIcon, Copy as CopyIcon, AlertCircle as ErrorIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Alert } from '@/components/tailwind/Alert'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
-import { Collapse } from '@/components/tailwind/Collapse'
+import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { List, ListItem, ListItemText } from '@/components/tailwind/List'
 import { Switch } from '@/components/tailwind/Switch'
@@ -117,6 +117,7 @@ export const TorConfigCard = () => {
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
+  const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false)
 
   const persistedConfig = useMemo(
     () => ({
@@ -167,7 +168,7 @@ export const TorConfigCard = () => {
   } = useQuery({
     queryKey: torStatusQueryKey,
     queryFn: getTorStatus,
-    enabled: !!verge,
+    enabled: !!verge && currentConfig.enabled,
     refetchOnWindowFocus: false,
     retry: false,
   })
@@ -300,11 +301,7 @@ export const TorConfigCard = () => {
 
   return (
     <div>
-      <div className="mb-2 flex items-center">
-        <TorIcon className="mr-1 h-5 w-5" />
-        <h6 className="flex-grow text-lg font-bold">
-          Tor 代理
-        </h6>
+      <div className="mb-2 flex items-center justify-between">
         <Switch checked={currentConfig.enabled} onCheckedChange={handleEnableChange} disabled={saving} />
       </div>
 
@@ -521,47 +518,43 @@ export const TorConfigCard = () => {
 
       <div>
         <Button
-          onClick={() => setShowInstructions(!showInstructions)}
-          endIcon={
-            <ExpandMoreIcon
-              className={cn(
-                'h-4 w-4 transition-transform duration-300',
-                showInstructions ? 'rotate-180' : 'rotate-0',
-              )}
-            />
-          }
+          onClick={() => setInstructionsDialogOpen(true)}
           fullWidth
         >
           使用说明
         </Button>
 
-        <Collapse in={showInstructions}>
-          <div className="mt-2">
-            <div className="mb-1 text-sm font-medium">
-              {torUsageInstructions.title}
+        <Dialog open={instructionsDialogOpen} onClose={() => setInstructionsDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>{torUsageInstructions.title}</DialogTitle>
+          <DialogContent>
+            <div className="mt-2">
+              <div className="mb-1 text-sm font-medium text-primary">
+                配置步骤
+              </div>
+              <List dense>
+                {torUsageInstructions.steps.map((step) => (
+                  <ListItem key={step}>
+                    <ListItemText primary={step} />
+                  </ListItem>
+                ))}
+              </List>
+
+              <div className="mb-1 mt-4 text-sm font-medium text-warning">
+                注意事项
+              </div>
+              <List dense>
+                {torUsageInstructions.notes.map((note) => (
+                  <ListItem key={note}>
+                    <ListItemText primary={note} />
+                  </ListItem>
+                ))}
+              </List>
             </div>
-
-            <List dense>
-              {torUsageInstructions.steps.map((step) => (
-                <ListItem key={step}>
-                  <ListItemText primary={step} />
-                </ListItem>
-              ))}
-            </List>
-
-            <div className="mb-1 mt-2 text-sm font-medium">
-              注意事项
-            </div>
-
-            <List dense>
-              {torUsageInstructions.notes.map((note) => (
-                <ListItem key={note}>
-                  <ListItemText primary={note} />
-                </ListItem>
-              ))}
-            </List>
-          </div>
-        </Collapse>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setInstructionsDialogOpen(false)}>关闭</Button>
+          </DialogActions>
+        </Dialog>
       </div>
     </div>
   )

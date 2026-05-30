@@ -971,17 +971,6 @@ interface IVergeConfig {
   system_proxy_bypass?: string
   web_ui_list?: string[]
   hotkeys?: string[]
-  theme_setting?: {
-    primary_color?: string
-    secondary_color?: string
-    primary_text?: string
-    secondary_text?: string
-    font_family?: string
-    css_injection?: string
-    background_image?: string
-    background_blend_mode?: string
-    background_opacity?: number
-  }
   auto_close_connection?: boolean
   auto_check_update?: boolean
   default_latency_test?: string

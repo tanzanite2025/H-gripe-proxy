@@ -16,6 +16,7 @@ import { forwardRef, useCallback, useState } from 'react'
 import { Alert } from '@/components/tailwind/Alert'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
+import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { Skeleton } from '@/components/tailwind/Skeleton'
 import {
@@ -113,6 +114,7 @@ const ProxyDetectionCardContainer = forwardRef<
       icon={<InfoOutlined />}
       iconColor="info"
       ref={ref}
+      fixedHeight={280}
       action={
         <IconButton size="small" onClick={onRefresh}>
           <RefreshOutlined className="h-4 w-4" />
@@ -129,6 +131,7 @@ ProxyDetectionCardContainer.displayName = 'ProxyDetectionCardContainer'
 export const ProxyDetectionCard = () => {
   const { data, error, isLoading, isFetching, refetch } = useProxyDetection()
   const [showAdvice, setShowAdvice] = useState(false)
+  const [adviceDialogOpen, setAdviceDialogOpen] = useState(false)
 
   const handleRefresh = useCallback(() => {
     void refetch()
@@ -142,7 +145,9 @@ export const ProxyDetectionCard = () => {
         isLoading={isLoading}
         isFetching={isFetching}
         showAdvice={showAdvice}
-        onToggleAdvice={() => setShowAdvice(!showAdvice)}
+        onToggleAdvice={() => setAdviceDialogOpen(true)}
+        adviceDialogOpen={adviceDialogOpen}
+        onCloseAdviceDialog={() => setAdviceDialogOpen(false)}
         onRetry={handleRefresh}
       />
     </ProxyDetectionCardContainer>
@@ -156,6 +161,8 @@ interface ProxyDetectionCardUIProps {
   isFetching: boolean
   showAdvice: boolean
   onToggleAdvice: () => void
+  adviceDialogOpen: boolean
+  onCloseAdviceDialog: () => void
   onRetry: () => void
 }
 
@@ -166,6 +173,8 @@ const ProxyDetectionCardUI = ({
   isFetching,
   showAdvice,
   onToggleAdvice,
+  adviceDialogOpen,
+  onCloseAdviceDialog,
   onRetry,
 }: ProxyDetectionCardUIProps) => {
   if (isLoading) {
@@ -259,36 +268,27 @@ const ProxyDetectionCardUI = ({
       </div>
 
       {/* IP 信息对比 */}
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        {/* 直连 IP */}
-        <div className="p-2 bg-surface-variant rounded">
-          <p className="text-xs text-text-secondary mb-1">直连出口</p>
-          {result.direct_ip ? (
-            <>
-              <p className="uds-mono text-xs font-medium">
-                {result.direct_ip}
-              </p>
-              <p className="text-xs text-text-secondary mt-1">
-                {formatLocation(result.direct_location)}
-              </p>
-            </>
-          ) : (
-            <p className="text-xs text-text-secondary">未观测到</p>
+      <div className="flex flex-col gap-1.5 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-secondary shrink-0">直连出口</span>
+          <p className="uds-mono text-xs font-medium">
+            {result.direct_ip || '未观测到'}
+          </p>
+          {result.direct_ip && result.direct_location && (
+            <p className="text-xs text-text-secondary">
+              {formatLocation(result.direct_location)}
+            </p>
           )}
         </div>
-
-        {/* 代理 IP */}
-        <div className="p-2 bg-surface-variant rounded">
-          <p className="text-xs text-text-secondary mb-1">代理出口</p>
-          {result.proxy_ip ? (
-            <>
-              <p className="uds-mono text-xs font-medium">{result.proxy_ip}</p>
-              <p className="text-xs text-text-secondary mt-1">
-                {formatLocation(result.proxy_location)}
-              </p>
-            </>
-          ) : (
-            <p className="text-xs text-text-secondary">未观测到</p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-secondary shrink-0">代理出口</span>
+          <p className="uds-mono text-xs font-medium">
+            {result.proxy_ip || '未观测到'}
+          </p>
+          {result.proxy_ip && result.proxy_location && (
+            <p className="text-xs text-text-secondary">
+              {formatLocation(result.proxy_location)}
+            </p>
           )}
         </div>
       </div>
@@ -317,17 +317,20 @@ const ProxyDetectionCardUI = ({
         </Alert>
       ) : null}
 
-      {/* 建议 */}
-      {showAdvice && (
-        <div className="p-2 bg-surface-variant rounded text-xs">
-          <p className="font-medium mb-1">检测建议：</p>
-          <ul className="list-disc list-inside space-y-0.5 text-text-secondary">
+      {/* 建议弹窗 */}
+      <Dialog open={adviceDialogOpen} onClose={onCloseAdviceDialog}>
+        <DialogTitle>检测建议</DialogTitle>
+        <DialogContent>
+          <ul className="list-disc list-inside space-y-1 text-sm text-text-secondary">
             {advice.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-        </div>
-      )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onCloseAdviceDialog}>关闭</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 操作按钮 */}
       <div className="flex gap-2 mt-2">
@@ -337,7 +340,7 @@ const ProxyDetectionCardUI = ({
           onClick={onToggleAdvice}
           className="flex-1"
         >
-          {showAdvice ? '隐藏建议' : '查看建议'}
+          查看建议
         </Button>
         <Button
           size="small"

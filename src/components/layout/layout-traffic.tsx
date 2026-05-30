@@ -57,7 +57,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
           <div className="flex items-center gap-1">
             <span
               className={cn(
-                'uds-mono text-[10px] font-black',
+                'uds-mono text-[10px] font-semibold',
                 (traffic?.up || 0) > 0
                   ? 'text-purple-500 opacity-100'
                   : 'text-gray-500 opacity-60',
@@ -72,7 +72,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
           <div className="flex items-center gap-1">
             <span
               className={cn(
-                'uds-mono text-[10px] font-black',
+                'uds-mono text-[10px] font-semibold',
                 (traffic?.down || 0) > 0
                   ? 'text-blue-500 opacity-100'
                   : 'text-gray-500 opacity-60',
@@ -86,7 +86,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
           {/* 内存占用 */}
           {displayMemory && (
             <div className="flex items-center gap-1">
-              <span className="uds-mono text-[10px] font-black text-gray-500 opacity-60">
+              <span className="uds-mono text-[10px] font-semibold text-gray-500 opacity-60">
                 {inuse}
                 {inuseUnit}
               </span>

@@ -213,6 +213,12 @@ export const getIpInfo = async (): Promise<
     console.debug(`[IpInfo] 开始IP检测，共 ${IP_CHECK_SERVICES.length} 个服务源（${shuffledServices.slice(0, 3).map(s => new URL(s.url).hostname).join(', ')}...）`)
     console.debug('User-Agent for IP detection:', userAgent)
 
+    // 全局15秒超时：无论多少个服务+重试，总时间不超过15秒
+    const globalController = new AbortController()
+    const globalTimeoutId = setTimeout(() => {
+      globalController.abort()
+    }, 15000)
+
   for (const service of shuffledServices) {
     debugLog(`尝试IP检测服务: ${service.url}`)
 
@@ -221,9 +227,16 @@ export const getIpInfo = async (): Promise<
       timeoutController.abort()
     }, service.timeout || config.timeout)
 
+    // 任一超时触发都中止请求
+    const onGlobalAbort = () => timeoutController.abort()
+    globalController.signal.addEventListener('abort', onGlobalAbort)
+
     try {
       return await asyncRetry(
         async (bail) => {
+          if (globalController.signal.aborted) {
+            return bail(new Error('全局IP检测超时(15秒)'))
+          }
           console.debug('Fetching IP information:', service.url)
 
           const response = await fetch(service.url, {
@@ -275,8 +288,11 @@ export const getIpInfo = async (): Promise<
       lastError = error
     } finally {
       clearTimeout(timeoutId)
+      globalController.signal.removeEventListener('abort', onGlobalAbort)
     }
   }
+
+  clearTimeout(globalTimeoutId)
 
   if (lastError) {
     throw new Error(

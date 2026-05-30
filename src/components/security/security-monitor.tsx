@@ -2,6 +2,7 @@
  * 安全监控组件
  */
 
+import { listen } from '@tauri-apps/api/event'
 import { useEffect, useState } from 'react'
 
 import { showNotice } from '@/services/notice-service'
@@ -34,25 +35,30 @@ export default function SecurityMonitor() {
   const [hasEncryptionKey, setHasEncryptionKey] = useState(false)
   const [selfDestructConfirm, setSelfDestructConfirm] = useState('')
 
-  // 定期检查安全状态
+  // 监听后端安全警报事件（被动接收，不轮询）
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const newStatus = await securityCheckStatus()
-        setStatus(newStatus)
+    const unlisten = listen<SecurityStatus>('security-alert', (event) => {
+      const newStatus = event.payload
+      setStatus(newStatus)
 
-        if (newStatus.compromised) {
-          showNotice.error('🚨 安全状态已被破坏！')
-        }
-        if (newStatus.leak_detected) {
-          showNotice.error(`🚨 泄漏检测: ${newStatus.leak_type ?? '未知类型'}`)
-        }
-      } catch (error) {
-        console.error('检查安全状态失败:', error)
+      if (newStatus.compromised) {
+        showNotice.error('🚨 安全状态已被破坏！')
       }
-    }, 5000)
+      if (newStatus.leak_detected) {
+        showNotice.error(`🚨 泄漏检测: ${newStatus.leak_type ?? '未知类型'}`)
+      }
+    })
 
-    return () => clearInterval(interval)
+    return () => {
+      void unlisten.then((fn) => fn())
+    }
+  }, [])
+
+  // 组件挂载时按需查询一次当前状态
+  useEffect(() => {
+    securityCheckStatus()
+      .then((newStatus) => setStatus(newStatus))
+      .catch((error) => console.error('检查安全状态失败:', error))
   }, [])
 
   // 检查加密密钥

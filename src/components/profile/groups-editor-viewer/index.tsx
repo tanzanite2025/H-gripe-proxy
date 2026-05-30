@@ -7,9 +7,7 @@ import { Button } from '@/components/tailwind/Button'
 import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
 import { saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/misc'
 
 import { GroupForm } from './components/group-form'
 import { GroupListView } from './components/group-list-view'
@@ -33,7 +31,7 @@ export const GroupsEditorViewer = (props: Props) => {
   const { mergeUid, proxiesUid, profileUid, property, open, onClose, onSave } =
     props
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
+  const themeMode: 'dark' = 'dark'
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [currData, setCurrData] = useState('')
   const [visualization, setVisualization] = useState(true)
@@ -211,7 +209,7 @@ export const GroupsEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={currData}
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
+            theme='vs-dark'
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}
@@ -229,9 +227,8 @@ export const GroupsEditorViewer = (props: Props) => {
               padding: {
                 top: 33,
               },
-              fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                getSystem() === 'windows' ? ', twemoji mozilla' : ''
-              }`,
+              fontFamily:
+                'Josefin Sans, YouSheBiaoTiHei, twemoji mozilla, Segoe UI Emoji, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft YaHei UI, Microsoft YaHei, Roboto, Helvetica Neue, Arial, sans-serif',
               fontLigatures: false,
               smoothScrolling: true,
             }}

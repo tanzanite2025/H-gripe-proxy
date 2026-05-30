@@ -482,10 +482,6 @@ export async function restartApp() {
   return invoke<void>('restart_app')
 }
 
-export async function getTrayIconPath(name: 'common' | 'sysproxy' | 'tun') {
-  return invoke<string | null>('get_tray_icon_path', { name })
-}
-
 export async function openAppDir() {
   return invoke<void>('open_app_dir').catch((err) => showNotice.error(err))
 }
@@ -570,25 +566,6 @@ export async function exportDiagnosticInfo() {
 
 export async function getSystemInfo() {
   return invoke<string>('get_system_info')
-}
-
-export async function copyIconFile(
-  path: string,
-  name: 'common' | 'sysproxy' | 'tun',
-) {
-  const key = `icon_${name}_update_time`
-  const previousTime = localStorage.getItem(key) || ''
-
-  const currentTime = String(Date.now())
-  localStorage.setItem(key, currentTime)
-
-  const iconInfo = {
-    name,
-    previous_t: previousTime,
-    current_t: currentTime,
-  }
-
-  return invoke<void>('copy_icon_file', { path, iconInfo })
 }
 
 export async function downloadIconCache(url: string, name: string) {

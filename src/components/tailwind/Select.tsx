@@ -85,9 +85,9 @@ export const Select = ({
   // If children are provided, render them directly (MUI-style API)
   if (children) {
     return (
-      <div className={widthClass || 'w-full'}>
+      <div className={cn(fullWidth ? 'w-full' : 'w-auto flex-shrink-0', className)}>
         {label && (
-          <label className="mb-2 block text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-text-secondary">
             {label}
           </label>
         )}
@@ -113,12 +113,11 @@ export const Select = ({
           disabled={disabled}
           aria-labelledby={labelId}
           className={cn(
-            `relative ${widthClass || 'w-full'} ${sizeClasses[size]} px-4 rounded-input bg-gray-50 dark:bg-gray-800/50 font-semibold text-gray-900 dark:text-gray-100 transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 ${
+            `relative w-full ${sizeClasses[size]} px-4 rounded-input bg-card font-semibold text-text-primary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 ${
               error
                 ? 'ring-2 ring-red-500 dark:ring-red-400'
                 : 'focus:ring-primary dark:focus:ring-primary-dark-mode'
-            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`,
-            className,
+            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`
           )}
           aria-invalid={!!error}
         >
@@ -146,11 +145,11 @@ export const Select = ({
     : selectedOption?.label || placeholder
 
   return (
-    <div className="w-full">
+    <div className={cn(fullWidth ? 'w-full' : 'w-auto flex-shrink-0', className)}>
       {label && (
         <label
           htmlFor={id}
-          className="mb-2 block text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-300"
+          className="mb-2 block text-xs font-semibold uppercase tracking-widest text-text-secondary"
         >
           {label}
         </label>
@@ -167,12 +166,11 @@ export const Select = ({
             id={id}
             aria-labelledby={labelId}
             className={cn(
-              `relative w-full h-12 px-4 rounded-input bg-gray-50 dark:bg-gray-800/50 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 ${
+              `relative w-full h-12 px-4 rounded-input bg-card text-left text-sm font-semibold text-text-primary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 ${
                 error
                   ? 'ring-2 ring-red-500 dark:ring-red-400'
                   : 'focus:ring-primary dark:focus:ring-primary-dark-mode'
-              } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`,
-              className,
+              } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`
             )}
             aria-invalid={!!error}
           >
@@ -193,7 +191,7 @@ export const Select = ({
             <Listbox.Options
               style={paperStyle}
               className={cn(
-                'absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-input bg-card-light dark:bg-card-dark py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/5 focus:outline-none',
+                'absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-input bg-card py-1 shadow-lg ring-1 ring-white/5 focus:outline-none',
                 paperClassName,
               )}
             >
@@ -204,7 +202,7 @@ export const Select = ({
                   disabled={option.disabled}
                   className={({ active }) =>
                     `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                      active ? 'bg-gray-100 dark:bg-gray-800' : ''
+                      active ? 'bg-white/5' : ''
                     } ${option.disabled ? 'cursor-not-allowed opacity-50' : ''}`
                   }
                 >
@@ -213,7 +211,7 @@ export const Select = ({
                       <span
                         className={`block truncate text-sm ${
                           selected ? 'font-bold' : 'font-normal'
-                        } text-gray-900 dark:text-gray-100`}
+                        } text-text-primary`}
                       >
                         {option.label}
                       </span>
@@ -241,12 +239,12 @@ Select.displayName = 'Select'
 
 
 // MUI-compatible exports
-export const FormControl = ({ children, ...props }: { children: ReactNode; [key: string]: any }) => (
+export const FormControl = ({ children, fullWidth, variant, size, ...props }: { children: ReactNode; [key: string]: any }) => (
   <div {...props}>{children}</div>
 )
 
 export const InputLabel = ({ children, htmlFor, ...props }: { children: ReactNode; htmlFor?: string; [key: string]: any }) => (
-  <label htmlFor={htmlFor} className="mb-2 block text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-300" {...props}>
+  <label htmlFor={htmlFor} className="mb-2 block text-xs font-semibold uppercase tracking-widest text-text-secondary" {...props}>
     {children}
   </label>
 )
@@ -256,5 +254,7 @@ export const MenuItem = ({ value, children, ...props }: { value: string | number
     {children}
   </option>
 )
+
+export const SelectMenuItem = MenuItem
 
 Select.displayName = 'Select'

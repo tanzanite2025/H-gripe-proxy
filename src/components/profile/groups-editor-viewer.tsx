@@ -51,10 +51,8 @@ import {
   saveProfileFile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/misc'
 
 interface Props {
   proxiesUid: string
@@ -148,7 +146,7 @@ export const GroupsEditorViewer = (props: Props) => {
         : value,
     [t],
   )
-  const themeMode = useThemeMode()
+  const themeMode: 'dark' = 'dark'
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [prevData, setPrevData] = useState('')
   const [currData, setCurrData] = useState('')
@@ -1107,7 +1105,7 @@ export const GroupsEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={currData}
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
+            theme='vs-dark'
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}
@@ -1125,9 +1123,8 @@ export const GroupsEditorViewer = (props: Props) => {
               padding: {
                 top: 33,
               },
-              fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                getSystem() === 'windows' ? ', twemoji mozilla' : ''
-              }`,
+              fontFamily:
+                'Josefin Sans, YouSheBiaoTiHei, twemoji mozilla, Segoe UI Emoji, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft YaHei UI, Microsoft YaHei, Roboto, Helvetica Neue, Arial, sans-serif',
               fontLigatures: false,
               smoothScrolling: true,
             }}

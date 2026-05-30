@@ -91,8 +91,8 @@ export const ToggleButton: React.FC<ToggleButtonProps> = ({
         'first:rounded-l-lg last:rounded-r-lg',
         'border-r border-gray-300 last:border-r-0 dark:border-gray-600',
         isSelected
-          ? 'bg-primary-500 text-white dark:bg-primary-600'
-          : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+          ? 'bg-primary text-white'
+          : 'bg-card text-text-primary hover:bg-white/10',
         disabled && 'cursor-not-allowed opacity-50',
         className,
       )}

@@ -6,7 +6,7 @@ import { AlertTriangle, Copy, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import type { ChangeEvent } from 'react'
 
 import { Button, Switch, TextField } from '@/components/tailwind'
-import type { AntiProbeConfig } from '@/services/anti-probe'
+import type { AntiProbeConfig } from '@/services/coordinator'
 
 interface AntiProbeConfigUIProps {
   config: AntiProbeConfig

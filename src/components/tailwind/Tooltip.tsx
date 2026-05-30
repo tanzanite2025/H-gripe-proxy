@@ -52,7 +52,7 @@ export const Tooltip = ({ content, title, placement = 'top', arrow = false, chil
             className={`absolute z-50 ${placementClasses[placement]}`}
             role="tooltip"
           >
-            <div className="rounded-lg bg-gray-900 dark:bg-gray-700 px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-lg">
+            <div className="rounded-lg bg-card shadow-dialog px-3 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-lg">
               {tooltipText}
             </div>
             {arrow && (

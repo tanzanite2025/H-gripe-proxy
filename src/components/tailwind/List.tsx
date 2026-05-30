@@ -64,13 +64,13 @@ export const ListItem = forwardRef<HTMLLIElement, ListItemProps>(
         ref={ref}
         style={style}
         className={cn(
-          'flex items-start py-2 px-4 relative',
+          'flex items-center py-2 px-4 relative',
           button && 'cursor-pointer hover:bg-action-hover',
           className
         )}
         onClick={onClick}
       >
-        <div className="flex-1">{children}</div>
+        {children}
         {secondaryAction && <div className="ml-auto flex-shrink-0">{secondaryAction}</div>}
       </li>
     )

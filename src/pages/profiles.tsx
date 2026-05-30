@@ -14,7 +14,6 @@ import { listen, TauriEvent } from '@tauri-apps/api/event'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
-import { Square, CheckSquare, X, Clipboard, Trash2, MinusSquare, Flame, RefreshCw, FileText, Check } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -27,7 +26,8 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { BasePage, BaseStyledTextField, DialogRef } from '@/components/base'
+import { BasePage, DialogRef } from '@/components/base'
+import { ProfileHeader } from '@/components/profile/profile-header'
 import { ProfileItem } from '@/components/profile/profile-item'
 import { ProfileMore } from '@/components/profile/profile-more'
 import {
@@ -35,7 +35,7 @@ import {
   ProfileViewerRef,
 } from '@/components/profile/profile-viewer'
 import { ConfigViewer } from '@/components/setting/components/misc/config-editor'
-import { Box, Button, Divider, Grid, IconButton, Stack } from '@/components/tailwind'
+import { Box, Grid } from '@/components/tailwind'
 import { useProfiles } from '@/hooks/data'
 import { useListen } from '@/hooks/system'
 import {
@@ -51,7 +51,7 @@ import {
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { queryClient } from '@/services/query-client'
-import { useSetLoadingCache, useThemeMode } from '@/services/states'
+import { useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/misc'
 
 // 记录profile切换状态
@@ -724,12 +724,6 @@ const ProfilePage = () => {
     }
   })
 
-  const mode = useThemeMode()
-  const isLight = mode === 'light'
-  const dividercolor = isLight
-    ? 'rgba(0, 0, 0, 0.06)'
-    : 'rgba(255, 255, 255, 0.06)'
-
   // 监听后端配置变更
   useEffect(() => {
     let unlistenPromise: Promise<() => void> | undefined
@@ -799,180 +793,41 @@ const ProfilePage = () => {
       title={t('profiles.page.title')}
       contentStyle={{ height: '100%' }}
       header={
-        <Box className="flex items-center gap-1">
-          {!batchMode ? (
-            <>
-              {/* Batch mode toggle button */}
-              <IconButton
-                size="small"
-                color="inherit"
-                title={t('profiles.page.batch.title')}
-                onClick={toggleBatchMode}
-              >
-                <Check className="h-5 w-5" />
-              </IconButton>
-
-              <IconButton
-                size="small"
-                color="inherit"
-                title={t('profiles.page.actions.updateAll')}
-                onClick={onUpdateAll}
-              >
-                <RefreshCw className="h-5 w-5" />
-              </IconButton>
-
-              <IconButton
-                size="small"
-                color="inherit"
-                title={t('profiles.page.actions.viewRuntimeConfig')}
-                onClick={() => configRef.current?.open()}
-              >
-                <FileText />
-              </IconButton>
-
-              <IconButton
-                size="small"
-                color="primary"
-                title={t('profiles.page.actions.reactivate')}
-                onClick={() => onEnhance(true)}
-              >
-                <Flame />
-              </IconButton>
-
-              {/* 故障检测和紧急恢复按钮 */}
-              {(error || isStale) && (
-                <IconButton
-                  size="small"
-                  color="warning"
-                  title="数据异常，点击强制刷新"
-                  onClick={onEmergencyRefresh}
-                  className="animate-pulse"
-                >
-                  <X className="h-5 w-5" />
-                </IconButton>
-              )}
-            </>
-          ) : (
-            // Batch mode header
-            <Box className="flex items-center gap-1">
-              <IconButton
-                size="small"
-                color="inherit"
-                title={
-                  isAllSelected()
-                    ? t('profiles.page.batch.actions.deselectAll')
-                    : t('profiles.page.batch.actions.selectAll')
-                }
-                onClick={
-                  isAllSelected() ? clearAllSelections : selectAllProfiles
-                }
-              >
-                {getSelectionState() === 'all' ? (
-                  <CheckSquare className="h-5 w-5" />
-                ) : getSelectionState() === 'partial' ? (
-                  <MinusSquare className="h-5 w-5" />
-                ) : (
-                  <Square className="h-5 w-5" />
-                )}
-              </IconButton>
-              <IconButton
-                size="small"
-                color="error"
-                title={t('profiles.page.batch.actions.delete')}
-                onClick={deleteSelectedProfiles}
-                disabled={selectedProfiles.size === 0}
-              >
-                <Trash2 className="h-5 w-5" />
-              </IconButton>
-              <Button size="small" variant="outlined" onClick={toggleBatchMode}>
-                {t('profiles.page.batch.actions.done')}
-              </Button>
-              <Box
-                className="flex-1 text-right text-gray-500 dark:text-gray-400"
-              >
-                {t('profiles.page.batch.summary.selected')}{' '}
-                {selectedProfiles.size} {t('profiles.page.batch.summary.items')}
-              </Box>
-            </Box>
-          )}
-        </Box>
+        <ProfileHeader
+          batchMode={batchMode}
+          error={error}
+          isStale={isStale}
+          selectedCount={selectedProfiles.size}
+          isAllSelected={isAllSelected}
+          getSelectionState={getSelectionState}
+          clearAllSelections={clearAllSelections}
+          selectAllProfiles={selectAllProfiles}
+          toggleBatchMode={toggleBatchMode}
+          onUpdateAll={onUpdateAll}
+          onOpenConfig={() => configRef.current?.open()}
+          onReactivate={() => onEnhance(true)}
+          onEmergencyRefresh={onEmergencyRefresh}
+          onDeleteSelectedProfiles={deleteSelectedProfiles}
+          url={url}
+          setUrl={setUrl}
+          disabled={disabled}
+          loading={loading}
+          onImport={onImport}
+          onCopyLink={onCopyLink}
+          onCreate={() => viewerRef.current?.create()}
+        />
       }
     >
-      <Stack
-        direction="row"
-        spacing={1}
-        className="pt-4 mb-2 mx-[10px] h-[36px] flex items-center"
-      >
-        <BaseStyledTextField
-          value={url}
-          variant="outlined"
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
-              return
-            }
-            if (!url || disabled || loading) {
-              return
-            }
-            event.preventDefault()
-            void onImport()
-          }}
-          placeholder={t('profiles.page.importForm.placeholder')}
-          slotProps={{
-            input: {
-              sx: { pr: 1 },
-              endAdornment: !url ? (
-                <IconButton
-                  size="small"
-                  className="p-0.5"
-                  title={t('profiles.page.importForm.actions.paste')}
-                  onClick={onCopyLink}
-                >
-                  <Clipboard />
-                </IconButton>
-              ) : (
-                <IconButton
-                  size="small"
-                  className="p-0.5"
-                  title={t('shared.actions.clear')}
-                  onClick={() => setUrl('')}
-                >
-                  <X className="h-5 w-5" />
-                </IconButton>
-              ),
-            },
-          }}
-        />
-        <Button
-          disabled={!url || disabled}
-          loading={loading}
-          variant="primary"
-          size="small"
-          className="rounded-[6px]"
-          onClick={onImport}
-        >
-          {t('profiles.page.actions.import')}
-        </Button>
-        <Button
-          variant="primary"
-          size="small"
-          className="rounded-[6px]"
-          onClick={() => viewerRef.current?.create()}
-        >
-          {t('shared.actions.new')}
-        </Button>
-      </Stack>
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={onDragEnd}
       >
         <Box
-          className="pl-[10px] pr-[10px] h-[calc(100%-48px)] overflow-y-auto"
+          className="pl-[10px] pr-[10px] pt-4 h-[calc(100%-48px)] overflow-y-auto"
         >
           <Box className="mb-6">
-            <Grid container spacing={{ xs: 1, lg: 1 }}>
+            <Grid container spacing={{ xs: 3, lg: 3 }}>
               <SortableContext
                 items={profileItems.map((x) => {
                   return x.uid
@@ -1011,14 +866,8 @@ const ProfilePage = () => {
               </SortableContext>
             </Grid>
           </Box>
-          <Divider
-            variant="middle"
-            flexItem
-            className="w-[calc(100%-32px)]"
-            style={{ borderColor: dividercolor }}
-          ></Divider>
-          <Box className="mt-6 mb-[10px]">
-            <Grid container spacing={{ xs: 1, lg: 1 }}>
+          <Box className="mt-12 mb-[10px]">
+            <Grid container spacing={{ xs: 3, lg: 3 }}>
               <Grid item xs={12} sm={6} md={6} lg={6}>
                 <ProfileMore
                   id="Merge"

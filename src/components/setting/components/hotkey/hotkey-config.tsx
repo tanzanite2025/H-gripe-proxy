@@ -3,7 +3,7 @@ import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef, Switch } from '@/components/base'
-import { Dialog, Box } from '@/components/tailwind'
+import { Dialog } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { showNotice } from '@/services/notice-service'
 
@@ -98,7 +98,12 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
       open={open}
       onClose={() => setOpen(false)}
       title={t('settings.modals.hotkey.title')}
-      maxWidth="sm"
+      maxWidth="md"
+      slotProps={{
+        paper: {
+          style: { width: 500, maxWidth: 500 },
+        },
+      }}
       actions={
         <>
           <button
@@ -116,9 +121,9 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
         </>
       }
     >
-      <Box className="w-[450px] max-h-[380px]">
+      <div className="max-h-[380px] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <span>{t('settings.modals.hotkey.toggles.enableGlobal')}</span>
+          <span className="text-sm font-medium">{t('settings.modals.hotkey.toggles.enableGlobal')}</span>
           <Switch
             checked={enableGlobalHotkey}
             onCheckedChange={setEnableGlobalHotkey}
@@ -127,14 +132,14 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
 
         {HOTKEY_FUNC.map((func) => (
           <div key={func} className="flex items-center justify-between mb-3">
-            <span>{t(HOTKEY_FUNC_LABELS[func])}</span>
+            <span className="text-sm font-medium shrink-0">{t(HOTKEY_FUNC_LABELS[func])}</span>
             <HotkeyInput
               value={hotkeyMap[func] ?? []}
               onChange={(v) => setHotkeyMap((m) => ({ ...m, [func]: v }))}
             />
           </div>
         ))}
-      </Box>
+      </div>
     </Dialog>
   )
 })

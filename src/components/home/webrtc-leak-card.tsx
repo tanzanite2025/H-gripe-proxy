@@ -35,6 +35,7 @@ const WebRTCLeakCardContainer = forwardRef<
       icon={<ShieldAlert className="h-5 w-5" />}
       iconColor="info"
       ref={ref}
+      fixedHeight={280}
       action={
         <IconButton size="small" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4" />

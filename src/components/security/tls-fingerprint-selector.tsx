@@ -6,72 +6,91 @@ import { CheckCircle, Fingerprint, Info } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/tailwind'
-import { showNotice } from '@/services/notice-service'
+import { useConfigLoader, useConfigSaver } from '@/hooks'
 import {
-  type TlsFingerprint,
-  tlsFingerprintClear,
-  tlsFingerprintGetAll,
-  tlsFingerprintGetCurrent,
-  tlsFingerprintSetByName,
-} from '@/services/tls-fingerprint'
+  type AdvancedConfig,
+  getAdvancedConfig,
+  saveAdvancedConfig,
+} from '@/services/coordinator'
+import { showNotice } from '@/services/notice-service'
+import { type TlsFingerprint, tlsFingerprintGetAll } from '@/services/tls-fingerprint'
 import { cn } from '@/utils/cn'
 
 export default function TlsFingerprintSelector() {
   const [fingerprints, setFingerprints] = useState<TlsFingerprint[]>([])
-  const [currentFingerprint, setCurrentFingerprint] =
-    useState<TlsFingerprint | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [selectedName, setSelectedName] = useState<string | null>(null)
+  const [fingerprintsLoading, setFingerprintsLoading] = useState(false)
+
+  const {
+    data: advancedConfig,
+    loading: configLoading,
+    reload,
+  } = useConfigLoader<AdvancedConfig>({
+    loadFn: getAdvancedConfig,
+  })
+
+  const { save, saving } = useConfigSaver<AdvancedConfig>({
+    saveFn: saveAdvancedConfig,
+    onSuccess: reload,
+    successMessage: 'TLS 指纹配置已保存',
+  })
 
   // 加载指纹列表
   useEffect(() => {
-    loadFingerprints()
-    loadCurrentFingerprint()
+    void loadFingerprints()
   }, [])
 
   const loadFingerprints = async () => {
     try {
+      setFingerprintsLoading(true)
       const fps = await tlsFingerprintGetAll()
       setFingerprints(fps)
     } catch (error) {
       showNotice.error(`加载指纹列表失败: ${error}`)
+    } finally {
+      setFingerprintsLoading(false)
     }
   }
-
-  const loadCurrentFingerprint = async () => {
-    try {
-      const fp = await tlsFingerprintGetCurrent()
-      setCurrentFingerprint(fp)
-    } catch (error) {
-      console.error('加载当前指纹失败:', error)
+  
+  // 当高级配置加载完成时，同步当前选择的指纹名称
+  useEffect(() => {
+    if (advancedConfig) {
+      setSelectedName(advancedConfig.security.tls_fingerprint)
     }
-  }
+  }, [advancedConfig])
 
   // 选择指纹
   const handleSelectFingerprint = async (name: string) => {
-    try {
-      setLoading(true)
-      await tlsFingerprintSetByName(name)
-      await loadCurrentFingerprint()
-      showNotice.success(`已切换到 ${name}`)
-    } catch (error) {
-      showNotice.error(`切换指纹失败: ${error}`)
-    } finally {
-      setLoading(false)
+    if (!advancedConfig) return
+
+    setSelectedName(name)
+
+    const updated: AdvancedConfig = {
+      ...advancedConfig,
+      security: {
+        ...advancedConfig.security,
+        tls_fingerprint: name,
+      },
     }
+
+    void save(updated)
   }
 
   // 清除指纹
   const handleClearFingerprint = async () => {
-    try {
-      setLoading(true)
-      await tlsFingerprintClear()
-      setCurrentFingerprint(null)
-      showNotice.success('已清除 TLS 指纹伪装')
-    } catch (error) {
-      showNotice.error(`清除失败: ${error}`)
-    } finally {
-      setLoading(false)
+    if (!advancedConfig) return
+
+    setSelectedName(null)
+
+    const updated: AdvancedConfig = {
+      ...advancedConfig,
+      security: {
+        ...advancedConfig.security,
+        tls_fingerprint: null,
+      },
     }
+
+    void save(updated)
   }
 
   // 获取指纹图标
@@ -81,6 +100,19 @@ export default function TlsFingerprintSelector() {
     if (name.includes('Safari')) return '🧭'
     if (name.includes('Genshin')) return '🎮'
     return '🔒'
+  }
+
+  const isBusy = configLoading || fingerprintsLoading || saving
+
+  const currentFingerprint =
+    fingerprints.find((fp) => fp.name === selectedName) ?? null
+
+  if (configLoading || !advancedConfig || fingerprintsLoading) {
+    return (
+      <div className="p-6">
+        <p>加载中...</p>
+      </div>
+    )
   }
 
   return (
@@ -105,7 +137,7 @@ export default function TlsFingerprintSelector() {
           </div>
         </div>
 
-        {/* 当前指纹 */}
+        {/* 当前指纹（基于配置中的 tls_fingerprint 名称） */}
         {currentFingerprint && (
           <div className="p-4 bg-green-500 text-white rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -123,7 +155,7 @@ export default function TlsFingerprintSelector() {
               variant="outline"
               size="sm"
               onClick={handleClearFingerprint}
-              disabled={loading}
+              disabled={isBusy}
               className="border-white text-white hover:bg-white/10"
             >
               清除伪装
@@ -135,7 +167,7 @@ export default function TlsFingerprintSelector() {
         <h3 className="text-sm font-semibold">选择 TLS 指纹</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {fingerprints.map((fp) => {
-            const isActive = currentFingerprint?.name === fp.name
+            const isActive = selectedName === fp.name
 
             return (
               <div
@@ -147,7 +179,7 @@ export default function TlsFingerprintSelector() {
                     ? 'border-primary bg-primary/5'
                     : 'border-divider bg-card'
                 )}
-                onClick={() => handleSelectFingerprint(fp.name)}
+                onClick={() => !isBusy && handleSelectFingerprint(fp.name)}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-3xl">{getFingerprintIcon(fp.name)}</span>

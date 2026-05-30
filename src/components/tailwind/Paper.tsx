@@ -16,7 +16,7 @@ export const Paper = forwardRef<HTMLDivElement, PaperProps>(
       <div
         ref={ref}
         className={cn(
-          'rounded-lg bg-white dark:bg-[#24252f]',
+          'rounded-lg bg-card',
           variant === 'outlined' && 'border border-divider',
           variant === 'elevation' && elevation > 0 && 'shadow-md',
           className

@@ -1,10 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
 
 import { useProxySelection } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
-import { calcuProxies } from '@/services/cmds'
 
 import { useRenderList } from '../../use-render-list'
 
@@ -22,17 +20,6 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
 
   const { verge } = useVerge()
   const { proxies: proxiesData } = useProxiesData()
-
-  // 轮询获取代理数据（3秒间隔）
-  useQuery({
-    queryKey: ['getProxies'],
-    queryFn: calcuProxies,
-    refetchInterval: 3000,
-    refetchIntervalInBackground: false,
-    staleTime: 1500,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  })
 
   // 获取渲染列表
   const { renderList, onProxies, onHeadState } = useRenderList(

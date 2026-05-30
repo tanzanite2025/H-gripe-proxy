@@ -11,7 +11,7 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  MenuItem,
+  SelectMenuItem,
   Select,
   TextField,
 } from '@/components/tailwind'
@@ -282,9 +282,9 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                     }))
                   }
                 >
-                  <MenuItem value="tcp">TCP</MenuItem>
-                  <MenuItem value="udp">UDP</MenuItem>
-                  <MenuItem value="tcp+udp">TCP + UDP</MenuItem>
+                  <SelectMenuItem value="tcp">TCP</SelectMenuItem>
+                  <SelectMenuItem value="udp">UDP</SelectMenuItem>
+                  <SelectMenuItem value="tcp+udp">TCP + UDP</SelectMenuItem>
                 </Select>
               </ListItem>
 
@@ -401,13 +401,13 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                     }))
                   }}
                 >
-                  <MenuItem value="">
+                  <SelectMenuItem value="">
                     {t('settings.sections.clash.form.fields.tunnels.default')}
-                  </MenuItem>
+                  </SelectMenuItem>
                   {groupNames.map((name) => (
-                    <MenuItem key={name} value={name}>
+                    <SelectMenuItem key={name} value={name}>
                       {name}
-                    </MenuItem>
+                    </SelectMenuItem>
                   ))}
                 </Select>
               </ListItem>
@@ -443,13 +443,13 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   }
                   disabled={!values.group} // 没选组就禁用
                 >
-                  <MenuItem value="">
+                  <SelectMenuItem value="">
                     {t('settings.sections.clash.form.fields.tunnels.default')}
-                  </MenuItem>
+                  </SelectMenuItem>
                   {proxyOptions.map((node) => (
-                    <MenuItem key={node.name} value={node.name}>
+                    <SelectMenuItem key={node.name} value={node.name}>
                       {node.name}
-                    </MenuItem>
+                    </SelectMenuItem>
                   ))}
                 </Select>
               </ListItem>

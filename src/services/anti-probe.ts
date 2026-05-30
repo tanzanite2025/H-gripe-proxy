@@ -4,10 +4,6 @@
  
 import { invoke } from '@tauri-apps/api/core'
 
-import type { AntiProbeConfig as CoordinatorAntiProbeConfig } from './coordinator'
-
-export type AntiProbeConfig = CoordinatorAntiProbeConfig
-
 /**
  * 验证握手暗号
  */
@@ -26,22 +22,6 @@ export async function antiProbeVerifyHandshake(
  */
 export async function antiProbeGenerateToken(): Promise<string> {
   return invoke<string>('anti_probe_generate_token')
-}
-
-/**
- * 更新配置
- */
-export async function antiProbeUpdateConfig(
-  config: AntiProbeConfig,
-): Promise<void> {
-  return invoke<void>('anti_probe_update_config', { config })
-}
-
-/**
- * 获取配置
- */
-export async function antiProbeGetConfig(): Promise<AntiProbeConfig> {
-  return invoke<AntiProbeConfig>('anti_probe_get_config')
 }
 
 /**

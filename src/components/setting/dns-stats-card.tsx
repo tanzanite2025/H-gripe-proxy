@@ -109,7 +109,14 @@ export const DnsStatsCard = ({
   if (runtimeStatusPending && !runtimeStatus) {
     return (
       <Card>
-        <div className="p-4">
+        <div className="p-4 min-h-[200px] flex flex-col">
+          <div className="mb-2 flex items-center gap-1 text-sm font-semibold">
+            <CachedRounded className="h-4 w-4" />
+            DNS 当前运行态统计
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-xs text-muted-foreground">正在加载 DNS 运行态数据...</div>
+          </div>
           <LinearProgress />
         </div>
       </Card>
@@ -119,9 +126,15 @@ export const DnsStatsCard = ({
   if (!runtimeStatus) {
     return (
       <Card>
-        <div className="p-4">
-          <div className="text-sm text-muted-foreground">
-            暂时无法读取后端 DNS 运行态统计。
+        <div className="p-4 min-h-[200px] flex flex-col">
+          <div className="mb-2 flex items-center gap-1 text-sm font-semibold">
+            <CachedRounded className="h-4 w-4" />
+            DNS 当前运行态统计
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-sm text-muted-foreground">
+              暂时无法读取后端 DNS 运行态统计。
+            </div>
           </div>
         </div>
       </Card>

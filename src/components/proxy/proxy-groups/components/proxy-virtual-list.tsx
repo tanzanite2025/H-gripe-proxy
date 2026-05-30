@@ -56,7 +56,7 @@ export function ProxyVirtualList({
             key={virtualItem.key}
             data-index={virtualItem.index}
             ref={measureElement}
-            className={virtualItem.index === activeStickyIndex ? 'bg-[var(--background-color)] dark:bg-[#1e1f27]' : ''}
+            className={virtualItem.index === activeStickyIndex ? 'bg-background' : ''}
             style={{
               position:
                 virtualItem.index === activeStickyIndex ? 'sticky' : 'absolute',

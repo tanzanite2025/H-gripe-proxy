@@ -21,15 +21,6 @@ fn parse_web_url(url: &str) -> CmdResult<Url> {
     Ok(parsed)
 }
 
-fn parse_tray_icon_target(target: &str) -> CmdResult<&'static str> {
-    match target.trim() {
-        "common" => Ok("common"),
-        "sysproxy" => Ok("sysproxy"),
-        "tun" => Ok("tun"),
-        _ => Err("invalid tray icon target".into()),
-    }
-}
-
 /// 打开应用程序所在目录
 #[tauri::command]
 pub async fn open_app_dir() -> CmdResult<()> {
@@ -111,15 +102,6 @@ pub fn get_portable_flag() -> bool {
     *dirs::PORTABLE_FLAG.get().unwrap_or(&false)
 }
 
-/// 获取托盘图标路径
-#[tauri::command]
-pub fn get_tray_icon_path(name: String) -> CmdResult<Option<String>> {
-    let name = parse_tray_icon_target(&name)?;
-    dirs::find_target_icons(name)
-        .map(|path| path.map(Into::into))
-        .stringify_err()
-}
-
 /// 获取当前自启动状态
 #[tauri::command]
 pub fn get_auto_launch_status() -> CmdResult<bool> {
@@ -130,10 +112,4 @@ pub fn get_auto_launch_status() -> CmdResult<bool> {
 #[tauri::command]
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
     feat::download_icon_cache(url, name).await
-}
-
-/// 复制图标文件
-#[tauri::command]
-pub async fn copy_icon_file(path: String, icon_info: feat::IconInfo) -> CmdResult<String> {
-    feat::copy_icon_file(path, icon_info).await
 }

@@ -155,7 +155,7 @@ export const TestItem = ({
           <div className="flex justify-center">{name}</div>
         </div>
         <Divider className="mt-2" />
-        <div className="mt-2 flex justify-center text-primary dark:text-primary-dark-mode">
+        <div className="mt-2 flex justify-center text-primary ">
           {delay === -2 && (
             <div className="rounded-lg px-2 py-1 text-xs">
               <BaseLoading />
@@ -166,7 +166,7 @@ export const TestItem = ({
             <div
               className={cn(
                 'the-check rounded-lg px-2 py-1 text-xs',
-                'hover:bg-primary/15 dark:hover:bg-primary-dark-mode/15'
+                'hover:bg-primary/15'
               )}
               onClick={(e) => {
                 e.preventDefault()
@@ -182,7 +182,7 @@ export const TestItem = ({
             <div
               className={cn(
                 'the-delay rounded-lg px-2 py-1 text-xs',
-                'hover:bg-primary/15 dark:hover:bg-primary-dark-mode/15'
+                'hover:bg-primary/15'
               )}
               style={{ color: delayManager.formatDelayColor(delay) }}
               onClick={(e) => {

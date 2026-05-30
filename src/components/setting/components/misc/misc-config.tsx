@@ -5,10 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import {
   InputAdornment,
-  List,
-  ListItem,
-  ListItemText,
-  MenuItem,
+  SelectMenuItem,
   Select,
   TextField,
 } from '@/components/tailwind'
@@ -85,21 +82,20 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.modals.misc.title')}
-      panelStyle={{ width: 450 }}
+      panelStyle={{ width: 600, maxWidth: 600 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <List>
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.appLogLevel')}
-          />
+      <div className="flex flex-col gap-3">
+        {/* App Log Level */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.appLogLevel')}</span>
           <Select
             size="small"
-            className="w-[100px]"
+            className="ml-auto w-[120px] shrink-0"
             value={values.appLogLevel}
             onChange={(e: SelectChangeEvent) =>
               setValues((v) => ({
@@ -109,18 +105,16 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             }
           >
             {['trace', 'debug', 'info', 'warn', 'error', 'silent'].map((i) => (
-              <MenuItem value={i} key={i}>
+              <SelectMenuItem value={i} key={i}>
                 {i[0].toUpperCase() + i.slice(1).toLowerCase()}
-              </MenuItem>
+              </SelectMenuItem>
             ))}
           </Select>
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.appLogMaxSize')}
-            className="max-w-fit"
-          />
+        {/* App Log Max Size */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.appLogMaxSize')}</span>
           <TextField
             autoComplete="new-password"
             size="small"
@@ -128,7 +122,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[140px] ml-auto"
+            className="ml-auto w-[140px] shrink-0"
             value={values.appLogMaxSize}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({
@@ -146,13 +140,11 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               },
             }}
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.appLogMaxCount')}
-            className="max-w-fit"
-          />
+        {/* App Log Max Count */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.appLogMaxCount')}</span>
           <TextField
             autoComplete="new-password"
             size="small"
@@ -160,7 +152,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[140px] ml-auto"
+            className="ml-auto w-[140px] shrink-0"
             value={values.appLogMaxCount}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({
@@ -178,13 +170,11 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               },
             }}
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoCloseConnections')}
-            className="max-w-fit"
-          />
+        {/* Auto Close Connections */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.autoCloseConnections')}</span>
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.autoCloseConnections')}
             className="opacity-70"
@@ -196,25 +186,23 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             }
             className="ml-auto"
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoCheckUpdate')}
-          />
+        {/* Auto Check Update */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.autoCheckUpdate')}</span>
           <Switch
             checked={values.autoCheckUpdate}
             onCheckedChange={(checked) =>
               setValues((v) => ({ ...v, autoCheckUpdate: checked }))
             }
+            className="ml-auto"
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.enableBuiltinEnhanced')}
-            className="max-w-fit"
-          />
+        {/* Enable Builtin Enhanced */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.enableBuiltinEnhanced')}</span>
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.enableBuiltinEnhanced')}
             className="opacity-70"
@@ -226,15 +214,14 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             }
             className="ml-auto"
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.proxyLayoutColumns')}
-          />
+        {/* Proxy Layout Columns */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.proxyLayoutColumns')}</span>
           <Select
             size="small"
-            className="w-[160px]"
+            className="ml-auto w-[160px] shrink-0"
             value={values.proxyLayoutColumn}
             onChange={(e: SelectChangeEvent) =>
               setValues((v) => ({
@@ -243,24 +230,23 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               }))
             }
           >
-            <MenuItem value={6} key={6}>
+            <SelectMenuItem value={6} key={6}>
               {t('settings.modals.misc.options.proxyLayoutColumns.auto')}
-            </MenuItem>
+            </SelectMenuItem>
             {[1, 2, 3, 4, 5].map((i) => (
-              <MenuItem value={i} key={i}>
+              <SelectMenuItem value={i} key={i}>
                 {i}
-              </MenuItem>
+              </SelectMenuItem>
             ))}
           </Select>
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoLogClean')}
-          />
+        {/* Auto Log Clean */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.autoLogClean')}</span>
           <Select
             size="small"
-            className="w-[160px]"
+            className="ml-auto w-[160px] shrink-0"
             value={values.autoLogClean}
             onChange={(e: SelectChangeEvent) =>
               setValues((v) => ({
@@ -300,18 +286,16 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
                 value: 4,
               },
             ].map((i) => (
-              <MenuItem key={i.value} value={i.value}>
+              <SelectMenuItem key={i.value} value={i.value}>
                 {i.key}
-              </MenuItem>
+              </SelectMenuItem>
             ))}
           </Select>
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoDelayDetection')}
-            className="max-w-fit"
-          />
+        {/* Auto Delay Detection */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.autoDelayDetection')}</span>
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.autoDelayDetection')}
             className="opacity-70"
@@ -323,15 +307,11 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             }
             className="ml-auto"
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t(
-              'settings.modals.misc.fields.autoDelayDetectionInterval',
-            )}
-            className="max-w-fit"
-          />
+        {/* Auto Delay Detection Interval */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.autoDelayDetectionInterval')}</span>
           <TextField
             autoComplete="new-password"
             size="small"
@@ -339,7 +319,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[160px] ml-auto"
+            className="ml-auto w-[160px] shrink-0"
             value={values.autoDelayDetectionIntervalMinutes}
             disabled={!values.enableAutoDelayDetection}
             onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -361,13 +341,11 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               },
             }}
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.defaultLatencyTest')}
-            className="max-w-fit"
-          />
+        {/* Default Latency Test */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.defaultLatencyTest')}</span>
           <TooltipIcon
             title={t('settings.modals.misc.tooltips.defaultLatencyTest')}
             className="opacity-70"
@@ -378,19 +356,18 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[250px] ml-auto"
+            className="ml-auto w-[250px] shrink-0"
             value={values.defaultLatencyTest}
             placeholder="http://cp.cloudflare.com/generate_204"
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setValues((v) => ({ ...v, defaultLatencyTest: e.target.value }))
             }
           />
-        </ListItem>
+        </div>
 
-        <ListItem className="py-[5px] px-[2px]">
-          <ListItemText
-            primary={t('settings.modals.misc.fields.defaultLatencyTimeout')}
-          />
+        {/* Default Latency Timeout */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary shrink-0">{t('settings.modals.misc.fields.defaultLatencyTimeout')}</span>
           <TextField
             autoComplete="new-password"
             size="small"
@@ -398,7 +375,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[250px]"
+            className="ml-auto w-[250px] shrink-0"
             value={values.defaultLatencyTimeout}
             placeholder="10000"
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -417,8 +394,8 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               },
             }}
           />
-        </ListItem>
-      </List>
+        </div>
+      </div>
     </BaseDialog>
   )
 })

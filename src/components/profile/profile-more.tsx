@@ -93,7 +93,7 @@ export const ProfileMore = (props: Props) => {
       >
         <div className="flex justify-between items-center mb-1">
           <h2
-            className="text-xl font-semibold overflow-hidden text-ellipsis whitespace-nowrap"
+            className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap"
             title={t(globalTitles[id])}
             style={{ width: 'calc(100% - 52px)' }}
           >

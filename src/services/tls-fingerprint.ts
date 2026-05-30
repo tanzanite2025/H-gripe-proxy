@@ -33,22 +33,6 @@ export async function tlsFingerprintGetByName(
 }
 
 /**
- * 设置当前指纹
- */
-export async function tlsFingerprintSet(
-  fingerprint: TlsFingerprint,
-): Promise<void> {
-  return invoke<void>('tls_fingerprint_set', { fingerprint })
-}
-
-/**
- * 设置当前指纹（通过名称）
- */
-export async function tlsFingerprintSetByName(name: string): Promise<void> {
-  return invoke<void>('tls_fingerprint_set_by_name', { name })
-}
-
-/**
  * 获取当前指纹
  */
 export async function tlsFingerprintGetCurrent(): Promise<TlsFingerprint | null> {

@@ -16,7 +16,7 @@ export const Skeleton = ({
   style,
   ...props
 }: SkeletonProps) => {
-  const baseClasses = 'bg-gray-200 dark:bg-gray-700'
+  const baseClasses = 'bg-card text-text-primary hover:bg-white/10'
 
   const variantClasses = {
     text: 'rounded',

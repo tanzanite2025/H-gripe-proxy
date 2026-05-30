@@ -7,7 +7,6 @@ use crate::security::{
     SecurityMonitor,
 };
 use anyhow::{anyhow, bail, Result};
-use futures::executor::block_on;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::path::PathBuf;
@@ -43,9 +42,11 @@ static ANTI_DEBUG_FLAG: Lazy<Arc<AtomicBool>> =
 pub use crate::security::local_security::{LeakMonitorStatus, LocalSecurityConfig};
 
 // ---------- Security monitor control ----------
-pub fn start_monitor() {
-    let monitor = SECURITY_MONITOR.read();
-    monitor.start();
+pub async fn start_monitor() {
+    {
+        let monitor = SECURITY_MONITOR.read();
+        monitor.start();
+    }
 
     // 初始化内存蜜罐以检测内存扫描
     memory_honeypot::init_global_honeypot();
@@ -69,13 +70,11 @@ pub fn start_monitor() {
     }
 
     // 自动启动泄漏监控：选择可用端口
-    let start_result = block_on(async {
-        let port = LOCAL_SECURITY_MONITOR
-            .find_available_port()
-            .await
-            .unwrap_or(10808);
-        leak_monitor_start(port).await
-    });
+    let port = LOCAL_SECURITY_MONITOR
+        .find_available_port()
+        .await
+        .unwrap_or(10808);
+    let start_result = leak_monitor_start(port).await;
 
     if let Err(e) = start_result {
         log::warn!("Failed to start leak monitor: {}", e);
@@ -93,7 +92,7 @@ pub fn stop_monitor() {
     ANTI_DEBUG_FLAG.store(false, Ordering::SeqCst);
 }
 
-pub fn check_status() -> SecurityStatus {
+pub async fn check_status() -> SecurityStatus {
     let honeypot_triggered = memory_honeypot::check_global_honeypot();
     if honeypot_triggered {
         crate::security::mark_security_compromised();
@@ -105,7 +104,7 @@ pub fn check_status() -> SecurityStatus {
         crate::security::mark_security_compromised();
     }
 
-    let leak_status = block_on(LOCAL_SECURITY_MONITOR.get_status());
+    let leak_status = LOCAL_SECURITY_MONITOR.get_status().await;
     let anti_cfg = anti_debug::AntiDebugConfig::default();
 
     SecurityStatus {

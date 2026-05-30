@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
+use crate::process::AsyncHandler;
+
 /// 会话绑定配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -992,7 +994,7 @@ impl SessionAffinityManager {
 
     /// 启动后台清理任务
     pub fn start_cleanup_task(self: Arc<Self>) {
-        tokio::spawn(async move {
+        AsyncHandler::spawn(move || async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
             loop {
                 interval.tick().await;
