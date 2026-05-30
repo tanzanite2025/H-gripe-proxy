@@ -288,12 +288,13 @@ const HomePage = () => {
 
   const criticalCards = useMemo(
     () => [
-      renderCard('proxy', <CurrentProxyCard />),
+      renderCard('proxy', <CurrentProxyCard />, 12),
       renderCard(
         'systeminfo',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
           <LazySystemInfoCard />
         </Suspense>,
+        12,
       ),
     ],
     [renderCard],

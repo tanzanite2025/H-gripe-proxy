@@ -44,7 +44,7 @@ export const EnhancedCard = forwardRef<HTMLElement, EnhancedCardProps>(
         ref={ref}
         style={fixedHeight ? { '--card-fixed-h': typeof fixedHeight === 'number' ? `${fixedHeight}px` : fixedHeight } as React.CSSProperties : undefined}
       >
-        <div className="uds-card-header flex items-center justify-between px-1 py-1">
+        <div className="uds-card-header flex items-center justify-between px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">
             {icon && (
               <div

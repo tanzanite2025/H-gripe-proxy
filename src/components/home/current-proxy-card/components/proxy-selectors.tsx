@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Chip } from '@/components/tailwind/Chip'
 import {
   FormControl,
-  InputLabel,
   MenuItem,
   Select,
   type SelectChangeEvent,
@@ -54,11 +53,7 @@ export const ProxySelectors = ({
     <>
       {/* 代理组选择器 */}
       <FormControl fullWidth variant="outlined" size="small" className="mb-1.5">
-        <InputLabel id="proxy-group-select-label" className="uds-label">
-          {t('home.components.currentProxy.labels.group')}
-        </InputLabel>
         <Select
-          labelId="proxy-group-select-label"
           value={state.selection.group}
           onChange={onGroupChange}
           label={t('home.components.currentProxy.labels.group')}
@@ -75,11 +70,7 @@ export const ProxySelectors = ({
 
       {/* 代理节点选择器 */}
       <FormControl fullWidth variant="outlined" size="small" className="mb-0">
-        <InputLabel id="proxy-select-label" className="uds-label">
-          {t('home.components.currentProxy.labels.proxy')}
-        </InputLabel>
         <Select
-          labelId="proxy-select-label"
           value={state.selection.proxy}
           onChange={onProxyChange}
           label={t('home.components.currentProxy.labels.proxy')}

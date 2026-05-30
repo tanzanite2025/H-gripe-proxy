@@ -12,8 +12,13 @@ import { useNavigate } from 'react-router'
 
 import { EnhancedCard } from '@/components/home/enhanced-card'
 import { Button } from '@/components/tailwind/Button'
+import { Chip } from '@/components/tailwind/Chip'
 import { IconButton } from '@/components/tailwind/IconButton'
-import type { SelectChangeEvent } from '@/components/tailwind/Select'
+import {
+  MenuItem,
+  Select,
+  type SelectPrimitiveValue,
+} from '@/components/tailwind/Select'
 import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProfiles } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
@@ -27,10 +32,9 @@ import {
 import delayManager from '@/services/delay'
 
 import { ProxyInfoDisplay } from './components/proxy-info-display'
-import { ProxySelectors } from './components/proxy-selectors'
 import { useCurrentProxyData } from './hooks/use-current-proxy-data'
 import { useProxyDelayCheck } from './hooks/use-proxy-delay-check'
-import { getSignalIcon } from './utils/proxy-helpers'
+import { convertDelayColor, getSignalIcon } from './utils/proxy-helpers'
 
 /**
  * 当前代理卡片组件
@@ -113,7 +117,7 @@ export const CurrentProxyCard = () => {
   }, [state.displayProxy])
 
   const handleGroupSelectChange = useCallback(
-    (event: SelectChangeEvent<string>) => {
+    (event: { target: { value: string } }) => {
       handleGroupChange(event.target.value)
     },
     [handleGroupChange],
@@ -160,7 +164,6 @@ export const CurrentProxyCard = () => {
   return (
     <EnhancedCard
       title={t('home.components.currentProxy.title')}
-      fixedHeight={340}
       icon={
         <Tooltip
           title={
@@ -175,6 +178,7 @@ export const CurrentProxyCard = () => {
         </Tooltip>
       }
       iconColor={currentProxy ? 'primary' : undefined}
+      noContentPadding
       action={
         <div className="flex items-center gap-1">
           <Tooltip
@@ -213,27 +217,88 @@ export const CurrentProxyCard = () => {
       }
     >
       {isCoreDataPending ? (
-        <div className="py-4" />
+        <div className="py-2" />
       ) : (
-        <div>
-          {/* 代理节点信息显示 */}
-          <ProxyInfoDisplay
-            proxy={currentProxy}
-            delay={currentDelay}
-            isGlobalMode={isGlobalMode}
-            isDirectMode={isDirectMode}
-          />
-
-          {/* 代理选择器 */}
-          {currentProxy && (
-            <ProxySelectors
-              state={state}
-              proxyOptions={proxyOptions}
+        <div className="flex items-center gap-4 px-3 pt-1.5 pb-3">
+          {/* 1. 节点信息 */}
+          <div className="flex-1 min-w-0 h-9">
+            <ProxyInfoDisplay
+              proxy={currentProxy}
+              delay={currentDelay}
               isGlobalMode={isGlobalMode}
               isDirectMode={isDirectMode}
-              onGroupChange={handleGroupSelectChange}
-              onProxyChange={handleProxyChange}
             />
+          </div>
+
+          {/* 2. 代理组 */}
+          {currentProxy && (
+            <div className="flex-1 min-w-0">
+              <Select
+                value={state.selection.group}
+                onChange={handleGroupSelectChange}
+                disabled={isGlobalMode || isDirectMode}
+                size="small"
+                className="h-[38px] rounded-2xl border border-dashed border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
+              >
+                {state.proxyData.groups.map((group) => (
+                  <MenuItem key={group.name} value={group.name}>
+                    {group.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </div>
+          )}
+
+          {/* 3. 代理节点 */}
+          {currentProxy && (
+            <div className="flex-1 min-w-0">
+              <Select
+                value={state.selection.proxy}
+                onChange={handleProxyChange}
+                disabled={isDirectMode}
+                size="small"
+                renderValue={(selected: SelectPrimitiveValue) => <div className="truncate">{String(selected)}</div>}
+                className="h-[38px] rounded-2xl border border-dashed border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
+                MenuProps={{
+                  slotProps: {
+                    paper: {
+                      style: {
+                        maxHeight: 500,
+                      },
+                    },
+                  },
+                }}
+              >
+                {isDirectMode
+                  ? null
+                  : proxyOptions.map((proxy) => {
+                      const delayValue =
+                        state.proxyData.records[proxy.name] && state.selection.group
+                          ? delayManager.getDelayFix(
+                              state.proxyData.records[proxy.name],
+                              state.selection.group,
+                            )
+                          : -1
+                      return (
+                        <MenuItem
+                          key={proxy.name}
+                          value={proxy.name}
+                          className="flex w-full items-center justify-between pr-1"
+                        >
+                          <div className="mr-1 flex-1 truncate">
+                            {proxy.name}
+                          </div>
+                          <Chip
+                            size="small"
+                            label={delayManager.formatDelay(delayValue)}
+                            color={convertDelayColor(delayValue)}
+                            className="h-[22px] min-w-[60px] shrink-0"
+                          />
+                        </MenuItem>
+                      )
+                    })}
+              </Select>
+            </div>
           )}
         </div>
       )}

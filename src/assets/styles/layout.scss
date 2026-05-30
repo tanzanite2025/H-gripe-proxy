@@ -10,7 +10,7 @@
   // 顶部一体化导航页眉
   .layout-header {
     position: relative;
-    height: 60px;
+    height: 68px;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -117,20 +117,18 @@
 
           // 选中胶囊状态
           &.is-active {
-            background-color: var(--color-primary);
-            color: #ffffff;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
+            background-color: rgba(0, 255, 65, 0.15);
+            color: #00ff41;
 
             .layout-nav-item__icon {
-              color: #ffffff;
+              color: #00ff41;
             }
             .layout-nav-item__primary {
-              color: #ffffff;
+              color: #00ff41;
             }
             
             &:hover {
-              background-color: var(--color-primary);
+              background-color: rgba(0, 255, 65, 0.25);
             }
           }
 
@@ -167,23 +165,25 @@
       .the-window-ctrls {
         display: flex;
         align-items: center;
-        height: 36px;
-        margin-left: 4px;
-        gap: 2px;
+        height: 40px;
+        margin-left: 8px;
+        gap: 4px;
 
         button {
-          width: 36px;
-          height: 28px;
-          border-radius: 6px;
-          font-size: 16px;
-          transition: background-color 0.15s;
+          width: 40px;
+          height: 32px;
+          border-radius: 8px;
+          font-size: 18px;
+          transition: all 0.2s;
+          color: rgba(255, 255, 255, 0.6);
 
           &:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: rgba(0, 255, 65, 0.12);
+            color: #00ff41;
           }
 
           &:last-child:hover {
-            background-color: rgba(211, 47, 47, 0.8);
+            background-color: rgba(211, 47, 47, 0.85);
             color: #fff;
           }
         }

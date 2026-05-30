@@ -1,23 +1,8 @@
+import { Minus, Square, X, Copy } from 'lucide-react'
 import { forwardRef, useImperativeHandle } from 'react'
 
 import { useWindowControls } from '@/hooks/ui/use-window'
 import getSystem from '@/utils/misc'
-
-const controlButtonStyle = {
-  width: 28,
-  height: 28,
-  border: 'none',
-  background: 'transparent',
-  color: 'inherit',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 8,
-  cursor: 'default',
-  padding: 0,
-  fontSize: 14,
-  lineHeight: 1,
-}
 
 export const WindowControls = forwardRef(function WindowControls(props, ref) {
   const OS = getSystem()
@@ -50,57 +35,52 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
     ],
   )
 
-  // 通过前端对 tauri 窗口进行翻转全屏时会短暂地与系统图标重叠渲染。
-  // 这可能是上游缺陷，保险起见跨平台以窗口的最大化翻转为准。
+  const btnBase =
+    'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-400 hover:text-[#00ff41] hover:bg-[rgba(0,255,65,0.1)]'
+
+  const closeBtn =
+    'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-400 hover:text-white hover:bg-red-600'
 
   return (
     <div className="flex items-center gap-1">
       {OS === 'macos' && (
         <>
-          <button type="button" style={controlButtonStyle} onClick={close}>
-            ×
+          <button type="button" className={closeBtn} onClick={close}>
+            <X className="w-3.5 h-3.5" />
           </button>
-          <button type="button" style={controlButtonStyle} onClick={minimize}>
-            −
+          <button type="button" className={btnBase} onClick={minimize}>
+            <Minus className="w-3.5 h-3.5" />
           </button>
-          <button type="button" style={controlButtonStyle} onClick={toggleMaximize}>
-            {maximized ? '❐' : '□'}
+          <button type="button" className={btnBase} onClick={toggleMaximize}>
+            {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
           </button>
         </>
       )}
 
       {OS === 'windows' && (
         <>
-          <button type="button" style={controlButtonStyle} onClick={minimize}>
-            −
+          <button type="button" className={btnBase} onClick={minimize}>
+            <Minus className="w-3.5 h-3.5" />
           </button>
-          <button type="button" style={controlButtonStyle} onClick={toggleMaximize}>
-            {maximized ? '❐' : '□'}
+          <button type="button" className={btnBase} onClick={toggleMaximize}>
+            {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
           </button>
-          <button
-            type="button"
-            style={{ ...controlButtonStyle, color: '#d32f2f' }}
-            onClick={close}
-          >
-            ×
+          <button type="button" className={closeBtn} onClick={close}>
+            <X className="w-3.5 h-3.5" />
           </button>
         </>
       )}
 
       {OS === 'linux' && (
         <>
-          <button type="button" style={controlButtonStyle} onClick={minimize}>
-            −
+          <button type="button" className={btnBase} onClick={minimize}>
+            <Minus className="w-3.5 h-3.5" />
           </button>
-          <button type="button" style={controlButtonStyle} onClick={toggleMaximize}>
-            {maximized ? '❐' : '□'}
+          <button type="button" className={btnBase} onClick={toggleMaximize}>
+            {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
           </button>
-          <button
-            type="button"
-            style={{ ...controlButtonStyle, color: '#d32f2f' }}
-            onClick={close}
-          >
-            ×
+          <button type="button" className={closeBtn} onClick={close}>
+            <X className="w-3.5 h-3.5" />
           </button>
         </>
       )}

@@ -193,7 +193,7 @@ export const SystemInfoCard = () => {
       title={t('home.components.systemInfo.title')}
       icon={<Info className="h-5 w-5" />}
       iconColor="error"
-      fixedHeight={340}
+      noContentPadding
       action={
         <IconButton
           size="small"
@@ -204,42 +204,33 @@ export const SystemInfoCard = () => {
         </IconButton>
       }
     >
-      <div className="space-y-3">
-        <div className="flex justify-between">
-          <p className="text-sm text-text-secondary">
-            {t('home.components.systemInfo.fields.osInfo')}
-          </p>
-          <p className="text-sm font-medium">
-            {osInfo}
-          </p>
+      <div className="flex items-center gap-4 px-3 pt-1.5 pb-3">
+        {/* 1. OS + 版本 */}
+        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
+          <span className="text-xs text-text-secondary truncate">
+            {osInfo || '-'}
+          </span>
+          <span className="text-xs font-medium shrink-0 ml-1">
+            v{appVersion}
+          </span>
         </div>
-        <div className="border-t border-divider" />
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-text-secondary">
-            {t('home.components.systemInfo.fields.autoLaunch')}
-          </p>
-          <div className="flex items-center gap-2">
-            <Chip
-              size="small"
-              label={
-                autoLaunchEnabled
-                  ? t('shared.statuses.enabled')
-                  : t('shared.statuses.disabled')
-              }
-              color={autoLaunchEnabled ? 'success' : 'default'}
-              variant={autoLaunchEnabled ? 'filled' : 'outlined'}
-              onClick={toggleAutoLaunch}
-              className="cursor-pointer"
-            />
-          </div>
-        </div>
-        <div className="border-t border-divider" />
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-text-secondary">
-            {t('home.components.systemInfo.fields.runningMode')}
-          </p>
+
+        {/* 2. 自启动 + 运行模式 */}
+        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
+          <Chip
+            size="small"
+            label={
+              autoLaunchEnabled
+                ? t('shared.statuses.enabled')
+                : t('shared.statuses.disabled')
+            }
+            color={autoLaunchEnabled ? 'success' : 'default'}
+            variant={autoLaunchEnabled ? 'filled' : 'outlined'}
+            onClick={toggleAutoLaunch}
+            className="cursor-pointer"
+          />
           <p
-            className={`text-sm font-medium flex items-center gap-1 ${
+            className={`text-xs font-medium flex items-center gap-1 shrink-0 ml-1 ${
               isSidecarMode || (isAdminMode && isSidecarMode)
                 ? 'cursor-pointer underline hover:opacity-70'
                 : 'cursor-default'
@@ -250,26 +241,18 @@ export const SystemInfoCard = () => {
             {getModeText()}
           </p>
         </div>
-        <div className="border-t border-divider" />
-        <div className="flex justify-between">
-          <p className="text-sm text-text-secondary">
+
+        {/* 3. 检查更新 */}
+        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
+          <span className="text-xs text-text-secondary truncate">
             {t('home.components.systemInfo.fields.lastCheckUpdate')}
-          </p>
-          <p
-            className="text-sm font-medium cursor-pointer underline hover:opacity-70"
+          </span>
+          <span
+            className="text-xs font-medium cursor-pointer underline hover:opacity-70 shrink-0 ml-1"
             onClick={onCheckUpdate}
           >
             {lastCheckUpdateText}
-          </p>
-        </div>
-        <div className="border-t border-divider" />
-        <div className="flex justify-between">
-          <p className="text-sm text-text-secondary">
-            {t('home.components.systemInfo.fields.vergeVersion')}
-          </p>
-          <p className="text-sm font-medium">
-            v{appVersion}
-          </p>
+          </span>
         </div>
       </div>
     </EnhancedCard>

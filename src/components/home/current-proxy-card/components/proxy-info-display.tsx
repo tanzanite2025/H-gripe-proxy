@@ -38,7 +38,7 @@ export const ProxyInfoDisplay = ({
   return (
     <div
       className={cn(
-        'mb-1.5 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5',
+        'flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5',
         'bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20',
       )}
     >
