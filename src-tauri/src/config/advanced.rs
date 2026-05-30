@@ -12,6 +12,7 @@ use anyhow::Result;
 use super::ConfigFile;
 use crate::anti_probe::AntiProbeConfig;
 use crate::core::egress_identity::EgressIdentityConfig;
+use crate::core::egress_monitor::EgressMonitorConfig;
 use crate::core::session_affinity::SessionAffinityConfig;
 use crate::multipath::MultipathConfig;
 use crate::traffic::{TrafficPaddingConfig, TrafficObfuscationConfig};
@@ -39,6 +40,10 @@ pub struct AdvancedConfig {
     #[serde(default)]
     pub dns: DnsAdvancedConfig,
 
+    /// 出口 IP 监控配置
+    #[serde(default)]
+    pub egress_monitor: EgressMonitorConfig,
+
     /// 流量混淆配置（新）
     #[serde(default)]
     pub traffic_obfuscation: TrafficObfuscationConfig,
@@ -61,6 +66,7 @@ impl Default for AdvancedConfig {
             session_affinity: SessionAffinityConfig::default(),
             egress_identity: EgressIdentityConfig::default(),
             dns: DnsAdvancedConfig::default(),
+            egress_monitor: EgressMonitorConfig::default(),
             traffic_obfuscation: TrafficObfuscationConfig::default(),
             traffic_padding: TrafficPaddingConfig::default(),
             #[cfg(target_os = "linux")]
@@ -429,6 +435,7 @@ impl AdvancedConfig {
         }
 
         self.egress_identity.validate()?;
+        self.egress_monitor.validate()?;
         self.dns.validate()?;
         self.traffic_obfuscation.validate()
             .map_err(|e| anyhow::anyhow!("流量混淆配置错误: {}", e))?;
@@ -466,6 +473,10 @@ impl AdvancedConfig {
         }
 
         self.dns = other.dns.clone();
+
+        if other.egress_monitor.enabled {
+            self.egress_monitor = other.egress_monitor.clone();
+        }
 
         if other.traffic_obfuscation.enabled {
             self.traffic_obfuscation = other.traffic_obfuscation.clone();
@@ -535,6 +546,15 @@ impl AdvancedConfig {
             session_affinity: SessionAffinityConfig::default(),
             egress_identity: EgressIdentityConfig::recommended(),
             dns: DnsAdvancedConfig::default(),
+            egress_monitor: EgressMonitorConfig {
+                enabled: true,
+                probe_interval_secs: 120,
+                auto_rebind_on_change: false,
+                notify_on_change: true,
+                probe_timeout_secs: 10,
+                watch_poll_interval_secs: 30,
+                rebind_strategy: crate::core::egress_monitor::RebindStrategyType::Smart,
+            },
             traffic_obfuscation: TrafficObfuscationConfig {
                 enabled: true,
                 profile: crate::traffic::ObfuscationProfile::Conservative,

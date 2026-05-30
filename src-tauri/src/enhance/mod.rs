@@ -618,6 +618,52 @@ fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
     config
 }
 
+/// 注入连接稳定性全局配置
+/// - keep-alive-interval: 防止中间设备杀空闲连接
+/// - unified-delay: 统一延迟测试方式，减少误切换
+/// - store-selected: 所有 select 组持久化选择
+fn apply_connection_stability(mut config: Mapping) -> Mapping {
+    // keep-alive-interval: 30s，弱网下保活 TCP 连接
+    if !config.contains_key("keep-alive-interval") {
+        config.insert("keep-alive-interval".into(), Value::from(30));
+    }
+
+    // unified-delay: 统一延迟计算，排除握手差异，减少误切换
+    if !config.contains_key("unified-delay") {
+        config.insert("unified-delay".into(), Value::Bool(true));
+    }
+
+    // store-selected: 所有 select 组持久化用户选择
+    let mut profile = config
+        .get("profile")
+        .and_then(Value::as_mapping)
+        .cloned()
+        .unwrap_or_default();
+    if !profile.contains_key("store-selected") {
+        profile.insert("store-selected".into(), Value::Bool(true));
+        config.insert("profile".into(), Value::Mapping(profile));
+    }
+
+    // 为所有 url-test 组注入 tolerance（防止延迟微小波动导致频繁切换节点/IP）
+    if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
+        for group in groups {
+            if let Some(group_map) = group.as_mapping_mut() {
+                let group_type = group_map
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+
+                if group_type == "url-test" && !group_map.contains_key("tolerance") {
+                    // 延迟差 < 50ms 不切换，避免 IP 频繁变化
+                    group_map.insert("tolerance".into(), Value::from(50));
+                }
+            }
+        }
+    }
+
+    config
+}
+
 fn append_standard_region_pools(mut config: Mapping) -> Mapping {
     let proxy_names = config
         .get("proxies")
@@ -676,7 +722,9 @@ fn append_standard_region_pools(mut config: Mapping) -> Mapping {
         let mut group = Mapping::new();
         let group_name = spec.group_name();
         group.insert("name".into(), Value::from(group_name.as_str()));
-        group.insert("type".into(), "fallback".into());
+        // 使用 load-balance + sticky-sessions：同源同目标锁定节点，IP 不变
+        group.insert("type".into(), "load-balance".into());
+        group.insert("strategy".into(), "sticky-sessions".into());
         group.insert("url".into(), STANDARD_REGION_POOL_URL.into());
         group.insert("interval".into(), STANDARD_REGION_POOL_INTERVAL.into());
         group.insert("timeout".into(), STANDARD_REGION_POOL_TIMEOUT.into());
@@ -1296,6 +1344,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     config = cleanup_proxy_groups(config);
     config = append_standard_region_pools(config);
+    config = apply_connection_stability(config);
 
     config = use_tun(config, enable_tun);
     config = use_sort(config);

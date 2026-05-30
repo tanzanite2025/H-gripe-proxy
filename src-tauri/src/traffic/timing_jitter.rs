@@ -112,10 +112,12 @@ impl Default for TimingJitterStats {
 }
 
 /// 时序混淆引擎
+#[allow(dead_code)]
 pub struct TimingJitterEngine {
     config: TimingJitterConfig,
     stats: TimingJitterStats,
     /// 当前批处理窗口的起始时间戳（毫秒）
+    #[allow(dead_code)]
     batch_start_ms: u64,
     /// 当前批处理窗口的延迟值
     batch_delay: Duration,
@@ -139,6 +141,7 @@ impl TimingJitterEngine {
     }
 
     /// 获取当前配置
+    #[allow(dead_code)]
     pub fn config(&self) -> &TimingJitterConfig {
         &self.config
     }
@@ -149,6 +152,7 @@ impl TimingJitterEngine {
     }
 
     /// 重置统计
+    #[allow(dead_code)]
     pub fn reset_stats(&mut self) {
         self.stats = TimingJitterStats::default();
         log::info!("📊 Timing jitter stats reset");
@@ -156,6 +160,7 @@ impl TimingJitterEngine {
 
     /// 计算一个包的延迟时间
     /// `now_ms`: 当前时间戳（毫秒）
+    #[allow(dead_code)]
     pub fn get_delay(&mut self, now_ms: u64) -> Duration {
         if !self.config.enabled {
             return Duration::ZERO;

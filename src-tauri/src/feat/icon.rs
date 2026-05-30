@@ -9,6 +9,7 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt as _;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct IconInfo {
     name: String,
     previous_t: String,
@@ -126,6 +127,7 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
     Ok(icon_path.to_string_lossy().into())
 }
 
+#[allow(dead_code)]
 pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<String> {
     let file_path = Path::new(path.as_str());
     let icon_name = normalize_icon_segment(icon_info.name.as_str())?;

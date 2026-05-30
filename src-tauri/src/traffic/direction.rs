@@ -107,12 +107,14 @@ impl Default for DirectionStats {
 
 /// 流量方向
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum TrafficDirection {
     Upstream,
     Downstream,
 }
 
 /// 方向混淆引擎
+#[allow(dead_code)]
 pub struct DirectionObfuscator {
     config: DirectionObfuscationConfig,
     stats: DirectionStats,
@@ -132,6 +134,7 @@ impl DirectionObfuscator {
     }
 
     /// 获取当前配置
+    #[allow(dead_code)]
     pub fn config(&self) -> &DirectionObfuscationConfig {
         &self.config
     }
@@ -142,6 +145,7 @@ impl DirectionObfuscator {
     }
 
     /// 重置统计
+    #[allow(dead_code)]
     pub fn reset_stats(&mut self) {
         self.stats = DirectionStats::default();
         log::info!("📊 Direction obfuscation stats reset");
@@ -151,6 +155,7 @@ impl DirectionObfuscator {
     /// `direction`: 真实流量的方向
     /// `size`: 真实流量包的大小
     /// 返回：需要发送的假数据（方向与真实流量相反）
+    #[allow(dead_code)]
     pub fn process_packet(&mut self, direction: TrafficDirection, size: usize) -> Option<DirectionAction> {
         if !self.config.enabled {
             return None;
@@ -171,6 +176,7 @@ impl DirectionObfuscator {
     }
 
     /// 镜像处理：以 mirror_ratio 概率生成方向相反的假流量
+    #[allow(dead_code)]
     fn handle_mirror(&mut self, direction: TrafficDirection, size: usize) -> Option<DirectionAction> {
         let mut rng = rand::thread_rng();
         if rng.r#gen::<f32>() < self.config.mirror_ratio {
@@ -193,6 +199,7 @@ impl DirectionObfuscator {
     }
 
     /// 填充处理：将包填充到 pad_to_size
+    #[allow(dead_code)]
     fn handle_pad(&mut self, direction: TrafficDirection, size: usize) -> Option<DirectionAction> {
         let target = self.config.pad_to_size;
         if target > size {
@@ -213,6 +220,7 @@ impl DirectionObfuscator {
 
 /// 方向混淆动作
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DirectionAction {
     /// 假数据的发送方向
     pub direction: TrafficDirection,
@@ -224,6 +232,7 @@ pub struct DirectionAction {
 
 /// 动作类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum DirectionActionType {
     Mirror,
     Pad,

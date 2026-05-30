@@ -14,6 +14,7 @@ use anyhow::Result;
 use crate::anti_probe::{AntiProbeService, AntiProbeConfig};
 use crate::config::AdvancedConfig;
 use crate::core::egress_identity::EgressIdentityManager;
+use crate::core::egress_monitor::EgressMonitor;
 use crate::tls_fingerprint::TlsFingerprintService;
 use crate::security::SecurityMonitor;
 use crate::multipath::MultipathManager;
@@ -32,6 +33,7 @@ pub struct CoordinatorConfig {
     pub tls_fingerprint: Option<String>,
     pub egress_identity_enabled: bool,
     pub session_affinity_enabled: bool,
+    pub egress_monitor_enabled: bool,
     /// 启用多路径路由
     pub multipath_enabled: bool,
     /// 启用 XDP（仅 Linux）
@@ -47,6 +49,7 @@ impl Default for CoordinatorConfig {
             tls_fingerprint: None,
             egress_identity_enabled: false,
             session_affinity_enabled: false,
+            egress_monitor_enabled: false,
             multipath_enabled: false,
             #[cfg(target_os = "linux")]
             xdp_enabled: false,
@@ -54,34 +57,6 @@ impl Default for CoordinatorConfig {
     }
 }
 
-/// 连接请求
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct ConnectionRequest {
-    /// 客户端 IP
-    pub client_ip: std::net::IpAddr,
-    /// 握手 token
-    pub token: String,
-    /// 目标域名
-    pub domain: String,
-    /// 会话 ID
-    pub session_id: u64,
-}
-
-/// 连接决策
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub enum ConnectionDecision {
-    /// 接受连接
-    Accept {
-        /// 路由节点
-        route: Option<String>,
-        /// TLS 指纹
-        tls_fingerprint: Option<String>,
-    },
-    /// 拒绝连接
-    Reject,
-}
 
 /// 核心协调器
 pub struct CoreCoordinator {
@@ -94,6 +69,7 @@ pub struct CoreCoordinator {
     /// 多路径管理器
     multipath_manager: Arc<MultipathManager>,
     egress_identity_manager: Arc<EgressIdentityManager>,
+    egress_monitor: Arc<EgressMonitor>,
     /// XDP 管理器（Linux）
     #[cfg(target_os = "linux")]
     xdp_manager: Arc<XdpManager>,
@@ -110,6 +86,7 @@ impl CoreCoordinator {
             tls_fingerprint: Arc::new(TlsFingerprintService::new()),
             multipath_manager: Arc::new(MultipathManager::new()),
             egress_identity_manager: Arc::new(EgressIdentityManager::new()),
+            egress_monitor: Arc::new(EgressMonitor::new()),
             #[cfg(target_os = "linux")]
             xdp_manager: Arc::new(XdpManager::new()),
             config: Arc::new(RwLock::new(CoordinatorConfig::default())),
@@ -124,6 +101,7 @@ impl CoreCoordinator {
             tls_fingerprint: config.security.tls_fingerprint.clone(),
             egress_identity_enabled: config.egress_identity.enabled,
             session_affinity_enabled: config.session_affinity.enabled,
+            egress_monitor_enabled: config.egress_monitor.enabled,
             multipath_enabled: config.multipath.enabled,
             #[cfg(target_os = "linux")]
             xdp_enabled: config.xdp.enabled,
@@ -131,13 +109,8 @@ impl CoreCoordinator {
     }
 
     pub fn hydrate_from_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
+        self.apply_sub_configs(config);
         *self.config.write() = Self::config_from_advanced(config);
-        self.anti_probe.update_config(config.security.anti_probe.clone());
-        self.multipath_manager.update_config(config.multipath.clone());
-        self.egress_identity_manager
-            .update_config(config.egress_identity.clone())?;
-        #[cfg(target_os = "linux")]
-        self.xdp_manager.update_config(config.xdp.clone());
         Ok(())
     }
 
@@ -148,14 +121,22 @@ impl CoreCoordinator {
     }
 
     pub fn apply_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
-        self.update_config(Self::config_from_advanced(config))?;
+        self.apply_sub_configs(config);
+        self.update_config(Self::config_from_advanced(config))
+    }
+
+    /// 将 AdvancedConfig 中的子配置分发到各管理器
+    fn apply_sub_configs(&self, config: &AdvancedConfig) {
         self.anti_probe.update_config(config.security.anti_probe.clone());
         self.multipath_manager.update_config(config.multipath.clone());
-        self.egress_identity_manager
-            .update_config(config.egress_identity.clone())?;
+        if let Err(e) = self.egress_identity_manager.update_config(config.egress_identity.clone()) {
+            log::warn!("[Coordinator] 更新 egress_identity 配置失败: {}", e);
+        }
+        if let Err(e) = self.egress_monitor.update_config(config.egress_monitor.clone()) {
+            log::warn!("[Coordinator] 更新 egress_monitor 配置失败: {}", e);
+        }
         #[cfg(target_os = "linux")]
         self.xdp_manager.update_config(config.xdp.clone());
-        Ok(())
     }
 
     pub fn initialize(&self) -> Result<()> {
@@ -182,13 +163,19 @@ impl CoreCoordinator {
             }
         }
 
-        // 4. 启动多路径路由
+        // 4. 启动出口 IP 监控
+        if config.egress_monitor_enabled {
+            log::info!("[Coordinator] 启动出口 IP 监控");
+            self.egress_monitor.start();
+        }
+
+        // 5. 启动多路径路由
         if config.multipath_enabled {
             log::info!("[Coordinator] 启用多路径路由");
             // 多路径管理器已在创建时初始化
         }
 
-        // 5. 启动 XDP（Linux）
+        // 6. 启动 XDP（Linux）
         #[cfg(target_os = "linux")]
         if config.xdp_enabled {
             log::info!("[Coordinator] 启动 XDP 代理");
@@ -202,47 +189,6 @@ impl CoreCoordinator {
         Ok(())
     }
 
-    /// 处理连接请求
-    #[allow(dead_code)]
-    pub fn handle_connection(&self, request: ConnectionRequest) -> Result<ConnectionDecision> {
-        let config = self.config.read();
-
-        // 1. 安全检查
-        if config.security_enabled && crate::security::is_security_compromised() {
-            log::error!("[Coordinator] 安全状态已被破坏，拒绝连接");
-            return Ok(ConnectionDecision::Reject);
-        }
-
-        // 2. 反探测验证
-        if config.anti_probe_enabled {
-            if !self.anti_probe.verify_handshake(&request.client_ip, &request.token) {
-                log::warn!("[Coordinator] 反探测验证失败: {}", request.client_ip);
-                return Ok(ConnectionDecision::Reject);
-            }
-            log::debug!("[Coordinator] 反探测验证通过: {}", request.client_ip);
-        }
-
-        // 3. 路由决策
-        let route = if config.multipath_enabled {
-            let node = self.multipath_manager.select_node(&request.domain, request.session_id);
-            if let Some(ref node_name) = node {
-                log::debug!("[Coordinator] 选择节点: {} for {}", node_name, request.domain);
-            }
-            node
-        } else {
-            None
-        };
-
-        // 4. 获取 TLS 指纹
-        let tls_fingerprint = self.tls_fingerprint.get_fingerprint()
-            .map(|f| f.name.clone());
-
-        // 5. 返回决策
-        Ok(ConnectionDecision::Accept {
-            route,
-            tls_fingerprint,
-        })
-    }
 
     /// 更新配置
     pub fn update_config(&self, new_config: CoordinatorConfig) -> Result<()> {
@@ -253,7 +199,8 @@ impl CoreCoordinator {
         let _anti_probe_changed = config.anti_probe_enabled != new_config.anti_probe_enabled;
         let tls_changed = config.tls_fingerprint != new_config.tls_fingerprint;
         let _multipath_changed = config.multipath_enabled != new_config.multipath_enabled;
-        
+        let egress_monitor_changed = config.egress_monitor_enabled != new_config.egress_monitor_enabled;
+
         #[cfg(target_os = "linux")]
         let xdp_changed = config.xdp_enabled != new_config.xdp_enabled;
 
@@ -276,6 +223,16 @@ impl CoreCoordinator {
                 }
             } else {
                 self.tls_fingerprint.clear();
+            }
+        }
+
+        if egress_monitor_changed {
+            if new_config.egress_monitor_enabled {
+                log::info!("[Coordinator] 启动出口 IP 监控");
+                self.egress_monitor.start();
+            } else {
+                log::info!("[Coordinator] 停止出口 IP 监控");
+                self.egress_monitor.stop();
             }
         }
 
@@ -323,6 +280,11 @@ impl CoreCoordinator {
         self.egress_identity_manager.clone()
     }
 
+    #[allow(dead_code)]
+    pub fn egress_monitor(&self) -> Arc<EgressMonitor> {
+        self.egress_monitor.clone()
+    }
+
     /// 获取 XDP 管理器（Linux）
     #[cfg(target_os = "linux")]
     pub fn xdp_manager(&self) -> Arc<XdpManager> {
@@ -332,6 +294,9 @@ impl CoreCoordinator {
     /// 关闭协调器
     pub fn shutdown(&self) -> Result<()> {
         log::info!("[Coordinator] 开始关闭");
+
+        // 停止出口 IP 监控
+        self.egress_monitor.stop();
 
         // 停止安全监控
         self.security_monitor.stop();

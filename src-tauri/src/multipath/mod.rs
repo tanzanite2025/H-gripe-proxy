@@ -371,6 +371,7 @@ impl MultipathManager {
     }
 
     /// 选择节点
+    #[allow(dead_code)]
     pub fn select_node(&self, domain: &str, session_id: u64) -> Option<String> {
         let config = self.config.read();
         
@@ -421,16 +422,19 @@ impl MultipathManager {
         Some(node.name.clone())
     }
 
+    #[allow(dead_code)]
     fn select_round_robin(&self, nodes: &[PathNode]) -> Option<PathNode> {
         nodes.iter().find(|n| n.enabled).cloned()
     }
 
+    #[allow(dead_code)]
     fn select_random(&self, nodes: &[PathNode]) -> Option<PathNode> {
         use rand::seq::SliceRandom;
         let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).cloned().collect();
         enabled.choose(&mut rand::thread_rng()).cloned()
     }
 
+    #[allow(dead_code)]
     fn select_weighted(&self, nodes: &[PathNode]) -> Option<PathNode> {
         use rand::Rng;
         let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).cloned().collect();
@@ -453,6 +457,7 @@ impl MultipathManager {
         None
     }
 
+    #[allow(dead_code)]
     fn select_least_connections(&self, nodes: &[PathNode]) -> Option<PathNode> {
         let stats = self.node_stats.read();
         nodes.iter()
@@ -465,6 +470,7 @@ impl MultipathManager {
             .cloned()
     }
 
+    #[allow(dead_code)]
     fn select_latency_based(&self, nodes: &[PathNode]) -> Option<PathNode> {
         let stats = self.node_stats.read();
         nodes.iter()
@@ -477,6 +483,7 @@ impl MultipathManager {
             .cloned()
     }
 
+    #[allow(dead_code)]
     fn current_timestamp() -> u64 {
         use std::time::{SystemTime, UNIX_EPOCH};
         SystemTime::now()

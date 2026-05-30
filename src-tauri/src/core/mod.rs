@@ -3,6 +3,7 @@ pub mod backup;
 pub mod coordinator;
 pub mod coordinator_status;
 pub mod egress_identity;
+pub mod egress_monitor;
 pub mod handle;
 pub mod hotkey;
 pub mod ip_reputation;

@@ -11,6 +11,7 @@ pub mod clash;
 pub mod coordinator;
 pub mod dns;
 pub mod egress_identity;
+pub mod egress_monitor;
 pub mod http;
 pub mod ip_reputation;
 pub mod lightweight;
@@ -43,6 +44,7 @@ pub use clash::*;
 pub use coordinator::*;
 pub use dns::*;
 pub use egress_identity::*;
+pub use egress_monitor::*;
 #[allow(unused_imports)]
 pub use http::*;
 pub use ip_reputation::*;

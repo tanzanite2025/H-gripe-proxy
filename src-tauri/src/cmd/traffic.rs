@@ -205,6 +205,7 @@ pub async fn traffic_padding_get_config() -> Result<TrafficPaddingConfig, String
 }
 
 /// 应用填充配置（供内部调用，例如高级配置落盘后同步）
+#[allow(dead_code)]
 pub async fn apply_traffic_padding_config(config: TrafficPaddingConfig) -> Result<(), String> {
     // 如果新调度器已存在，委托到新调度器
     {

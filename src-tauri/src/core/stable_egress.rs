@@ -1,14 +1,21 @@
+use std::collections::{HashMap, HashSet};
+use std::net::IpAddr;
+
+use anyhow::Result;
+use serde_yaml_ng::{Mapping, Value};
+
 use crate::core::{
     coordinator_status::{
         CoordinatorBindingInfo, CoordinatorResolvedEgressIdentity, CoordinatorRuntimeState,
         StableEgressBackwriteStatus,
     },
-    egress_identity::ResolvedEgressIdentity,
+    egress_identity::{EgressNodeMetadata, EgressSelectionContext, ResolvedEgressIdentity},
     handle,
-    session_affinity::BindingInfo,
+    ip_reputation::IpReputationManager,
+    session_affinity::{BindingInfo, SessionAffinityManager},
 };
-use serde_yaml_ng::{Mapping, Value};
-use std::collections::HashMap;
+use crate::core::coordinator::CoreCoordinator;
+use crate::multipath::MultipathManager;
 
 pub const STABLE_EGRESS_GROUP_PREFIX: &str = "VERGE-STABLE-";
 
@@ -243,4 +250,213 @@ fn is_domain_pattern_assignment(assignment: &CoordinatorResolvedEgressIdentity) 
 
 fn is_domain_rule_binding(binding: &CoordinatorBindingInfo) -> bool {
     binding.binding_type == "domain-rule"
+}
+
+// ── 出口选择上下文增强 ────────────────────────────────────────────────
+
+pub async fn resolve_server_ip(server: &str) -> Option<String> {
+    if let Ok(ip_addr) = server.parse::<IpAddr>() {
+        return Some(ip_addr.to_string());
+    }
+
+    let resolved = tokio::net::lookup_host((server, 0)).await.ok()?;
+    let resolved_addresses = resolved.collect::<Vec<_>>();
+
+    resolved_addresses
+        .iter()
+        .find(|socket_addr| matches!(socket_addr.ip(), IpAddr::V4(_)))
+        .or_else(|| resolved_addresses.first())
+        .map(|socket_addr| socket_addr.ip().to_string())
+}
+
+/// 丰富出口选择上下文：注入多路径元数据 + IP 信誉度
+pub async fn enrich_egress_selection_context(
+    mut ctx: EgressSelectionContext,
+    multipath_manager: &MultipathManager,
+    ip_reputation_manager: &IpReputationManager,
+) -> EgressSelectionContext {
+    let multipath_config = multipath_manager.get_config();
+    let requested_nodes = if ctx.available_nodes.is_empty() {
+        None
+    } else {
+        Some(ctx.available_nodes.iter().cloned().collect::<HashSet<_>>())
+    };
+
+    let mut metadata_index = HashMap::<String, EgressNodeMetadata>::new();
+    let mut ordered_nodes = Vec::<String>::new();
+
+    for pool in multipath_config.node_pools.iter().filter(|pool| pool.enabled) {
+        for node in pool.nodes.iter().filter(|node| node.enabled) {
+            let should_include = requested_nodes
+                .as_ref()
+                .map(|nodes| nodes.contains(&node.name))
+                .unwrap_or(true);
+
+            if !should_include {
+                continue;
+            }
+
+            if !metadata_index.contains_key(&node.name) {
+                ordered_nodes.push(node.name.clone());
+            }
+
+            metadata_index.entry(node.name.clone()).or_insert_with(|| EgressNodeMetadata {
+                name: node.name.clone(),
+                server: Some(node.server.clone()),
+                pool_name: Some(pool.name.clone()),
+                pool_type: Some(format!("{:?}", pool.pool_type)),
+                ip_type: None,
+                fraud_score: None,
+            });
+        }
+    }
+
+    if ctx.available_nodes.is_empty() {
+        ctx.available_nodes = ordered_nodes;
+    }
+
+    for node_name in &ctx.available_nodes {
+        metadata_index
+            .entry(node_name.clone())
+            .or_insert_with(|| EgressNodeMetadata {
+                name: node_name.clone(),
+                ..Default::default()
+            });
+    }
+
+    for node_name in &ctx.available_nodes {
+        if let Some(metadata) = metadata_index.get_mut(node_name) {
+            if let Some(server) = metadata.server.clone() {
+                if let Some(server_ip) = resolve_server_ip(&server).await {
+                    match ip_reputation_manager.inspect_ip_metadata(&server_ip).await {
+                        Ok(reputation) => {
+                            metadata.ip_type = Some(reputation.ip_type);
+                            metadata.fraud_score = Some(reputation.fraud_score);
+                        }
+                        Err(error) => {
+                            log::warn!(
+                                "[EgressIdentity] 检测节点 {} 的 IP 元数据失败: {}",
+                                node_name,
+                                error
+                            );
+                        }
+                    }
+                } else {
+                    log::warn!(
+                        "[EgressIdentity] 无法解析节点 {} 的 server 地址 {}",
+                        node_name,
+                        server
+                    );
+                }
+            }
+        }
+    }
+
+    ctx.available_node_metadata = ctx
+        .available_nodes
+        .iter()
+        .filter_map(|node_name| metadata_index.get(node_name).cloned())
+        .collect::<Vec<_>>();
+
+    ctx
+}
+
+// ── 稳定出口运行态同步 ────────────────────────────────────────────────
+
+fn with_selected_node(mut available_nodes: Vec<String>, selected_node: &str) -> Vec<String> {
+    if !available_nodes.iter().any(|node| node == selected_node) {
+        available_nodes.insert(0, selected_node.to_string());
+    }
+    available_nodes
+}
+
+/// 同步 VERGE-STABLE-* 组的选中节点到 egress_identity 和 session_affinity 的运行态
+pub async fn sync_runtime_stable_egress_selection(
+    coordinator: &CoreCoordinator,
+    session_affinity_manager: &SessionAffinityManager,
+    ip_reputation_manager: &IpReputationManager,
+    runtime_config: &Mapping,
+) -> Result<()> {
+    let stable_group_patterns = collect_stable_group_patterns(runtime_config);
+    if stable_group_patterns.is_empty() {
+        return Ok(());
+    }
+
+    let proxies = handle::Handle::mihomo()
+        .await
+        .get_proxies()
+        .await
+        .map_err(|e| anyhow::anyhow!("获取代理组失败: {}", e))?;
+
+    let egress_identity_manager = coordinator.egress_identity_manager();
+    let multipath_manager = coordinator.multipath_manager();
+
+    for (group_name, domain_patterns) in &stable_group_patterns {
+        let Some(group_data) = proxies.proxies.get(group_name.as_str()) else {
+            continue;
+        };
+
+        let Some(selected_node) = group_data
+            .now
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string())
+        else {
+            continue;
+        };
+
+        let available_nodes = with_selected_node(
+            group_data.all.clone().unwrap_or_default(),
+            &selected_node,
+        );
+
+        if available_nodes.is_empty() {
+            continue;
+        }
+
+        for domain_pattern in domain_patterns {
+            let Some(domain_probe) = domain_probe_for_pattern(domain_pattern) else {
+                continue;
+            };
+
+            let egress_context = enrich_egress_selection_context(
+                EgressSelectionContext {
+                    domain: Some(domain_probe),
+                    available_nodes: available_nodes.clone(),
+                    ..Default::default()
+                },
+                &multipath_manager,
+                ip_reputation_manager,
+            )
+            .await;
+
+            if let Err(error) = egress_identity_manager.record_domain_override(
+                domain_pattern,
+                egress_context,
+                selected_node.clone(),
+            ) {
+                log::warn!(
+                    "Failed to backwrite stable egress selection into egress identity for {} -> {}: {}",
+                    domain_pattern,
+                    selected_node,
+                    error
+                );
+            }
+
+            if let Err(error) = session_affinity_manager
+                .record_domain_rule_binding(domain_pattern, selected_node.clone())
+                .await
+            {
+                log::warn!(
+                    "Failed to backwrite stable egress selection into session affinity for {} -> {}: {}",
+                    domain_pattern,
+                    selected_node,
+                    error
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
