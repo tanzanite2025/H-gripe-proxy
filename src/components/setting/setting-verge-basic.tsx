@@ -9,16 +9,26 @@ import { Button } from '@/components/tailwind/Button'
 import { MenuItem, Select } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
 import { useVerge } from '@/hooks/system'
+import { updateLastCheckTime } from '@/hooks/system/use-update'
 import { navItems } from '@/pages/_core/router'
-import { copyClashEnv } from '@/services/cmds'
+import {
+  copyClashEnv,
+  openAppDir,
+  openCoreDir,
+  openDevTools,
+  openLogsDir,
+} from '@/services/cmds'
 import { supportedLanguages } from '@/services/i18n'
 import { showNotice } from '@/services/notice-service'
+import { checkUpdateSafe as checkUpdate } from '@/services/update'
 import getSystem from '@/utils/misc'
+import { version } from '@root/package.json'
 
 import { BackupViewer } from './components/backup/backup-main'
 import { HotkeyViewer } from './components/hotkey/hotkey-config'
 import { ConfigViewer } from './components/misc/config-editor'
 import { LayoutViewer } from './components/misc/layout-config'
+import { LiteModeViewer } from './components/misc/lite-mode'
 import { MiscViewer } from './components/misc/misc-config'
 import { UpdateViewer } from './components/misc/update-config'
 import { GuardState } from './components/proxy/guard-state'
@@ -68,6 +78,9 @@ const SettingVergeBasic = ({ onError }: Props) => {
   const layoutRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
+  const liteModeRef = useRef<DialogRef>(null)
+
+  const canOpenDevTools = import.meta.env.DEV
 
   const onChangeData = (patch: any) => {
     mutateVerge({ ...verge, ...patch }, false)
@@ -78,6 +91,31 @@ const SettingVergeBasic = ({ onError }: Props) => {
     showNotice.success('shared.feedback.notifications.common.copySuccess', 1000)
   }, [])
 
+  const onCheckUpdate = async () => {
+    try {
+      const info = await checkUpdate()
+      updateLastCheckTime()
+      if (!info?.available) {
+        showNotice.success(
+          'settings.components.verge.advanced.notifications.latestVersion',
+        )
+      } else {
+        updateRef.current?.open()
+      }
+    } catch (err: any) {
+      showNotice.error(err)
+    }
+  }
+
+  const copyVersion = useCallback(() => {
+    navigator.clipboard.writeText(`v${version}`).then(() => {
+      showNotice.success(
+        'settings.components.verge.advanced.notifications.versionCopied',
+        1000,
+      )
+    })
+  }, [])
+
   return (
     <SettingList title={t('settings.components.verge.basic.title')}>
       <ConfigViewer ref={configRef} />
@@ -86,6 +124,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
       <LayoutViewer ref={layoutRef} />
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
+      <LiteModeViewer ref={liteModeRef} />
 
       <SettingItem label={t('settings.components.verge.basic.fields.language')}>
         <GuardState
@@ -95,7 +134,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
           onChange={(e) => onChangeData({ language: e })}
           onGuard={(e) => patchVerge({ language: e })}
         >
-          <Select size="small" className="w-[110px]">
+          <Select size="small" className="w-[140px]">
             {languageOptions.map(({ code, label }) => (
               <MenuItem key={code} value={code}>
                 {label}
@@ -242,6 +281,61 @@ const SettingVergeBasic = ({ onError }: Props) => {
         onClick={() => hotkeyRef.current?.open()}
         label={t('settings.components.verge.basic.fields.hotkeySetting')}
       />
+
+      <SettingItem
+        onClick={() => backupRef.current?.open()}
+        label={t('settings.components.verge.advanced.fields.backupSetting')}
+      />
+
+      <SettingItem
+        onClick={() => configRef.current?.open()}
+        label={t('settings.components.verge.advanced.fields.runtimeConfig')}
+      />
+
+      <SettingItem
+        onClick={openAppDir}
+        label={t('settings.components.verge.advanced.fields.openConfDir')}
+      />
+
+      <SettingItem
+        onClick={openCoreDir}
+        label={t('settings.components.verge.advanced.fields.openCoreDir')}
+      />
+
+      <SettingItem
+        onClick={openLogsDir}
+        label={t('settings.components.verge.advanced.fields.openLogsDir')}
+      />
+
+      <SettingItem
+        onClick={onCheckUpdate}
+        label={t('settings.components.verge.advanced.fields.checkUpdates')}
+      />
+
+      {canOpenDevTools && (
+        <SettingItem
+          onClick={openDevTools}
+          label={t('settings.components.verge.advanced.fields.openDevTools')}
+        />
+      )}
+
+      <SettingItem
+        label={t('settings.components.verge.advanced.fields.liteModeSettings')}
+        onClick={() => liteModeRef.current?.open()}
+      />
+
+      <SettingItem
+        label={t('settings.components.verge.advanced.fields.vergeVersion')}
+        extra={
+          <TooltipIcon
+            icon={ContentCopyRounded}
+            onClick={copyVersion}
+            title={t('settings.components.verge.advanced.actions.copyVersion')}
+          />
+        }
+      >
+        <div className="py-[7px] pr-1">v{version}</div>
+      </SettingItem>
     </SettingList>
   )
 }

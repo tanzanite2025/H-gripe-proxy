@@ -81,9 +81,10 @@ type GroupCache = {
 const calculateColumns = (width: number, configCol: number): number => {
   if (configCol > 0 && configCol < 6) return configCol
 
-  if (width > 1920) return 5
-  if (width > 1450) return 4
-  if (width > 1024) return 3
+  // 针对左右分栏（50%宽度）布局调整列数，默认最多2列
+  if (width > 1920) return 3
+  if (width > 1450) return 2
+  if (width > 1024) return 2
   if (width > 900) return 2
   if (width >= 600) return 2
   return 1

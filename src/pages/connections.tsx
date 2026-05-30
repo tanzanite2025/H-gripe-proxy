@@ -133,8 +133,40 @@ const ConnectionsPage = () => {
         borderRadius: '8px',
         minHeight: 0,
       }}
-      header={
-        <Box className="flex items-center gap-2">
+      header={null}
+    >
+      <Box className="pt-4 mb-2 mx-[10px] select-text sticky top-0 z-[2]">
+        <Box className="flex items-center gap-4 mb-2">
+          <ButtonGroup className="uds-toolbar mr-1" style={{ flexBasis: 'content' }}>
+            <Button
+              size="small"
+              variant={connectionsType === 'active' ? 'primary' : 'outlined'}
+              onClick={() => setConnectionsType('active')}
+            >
+              {t('connections.components.actions.active')}{' '}
+              {connections?.activeConnections.length}
+            </Button>
+            <Button
+              size="small"
+              variant={connectionsType === 'closed' ? 'primary' : 'outlined'}
+              onClick={() => setConnectionsType('closed')}
+            >
+              {t('connections.components.actions.closed')}{' '}
+              {connections?.closedConnections.length}
+            </Button>
+          </ButtonGroup>
+          {!isTableLayout && (
+            <BaseStyledSelect
+              value={curOrderOpt}
+              onChange={(e) => setCurOrderOpt(e.target.value as OrderKey)}
+            >
+              {ORDER_OPTIONS.map((option) => (
+                <SelectMenuItem key={option.id} value={option.id}>
+                  <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
+                </SelectMenuItem>
+              ))}
+            </BaseStyledSelect>
+          )}
           <Box className="mx-1">
             {t('shared.labels.downloaded')}:{' '}
             {parseTraffic(connections?.downloadTotal)}
@@ -164,64 +196,27 @@ const ConnectionsPage = () => {
               </span>
             )}
           </IconButton>
+          {isTableLayout && hasTableData && (
+            <Tooltip title={t('connections.components.columnManager.title')}>
+              <IconButton
+                size="small"
+                aria-label={t('connections.components.columnManager.title')}
+                onClick={() => setIsColumnManagerOpen(true)}
+              >
+                <Columns />
+              </IconButton>
+            </Tooltip>
+          )}
+          <div className="flex-1" />
           <Button size="small" variant="primary" onClick={onCloseAll}>
             <span style={{ whiteSpace: 'nowrap' }}>
               {t('shared.actions.closeAll')}
             </span>
           </Button>
         </Box>
-      }
-    >
-      <Box
-        className="pt-4 mb-2 mx-[10px] min-h-[36px] flex items-center gap-4 select-text sticky top-0 z-[2]"
-      >
-        <ButtonGroup className="uds-toolbar mr-1" style={{ flexBasis: 'content' }}>
-          <Button
-            size="small"
-            variant={connectionsType === 'active' ? 'primary' : 'outlined'}
-            onClick={() => setConnectionsType('active')}
-          >
-            {t('connections.components.actions.active')}{' '}
-            {connections?.activeConnections.length}
-          </Button>
-          <Button
-            size="small"
-            variant={connectionsType === 'closed' ? 'primary' : 'outlined'}
-            onClick={() => setConnectionsType('closed')}
-          >
-            {t('connections.components.actions.closed')}{' '}
-            {connections?.closedConnections.length}
-          </Button>
-        </ButtonGroup>
-        {!isTableLayout && (
-          <BaseStyledSelect
-            value={curOrderOpt}
-            onChange={(e) => setCurOrderOpt(e.target.value as OrderKey)}
-          >
-            {ORDER_OPTIONS.map((option) => (
-              <SelectMenuItem key={option.id} value={option.id}>
-                <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
-              </SelectMenuItem>
-            ))}
-          </BaseStyledSelect>
-        )}
-        <Box
-          className="flex-1 flex items-center [&>*]:flex-1"
-        >
+        <Box className="flex items-center">
           <BaseSearchBox onSearch={handleSearch} />
         </Box>
-        {isTableLayout && hasTableData && (
-          <Tooltip title={t('connections.components.columnManager.title')}>
-            <IconButton
-              size="small"
-              aria-label={t('connections.components.columnManager.title')}
-              onClick={() => setIsColumnManagerOpen(true)}
-              className="flex-[0_0_auto]"
-            >
-              <Columns />
-            </IconButton>
-          </Tooltip>
-        )}
       </Box>
 
       {!hasTableData ? (

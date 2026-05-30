@@ -139,8 +139,8 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
         </Box>
       }
       panelStyle={{
-        width: 400,
-        height: 180,
+        width: 500,
+        height: 500,
       }}
       contentClassName="-mt-2 overflow-y-auto select-text pb-0"
       disableOk

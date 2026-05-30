@@ -1,7 +1,7 @@
 ﻿import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Switch, TooltipIcon } from '@/components/base'
+import { Switch } from '@/components/base'
 import ProxyControlSwitches from '@/components/ui/proxy-control-switches'
 import { useVerge } from '@/hooks/system'
 
@@ -67,12 +67,6 @@ const SettingSystem = ({ onError }: Props) => {
 
       <SettingItem
         label={t('settings.sections.system.fields.silentStart')}
-        extra={
-          <TooltipIcon
-            title={t('settings.sections.system.tooltips.silentStart')}
-            className="opacity-70"
-          />
-        }
       >
         <GuardState
           value={enable_silent_start ?? false}

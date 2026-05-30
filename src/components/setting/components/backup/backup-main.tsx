@@ -113,7 +113,7 @@ export function BackupViewer({ ref }: { ref?: Ref<DialogRef> }) {
     <BaseDialog
       open={open}
       title={t('settings.modals.backup.title')}
-      panelStyle={{ width: 'min(520px, calc(100vw - 56px))' }}
+      panelStyle={{ width: 'min(650px, calc(100vw - 56px))' }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onCancel={() => setOpen(false)}

@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useLocalStorage } from 'foxact/use-local-storage'
-import { type MutableRefObject, useCallback, useEffect, useRef } from 'react'
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { type Message, type MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 export const RECONNECT_DELAY_MS = 1000
@@ -26,6 +25,25 @@ interface SharedSubscriptionEntry {
 }
 
 const sharedSubscriptions = new Map<string, SharedSubscriptionEntry>()
+
+// 每个 storageKey 只维护一份订阅“版本号”（时间戳），用于构建唯一的 subscriptionCacheKey
+// 这样同一类数据（同一个 storageKey）的所有订阅者都会复用同一条 WebSocket 连接
+const subscriptionDateRegistry = new Map<string, number>()
+
+const getInitialDateForStorageKey = (storageKey: string) => {
+  const existing = subscriptionDateRegistry.get(storageKey)
+  if (existing !== undefined) return existing
+
+  const now = Date.now()
+  subscriptionDateRegistry.set(storageKey, now)
+  return now
+}
+
+const bumpDateForStorageKey = (storageKey: string) => {
+  const now = Date.now()
+  subscriptionDateRegistry.set(storageKey, now)
+  return now
+}
 
 const syncSharedWsRefs = (entry: SharedSubscriptionEntry) => {
   entry.refHolders.forEach((ref) => {
@@ -184,8 +202,9 @@ export const useMihomoWsSubscription = <T>(
     setupHandlers,
   } = options
 
-  // eslint-disable-next-line @eslint-react/purity
-  const [date, setDate] = useLocalStorage(storageKey, Date.now())
+  // 使用模块级注册表，确保同一个 storageKey 在全局范围内只使用一个“版本号”
+  // 从而所有订阅者都会共享同一个 subscriptionCacheKey 和 WebSocket 连接
+  const [date, setDate] = useState(() => getInitialDateForStorageKey(storageKey))
   const subscriptKey = buildSubscriptKey(date)
   const subscriptionCacheKey = subscriptKey ? `$sub$${subscriptKey}` : null
   const lastSubscriptionCacheKeyRef = useRef<string | null>(null)
@@ -354,8 +373,12 @@ export const useMihomoWsSubscription = <T>(
     if (subscriptionCacheKey) {
       queryClient.removeQueries({ queryKey: [subscriptionCacheKey] })
     }
-    setDate(Date.now())
-  }, [queryClient, subscriptionCacheKey, setDate])
+
+    // 刷新时为该 storageKey 生成一个新的全局时间戳，所有使用同一 storageKey
+    // 的订阅者都会在下一轮渲染中收敛到同一个 subscriptionCacheKey
+    const nextDate = bumpDateForStorageKey(storageKey)
+    setDate(nextDate)
+  }, [queryClient, storageKey, subscriptionCacheKey, setDate])
 
   return { response, refresh, subscriptionCacheKey: responseCacheKey, wsRef }
 }

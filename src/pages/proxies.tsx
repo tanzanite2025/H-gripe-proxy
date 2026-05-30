@@ -169,7 +169,7 @@ const ProxyPage = () => {
     >
       <Grid container spacing={3} style={{ height: '100%' }} columns={12}>
         <Grid item xs={12} lg={6} xl={6} style={{ height: '100%', overflow: 'hidden' }}>
-          <Box className="flex items-center gap-1 mb-2">
+          <Box className="flex items-center gap-1 mb-2 pl-3">
             <ProviderButton />
 
             <ButtonGroup className="uds-toolbar" size="small">

@@ -2,10 +2,10 @@
  * 代理控制开关 UI 组件
  */
 
-import { Pause, Play, Settings, AlertTriangle, Wrench, Trash2 } from 'lucide-react'
+import { Pause, Play } from 'lucide-react'
 import { useState, useRef } from 'react'
 
-import { Switch, TooltipIcon } from '@/components/base'
+import { Switch } from '@/components/base'
 import { cn } from '@/utils/cn'
 
 interface SwitchRowProps {
@@ -75,12 +75,13 @@ export const SwitchRow = ({
             <Pause className="w-5 h-5 text-muted-foreground mr-2" />
           )}
           <h3 className="text-[15px] font-medium">{label}</h3>
-          <TooltipIcon
-            title={infoTitle}
-            icon={Settings}
+          <button
+            type="button"
+            className="text-xs ml-2 px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
             onClick={onInfoClick}
-            className="ml-2"
-          />
+          >
+            设置
+          </button>
           {extraIcons}
         </div>
 
@@ -111,11 +112,13 @@ export const SwitchRow = ({
             <h3 className="uds-settings-item__label uds-card-title text-[15px] font-medium">
               {label}
             </h3>
-            <TooltipIcon
-              title={infoTitle}
-              icon={Settings}
+            <button
+              type="button"
+              className="text-xs ml-2 px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
               onClick={onInfoClick}
-            />
+            >
+              设置
+            </button>
             {extraIcons}
           </div>
         </div>
@@ -154,29 +157,22 @@ export const TunModeExtraIcons = ({
   return (
     <>
       {!isTunModeAvailable && (
-        <>
-          <TooltipIcon
-            title={tunUnavailableTooltip}
-            icon={AlertTriangle}
-            className="text-yellow-500 ml-2"
-          />
-          <TooltipIcon
-            title={installServiceTooltip}
-            icon={Wrench}
-            color="primary"
-            onClick={onInstallService}
-            className="ml-2"
-          />
-        </>
+        <button
+          type="button"
+          className="text-xs ml-2 px-3 py-0.5 rounded-full border border-primary text-primary whitespace-nowrap hover:bg-primary/10 cursor-pointer transition-colors"
+          onClick={onInstallService}
+        >
+          {installServiceTooltip}
+        </button>
       )}
       {isServiceOk && (
-        <TooltipIcon
-          title={uninstallServiceTooltip}
-          icon={Trash2}
-          color="secondary"
+        <button
+          type="button"
+          className="text-xs ml-2 px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
           onClick={onUninstallService}
-          className="ml-2"
-        />
+        >
+          {uninstallServiceTooltip}
+        </button>
       )}
     </>
   )

@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
 import {
-  InputAdornment,
   ListItem,
   ListItemText,
   Stack,
@@ -147,13 +146,11 @@ export function AutoBackupSettings() {
         </Stack>
       </ListItem>
 
-      <ListItem divider disableGutters>
-        <Stack direction="row" spacing={2} className="items-center w-full">
-          <ListItemText
-            primary={t('settings.modals.backup.auto.intervalLabel')}
-          />
+      <ListItem divider disableGutters className="flex items-center">
+          <span className="flex-none w-[120px] mr-2 text-sm">
+            {t('settings.modals.backup.auto.intervalLabel')}
+          </span>
           <TextField
-            label={t('settings.modals.backup.auto.intervalLabel')}
             size="small"
             type="number"
             value={intervalInputDraft ?? values.intervalHours.toString()}
@@ -166,15 +163,8 @@ export function AutoBackupSettings() {
                 commitIntervalInput()
               }
             }}
-            className="min-w-[160px]"
+            className="w-[300px]"
             slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {t('shared.units.hours')}
-                  </InputAdornment>
-                ),
-              },
               htmlInput: {
                 min: MIN_INTERVAL_HOURS,
                 max: MAX_INTERVAL_HOURS,
@@ -182,7 +172,9 @@ export function AutoBackupSettings() {
               },
             }}
           />
-        </Stack>
+          <span className="text-text-secondary text-xs whitespace-nowrap ml-2">
+            {t('shared.units.hours')}
+          </span>
       </ListItem>
 
       <ListItem divider disableGutters>

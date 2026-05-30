@@ -1,11 +1,9 @@
-import { Network as LanRounded, Settings as SettingsRounded } from 'lucide-react'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateGeo } from 'tauri-plugin-mihomo-api'
 
-import { DialogRef, Switch, TooltipIcon } from '@/components/base'
+import { DialogRef, Switch } from '@/components/base'
 import { MenuItem, Select } from '@/components/tailwind/Select'
-import { TextField } from '@/components/tailwind/TextField'
 import { useClash } from '@/hooks/data'
 import { useClashLog, useVerge } from '@/hooks/system'
 import { invoke_uwp_tool } from '@/services/cmds'
@@ -77,14 +75,15 @@ const SettingClash = ({ onError }: Props) => {
       <SettingItem
         label={t('settings.sections.clash.form.fields.allowLan')}
         extra={
-          <TooltipIcon
-            title={t('settings.sections.clash.form.tooltips.networkInterface')}
-            color={'inherit'}
-            icon={LanRounded}
+          <button
+            type="button"
+            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
             onClick={() => {
               networkRef.current?.open()
             }}
-          />
+          >
+            接口
+          </button>
         }
       >
         <GuardState
@@ -114,12 +113,6 @@ const SettingClash = ({ onError }: Props) => {
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.unifiedDelay')}
-        extra={
-          <TooltipIcon
-            title={t('settings.sections.clash.form.tooltips.unifiedDelay')}
-            className="opacity-70"
-          />
-        }
       >
         <GuardState
           value={unifiedDelay ?? false}
@@ -135,12 +128,6 @@ const SettingClash = ({ onError }: Props) => {
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.logLevel')}
-        extra={
-          <TooltipIcon
-            title={t('settings.sections.clash.form.tooltips.logLevel')}
-            className="opacity-70"
-          />
-        }
       >
         <GuardState
           value={logLevel === 'warn' ? 'warning' : (logLevel ?? 'info')}
@@ -174,49 +161,74 @@ const SettingClash = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
-      <SettingItem label={t('settings.sections.clash.form.fields.portConfig')}>
-        <TextField
-          autoComplete="new-password"
-          multiline={false}
-          value={verge_mixed_port ?? 7897}
-          className="w-[100px] h-10 text-xs cursor-pointer"
-          readOnly
-          onClick={(e) => {
-            portRef.current?.open()
-            ;(e.target as any).blur()
-          }}
-        />
+      <SettingItem
+        label={t('settings.sections.clash.form.fields.portConfig')}
+        extra={
+          <button
+            type="button"
+            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+            onClick={() => portRef.current?.open()}
+          >
+            设置
+          </button>
+        }
+      >
+        <span />
       </SettingItem>
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.external')}
         extra={
-          <TooltipIcon
-            title={t('settings.sections.externalCors.tooltips.open')}
-            icon={SettingsRounded}
-            onClick={(e) => {
-              e.stopPropagation()
-              corsRef.current?.open()
-            }}
-          />
+          <>
+            <button
+              type="button"
+              className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+              onClick={() => {
+                ctrlRef.current?.open()
+              }}
+            >
+              控制器
+            </button>
+            <button
+              type="button"
+              className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+              onClick={() => {
+                corsRef.current?.open()
+              }}
+            >
+              跨域设置
+            </button>
+          </>
         }
-        onClick={() => {
-          ctrlRef.current?.open()
-        }}
-      />
+      >
+        <span />
+      </SettingItem>
 
       <SettingItem
-        onClick={() => webRef.current?.open()}
         label={t('settings.sections.clash.form.fields.webUI')}
-      />
+        extra={
+          <button
+            type="button"
+            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+            onClick={() => webRef.current?.open()}
+          >
+            打开
+          </button>
+        }
+      >
+        <span />
+      </SettingItem>
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.clashCore')}
         extra={
-          <TooltipIcon
-            icon={SettingsRounded}
+          <button
+            type="button"
+            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
             onClick={() => coreRef.current?.open()}
-          />
+          >
+            设置
+          </button>
         }
       >
         <div className="py-[7px] pr-1">{version}</div>
@@ -224,26 +236,50 @@ const SettingClash = ({ onError }: Props) => {
 
       {isWIN && (
         <SettingItem
-          onClick={invoke_uwp_tool}
           label={t('settings.sections.clash.form.fields.openUwpTool')}
           extra={
-            <TooltipIcon
-              title={t('settings.sections.clash.form.tooltips.openUwpTool')}
-              className="opacity-70"
-            />
+            <button
+              type="button"
+              className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+              onClick={invoke_uwp_tool}
+            >
+              打开
+            </button>
           }
-        />
+        >
+          <span />
+        </SettingItem>
       )}
 
       <SettingItem
-        onClick={onUpdateGeo}
         label={t('settings.sections.clash.form.fields.updateGeoData')}
-      />
+        extra={
+          <button
+            type="button"
+            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+            onClick={onUpdateGeo}
+          >
+            刷新
+          </button>
+        }
+      >
+        <span />
+      </SettingItem>
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.tunnels.title')}
-        onClick={() => tunnelRef.current?.open()}
-      />
+        extra={
+          <button
+            type="button"
+            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+            onClick={() => tunnelRef.current?.open()}
+          >
+            打开
+          </button>
+        }
+      >
+        <span />
+      </SettingItem>
     </SettingList>
   )
 }

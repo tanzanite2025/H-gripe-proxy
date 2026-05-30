@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { MihomoWebSocket, Traffic } from 'tauri-plugin-mihomo-api'
 
 import { useMihomoWsSubscription } from '@/hooks/network'
@@ -50,7 +51,6 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
           if (shouldSkipDuplicateTraffic(parsed)) {
             return
           }
-          appendData(parsed)
           next(null, parsed)
         } catch (error) {
           next(error, FALLBACK_TRAFFIC)
@@ -58,6 +58,13 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
       },
     }),
   })
+
+  const trafficData = response.data
+  useEffect(() => {
+    if (enabled && trafficData) {
+      appendData(trafficData)
+    }
+  }, [enabled, trafficData, appendData])
 
   return { response, refreshGetClashTraffic: refresh }
 }

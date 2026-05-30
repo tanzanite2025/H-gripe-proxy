@@ -85,7 +85,7 @@ export const Select = ({
   // If children are provided, render them directly (MUI-style API)
   if (children) {
     return (
-      <div className={cn(fullWidth ? 'w-full' : 'w-auto flex-shrink-0', className)}>
+      <div className={cn(fullWidth ? 'w-full' : '', className)}>
         {label && (
           <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-text-secondary">
             {label}
@@ -113,7 +113,7 @@ export const Select = ({
           disabled={disabled}
           aria-labelledby={labelId}
           className={cn(
-            `relative w-full ${sizeClasses[size]} px-4 rounded-input bg-card font-semibold text-text-primary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 ${
+            `relative w-full ${sizeClasses[size]} px-4 rounded-input bg-card border border-border font-semibold text-text-primary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:border-primary ${
               error
                 ? 'ring-2 ring-red-500 dark:ring-red-400'
                 : 'focus:ring-primary dark:focus:ring-primary-dark-mode'
@@ -145,7 +145,7 @@ export const Select = ({
     : selectedOption?.label || placeholder
 
   return (
-    <div className={cn(fullWidth ? 'w-full' : 'w-auto flex-shrink-0', className)}>
+    <div className={cn(fullWidth ? 'w-full' : '', className)}>
       {label && (
         <label
           htmlFor={id}
@@ -166,7 +166,7 @@ export const Select = ({
             id={id}
             aria-labelledby={labelId}
             className={cn(
-              `relative w-full h-12 px-4 rounded-input bg-card text-left text-sm font-semibold text-text-primary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 ${
+              `relative w-full h-12 px-4 rounded-input bg-card border border-border text-left text-sm font-semibold text-text-primary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:border-primary ${
                 error
                   ? 'ring-2 ring-red-500 dark:ring-red-400'
                   : 'focus:ring-primary dark:focus:ring-primary-dark-mode'

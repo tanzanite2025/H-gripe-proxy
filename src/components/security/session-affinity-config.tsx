@@ -61,13 +61,13 @@ export function SessionAffinityConfig({
     <div className="space-y-4">
       {/* 主开关 */}
       <Card>
-        <div className="p-4">
+        <div className="py-2.5 px-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">会话绑定</h3>
-              <p className="text-sm text-gray-500 mt-1">
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold whitespace-nowrap">会话绑定</h3>
+              <span className="text-xs text-gray-500">
                 防止 IP 频繁跳动导致账号被封禁
-              </p>
+              </span>
             </div>
             <Switch
               checked={config.enabled}
@@ -91,7 +91,7 @@ export function SessionAffinityConfig({
             </Button>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
             {config.domainRules.map((rule, index) => (
               <DomainRuleItem
                 key={rule.domainPattern}
@@ -102,7 +102,7 @@ export function SessionAffinityConfig({
             ))}
 
             {config.domainRules.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
+              <div className="col-span-3 text-center py-8 text-gray-500">
                 暂无规则，点击"加载预定义规则"添加
               </div>
             )}

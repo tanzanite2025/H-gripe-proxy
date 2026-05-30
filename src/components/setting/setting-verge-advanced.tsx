@@ -5,8 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, TooltipIcon } from '@/components/base'
 import { updateLastCheckTime } from '@/hooks/system/use-update'
 import {
-  exitApp,
-  exportDiagnosticInfo,
   openAppDir,
   openCoreDir,
   openDevTools,
@@ -51,10 +49,6 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
     }
   }
 
-  const onExportDiagnosticInfo = useCallback(async () => {
-    await exportDiagnosticInfo()
-    showNotice.success('shared.feedback.notifications.common.copySuccess', 1000)
-  }, [])
 
   const copyVersion = useCallback(() => {
     navigator.clipboard.writeText(`v${version}`).then(() => {
@@ -75,12 +69,6 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
       <SettingItem
         onClick={() => backupRef.current?.open()}
         label={t('settings.components.verge.advanced.fields.backupSetting')}
-        extra={
-          <TooltipIcon
-            title={t('settings.components.verge.advanced.tooltips.backupInfo')}
-            className="opacity-70"
-          />
-        }
       />
 
       <SettingItem
@@ -91,12 +79,6 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
       <SettingItem
         onClick={openAppDir}
         label={t('settings.components.verge.advanced.fields.openConfDir')}
-        extra={
-          <TooltipIcon
-            title={t('settings.components.verge.advanced.tooltips.openConfDir')}
-            className="opacity-70"
-          />
-        }
       />
 
       <SettingItem
@@ -123,31 +105,9 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
 
       <SettingItem
         label={t('settings.components.verge.advanced.fields.liteModeSettings')}
-        extra={
-          <TooltipIcon
-            title={t('settings.components.verge.advanced.tooltips.liteMode')}
-            className="opacity-70"
-          />
-        }
         onClick={() => liteModeRef.current?.open()}
       />
 
-      <SettingItem
-        onClick={() => {
-          exitApp()
-        }}
-        label={t('settings.components.verge.advanced.fields.exit')}
-      />
-
-      <SettingItem
-        label={t('settings.components.verge.advanced.fields.exportDiagnostics')}
-        extra={
-          <TooltipIcon
-            icon={ContentCopyRounded}
-            onClick={onExportDiagnosticInfo}
-          />
-        }
-      ></SettingItem>
 
       <SettingItem
         label={t('settings.components.verge.advanced.fields.vergeVersion')}

@@ -187,7 +187,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Button>
         </Box>
       }
-      panelStyle={{ width: 450 }}
+      panelStyle={{ width: 650 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
@@ -196,7 +196,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     >
       <List>
         <ListItem className="py-[5px] px-[2px]">
-          <ListItemText primary={t('settings.modals.tun.fields.stack')} />
+          <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.stack')} />
           <StackModeSwitch
             value={values.stack}
             onChange={(value) => {
@@ -209,14 +209,14 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         </ListItem>
 
         <ListItem className="py-[5px] px-[2px]">
-          <ListItemText primary={t('settings.modals.tun.fields.device')} />
+          <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.device')} />
           <TextField
             autoComplete="new-password"
             size="small"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[250px]"
+            className="w-[300px]"
             value={values.device}
             placeholder="Mihomo"
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -226,7 +226,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         </ListItem>
 
         <ListItem className="py-[5px] px-[2px]">
-          <ListItemText primary={t('settings.modals.tun.fields.autoRoute')} />
+          <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.autoRoute')} />
           <Switch
             checked={values.autoRoute}
             onCheckedChange={(checked) =>
@@ -243,7 +243,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
           <ListItem className="py-[5px] px-[2px]">
             <ListItemText
               primary={t('settings.modals.tun.fields.autoRedirect')}
-              className="max-w-fit"
+              className="flex-none w-[120px] mr-2"
             />
             <TooltipIcon
               title={t('settings.modals.tun.tooltips.autoRedirect')}
@@ -264,7 +264,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         )}
 
         <ListItem className="py-[5px] px-[2px]">
-          <ListItemText primary={t('settings.modals.tun.fields.strictRoute')} />
+          <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.strictRoute')} />
           <Switch
             checked={values.strictRoute}
             onCheckedChange={(checked) => setValues((v) => ({ ...v, strictRoute: checked }))}
@@ -273,6 +273,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
         <ListItem className="py-[5px] px-[2px]">
           <ListItemText
+            className="flex-none w-[120px] mr-2"
             primary={t('settings.modals.tun.fields.autoDetectInterface')}
           />
           <Switch
@@ -284,14 +285,14 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         </ListItem>
 
         <ListItem className="py-[5px] px-[2px]">
-          <ListItemText primary={t('settings.modals.tun.fields.dnsHijack')} />
+          <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.dnsHijack')} />
           <TextField
             autoComplete="new-password"
             size="small"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[250px]"
+            className="w-[300px]"
             value={values.dnsHijack.join(',')}
             placeholder={t('settings.modals.tun.tooltips.dnsHijack')}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -301,7 +302,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         </ListItem>
 
         <ListItem className="py-[5px] px-[2px]">
-          <ListItemText primary={t('settings.modals.tun.fields.mtu')} />
+          <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.mtu')} />
           <TextField
             autoComplete="new-password"
             size="small"
@@ -309,7 +310,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-[250px]"
+            className="w-[300px]"
             value={values.mtu}
             placeholder="1500"
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -334,6 +335,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
           renderHeader={(modeToggle) => (
             <ListItem className="py-[5px] px-[2px]">
               <ListItemText
+                className="flex-none w-[120px] mr-2"
                 primary={t('settings.modals.tun.fields.routeExcludeAddress')}
               />
               {modeToggle ? (

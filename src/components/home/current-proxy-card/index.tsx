@@ -160,7 +160,7 @@ export const CurrentProxyCard = () => {
   return (
     <EnhancedCard
       title={t('home.components.currentProxy.title')}
-      fixedHeight={280}
+      fixedHeight={340}
       icon={
         <Tooltip
           title={

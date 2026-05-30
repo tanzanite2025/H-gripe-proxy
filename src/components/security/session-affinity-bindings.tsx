@@ -77,7 +77,7 @@ export function SessionAffinityBindings({
           </Button>
         </div>
 
-        <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="rounded-lg border border-purple-200 p-4 bg-purple-50/60 dark:bg-purple-950/20 dark:border-purple-800">
             <div className="mb-3">
               <h5 className="font-medium">稳定出口回写（domain-rule）</h5>

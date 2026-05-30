@@ -61,159 +61,161 @@ export default function AntiProbeConfigUI({
           </div>
         </div>
 
-        {/* 基础配置 */}
-        <div className="p-4 bg-card border border-border rounded-lg">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">启用反主动探测</label>
-              <Switch
-                checked={config.enabled}
-                onCheckedChange={(checked) =>
-                  onConfigChange({ ...config, enabled: checked })
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">
-                严格模式（非白名单直接拒绝）
-              </label>
-              <Switch
-                checked={config.strict_mode}
-                onCheckedChange={(checked) =>
-                  onConfigChange({ ...config, strict_mode: checked })
-                }
-                disabled={!config.enabled}
-              />
-            </div>
-
-            <TextField
-              label="时间窗口（秒）"
-              type="number"
-              value={config.time_window.toString()}
-              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                onConfigChange({
-                  ...config,
-                  time_window: Number.parseInt(event.target.value),
-                })
-              }
-              disabled={!config.enabled}
-              helperText="握手暗号的有效时间"
-              fullWidth
-            />
-          </div>
-        </div>
-
-        {/* 密钥管理 */}
-        <div className="p-4 bg-card border border-border rounded-lg">
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold">私钥管理</h3>
-            <TextField
-              label="私钥"
-              value={config.secret_key}
-              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                onConfigChange({ ...config, secret_key: event.target.value })
-              }
-              disabled={!config.enabled}
-              fullWidth
-              readOnly
-              className="font-mono text-sm"
-            />
-            <Button
-              variant="outline"
-              onClick={onGenerateKey}
-              disabled={!config.enabled}
-              className="w-full"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              生成新密钥
-            </Button>
-          </div>
-        </div>
-
-        {/* 握手暗号生成 */}
-        <div className="p-4 bg-card border border-border rounded-lg">
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold">握手暗号生成</h3>
-            <Button
-              variant="default"
-              onClick={onTokenGenerate}
-              disabled={!config.enabled}
-              className="w-full"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              生成握手暗号
-            </Button>
-            {token && (
-              <div className="space-y-2">
-                <div className="relative">
-                  <TextField
-                    label="当前暗号"
-                    value={token}
-                    fullWidth
-                    readOnly
-                    className="font-mono text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={onTokenCopy}
-                    className="absolute right-2 top-8"
-                  >
-                    <Copy className="w-4 h-4 mr-1" />
-                    复制
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  此暗号在 {config.time_window} 秒内有效
-                </p>
+        <div className="grid grid-cols-2 gap-4">
+          {/* 基础配置 */}
+          <div className="p-4 bg-card border border-border rounded-lg">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">启用反主动探测</label>
+                <Switch
+                  checked={config.enabled}
+                  onCheckedChange={(checked) =>
+                    onConfigChange({ ...config, enabled: checked })
+                  }
+                />
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* 白名单管理 */}
-        <div className="p-4 bg-card border border-border rounded-lg">
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold">IP 白名单</h3>
-            <div className="flex gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">
+                  严格模式（非白名单直接拒绝）
+                </label>
+                <Switch
+                  checked={config.strict_mode}
+                  onCheckedChange={(checked) =>
+                    onConfigChange({ ...config, strict_mode: checked })
+                  }
+                  disabled={!config.enabled}
+                />
+              </div>
+
               <TextField
-                label="添加 IP 地址"
-                value={newIp}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => onNewIpChange(event.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && onAddIp()}
+                label="时间窗口（秒）"
+                type="number"
+                value={config.time_window.toString()}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  onConfigChange({
+                    ...config,
+                    time_window: Number.parseInt(event.target.value),
+                  })
+                }
                 disabled={!config.enabled}
-                placeholder="192.168.1.1 或 2001:db8::1"
+                helperText="握手暗号的有效时间"
                 fullWidth
               />
-              <Button
-                variant="default"
-                onClick={onAddIp}
+            </div>
+          </div>
+
+          {/* 密钥管理 */}
+          <div className="p-4 bg-card border border-border rounded-lg">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">私钥管理</h3>
+              <TextField
+                label="私钥"
+                value={config.secret_key}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  onConfigChange({ ...config, secret_key: event.target.value })
+                }
                 disabled={!config.enabled}
-                className="shrink-0"
+                fullWidth
+                readOnly
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="outline"
+                onClick={onGenerateKey}
+                disabled={!config.enabled}
+                className="w-full"
               >
-                添加
+                <RefreshCw className="w-4 h-4 mr-2" />
+                生成新密钥
               </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {config.whitelist.map((ip) => (
-                <div
-                  key={ip}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm"
-                >
-                  <span>{ip}</span>
-                  <button
-                    onClick={() => onRemoveIp(ip)}
-                    disabled={!config.enabled}
-                    className="hover:text-destructive disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
+          </div>
+
+          {/* 握手暗号生成 */}
+          <div className="p-4 bg-card border border-border rounded-lg">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">握手暗号生成</h3>
+              <Button
+                variant="default"
+                onClick={onTokenGenerate}
+                disabled={!config.enabled}
+                className="w-full"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                生成握手暗号
+              </Button>
+              {token && (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <TextField
+                      label="当前暗号"
+                      value={token}
+                      fullWidth
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={onTokenCopy}
+                      className="absolute right-2 top-8"
+                    >
+                      <Copy className="w-4 h-4 mr-1" />
+                      复制
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    此暗号在 {config.time_window} 秒内有效
+                  </p>
                 </div>
-              ))}
-              {config.whitelist.length === 0 && (
-                <p className="text-sm text-muted-foreground">暂无白名单 IP</p>
               )}
+            </div>
+          </div>
+
+          {/* 白名单管理 */}
+          <div className="p-4 bg-card border border-border rounded-lg">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">IP 白名单</h3>
+              <div className="flex gap-2">
+                <TextField
+                  label="添加 IP 地址"
+                  value={newIp}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => onNewIpChange(event.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && onAddIp()}
+                  disabled={!config.enabled}
+                  placeholder="192.168.1.1 或 2001:db8::1"
+                  fullWidth
+                />
+                <Button
+                  variant="default"
+                  onClick={onAddIp}
+                  disabled={!config.enabled}
+                  className="shrink-0"
+                >
+                  添加
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {config.whitelist.map((ip) => (
+                  <div
+                    key={ip}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm"
+                  >
+                    <span>{ip}</span>
+                    <button
+                      onClick={() => onRemoveIp(ip)}
+                      disabled={!config.enabled}
+                      className="hover:text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {config.whitelist.length === 0 && (
+                  <p className="text-sm text-muted-foreground">暂无白名单 IP</p>
+                )}
+              </div>
             </div>
           </div>
         </div>

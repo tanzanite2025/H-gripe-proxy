@@ -294,7 +294,7 @@ export const BackupHistoryViewer = ({
     <BaseDialog
       open={open}
       title={t('settings.modals.backup.history.title')}
-      panelStyle={{ width: 'min(520px, calc(100vw - 56px))' }}
+      panelStyle={{ width: 'min(650px, calc(100vw - 56px))' }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onCancel={onClose}

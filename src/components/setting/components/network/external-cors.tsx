@@ -151,14 +151,14 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
       <BaseDialog
         open={open}
         title={t('settings.sections.externalCors.title')}
-        panelStyle={{ width: 500 }}
+        panelStyle={{ width: 650 }}
         okBtn={loading ? t('shared.statuses.saving') : t('shared.actions.save')}
         cancelBtn={t('shared.actions.cancel')}
         onClose={() => setOpen(false)}
         onCancel={() => setOpen(false)}
         onOk={handleSave}
       >
-        <List className="w-[90%] p-8">
+        <List className="p-2">
           <ListItem className="py-2 px-0">
             <Box className="flex justify-between items-center w-full">
               <span className="font-normal">
@@ -176,15 +176,15 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
             </Box>
           </ListItem>
 
-          <Divider className="my-8" />
+          <Divider className="my-4" />
 
           <ListItem className="py-2 px-0">
             <div className="w-full">
-              <div className="mb-8 font-bold">
+              <div className="mb-4 font-bold">
                 {t('settings.sections.externalCors.fields.allowedOrigins')}
               </div>
               {originEntries.map(({ origin, index, key }) => (
-                <div key={key} className="flex items-center mb-8">
+                <div key={key} className="flex items-center mb-4">
                   <TextField
                     fullWidth
                     size="small"
@@ -215,7 +215,7 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
                 {t('settings.sections.externalCors.actions.add')}
               </Button>
 
-              <div className="mt-12 p-8 bg-gray-100 rounded">
+              <div className="mt-6 p-4 bg-gray-100 rounded">
                 <div className="text-gray-600 text-xs italic">
                   {t('settings.sections.externalCors.messages.alwaysIncluded', {
                     urls: DEV_URLS.join(', '),

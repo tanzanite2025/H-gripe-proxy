@@ -202,7 +202,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.sections.clash.form.fields.tunnels.title')}
-      panelStyle={{ width: 450 }}
+      panelStyle={{ width: 650 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => {
@@ -267,13 +267,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 协议 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.protocols',
                   )}
                 />
                 <Select
                   size="small"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.network}
                   onChange={(e: SelectChangeEvent) =>
                     setValues((v) => ({
@@ -291,6 +292,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 本地监听地址 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.localAddr',
                   )}
@@ -298,7 +300,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 <TextField
                   autoComplete="new-password"
                   size="small"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.localAddr}
                   placeholder="127.0.0.1"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -310,6 +312,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 本地监听端口 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.localPort',
                   )}
@@ -318,7 +321,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   autoComplete="new-password"
                   size="small"
                   type="number"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.localPort}
                   placeholder="6553"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -330,6 +333,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 目标服务器地址 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.targetAddr',
                   )}
@@ -337,7 +341,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 <TextField
                   autoComplete="new-password"
                   size="small"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.targetAddr}
                   placeholder="8.8.8.8"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -349,6 +353,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 目标服务器端口 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={t(
                     'settings.sections.clash.form.fields.tunnels.targetPort',
                   )}
@@ -357,7 +362,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   autoComplete="new-password"
                   size="small"
                   type="number"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.targetPort}
                   placeholder="53"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -369,6 +374,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 代理组 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={
                     <>
                       {t(
@@ -387,7 +393,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
                 <Select
                   size="small"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.group}
                   onChange={(e: SelectChangeEvent) => {
                     const nextGroup = e.target.value as string
@@ -415,6 +421,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
               {/* 代理节点 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
+                  className="flex-none w-[120px] mr-2"
                   primary={
                     <>
                       {t(
@@ -433,7 +440,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
                 <Select
                   size="small"
-                  className="w-[200px]"
+                  className="w-[300px]"
                   value={values.proxy}
                   onChange={(e: SelectChangeEvent) =>
                     setValues((v) => ({

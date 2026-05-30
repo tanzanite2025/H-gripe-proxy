@@ -57,7 +57,7 @@ export const TextField = forwardRef<
   }
 
   const baseClasses =
-    'px-4 rounded-input bg-card border-0 font-semibold text-text-primary placeholder:text-text-secondary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:bg-card'
+    'px-4 rounded-input bg-card border border-border font-semibold text-text-primary placeholder:text-text-secondary transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:border-primary focus:bg-card'
 
   const hasError = Boolean(error)
   const mergedInputProps = slotProps?.input ?? InputProps

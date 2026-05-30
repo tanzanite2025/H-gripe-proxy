@@ -56,11 +56,11 @@ export const Dialog = ({
   slotProps,
 }: DialogProps) => {
   const maxWidthClasses = {
-    xs: 'max-w-xs',
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
+    xs: 'max-w-[444px]',
+    sm: 'max-w-[600px]',
+    md: 'max-w-[900px]',
+    lg: 'max-w-[1200px]',
+    xl: 'max-w-[1536px]',
   }
 
   const paperClassName = slotProps?.paper?.className
@@ -82,7 +82,7 @@ export const Dialog = ({
           className={cn(
             fullWidth ? 'w-full' : 'w-auto',
             maxWidthClasses[maxWidth],
-            'flex flex-col max-h-[90vh] rounded-dialog bg-card shadow-dialog p-6 transition duration-300 data-[closed]:opacity-0 data-[closed]:scale-95 data-[enter]:opacity-100 data-[enter]:scale-100 data-[leave]:opacity-0 data-[leave]:scale-95',
+            'flex flex-col max-h-[85vh] rounded-dialog bg-card shadow-dialog p-6 transition duration-300 data-[closed]:opacity-0 data-[closed]:scale-95 data-[enter]:opacity-100 data-[enter]:scale-100 data-[leave]:opacity-0 data-[leave]:scale-95',
             className,
             paperClassName,
           )}
