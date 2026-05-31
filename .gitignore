@@ -1,6 +1,21 @@
 # === 依赖 ===
 node_modules/
 
+# === Go / Mihomo 编译产物 ===
+mihomo/mihomo
+mihomo/mihomo.exe
+mihomo/mihomo-arm64
+mihomo/mihomo-amd64
+mihomo/bin/
+mihomo/dist/
+mihomo/vendor/
+mihomo/*.exe
+mihomo/*.dll
+mihomo/*.so
+mihomo/*.dylib
+mihomo/Component/Debug/
+mihomo/Component/Release/
+
 # === Rust 编译产物 ===
 target/
 target_build/
