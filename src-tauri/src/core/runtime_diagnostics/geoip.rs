@@ -6,16 +6,16 @@ use serde_json::Value as JsonValue;
 use smartstring::alias::String;
 
 #[derive(Debug, Clone, Default)]
-pub(super) struct GeoIpInfo {
-    pub(super) ip: Option<String>,
-    pub(super) country_code: Option<String>,
-    pub(super) country: Option<String>,
-    pub(super) region: Option<String>,
-    pub(super) city: Option<String>,
-    pub(super) organization: Option<String>,
-    pub(super) asn: Option<u32>,
-    pub(super) asn_organization: Option<String>,
-    pub(super) isp: Option<String>,
+pub struct GeoIpInfo {
+    pub ip: Option<String>,
+    pub country_code: Option<String>,
+    pub country: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+    pub organization: Option<String>,
+    pub asn: Option<u32>,
+    pub asn_organization: Option<String>,
+    pub isp: Option<String>,
 }
 
 fn json_string(value: &JsonValue, key: &str) -> Option<String> {
@@ -127,7 +127,7 @@ pub(super) async fn fetch_public_ip_location(client: &Client) -> Result<GeoIpInf
     Err(anyhow!("failed to fetch public IP location"))
 }
 
-pub(super) async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
+pub async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
     for url in [
         format!("https://ipapi.co/{ip}/json/"),
         format!("https://ipwho.is/{ip}"),

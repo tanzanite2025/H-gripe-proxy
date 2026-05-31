@@ -78,7 +78,7 @@
   }
 
   .btn-outlined {
-    @apply px-6 py-3 rounded-button font-semibold text-sm tracking-wide transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 border border-dashed border-divider text-text-primary hover:bg-card hover:-translate-y-0.5;
+    @apply px-6 py-3 rounded-button font-semibold text-sm tracking-wide transition-all duration-300 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 border border-solid border-divider text-text-primary hover:bg-card hover:-translate-y-0.5;
   }
 
   .input {

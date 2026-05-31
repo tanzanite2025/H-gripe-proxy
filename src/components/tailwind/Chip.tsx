@@ -16,8 +16,8 @@ export const Chip = React.forwardRef<HTMLDivElement, ChipProps>(
         ? 'bg-card text-text-primary hover:bg-white/10 text-text-primary'
         : 'border border-gray-300 dark:border-gray-600 text-text-primary',
       primary: variant === 'filled'
-        ? 'bg-blue-500 text-white'
-        : 'border border-blue-500 text-blue-500',
+        ? 'bg-teal-500 text-white'
+        : 'border border-teal-500 text-teal-500',
       secondary: variant === 'filled'
         ? 'bg-purple-500 text-white'
         : 'border border-purple-500 text-purple-500',

@@ -108,7 +108,7 @@ export const ProxyGroupNavigator = ({
             onFocus={() => handleGroupHover(name)}
             onMouseLeave={handleButtonLeave}
             onBlur={handleButtonLeave}
-            className="h-7 w-7 min-h-7 min-w-7 rounded p-0 text-xs font-semibold normal-case text-gray-600 hover:bg-blue-500 hover:text-white dark:text-gray-400"
+            className="h-7 w-7 min-h-7 min-w-7 rounded p-0 text-xs font-semibold normal-case text-gray-600 hover:bg-teal-500 hover:text-white dark:text-gray-400"
           >
             {displayChar}
           </Button>

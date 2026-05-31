@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle as CheckIcon, ChevronDown as ExpandMoreIcon, Copy as CopyIcon, AlertCircle as ErrorIcon } from 'lucide-react'
+import { CheckCircle as CheckIcon, Copy as CopyIcon, AlertCircle as ErrorIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Alert } from '@/components/tailwind/Alert'
@@ -17,7 +17,6 @@ import { TextField } from '@/components/tailwind/TextField'
 import { useVerge } from '@/hooks/system'
 import { getTorStatus, testTorConnection } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { cn } from '@/utils/cn'
 
 const DEFAULT_TOR_CONFIG = {
   enabled: false,

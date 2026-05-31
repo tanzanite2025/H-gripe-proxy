@@ -26,7 +26,7 @@ export const ProfileBox = ({
       onContextMenu={onContextMenu}
       className={cn(
         'relative block cursor-pointer rounded-lg p-4 text-left bg-card text-text-secondary',
-        selected && 'border-l-4 border-blue-500 -ml-1 w-[calc(100%+4px)]',
+        selected && 'border-l-4 border-teal-500 -ml-1 w-[calc(100%+4px)]',
         !selected && 'w-full',
         className,
       )}
@@ -34,7 +34,7 @@ export const ProfileBox = ({
       <div
         className={cn(
           selected
-            ? 'text-blue-500 [&_h2]:text-blue-500'
+            ? 'text-teal-500 [&_h2]:text-teal-500'
             : '[&_h2]:text-text-primary',
         )}
       >

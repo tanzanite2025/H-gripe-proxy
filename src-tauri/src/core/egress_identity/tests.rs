@@ -120,6 +120,8 @@ fn test_preferred_pool_and_score_constraints_filter_candidates() {
             failover_policy: EgressFailoverPolicy::Block,
             allowed_nodes: Vec::new(),
             strict_node_scope: false,
+            use_residential_chain: false,
+            residential_proxy_name: None,
             description: String::new(),
         }],
         app_rules: Vec::new(),

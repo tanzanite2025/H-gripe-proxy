@@ -245,7 +245,7 @@ const HomePage = () => {
   )
 
   const remoteHomeCards = useMemo<HomeCardsSettings>(
-    () => vergeHomeCards ?? defaultCards,
+    () => vergeHomeCards ? { ...defaultCards, ...vergeHomeCards } : defaultCards,
     [defaultCards, vergeHomeCards],
   )
 

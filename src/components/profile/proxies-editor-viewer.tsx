@@ -48,7 +48,7 @@ interface Props {
 export const ProxiesEditorViewer = (props: Props) => {
   const { profileUid, property, open, onClose, onSave } = props
   const { t } = useTranslation()
-  const themeMode: 'dark' = 'dark'
+  const themeMode = 'dark' as const
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [prevData, setPrevData] = useState('')
   const [currData, setCurrData] = useState('')

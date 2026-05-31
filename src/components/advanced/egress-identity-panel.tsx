@@ -18,6 +18,7 @@ import type {
   EgressIdentityConfig,
   EgressIdentityProfile,
   IpType,
+  ResidentialProxyPool,
   ShortcutEgressRule,
 } from '@/services/coordinator'
 import { getRecommendedAdvancedConfig } from '@/services/coordinator'
@@ -35,6 +36,7 @@ interface Props {
   status: CoordinatorStatus
   onRefreshStatus: () => Promise<CoordinatorStatus | null>
   onChange: (config: EgressIdentityConfig) => void
+  residentialPool?: ResidentialProxyPool
 }
 
 const starterProfile: EgressIdentityProfile = {
@@ -57,6 +59,8 @@ const starterProfile: EgressIdentityProfile = {
   failover_policy: 'Manual',
   allowed_nodes: [],
   strict_node_scope: false,
+  use_residential_chain: false,
+  residential_proxy_name: null,
   description: '默认的稳定出口身份画像',
 }
 
@@ -115,7 +119,7 @@ const buildProfileId = (existingIds: string[]) => {
   return candidate
 }
 
-export function EgressIdentityPanel({ config, status, onRefreshStatus, onChange }: Props) {
+export function EgressIdentityPanel({ config, status, onRefreshStatus, onChange, residentialPool }: Props) {
   const [previewResult, setPreviewResult] = useState<ResolvedEgressIdentity | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [assignLoading, setAssignLoading] = useState(false)
@@ -695,6 +699,53 @@ export function EgressIdentityPanel({ config, status, onRefreshStatus, onChange 
                         }
                       />
                     </div>
+                  </div>
+
+                  <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 p-3 space-y-3 border border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">链式住宅路由</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          自动构建 VPS→住宅 链式代理，使出口 IP 呈现 ISP/Residential ASN 特征
+                        </p>
+                      </div>
+                      <Switch
+                        checked={Boolean(profile.use_residential_chain)}
+                        onCheckedChange={(checked: boolean) =>
+                          updateProfile(profile.id, (current) => ({
+                            ...current,
+                            use_residential_chain: checked,
+                          }))
+                        }
+                      />
+                    </div>
+                    {profile.use_residential_chain && residentialPool && residentialPool.enabled && (
+                      <Select
+                        label="指定住宅代理（留空自动选择）"
+                        value={profile.residential_proxy_name || ''}
+                        onChange={(value: SelectPrimitiveValue) =>
+                          updateProfile(profile.id, (current) => ({
+                            ...current,
+                            residential_proxy_name: String(value) || null,
+                          }))
+                        }
+                        options={[
+                          { value: '', label: '自动选择' },
+                          ...residentialPool.proxies
+                            .filter((p) => p.enabled)
+                            .map((p) => ({
+                              value: p.name,
+                              label: `${p.name} (${p.proxyType.toUpperCase()} ${p.server}:${p.port}${p.region ? ` ${p.region}` : ''})`,
+                            })),
+                        ]}
+                        fullWidth
+                      />
+                    )}
+                    {profile.use_residential_chain && (!residentialPool || !residentialPool.enabled || residentialPool.proxies.filter((p) => p.enabled).length === 0) && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400">
+                        ⚠️ 住宅代理池未启用或无可用节点，请先在"住宅代理池"标签页添加并启用住宅代理
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

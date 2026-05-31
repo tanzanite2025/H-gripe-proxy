@@ -42,15 +42,7 @@ const isMode = (value: unknown): value is Mode =>
 const ProxyPage = () => {
   const { t } = useTranslation()
 
-  // 从 localStorage 恢复链式代理按钮状态
-  const [isChainMode, setIsChainMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem('proxy-chain-mode-enabled')
-      return saved === 'true'
-    } catch {
-      return false
-    }
-  })
+  const [isChainMode, setIsChainMode] = useState(false)
 
   const [chainConfigData, dispatchChainConfigData] = useReducer(
     (_: string | null, action: string | null) => action,
@@ -82,8 +74,6 @@ const ProxyPage = () => {
     const newChainMode = !isChainMode
 
     setIsChainMode(newChainMode)
-    // 保存链式代理按钮状态到 localStorage
-    localStorage.setItem('proxy-chain-mode-enabled', newChainMode.toString())
 
     if (!newChainMode) {
       // 退出链式代理模式时，清除链式代理配置
@@ -200,6 +190,7 @@ const ProxyPage = () => {
               mode={curMode ?? 'rule'}
               isChainMode={isChainMode}
               chainConfigData={chainConfigData}
+              onCloseChainMode={onToggleChainMode}
             />
           </div>
         </Grid>

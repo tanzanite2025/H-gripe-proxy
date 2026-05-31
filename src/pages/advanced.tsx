@@ -5,11 +5,16 @@
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 
+import { BlackholeBreakerPanel } from '@/components/advanced/blackhole-breaker-panel'
 import { EgressIdentityPanel } from '@/components/advanced/egress-identity-panel'
 import { EgressMonitorPanel } from '@/components/advanced/egress-monitor-panel'
+import { IpReputationPanel } from '@/components/advanced/ip-reputation-panel'
 import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
 import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
+import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
 import { SecurityConfigPanel } from '@/components/advanced/security-config-panel'
+import { SecurityPolicyPanel } from '@/components/advanced/security-policy-panel'
+import { TimezoneSpoofPanel } from '@/components/advanced/timezone-spoof-panel'
 import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { BasePage } from '@/components/base'
 import { SessionAffinityBindings as SessionAffinityBindingsPanel } from '@/components/security/session-affinity-bindings'
@@ -92,12 +97,17 @@ export default function AdvancedPage() {
   })
 
   const securityTabIndex = 0
-  const egressIdentityTabIndex = 1
-  const sessionAffinityTabIndex = 2
-  const egressMonitorTabIndex = 3
-  const multipathTabIndex = 4
-  const xdpTabIndex = 5
-  const performanceTabIndex = isLinux ? 6 : 5
+  const securityPolicyTabIndex = 1
+  const egressIdentityTabIndex = 2
+  const sessionAffinityTabIndex = 3
+  const egressMonitorTabIndex = 4
+  const residentialPoolTabIndex = 5
+  const ipReputationTabIndex = 6
+  const blackholeBreakerTabIndex = 7
+  const timezoneSpoofTabIndex = 8
+  const multipathTabIndex = 9
+  const xdpTabIndex = 10
+  const performanceTabIndex = isLinux ? 11 : 10
 
 
   if (configLoading || statusLoading || !loadedConfig || !status || !localConfig) {
@@ -146,9 +156,14 @@ export default function AdvancedPage() {
           scrollButtons="auto"
         >
           <Tab label="安全防御" value={securityTabIndex} />
+          <Tab label="安全策略" value={securityPolicyTabIndex} />
           <Tab label="出口身份" value={egressIdentityTabIndex} />
           <Tab label="会话绑定" value={sessionAffinityTabIndex} />
           <Tab label="出口监控" value={egressMonitorTabIndex} />
+          <Tab label="住宅代理池" value={residentialPoolTabIndex} />
+          <Tab label="IP 信誉" value={ipReputationTabIndex} />
+          <Tab label="黑洞熔断" value={blackholeBreakerTabIndex} />
+          <Tab label="时区伪装" value={timezoneSpoofTabIndex} />
           <Tab label="多路径路由" value={multipathTabIndex} />
           {isLinux && (
             <Tab label="XDP 代理" value={xdpTabIndex} />
@@ -164,11 +179,21 @@ export default function AdvancedPage() {
         />
       </TabPanel>
 
+      <TabPanel value={tabValue} index={securityPolicyTabIndex}>
+        <SecurityPolicyPanel
+          policies={localConfig.security_policies ?? []}
+          onChange={(security_policies) =>
+            setLocalConfig({ ...localConfig, security_policies })
+          }
+        />
+      </TabPanel>
+
       <TabPanel value={tabValue} index={egressIdentityTabIndex}>
         <EgressIdentityPanel
           config={localConfig.egress_identity}
           status={status}
           onRefreshStatus={reloadStatus}
+          residentialPool={localConfig.residential_pool}
           onChange={(egress_identity) =>
             setLocalConfig({ ...localConfig, egress_identity })
           }
@@ -192,6 +217,42 @@ export default function AdvancedPage() {
           config={localConfig.egress_monitor}
           onChange={(egress_monitor) =>
             setLocalConfig({ ...localConfig, egress_monitor })
+          }
+        />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={residentialPoolTabIndex}>
+        <ResidentialPoolPanel
+          config={localConfig.residential_pool}
+          onChange={(residential_pool) =>
+            setLocalConfig({ ...localConfig, residential_pool })
+          }
+        />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={ipReputationTabIndex}>
+        <IpReputationPanel
+          config={localConfig.ip_reputation}
+          onChange={(ip_reputation) =>
+            setLocalConfig({ ...localConfig, ip_reputation })
+          }
+        />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={blackholeBreakerTabIndex}>
+        <BlackholeBreakerPanel
+          config={localConfig.blackhole_breaker}
+          onChange={(blackhole_breaker) =>
+            setLocalConfig({ ...localConfig, blackhole_breaker })
+          }
+        />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={timezoneSpoofTabIndex}>
+        <TimezoneSpoofPanel
+          config={localConfig.timezone_spoof}
+          onChange={(timezone_spoof) =>
+            setLocalConfig({ ...localConfig, timezone_spoof })
           }
         />
       </TabPanel>

@@ -25,7 +25,6 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
   const { renderList, onProxies, onHeadState } = useRenderList(
     mode,
     isChainMode,
-    activeSelectedGroup,
   )
 
   // 获取代理组的头部状态

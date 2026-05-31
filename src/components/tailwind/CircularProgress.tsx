@@ -10,7 +10,7 @@ export const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgres
   ({ size = 40, color = 'primary', className = '', ...props }, ref) => {
     const colorClasses = {
       inherit: 'border-current',
-      primary: 'border-blue-500',
+      primary: 'border-teal-500',
       secondary: 'border-purple-500',
     }
 

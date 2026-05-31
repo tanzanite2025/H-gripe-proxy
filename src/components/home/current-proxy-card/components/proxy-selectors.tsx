@@ -44,7 +44,7 @@ export const ProxySelectors = ({
   }
 
   const selectClassName = cn(
-    'rounded-2xl border-dashed bg-card/20',
+    'rounded-2xl border-solid bg-card/20',
     'border-divider',
     'border-primary',
   )

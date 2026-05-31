@@ -6,7 +6,7 @@ import { BaseEmpty } from '@/components/base'
 import { Alert, Snackbar } from '@/components/tailwind'
 
 import { ScrollTopButton } from '../../layout/scroll-top-button'
-import { ProxyChain } from '../proxy-chain'
+import { ProxyChainDrawer } from '../proxy-chain-drawer'
 import {
   DEFAULT_HOVER_DELAY,
   ProxyGroupNavigator,
@@ -29,6 +29,7 @@ interface Props {
   mode: string
   isChainMode?: boolean
   chainConfigData?: string | null
+  onCloseChainMode?: () => void
 }
 
 /**
@@ -40,7 +41,7 @@ interface Props {
  * 3. 管理布局和渲染
  */
 export const ProxyGroups = (props: Props) => {
-  const { mode, isChainMode = false, chainConfigData } = props
+  const { mode, isChainMode = false, chainConfigData, onCloseChainMode } = props
   const { t } = useTranslation()
   const { pathname } = useLocation()
 
@@ -214,33 +215,21 @@ export const ProxyGroups = (props: Props) => {
 
     return (
       <>
-        <div className="flex h-full gap-4">
-          <div className="relative flex-1">
-            {showRuleHeader && (
-              <ChainRuleHeader
-                title={t('proxies.page.rules.title')}
-                selectLabel={t('proxies.page.rules.select')}
-                currentGroup={currentGroup}
-                canSelectGroup={availableGroups.length > 0}
-                onMenuOpen={handleGroupMenuOpen}
-              />
-            )}
-
-            {renderProxyList(
-              showRuleHeader ? 'calc(100% - 80px)' : 'calc(100% - 14px)',
-            )}
-            <ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
-          </div>
-
-          <div className="w-[400px] min-w-[300px]">
-            <ProxyChain
-              proxyChain={proxyChain}
-              onUpdateChain={setProxyChain}
-              chainConfigData={chainConfigData}
-              mode={mode}
-              selectedGroup={activeSelectedGroup}
+        <div className="h-full">
+          {showRuleHeader && (
+            <ChainRuleHeader
+              title={t('proxies.page.rules.title')}
+              selectLabel={t('proxies.page.rules.select')}
+              currentGroup={currentGroup}
+              canSelectGroup={availableGroups.length > 0}
+              onMenuOpen={handleGroupMenuOpen}
             />
-          </div>
+          )}
+
+          {renderProxyList(
+            showRuleHeader ? 'calc(100% - 80px)' : 'calc(100% - 14px)',
+          )}
+          <ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
         </div>
 
         <Snackbar
@@ -265,6 +254,16 @@ export const ProxyGroups = (props: Props) => {
           emptyText="暂无可用代理组"
           onClose={handleGroupMenuClose}
           onSelect={handleGroupSelect}
+        />
+
+        <ProxyChainDrawer
+          open={isChainMode}
+          proxyChain={proxyChain}
+          onUpdateChain={setProxyChain}
+          chainConfigData={chainConfigData}
+          mode={mode}
+          selectedGroup={activeSelectedGroup}
+          onClose={onCloseChainMode ?? (() => {})}
         />
       </>
     )

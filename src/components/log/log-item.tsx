@@ -73,7 +73,7 @@ const LogItem = ({ value, searchState }: Props) => {
       : value.type.toLowerCase() === 'warning' || value.type.toLowerCase() === 'warn'
         ? 'text-yellow-500 dark:text-yellow-400'
         : value.type.toLowerCase() === 'info' || value.type.toLowerCase() === 'inf'
-          ? 'text-blue-500 dark:text-blue-400'
+          ? 'text-teal-500 dark:text-teal-400'
           : ''
   )
 

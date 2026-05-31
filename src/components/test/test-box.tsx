@@ -8,7 +8,7 @@ export const TestBox = ({ className, 'aria-selected': selected, ...props }: Test
   return (
     <div
       className={cn(
-        'relative w-full cursor-pointer rounded-xl border border-dashed p-4 text-left transition-all duration-300',
+        'relative w-full cursor-pointer rounded-xl border border-solid p-4 text-left transition-all duration-300',
         'bg-[#16181d]',
         'border-divider',
         'hover:border-primary hover:-translate-y-0.5',

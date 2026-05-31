@@ -122,7 +122,7 @@ export const ProxyTunCard: FC = () => {
   return (
     <div className="flex flex-col w-full mt-1">
       {/* 模式选择按钮组 - 工业滑块选择器 */}
-      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-dashed border-divider rounded-3xl w-full">
+      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-solid border-divider rounded-3xl w-full">
         <TabButton
           isActive={activeTab === 'system'}
           onClick={() => handleTabChange('system')}
@@ -149,7 +149,7 @@ export const ProxyTunCard: FC = () => {
       </div>
 
       {/* 底部开关组件容器 - dashed 虚线边框融入底板 */}
-      <div className="mt-3 p-[6px_10px] bg-paper/40 border border-dashed border-divider rounded-[20px]">
+      <div className="mt-3 p-[6px_10px] bg-paper/40 border border-solid border-divider rounded-[20px]">
         <ProxyControlSwitches
           onError={handleError}
           label={

@@ -1,9 +1,13 @@
 use anyhow::{anyhow, Result};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
+
+use super::asn_classifier::{self, AsnCategory};
+use super::runtime_diagnostics::geoip::{fetch_ip_location, GeoIpInfo};
 
 /// IP 信誉度配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,15 +64,25 @@ pub struct IpReputation {
 
 /// IP 类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum IpType {
-    /// 机房 IP
     Datacenter,
-    /// ISP/住宅 IP
     Residential,
-    /// 移动网络 IP
     Mobile,
-    /// 未知
+    Education,
     Unknown,
+}
+
+impl From<AsnCategory> for IpType {
+    fn from(cat: AsnCategory) -> Self {
+        match cat {
+            AsnCategory::Datacenter => IpType::Datacenter,
+            AsnCategory::Residential => IpType::Residential,
+            AsnCategory::Mobile => IpType::Mobile,
+            AsnCategory::Education => IpType::Education,
+            AsnCategory::Unknown => IpType::Unknown,
+        }
+    }
 }
 
 /// 风险等级
@@ -201,46 +215,60 @@ impl IpReputationManager {
         Ok(reputation)
     }
 
-    /// 本地检测 IP 信誉度（基于启发式规则）
+    /// 本地检测 IP 信誉度（GeoIP + ASN 分类器）
     async fn check_ip_local(&self, ip: &str) -> Result<IpReputation> {
-        // 简单的启发式规则
-        let ip_type = self.detect_ip_type(ip);
-        let fraud_score = self.calculate_fraud_score(ip, &ip_type);
+        let client = Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
+
+        let geo_info = fetch_ip_location(&client, ip).await;
+
+        let asn_num = geo_info.asn;
+        let asn_org = geo_info.asn_organization.as_deref()
+            .or(geo_info.isp.as_deref())
+            .or(geo_info.organization.as_deref());
+
+        let asn_info = asn_classifier::get_asn_info(asn_num, asn_org);
+        let ip_type = IpType::from(asn_info.category);
+        let fraud_score = self.calculate_fraud_score(&ip_type, &asn_info);
         let risk_level = RiskLevel::from_score(fraud_score);
+
+        // ASN 名称优先用查表结果，兜底用 GeoIP 返回
+        let asn_display = if asn_info.name != "Unknown" {
+            asn_info.name.clone()
+        } else {
+            asn_org.unwrap_or("Unknown").to_string()
+        };
+
+        let asn_str = match asn_num {
+            Some(n) => format!("AS{}", n),
+            None => "Unknown".to_string(),
+        };
 
         Ok(IpReputation {
             ip: ip.to_string(),
             ip_type,
-            asn: "Unknown".to_string(),
-            asn_org: "Unknown".to_string(),
+            asn: asn_str,
+            asn_org: asn_display,
             fraud_score,
             risk_level,
             is_proxy: false,
             is_vpn: false,
             is_tor: false,
-            country_code: "Unknown".to_string(),
-            city: None,
+            country_code: geo_info.country_code.map(|s| s.into()).unwrap_or_else(|| "Unknown".to_string()),
+            city: geo_info.city.map(|s| s.into()),
             checked_at: SystemTime::now(),
         })
     }
 
-    /// 检测 IP 类型（启发式）
+    /// 检测 IP 类型（ASN 分类器 + IP 前缀兜底）
     fn detect_ip_type(&self, ip: &str) -> IpType {
-        // 简单的启发式规则
-        // 实际应用中应该使用 IP 数据库（如 MaxMind GeoIP2）
-        
-        // 常见云服务商 IP 段（示例）
-        let datacenter_prefixes = vec![
-            "45.76.",   // Vultr
-            "104.238.", // Vultr
-            "207.246.", // Vultr
-            "149.28.",  // Vultr
-            "13.",      // AWS
-            "52.",      // AWS
-            "54.",      // AWS
-            "35.",      // GCP
-            "34.",      // GCP
-            "104.154.", // GCP
+        // IP 前缀兜底（无 GeoIP 时使用）
+        let datacenter_prefixes = [
+            "45.76.", "104.238.", "207.246.", "149.28.", // Vultr
+            "13.", "52.", "54.", // AWS
+            "35.", "34.", "104.154.", // GCP
         ];
 
         for prefix in datacenter_prefixes {
@@ -249,18 +277,33 @@ impl IpReputationManager {
             }
         }
 
-        // 默认假设为住宅 IP
+        // RFC1918 / 链路本地
+        if ip.starts_with("10.") || ip.starts_with("172.16.") || ip.starts_with("192.168.") || ip.starts_with("127.") {
+            return IpType::Unknown;
+        }
+
+        // 默认假设住宅
         IpType::Residential
     }
 
-    /// 计算欺诈评分（启发式）
-    fn calculate_fraud_score(&self, _ip: &str, ip_type: &IpType) -> u8 {
-        // 简单的评分规则
+    /// 计算欺诈评分（基于 ASN 分类 + 细分）
+    fn calculate_fraud_score(&self, ip_type: &IpType, asn_info: &asn_classifier::AsnInfo) -> u8 {
         match ip_type {
-            IpType::Datacenter => 85,  // 机房 IP 高风险
-            IpType::Residential => 15, // 住宅 IP 低风险
-            IpType::Mobile => 10,      // 移动 IP 极低风险
-            IpType::Unknown => 50,     // 未知中等风险
+            IpType::Datacenter => {
+                // 已知数据中心 ASN 更高分
+                let name_lower = asn_info.name.to_lowercase();
+                if name_lower.contains("m247") || name_lower.contains("stark") || name_lower.contains("floki") {
+                    95 // 已知代理/VPN 托管商
+                } else if name_lower.contains("cloudflare") || name_lower.contains("akamai") || name_lower.contains("fastly") {
+                    70 // CDN 不算特别危险
+                } else {
+                    85 // 普通机房
+                }
+            }
+            IpType::Residential => 15,
+            IpType::Mobile => 10,
+            IpType::Education => 25, // 教育网可能被滥用
+            IpType::Unknown => 50,
         }
     }
 
@@ -311,10 +354,12 @@ impl IpReputationManager {
         if let Some(rule) = rule {
             // 2. 检测所有节点的 IP 信誉度
             let mut suitable_nodes = Vec::new();
+            let mut all_fraud_scores: Vec<u8> = Vec::new();
 
             for (node_name, node_ip) in available_nodes {
                 match self.check_ip_reputation(node_ip).await {
                     Ok(reputation) => {
+                        all_fraud_scores.push(reputation.fraud_score);
                         // 检查是否满足要求
                         let type_match = rule
                             .required_ip_type
@@ -351,6 +396,9 @@ impl IpReputationManager {
                             "[IpReputation] 域名 {} 没有满足信誉度要求的节点，阻止连接",
                             domain
                         );
+                        // 通知黑洞熔断器：欺诈评分过高
+                        let max_score = all_fraud_scores.iter().max().copied().unwrap_or(100);
+                        crate::feat::blackhole_breaker_record_fraud_score(domain, max_score).await;
                         return Err(anyhow!("没有满足信誉度要求的节点"));
                     }
                     RiskFallbackPolicy::Warn => {
@@ -420,6 +468,12 @@ impl IpReputationManager {
             .count();
         (total, expired)
     }
+
+    /// 获取缓存中所有条目
+    pub async fn get_cache_entries(&self) -> Vec<IpReputation> {
+        let cache = self.cache.read().await;
+        cache.values().cloned().collect()
+    }
 }
 
 /// 检查 IP 类型是否匹配
@@ -428,6 +482,7 @@ pub fn matches_ip_type(actual: &IpType, required: &IpType) -> bool {
         (IpType::Residential, IpType::Residential) => true,
         (IpType::Mobile, IpType::Residential) => true, // Mobile 也算 Residential
         (IpType::Mobile, IpType::Mobile) => true,
+        (IpType::Education, IpType::Residential) => true, // Education 有时也算
         (a, r) => a == r,
     }
 }
@@ -515,13 +570,23 @@ mod tests {
     #[tokio::test]
     async fn test_fraud_score_calculation() {
         let manager = IpReputationManager::new();
+        let dc_info = asn_classifier::AsnInfo {
+            asn: 20473,
+            name: "Vultr".to_string(),
+            category: asn_classifier::AsnCategory::Datacenter,
+        };
+        let res_info = asn_classifier::AsnInfo {
+            asn: 7922,
+            name: "Comcast".to_string(),
+            category: asn_classifier::AsnCategory::Residential,
+        };
 
         assert_eq!(
-            manager.calculate_fraud_score("45.76.123.45", &IpType::Datacenter),
+            manager.calculate_fraud_score(&IpType::Datacenter, &dc_info),
             85
         );
         assert_eq!(
-            manager.calculate_fraud_score("192.168.1.1", &IpType::Residential),
+            manager.calculate_fraud_score(&IpType::Residential, &res_info),
             15
         );
     }

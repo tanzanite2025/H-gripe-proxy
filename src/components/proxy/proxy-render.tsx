@@ -121,7 +121,7 @@ export const ProxyRender = (props: RenderProps) => {
           secondary={
             <div className="flex items-center overflow-hidden pt-0.5">
               <span className="mt-0.5">
-                <span className="mr-2 inline-block rounded border border-blue-500/50 px-1 text-[10px] leading-6 text-blue-500/80">
+                <span className="mr-2 inline-block rounded border border-teal-500/50 px-1 text-[10px] leading-6 text-teal-500/80">
                   {group.type}
                 </span>
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-gray-500">
@@ -136,7 +136,7 @@ export const ProxyRender = (props: RenderProps) => {
             <Chip
               size="small"
               label={`${group.all.length}`}
-              className="mr-2 bg-blue-500/10 text-blue-500"
+              className="mr-2 bg-teal-500/10 text-teal-500"
             />
           </Tooltip>
           {headState?.open ? (

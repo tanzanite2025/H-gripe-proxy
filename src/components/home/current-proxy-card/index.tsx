@@ -238,7 +238,7 @@ export const CurrentProxyCard = () => {
                 onChange={handleGroupSelectChange}
                 disabled={isGlobalMode || isDirectMode}
                 size="small"
-                className="h-[38px] rounded-2xl border border-dashed border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
+                className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
               >
                 {state.proxyData.groups.map((group) => (
                   <MenuItem key={group.name} value={group.name}>
@@ -258,7 +258,7 @@ export const CurrentProxyCard = () => {
                 disabled={isDirectMode}
                 size="small"
                 renderValue={(selected: SelectPrimitiveValue) => <div className="truncate">{String(selected)}</div>}
-                className="h-[38px] rounded-2xl border border-dashed border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
+                className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
                 MenuProps={{
                   slotProps: {
                     paper: {

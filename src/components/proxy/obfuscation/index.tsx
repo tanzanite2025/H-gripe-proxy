@@ -11,6 +11,7 @@ import { Switch } from '@/components/tailwind/Switch'
 import { Tab, Tabs } from '@/components/tailwind/Tabs'
 import {
   getObfuscationManager,
+  syncObfuscationFromSecurityConfig,
   getObfuscationStrategy,
   type ObfuscationLevel,
 } from '@/services/obfuscation'
@@ -46,15 +47,17 @@ export function ObfuscationConfig({
 
   const handleApply = () => {
     const manager = getObfuscationManager()
-    manager.updateConfig({
+    // Sync to in-memory manager for stats display
+    syncObfuscationFromSecurityConfig({
       enabled,
       level,
       autoAdjust,
     })
 
     if (onApply) {
-      const clashConfig = manager.generateClashConfig()
-      onApply(clashConfig)
+      // Config is now managed by Rust backend via SecurityConfig,
+      // no longer generating Clash config in frontend
+      onApply({ enabled, level, autoAdjust })
     }
 
     onClose()

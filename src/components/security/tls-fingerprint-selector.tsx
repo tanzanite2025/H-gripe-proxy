@@ -200,27 +200,9 @@ export default function TlsFingerprintSelector() {
                 <div className="space-y-2">
                   <div className="flex gap-2 flex-wrap">
                     <span className="px-2 py-1 text-xs bg-secondary rounded">
-                      {fp.tls_version}
-                    </span>
-                    <span className="px-2 py-1 text-xs bg-secondary rounded">
-                      {fp.cipher_suites.length} 密码套件
+                      {fp.category === 'browser' ? '浏览器' : fp.category === 'mobile' ? '移动端' : fp.category === 'random' ? '随机' : '经典'}
                     </span>
                   </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    {fp.alpn_protocols.map((alpn) => (
-                      <span
-                        key={alpn}
-                        className="px-2 py-1 text-xs border border-border rounded"
-                      >
-                        {alpn}
-                      </span>
-                    ))}
-                  </div>
-
-                  <p className="text-[0.7rem] text-muted-foreground font-mono break-all">
-                    JA3: {fp.ja3_fingerprint.substring(0, 40)}...
-                  </p>
                 </div>
               </div>
             )

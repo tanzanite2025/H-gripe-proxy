@@ -74,15 +74,15 @@ export const Dialog = ({
         className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 data-[closed]:opacity-0 data-[enter]:opacity-100 data-[leave]:opacity-0"
       />
 
-      {/* 对话框容器 */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      {/* 对话框容器 - 顶部偏移补偿TAB栏高度 */}
+      <div className="fixed inset-0 flex items-center justify-center p-4" style={{ paddingTop: 'calc(72px + 1rem)' }}>
         <DialogPanel
           transition
           style={paperStyle}
           className={cn(
             fullWidth ? 'w-full' : 'w-auto',
             maxWidthClasses[maxWidth],
-            'flex flex-col max-h-[85vh] rounded-dialog bg-card shadow-dialog p-6 transition duration-300 data-[closed]:opacity-0 data-[closed]:scale-95 data-[enter]:opacity-100 data-[enter]:scale-100 data-[leave]:opacity-0 data-[leave]:scale-95',
+            'flex flex-col max-h-[80vh] rounded-dialog bg-card shadow-dialog p-6 transition duration-300 data-[closed]:opacity-0 data-[closed]:scale-95 data-[enter]:opacity-100 data-[enter]:scale-100 data-[leave]:opacity-0 data-[leave]:scale-95',
             className,
             paperClassName,
           )}

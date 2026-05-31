@@ -206,7 +206,7 @@ export const SystemInfoCard = () => {
     >
       <div className="flex items-center gap-4 px-3 pt-1.5 pb-3">
         {/* 1. OS + 版本 */}
-        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
+        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-solid border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
           <span className="text-xs text-text-secondary truncate">
             {osInfo || '-'}
           </span>
@@ -216,7 +216,7 @@ export const SystemInfoCard = () => {
         </div>
 
         {/* 2. 自启动 + 运行模式 */}
-        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
+        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-solid border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
           <Chip
             size="small"
             label={
@@ -243,7 +243,7 @@ export const SystemInfoCard = () => {
         </div>
 
         {/* 3. 检查更新 */}
-        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-dashed border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
+        <div className="flex-1 min-w-0 flex items-center justify-between rounded-2xl border border-solid border-gray-200 p-1.5 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 h-[38px]">
           <span className="text-xs text-text-secondary truncate">
             {t('home.components.systemInfo.fields.lastCheckUpdate')}
           </span>

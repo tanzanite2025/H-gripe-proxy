@@ -16,7 +16,6 @@ import {
 import { IconButton } from '@/components/tailwind/IconButton'
 import { showNotice } from '@/services/notice-service'
 import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
-import getSystem from '@/utils/misc'
 import debounce from '@/utils/misc/debounce'
 
 const appWindow = getCurrentWebviewWindow()
@@ -55,7 +54,7 @@ export const EditorViewer = ({
   onValidate,
 }: EditorViewerProps) => {
   const { t } = useTranslation()
-  const themeMode: 'dark' = 'dark'
+  const themeMode = 'dark' as const
   const [isMaximized, setIsMaximized] = useState(false)
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 

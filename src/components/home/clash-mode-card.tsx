@@ -94,7 +94,7 @@ export const ClashModeCard = () => {
   return (
     <div className="flex flex-col w-full mt-1">
       {/* 模式选择按钮组 - 工业滑块选择器 */}
-      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-dashed border-divider rounded-3xl w-full">
+      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-solid border-divider rounded-3xl w-full">
         {modeList.map((mode) => {
           const isActive = mode === currentModeKey
           return (

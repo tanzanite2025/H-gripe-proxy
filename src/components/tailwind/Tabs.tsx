@@ -61,7 +61,7 @@ export const Tab = React.forwardRef<HTMLButtonElement, TabProps>(
         ref={ref}
         className={`px-4 py-2 font-medium transition-colors border-b-2 ${
           isSelected
-            ? 'border-blue-500 text-blue-500'
+            ? 'border-teal-500 text-teal-500'
             : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
         role="tab"

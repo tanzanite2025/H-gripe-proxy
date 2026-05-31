@@ -53,19 +53,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const outlinedColorClasses = {
       primary:
-        'border border-dashed border-primary text-primary dark:text-primary-dark-mode hover:bg-primary/10 hover:-translate-y-0.5 focus:ring-primary dark:focus:ring-primary-dark-mode',
+        'border border-solid border-primary text-primary dark:text-primary-dark-mode hover:bg-primary/10 hover:-translate-y-0.5 focus:ring-primary dark:focus:ring-primary-dark-mode',
       secondary:
-        'border border-dashed border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 hover:-translate-y-0.5 focus:ring-purple-500',
+        'border border-solid border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 hover:-translate-y-0.5 focus:ring-purple-500',
       error:
-        'border border-dashed border-red-500 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:-translate-y-0.5 focus:ring-red-500',
+        'border border-solid border-red-500 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:-translate-y-0.5 focus:ring-red-500',
       warning:
-        'border border-dashed border-yellow-500 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/10 hover:-translate-y-0.5 focus:ring-yellow-500',
+        'border border-solid border-yellow-500 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/10 hover:-translate-y-0.5 focus:ring-yellow-500',
       info:
-        'border border-dashed border-cyan-500 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 hover:-translate-y-0.5 focus:ring-cyan-500',
+        'border border-solid border-cyan-500 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 hover:-translate-y-0.5 focus:ring-cyan-500',
       success:
-        'border border-dashed border-green-500 text-green-600 dark:text-green-400 hover:bg-green-500/10 hover:-translate-y-0.5 focus:ring-green-500',
+        'border border-solid border-green-500 text-green-600 dark:text-green-400 hover:bg-green-500/10 hover:-translate-y-0.5 focus:ring-green-500',
       inherit:
-        'border border-dashed border-gray-300 dark:border-gray-600 text-text-primary hover:bg-gray-50 dark:hover:bg-gray-800 hover:-translate-y-0.5 focus:ring-gray-300 dark:focus:ring-gray-600',
+        'border border-solid border-gray-300 dark:border-gray-600 text-text-primary hover:bg-gray-50 dark:hover:bg-gray-800 hover:-translate-y-0.5 focus:ring-gray-300 dark:focus:ring-gray-600',
     }
 
     const textColorClasses = {

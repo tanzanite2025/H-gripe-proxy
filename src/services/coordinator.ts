@@ -4,9 +4,12 @@
 
 import { invoke } from '@tauri-apps/api/core'
 
+import type { BlackholeBreakerConfig } from '@/services/blackhole-breaker'
 import type { ResolvedEgressIdentity } from '@/services/egress-identity'
+import type { IpReputationConfig } from '@/services/ip-reputation'
 import type { MultipathConfig } from '@/services/multipath'
 import type { BindingInfo, SessionAffinityConfig } from '@/services/session-affinity'
+import type { TimezoneSpoofConfig } from '@/services/timezone-spoof'
 
 export type {
   MultipathConfig,
@@ -73,6 +76,11 @@ export interface AdvancedConfig {
   egress_identity: EgressIdentityConfig
   egress_monitor: EgressMonitorConfig
   dns: AdvancedDnsConfig
+  security_policies: ISecurityPolicy[]
+  residential_pool: ResidentialProxyPool
+  ip_reputation: IpReputationConfig
+  blackhole_breaker: BlackholeBreakerConfig
+  timezone_spoof: TimezoneSpoofConfig
   xdp?: XdpConfig
 }
 
@@ -81,6 +89,18 @@ export interface SecurityConfig {
   anti_probe: AntiProbeConfig
   tls_fingerprint: string | null
   config_decoy: ConfigDecoyConfig
+  sniffer: SnifferConfig
+  obfuscation: ObfuscationConfig
+}
+
+export interface SnifferConfig {
+  enabled: boolean
+  overrideDest: boolean
+  forceDomain: string[]
+  skipDomain: string[]
+  parsePureIp: boolean
+  forceDnsMapping: boolean
+  sniffing: string[]
 }
 
 export interface AntiProbeConfig {
@@ -94,6 +114,38 @@ export interface AntiProbeConfig {
 export interface ConfigDecoyConfig {
   enabled: boolean
   decoy_path: string | null
+}
+
+export type ResidentialProxyType = 'socks5' | 'http' | 'ss' | 'vmess' | 'trojan'
+
+export interface ResidentialProxy {
+  name: string
+  proxyType: ResidentialProxyType
+  server: string
+  port: number
+  username?: string
+  password?: string
+  cipher?: string
+  uuid?: string
+  trojanPassword?: string
+  tls?: boolean
+  sni?: string
+  skipCertVerify?: boolean
+  region?: string
+  enabled: boolean
+}
+
+export interface ResidentialProxyPool {
+  enabled: boolean
+  proxies: ResidentialProxy[]
+}
+
+export type ObfuscationLevel = 'none' | 'low' | 'medium' | 'high' | 'paranoid'
+
+export interface ObfuscationConfig {
+  enabled: boolean
+  level: ObfuscationLevel
+  autoAdjust: boolean
 }
 
 export type IpType = 'Datacenter' | 'Residential' | 'Mobile' | 'Unknown'
@@ -134,6 +186,8 @@ export interface EgressIdentityProfile {
   failover_policy: EgressFailoverPolicy
   allowed_nodes?: string[]
   strict_node_scope?: boolean
+  use_residential_chain?: boolean
+  residential_proxy_name?: string | null
   description: string
 }
 

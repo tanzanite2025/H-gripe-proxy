@@ -400,7 +400,7 @@ const UnlockPage = () => {
                           disabled={
                             loadingItems.includes(item.name) || isCheckingAll
                           }
-                          className="border border-dashed border-primary hover:bg-primary/10 dark:hover:bg-primary-dark-mode/10"
+                          className="border border-solid border-primary hover:bg-primary/10 dark:hover:bg-primary-dark-mode/10"
                           onClick={() => checkSingleMedia(item.name)}
                         >
                           <RefreshCw 

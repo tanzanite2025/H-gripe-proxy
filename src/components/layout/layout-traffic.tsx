@@ -74,7 +74,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
               className={cn(
                 'uds-mono text-sm font-semibold',
                 (traffic?.down || 0) > 0
-                  ? 'text-blue-500 opacity-100'
+                  ? 'text-teal-500 opacity-100'
                   : 'text-gray-500 opacity-60',
               )}
             >
@@ -126,7 +126,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
             title={`${t('home.components.traffic.metrics.downloadSpeed')}`}
             className="flex items-center whitespace-nowrap"
           >
-            <span className="uds-mono flex-1 basis-14 select-none text-center text-blue-500">
+            <span className="uds-mono flex-1 basis-14 select-none text-center text-teal-500">
               {down}
             </span>
             <span className="uds-mono flex-none basis-7 select-none text-right text-xs text-gray-500">

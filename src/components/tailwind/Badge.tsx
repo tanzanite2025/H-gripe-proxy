@@ -22,7 +22,7 @@ export const Badge = ({
     error: 'bg-red-500',
     warning: 'bg-yellow-500',
     success: 'bg-green-500',
-    info: 'bg-blue-500',
+    info: 'bg-teal-500',
   }
 
   if (variant === 'dot') {

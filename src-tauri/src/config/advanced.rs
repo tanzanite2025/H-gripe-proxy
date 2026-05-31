@@ -11,8 +11,12 @@ use anyhow::Result;
 
 use super::ConfigFile;
 use crate::anti_probe::AntiProbeConfig;
+use crate::core::blackhole_breaker::BlackholeBreakerConfig;
+use crate::core::timezone_spoof::TimezoneSpoofConfig;
 use crate::core::egress_identity::EgressIdentityConfig;
 use crate::core::egress_monitor::EgressMonitorConfig;
+use crate::core::ip_reputation::IpReputationConfig;
+use crate::core::security_policy::SecurityPolicy;
 use crate::core::session_affinity::SessionAffinityConfig;
 use crate::multipath::MultipathConfig;
 use crate::traffic::{TrafficPaddingConfig, TrafficObfuscationConfig};
@@ -56,6 +60,26 @@ pub struct AdvancedConfig {
     #[serde(default)]
     pub multiplex: MultiplexConfig,
 
+    /// 安全策略规则配置
+    #[serde(default)]
+    pub security_policies: Vec<SecurityPolicy>,
+
+    /// 住宅代理池配置
+    #[serde(default)]
+    pub residential_pool: ResidentialProxyPool,
+
+    /// IP 信誉度配置
+    #[serde(default)]
+    pub ip_reputation: IpReputationConfig,
+
+    /// 黑洞熔断器配置
+    #[serde(default)]
+    pub blackhole_breaker: BlackholeBreakerConfig,
+
+    /// 时区/NTP 伪装配置
+    #[serde(default)]
+    pub timezone_spoof: TimezoneSpoofConfig,
+
     /// XDP 代理配置（仅 Linux）
     #[cfg(target_os = "linux")]
     #[serde(default)]
@@ -74,6 +98,11 @@ impl Default for AdvancedConfig {
             traffic_obfuscation: TrafficObfuscationConfig::default(),
             traffic_padding: TrafficPaddingConfig::default(),
             multiplex: MultiplexConfig::default(),
+            security_policies: Vec::new(),
+            residential_pool: ResidentialProxyPool::default(),
+            ip_reputation: IpReputationConfig::default(),
+            blackhole_breaker: BlackholeBreakerConfig::default(),
+            timezone_spoof: TimezoneSpoofConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig::default(),
         }
@@ -106,6 +135,14 @@ pub struct SecurityConfig {
     /// 内存蜜罐配置
     #[serde(default)]
     pub honeypot: HoneypotConfig,
+
+    /// Sniffer 嗅探配置
+    #[serde(default)]
+    pub sniffer: SnifferConfig,
+
+    /// 流量混淆配置
+    #[serde(default)]
+    pub obfuscation: ObfuscationConfig,
 }
 
 impl Default for SecurityConfig {
@@ -117,6 +154,8 @@ impl Default for SecurityConfig {
             config_decoy: ConfigDecoyConfig::default(),
             self_destruct: SelfDestructConfig::default(),
             honeypot: HoneypotConfig::default(),
+            sniffer: SnifferConfig::default(),
+            obfuscation: ObfuscationConfig::default(),
         }
     }
 }
@@ -409,15 +448,24 @@ impl DnsAdvancedConfig {
             );
         }
 
+        let proxy_server_nameserver: Vec<Value> = if block_plain_dns {
+            domestic_doh.into_iter().map(Value::from).collect()
+        } else {
+            domestic_plain.into_iter().map(Value::from).collect()
+        };
         dns_mapping.insert(
             "default-nameserver".into(),
             Value::Sequence(
                 if block_plain_dns {
                     Vec::<Value>::new()
                 } else {
-                    domestic_plain.into_iter().map(Value::from).collect()
+                    proxy_server_nameserver.clone()
                 },
             ),
+        );
+        dns_mapping.insert(
+            "proxy-server-nameserver".into(),
+            Value::Sequence(proxy_server_nameserver),
         );
         dns_mapping.insert(
             "nameserver".into(),
@@ -696,6 +744,11 @@ impl AdvancedConfig {
             self.multiplex = other.multiplex.clone();
         }
 
+        // 合并住宅代理池配置
+        if other.residential_pool.enabled {
+            self.residential_pool = other.residential_pool.clone();
+        }
+
         // 合并 XDP 配置（Linux）
         #[cfg(target_os = "linux")]
         if other.xdp.enabled {
@@ -720,7 +773,7 @@ impl AdvancedConfig {
                     whitelist: Vec::new(),
                     strict_mode: false,
                 },
-                tls_fingerprint: Some("Chrome 120 (Windows)".to_string()),
+                tls_fingerprint: Some("chrome".to_string()),
                 config_decoy: ConfigDecoyConfig {
                     enabled: true,
                     decoy_path: Some("config_decoy.yaml".to_string()),
@@ -728,6 +781,8 @@ impl AdvancedConfig {
                 },
                 self_destruct: SelfDestructConfig::default(),
                 honeypot: HoneypotConfig::default(),
+                sniffer: SnifferConfig::default(),
+                obfuscation: ObfuscationConfig::default(),
             },
             multipath: MultipathConfig {
                 enabled: true,
@@ -778,6 +833,11 @@ impl AdvancedConfig {
                 enabled: false,
                 ..MultiplexConfig::recommended()
             },
+            security_policies: Vec::new(),
+            residential_pool: ResidentialProxyPool::default(),
+            ip_reputation: IpReputationConfig::default(),
+            blackhole_breaker: BlackholeBreakerConfig::default(),
+            timezone_spoof: TimezoneSpoofConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig {
                 enabled: false,
@@ -799,6 +859,234 @@ impl AdvancedConfig {
         config.security.anti_probe.strict_mode = true;
         config.security.config_decoy.enabled = true;
         config
+    }
+}
+
+/// Sniffer 嗅探配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnifferConfig {
+    /// 启用嗅探
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// 覆盖目标地址（用嗅探到的域名替换原始目标）
+    #[serde(default)]
+    pub override_dest: bool,
+
+    /// 强制嗅探的域名列表
+    #[serde(default)]
+    pub force_domain: Vec<String>,
+
+    /// 跳过嗅探的域名列表
+    #[serde(default)]
+    pub skip_domain: Vec<String>,
+
+    /// 解析纯 IP 连接
+    #[serde(default)]
+    pub parse_pure_ip: bool,
+
+    /// 强制 DNS 映射
+    #[serde(default)]
+    pub force_dns_mapping: bool,
+
+    /// 启用的嗅探类型（TLS, HTTP, QUIC）
+    #[serde(default = "default_sniff_types")]
+    pub sniffing: Vec<String>,
+}
+
+fn default_sniff_types() -> Vec<String> {
+    vec!["TLS".to_string(), "HTTP".to_string()]
+}
+
+impl Default for SnifferConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            override_dest: true,
+            force_domain: Vec::new(),
+            skip_domain: Vec::new(),
+            parse_pure_ip: true,
+            force_dns_mapping: true,
+            sniffing: default_sniff_types(),
+        }
+    }
+}
+
+/// 流量混淆级别
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ObfuscationLevel {
+    #[default]
+    None,
+    Low,
+    Medium,
+    High,
+    Paranoid,
+}
+
+/// 流量混淆配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObfuscationConfig {
+    /// 启用混淆
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// 混淆级别
+    #[serde(default)]
+    pub level: ObfuscationLevel,
+
+    /// 根据网络环境自动调整
+    #[serde(default)]
+    pub auto_adjust: bool,
+}
+
+impl Default for ObfuscationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            level: ObfuscationLevel::None,
+            auto_adjust: false,
+        }
+    }
+}
+
+/// 住宅代理协议类型
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ResidentialProxyType {
+    #[default]
+    Socks5,
+    Http,
+    Ss,
+    Vmess,
+    Trojan,
+}
+
+/// 住宅代理节点
+/// 用户在 UI 中手动添加的住宅/ISP 代理端点
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResidentialProxy {
+    /// 节点名称（唯一标识）
+    pub name: String,
+    /// 协议类型
+    #[serde(default)]
+    pub proxy_type: ResidentialProxyType,
+    /// 服务器地址
+    pub server: String,
+    /// 端口
+    pub port: u16,
+    /// 认证用户名（socks5/http）
+    #[serde(default)]
+    pub username: Option<String>,
+    /// 认证密码（socks5/http）
+    #[serde(default)]
+    pub password: Option<String>,
+    /// SS 密码（ss 类型）
+    #[serde(default)]
+    pub cipher: Option<String>,
+    /// VMess UUID（vmess 类型）
+    #[serde(default)]
+    pub uuid: Option<String>,
+    /// Trojan 密码（trojan 类型）
+    #[serde(default)]
+    pub trojan_password: Option<String>,
+    /// TLS 设置
+    #[serde(default)]
+    pub tls: Option<bool>,
+    /// SNI
+    #[serde(default)]
+    pub sni: Option<String>,
+    /// 跳过证书验证
+    #[serde(default)]
+    pub skip_cert_verify: Option<bool>,
+    /// 地区标签（如 US, JP）
+    #[serde(default)]
+    pub region: Option<String>,
+    /// 是否启用
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+/// 住宅代理池
+/// 管理用户提供的住宅/ISP 代理节点集合
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ResidentialProxyPool {
+    /// 是否启用住宅代理池
+    #[serde(default)]
+    pub enabled: bool,
+    /// 住宅代理节点列表
+    #[serde(default)]
+    pub proxies: Vec<ResidentialProxy>,
+}
+
+impl ResidentialProxyPool {
+    /// 获取所有启用的住宅代理
+    pub fn enabled_proxies(&self) -> Vec<&ResidentialProxy> {
+        self.proxies.iter().filter(|p| p.enabled).collect()
+    }
+
+    /// 根据地区筛选
+    pub fn proxies_by_region(&self, region: &str) -> Vec<&ResidentialProxy> {
+        self.enabled_proxies()
+            .into_iter()
+            .filter(|p| p.region.as_deref() == Some(region))
+            .collect()
+    }
+
+    /// 根据名称查找
+    pub fn get_by_name(&self, name: &str) -> Option<&ResidentialProxy> {
+        self.proxies.iter().find(|p| p.name == name)
+    }
+
+    /// 生成 Mihomo proxies 段中的代理定义
+    pub fn to_mihomo_proxy_mappings(&self) -> Vec<(String, Mapping)> {
+        self.enabled_proxies()
+            .iter()
+            .map(|p| {
+                let mut m = Mapping::new();
+                m.insert("name".into(), Value::String(format!("VERGE-RES-{}", p.name)));
+                m.insert("type".into(), Value::String(match p.proxy_type {
+                    ResidentialProxyType::Socks5 => "socks5",
+                    ResidentialProxyType::Http => "http",
+                    ResidentialProxyType::Ss => "ss",
+                    ResidentialProxyType::Vmess => "vmess",
+                    ResidentialProxyType::Trojan => "trojan",
+                }.to_string()));
+                m.insert("server".into(), Value::String(p.server.clone()));
+                m.insert("port".into(), Value::from(p.port as i64));
+
+                if let Some(ref username) = p.username {
+                    m.insert("username".into(), Value::String(username.clone()));
+                }
+                if let Some(ref password) = p.password {
+                    m.insert("password".into(), Value::String(password.clone()));
+                }
+                if let Some(ref cipher) = p.cipher {
+                    m.insert("cipher".into(), Value::String(cipher.clone()));
+                }
+                if let Some(ref uuid) = p.uuid {
+                    m.insert("uuid".into(), Value::String(uuid.clone()));
+                }
+                if let Some(ref tp) = p.trojan_password {
+                    m.insert("password".into(), Value::String(tp.clone()));
+                }
+                if let Some(tls) = p.tls {
+                    m.insert("tls".into(), Value::Bool(tls));
+                }
+                if let Some(ref sni) = p.sni {
+                    m.insert("sni".into(), Value::String(sni.clone()));
+                }
+                if let Some(skip) = p.skip_cert_verify {
+                    m.insert("skip-cert-verify".into(), Value::Bool(skip));
+                }
+
+                (format!("VERGE-RES-{}", p.name), m)
+            })
+            .collect()
     }
 }
 

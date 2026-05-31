@@ -9,12 +9,15 @@ import { TrafficObfuscationService } from './traffic-obfuscation'
 /**
  * 混淆管理器
  * 统一管理所有混淆服务
+ * 
+ * 注意：配置来源已迁移到 Rust 后端 SecurityConfig.obfuscation，
+ * 不再使用 localStorage。前端通过 coordinator.ts 的 SecurityConfig 读写。
  */
 
 export interface ObfuscationConfig {
   enabled: boolean
   level: ObfuscationLevel
-  autoAdjust: boolean // 根据网络环境自动调整
+  autoAdjust: boolean
 }
 
 export class ObfuscationManager {
@@ -57,9 +60,6 @@ export class ObfuscationManager {
       enabled: this.config.enabled,
       strategy: this.strategy,
     })
-
-    // 保存到 localStorage
-    this.saveConfig()
   }
 
   /**
@@ -122,74 +122,28 @@ export class ObfuscationManager {
       protocol: this.protocolObfuscation.getStats(),
     }
   }
-
-  /**
-   * 生成 Clash 配置
-   */
-  generateClashConfig() {
-    if (!this.config.enabled) {
-      return null
-    }
-
-    const httpMaskConfig = this.protocolObfuscation.generateHttpMaskConfig()
-    const tlsFingerprint = this.protocolObfuscation.getRandomTlsFingerprint()
-
-    return {
-      'client-fingerprint': tlsFingerprint,
-      ...(httpMaskConfig && {
-        'http-opts': {
-          headers: httpMaskConfig.headers,
-          path: [httpMaskConfig.path],
-        },
-      }),
-    }
-  }
-
-  /**
-   * 保存配置到 localStorage
-   */
-  private saveConfig() {
-    try {
-      localStorage.setItem(
-        'obfuscation-config',
-        JSON.stringify(this.config),
-      )
-    } catch (error) {
-      console.error('Failed to save obfuscation config:', error)
-    }
-  }
-
-  /**
-   * 从 localStorage 加载配置
-   */
-  static loadConfig(): ObfuscationConfig {
-    try {
-      const saved = localStorage.getItem('obfuscation-config')
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    } catch (error) {
-      console.error('Failed to load obfuscation config:', error)
-    }
-
-    // 默认配置
-    return {
-      enabled: false,
-      level: 'medium',
-      autoAdjust: false,
-    }
-  }
 }
 
-// 导出单例
+// 导出单例（配置由 SecurityConfig 驱动，不再持久化到 localStorage）
 let obfuscationManager: ObfuscationManager | null = null
 
 export function getObfuscationManager(): ObfuscationManager {
   if (!obfuscationManager) {
-    const config = ObfuscationManager.loadConfig()
-    obfuscationManager = new ObfuscationManager(config)
+    obfuscationManager = new ObfuscationManager({
+      enabled: false,
+      level: 'medium',
+      autoAdjust: false,
+    })
   }
   return obfuscationManager
+}
+
+/**
+ * 从 SecurityConfig 同步混淆配置
+ */
+export function syncObfuscationFromSecurityConfig(config: ObfuscationConfig) {
+  const manager = getObfuscationManager()
+  manager.updateConfig(config)
 }
 
 // 导出类型和策略

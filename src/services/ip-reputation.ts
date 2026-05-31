@@ -15,7 +15,7 @@ export interface IpReputationConfig {
  */
 export interface IpReputation {
   ip: string;
-  ipType: 'Datacenter' | 'Residential' | 'Mobile' | 'Unknown';
+  ipType: 'Datacenter' | 'Residential' | 'Mobile' | 'Education' | 'Unknown';
   asn: string;
   asnOrg: string;
   fraudScore: number;
@@ -34,7 +34,7 @@ export interface IpReputation {
 export interface RiskRoutingRule {
   domainPatterns: string[];
   enabled: boolean;
-  requiredIpType?: 'Datacenter' | 'Residential' | 'Mobile';
+  requiredIpType?: 'Datacenter' | 'Residential' | 'Mobile' | 'Education';
   maxFraudScore: number;
   fallbackPolicy: 'Block' | 'Warn' | 'Allow';
   description: string;
@@ -98,6 +98,13 @@ export async function ipReputationGetCacheStats(): Promise<[number, number]> {
 }
 
 /**
+ * 获取缓存中所有条目
+ */
+export async function ipReputationGetCacheEntries(): Promise<IpReputation[]> {
+  return await invoke<IpReputation[]>('ip_reputation_get_cache_entries');
+}
+
+/**
  * 获取 IP 类型的显示文本
  */
 export function getIpTypeText(ipType: string): string {
@@ -108,6 +115,8 @@ export function getIpTypeText(ipType: string): string {
       return '住宅 IP';
     case 'Mobile':
       return '移动 IP';
+    case 'Education':
+      return '教育网 IP';
     default:
       return '未知';
   }

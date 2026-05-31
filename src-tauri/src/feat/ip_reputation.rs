@@ -44,3 +44,7 @@ pub async fn ip_reputation_clear_cache() -> Result<()> {
 pub async fn ip_reputation_get_cache_stats() -> (usize, usize) {
     get_ip_reputation_manager().get_cache_stats().await
 }
+
+pub async fn ip_reputation_get_cache_entries() -> Vec<IpReputation> {
+    get_ip_reputation_manager().get_cache_entries().await
+}

@@ -47,3 +47,9 @@ pub async fn ip_reputation_clear_cache() -> CmdResult<()> {
 pub async fn ip_reputation_get_cache_stats() -> CmdResult<(usize, usize)> {
     Ok(crate::feat::ip_reputation_get_cache_stats().await)
 }
+
+/// 获取缓存中所有条目
+#[tauri::command]
+pub async fn ip_reputation_get_cache_entries() -> CmdResult<Vec<IpReputation>> {
+    Ok(crate::feat::ip_reputation_get_cache_entries().await)
+}

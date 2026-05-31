@@ -19,7 +19,7 @@ const iconColorMap = {
   secondary: 'bg-gray-500 bg-opacity-10 text-gray-500 dark:bg-gray-400 dark:bg-opacity-10 dark:text-gray-400',
   error: 'bg-red-500 bg-opacity-10 text-red-500 dark:bg-red-400 dark:bg-opacity-10 dark:text-red-400',
   warning: 'bg-yellow-500 bg-opacity-10 text-yellow-500 dark:bg-yellow-400 dark:bg-opacity-10 dark:text-yellow-400',
-  info: 'bg-blue-500 bg-opacity-10 text-blue-500 dark:bg-blue-400 dark:bg-opacity-10 dark:text-blue-400',
+  info: 'bg-teal-500 bg-opacity-10 text-teal-500 dark:bg-teal-400 dark:bg-opacity-10 dark:text-teal-400',
   success: 'bg-green-500 bg-opacity-10 text-green-500 dark:bg-green-400 dark:bg-opacity-10 dark:text-green-400',
 }
 

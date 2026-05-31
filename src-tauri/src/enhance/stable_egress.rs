@@ -186,6 +186,9 @@ pub(crate) fn apply_stable_egress_policy_with_advanced(
     config.insert("proxy-groups".into(), Value::Sequence(groups));
     config.insert("rules".into(), Value::Sequence(generated_rules));
     apply_stable_egress_dns_overrides(&mut config, generated_dns_policy);
+
+    // 注入住宅链式代理
+    config = apply_residential_chain_proxies(config, advanced_config);
     config
 }
 
@@ -498,6 +501,174 @@ fn dedupe_node_names(nodes: Vec<std::string::String>) -> Vec<std::string::String
     }
 
     deduped
+}
+
+/// 住宅链式代理前缀
+const RESIDENTIAL_PROXY_PREFIX: &str = "VERGE-RES-";
+/// 链式代理组前缀
+const CHAIN_GROUP_PREFIX: &str = "VERGE-CHAIN-";
+
+/// 注入住宅链式代理
+///
+/// 当 egress_identity profile 设置了 use_residential_chain=true 且
+/// residential_pool 有可用节点时，为对应的 VERGE-STABLE-* 组中的
+/// 前置节点注入 dialer-proxy，构建 VPS→住宅 链式代理。
+fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &AdvancedConfig) -> Mapping {
+    let pool = &advanced_config.residential_pool;
+    if !pool.enabled {
+        return config;
+    }
+
+    let enabled_proxies = pool.enabled_proxies();
+    if enabled_proxies.is_empty() {
+        return config;
+    }
+
+    // 收集需要链式住宅路由的 profile
+    let chain_profiles: Vec<_> = advanced_config
+        .egress_identity
+        .profiles
+        .iter()
+        .filter(|p| p.enabled && p.use_residential_chain)
+        .collect();
+
+    if chain_profiles.is_empty() {
+        return config;
+    }
+
+    // 1. 注入住宅代理节点到 proxies 段
+    let residential_mappings = pool.to_mihomo_proxy_mappings();
+    let mut existing_proxies = config
+        .get("proxies")
+        .and_then(Value::as_sequence)
+        .cloned()
+        .unwrap_or_default();
+
+    // 移除旧的住宅代理定义（避免重复）
+    existing_proxies.retain(|proxy| {
+        proxy
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|name| !name.starts_with(RESIDENTIAL_PROXY_PREFIX))
+            .unwrap_or(true)
+    });
+
+    for (_, mapping) in &residential_mappings {
+        existing_proxies.push(Value::Mapping(mapping.clone()));
+    }
+    config.insert("proxies".into(), Value::Sequence(existing_proxies));
+
+    // 2. 为每个需要链式路由的 profile，在 VERGE-STABLE-* 组中
+    //    给前置节点添加 dialer-proxy 指向住宅出口
+    let mut proxy_groups = config
+        .get("proxy-groups")
+        .and_then(Value::as_sequence)
+        .cloned()
+        .unwrap_or_default();
+
+    // 移除旧的链式代理组
+    proxy_groups.retain(|group| {
+        group
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|name| !name.starts_with(CHAIN_GROUP_PREFIX))
+            .unwrap_or(true)
+    });
+
+    // 为每个 chain profile 创建链式代理组
+    let mut new_chain_groups = Sequence::new();
+    for profile in &chain_profiles {
+        // 选择住宅代理：优先使用指定的，否则选第一个
+        let residential_name = profile
+            .residential_proxy_name
+            .as_deref()
+            .and_then(|name| pool.get_by_name(name))
+            .map(|p| format!("{}{}", RESIDENTIAL_PROXY_PREFIX, p.name))
+            .or_else(|| {
+                enabled_proxies.first().map(|p| {
+                    format!("{}{}", RESIDENTIAL_PROXY_PREFIX, p.name)
+                })
+            });
+
+        let Some(res_name) = residential_name else {
+            continue;
+        };
+
+        // 查找此 profile 绑定的 stable group
+        let app_rules: Vec<_> = advanced_config
+            .egress_identity
+            .app_rules
+            .iter()
+            .filter(|r| r.enabled && r.profile_id == profile.id)
+            .collect();
+
+        for rule in app_rules {
+            for domain in &rule.domains {
+                let stable_group = stable_egress_group_name(domain);
+
+                // 在 proxy-groups 中找到该 stable group
+                if let Some(group) = proxy_groups.iter_mut().find(|g| {
+                    g.get("name").and_then(Value::as_str) == Some(stable_group.as_str())
+                }) {
+                    // 给组中的每个前置节点创建链式代理组
+                    if let Some(proxies_seq) = group.get_mut("proxies").and_then(Value::as_sequence_mut) {
+                        let mut chain_proxies = Sequence::new();
+                        for proxy_val in proxies_seq.iter() {
+                            if let Some(node_name) = proxy_val.as_str() {
+                                let chain_group_name = format!(
+                                    "{}{}-via-{}",
+                                    CHAIN_GROUP_PREFIX,
+                                    node_name.replace(' ', "-"),
+                                    res_name.trim_start_matches(RESIDENTIAL_PROXY_PREFIX)
+                                );
+                                chain_proxies.push(Value::from(chain_group_name.as_str()));
+
+                                // 创建链式代理组：包含原节点，但设置 dialer-proxy
+                                let mut chain_group = Mapping::new();
+                                chain_group.insert("name".into(), Value::from(chain_group_name.as_str()));
+                                chain_group.insert("type".into(), Value::from("select"));
+                                chain_group.insert(
+                                    "proxies".into(),
+                                    Value::Sequence(vec![Value::from(node_name)]),
+                                );
+
+                                // 注入 dialer-proxy 到原节点
+                                // Mihomo 支持 per-proxy dialer-proxy 字段
+                                inject_dialer_proxy_to_node(
+                                    &mut config,
+                                    node_name,
+                                    &res_name,
+                                );
+
+                                new_chain_groups.push(Value::Mapping(chain_group));
+                            }
+                        }
+                        // 替换原组的 proxies 为链式代理组名
+                        *proxies_seq = chain_proxies;
+                    }
+                }
+            }
+        }
+    }
+
+    // 追加链式代理组
+    proxy_groups.extend(new_chain_groups);
+    config.insert("proxy-groups".into(), Value::Sequence(proxy_groups));
+    config
+}
+
+/// 给 proxies 段中的指定节点注入 dialer-proxy 字段
+fn inject_dialer_proxy_to_node(config: &mut Mapping, node_name: &str, dialer_proxy: &str) {
+    if let Some(Value::Sequence(proxies)) = config.get_mut("proxies") {
+        for proxy in proxies.iter_mut() {
+            if let Value::Mapping(mapping) = proxy {
+                if mapping.get("name").and_then(Value::as_str) == Some(node_name) {
+                    mapping.insert("dialer-proxy".into(), Value::from(dialer_proxy));
+                    break;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

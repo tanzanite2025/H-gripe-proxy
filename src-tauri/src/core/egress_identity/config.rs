@@ -46,6 +46,8 @@ impl EgressIdentityConfig {
                     failover_policy: EgressFailoverPolicy::Manual,
                     allowed_nodes: Vec::new(),
                     strict_node_scope: false,
+                    use_residential_chain: false,
+                    residential_proxy_name: None,
                     description: "默认的稳定出口身份骨架".to_string(),
                 },
                 EgressIdentityProfile {
@@ -60,7 +62,7 @@ impl EgressIdentityConfig {
                         mode: DnsMode::Remote,
                         force_remote_dns: true,
                     },
-                    tls_fingerprint: Some("Chrome 120 (Windows)".to_string()),
+                    tls_fingerprint: Some("chrome".to_string()),
                     session_policy: IdentitySessionPolicy {
                         strict_affinity: true,
                         ttl_override: Some(86400),
@@ -68,6 +70,8 @@ impl EgressIdentityConfig {
                     failover_policy: EgressFailoverPolicy::Manual,
                     allowed_nodes: Vec::new(),
                     strict_node_scope: false,
+                    use_residential_chain: true,
+                    residential_proxy_name: None,
                     description: "适用于高风控服务的严格身份骨架".to_string(),
                 },
             ],
@@ -171,6 +175,12 @@ pub struct EgressIdentityProfile {
     pub allowed_nodes: Vec<String>,
     #[serde(default)]
     pub strict_node_scope: bool,
+    /// 启用链式住宅路由：当此画像匹配时，自动构建 VPS→住宅 链式代理
+    #[serde(default)]
+    pub use_residential_chain: bool,
+    /// 指定住宅代理名称（来自 residential_pool），为空则自动选择
+    #[serde(default)]
+    pub residential_proxy_name: Option<String>,
     pub description: String,
 }
 

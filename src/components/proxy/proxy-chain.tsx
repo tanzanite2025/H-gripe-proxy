@@ -12,11 +12,12 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useQuery } from '@tanstack/react-query'
 import yaml from 'js-yaml'
-import { ArrowDown, Trash2, GripVertical, Link, Link2Off, AlertTriangle, HelpCircle } from 'lucide-react'
+import { Trash2, GripVertical, Link, Link2Off, AlertTriangle, HelpCircle, X, Building2, Settings } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -24,19 +25,22 @@ import {
   selectNodeForGroup,
 } from 'tauri-plugin-mihomo-api'
 
+import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
+
 import { TooltipIcon } from '@/components/base'
-import { Alert } from '@/components/tailwind/Alert'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
+import { Dialog, DialogTitle, DialogContent, DialogActions } from '@/components/tailwind/Dialog'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { Paper } from '@/components/tailwind/Paper'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { syncTrayProxySelection, updateProxyChainConfigInRuntime } from '@/services/cmds'
+import { getAdvancedConfig, saveAdvancedConfig, type ResidentialProxy } from '@/services/coordinator'
 import { debugLog } from '@/utils/misc'
 
 import { ProxyChainHelpDialog } from './proxy-chain-help-dialog'
 
-interface ProxyChainItem {
+export interface ProxyChainItem {
   id: string
   name: string
   type?: string
@@ -58,6 +62,8 @@ interface ProxyChainProps {
   onMarkUnsavedChanges?: () => void
   mode?: string
   selectedGroup?: string | null
+  bare?: boolean
+  onClose?: () => void
 }
 
 interface SortableItemProps {
@@ -116,7 +122,7 @@ const SortableItem = ({
   const getBorderClass = () => {
     if (isFirst) return 'border-2 border-green-500'
     if (isLast) return 'border-2 border-orange-500'
-    return 'border border-gray-300 dark:border-gray-700'
+    return 'border border-divider'
   }
 
   return (
@@ -125,8 +131,8 @@ const SortableItem = ({
       style={style}
       className={`mb-0 flex items-center p-2 rounded ${
         isDragging
-          ? 'bg-gray-100 dark:bg-gray-800'
-          : 'bg-white dark:bg-gray-900'
+          ? 'bg-background'
+          : 'bg-card'
       } ${getBorderClass()} ${
         isDragging ? 'shadow-lg' : 'shadow'
       } transition-all duration-200`}
@@ -134,7 +140,7 @@ const SortableItem = ({
       <div
         {...attributes}
         {...listeners}
-        className="flex items-center mr-2 text-gray-500 cursor-grab active:cursor-grabbing"
+        className="flex items-center mr-2 text-text-secondary cursor-grab active:cursor-grabbing"
       >
         <GripVertical className="h-5 w-5" />
       </div>
@@ -206,16 +212,71 @@ export const ProxyChain = ({
   onMarkUnsavedChanges,
   mode,
   selectedGroup,
+  bare = false,
+  onClose,
 }: ProxyChainProps) => {
   const { t } = useTranslation()
   const chainWarning = t('proxies.page.chain.warning')
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
+
   const [isConnecting, setIsConnecting] = useState(false)
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
+  const [residentialConfigOpen, setResidentialConfigOpen] = useState(false)
   const markUnsavedChanges = useCallback(() => {
     onMarkUnsavedChanges?.()
   }, [onMarkUnsavedChanges])
+
+  // 住宅代理池数据
+  const { data: advancedConfig } = useQuery({
+    queryKey: ['advancedConfig'],
+    queryFn: getAdvancedConfig,
+    staleTime: 30_000,
+  })
+  const residentialPool = advancedConfig?.residential_pool
+  const enabledResidentialProxies = residentialPool?.enabled
+    ? residentialPool.proxies.filter((p: ResidentialProxy) => p.enabled)
+    : []
+
+  const [localResidentialPool, setLocalResidentialPool] = useState(
+    residentialPool ?? { enabled: false, proxies: [] },
+  )
+
+  // 将住宅代理添加到链尾作为出口
+  const addResidentialExit = useCallback(
+    (proxy: ResidentialProxy) => {
+      const resName = `VERGE-RES-${proxy.name}`
+      if (proxyChain.some((item) => item.name === resName)) return
+      const chainItem: ProxyChainItem = {
+        id: `${resName}_${Date.now()}`,
+        name: resName,
+        type: proxy.proxyType,
+      }
+      onUpdateChain([...proxyChain, chainItem])
+      markUnsavedChanges()
+    },
+    [proxyChain, onUpdateChain, markUnsavedChanges],
+  )
+
+  // 保存住宅代理池配置
+  const handleSaveResidentialPool = useCallback(async () => {
+    try {
+      const fullConfig = await getAdvancedConfig()
+      fullConfig.residential_pool = localResidentialPool
+      await saveAdvancedConfig(fullConfig)
+      setResidentialConfigOpen(false)
+    } catch (error) {
+      console.error('Failed to save residential pool config:', error)
+    }
+  }, [localResidentialPool])
+
+  // 打开住宅代理池配置时同步最新数据
+  const handleOpenResidentialConfig = useCallback(() => {
+    if (residentialPool) {
+      setLocalResidentialPool(residentialPool)
+    }
+    setResidentialConfigOpen(true)
+  }, [residentialPool])
 
   const isConnected = useMemo(() => {
     if (!proxies || proxyChain.length < 2) {
@@ -443,11 +504,21 @@ export const ProxyChain = ({
     return () => clearInterval(interval)
   }, [proxies?.records]) // 只依赖proxies.records
 
+  const Wrapper = bare ? 'div' : Paper
+  const wrapperClassName = bare ? 'h-full p-4 flex flex-col' : 'h-full p-4 flex flex-col'
+
   return (
-    <Paper className="h-full p-4 flex flex-col">
+    <Wrapper className={wrapperClassName}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold">{t('proxies.page.chain.header')}</h3>
+          <span className="text-sm text-text-secondary">
+            {proxyChain.length === 1
+              ? t('proxies.page.chain.minimumNodesHint') ||
+                '链式代理至少需要2个节点，请再添加一个节点。'
+              : t('proxies.page.chain.instruction') ||
+                '按顺序点击节点添加到代理链中'}
+          </span>
           <TooltipIcon
             title={chainWarning}
             icon={AlertTriangle}
@@ -482,6 +553,13 @@ export const ProxyChain = ({
               <Trash2 className="h-4 w-4" />
             </IconButton>
           )}
+          <IconButton
+            size="small"
+            onClick={handleOpenResidentialConfig}
+            title="住宅代理池配置"
+          >
+            <Settings className="h-4 w-4" />
+          </IconButton>
           <Button
             size="small"
             variant={isConnected ? 'outlined' : 'primary'}
@@ -508,23 +586,17 @@ export const ProxyChain = ({
                 ? t('proxies.page.actions.disconnect') || '断开'
                 : t('proxies.page.actions.connect') || '连接'}
           </Button>
+          {onClose && (
+            <IconButton size="small" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
         </div>
       </div>
 
-      <Alert
-        severity={proxyChain.length === 1 ? 'warning' : 'info'}
-        className="mb-4"
-      >
-        {proxyChain.length === 1
-          ? t('proxies.page.chain.minimumNodesHint') ||
-            '链式代理至少需要2个节点，请再添加一个节点。'
-          : t('proxies.page.chain.instruction') ||
-            '按顺序点击节点添加到代理链中'}
-      </Alert>
-
       <div className="flex-1 overflow-auto">
         {proxyChain.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full text-text-secondary">
             <span>{t('proxies.page.chain.empty')}</span>
           </div>
         ) : (
@@ -535,26 +607,20 @@ export const ProxyChain = ({
           >
             <SortableContext
               items={proxyChain.map((proxy) => proxy.id)}
-              strategy={verticalListSortingStrategy}
+              strategy={rectSortingStrategy}
             >
-              <div className="rounded min-h-[60px] p-2">
+              <div className="grid grid-cols-4 gap-2 p-2">
                 {proxyChain.map((proxy, index) => (
-                  <div key={proxy.id}>
-                    <SortableItem
-                      proxy={proxy}
-                      index={index}
-                      isFirst={index === 0}
-                      isLast={
-                        index === proxyChain.length - 1 && proxyChain.length > 1
-                      }
-                      onRemove={handleRemoveProxy}
-                    />
-                    {index < proxyChain.length - 1 && (
-                      <div className="flex justify-center py-1">
-                        <ArrowDown className="h-5 w-5 text-primary opacity-70" />
-                      </div>
-                    )}
-                  </div>
+                  <SortableItem
+                    key={proxy.id}
+                    proxy={proxy}
+                    index={index}
+                    isFirst={index === 0}
+                    isLast={
+                      index === proxyChain.length - 1 && proxyChain.length > 1
+                    }
+                    onRemove={handleRemoveProxy}
+                  />
                 ))}
               </div>
             </SortableContext>
@@ -562,11 +628,63 @@ export const ProxyChain = ({
         )}
       </div>
 
+      {/* 住宅代理出口选择 */}
+      <div className="mt-2 px-2">
+        <div className="flex items-center gap-1 mb-2">
+          <Building2 className="h-3.5 w-3.5 text-secondary" />
+          <span className="text-xs font-medium text-text-secondary">住宅代理出口</span>
+        </div>
+        {enabledResidentialProxies.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {enabledResidentialProxies.map((proxy: ResidentialProxy) => {
+              const resName = `VERGE-RES-${proxy.name}`
+              const isSelected = proxyChain.some((item) => item.name === resName)
+              return (
+                <button
+                  key={proxy.name}
+                  onClick={() => addResidentialExit(proxy)}
+                  disabled={isSelected}
+                  className={`text-xs px-2 py-1 rounded border transition-colors ${
+                    isSelected
+                      ? 'border-orange-500/50 bg-orange-500/10 text-orange-400 cursor-default'
+                      : 'border-divider bg-card hover:bg-primary/10 hover:border-primary hover:text-primary cursor-pointer'
+                  }`}
+                >
+                  {proxy.name}
+                  {isSelected && ' ✓'}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-xs text-text-secondary/60 py-1">
+            {residentialPool?.enabled
+              ? '暂无已启用的住宅代理节点'
+              : '住宅代理池未启用，启用后可选择住宅出口'}
+          </div>
+        )}
+      </div>
+
+      {/* 住宅代理池配置对话框 */}
+      <Dialog open={residentialConfigOpen} onClose={() => setResidentialConfigOpen(false)}>
+        <DialogTitle>住宅代理池配置</DialogTitle>
+        <DialogContent>
+          <ResidentialPoolPanel
+            config={localResidentialPool}
+            onChange={setLocalResidentialPool}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={() => setResidentialConfigOpen(false)}>取消</Button>
+          <Button onClick={handleSaveResidentialPool}>保存</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* 帮助对话框 */}
       <ProxyChainHelpDialog
         open={helpDialogOpen}
         onClose={() => setHelpDialogOpen(false)}
       />
-    </Paper>
+    </Wrapper>
   )
 }

@@ -3,12 +3,17 @@ pub mod field;
 mod merge;
 mod script;
 pub mod seq;
+mod obfuscation;
+mod sniffer;
+mod tls_fingerprint;
 mod tun;
 
 mod connection_stability;
+mod blackhole_breaker;
 mod proxy_cleanup;
 mod region_pools;
 mod stable_egress;
+mod timezone_spoof;
 
 use self::{
     chain::{AsyncChainItemFrom as _, ChainItem, ChainType},
@@ -16,7 +21,13 @@ use self::{
     merge::use_merge,
     script::use_script,
     seq::{SeqMap, use_seq},
+    obfuscation::apply_obfuscation_config,
+    blackhole_breaker::apply_blackhole_breaker_config,
+    timezone_spoof::apply_timezone_spoof_config,
+    sniffer::apply_sniffer_config,
+    tls_fingerprint::apply_tls_fingerprint_config,
     tun::use_tun,
+    tun::apply_tun_security_policy,
     connection_stability::{apply_connection_stability, apply_multiplex},
     proxy_cleanup::cleanup_proxy_groups,
     region_pools::append_standard_region_pools,
@@ -34,7 +45,7 @@ use crate::{
 };
 use anyhow::{Context as _, Result};
 use clash_verge_logging::{Type, logging};
-use serde_yaml_ng::Mapping;
+use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tokio::fs;
@@ -511,6 +522,38 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
         }
     }
 
+    // Defensive: ensure proxy-server-nameserver is non-empty when respect-rules is enabled.
+    // Mihomo rejects the config if respect-rules=true but proxy-server-nameserver is missing.
+    if let Some(dns_value) = config.get_mut("dns") {
+        if let Some(dns_mapping) = dns_value.as_mapping_mut() {
+            let respect_rules = dns_mapping
+                .get("respect-rules")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if respect_rules {
+                let has_proxy_ns = dns_mapping
+                    .get("proxy-server-nameserver")
+                    .and_then(|v| v.as_sequence())
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false);
+
+                if !has_proxy_ns {
+                    // Auto-fill with domestic plain IP nameservers
+                    let fallback_ns: Vec<Value> = ["223.5.5.5", "119.29.29.29"]
+                        .into_iter()
+                        .map(Value::from)
+                        .collect();
+                    dns_mapping.insert(
+                        "proxy-server-nameserver".into(),
+                        Value::Sequence(fallback_ns),
+                    );
+                    logging!(warn, Type::Core, "respect-rules enabled but proxy-server-nameserver missing, auto-filled with domestic DNS");
+                }
+            }
+        }
+    }
+
     config
 }
 
@@ -585,6 +628,12 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     config = apply_multiplex(config);
 
     config = use_tun(config, enable_tun);
+    config = apply_tun_security_policy(config).await;
+    config = apply_sniffer_config(config);
+    config = apply_tls_fingerprint_config(config);
+    config = apply_obfuscation_config(config);
+    config = apply_blackhole_breaker_config(config).await;
+    config = apply_timezone_spoof_config(config);
     config = use_sort(config);
 
     // dns settings

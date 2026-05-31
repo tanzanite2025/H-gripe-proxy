@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+﻿import { useQuery } from '@tanstack/react-query'
 import { listen } from '@tauri-apps/api/event'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   getBaseConfig,
   getRuleProviders,
   getRules,
-} from 'tauri-plugin-mihomo-api'
+  } from 'tauri-plugin-mihomo-api'
 
 import { useVerge } from '@/hooks/system'
 import {
@@ -47,7 +47,7 @@ function useStableFn<T extends (...args: any[]) => any>(fn: T): T {
   return useCallback((...args: Parameters<T>) => ref.current(...args), []) as T
 }
 
-// 全局数据提供者组件
+// 鍏ㄥ眬鏁版嵁鎻愪緵鑰呯粍浠?
 export const AppDataProvider = ({
   children,
 }: {
@@ -158,7 +158,7 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProfile)
       } catch (error) {
-        console.error('[AppDataProvider] 监听 Profile 事件失败:', error)
+        console.error('[AppDataProvider] 鐩戝惉 Profile 浜嬩欢澶辫触:', error)
       }
 
       try {
@@ -168,7 +168,7 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProxy)
       } catch (error) {
-        console.warn('[AppDataProvider] 设置 Tauri 事件监听器失败:', error)
+        console.warn('[AppDataProvider] 璁剧疆 Tauri 浜嬩欢鐩戝惉鍣ㄥけ璐?', error)
       }
     }
 
@@ -235,13 +235,13 @@ export const AppDataProvider = ({
       const isPacMode = verge.proxy_auto_config ?? false
 
       if (isPacMode) {
-        // PAC模式：显示我们期望设置的代理地址
+        // PAC妯″紡锛氭樉绀烘垜浠湡鏈涜缃殑浠ｇ悊鍦板潃
         const proxyHost = verge.proxy_host || '127.0.0.1'
         const proxyPort =
           verge.verge_mixed_port || clashConfig.mixedPort || 7897
         return `${proxyHost}:${proxyPort}`
       } else {
-        // HTTP代理模式：优先使用系统地址，但如果格式不正确则使用期望地址
+        // HTTP浠ｇ悊妯″紡锛氫紭鍏堜娇鐢ㄧ郴缁熷湴鍧€锛屼絾濡傛灉鏍煎紡涓嶆纭垯浣跨敤鏈熸湜鍦板潃
         const systemServer = sysproxy?.server
         if (
           systemServer &&
@@ -250,7 +250,7 @@ export const AppDataProvider = ({
         ) {
           return systemServer
         } else {
-          // 系统地址无效，返回期望的代理地址
+          // 绯荤粺鍦板潃鏃犳晥锛岃繑鍥炴湡鏈涚殑浠ｇ悊鍦板潃
           const proxyHost = verge.proxy_host || '127.0.0.1'
           const proxyPort =
             verge.verge_mixed_port || clashConfig.mixedPort || 7897
@@ -312,3 +312,4 @@ export const AppDataProvider = ({
     </ProxiesContext>
   )
 }
+

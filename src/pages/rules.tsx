@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -36,13 +36,7 @@ const RulesPage = () => {
   }, [refreshRules, refreshRuleProviders, pageVisible])
 
   const filteredRules = useMemo(() => {
-    const rulesWithLineNo = rules.map((item, index) => ({
-      ...item,
-      // UI-only derived data; keep app context/SWR data immutable
-      lineNo: index + 1,
-    }))
-
-    return rulesWithLineNo.filter((item) => match(item.payload ?? ''))
+    return rules.filter((item) => match(item.payload ?? ''))
   }, [rules, match])
 
   const handleScroll = useCallback((e: Event) => {

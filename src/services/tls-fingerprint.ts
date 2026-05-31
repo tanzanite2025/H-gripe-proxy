@@ -7,13 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 export interface TlsFingerprint {
   name: string
   description: string
-  tls_version: string
-  cipher_suites: string[]
-  supported_curves: string[]
-  signature_algorithms: string[]
-  alpn_protocols: string[]
-  extensions: number[]
-  ja3_fingerprint: string
+  category: string
 }
 
 /**

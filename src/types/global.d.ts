@@ -1103,3 +1103,27 @@ interface ITrafficWorkerLogMessage {
 type TrafficWorkerResponseMessage =
   | ITrafficWorkerSnapshotMessage
   | ITrafficWorkerLogMessage
+
+/** Single rule within a security policy */
+interface IPolicyRule {
+  ruleType: string
+  payload: string
+  proxy: string
+}
+
+/** A security policy definition */
+interface ISecurityPolicy {
+  name: string
+  enabled: boolean
+  description: string
+  rules: IPolicyRule[]
+  tunOnly: boolean
+}
+
+/** Runtime state of an applied security policy */
+interface IAppliedPolicyState {
+  name: string
+  enabled: boolean
+  ruleIndices: number[]
+  applied: boolean
+}

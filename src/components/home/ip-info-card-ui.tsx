@@ -1,10 +1,16 @@
-import { Eye, EyeOff } from 'lucide-react'
-import { memo } from 'react'
+import { Eye, EyeOff, Shield } from 'lucide-react'
+import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/tailwind/Button'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { Skeleton } from '@/components/tailwind/Skeleton'
+import {
+  ipReputationCheckIp,
+  type IpReputation,
+  getIpTypeText,
+  getRiskLevelText,
+} from '@/services/ip-reputation'
 
 const InfoItem = memo(({ label, value }: { label: string; value?: string }) => (
   <div className="flex items-baseline">
@@ -18,6 +24,70 @@ const InfoItem = memo(({ label, value }: { label: string; value?: string }) => (
 ))
 
 InfoItem.displayName = 'InfoItem'
+
+const riskColorMap: Record<string, string> = {
+  Low: 'text-green-600 dark:text-green-400',
+  Medium: 'text-yellow-600 dark:text-yellow-400',
+  High: 'text-orange-600 dark:text-orange-400',
+  VeryHigh: 'text-red-600 dark:text-red-400',
+}
+
+const riskBgMap: Record<string, string> = {
+  Low: 'bg-green-50 dark:bg-green-900/20',
+  Medium: 'bg-yellow-50 dark:bg-yellow-900/20',
+  High: 'bg-orange-50 dark:bg-orange-900/20',
+  VeryHigh: 'bg-red-50 dark:bg-red-900/20',
+}
+
+const IpReputationSummary = memo(({ ip }: { ip?: string }) => {
+  const [rep, setRep] = useState<IpReputation | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!ip) return
+    let cancelled = false
+    setLoading(true)
+    ipReputationCheckIp(ip)
+      .then((r) => { if (!cancelled) setRep(r) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [ip])
+
+  if (loading) {
+    return (
+      <div className="mt-2 pt-2 border-t border-divider">
+        <div className="flex items-center gap-1 text-xs text-text-secondary">
+          <Shield className="h-3 w-3" />
+          <span>信誉检测中...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!rep) return null
+
+  return (
+    <div className="mt-2 pt-2 border-t border-divider">
+      <div className="flex items-center gap-2 mb-1">
+        <Shield className="h-3.5 w-3.5 text-text-secondary" />
+        <span
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[0.7rem] font-medium ${riskBgMap[rep.riskLevel] || ''} ${riskColorMap[rep.riskLevel] || ''}`}
+        >
+          {getRiskLevelText(rep.riskLevel)} · 欺诈 {rep.fraudScore}
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-x-2 text-[0.7rem]">
+        <InfoItem label="类型" value={getIpTypeText(rep.ipType)} />
+        <InfoItem label="代理" value={rep.isProxy ? '⚠ 是' : '✓ 否'} />
+        <InfoItem label="VPN" value={rep.isVpn ? '⚠ 是' : '✓ 否'} />
+        <InfoItem label="Tor" value={rep.isTor ? '⚠ 是' : '✓ 否'} />
+      </div>
+    </div>
+  )
+})
+
+IpReputationSummary.displayName = 'IpReputationSummary'
 
 // 获取国旗表情
 const getCountryFlag = (countryCode: string | undefined) => {
@@ -147,6 +217,8 @@ export const IPInfoCardUI = ({
           {`${ipInfo?.country_code ?? 'N/A'}, ${ipInfo?.longitude?.toFixed(2) ?? 'N/A'}, ${ipInfo?.latitude?.toFixed(2) ?? 'N/A'}`}
         </p>
       </div>
+
+      <IpReputationSummary ip={ipInfo?.ip} />
     </div>
   )
 }

@@ -82,7 +82,7 @@ export function IpReputationBadge({ ip }: { ip: string }) {
       case 'Residential':
         return 'bg-green-100 text-green-800';
       case 'Mobile':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-teal-100 text-teal-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -155,7 +155,7 @@ export function IpReputationBadgeSimple({ ip }: { ip: string }) {
       case 'Residential':
         return 'bg-green-100 text-green-800';
       case 'Mobile':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-teal-100 text-teal-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }

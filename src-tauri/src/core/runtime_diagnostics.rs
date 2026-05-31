@@ -1,6 +1,6 @@
 mod constants;
 mod helpers;
-mod geoip;
+pub mod geoip;
 mod dns_leak;
 mod proxy_detection;
 mod runtime_state;
