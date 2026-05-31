@@ -21,6 +21,8 @@ func engineRouter() http.Handler {
 	r.Get("/egress", getEgressStatus)
 	r.Get("/obfuscation/tls", getTLSFingerprintStats)
 	r.Post("/obfuscation/tls/rotate", forceTLSRotation)
+	r.Get("/obfuscation/stats", getObfuscationStats)
+	r.Post("/obfuscation/stats/reset", resetObfuscationStats)
 	r.Get("/perf/stats", getPerfStats)
 	r.Get("/perf/hot-reload", getHotReloadStatus)
 	r.Get("/perf/xdp", getXDPStatus)
@@ -69,10 +71,28 @@ func getTLSFingerprintStats(w http.ResponseWriter, r *http.Request) {
 
 func forceTLSRotation(w http.ResponseWriter, r *http.Request) {
 	newFingerprint := obfuscation.DefaultTLSRotator.ForceRotation()
+	obfuscation.DefaultObfStats.OnTLSRotation()
 	result := map[string]any{
 		"newFingerprint": newFingerprint,
 	}
 	render.JSON(w, r, result)
+}
+
+func getObfuscationStats(w http.ResponseWriter, r *http.Request) {
+	stats := map[string]any{
+		"obfuscation": obfuscation.DefaultObfStats.Snapshot(),
+		"tls": map[string]any{
+			"currentFingerprint": obfuscation.DefaultTLSRotator.CurrentFingerprint(),
+			"rotationCount":      obfuscation.DefaultTLSRotator.RotationCount(),
+			"usageSnapshot":      obfuscation.DefaultTLSFingerprintStats.Snapshot(),
+		},
+	}
+	render.JSON(w, r, stats)
+}
+
+func resetObfuscationStats(w http.ResponseWriter, r *http.Request) {
+	obfuscation.DefaultObfStats.Reset()
+	render.JSON(w, r, map[string]any{"status": "ok"})
 }
 
 func getPerfStats(w http.ResponseWriter, r *http.Request) {

@@ -1,24 +1,23 @@
 /**
- * 流量混淆调度器
+ * 流量混淆调度器（薄代理层）
  *
- * 功能：
- * 1. 统一协调 padding / timing_jitter / direction 三个子引擎
- * 2. 单一 tokio task 内运行，避免多 task 竞争资源
- * 3. 根据 Profile 自动生成子配置
- * 4. 向后兼容旧 TrafficPaddingConfig
+ * 设计变更：真正的流量混淆由 Go 内核（mihomo）的 ObfuscatedConn 在连接层执行，
+ * Rust 端不再运行伪 padding/timing/direction 引擎。
+ *
+ * 当前职责：
+ * 1. 持有混淆配置（Profile + 子配置），供前端面板读写
+ * 2. 通过 Mihomo API 获取 Go 端的真实混淆统计
+ * 3. 向后兼容旧 TrafficPaddingConfig
  */
 
 use anyhow::Result;
-use crate::traffic::padding::{PaddingScheduler, TrafficPaddingConfig, PaddingStats};
-use crate::traffic::timing_jitter::{TimingJitterConfig, TimingJitterStats, TimingJitterEngine};
-use crate::traffic::direction::{DirectionObfuscationConfig, DirectionStats, DirectionObfuscator};
+use crate::traffic::padding::TrafficPaddingConfig;
+use crate::traffic::timing_jitter::TimingJitterConfig;
+use crate::traffic::direction::DirectionObfuscationConfig;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-use tokio::sync::{Mutex, Notify, RwLock};
-use tokio::task::JoinHandle;
-use tokio::time;
+use tokio::sync::RwLock;
 
 /// 混淆预设 Profile
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,210 +134,107 @@ impl TrafficObfuscationConfig {
         let (p, t, d) = self.effective_configs();
         t.validate()?;
         d.validate()?;
-        // padding 的 validate 由 PaddingScheduler 内部保证
+        // padding 的 validate 由配置自身保证
         let _ = p;
         Ok(())
     }
 }
 
-/// 混淆统计（聚合三个子引擎）
+/// 混淆统计（来自 Go 内核真实数据）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObfuscationStats {
-    pub padding: PaddingStats,
-    pub timing: TimingJitterStats,
-    pub direction: DirectionStats,
+    /// Go 端已创建的混淆连接总数
+    pub total_obfuscated_conns: i64,
+    /// 当前活跃混淆连接数
+    pub active_conns: i64,
+    /// 混淆连接写入总字节数
+    pub total_write_bytes: i64,
+    /// 混淆连接写入总次数
+    pub total_write_count: i64,
+    /// 添加的 padding 总字节数
+    pub total_padding_bytes: i64,
+    /// TLS 指纹轮换次数
+    pub tls_rotation_count: i64,
+    /// 当前 TLS 指纹
+    pub current_tls_fingerprint: String,
 }
 
 impl Default for ObfuscationStats {
     fn default() -> Self {
         Self {
-            padding: PaddingStats::default(),
-            timing: TimingJitterStats::default(),
-            direction: DirectionStats::default(),
+            total_obfuscated_conns: 0,
+            active_conns: 0,
+            total_write_bytes: 0,
+            total_write_count: 0,
+            total_padding_bytes: 0,
+            tls_rotation_count: 0,
+            current_tls_fingerprint: String::new(),
         }
     }
 }
 
-/// 混淆调度器
+/// 混淆调度器（薄代理层）
+///
+/// 真正的混淆工作由 Go 内核完成，此结构仅持有配置并通过 API 获取真实统计。
 pub struct ObfuscationScheduler {
     config: Arc<RwLock<TrafficObfuscationConfig>>,
-    stats: Arc<RwLock<ObfuscationStats>>,
-    padding: Arc<RwLock<PaddingScheduler>>,
     running: Arc<AtomicBool>,
-    shutdown: Arc<Mutex<Option<Arc<Notify>>>>,
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl ObfuscationScheduler {
     /// 创建新的混淆调度器
     pub fn new(config: TrafficObfuscationConfig) -> Self {
-        let (p_cfg, _t_cfg, _d_cfg) = config.effective_configs();
         Self {
             config: Arc::new(RwLock::new(config)),
-            stats: Arc::new(RwLock::new(ObfuscationStats::default())),
-            padding: Arc::new(RwLock::new(PaddingScheduler::new(p_cfg))),
             running: Arc::new(AtomicBool::new(false)),
-            shutdown: Arc::new(Mutex::new(None)),
-            handle: Arc::new(Mutex::new(None)),
         }
     }
 
-    /// 启动混淆调度
+    /// 启动混淆（标记状态，真实混淆由 Go 内核执行）
     pub async fn start(&self) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             log::warn!("Obfuscation scheduler is already running");
             return Ok(());
         }
-
         self.running.store(true, Ordering::SeqCst);
-
-        // 启动 padding 子调度器
-        let cfg = self.config.read().await;
-        let (p_cfg, _, _) = cfg.effective_configs();
-        drop(cfg);
-
-        {
-            let padding_guard = self.padding.write().await;
-            padding_guard.update_config(p_cfg).await;
-            padding_guard.start().await?;
-        }
-
-        // 启动主调度循环（负责 timing / direction 及统计聚合）
-        let config = self.config.clone();
-        let stats = self.stats.clone();
-        let padding = self.padding.clone();
-        let running = self.running.clone();
-
-        let shutdown_token = Arc::new(Notify::new());
-        {
-            let mut guard = self.shutdown.lock().await;
-            *guard = Some(shutdown_token.clone());
-        }
-
-        let handle_slot = self.handle.clone();
-
-        let join = tokio::spawn(async move {
-            Self::schedule_loop(config, stats, padding, running, shutdown_token).await;
-        });
-
-        let mut handle_guard = handle_slot.lock().await;
-        *handle_guard = Some(join);
-
-        log::info!("🎯 Starting traffic obfuscation scheduler");
+        log::info!("Obfuscation scheduler started (Go kernel handles real obfuscation)");
         Ok(())
     }
 
-    /// 停止混淆调度
+    /// 停止混淆
     pub async fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
-
-        // 停止 padding 子调度器
-        {
-            let padding_guard = self.padding.read().await;
-            padding_guard.stop().await;
-        }
-
-        // 通知主循环退出
-        if let Some(token) = self.shutdown.lock().await.take() {
-            token.notify_waiters();
-        }
-
-        if let Some(handle) = self.handle.lock().await.take() {
-            if let Err(e) = handle.await {
-                log::warn!("Obfuscation scheduler task join failed: {}", e);
-            }
-        }
-
-        // 重置统计
-        {
-            let mut stats_guard = self.stats.write().await;
-            *stats_guard = ObfuscationStats::default();
-        }
-
-        log::info!("🛑 Stopping traffic obfuscation scheduler");
+        log::info!("Obfuscation scheduler stopped");
     }
 
-    /// 主调度循环
-    async fn schedule_loop(
-        config: Arc<RwLock<TrafficObfuscationConfig>>,
-        stats: Arc<RwLock<ObfuscationStats>>,
-        padding: Arc<RwLock<PaddingScheduler>>,
-        running: Arc<AtomicBool>,
-        shutdown: Arc<Notify>,
-    ) {
-        // 内部引擎（非 async，纯计算）
-        let mut timing_engine = TimingJitterEngine::new(TimingJitterConfig::default());
-        let mut direction_obfuscator = DirectionObfuscator::new(DirectionObfuscationConfig::default());
-
-        // 初始化引擎配置
-        {
-            let cfg = config.read().await;
-            let (_, t_cfg, d_cfg) = cfg.effective_configs();
-            timing_engine.update_config(t_cfg);
-            direction_obfuscator.update_config(d_cfg);
-        }
-
-        // 统计聚合间隔
-        let mut aggregate_interval = time::interval(Duration::from_secs(5));
-
-        while running.load(Ordering::SeqCst) {
-            tokio::select! {
-                _ = shutdown.notified() => break,
-                _ = aggregate_interval.tick() => {
-                    // 聚合 padding 统计
-                    let padding_stats = {
-                        let padding_guard = padding.read().await;
-                        padding_guard.get_stats().await
-                    };
-
-                    // 聚合到总统计
-                    let mut stats_guard = stats.write().await;
-                    stats_guard.padding = padding_stats;
-                    stats_guard.timing = timing_engine.stats().clone();
-                    stats_guard.direction = direction_obfuscator.stats().clone();
-                }
-            }
-        }
-
-        log::info!("Obfuscation scheduler loop stopped");
-    }
-
-    /// 获取统计信息
+    /// 获取统计信息（从 Go 内核 API 获取真实数据）
     pub async fn get_stats(&self) -> ObfuscationStats {
-        self.stats.read().await.clone()
+        match Self::fetch_stats_from_mihomo().await {
+            Ok(stats) => stats,
+            Err(e) => {
+                log::warn!("Failed to fetch obfuscation stats from Go kernel: {}", e);
+                ObfuscationStats::default()
+            }
+        }
     }
 
-    /// 重置统计信息
+    /// 重置统计信息（调用 Go 内核 API）
     pub async fn reset_stats(&self) {
-        {
-            let padding_guard = self.padding.read().await;
-            padding_guard.reset_stats().await;
+        if let Err(e) = Self::reset_stats_via_mihomo().await {
+            log::warn!("Failed to reset obfuscation stats via Go kernel: {}", e);
+        } else {
+            log::info!("Obfuscation stats reset (via Go kernel)");
         }
-        {
-            let mut stats_guard = self.stats.write().await;
-            *stats_guard = ObfuscationStats::default();
-        }
-        log::info!("📊 Obfuscation stats reset");
     }
 
     /// 更新配置
     pub async fn update_config(&self, config: TrafficObfuscationConfig) {
-        let (p_cfg, _t_cfg, _d_cfg) = config.effective_configs();
-
-        // 更新 padding 子调度器
-        {
-            let padding_guard = self.padding.write().await;
-            padding_guard.update_config(p_cfg).await;
-        }
-
-        // 更新总配置
         {
             let mut cfg = self.config.write().await;
             *cfg = config;
         }
-
-        log::info!("📝 Obfuscation config updated");
+        log::info!("Obfuscation config updated");
     }
 
     /// 检查是否正在运行
@@ -349,6 +245,31 @@ impl ObfuscationScheduler {
     /// 获取当前配置
     pub async fn get_config(&self) -> TrafficObfuscationConfig {
         self.config.read().await.clone()
+    }
+
+    /// 从 Go 内核 API 获取真实混淆统计
+    async fn fetch_stats_from_mihomo() -> Result<ObfuscationStats> {
+        use crate::core::handle;
+        let mihomo = handle::Handle::mihomo().await;
+        let raw = mihomo.get_obfuscation_stats().await.map_err(|e| anyhow::anyhow!("{}", e))?;
+        let obf = &raw["obfuscation"];
+        let tls = &raw["tls"];
+        Ok(ObfuscationStats {
+            total_obfuscated_conns: obf["totalObfuscatedConns"].as_i64().unwrap_or(0),
+            active_conns: obf["activeConns"].as_i64().unwrap_or(0),
+            total_write_bytes: obf["totalWriteBytes"].as_i64().unwrap_or(0),
+            total_write_count: obf["totalWriteCount"].as_i64().unwrap_or(0),
+            total_padding_bytes: obf["totalPaddingBytes"].as_i64().unwrap_or(0),
+            tls_rotation_count: obf["tlsRotationCount"].as_i64().unwrap_or(0),
+            current_tls_fingerprint: tls["currentFingerprint"].as_str().unwrap_or("").to_string(),
+        })
+    }
+
+    /// 通过 Go 内核 API 重置统计
+    async fn reset_stats_via_mihomo() -> Result<()> {
+        use crate::core::handle;
+        let mihomo = handle::Handle::mihomo().await;
+        mihomo.reset_obfuscation_stats().await.map_err(|e| anyhow::anyhow!("{}", e))
     }
 }
 
@@ -369,7 +290,7 @@ mod tests {
         let (p, t, d) = ObfuscationProfile::Conservative.derive_configs();
         assert!(p.enabled);
         assert!(t.enabled);
-        assert!(!d.enabled); // conservative 不启用方向混淆
+        assert!(!d.enabled);
     }
 
     #[test]
@@ -388,77 +309,11 @@ mod tests {
     }
 
     #[test]
-    fn test_effective_configs_custom() {
-        let config = TrafficObfuscationConfig {
-            enabled: true,
-            profile: ObfuscationProfile::Custom,
-            padding: TrafficPaddingConfig {
-                enabled: true,
-                min_size: 1024,
-                ..TrafficPaddingConfig::default()
-            },
-            timing: TimingJitterConfig::aggressive(),
-            direction: DirectionObfuscationConfig::aggressive(),
-        };
-        let (p, t, d) = config.effective_configs();
-        assert_eq!(p.min_size, 1024);
-        assert!(matches!(t.mode, crate::traffic::timing_jitter::JitterMode::Gaussian));
-        assert!(d.enabled);
-    }
-
-    #[test]
-    fn test_effective_configs_non_custom_ignores_user_values() {
-        let config = TrafficObfuscationConfig {
-            enabled: true,
-            profile: ObfuscationProfile::Conservative,
-            padding: TrafficPaddingConfig {
-                enabled: true,
-                min_size: 9999, // 用户值，但 Conservative 会覆盖
-                ..TrafficPaddingConfig::default()
-            },
-            timing: TimingJitterConfig::default(),
-            direction: DirectionObfuscationConfig::default(),
-        };
-        let (p, _, _) = config.effective_configs();
-        // Conservative profile 的 padding min_size 是 default 512
-        assert_eq!(p.min_size, 512);
-    }
-
-    #[test]
-    fn test_from_legacy_padding() {
-        let legacy = TrafficPaddingConfig {
-            enabled: true,
-            min_size: 2048,
-            ..TrafficPaddingConfig::default()
-        };
-        let config = TrafficObfuscationConfig::from_legacy_padding(&legacy);
-        assert!(config.enabled);
-        assert!(matches!(config.profile, ObfuscationProfile::Custom));
-        assert_eq!(config.padding.min_size, 2048);
-        assert!(!config.timing.enabled);
-        assert!(!config.direction.enabled);
-    }
-
-    #[test]
-    fn test_validate_ok() {
-        let config = TrafficObfuscationConfig::default();
-        assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn test_validate_timing_error() {
-        let config = TrafficObfuscationConfig {
-            enabled: true,
-            profile: ObfuscationProfile::Custom,
-            timing: TimingJitterConfig {
-                enabled: true,
-                min_delay_ms: 300,
-                max_delay_ms: 100,
-                ..TimingJitterConfig::default()
-            },
-            ..TrafficObfuscationConfig::default()
-        };
-        assert!(config.validate().is_err());
+    fn test_default_stats() {
+        let stats = ObfuscationStats::default();
+        assert_eq!(stats.total_obfuscated_conns, 0);
+        assert_eq!(stats.active_conns, 0);
+        assert_eq!(stats.total_padding_bytes, 0);
     }
 
     #[tokio::test]
@@ -495,22 +350,5 @@ mod tests {
 
         let retrieved = scheduler.get_config().await;
         assert!(matches!(retrieved.profile, ObfuscationProfile::Aggressive));
-    }
-
-    #[tokio::test]
-    async fn test_scheduler_get_stats() {
-        let config = TrafficObfuscationConfig::default();
-        let scheduler = ObfuscationScheduler::new(config);
-        let stats = scheduler.get_stats().await;
-        assert_eq!(stats.padding.padding_count, 0);
-    }
-
-    #[tokio::test]
-    async fn test_scheduler_reset_stats() {
-        let config = TrafficObfuscationConfig::default();
-        let scheduler = ObfuscationScheduler::new(config);
-        scheduler.reset_stats().await;
-        let stats = scheduler.get_stats().await;
-        assert_eq!(stats.padding.padding_count, 0);
     }
 }

@@ -351,6 +351,67 @@ async function upgradeGeo() {
 async function clearAllWsConnections() {
     await invoke("plugin:mihomo|clear_all_ws_connections");
 }
+// engine api
+/**
+ * 获取引擎统计（活跃连接数、追踪连接数）
+ */
+async function getEngineStats() {
+    return await invoke("plugin:mihomo|get_engine_stats");
+}
+/**
+ * 获取 Top N 带宽连接
+ */
+async function getTopConnections() {
+    return await invoke("plugin:mihomo|get_top_connections");
+}
+/**
+ * 获取缓冲池统计
+ */
+async function getBufferPoolStats() {
+    return await invoke("plugin:mihomo|get_buffer_pool_stats");
+}
+/**
+ * 获取规则流量统计
+ */
+async function getRuleTraffic() {
+    return await invoke("plugin:mihomo|get_rule_traffic");
+}
+/**
+ * 获取出口状态
+ */
+async function getEgressStatus() {
+    return await invoke("plugin:mihomo|get_egress_status");
+}
+/**
+ * 获取 TLS 指纹统计
+ */
+async function getTlsFingerprintStats() {
+    return await invoke("plugin:mihomo|get_tls_fingerprint_stats");
+}
+/**
+ * 强制 TLS 指纹轮换
+ */
+async function forceTlsRotation() {
+    return await invoke("plugin:mihomo|force_tls_rotation");
+}
+/**
+ * 获取性能统计
+ */
+async function getPerfStats() {
+    return await invoke("plugin:mihomo|get_perf_stats");
+}
+/**
+ * 获取热重载状态
+ */
+async function getHotReloadStatus() {
+    return await invoke("plugin:mihomo|get_hot_reload_status");
+}
+/**
+ * 获取 XDP 状态
+ */
+async function getXdpStatus() {
+    return await invoke("plugin:mihomo|get_xdp_status");
+}
 class MihomoWebSocket {
     constructor(id, listeners) {
         this.id = id;
@@ -492,4 +553,4 @@ class MihomoWebSocket {
 }
 MihomoWebSocket.instances = new Set();
 
-export { MihomoWebSocket, clearAllWsConnections, closeAllConnections, closeConnection, createRule, delayGroup, delayProxyByName, deleteRule, deleteSubRuleBySource, disableRules, dnsWarmup, flushDNS, flushFakeIp, getBaseConfig, getConnections, getDnsMetrics, getGroupByName, getGroups, getProxies, getProxyByName, getProxyProviderByName, getProxyProviders, getRuleProviders, getRules, getSubRules, getVersion, healthcheckNodeInProvider, healthcheckProxyProvider, patchBaseConfig, reloadConfig, restart, selectNodeForGroup, unfixedProxy, updateController, updateGeo, updateProxyProvider, updateRuleProvider, updateSecret, upgradeCore, upgradeGeo, upgradeUi };
+export { MihomoWebSocket, clearAllWsConnections, closeAllConnections, closeConnection, createRule, delayGroup, delayProxyByName, deleteRule, deleteSubRuleBySource, disableRules, dnsWarmup, flushDNS, flushFakeIp, forceTlsRotation, getBaseConfig, getBufferPoolStats, getConnections, getDnsMetrics, getEgressStatus, getEngineStats, getGroupByName, getGroups, getHotReloadStatus, getPerfStats, getProxies, getProxyByName, getProxyProviderByName, getProxyProviders, getRuleProviders, getRuleTraffic, getRules, getSubRules, getTlsFingerprintStats, getTopConnections, getVersion, getXdpStatus, healthcheckNodeInProvider, healthcheckProxyProvider, patchBaseConfig, reloadConfig, restart, selectNodeForGroup, unfixedProxy, updateController, updateGeo, updateProxyProvider, updateRuleProvider, updateSecret, upgradeCore, upgradeGeo, upgradeUi };

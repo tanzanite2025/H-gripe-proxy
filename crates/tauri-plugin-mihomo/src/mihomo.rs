@@ -429,7 +429,7 @@ impl Mihomo {
     }
 
     /// 获取 DNS 性能指标（缓存命中率、查询延迟、服务器状态）
-    pub async fn get_dns_metrics(&self) -> Result<serde_json::Value> {
+    pub async fn get_dns_metrics(&self) -> Result<crate::models::DnsMetrics> {
         let client = self.build_request(Method::GET, "/dns/metrics")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
@@ -439,7 +439,7 @@ impl Mihomo {
             );
             ret_failed_resp!("{}", err_msg);
         }
-        Ok(response.json::<serde_json::Value>().await?)
+        Ok(response.json::<crate::models::DnsMetrics>().await?)
     }
 
     /// DNS 预解析（预热常用域名缓存）
@@ -1034,5 +1034,176 @@ impl Mihomo {
             ret_failed_resp!("{}", err_msg);
         }
         Ok(())
+    }
+
+    /// 获取混淆统计信息（来自 Go 内核真实数据）
+    pub async fn get_obfuscation_stats(&self) -> Result<serde_json::Value> {
+        let client = self.build_request(Method::GET, "/engine/obfuscation/stats")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get obfuscation stats failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<serde_json::Value>().await?)
+    }
+
+    /// 重置混淆统计信息
+    pub async fn reset_obfuscation_stats(&self) -> Result<()> {
+        let client = self.build_request(Method::POST, "/engine/obfuscation/stats/reset")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("reset obfuscation stats failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(())
+    }
+
+    // ------------------------------------------------------
+    // |                   Engine API                       |
+    // ------------------------------------------------------
+    /// 获取引擎统计（活跃连接数、追踪连接数）
+    pub async fn get_engine_stats(&self) -> Result<crate::models::EngineStats> {
+        let client = self.build_request(Method::GET, "/engine/stats")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get engine stats failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::EngineStats>().await?)
+    }
+
+    /// 获取 Top N 带宽连接
+    pub async fn get_top_connections(&self) -> Result<Vec<crate::models::ConnTrafficSnapshot>> {
+        let client = self.build_request(Method::GET, "/engine/connections/top")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get top connections failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<Vec<crate::models::ConnTrafficSnapshot>>().await?)
+    }
+
+    /// 获取缓冲池统计
+    pub async fn get_buffer_pool_stats(&self) -> Result<crate::models::BufferPoolStats> {
+        let client = self.build_request(Method::GET, "/engine/buffer-pool")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get buffer pool stats failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::BufferPoolStats>().await?)
+    }
+
+    /// 获取规则流量统计
+    pub async fn get_rule_traffic(&self) -> Result<HashMap<String, crate::models::RuleTrafficSnapshot>> {
+        let client = self.build_request(Method::GET, "/engine/rule-traffic")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get rule traffic failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<HashMap<String, crate::models::RuleTrafficSnapshot>>().await?)
+    }
+
+    /// 获取出口状态
+    pub async fn get_egress_status(&self) -> Result<crate::models::EgressStatus> {
+        let client = self.build_request(Method::GET, "/engine/egress")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get egress status failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::EgressStatus>().await?)
+    }
+
+    /// 获取 TLS 指纹统计
+    pub async fn get_tls_fingerprint_stats(&self) -> Result<crate::models::TLSFingerprintStats> {
+        let client = self.build_request(Method::GET, "/engine/obfuscation/tls")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get tls fingerprint stats failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::TLSFingerprintStats>().await?)
+    }
+
+    /// 强制 TLS 指纹轮换
+    pub async fn force_tls_rotation(&self) -> Result<crate::models::TLSRotationResult> {
+        let client = self.build_request(Method::POST, "/engine/obfuscation/tls/rotate")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("force tls rotation failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::TLSRotationResult>().await?)
+    }
+
+    /// 获取性能统计
+    pub async fn get_perf_stats(&self) -> Result<crate::models::PerfStats> {
+        let client = self.build_request(Method::GET, "/engine/perf/stats")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get perf stats failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::PerfStats>().await?)
+    }
+
+    /// 获取热重载状态
+    pub async fn get_hot_reload_status(&self) -> Result<crate::models::HotReloadStatus> {
+        let client = self.build_request(Method::GET, "/engine/perf/hot-reload")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get hot reload status failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::HotReloadStatus>().await?)
+    }
+
+    /// 获取 XDP 状态
+    pub async fn get_xdp_status(&self) -> Result<crate::models::XDPStatus> {
+        let client = self.build_request(Method::GET, "/engine/perf/xdp")?;
+        let response = self.send_by_protocol(client).await?;
+        if !response.status().is_success() {
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get xdp status failed, {}", e),
+                |err_res| err_res.message,
+            );
+            ret_failed_resp!("{}", err_msg);
+        }
+        Ok(response.json::<crate::models::XDPStatus>().await?)
     }
 }

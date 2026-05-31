@@ -1,4 +1,4 @@
-import { BaseConfig, Connections, CoreUpdaterChannel, Groups, LogLevel, MihomoVersion, Proxies, Proxy, ProxyDelay, ProxyProvider, ProxyProviders, RuleProviders, Rules } from "./bindings";
+import { BaseConfig, BufferPoolStats, ConnTrafficSnapshot, Connections, CoreUpdaterChannel, DnsMetrics, EgressStatus, EngineStats, Groups, HotReloadStatus, LogLevel, MihomoVersion, PerfStats, Proxies, Proxy, ProxyDelay, ProxyProvider, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, TLSFingerprintStats, TLSRotationResult, XDPStatus } from "./bindings";
 export * from "./bindings";
 export type MihomoGroupDelay = Record<string, number>;
 /**
@@ -228,6 +228,46 @@ export declare function upgradeGeo(): Promise<void>;
  * 清除 Rust 侧中所有的 WebSocket 连接
  */
 export declare function clearAllWsConnections(): Promise<void>;
+/**
+ * 获取引擎统计（活跃连接数、追踪连接数）
+ */
+export declare function getEngineStats(): Promise<EngineStats>;
+/**
+ * 获取 Top N 带宽连接
+ */
+export declare function getTopConnections(): Promise<ConnTrafficSnapshot[]>;
+/**
+ * 获取缓冲池统计
+ */
+export declare function getBufferPoolStats(): Promise<BufferPoolStats>;
+/**
+ * 获取规则流量统计
+ */
+export declare function getRuleTraffic(): Promise<Record<string, RuleTrafficSnapshot>>;
+/**
+ * 获取出口状态
+ */
+export declare function getEgressStatus(): Promise<EgressStatus>;
+/**
+ * 获取 TLS 指纹统计
+ */
+export declare function getTlsFingerprintStats(): Promise<TLSFingerprintStats>;
+/**
+ * 强制 TLS 指纹轮换
+ */
+export declare function forceTlsRotation(): Promise<TLSRotationResult>;
+/**
+ * 获取性能统计
+ */
+export declare function getPerfStats(): Promise<PerfStats>;
+/**
+ * 获取热重载状态
+ */
+export declare function getHotReloadStatus(): Promise<HotReloadStatus>;
+/**
+ * 获取 XDP 状态
+ */
+export declare function getXdpStatus(): Promise<XDPStatus>;
 export interface MessageKind<T, D> {
     type: T;
     data: D;

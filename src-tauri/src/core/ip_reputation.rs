@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
 use super::asn_classifier::{self, AsnCategory};
-use super::runtime_diagnostics::geoip::{fetch_ip_location, GeoIpInfo};
+use super::runtime_diagnostics::geoip::fetch_ip_location;
 
 /// IP 信誉度配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

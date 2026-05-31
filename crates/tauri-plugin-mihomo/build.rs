@@ -1,9 +1,11 @@
-const COMMANDS: &[&str] = &[
+﻿const COMMANDS: &[&str] = &[
     "update_controller",
     "update_secret",
     "get_version",
     "flush_fakeip",
     "flush_dns",
+    "get_dns_metrics",
+    "dns_warmup",
     "get_connections",
     "close_all_connections",
     "close_connection",
@@ -21,6 +23,11 @@ const COMMANDS: &[&str] = &[
     "unfixed_proxy",
     "delay_proxy_by_name",
     "get_rules",
+    "disable_rules",
+    "delete_rule",
+    "create_rule",
+    "get_sub_rules",
+    "delete_sub_rule_by_source",
     "get_rule_providers",
     "update_rule_provider",
     "get_base_config",
@@ -37,6 +44,18 @@ const COMMANDS: &[&str] = &[
     "ws_logs",
     "ws_disconnect",
     "clear_all_ws_connections",
+    "get_obfuscation_stats",
+    "reset_obfuscation_stats",
+    "get_engine_stats",
+    "get_top_connections",
+    "get_buffer_pool_stats",
+    "get_rule_traffic",
+    "get_egress_status",
+    "get_tls_fingerprint_stats",
+    "force_tls_rotation",
+    "get_perf_stats",
+    "get_hot_reload_status",
+    "get_xdp_status",
 ];
 
 fn main() {
@@ -45,3 +64,4 @@ fn main() {
         .ios_path("ios")
         .build();
 }
+

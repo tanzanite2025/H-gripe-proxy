@@ -499,7 +499,12 @@ pub struct Proxy {
     pub dialer_proxy: String,
 
     #[serde(rename(serialize = "routingMark", deserialize = "routing-mark"))]
-    pub routing_mark: i8,
+    pub routing_mark: i32,
+
+    #[serde(rename(serialize = "providerName", deserialize = "provider-name"))]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[ts(optional)]
+    pub provider_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
@@ -533,6 +538,8 @@ pub enum ProxyType {
     Fallback,
     URLTest,
     LoadBalance,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
@@ -700,6 +707,8 @@ pub enum RuleType {
     AND,
     OR,
     NOT,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
@@ -767,6 +776,9 @@ pub struct Connection {
     pub download: u64,
     pub start: String,
     pub chains: Vec<String>,
+    #[serde(rename = "providerChains", skip_serializing_if = "Option::is_none", default)]
+    #[ts(optional)]
+    pub provider_chains: Option<Vec<String>>,
     pub rule: String,
     pub rule_payload: String,
 }
@@ -815,6 +827,8 @@ pub enum ConnectionType {
     ANYTLS,
     #[serde(rename = "Inner")]
     INNER,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
@@ -922,6 +936,235 @@ pub enum WebSocketMessage {
     Ping(Vec<u8>),
     Pong(Vec<u8>),
     Close(Option<CloseFrame>),
+}
+
+// DNS Metrics types
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsCacheStats {
+    pub hit: u64,
+    pub miss: u64,
+    pub size: u64,
+    pub hit_rate: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsQueryStats {
+    pub total: u64,
+    pub success: u64,
+    pub failed: u64,
+    pub avg_latency_us: u64,
+    pub max_latency_us: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsServerStats {
+    pub server: String,
+    pub queries: u64,
+    pub successes: u64,
+    pub failures: u64,
+    pub avg_latency_us: u64,
+    pub last_query: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsPollutedEntry {
+    pub domain: String,
+    pub ip: String,
+    pub timestamp: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsPollutionStats {
+    pub total_checked: u64,
+    pub polluted_count: u64,
+    pub pollution_rate: f64,
+    pub recent_polluted: Vec<DnsPollutedEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsServerClassification {
+    pub address: String,
+    pub protocol: String,
+    pub trust_level: String,
+    pub encrypted: bool,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsTrustSummary {
+    pub total: u64,
+    pub encrypted: u64,
+    pub unencrypted: u64,
+    pub by_trust_level: HashMap<String, u64>,
+    pub servers: Vec<DnsServerClassification>,
+    pub leak_risk_score: f64,
+    pub last_evaluated: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsMetrics {
+    pub cache: DnsCacheStats,
+    pub queries: DnsQueryStats,
+    pub servers: Vec<DnsServerStats>,
+    pub pollution: DnsPollutionStats,
+    pub trust: DnsTrustSummary,
+}
+
+// Engine API types
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStats {
+    pub active_connections: i64,
+    pub tracked_conns: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnTrafficSnapshot {
+    pub conn_id: String,
+    pub metadata: String,
+    pub proxy_chain: String,
+    #[ts(type = "number")]
+    pub upload: i64,
+    #[ts(type = "number")]
+    pub download: i64,
+    #[ts(type = "number")]
+    pub rate_up: i64,
+    #[ts(type = "number")]
+    pub rate_down: i64,
+    pub created_at: String,
+    #[ts(type = "number")]
+    pub last_active: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct BufferPoolStats {
+    #[ts(type = "number")]
+    pub total_alloc: i64,
+    #[ts(type = "number")]
+    pub total_return: i64,
+    #[ts(type = "number")]
+    pub total_waste: i64,
+    #[ts(type = "number")]
+    pub alloc_errors: i64,
+    pub size_classes: Vec<SizeClassStats>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct SizeClassStats {
+    pub size: i32,
+    #[ts(type = "number")]
+    pub allocs: i64,
+    #[ts(type = "number")]
+    pub peak_used: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleTrafficSnapshot {
+    pub rule_type: String,
+    pub rule_payload: String,
+    #[ts(type = "number")]
+    pub upload: i64,
+    #[ts(type = "number")]
+    pub download: i64,
+    #[ts(type = "number")]
+    pub connections: i64,
+    #[ts(type = "number")]
+    pub last_active: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct EgressStatus {
+    pub stable: bool,
+    pub change_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct TLSFingerprintStats {
+    pub current_fingerprint: String,
+    #[ts(type = "number")]
+    pub rotation_count: i64,
+    pub usage_snapshot: HashMap<String, i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct TLSRotationResult {
+    pub new_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct PerfStats {
+    pub goroutines: i64,
+    pub gogc: i64,
+    #[ts(type = "number")]
+    pub mem_limit: i64,
+    #[ts(type = "number")]
+    pub heap_alloc: i64,
+    #[ts(type = "number")]
+    pub heap_sys: i64,
+    #[ts(type = "number")]
+    pub heap_in_use: i64,
+    #[ts(type = "number")]
+    pub stack_in_use: i64,
+    #[ts(type = "number")]
+    pub num_gc: i64,
+    #[ts(type = "number")]
+    pub gc_pause_total: i64,
+    pub protected_conns: i64,
+    pub rule_version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct HotReloadStatus {
+    pub rule_version: String,
+    pub protected_conns: i64,
+    pub xdp_loaded: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct XDPStatus {
+    pub loaded: bool,
+    pub enabled: bool,
 }
 
 pub type ConnectionId = u32;

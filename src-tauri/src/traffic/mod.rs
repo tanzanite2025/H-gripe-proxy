@@ -1,11 +1,14 @@
 /**
  * 流量模块
- * 
+ *
+ * 真正的流量混淆由 Go 内核（mihomo）的 ObfuscatedConn 在连接层执行。
+ * Rust 端仅持有配置并通过 Mihomo API 获取真实统计。
+ *
  * 包含：
- * - padding: 流量填充
- * - timing_jitter: 时序混淆
- * - direction: 方向混淆
- * - scheduler: 流量混淆统一调度器
+ * - padding: 流量填充配置（仅配置，不执行）
+ * - timing_jitter: 时序混淆配置（仅配置，不执行）
+ * - direction: 方向混淆配置（仅配置，不执行）
+ * - scheduler: 流量混淆薄代理层
  */
 
 pub mod padding;
@@ -13,35 +16,8 @@ pub mod timing_jitter;
 pub mod direction;
 pub mod scheduler;
 
-#[allow(unused_imports)]
-pub use padding::{
-    TrafficPaddingConfig,
-    PaddingIntensity,
-    PaddingFrequency,
-    FrequencyType,
-    PaddingTiming,
-    PerformanceControl,
-    PaddingStats,
-    PaddingScheduler,
-};
+pub use padding::TrafficPaddingConfig;
 
-#[allow(unused_imports)]
-pub use timing_jitter::{
-    TimingJitterConfig,
-    JitterMode,
-    TimingJitterStats,
-    TimingJitterEngine,
-};
-
-#[allow(unused_imports)]
-pub use direction::{
-    DirectionObfuscationConfig,
-    DirectionMode,
-    DirectionStats,
-    DirectionObfuscator,
-};
-
-#[allow(unused_imports)]
 pub use scheduler::{
     ObfuscationProfile,
     TrafficObfuscationConfig,

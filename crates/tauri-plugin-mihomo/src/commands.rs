@@ -39,7 +39,7 @@ pub(crate) async fn flush_dns(state: State<'_, RwLock<Mihomo>>) -> Result<()> {
 }
 
 #[command]
-pub(crate) async fn get_dns_metrics(state: State<'_, RwLock<Mihomo>>) -> Result<serde_json::Value> {
+pub(crate) async fn get_dns_metrics(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::DnsMetrics> {
     state.read().await.get_dns_metrics().await
 }
 
@@ -344,4 +344,55 @@ pub(crate) async fn ws_disconnect(
 #[command]
 pub(crate) async fn clear_all_ws_connections(state: State<'_, RwLock<Mihomo>>) -> Result<()> {
     state.write().await.clear_all_ws_connections().await
+}
+
+// engine api
+#[command]
+pub(crate) async fn get_engine_stats(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::EngineStats> {
+    state.read().await.get_engine_stats().await
+}
+
+#[command]
+pub(crate) async fn get_top_connections(state: State<'_, RwLock<Mihomo>>) -> Result<Vec<crate::models::ConnTrafficSnapshot>> {
+    state.read().await.get_top_connections().await
+}
+
+#[command]
+pub(crate) async fn get_buffer_pool_stats(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::BufferPoolStats> {
+    state.read().await.get_buffer_pool_stats().await
+}
+
+#[command]
+pub(crate) async fn get_rule_traffic(state: State<'_, RwLock<Mihomo>>) -> Result<std::collections::HashMap<String, crate::models::RuleTrafficSnapshot>> {
+    state.read().await.get_rule_traffic().await
+}
+
+#[command]
+pub(crate) async fn get_egress_status(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::EgressStatus> {
+    state.read().await.get_egress_status().await
+}
+
+#[command]
+pub(crate) async fn get_tls_fingerprint_stats(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::TLSFingerprintStats> {
+    state.read().await.get_tls_fingerprint_stats().await
+}
+
+#[command]
+pub(crate) async fn force_tls_rotation(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::TLSRotationResult> {
+    state.read().await.force_tls_rotation().await
+}
+
+#[command]
+pub(crate) async fn get_perf_stats(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::PerfStats> {
+    state.read().await.get_perf_stats().await
+}
+
+#[command]
+pub(crate) async fn get_hot_reload_status(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::HotReloadStatus> {
+    state.read().await.get_hot_reload_status().await
+}
+
+#[command]
+pub(crate) async fn get_xdp_status(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::XDPStatus> {
+    state.read().await.get_xdp_status().await
 }

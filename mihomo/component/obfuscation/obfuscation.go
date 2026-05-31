@@ -82,6 +82,7 @@ func NewObfuscatedConn(conn net.Conn, config *TrafficObfuscationConfig) *Obfusca
 		config: config,
 	}
 	oc.windowStart.Store(time.Now().UnixMilli())
+	DefaultObfStats.OnConnCreated()
 	return oc
 }
 
@@ -138,6 +139,7 @@ func (oc *ObfuscatedConn) Write(b []byte) (int, error) {
 	oc.writeCount.Add(1)
 	oc.writeBytes.Add(int64(len(b)))
 	oc.windowBytes.Add(int64(len(b)))
+	DefaultObfStats.OnWrite(int64(len(b)), 0)
 
 	return len(b), nil // return original length
 }
@@ -160,6 +162,7 @@ func (oc *ObfuscatedConn) Close() error {
 		return nil
 	}
 	oc.closed = true
+	DefaultObfStats.OnConnClosed()
 	return oc.Conn.Close()
 }
 
@@ -187,6 +190,7 @@ func (oc *ObfuscatedConn) addPadding(data []byte) []byte {
 	copy(result[1:], data)
 	// Fill padding with random bytes
 	_, _ = rand.Read(result[1+len(data):])
+	DefaultObfStats.totalPaddingBytes.Add(int64(paddingLen))
 	return result
 }
 
@@ -625,6 +629,68 @@ func (oe *ObfuscationEngine) WrapConn(conn net.Conn) net.Conn {
 // Config returns the engine configuration.
 func (oe *ObfuscationEngine) Config() *ObfuscationEngineConfig {
 	return oe.config
+}
+
+// ============================================================
+// Global obfuscation stats collector
+// ============================================================
+
+// GlobalObfuscationStats 全局混淆统计收集器，跟踪真实流量混淆效果
+type GlobalObfuscationStats struct {
+	totalObfuscatedConns atomic.Int64 // 已创建的混淆连接总数
+	activeConns          atomic.Int64 // 当前活跃混淆连接数
+	totalWriteBytes      atomic.Int64 // 混淆连接写入总字节数
+	totalWriteCount      atomic.Int64 // 混淆连接写入总次数
+	totalPaddingBytes    atomic.Int64 // 添加的 padding 总字节数
+	tlsRotationCount     atomic.Int64 // TLS 指纹轮换次数
+}
+
+// DefaultObfStats is the global obfuscation stats instance.
+var DefaultObfStats = &GlobalObfuscationStats{}
+
+// OnConnCreated increments connection counters.
+func (s *GlobalObfuscationStats) OnConnCreated() {
+	s.totalObfuscatedConns.Add(1)
+	s.activeConns.Add(1)
+}
+
+// OnConnClosed decrements active connection counter.
+func (s *GlobalObfuscationStats) OnConnClosed() {
+	s.activeConns.Add(-1)
+}
+
+// OnWrite records a write operation.
+func (s *GlobalObfuscationStats) OnWrite(origBytes, paddingBytes int64) {
+	s.totalWriteBytes.Add(origBytes)
+	s.totalWriteCount.Add(1)
+	s.totalPaddingBytes.Add(paddingBytes)
+}
+
+// OnTLSRotation records a TLS fingerprint rotation.
+func (s *GlobalObfuscationStats) OnTLSRotation() {
+	s.tlsRotationCount.Add(1)
+}
+
+// Snapshot returns a snapshot of the current stats.
+func (s *GlobalObfuscationStats) Snapshot() map[string]any {
+	return map[string]any{
+		"totalObfuscatedConns": s.totalObfuscatedConns.Load(),
+		"activeConns":          s.activeConns.Load(),
+		"totalWriteBytes":      s.totalWriteBytes.Load(),
+		"totalWriteCount":      s.totalWriteCount.Load(),
+		"totalPaddingBytes":    s.totalPaddingBytes.Load(),
+		"tlsRotationCount":     s.tlsRotationCount.Load(),
+	}
+}
+
+// Reset resets all counters.
+func (s *GlobalObfuscationStats) Reset() {
+	s.totalObfuscatedConns.Store(0)
+	s.activeConns.Store(0)
+	s.totalWriteBytes.Store(0)
+	s.totalWriteCount.Store(0)
+	s.totalPaddingBytes.Store(0)
+	s.tlsRotationCount.Store(0)
 }
 
 // ============================================================

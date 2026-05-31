@@ -13,7 +13,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use tokio::sync::RwLock;
 
 // ── 熔断器状态 ──────────────────────────────────────────────────────

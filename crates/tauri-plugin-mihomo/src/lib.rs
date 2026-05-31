@@ -150,6 +150,17 @@ impl Builder {
                 commands::ws_logs,
                 commands::ws_disconnect,
                 commands::clear_all_ws_connections,
+                // engine
+                commands::get_engine_stats,
+                commands::get_top_connections,
+                commands::get_buffer_pool_stats,
+                commands::get_rule_traffic,
+                commands::get_egress_status,
+                commands::get_tls_fingerprint_stats,
+                commands::force_tls_rotation,
+                commands::get_perf_stats,
+                commands::get_hot_reload_status,
+                commands::get_xdp_status,
                 // commands::ws_send,
             ])
             .setup(move |app, _api| {
