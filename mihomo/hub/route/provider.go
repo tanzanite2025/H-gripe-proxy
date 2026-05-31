@@ -3,9 +3,9 @@ package route
 import (
 	"context"
 
-	C "github.com/metacubex/mihomo/constant"
-	P "github.com/metacubex/mihomo/constant/provider"
-	"github.com/metacubex/mihomo/tunnel"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/tunnel"
 
 	"github.com/metacubex/chi"
 	"github.com/metacubex/chi/render"

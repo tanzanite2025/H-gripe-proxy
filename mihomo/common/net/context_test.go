@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	N "github.com/metacubex/mihomo/common/net"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
 
 	"github.com/stretchr/testify/assert"
 )

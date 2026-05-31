@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/common/httputils"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/common/httputils"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 const (

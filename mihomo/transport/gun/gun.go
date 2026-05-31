@@ -16,12 +16,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/mihomo/common/buf"
-	"github.com/metacubex/mihomo/common/httputils"
-	"github.com/metacubex/mihomo/common/pool"
-	tlsC "github.com/metacubex/mihomo/component/tls"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/transport/vmess"
+	"github.com/tanzanite2025/mihomo-optimized/common/buf"
+	"github.com/tanzanite2025/mihomo-optimized/common/httputils"
+	"github.com/tanzanite2025/mihomo-optimized/common/pool"
+	tlsC "github.com/tanzanite2025/mihomo-optimized/component/tls"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/transport/vmess"
 
 	"github.com/metacubex/http"
 )

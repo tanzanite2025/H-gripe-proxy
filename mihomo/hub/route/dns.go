@@ -5,8 +5,8 @@ import (
 	"math"
 
 	"github.com/metacubex/http"
-	"github.com/metacubex/mihomo/component/resolver"
-	dnsMetrics "github.com/metacubex/mihomo/dns"
+	"github.com/tanzanite2025/mihomo-optimized/component/resolver"
+	dnsMetrics "github.com/tanzanite2025/mihomo-optimized/dns"
 
 	"github.com/metacubex/chi"
 	"github.com/metacubex/chi/render"

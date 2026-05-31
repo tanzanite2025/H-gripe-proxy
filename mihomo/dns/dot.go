@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/common/deque"
-	"github.com/metacubex/mihomo/component/ca"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/common/deque"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 
 	"github.com/metacubex/tls"
 	D "github.com/miekg/dns"

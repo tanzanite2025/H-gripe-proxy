@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/rules/common"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/rules/common"
 )
 
 type Logic struct {

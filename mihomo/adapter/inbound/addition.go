@@ -3,7 +3,7 @@ package inbound
 import (
 	"net"
 
-	C "github.com/metacubex/mihomo/constant"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 type Addition func(metadata *C.Metadata)

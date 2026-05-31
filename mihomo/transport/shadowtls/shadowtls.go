@@ -10,8 +10,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/metacubex/mihomo/common/pool"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/common/pool"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 
 	"github.com/metacubex/tls"
 )

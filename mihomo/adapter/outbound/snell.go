@@ -6,11 +6,11 @@ import (
 	"net"
 	"strconv"
 
-	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/common/structure"
-	C "github.com/metacubex/mihomo/constant"
-	obfs "github.com/metacubex/mihomo/transport/simple-obfs"
-	"github.com/metacubex/mihomo/transport/snell"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
+	"github.com/tanzanite2025/mihomo-optimized/common/structure"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	obfs "github.com/tanzanite2025/mihomo-optimized/transport/simple-obfs"
+	"github.com/tanzanite2025/mihomo-optimized/transport/snell"
 )
 
 type Snell struct {

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/metacubex/mihomo/common/structure"
-	"github.com/metacubex/mihomo/common/utils"
-	"github.com/metacubex/mihomo/component/resource"
-	C "github.com/metacubex/mihomo/constant"
-	P "github.com/metacubex/mihomo/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/common/structure"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/component/resource"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
 )
 
 var (

@@ -4,9 +4,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/ech"
-	"github.com/metacubex/mihomo/transport/vmess"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	"github.com/tanzanite2025/mihomo-optimized/component/ech"
+	"github.com/tanzanite2025/mihomo-optimized/transport/vmess"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/smux"

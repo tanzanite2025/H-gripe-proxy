@@ -3,9 +3,9 @@ package route
 import (
 	"runtime"
 
-	"github.com/metacubex/mihomo/component/obfuscation"
-	"github.com/metacubex/mihomo/component/perf"
-	"github.com/metacubex/mihomo/tunnel"
+	"github.com/tanzanite2025/mihomo-optimized/component/obfuscation"
+	"github.com/tanzanite2025/mihomo-optimized/component/perf"
+	"github.com/tanzanite2025/mihomo-optimized/tunnel"
 
 	"github.com/metacubex/chi"
 	"github.com/metacubex/chi/render"

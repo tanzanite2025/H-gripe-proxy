@@ -5,7 +5,7 @@ import (
 	"golang.org/x/exp/slices"
 	"net"
 
-	"github.com/metacubex/mihomo/adapter/inbound"
+	"github.com/tanzanite2025/mihomo-optimized/adapter/inbound"
 
 	"github.com/metacubex/sing/common/auth"
 )

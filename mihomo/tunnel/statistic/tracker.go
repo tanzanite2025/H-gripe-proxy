@@ -5,11 +5,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/metacubex/mihomo/common/atomic"
-	"github.com/metacubex/mihomo/common/buf"
-	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/common/utils"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/common/atomic"
+	"github.com/tanzanite2025/mihomo-optimized/common/buf"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 
 	"github.com/gofrs/uuid/v5"
 )

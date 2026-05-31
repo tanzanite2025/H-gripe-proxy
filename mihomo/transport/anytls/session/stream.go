@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/anytls/pipe"
+	"github.com/tanzanite2025/mihomo-optimized/transport/anytls/pipe"
 )
 
 // Stream implements net.Conn

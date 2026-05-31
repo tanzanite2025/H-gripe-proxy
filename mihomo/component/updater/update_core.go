@@ -14,21 +14,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/component/ca"
-	mihomoHttp "github.com/metacubex/mihomo/component/http"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/constant/features"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	mihomoHttp "github.com/tanzanite2025/mihomo-optimized/component/http"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/constant/features"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	"github.com/metacubex/http"
 )
 
 const (
-	baseReleaseURL    = "https://github.com/MetaCubeX/mihomo/releases/latest/download/"
-	versionReleaseURL = "https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt"
+	baseReleaseURL    = "https://github.com/tanzanite2025/mihomo-optimized/releases/latest/download/"
+	versionReleaseURL = "https://github.com/tanzanite2025/mihomo-optimized/releases/latest/download/version.txt"
 
-	baseAlphaURL    = "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/"
-	versionAlphaURL = "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/version.txt"
+	baseAlphaURL    = "https://github.com/tanzanite2025/mihomo-optimized/releases/download/Prerelease-Alpha/"
+	versionAlphaURL = "https://github.com/tanzanite2025/mihomo-optimized/releases/download/Prerelease-Alpha/version.txt"
 
 	// MaxPackageFileSize is a maximum package file length in bytes. The largest
 	// package whose size is limited by this constant currently has the size of

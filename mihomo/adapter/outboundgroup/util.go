@@ -3,9 +3,9 @@ package outboundgroup
 import (
 	"context"
 
-	"github.com/metacubex/mihomo/common/utils"
-	C "github.com/metacubex/mihomo/constant"
-	P "github.com/metacubex/mihomo/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
 )
 
 type ProxyGroup interface {

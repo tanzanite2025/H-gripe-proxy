@@ -3,7 +3,7 @@ package tunnel
 import (
 	"sync"
 
-	C "github.com/metacubex/mihomo/constant"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 // ruleCacheEntry stores a cached rule match result

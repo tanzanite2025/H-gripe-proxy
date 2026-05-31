@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	C "github.com/metacubex/mihomo/constant"
-	LC "github.com/metacubex/mihomo/listener/config"
-	"github.com/metacubex/mihomo/listener/mixed"
-	"github.com/metacubex/mihomo/listener/socks"
-	"github.com/metacubex/mihomo/log"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	LC "github.com/tanzanite2025/mihomo-optimized/listener/config"
+	"github.com/tanzanite2025/mihomo-optimized/listener/mixed"
+	"github.com/tanzanite2025/mihomo-optimized/listener/socks"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 type MixedOption struct {

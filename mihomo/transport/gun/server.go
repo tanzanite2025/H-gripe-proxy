@@ -7,9 +7,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/metacubex/mihomo/common/buf"
-	"github.com/metacubex/mihomo/common/httputils"
-	N "github.com/metacubex/mihomo/common/net"
+	"github.com/tanzanite2025/mihomo-optimized/common/buf"
+	"github.com/tanzanite2025/mihomo-optimized/common/httputils"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
 
 	"github.com/metacubex/http"
 )

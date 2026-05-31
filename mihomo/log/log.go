@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/metacubex/mihomo/common/observable"
+	"github.com/tanzanite2025/mihomo-optimized/common/observable"
 
 	log "github.com/sirupsen/logrus"
 )

@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/sudoku/crypto"
+	"github.com/tanzanite2025/mihomo-optimized/transport/sudoku/crypto"
 )
 
 const kipHandshakeSkew = 60 * time.Second

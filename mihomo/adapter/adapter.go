@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/metacubex/mihomo/common/atomic"
-	"github.com/metacubex/mihomo/common/queue"
-	"github.com/metacubex/mihomo/common/utils"
-	"github.com/metacubex/mihomo/common/xsync"
-	"github.com/metacubex/mihomo/component/ca"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/common/atomic"
+	"github.com/tanzanite2025/mihomo-optimized/common/queue"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/common/xsync"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	"github.com/metacubex/http"
 )

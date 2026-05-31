@@ -9,9 +9,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/metacubex/mihomo/transport/sudoku/crypto"
-	httpmaskobfs "github.com/metacubex/mihomo/transport/sudoku/obfs/httpmask"
-	sudokuobfs "github.com/metacubex/mihomo/transport/sudoku/obfs/sudoku"
+	"github.com/tanzanite2025/mihomo-optimized/transport/sudoku/crypto"
+	httpmaskobfs "github.com/tanzanite2025/mihomo-optimized/transport/sudoku/obfs/httpmask"
+	sudokuobfs "github.com/tanzanite2025/mihomo-optimized/transport/sudoku/obfs/sudoku"
 )
 
 const earlyKIPHandshakeTTL = 60 * time.Second

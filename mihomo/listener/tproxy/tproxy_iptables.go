@@ -6,9 +6,9 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/metacubex/mihomo/common/cmd"
-	"github.com/metacubex/mihomo/component/dialer"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/common/cmd"
+	"github.com/tanzanite2025/mihomo-optimized/component/dialer"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 var (

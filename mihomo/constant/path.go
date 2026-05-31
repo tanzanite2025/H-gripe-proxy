@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/metacubex/mihomo/common/utils"
-	"github.com/metacubex/mihomo/constant/features"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/constant/features"
 )
 
 const Name = "mihomo"

@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/mihomo/common/pool"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/common/pool"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	"github.com/metacubex/randv2"
 )

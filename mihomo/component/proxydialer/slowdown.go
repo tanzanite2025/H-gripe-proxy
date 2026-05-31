@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/metacubex/mihomo/component/slowdown"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/component/slowdown"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 type SlowDownDialer struct {

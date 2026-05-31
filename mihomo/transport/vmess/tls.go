@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net"
 
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/ech"
-	tlsC "github.com/metacubex/mihomo/component/tls"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	"github.com/tanzanite2025/mihomo-optimized/component/ech"
+	tlsC "github.com/tanzanite2025/mihomo-optimized/component/tls"
 
 	"github.com/metacubex/tls"
 )

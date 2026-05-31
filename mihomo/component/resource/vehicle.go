@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/metacubex/mihomo/common/utils"
-	mihomoHttp "github.com/metacubex/mihomo/component/http"
-	"github.com/metacubex/mihomo/component/profile/cachefile"
-	P "github.com/metacubex/mihomo/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	mihomoHttp "github.com/tanzanite2025/mihomo-optimized/component/http"
+	"github.com/tanzanite2025/mihomo-optimized/component/profile/cachefile"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
 
 	"github.com/metacubex/http"
 )

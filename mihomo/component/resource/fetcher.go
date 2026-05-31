@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/common/utils"
-	"github.com/metacubex/mihomo/component/slowdown"
-	P "github.com/metacubex/mihomo/constant/provider"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/component/slowdown"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	"github.com/metacubex/fswatch"
 	"github.com/samber/lo"

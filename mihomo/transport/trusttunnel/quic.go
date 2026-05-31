@@ -6,8 +6,8 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/metacubex/mihomo/transport/tuic/common"
-	"github.com/metacubex/mihomo/transport/vmess"
+	"github.com/tanzanite2025/mihomo-optimized/transport/tuic/common"
+	"github.com/tanzanite2025/mihomo-optimized/transport/vmess"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/quic-go"

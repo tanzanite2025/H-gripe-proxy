@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/metacubex/mihomo/adapter/outbound"
-	"github.com/metacubex/mihomo/listener/inbound"
-	"github.com/metacubex/mihomo/transport/kcptun"
-	shadowtls "github.com/metacubex/mihomo/transport/sing-shadowtls"
+	"github.com/tanzanite2025/mihomo-optimized/adapter/outbound"
+	"github.com/tanzanite2025/mihomo-optimized/listener/inbound"
+	"github.com/tanzanite2025/mihomo-optimized/transport/kcptun"
+	shadowtls "github.com/tanzanite2025/mihomo-optimized/transport/sing-shadowtls"
 
 	shadowsocks "github.com/metacubex/sing-shadowsocks"
 	"github.com/metacubex/sing-shadowsocks/shadowaead"

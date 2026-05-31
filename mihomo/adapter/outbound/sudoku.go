@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 
-	N "github.com/metacubex/mihomo/common/net"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/transport/sudoku"
-	"github.com/metacubex/mihomo/transport/sudoku/obfs/httpmask"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/transport/sudoku"
+	"github.com/tanzanite2025/mihomo-optimized/transport/sudoku/obfs/httpmask"
 )
 
 type Sudoku struct {

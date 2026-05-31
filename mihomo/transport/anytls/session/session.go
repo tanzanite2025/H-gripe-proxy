@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/mihomo/common/buf"
-	"github.com/metacubex/mihomo/common/pool"
-	"github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/log"
-	"github.com/metacubex/mihomo/transport/anytls/padding"
-	"github.com/metacubex/mihomo/transport/anytls/util"
+	"github.com/tanzanite2025/mihomo-optimized/common/buf"
+	"github.com/tanzanite2025/mihomo-optimized/common/pool"
+	"github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/log"
+	"github.com/tanzanite2025/mihomo-optimized/transport/anytls/padding"
+	"github.com/tanzanite2025/mihomo-optimized/transport/anytls/util"
 )
 
 type Session struct {

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/dialer"
-	"github.com/metacubex/mihomo/listener/inner"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	"github.com/tanzanite2025/mihomo-optimized/component/dialer"
+	"github.com/tanzanite2025/mihomo-optimized/listener/inner"
 
 	"github.com/metacubex/http"
 )

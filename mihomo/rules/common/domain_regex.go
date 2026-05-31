@@ -1,7 +1,7 @@
 package common
 
 import (
-	C "github.com/metacubex/mihomo/constant"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 
 	"github.com/dlclark/regexp2"
 )

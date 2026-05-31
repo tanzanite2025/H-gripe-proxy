@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/metacubex/mihomo/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
 	"github.com/openacid/low/bitmap"
 )
 

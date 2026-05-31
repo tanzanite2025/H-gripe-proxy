@@ -6,12 +6,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/metacubex/mihomo/common/callback"
-	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/common/singledo"
-	"github.com/metacubex/mihomo/common/utils"
-	C "github.com/metacubex/mihomo/constant"
-	P "github.com/metacubex/mihomo/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/common/callback"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
+	"github.com/tanzanite2025/mihomo-optimized/common/singledo"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
 )
 
 type urlTestOption func(*URLTest)

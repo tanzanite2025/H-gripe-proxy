@@ -5,14 +5,14 @@ import (
 	"net"
 	"strings"
 
-	"github.com/metacubex/mihomo/adapter/inbound"
-	N "github.com/metacubex/mihomo/common/net"
-	C "github.com/metacubex/mihomo/constant"
-	LC "github.com/metacubex/mihomo/listener/config"
-	"github.com/metacubex/mihomo/listener/sing"
-	"github.com/metacubex/mihomo/transport/shadowsocks/core"
-	obfs "github.com/metacubex/mihomo/transport/simple-obfs"
-	"github.com/metacubex/mihomo/transport/socks5"
+	"github.com/tanzanite2025/mihomo-optimized/adapter/inbound"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	LC "github.com/tanzanite2025/mihomo-optimized/listener/config"
+	"github.com/tanzanite2025/mihomo-optimized/listener/sing"
+	"github.com/tanzanite2025/mihomo-optimized/transport/shadowsocks/core"
+	obfs "github.com/tanzanite2025/mihomo-optimized/transport/simple-obfs"
+	"github.com/tanzanite2025/mihomo-optimized/transport/socks5"
 )
 
 type Listener struct {

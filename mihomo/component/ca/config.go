@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/metacubex/mihomo/common/once"
-	"github.com/metacubex/mihomo/ntp"
+	"github.com/tanzanite2025/mihomo-optimized/common/once"
+	"github.com/tanzanite2025/mihomo-optimized/ntp"
 
 	"github.com/metacubex/tls"
 )

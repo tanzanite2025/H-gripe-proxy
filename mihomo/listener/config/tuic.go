@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/metacubex/mihomo/listener/sing"
+	"github.com/tanzanite2025/mihomo-optimized/listener/sing"
 
 	"encoding/json"
 )

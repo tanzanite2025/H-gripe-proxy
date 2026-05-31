@@ -3,12 +3,12 @@ package common
 import (
 	"fmt"
 
-	"github.com/metacubex/mihomo/component/geodata"
-	_ "github.com/metacubex/mihomo/component/geodata/memconservative"
-	"github.com/metacubex/mihomo/component/geodata/router"
-	_ "github.com/metacubex/mihomo/component/geodata/standard"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/component/geodata"
+	_ "github.com/tanzanite2025/mihomo-optimized/component/geodata/memconservative"
+	"github.com/tanzanite2025/mihomo-optimized/component/geodata/router"
+	_ "github.com/tanzanite2025/mihomo-optimized/component/geodata/standard"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 type GEOSITE struct {

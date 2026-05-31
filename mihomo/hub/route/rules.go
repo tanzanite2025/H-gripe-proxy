@@ -4,12 +4,12 @@ import (
 	"strconv"
 	"time"
 
-	R "github.com/metacubex/mihomo/rules"
-	RC "github.com/metacubex/mihomo/rules/common"
-	RW "github.com/metacubex/mihomo/rules/wrapper"
+	R "github.com/tanzanite2025/mihomo-optimized/rules"
+	RC "github.com/tanzanite2025/mihomo-optimized/rules/common"
+	RW "github.com/tanzanite2025/mihomo-optimized/rules/wrapper"
 
-	"github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/tunnel"
+	"github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/tunnel"
 
 	"github.com/metacubex/chi"
 	"github.com/metacubex/chi/render"

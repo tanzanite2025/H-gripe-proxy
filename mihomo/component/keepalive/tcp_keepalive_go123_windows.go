@@ -9,7 +9,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/metacubex/mihomo/constant/features"
+	"github.com/tanzanite2025/mihomo-optimized/constant/features"
 
 	"golang.org/x/sys/windows"
 )

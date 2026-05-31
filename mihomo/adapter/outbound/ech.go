@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/metacubex/mihomo/component/ech"
-	"github.com/metacubex/mihomo/component/resolver"
+	"github.com/tanzanite2025/mihomo-optimized/component/ech"
+	"github.com/tanzanite2025/mihomo-optimized/component/resolver"
 )
 
 type ECHOptions struct {

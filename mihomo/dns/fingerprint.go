@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"math/big"
 
-	icontext "github.com/metacubex/mihomo/context"
-	"github.com/metacubex/mihomo/log"
+	icontext "github.com/tanzanite2025/mihomo-optimized/context"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	D "github.com/miekg/dns"
 )

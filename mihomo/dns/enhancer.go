@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/netip"
 
-	"github.com/metacubex/mihomo/common/lru"
-	"github.com/metacubex/mihomo/component/fakeip"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/common/lru"
+	"github.com/tanzanite2025/mihomo-optimized/component/fakeip"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 type ResolverEnhancer struct {

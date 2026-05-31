@@ -3,9 +3,9 @@ package provider
 import (
 	"net/netip"
 
-	C "github.com/metacubex/mihomo/constant"
-	P "github.com/metacubex/mihomo/constant/provider"
-	"github.com/metacubex/mihomo/rules/common"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	P "github.com/tanzanite2025/mihomo-optimized/constant/provider"
+	"github.com/tanzanite2025/mihomo-optimized/rules/common"
 )
 
 type RuleSet struct {

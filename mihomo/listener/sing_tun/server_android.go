@@ -6,10 +6,10 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/metacubex/mihomo/component/process"
-	"github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/constant/features"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/component/process"
+	"github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/constant/features"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	"github.com/metacubex/sing-tun"
 )

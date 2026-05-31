@@ -3,8 +3,8 @@ package convert_test
 import (
 	"testing"
 
-	"github.com/metacubex/mihomo/adapter"
-	. "github.com/metacubex/mihomo/common/convert"
+	"github.com/tanzanite2025/mihomo-optimized/adapter"
+	. "github.com/tanzanite2025/mihomo-optimized/common/convert"
 
 	"github.com/stretchr/testify/assert"
 )

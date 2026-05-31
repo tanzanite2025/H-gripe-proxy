@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/metacubex/mihomo/common/atomic"
-	"github.com/metacubex/mihomo/component/keepalive"
-	"github.com/metacubex/mihomo/component/mptcp"
-	"github.com/metacubex/mihomo/component/resolver"
+	"github.com/tanzanite2025/mihomo-optimized/common/atomic"
+	"github.com/tanzanite2025/mihomo-optimized/component/keepalive"
+	"github.com/tanzanite2025/mihomo-optimized/component/mptcp"
+	"github.com/tanzanite2025/mihomo-optimized/component/resolver"
 )
 
 const (

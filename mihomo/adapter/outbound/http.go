@@ -9,9 +9,9 @@ import (
 	"net"
 	"strconv"
 
-	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/component/ca"
-	C "github.com/metacubex/mihomo/constant"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/tls"

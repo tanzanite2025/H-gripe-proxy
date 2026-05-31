@@ -1,4 +1,4 @@
-module github.com/metacubex/mihomo
+module github.com/tanzanite2025/mihomo-optimized
 
 go 1.20
 

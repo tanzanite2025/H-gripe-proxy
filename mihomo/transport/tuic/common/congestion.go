@@ -1,9 +1,9 @@
 package common
 
 import (
-	hysteriaCongestion "github.com/metacubex/mihomo/transport/hysteria/congestion"
-	"github.com/metacubex/mihomo/transport/tuic/congestion"
-	congestionv2 "github.com/metacubex/mihomo/transport/tuic/congestion_v2"
+	hysteriaCongestion "github.com/tanzanite2025/mihomo-optimized/transport/hysteria/congestion"
+	"github.com/tanzanite2025/mihomo-optimized/transport/tuic/congestion"
+	congestionv2 "github.com/tanzanite2025/mihomo-optimized/transport/tuic/congestion_v2"
 
 	"github.com/metacubex/quic-go"
 	c "github.com/metacubex/quic-go/congestion"

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/metacubex/mihomo/component/dialer"
-	"github.com/metacubex/mihomo/component/loopback"
-	"github.com/metacubex/mihomo/component/resolver"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/component/dialer"
+	"github.com/tanzanite2025/mihomo-optimized/component/loopback"
+	"github.com/tanzanite2025/mihomo-optimized/component/resolver"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 type Direct struct {

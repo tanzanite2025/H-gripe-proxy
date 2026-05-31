@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/metacubex/mihomo/transport/sudoku/obfs/sudoku"
+	"github.com/tanzanite2025/mihomo-optimized/transport/sudoku/obfs/sudoku"
 )
 
 // ProtocolConfig defines the configuration for the Sudoku protocol stack.

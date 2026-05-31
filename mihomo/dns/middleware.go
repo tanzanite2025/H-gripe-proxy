@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/metacubex/mihomo/common/lru"
-	"github.com/metacubex/mihomo/component/fakeip"
-	"github.com/metacubex/mihomo/component/resolver"
-	C "github.com/metacubex/mihomo/constant"
-	icontext "github.com/metacubex/mihomo/context"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/common/lru"
+	"github.com/tanzanite2025/mihomo-optimized/component/fakeip"
+	"github.com/tanzanite2025/mihomo-optimized/component/resolver"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	icontext "github.com/tanzanite2025/mihomo-optimized/context"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	D "github.com/miekg/dns"
 )

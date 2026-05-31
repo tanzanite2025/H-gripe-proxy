@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	C "github.com/metacubex/mihomo/constant"
-	mihomoVMess "github.com/metacubex/mihomo/transport/vmess"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	mihomoVMess "github.com/tanzanite2025/mihomo-optimized/transport/vmess"
 
 	"github.com/metacubex/smux"
 )

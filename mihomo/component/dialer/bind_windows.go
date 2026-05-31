@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/metacubex/mihomo/component/iface"
+	"github.com/tanzanite2025/mihomo-optimized/component/iface"
 )
 
 const (

@@ -3,8 +3,8 @@ package common
 import (
 	"strings"
 
-	"github.com/metacubex/mihomo/component/wildcard"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/component/wildcard"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 
 	"github.com/dlclark/regexp2"
 )

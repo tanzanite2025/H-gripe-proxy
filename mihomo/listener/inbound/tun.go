@@ -4,10 +4,10 @@ import (
 	"encoding"
 	"net/netip"
 
-	C "github.com/metacubex/mihomo/constant"
-	LC "github.com/metacubex/mihomo/listener/config"
-	"github.com/metacubex/mihomo/listener/sing_tun"
-	"github.com/metacubex/mihomo/log"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	LC "github.com/tanzanite2025/mihomo-optimized/listener/config"
+	"github.com/tanzanite2025/mihomo-optimized/listener/sing_tun"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 type TunOption struct {

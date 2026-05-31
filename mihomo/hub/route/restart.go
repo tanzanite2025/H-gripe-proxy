@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/metacubex/mihomo/hub/executor"
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/hub/executor"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 
 	"github.com/metacubex/chi"
 	"github.com/metacubex/chi/render"

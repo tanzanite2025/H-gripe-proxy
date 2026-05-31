@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 
-	"github.com/metacubex/mihomo/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
 
 	"github.com/gofrs/uuid/v5"
 )

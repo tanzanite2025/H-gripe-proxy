@@ -11,11 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/mihomo/common/httputils"
-	"github.com/metacubex/mihomo/common/once"
-	"github.com/metacubex/mihomo/component/dialer"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/transport/vmess"
+	"github.com/tanzanite2025/mihomo-optimized/common/httputils"
+	"github.com/tanzanite2025/mihomo-optimized/common/once"
+	"github.com/tanzanite2025/mihomo-optimized/component/dialer"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/transport/vmess"
 
 	"github.com/metacubex/http"
 	"golang.org/x/exp/slices"

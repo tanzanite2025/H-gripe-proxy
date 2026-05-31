@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	C "github.com/metacubex/mihomo/constant"
-	LC "github.com/metacubex/mihomo/listener/config"
-	"github.com/metacubex/mihomo/listener/sudoku"
-	"github.com/metacubex/mihomo/log"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	LC "github.com/tanzanite2025/mihomo-optimized/listener/config"
+	"github.com/tanzanite2025/mihomo-optimized/listener/sudoku"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 type SudokuOption struct {

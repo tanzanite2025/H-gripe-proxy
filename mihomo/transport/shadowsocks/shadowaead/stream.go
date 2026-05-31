@@ -7,7 +7,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/metacubex/mihomo/common/pool"
+	"github.com/tanzanite2025/mihomo-optimized/common/pool"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/metacubex/mihomo/log"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 func StartRoutine(ctx context.Context, d time.Duration, f func()) {

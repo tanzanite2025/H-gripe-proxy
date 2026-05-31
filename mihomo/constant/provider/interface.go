@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/metacubex/mihomo/common/utils"
-	"github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 // Vehicle Type

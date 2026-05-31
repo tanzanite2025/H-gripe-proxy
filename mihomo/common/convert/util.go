@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/metacubex/mihomo/common/utils"
+	"github.com/tanzanite2025/mihomo-optimized/common/utils"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/randv2"

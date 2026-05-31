@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/common/httputils"
-	N "github.com/metacubex/mihomo/common/net"
+	"github.com/tanzanite2025/mihomo-optimized/common/httputils"
+	N "github.com/tanzanite2025/mihomo-optimized/common/net"
 
 	"github.com/metacubex/http"
 )

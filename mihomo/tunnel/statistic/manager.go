@@ -4,9 +4,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/metacubex/mihomo/common/atomic"
-	"github.com/metacubex/mihomo/common/xsync"
-	"github.com/metacubex/mihomo/component/memory"
+	"github.com/tanzanite2025/mihomo-optimized/common/atomic"
+	"github.com/tanzanite2025/mihomo-optimized/common/xsync"
+	"github.com/tanzanite2025/mihomo-optimized/component/memory"
 )
 
 var DefaultManager *Manager

@@ -7,9 +7,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/metacubex/mihomo/adapter/outboundgroup"
-	"github.com/metacubex/mihomo/common/structure"
-	C "github.com/metacubex/mihomo/constant"
+	"github.com/tanzanite2025/mihomo-optimized/adapter/outboundgroup"
+	"github.com/tanzanite2025/mihomo-optimized/common/structure"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 )
 
 // Check if ProxyGroups form DAG(Directed Acyclic Graph), and sort all ProxyGroups by dependency order.

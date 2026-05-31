@@ -8,8 +8,8 @@ import (
 	"strings"
 	_ "unsafe"
 
-	"github.com/metacubex/mihomo/component/resolver/hosts"
-	"github.com/metacubex/mihomo/component/trie"
+	"github.com/tanzanite2025/mihomo-optimized/component/resolver/hosts"
+	"github.com/tanzanite2025/mihomo-optimized/component/trie"
 	"github.com/metacubex/randv2"
 )
 

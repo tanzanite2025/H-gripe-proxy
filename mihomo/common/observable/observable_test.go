@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metacubex/mihomo/common/atomic"
+	"github.com/tanzanite2025/mihomo-optimized/common/atomic"
 
 	"github.com/stretchr/testify/assert"
 )

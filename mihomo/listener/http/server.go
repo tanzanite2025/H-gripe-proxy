@@ -4,14 +4,14 @@ import (
 	"errors"
 	"net"
 
-	"github.com/metacubex/mihomo/adapter/inbound"
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/ech"
-	C "github.com/metacubex/mihomo/constant"
-	authStore "github.com/metacubex/mihomo/listener/auth"
-	LC "github.com/metacubex/mihomo/listener/config"
-	"github.com/metacubex/mihomo/listener/reality"
-	"github.com/metacubex/mihomo/ntp"
+	"github.com/tanzanite2025/mihomo-optimized/adapter/inbound"
+	"github.com/tanzanite2025/mihomo-optimized/component/ca"
+	"github.com/tanzanite2025/mihomo-optimized/component/ech"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	authStore "github.com/tanzanite2025/mihomo-optimized/listener/auth"
+	LC "github.com/tanzanite2025/mihomo-optimized/listener/config"
+	"github.com/tanzanite2025/mihomo-optimized/listener/reality"
+	"github.com/tanzanite2025/mihomo-optimized/ntp"
 
 	"github.com/metacubex/tls"
 )

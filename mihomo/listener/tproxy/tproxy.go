@@ -4,11 +4,11 @@ import (
 	"context"
 	"net"
 
-	"github.com/metacubex/mihomo/adapter/inbound"
-	"github.com/metacubex/mihomo/component/keepalive"
-	"github.com/metacubex/mihomo/component/mptcp"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/transport/socks5"
+	"github.com/tanzanite2025/mihomo-optimized/adapter/inbound"
+	"github.com/tanzanite2025/mihomo-optimized/component/keepalive"
+	"github.com/tanzanite2025/mihomo-optimized/component/mptcp"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	"github.com/tanzanite2025/mihomo-optimized/transport/socks5"
 )
 
 type Listener struct {

@@ -9,10 +9,10 @@ import (
 	"encoding/binary"
 	"sync"
 
-	"github.com/metacubex/mihomo/common/pool"
-	"github.com/metacubex/mihomo/log"
-	"github.com/metacubex/mihomo/ntp"
-	"github.com/metacubex/mihomo/transport/shadowsocks/core"
+	"github.com/tanzanite2025/mihomo-optimized/common/pool"
+	"github.com/tanzanite2025/mihomo-optimized/log"
+	"github.com/tanzanite2025/mihomo-optimized/ntp"
+	"github.com/tanzanite2025/mihomo-optimized/transport/shadowsocks/core"
 
 	"github.com/metacubex/randv2"
 )

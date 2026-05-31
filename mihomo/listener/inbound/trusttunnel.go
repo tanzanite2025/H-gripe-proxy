@@ -3,10 +3,10 @@ package inbound
 import (
 	"strings"
 
-	C "github.com/metacubex/mihomo/constant"
-	LC "github.com/metacubex/mihomo/listener/config"
-	"github.com/metacubex/mihomo/listener/trusttunnel"
-	"github.com/metacubex/mihomo/log"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
+	LC "github.com/tanzanite2025/mihomo-optimized/listener/config"
+	"github.com/tanzanite2025/mihomo-optimized/listener/trusttunnel"
+	"github.com/tanzanite2025/mihomo-optimized/log"
 )
 
 type TrustTunnelOption struct {

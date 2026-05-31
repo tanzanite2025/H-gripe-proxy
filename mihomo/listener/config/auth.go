@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/metacubex/mihomo/component/auth"
-	"github.com/metacubex/mihomo/listener/reality"
+	"github.com/tanzanite2025/mihomo-optimized/component/auth"
+	"github.com/tanzanite2025/mihomo-optimized/listener/reality"
 )
 
 // AuthServer for http/socks/mixed server
