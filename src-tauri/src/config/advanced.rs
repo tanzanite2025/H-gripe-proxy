@@ -19,6 +19,7 @@ use crate::core::ip_reputation::IpReputationConfig;
 use crate::core::security_policy::SecurityPolicy;
 use crate::core::session_affinity::SessionAffinityConfig;
 use crate::multipath::MultipathConfig;
+use crate::security::local_stealth::LocalStealthConfig;
 use crate::traffic::{TrafficPaddingConfig, TrafficObfuscationConfig};
 #[cfg(target_os = "linux")]
 use crate::xdp::XdpConfig;
@@ -80,6 +81,10 @@ pub struct AdvancedConfig {
     #[serde(default)]
     pub timezone_spoof: TimezoneSpoofConfig,
 
+    /// 本地隐蔽增强配置
+    #[serde(default)]
+    pub local_stealth: LocalStealthConfig,
+
     /// XDP 代理配置（仅 Linux）
     #[cfg(target_os = "linux")]
     #[serde(default)]
@@ -103,6 +108,7 @@ impl Default for AdvancedConfig {
             ip_reputation: IpReputationConfig::default(),
             blackhole_breaker: BlackholeBreakerConfig::default(),
             timezone_spoof: TimezoneSpoofConfig::default(),
+            local_stealth: LocalStealthConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig::default(),
         }
@@ -838,6 +844,7 @@ impl AdvancedConfig {
             ip_reputation: IpReputationConfig::default(),
             blackhole_breaker: BlackholeBreakerConfig::default(),
             timezone_spoof: TimezoneSpoofConfig::default(),
+            local_stealth: LocalStealthConfig::default(),
             #[cfg(target_os = "linux")]
             xdp: XdpConfig {
                 enabled: false,

@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { getDnsMetrics as pluginGetDnsMetrics, dnsWarmup as pluginDnsWarmup, type DnsMetrics } from 'tauri-plugin-mihomo-api'
 
 /**
  * DNS 协议类型
@@ -121,4 +122,14 @@ export async function dnsBatchHealthCheck(
     console.error('DNS batch health check failed:', err)
     throw err
   }
+}
+
+export type { DnsMetrics }
+
+export async function getDnsMetrics(): Promise<DnsMetrics> {
+  return await pluginGetDnsMetrics()
+}
+
+export async function dnsWarmup(): Promise<void> {
+  await pluginDnsWarmup()
 }

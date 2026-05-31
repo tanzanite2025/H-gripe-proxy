@@ -1,17 +1,18 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { updateGeo } from 'tauri-plugin-mihomo-api'
+import { getBaseConfig, patchBaseConfig, updateGeo } from 'tauri-plugin-mihomo-api'
 
 import { DialogRef, Switch } from '@/components/base'
 import { MenuItem, Select } from '@/components/tailwind/Select'
 import { useClash } from '@/hooks/data'
 import { useClashLog, useVerge } from '@/hooks/system'
-import { invoke_uwp_tool } from '@/services/cmds'
+import { invoke_uwp_tool, getGeoDataUpdateTime } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/misc'
 
 import { ClashCoreViewer } from './components/clash/clash-core'
 import { ClashPortViewer } from './components/clash/clash-port'
+import { GeoSourceConfig } from './components/clash/geo-source-config'
 import { ControllerViewer } from './components/network/controller'
 import { HeaderConfiguration } from './components/network/external-cors'
 import { NetworkInterfaceViewer } from './components/network/network-interface'
@@ -46,6 +47,7 @@ const SettingClash = ({ onError }: Props) => {
   const portRef = useRef<DialogRef>(null)
   const ctrlRef = useRef<DialogRef>(null)
   const coreRef = useRef<DialogRef>(null)
+  const geoSourceRef = useRef<DialogRef>(null)
   const networkRef = useRef<DialogRef>(null)
   const corsRef = useRef<DialogRef>(null)
   const tunnelRef = useRef<DialogRef>(null)
@@ -54,10 +56,67 @@ const SettingClash = ({ onError }: Props) => {
   const onChangeData = (patch: Partial<IConfigData>) => {
     mutateClash((old) => ({ ...old!, ...patch }), false)
   }
+  const [geoUpdating, setGeoUpdating] = useState(false)
+  const [geoAutoUpdate, setGeoAutoUpdate] = useState(false)
+  const [geoUpdateInterval, setGeoUpdateInterval] = useState(24)
+  const [geoLastUpdate, setGeoLastUpdate] = useState<string>('')
+
+  // 加载 Geo 配置
+  useEffect(() => {
+    getBaseConfig().then((cfg) => {
+      setGeoAutoUpdate(cfg.geoAutoUpdate)
+      setGeoUpdateInterval(cfg.geoUpdateInterval)
+    }).catch(() => {})
+    getGeoDataUpdateTime().then((t) => {
+      const latest = [t.mmdb, t.geoip, t.asn, t.geosite]
+        .filter((v): v is number => v != null)
+        .sort((a, b) => b - a)[0]
+      if (latest) {
+        const d = new Date(latest)
+        const diff = Date.now() - d.getTime()
+        const hours = Math.floor(diff / 3600000)
+        const days = Math.floor(hours / 24)
+        setGeoLastUpdate(
+          days > 0 ? `${days} 天前` : hours > 0 ? `${hours} 小时前` : '刚刚'
+        )
+      }
+    }).catch(() => {})
+  }, [])
+
   const onUpdateGeo = async () => {
+    setGeoUpdating(true)
     try {
       await updateGeo()
       showNotice.success('settings.feedback.notifications.clash.geoDataUpdated')
+      // 刷新更新时间
+      getGeoDataUpdateTime().then((t) => {
+        const latest = [t.mmdb, t.geoip, t.asn, t.geosite]
+          .filter((v): v is number => v != null)
+          .sort((a, b) => b - a)[0]
+        if (latest) {
+          setGeoLastUpdate('刚刚')
+        }
+      }).catch(() => {})
+    } catch (err: any) {
+      showNotice.error(err)
+    } finally {
+      setGeoUpdating(false)
+    }
+  }
+
+  const onToggleGeoAutoUpdate = async (val: boolean) => {
+    setGeoAutoUpdate(val)
+    try {
+      await patchBaseConfig({ 'geo-auto-update': val })
+    } catch (err: any) {
+      showNotice.error(err)
+    }
+  }
+
+  const onChangeGeoInterval = async (val: number) => {
+    setGeoUpdateInterval(val)
+    try {
+      await patchBaseConfig({ 'geo-update-interval': val })
     } catch (err: any) {
       showNotice.error(err)
     }
@@ -69,6 +128,7 @@ const SettingClash = ({ onError }: Props) => {
       <ClashPortViewer ref={portRef} />
       <ControllerViewer ref={ctrlRef} />
       <ClashCoreViewer ref={coreRef} />
+      <GeoSourceConfig ref={geoSourceRef} />
       <NetworkInterfaceViewer ref={networkRef} />
       <HeaderConfiguration ref={corsRef} />
       <TunnelsViewer ref={tunnelRef} />
@@ -254,17 +314,59 @@ const SettingClash = ({ onError }: Props) => {
       <SettingItem
         label={t('settings.sections.clash.form.fields.updateGeoData')}
         extra={
-          <button
-            type="button"
-            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
-            onClick={onUpdateGeo}
-          >
-            刷新
-          </button>
+          <>
+            <button
+              type="button"
+              className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors disabled:opacity-50"
+              onClick={onUpdateGeo}
+              disabled={geoUpdating}
+            >
+              {geoUpdating ? '更新中...' : '刷新'}
+            </button>
+            <button
+              type="button"
+              className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
+              onClick={() => geoSourceRef.current?.open()}
+            >
+              数据源
+            </button>
+          </>
         }
       >
-        <span />
+        <div className="flex items-center gap-2">
+          <GuardState
+            value={geoAutoUpdate}
+            valueProps="checked"
+            onCatch={onError}
+            onFormat={onSwitchFormat}
+            onChange={(e) => onToggleGeoAutoUpdate(e)}
+          >
+            <Switch checked={geoAutoUpdate} />
+          </GuardState>
+          {geoLastUpdate && (
+            <span className="text-xs text-text-secondary">{geoLastUpdate}</span>
+          )}
+        </div>
       </SettingItem>
+
+      {geoAutoUpdate && (
+        <SettingItem label="GeoData 更新间隔 (小时)">
+          <div className="w-[100px]">
+            <Select
+              size="small"
+              value={String(geoUpdateInterval)}
+              onChange={(e: any) => onChangeGeoInterval(Number(e.target.value))}
+            >
+              <MenuItem value="6">6</MenuItem>
+              <MenuItem value="12">12</MenuItem>
+              <MenuItem value="24">24</MenuItem>
+              <MenuItem value="48">48</MenuItem>
+              <MenuItem value="72">72</MenuItem>
+              <MenuItem value="168">168 (每周)</MenuItem>
+            </Select>
+          </div>
+        </SettingItem>
+      )}
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.tunnels.title')}

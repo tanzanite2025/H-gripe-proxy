@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { BlackholeBreakerConfig } from '@/services/blackhole-breaker'
 import type { ResolvedEgressIdentity } from '@/services/egress-identity'
 import type { IpReputationConfig } from '@/services/ip-reputation'
+import type { LocalStealthConfig } from '@/services/local-stealth'
 import type { MultipathConfig } from '@/services/multipath'
 import type { BindingInfo, SessionAffinityConfig } from '@/services/session-affinity'
 import type { TimezoneSpoofConfig } from '@/services/timezone-spoof'
@@ -81,6 +82,7 @@ export interface AdvancedConfig {
   ip_reputation: IpReputationConfig
   blackhole_breaker: BlackholeBreakerConfig
   timezone_spoof: TimezoneSpoofConfig
+  local_stealth: LocalStealthConfig
   xdp?: XdpConfig
 }
 

@@ -17,6 +17,7 @@ import { SecurityPolicyPanel } from '@/components/advanced/security-policy-panel
 import { TimezoneSpoofPanel } from '@/components/advanced/timezone-spoof-panel'
 import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { BasePage } from '@/components/base'
+import { LocalStealthPanel } from '@/components/security/local-stealth-panel'
 import { SessionAffinityBindings as SessionAffinityBindingsPanel } from '@/components/security/session-affinity-bindings'
 import { SessionAffinityConfig as SessionAffinityConfigPanel } from '@/components/security/session-affinity-config'
 import { Box, Tabs, Tab, Alert, Button, Stack } from '@/components/tailwind'
@@ -98,16 +99,17 @@ export default function AdvancedPage() {
 
   const securityTabIndex = 0
   const securityPolicyTabIndex = 1
-  const egressIdentityTabIndex = 2
-  const sessionAffinityTabIndex = 3
-  const egressMonitorTabIndex = 4
-  const residentialPoolTabIndex = 5
-  const ipReputationTabIndex = 6
-  const blackholeBreakerTabIndex = 7
-  const timezoneSpoofTabIndex = 8
-  const multipathTabIndex = 9
-  const xdpTabIndex = 10
-  const performanceTabIndex = isLinux ? 11 : 10
+  const localStealthTabIndex = 2
+  const egressIdentityTabIndex = 3
+  const sessionAffinityTabIndex = 4
+  const egressMonitorTabIndex = 5
+  const residentialPoolTabIndex = 6
+  const ipReputationTabIndex = 7
+  const blackholeBreakerTabIndex = 8
+  const timezoneSpoofTabIndex = 9
+  const multipathTabIndex = 10
+  const xdpTabIndex = 11
+  const performanceTabIndex = isLinux ? 12 : 11
 
 
   if (configLoading || statusLoading || !loadedConfig || !status || !localConfig) {
@@ -157,6 +159,7 @@ export default function AdvancedPage() {
         >
           <Tab label="安全防御" value={securityTabIndex} />
           <Tab label="安全策略" value={securityPolicyTabIndex} />
+          <Tab label="本地隐蔽" value={localStealthTabIndex} />
           <Tab label="出口身份" value={egressIdentityTabIndex} />
           <Tab label="会话绑定" value={sessionAffinityTabIndex} />
           <Tab label="出口监控" value={egressMonitorTabIndex} />
@@ -186,6 +189,10 @@ export default function AdvancedPage() {
             setLocalConfig({ ...localConfig, security_policies })
           }
         />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={localStealthTabIndex}>
+        <LocalStealthPanel />
       </TabPanel>
 
       <TabPanel value={tabValue} index={egressIdentityTabIndex}>

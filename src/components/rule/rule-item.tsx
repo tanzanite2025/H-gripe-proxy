@@ -13,6 +13,7 @@ const COLOR = [
 
 interface Props {
   value: Rule
+  isShadowed?: boolean
 }
 
 const parseColor = (text: string) => {
@@ -39,11 +40,15 @@ const sourceColor = (source: string) => {
 }
 
 const RuleItem = (props: Props) => {
-  const { value } = props
+  const { value, isShadowed } = props
   const { refreshRules } = useAppRefreshers()
   const isDisabled = value.extra?.disabled ?? false
   const isDeleted = value.extra?.deleted ?? false
   const hitCount = value.extra?.hitCount ?? 0
+  const missCount = value.extra?.missCount ?? 0
+  const hitAt = value.extra?.hitAt
+  const totalAttempts = hitCount + missCount
+  const hitRate = totalAttempts > 0 ? ((hitCount / totalAttempts) * 100).toFixed(1) : null
 
   const handleToggle = async () => {
     await disableRules({ [value.index]: !isDisabled })
@@ -61,6 +66,7 @@ const RuleItem = (props: Props) => {
         'flex items-center border-b border-divider-light px-4 py-1 text-gray-900 dark:border-divider-dark dark:text-gray-100',
         (isDisabled || isDeleted) && 'opacity-40',
         isDeleted && 'line-through',
+        isShadowed && 'bg-yellow-50/50 dark:bg-yellow-900/10',
       )}
     >
       <span className="mr-4 min-w-[30px] text-center text-sm leading-8 text-gray-600 dark:text-gray-400">
@@ -86,8 +92,8 @@ const RuleItem = (props: Props) => {
       </span>
 
       {hitCount > 0 && (
-        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-          {hitCount} hits
+        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap" title={`Hit: ${hitCount}, Miss: ${missCount}${hitRate ? `, Rate: ${hitRate}%` : ''}${hitAt ? `, Last: ${new Date(hitAt).toLocaleTimeString()}` : ''}`}>
+          {hitCount} hits{hitRate ? ` (${hitRate}%)` : ''}
         </span>
       )}
 

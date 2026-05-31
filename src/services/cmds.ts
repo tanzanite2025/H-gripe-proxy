@@ -97,6 +97,17 @@ export async function getRuntimeConfig() {
   return invoke<IConfigData | null>('get_runtime_config')
 }
 
+export interface GeoDataUpdateTime {
+  mmdb: number | null
+  geoip: number | null
+  asn: number | null
+  geosite: number | null
+}
+
+export async function getGeoDataUpdateTime() {
+  return invoke<GeoDataUpdateTime>('get_geo_data_update_time')
+}
+
 export async function getRuntimeYaml() {
   return invoke<string | null>('get_runtime_yaml')
 }

@@ -14,6 +14,7 @@ use tauri::Emitter;
 pub mod anti_debug;
 pub mod config_decoy;
 pub mod local_security;
+pub mod local_stealth;
 pub mod firewall;
 pub mod leak_monitor;
 pub mod memory_honeypot;
@@ -79,3 +80,6 @@ pub use local_security::{LocalSecurityConfig, LocalSecurityMonitor, LeakMonitorS
 pub use firewall::{FirewallManager, FirewallRule, Protocol, Action};
 #[allow(unused_imports)]
 pub use leak_monitor::{LeakMonitor, LeakType, detect_leak_types};
+#[allow(unused_imports)]
+pub use local_stealth::{LocalStealthConfig, LocalStealthManager, StealthApplyResult,
+    ProcessStealthConfig, PortStealthConfig, AntiDiscoveryConfig};

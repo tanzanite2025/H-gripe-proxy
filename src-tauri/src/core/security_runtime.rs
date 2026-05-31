@@ -2,6 +2,7 @@ use crate::security::{
     config_decoy::{generate_encryption_key, ConfigDecoy, SecureConfigStorage},
     leak_monitor::LeakMonitor,
     local_security::LocalSecurityMonitor,
+    local_stealth::LocalStealthManager,
     memory_honeypot,
     anti_debug,
     SecurityMonitor,
@@ -39,7 +40,11 @@ static HONEYPOT_FLAG: Lazy<Arc<AtomicBool>> =
 static ANTI_DEBUG_FLAG: Lazy<Arc<AtomicBool>> =
     Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
+static LOCAL_STEALTH_MANAGER: Lazy<Arc<tokio::sync::RwLock<LocalStealthManager>>> =
+    Lazy::new(|| Arc::new(tokio::sync::RwLock::new(LocalStealthManager::new(LocalStealthConfig::default()))));
+
 pub use crate::security::local_security::{LeakMonitorStatus, LocalSecurityConfig};
+pub use crate::security::local_stealth::{LocalStealthConfig, StealthApplyResult};
 
 // ---------- Security monitor control ----------
 pub async fn start_monitor() {
@@ -296,4 +301,36 @@ pub async fn leak_monitor_get_port() -> Result<u16> {
     } else {
         bail!("泄漏监控未运行")
     }
+}
+
+// ---------- Local stealth ----------
+
+pub async fn local_stealth_get_config() -> LocalStealthConfig {
+    let manager = LOCAL_STEALTH_MANAGER.read().await;
+    manager.get_config().await
+}
+
+pub async fn local_stealth_update_config(config: LocalStealthConfig) {
+    let mut manager = LOCAL_STEALTH_MANAGER.write().await;
+    manager.update_config(config).await;
+}
+
+pub async fn local_stealth_apply() -> Result<StealthApplyResult> {
+    let mut manager = LOCAL_STEALTH_MANAGER.write().await;
+    manager.apply_all().await.map_err(|e| anyhow!(e))
+}
+
+pub async fn local_stealth_restore() {
+    let manager = LOCAL_STEALTH_MANAGER.read().await;
+    manager.restore_all().await;
+}
+
+pub async fn local_stealth_allocate_port() -> Result<u16> {
+    let manager = LOCAL_STEALTH_MANAGER.read().await;
+    manager.port_manager().allocate_stealth_port().await.map_err(|e| anyhow!(e))
+}
+
+pub async fn local_stealth_get_port() -> Result<Option<u16>> {
+    let manager = LOCAL_STEALTH_MANAGER.read().await;
+    Ok(manager.port_manager().get_current_port().await)
 }
