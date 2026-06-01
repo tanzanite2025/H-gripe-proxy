@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
+import { normalizeIpReputation, type IpReputation } from '@/services/ip-reputation'
 import { debugLog } from '@/utils/misc'
 
 export async function copyClashEnv() {
@@ -128,6 +129,7 @@ export interface DnsRuntimeDerivedState {
   domestic_dns: string[]
   foreign_dns: string[]
   default_nameserver_count: number
+  default_nameserver_plain_count: number
   prefer_h3: boolean | null
   leak_protection_level: string | null
   leak_protection_security: string | null
@@ -159,6 +161,72 @@ export interface DnsLeakServer {
   isp: string | null
 }
 
+export interface DnsMetrics {
+  cache: {
+    hit: number
+    miss: number
+    size: number
+    hitRate: number
+  }
+  queries: {
+    total: number
+    success: number
+    failed: number
+    avgLatencyUs: number
+    maxLatencyUs: number
+  }
+  servers: Array<{
+    server: string
+    queries: number
+    successes: number
+    failures: number
+    avgLatencyUs: number
+    lastQuery: string
+    lastError?: string | null
+  }>
+  recent: Array<{
+    domain: string
+    qType: string
+    server: string
+    protocol: string
+    proxyName?: string | null
+    proxyChain?: string | null
+    egress?: string | null
+    rule?: string | null
+    rulePayload?: string | null
+    success: boolean
+    error?: string | null
+    latencyUs: number
+    timestamp: string
+  }>
+  pollution: {
+    totalChecked: number
+    pollutedCount: number
+    pollutionRate: number
+    recentPolluted: Array<{
+      domain: string
+      ip: string
+      reason: string
+      timestamp: string
+    }>
+  }
+  trust: {
+    total: number
+    encrypted: number
+    unencrypted: number
+    byTrustLevel: Record<string, number>
+    servers: Array<{
+      address: string
+      protocol: string
+      trustLevel: string
+      encrypted: boolean
+      description?: string | null
+    }>
+    leakRiskScore: number
+    lastEvaluated: string
+  }
+}
+
 export interface DnsLeakTestResult {
   has_leak: boolean
   observed_leak: boolean
@@ -172,6 +240,7 @@ export interface DnsLeakTestResult {
   warnings: string[]
   recommendations: string[]
   dns_servers: DnsLeakServer[]
+  dns_metrics: DnsMetrics | null
   dns_location: string | null
   ip_location: string
   location_match: boolean
@@ -217,13 +286,23 @@ export interface ProxyDetectionResult {
   proxy_ip: string | null
   direct_location: ProxyDetectionLocation | null
   proxy_location: ProxyDetectionLocation | null
+  proxy_reputation: IpReputation | null
   observation_path: 'direct-vs-core-proxy' | 'direct-only' | 'core-proxy-only' | string
   error: string | null
   timestamp: number
 }
 
 export async function testProxyDetection() {
-  return invoke<ProxyDetectionResult>('test_proxy_detection')
+  const result = await invoke<ProxyDetectionResult & { proxy_reputation?: unknown }>(
+    'test_proxy_detection',
+  )
+
+  return {
+    ...result,
+    proxy_reputation: result.proxy_reputation
+      ? normalizeIpReputation(result.proxy_reputation)
+      : null,
+  }
 }
 
 export interface TorRuntimeStatus {

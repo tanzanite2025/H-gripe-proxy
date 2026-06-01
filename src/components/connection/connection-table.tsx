@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-table'
 import dayjs from 'dayjs'
 import { useLocalStorage } from 'foxact/use-local-storage'
+import { X } from 'lucide-react'
 import {
   memo,
   useCallback,
@@ -22,10 +23,18 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { closeConnection } from 'tauri-plugin-mihomo-api'
 
+import { IconButton } from '@/components/tailwind/IconButton'
 import parseTraffic from '@/utils/format'
 import { truncateStr } from '@/utils/format'
 
+import {
+  getConnectionViewSpec,
+  type ConnectionTableField,
+  type ConnectionViewMode,
+} from './connection-page-model'
+import { createCloseConnectionAction } from './connection-actions'
 import { ConnectionColumnManager } from './connection-column-manager'
 import { ConnectionTableUI } from './connection-table-ui'
 
@@ -81,19 +90,7 @@ const reconcileColumnOrder = (
   return [...filtered, ...missing]
 }
 
-type ColumnField =
-  | 'host'
-  | 'download'
-  | 'upload'
-  | 'dlSpeed'
-  | 'ulSpeed'
-  | 'chains'
-  | 'rule'
-  | 'process'
-  | 'time'
-  | 'source'
-  | 'remoteDestination'
-  | 'type'
+type ColumnField = ConnectionTableField | 'actions'
 
 const getConnectionCellValue = (field: ColumnField, each: IConnectionsItem) => {
   const { metadata, rulePayload } = each
@@ -127,6 +124,8 @@ const getConnectionCellValue = (field: ColumnField, each: IConnectionsItem) => {
         : `${metadata.remoteDestination}:${metadata.destinationPort}`
     case 'type':
       return `${metadata.type}(${metadata.network})`
+    case 'actions':
+      return ''
     default:
       return ''
   }
@@ -134,6 +133,7 @@ const getConnectionCellValue = (field: ColumnField, each: IConnectionsItem) => {
 
 interface Props {
   connections: IConnectionsItem[]
+  viewMode: ConnectionViewMode
   onShowDetail: (data: IConnectionsItem) => void
   columnManagerOpen: boolean
   onCloseColumnManager: () => void
@@ -142,6 +142,7 @@ interface Props {
 export const ConnectionTable = (props: Props) => {
   const {
     connections,
+    viewMode,
     onShowDetail: rawOnShowDetail,
     columnManagerOpen,
     onCloseColumnManager,
@@ -153,6 +154,8 @@ export const ConnectionTable = (props: Props) => {
     [],
   )
   const { t } = useTranslation()
+  const closed = viewMode === 'closed'
+  const { tableFields } = getConnectionViewSpec(viewMode)
   const [columnWidths, setColumnWidths] = useLocalStorage<ColumnSizingState>(
     'connection-table-widths',
     {},
@@ -200,17 +203,20 @@ export const ConnectionTable = (props: Props) => {
     minWidth?: number
     align?: 'left' | 'right'
     cell?: (row: IConnectionsItem) => ReactNode
+    enableSorting?: boolean
+    enableResizing?: boolean
+    canHide?: boolean
   }
 
   const baseColumns = useMemo<BaseColumn[]>(() => {
-    return [
-      {
+    const columnRegistry: Record<ConnectionTableField, BaseColumn> = {
+      host: {
         field: 'host',
         headerName: t('connections.components.fields.host'),
         width: 180,
         minWidth: 140,
       },
-      {
+      download: {
         field: 'download',
         headerName: t('shared.labels.downloaded'),
         width: 76,
@@ -218,7 +224,7 @@ export const ConnectionTable = (props: Props) => {
         align: 'right',
         cell: (row) => parseTraffic(row.download).join(' '),
       },
-      {
+      upload: {
         field: 'upload',
         headerName: t('shared.labels.uploaded'),
         width: 76,
@@ -226,7 +232,7 @@ export const ConnectionTable = (props: Props) => {
         align: 'right',
         cell: (row) => parseTraffic(row.upload).join(' '),
       },
-      {
+      dlSpeed: {
         field: 'dlSpeed',
         headerName: t('connections.components.fields.dlSpeed'),
         width: 76,
@@ -234,7 +240,7 @@ export const ConnectionTable = (props: Props) => {
         align: 'right',
         cell: (row) => `${parseTraffic(row.curDownload).join(' ')}/s`,
       },
-      {
+      ulSpeed: {
         field: 'ulSpeed',
         headerName: t('connections.components.fields.ulSpeed'),
         width: 76,
@@ -242,51 +248,91 @@ export const ConnectionTable = (props: Props) => {
         align: 'right',
         cell: (row) => `${parseTraffic(row.curUpload).join(' ')}/s`,
       },
-      {
+      chains: {
         field: 'chains',
         headerName: t('connections.components.fields.chains'),
         width: 280,
         minWidth: 160,
       },
-      {
+      rule: {
         field: 'rule',
         headerName: t('connections.components.fields.rule'),
         width: 220,
         minWidth: 160,
       },
-      {
+      process: {
         field: 'process',
         headerName: t('connections.components.fields.process'),
         width: 180,
         minWidth: 140,
       },
-      {
+      time: {
         field: 'time',
         headerName: t('connections.components.fields.time'),
         width: 100,
         minWidth: 80,
         align: 'right',
       },
-      {
+      source: {
         field: 'source',
         headerName: t('connections.components.fields.source'),
         width: 160,
         minWidth: 120,
       },
-      {
+      remoteDestination: {
         field: 'remoteDestination',
         headerName: t('connections.components.fields.destination'),
         width: 160,
         minWidth: 120,
       },
-      {
+      type: {
         field: 'type',
         headerName: t('connections.components.fields.type'),
         width: 120,
         minWidth: 80,
       },
-    ]
-  }, [t])
+    }
+
+    const columns = tableFields.map((field) => columnRegistry[field])
+
+    if (!closed) {
+      columns.push({
+        field: 'actions',
+        headerName: t('connections.components.actions.closeConnection'),
+        width: 72,
+        minWidth: 72,
+        align: 'right',
+        enableSorting: false,
+        enableResizing: false,
+        canHide: false,
+        cell: (row) => {
+          const action = createCloseConnectionAction({
+            closed,
+            connectionId: row.id,
+            onCloseConnection: closeConnection,
+          })
+
+          if (!action) return null
+
+          return (
+            <IconButton
+              size="small"
+              title={t('connections.components.actions.closeConnection')}
+              aria-label={t('connections.components.actions.closeConnection')}
+              onClick={(event) => {
+                event.stopPropagation()
+                void action.onAction()
+              }}
+            >
+              <X className="h-4 w-4" />
+            </IconButton>
+          )
+        },
+      })
+    }
+
+    return columns
+  }, [closed, t, tableFields])
 
   useEffect(() => {
     setColumnOrder((prevValue) => {
@@ -376,6 +422,9 @@ export const ConnectionTable = (props: Props) => {
           label: column.headerName,
         },
         cell,
+        enableSorting: column.enableSorting ?? true,
+        enableHiding: column.canHide ?? true,
+        enableResizing: column.enableResizing ?? true,
       } satisfies ColumnDef<IConnectionsItem>
     })
   }, [baseColumns])

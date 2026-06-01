@@ -1,33 +1,31 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use hickory_proto::rr::Name;
 use hickory_resolver::config::*;
 use hickory_resolver::TokioAsyncResolver;
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-/// DNS 协议类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DnsProtocol {
     Udp,
     Tcp,
-    Doh, // DNS over HTTPS
-    Dot, // DNS over TLS
+    Doh,
+    Dot,
 }
 
-/// DNS 查询结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsQueryResult {
     pub domain: String,
     pub ip: String,
-    pub latency: u64, // 毫秒
+    pub latency: u64,
     pub success: bool,
     pub error: Option<String>,
     pub protocol: String,
 }
 
-/// DNS 服务器健康检查结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsHealthCheckResult {
     pub server: String,
@@ -37,145 +35,265 @@ pub struct DnsHealthCheckResult {
     pub protocol: String,
 }
 
-/// 创建 DNS 解析器
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DnsServerEndpoint {
+    socket_addr: SocketAddr,
+    tls_dns_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DnsServerParts {
+    scheme: Option<String>,
+    host: String,
+    port: Option<u16>,
+}
+
+fn infer_dns_protocol(server: Option<&str>, protocol: Option<DnsProtocol>) -> DnsProtocol {
+    if let Some(protocol) = protocol {
+        return protocol;
+    }
+
+    let Some(server) = server else {
+        return DnsProtocol::Udp;
+    };
+
+    let normalized = server.trim().to_ascii_lowercase();
+    if normalized.starts_with("https://") {
+        DnsProtocol::Doh
+    } else if normalized.starts_with("tls://") || normalized.starts_with("dot://") {
+        DnsProtocol::Dot
+    } else if normalized.starts_with("tcp://") {
+        DnsProtocol::Tcp
+    } else {
+        DnsProtocol::Udp
+    }
+}
+
+fn dns_protocol_name(protocol: DnsProtocol) -> String {
+    format!("{protocol:?}")
+}
+
+fn default_dns_port(protocol: &DnsProtocol) -> u16 {
+    match protocol {
+        DnsProtocol::Udp | DnsProtocol::Tcp => 53,
+        DnsProtocol::Doh => 443,
+        DnsProtocol::Dot => 853,
+    }
+}
+
+fn resolver_protocol(protocol: DnsProtocol) -> Protocol {
+    match protocol {
+        DnsProtocol::Udp => Protocol::Udp,
+        DnsProtocol::Tcp => Protocol::Tcp,
+        DnsProtocol::Doh => Protocol::Https,
+        DnsProtocol::Dot => Protocol::Tls,
+    }
+}
+
+fn parse_dns_server_endpoint(server: &str, protocol: &DnsProtocol) -> Result<DnsServerEndpoint> {
+    let parts = parse_dns_server_parts(server)?;
+    validate_dns_scheme(parts.scheme.as_deref(), protocol)?;
+
+    let port = parts.port.unwrap_or_else(|| default_dns_port(protocol));
+    let ip = parts
+        .host
+        .parse::<IpAddr>()
+        .or_else(|_| {
+            known_dns_ip_for_host(&parts.host).ok_or_else(|| {
+                anyhow!(
+                    "unsupported DNS hostname `{}`; use a known DNS provider hostname or an IP address",
+                    parts.host
+                )
+            })
+        })?;
+
+    let tls_dns_name = match protocol {
+        DnsProtocol::Doh | DnsProtocol::Dot => tls_dns_name_for_endpoint(&parts.host, ip),
+        DnsProtocol::Udp | DnsProtocol::Tcp => None,
+    };
+
+    Ok(DnsServerEndpoint {
+        socket_addr: SocketAddr::new(ip, port),
+        tls_dns_name,
+    })
+}
+
+fn parse_dns_server_parts(server: &str) -> Result<DnsServerParts> {
+    let trimmed = server.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow!("DNS server cannot be empty"));
+    }
+
+    let (scheme, authority) = if let Some(index) = trimmed.find("://") {
+        let scheme = trimmed[..index].to_ascii_lowercase();
+        let authority = trimmed[index + 3..]
+            .split('/')
+            .next()
+            .unwrap_or_default()
+            .trim();
+        (Some(scheme), authority)
+    } else {
+        (None, trimmed)
+    };
+
+    if authority.is_empty() {
+        return Err(anyhow!("DNS server host cannot be empty"));
+    }
+
+    let (host, port) = split_dns_authority(authority)?;
+    if host.is_empty() {
+        return Err(anyhow!("DNS server host cannot be empty"));
+    }
+
+    Ok(DnsServerParts {
+        scheme,
+        host: host.to_ascii_lowercase(),
+        port,
+    })
+}
+
+fn split_dns_authority(authority: &str) -> Result<(String, Option<u16>)> {
+    if let Some(rest) = authority.strip_prefix('[') {
+        let end = rest
+            .find(']')
+            .ok_or_else(|| anyhow!("invalid bracketed IPv6 DNS server `{authority}`"))?;
+        let host = rest[..end].to_string();
+        let suffix = &rest[end + 1..];
+        let port = if suffix.is_empty() {
+            None
+        } else {
+            let Some(port_text) = suffix.strip_prefix(':') else {
+                return Err(anyhow!("invalid DNS server `{authority}`"));
+            };
+            Some(parse_dns_port(port_text)?)
+        };
+        return Ok((host, port));
+    }
+
+    let colon_count = authority.matches(':').count();
+    if colon_count == 1 {
+        let (host, port_text) = authority
+            .rsplit_once(':')
+            .ok_or_else(|| anyhow!("invalid DNS server `{authority}`"))?;
+        return Ok((host.to_string(), Some(parse_dns_port(port_text)?)));
+    }
+
+    Ok((authority.to_string(), None))
+}
+
+fn parse_dns_port(port_text: &str) -> Result<u16> {
+    port_text
+        .parse::<u16>()
+        .map_err(|_| anyhow!("invalid DNS server port `{port_text}`"))
+}
+
+fn validate_dns_scheme(scheme: Option<&str>, protocol: &DnsProtocol) -> Result<()> {
+    let Some(scheme) = scheme else {
+        return Ok(());
+    };
+
+    let matched = match protocol {
+        DnsProtocol::Udp => scheme == "udp" || scheme == "dns",
+        DnsProtocol::Tcp => scheme == "tcp",
+        DnsProtocol::Doh => scheme == "https",
+        DnsProtocol::Dot => scheme == "tls" || scheme == "dot",
+    };
+
+    if matched {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "DNS server scheme `{scheme}` does not match protocol `{protocol:?}`"
+        ))
+    }
+}
+
+fn known_dns_ip_for_host(host: &str) -> Option<IpAddr> {
+    let ip = match host {
+        "cloudflare-dns.com" | "one.one.one.one" | "1dot1dot1dot1.cloudflare-dns.com" => {
+            "1.1.1.1"
+        }
+        "dns.google" => "8.8.8.8",
+        "dns.quad9.net" => "9.9.9.9",
+        "dns.alidns.com" => "223.5.5.5",
+        "doh.pub" => "119.29.29.29",
+        "dot.pub" => "1.12.12.12",
+        _ => return None,
+    };
+
+    ip.parse().ok()
+}
+
+fn tls_dns_name_for_endpoint(host: &str, ip: IpAddr) -> Option<String> {
+    if host.parse::<IpAddr>().is_err() {
+        return Some(host.to_string());
+    }
+
+    match ip.to_string().as_str() {
+        "1.1.1.1" | "1.0.0.1" => Some("cloudflare-dns.com".to_string()),
+        "8.8.8.8" | "8.8.4.4" => Some("dns.google".to_string()),
+        "9.9.9.9" => Some("dns.quad9.net".to_string()),
+        "223.5.5.5" | "223.6.6.6" => Some("dns.alidns.com".to_string()),
+        "119.29.29.29" | "120.53.53.53" => Some("doh.pub".to_string()),
+        "1.12.12.12" => Some("dot.pub".to_string()),
+        _ => None,
+    }
+}
+
 async fn create_resolver(
     server: Option<String>,
     protocol: Option<DnsProtocol>,
 ) -> Result<TokioAsyncResolver> {
-    let protocol = protocol.unwrap_or(DnsProtocol::Udp);
+    let effective_protocol = infer_dns_protocol(server.as_deref(), protocol);
 
-    // 如果没有指定服务器，使用系统默认
-    if server.is_none() {
+    let Some(server_addr) = server else {
         return Ok(TokioAsyncResolver::tokio(
             ResolverConfig::default(),
             ResolverOpts::default(),
         ));
-    }
+    };
 
-    let server_addr = server.unwrap();
+    let endpoint = parse_dns_server_endpoint(&server_addr, &effective_protocol)?;
     let mut config = ResolverConfig::new();
-
-    match protocol {
-        DnsProtocol::Udp => {
-            // UDP DNS (标准 DNS，端口 53)
-            let socket_addr = if server_addr.contains(':') {
-                server_addr.clone()
-            } else {
-                format!("{}:53", server_addr)
-            };
-
-            config.add_name_server(NameServerConfig {
-                socket_addr: socket_addr.parse()?,
-                protocol: Protocol::Udp,
-                tls_dns_name: None,
-                tls_config: None,
-                trust_negative_responses: true,
-                bind_addr: None,
-            });
-        }
-        DnsProtocol::Tcp => {
-            // TCP DNS (端口 53)
-            let socket_addr = if server_addr.contains(':') {
-                server_addr.clone()
-            } else {
-                format!("{}:53", server_addr)
-            };
-
-            config.add_name_server(NameServerConfig {
-                socket_addr: socket_addr.parse()?,
-                protocol: Protocol::Tcp,
-                tls_dns_name: None,
-                tls_config: None,
-                trust_negative_responses: true,
-                bind_addr: None,
-            });
-        }
-        DnsProtocol::Doh => {
-            // DNS over HTTPS (端口 443)
-            let socket_addr = if server_addr.contains(':') {
-                server_addr.clone()
-            } else {
-                format!("{}:443", server_addr)
-            };
-
-            // 从 IP 地址提取 TLS DNS 名称
-            let tls_dns_name = match server_addr.as_str() {
-                "1.1.1.1" | "1.0.0.1" => Some("cloudflare-dns.com".to_string()),
-                "8.8.8.8" | "8.8.4.4" => Some("dns.google".to_string()),
-                "9.9.9.9" => Some("dns.quad9.net".to_string()),
-                _ => None,
-            };
-
-            config.add_name_server(NameServerConfig {
-                socket_addr: socket_addr.parse()?,
-                protocol: Protocol::Https,
-                tls_dns_name,
-                tls_config: None,
-                trust_negative_responses: true,
-                bind_addr: None,
-            });
-        }
-        DnsProtocol::Dot => {
-            // DNS over TLS (端口 853)
-            let socket_addr = if server_addr.contains(':') {
-                server_addr.clone()
-            } else {
-                format!("{}:853", server_addr)
-            };
-
-            // 从 IP 地址提取 TLS DNS 名称
-            let tls_dns_name = match server_addr.as_str() {
-                "1.1.1.1" | "1.0.0.1" => Some("cloudflare-dns.com".to_string()),
-                "8.8.8.8" | "8.8.4.4" => Some("dns.google".to_string()),
-                "9.9.9.9" => Some("dns.quad9.net".to_string()),
-                _ => None,
-            };
-
-            config.add_name_server(NameServerConfig {
-                socket_addr: socket_addr.parse()?,
-                protocol: Protocol::Tls,
-                tls_dns_name,
-                tls_config: None,
-                trust_negative_responses: true,
-                bind_addr: None,
-            });
-        }
-    }
+    config.add_name_server(NameServerConfig {
+        socket_addr: endpoint.socket_addr,
+        protocol: resolver_protocol(effective_protocol),
+        tls_dns_name: endpoint.tls_dns_name,
+        tls_config: None,
+        trust_negative_responses: true,
+        bind_addr: None,
+    });
 
     let mut opts = ResolverOpts::default();
-    opts.timeout = std::time::Duration::from_secs(5);
+    opts.timeout = Duration::from_secs(5);
     opts.attempts = 2;
 
     Ok(TokioAsyncResolver::tokio(config, opts))
 }
 
-/// DNS 查询
-/// 支持自定义 DNS 服务器和协议（UDP/TCP/DoH/DoT）
 pub async fn dns_query(
     domain: String,
     server: Option<String>,
     protocol: Option<DnsProtocol>,
 ) -> Result<DnsQueryResult> {
     let start = Instant::now();
-    let protocol_str = protocol
-        .as_ref()
-        .map(|p| format!("{:?}", p))
-        .unwrap_or_else(|| "System".to_string());
+    let effective_protocol = infer_dns_protocol(server.as_deref(), protocol);
+    let protocol_str = if server.is_none() && protocol.is_none() {
+        "System".to_string()
+    } else {
+        dns_protocol_name(effective_protocol)
+    };
 
-    // 创建解析器
-    let resolver = create_resolver(server.clone(), protocol.clone()).await?;
-
-    // 解析域名
+    let resolver = create_resolver(server.clone(), Some(effective_protocol)).await?;
     let name = Name::from_str(&domain)?;
 
     match resolver.lookup_ip(name).await {
         Ok(response) => {
             let latency = start.elapsed().as_millis() as u64;
 
-            // 获取第一个 IP 地址
             if let Some(ip) = response.iter().next() {
                 Ok(DnsQueryResult {
-                    domain: domain.clone(),
+                    domain,
                     ip: ip.to_string(),
                     latency,
                     success: true,
@@ -184,7 +302,7 @@ pub async fn dns_query(
                 })
             } else {
                 Ok(DnsQueryResult {
-                    domain: domain.clone(),
+                    domain,
                     ip: String::new(),
                     latency,
                     success: false,
@@ -196,7 +314,7 @@ pub async fn dns_query(
         Err(e) => {
             let latency = start.elapsed().as_millis() as u64;
             Ok(DnsQueryResult {
-                domain: domain.clone(),
+                domain,
                 ip: String::new(),
                 latency,
                 success: false,
@@ -207,8 +325,6 @@ pub async fn dns_query(
     }
 }
 
-/// DNS 服务器健康检查
-/// 使用指定的测试域名检查 DNS 服务器的健康状态
 pub async fn dns_health_check(
     server: String,
     test_domain: Option<String>,
@@ -216,14 +332,10 @@ pub async fn dns_health_check(
 ) -> Result<DnsHealthCheckResult> {
     let domain = test_domain.unwrap_or_else(|| "www.google.com".to_string());
     let start = Instant::now();
-    let protocol_str = protocol
-        .as_ref()
-        .map(|p| format!("{:?}", p))
-        .unwrap_or_else(|| "Udp".to_string());
+    let effective_protocol = infer_dns_protocol(Some(&server), protocol);
+    let protocol_str = dns_protocol_name(effective_protocol);
 
-    // 创建解析器
-    let resolver = create_resolver(Some(server.clone()), protocol.clone()).await?;
-
+    let resolver = create_resolver(Some(server.clone()), Some(effective_protocol)).await?;
     let name = Name::from_str(&domain)?;
 
     match resolver.lookup_ip(name).await {
@@ -247,5 +359,48 @@ pub async fn dns_health_check(
                 protocol: protocol_str,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn doh_url_uses_known_endpoint_and_tls_name() {
+        let endpoint =
+            parse_dns_server_endpoint("https://dns.google/dns-query", &DnsProtocol::Doh).unwrap();
+
+        assert_eq!(endpoint.socket_addr.to_string(), "8.8.8.8:443");
+        assert_eq!(endpoint.tls_dns_name.as_deref(), Some("dns.google"));
+    }
+
+    #[test]
+    fn dot_url_uses_known_endpoint_and_tls_name() {
+        let endpoint =
+            parse_dns_server_endpoint("tls://dns.quad9.net:853", &DnsProtocol::Dot).unwrap();
+
+        assert_eq!(endpoint.socket_addr.to_string(), "9.9.9.9:853");
+        assert_eq!(endpoint.tls_dns_name.as_deref(), Some("dns.quad9.net"));
+    }
+
+    #[test]
+    fn plain_ipv4_uses_protocol_default_port() {
+        let endpoint = parse_dns_server_endpoint("1.1.1.1", &DnsProtocol::Udp).unwrap();
+
+        assert_eq!(endpoint.socket_addr.to_string(), "1.1.1.1:53");
+        assert_eq!(endpoint.tls_dns_name, None);
+    }
+
+    #[test]
+    fn protocol_is_inferred_from_url_scheme_when_omitted() {
+        assert_eq!(
+            infer_dns_protocol(Some("https://cloudflare-dns.com/dns-query"), None),
+            DnsProtocol::Doh
+        );
+        assert_eq!(
+            infer_dns_protocol(Some("tls://dns.google"), None),
+            DnsProtocol::Dot
+        );
     }
 }

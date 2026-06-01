@@ -13,6 +13,10 @@ import { ToggleButton, ToggleButtonGroup } from '@/components/tailwind/ToggleBut
 import { testDnsLeak, type DnsLeakTestResult, type DnsRuntimeStatus } from '@/services/cmds'
 import type { DnsLeakProtectionLevel } from '@/services/coordinator'
 import {
+  formatDNSLeakSignal,
+  formatDNSRuntimeRisk,
+} from '@/services/dns-leak-detection'
+import {
   dnsLeakProtectionService,
 } from '@/services/dns-leak-protection'
 
@@ -32,9 +36,9 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
   const runtimeSafe = runtimeStatus?.derived.leak_protection_safe
   const runtimeFeatures = [
     runtimeStatus?.snapshot.enhanced_mode === 'fake-ip' ? '启用 Fake-IP 模式' : null,
-    runtimeStatus?.derived.default_nameserver_count === 0 ? '阻止明文 DNS' : null,
+    runtimeStatus?.derived.default_nameserver_plain_count === 0 ? '阻止明文 DNS' : null,
     runtimeStatus?.snapshot.ipv6 === false ? '阻止 IPv6 DNS' : null,
-    runtimeStatus?.derived.prefer_h3 ? '强制使用 DoH' : null,
+    runtimeStatus?.derived.prefer_h3 ? 'DoH 优先使用 HTTP/3' : null,
     runtimeStatus?.snapshot.respect_rules ? '遵循运行时规则' : null,
   ].filter(Boolean) as string[]
 
@@ -376,7 +380,7 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                 </div>
                 <div className="flex flex-wrap gap-0.5">
                   {testResult.observed_leak_type.map((type) => (
-                    <Chip key={type} label={type} size="small" color="error" className="text-[0.7rem]" />
+                    <Chip key={type} label={formatDNSLeakSignal(type)} size="small" color="error" className="text-[0.7rem]" />
                   ))}
                 </div>
               </div>
@@ -389,7 +393,7 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                 </div>
                 <div className="flex flex-wrap gap-0.5">
                   {testResult.runtime_risk_type.map((type) => (
-                    <Chip key={type} label={type} size="small" color="warning" className="text-[0.7rem]" />
+                    <Chip key={type} label={formatDNSRuntimeRisk(type)} size="small" color="warning" className="text-[0.7rem]" />
                   ))}
                 </div>
               </div>

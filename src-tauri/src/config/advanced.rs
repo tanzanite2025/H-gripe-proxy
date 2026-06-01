@@ -355,6 +355,10 @@ impl DnsAdvancedConfig {
             DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
         );
         let block_ipv6_dns = matches!(self.leak_protection_level, DnsLeakProtectionLevel::Paranoid);
+        let block_system_hosts = matches!(
+            self.leak_protection_level,
+            DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
+        );
 
         let domestic_plain = vec!["223.5.5.5", "119.29.29.29"];
         let domestic_doh = vec![
@@ -366,6 +370,10 @@ impl DnsAdvancedConfig {
             "https://dns.google/dns-query",
             "https://cloudflare-dns.com/dns-query",
             "https://dns.quad9.net/dns-query",
+        ];
+        let encrypted_ip_bootstrap = vec![
+            "https://1.1.1.1/dns-query",
+            "https://8.8.8.8/dns-query",
         ];
 
         let effective_mode = match self.routing_mode {
@@ -415,8 +423,8 @@ impl DnsAdvancedConfig {
         dns_mapping.insert("listen".into(), Value::String(":53".into()));
         dns_mapping.insert("respect-rules".into(), Value::Bool(true));
         dns_mapping.insert("use-hosts".into(), Value::Bool(true));
-        dns_mapping.insert("use-system-hosts".into(), Value::Bool(true));
-        dns_mapping.insert("prefer-h3".into(), Value::Bool(force_doh));
+        dns_mapping.insert("use-system-hosts".into(), Value::Bool(!block_system_hosts));
+        dns_mapping.insert("prefer-h3".into(), Value::Bool(false));
         dns_mapping.insert("ipv6".into(), Value::Bool(!block_ipv6_dns));
         dns_mapping.insert(
             "enhanced-mode".into(),
@@ -455,7 +463,7 @@ impl DnsAdvancedConfig {
         }
 
         let proxy_server_nameserver: Vec<Value> = if block_plain_dns {
-            domestic_doh.into_iter().map(Value::from).collect()
+            foreign_doh.iter().map(|item| Value::from(*item)).collect()
         } else {
             domestic_plain.into_iter().map(Value::from).collect()
         };
@@ -463,7 +471,7 @@ impl DnsAdvancedConfig {
             "default-nameserver".into(),
             Value::Sequence(
                 if block_plain_dns {
-                    Vec::<Value>::new()
+                    encrypted_ip_bootstrap.into_iter().map(Value::from).collect()
                 } else {
                     proxy_server_nameserver.clone()
                 },
@@ -1132,5 +1140,49 @@ mod tests {
         config1.merge(&config2);
         assert!(config1.security.enabled);
         assert!(config1.multipath.enabled);
+    }
+
+    #[test]
+    fn test_strict_dns_disables_system_hosts_and_plain_bootstrap() {
+        let config = DnsAdvancedConfig {
+            leak_protection_level: DnsLeakProtectionLevel::Strict,
+            ..DnsAdvancedConfig::default()
+        };
+        let mapping = config.to_dns_config_mapping();
+        let dns = mapping.get("dns").and_then(|value| value.as_mapping()).unwrap();
+
+        assert_eq!(dns.get("use-system-hosts").and_then(|value| value.as_bool()), Some(false));
+        let bootstrap = dns.get("default-nameserver").and_then(|value| value.as_sequence()).unwrap();
+        assert!(!bootstrap.is_empty());
+        let bootstrap = bootstrap
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            bootstrap,
+            vec!["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"]
+        );
+        assert_eq!(dns.get("prefer-h3").and_then(|value| value.as_bool()), Some(false));
+    }
+
+    #[test]
+    fn test_paranoid_dns_uses_foreign_bootstrap_for_proxy_servers() {
+        let config = DnsAdvancedConfig {
+            leak_protection_level: DnsLeakProtectionLevel::Paranoid,
+            ..DnsAdvancedConfig::default()
+        };
+        let mapping = config.to_dns_config_mapping();
+        let dns = mapping.get("dns").and_then(|value| value.as_mapping()).unwrap();
+        let proxy_servers = dns
+            .get("proxy-server-nameserver")
+            .and_then(|value| value.as_sequence())
+            .unwrap();
+        let proxy_servers = proxy_servers
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(proxy_servers.contains(&"https://dns.google/dns-query"));
+        assert!(!proxy_servers.contains(&"https://dns.alidns.com/dns-query"));
     }
 }

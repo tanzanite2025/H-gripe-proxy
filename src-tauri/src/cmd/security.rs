@@ -47,6 +47,27 @@ pub fn security_check_decoy_access(decoy_path: String) -> CmdResult<bool> {
     security_runtime::check_decoy_access(PathBuf::from(decoy_path)).stringify_err()
 }
 
+#[tauri::command]
+pub fn security_deploy_decoy_plan(
+    plan: crate::security::honeypot::DecoyDeploymentPlan,
+) -> CmdResult<crate::security::honeypot::DecoyBatchResult> {
+    security_runtime::deploy_decoy_plan(plan).stringify_err()
+}
+
+#[tauri::command]
+pub fn security_cleanup_decoy_plan(
+    plan: crate::security::honeypot::DecoyDeploymentPlan,
+) -> CmdResult<crate::security::honeypot::DecoyBatchResult> {
+    security_runtime::cleanup_decoy_plan(plan).stringify_err()
+}
+
+#[tauri::command]
+pub fn security_check_decoy_plan_access(
+    plan: crate::security::honeypot::DecoyDeploymentPlan,
+) -> CmdResult<crate::security::honeypot::DecoyBatchResult> {
+    security_runtime::check_decoy_plan_access(plan).stringify_err()
+}
+
 /// 生成加密密钥
 #[tauri::command]
 pub fn security_generate_encryption_key() -> CmdResult<String> {

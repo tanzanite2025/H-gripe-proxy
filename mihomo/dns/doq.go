@@ -58,6 +58,7 @@ type dnsOverQUIC struct {
 
 	addr           string
 	dialer         *dnsDialer
+	proxyName      string
 	skipCertVerify bool
 }
 
@@ -67,8 +68,9 @@ var _ dnsClient = (*dnsOverQUIC)(nil)
 // newDoQ returns the DNS-over-QUIC Upstream.
 func newDoQ(addr string, resolver *Resolver, params map[string]string, proxyAdapter C.ProxyAdapter, proxyName string) *dnsOverQUIC {
 	doq := &dnsOverQUIC{
-		addr:   addr,
-		dialer: newDNSDialer(resolver, proxyAdapter, proxyName),
+		addr:      addr,
+		dialer:    newDNSDialer(resolver, proxyAdapter, proxyName),
+		proxyName: dnsClientProxyName(proxyAdapter, proxyName),
 		quicConfig: &quic.Config{
 			KeepAlivePeriod: QUICKeepAlivePeriod,
 			TokenStore:      newQUICTokenStore(),
@@ -85,6 +87,8 @@ func newDoQ(addr string, resolver *Resolver, params map[string]string, proxyAdap
 
 // Address implements the Upstream interface for *dnsOverQUIC.
 func (doq *dnsOverQUIC) Address() string { return doq.addr }
+
+func (doq *dnsOverQUIC) ProxyName() string { return doq.proxyName }
 
 func (doq *dnsOverQUIC) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
 	// When sending queries over a QUIC connection, the DNS Message ID MUST be

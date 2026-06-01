@@ -1,6 +1,7 @@
 use super::helpers::{
     infer_leak_protection_level, infer_routing_mode, mapping_bool, mapping_nested_len,
-    mapping_nested_string_list, mapping_sequence_len, mapping_string,
+    mapping_nested_string_list, mapping_plain_dns_sequence_len, mapping_sequence_len,
+    mapping_string,
 };
 use crate::{
     config::Config,
@@ -51,6 +52,10 @@ pub(super) fn build_dns_runtime_derived_state(runtime_config: Option<&Mapping>) 
                 domestic_dns,
                 foreign_dns,
                 default_nameserver_count: mapping_sequence_len(dns_mapping, "default-nameserver"),
+                default_nameserver_plain_count: mapping_plain_dns_sequence_len(
+                    dns_mapping,
+                    "default-nameserver",
+                ),
                 prefer_h3: mapping_bool(dns_mapping, "prefer-h3"),
                 leak_protection_level,
                 leak_protection_security,
@@ -62,6 +67,7 @@ pub(super) fn build_dns_runtime_derived_state(runtime_config: Option<&Mapping>) 
             domestic_dns: Vec::new(),
             foreign_dns: Vec::new(),
             default_nameserver_count: 0,
+            default_nameserver_plain_count: 0,
             prefer_h3: None,
             leak_protection_level: None,
             leak_protection_security: None,

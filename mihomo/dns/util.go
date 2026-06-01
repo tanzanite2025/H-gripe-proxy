@@ -12,7 +12,9 @@ import (
 	"github.com/tanzanite2025/mihomo-optimized/common/picker"
 	"github.com/tanzanite2025/mihomo-optimized/component/ech/echparser"
 	"github.com/tanzanite2025/mihomo-optimized/component/resolver"
+	C "github.com/tanzanite2025/mihomo-optimized/constant"
 	"github.com/tanzanite2025/mihomo-optimized/log"
+	"github.com/tanzanite2025/mihomo-optimized/tunnel"
 
 	D "github.com/miekg/dns"
 	"github.com/samber/lo"
@@ -369,6 +371,43 @@ func msgToLogString(msg *D.Msg) string {
 	}
 }
 
+func dnsProtocolFromAddress(address string) string {
+	switch {
+	case strings.HasPrefix(address, "https://"):
+		return "DoH"
+	case strings.HasPrefix(address, "tls://"):
+		return "DoT"
+	case strings.HasPrefix(address, "quic://"):
+		return "DoQ"
+	case strings.HasPrefix(address, "tcp://"):
+		return "TCP"
+	default:
+		return "UDP"
+	}
+}
+
+type dnsClientProxyTrace interface {
+	ProxyName() string
+}
+
+func dnsClientProxyName(proxyAdapter C.ProxyAdapter, proxyName string) string {
+	if proxyName != "" {
+		return proxyName
+	}
+	if proxyAdapter != nil {
+		return proxyAdapter.Name()
+	}
+	return ""
+}
+
+func dnsProxyNameFromClient(client dnsClient) string {
+	trace, ok := client.(dnsClientProxyTrace)
+	if !ok {
+		return ""
+	}
+	return trace.ProxyName()
+}
+
 func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.Msg, cache bool, err error) {
 	cache = true
 	fast, ctx := picker.WithTimeout[*D.Msg](ctx, resolver.DefaultDNSTimeout)
@@ -383,17 +422,42 @@ func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.M
 		client := client // shadow define client to ensure the value captured by the closure will not be changed in the next loop
 		fast.Go(func() (*D.Msg, error) {
 			log.Debugln("[DNS] resolve %s %s from %s", domain, qTypeStr, client.Address())
+			queryTrace := &tunnel.DNSQueryTrace{}
+			queryCtx := tunnel.WithDNSQueryTrace(ctx, queryTrace)
 			start := time.Now()
-			m, err := client.ExchangeContext(ctx, m)
+			m, err := client.ExchangeContext(queryCtx, m)
 			latency := time.Since(start)
+			recordQuery := func(success bool, errMsg string) {
+				address := client.Address()
+				proxyName := queryTrace.ProxyName
+				if proxyName == "" {
+					proxyName = dnsProxyNameFromClient(client)
+				}
+				GetDnsMetrics().RecordQueryEvent(QueryEvent{
+					Domain:      domain,
+					QType:       qTypeStr,
+					Server:      address,
+					Protocol:    dnsProtocolFromAddress(address),
+					ProxyName:   proxyName,
+					ProxyChain:  queryTrace.ProxyChain,
+					Egress:      queryTrace.Egress,
+					Rule:        queryTrace.Rule,
+					RulePayload: queryTrace.RulePayload,
+					Success:     success,
+					Error:       errMsg,
+					LatencyUs:   uint64(latency.Microseconds()),
+					Timestamp:   time.Now(),
+				})
+			}
 			if err != nil {
-				GetDnsMetrics().RecordQuery(client.Address(), latency, false, err.Error())
+				recordQuery(false, err.Error())
 				return nil, err
 			} else if cache && (m.Rcode == D.RcodeServerFailure || m.Rcode == D.RcodeRefused) {
-				GetDnsMetrics().RecordQuery(client.Address(), latency, false, "server failure: "+D.RcodeToString[m.Rcode])
-				return nil, errors.New("server failure: " + D.RcodeToString[m.Rcode])
+				errMsg := "server failure: " + D.RcodeToString[m.Rcode]
+				recordQuery(false, errMsg)
+				return nil, errors.New(errMsg)
 			}
-			GetDnsMetrics().RecordQuery(client.Address(), latency, true, "")
+			recordQuery(true, "")
 			log.Debugln("[DNS] %s --> %s from %s", domain, msgToLogString(m), client.Address())
 			return m, nil
 		})

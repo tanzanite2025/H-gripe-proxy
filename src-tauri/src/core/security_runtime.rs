@@ -147,6 +147,24 @@ pub fn check_decoy_access(decoy_path: PathBuf) -> Result<bool> {
     Ok(decoy.check_access())
 }
 
+pub fn deploy_decoy_plan(
+    plan: honeypot::DecoyDeploymentPlan,
+) -> Result<honeypot::DecoyBatchResult> {
+    honeypot::deploy_decoy_plan(plan).map_err(|e| anyhow!(e))
+}
+
+pub fn cleanup_decoy_plan(
+    plan: honeypot::DecoyDeploymentPlan,
+) -> Result<honeypot::DecoyBatchResult> {
+    honeypot::cleanup_decoy_plan(plan).map_err(|e| anyhow!(e))
+}
+
+pub fn check_decoy_plan_access(
+    plan: honeypot::DecoyDeploymentPlan,
+) -> Result<honeypot::DecoyBatchResult> {
+    honeypot::check_decoy_plan_access(plan).map_err(|e| anyhow!(e))
+}
+
 // ---------- Encryption ----------
 pub fn generate_key() -> String {
     honeypot::generate_encryption_key()

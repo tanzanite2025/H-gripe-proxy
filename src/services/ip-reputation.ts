@@ -1,5 +1,21 @@
 import { invoke } from '@tauri-apps/api/core';
 
+type RawRecord = Record<string, unknown>;
+type IpType = IpReputation['ipType'];
+type RiskLevel = IpReputation['riskLevel'];
+type FallbackPolicy = RiskRoutingRule['fallbackPolicy'];
+
+const IP_TYPES: IpType[] = ['Datacenter', 'Residential', 'Mobile', 'Education', 'Unknown'];
+const RISK_LEVELS: RiskLevel[] = ['Low', 'Medium', 'High', 'VeryHigh'];
+const FALLBACK_POLICIES: FallbackPolicy[] = ['Block', 'Warn', 'Allow'];
+const IP_TYPE_ALIASES: Record<string, IpType> = {
+  datacenter: 'Datacenter',
+  residential: 'Residential',
+  mobile: 'Mobile',
+  education: 'Education',
+  unknown: 'Unknown',
+};
+
 /**
  * IP 信誉度配置
  */
@@ -40,11 +56,143 @@ export interface RiskRoutingRule {
   description: string;
 }
 
+const asRecord = (value: unknown): RawRecord =>
+  value && typeof value === 'object' ? (value as RawRecord) : {};
+
+const asString = (value: unknown, fallback = ''): string =>
+  typeof value === 'string' ? value : fallback;
+
+const asNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const asBoolean = (value: unknown, fallback = false): boolean =>
+  typeof value === 'boolean' ? value : fallback;
+
+const normalizeEnum = <T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T => (allowed.includes(value as T) ? (value as T) : fallback);
+
+const normalizeIpType = (value: unknown): IpType => {
+  if (IP_TYPES.includes(value as IpType)) return value as IpType;
+  if (typeof value === 'string') {
+    return IP_TYPE_ALIASES[value] ?? IP_TYPE_ALIASES[value.toLowerCase()] ?? 'Unknown';
+  }
+  return 'Unknown';
+};
+
+const toTauriIpType = (value?: Exclude<IpType, 'Unknown'>): string | null =>
+  value ? value.charAt(0).toLowerCase() + value.slice(1) : null;
+
+const normalizeCheckedAt = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+    return asNumber(value, Date.now());
+  }
+  const record = asRecord(value);
+  const secs =
+    record.secs_since_epoch ?? record.secsSinceEpoch ?? record.secs ?? record.seconds;
+  const nanos = record.nanos_since_epoch ?? record.nanosSinceEpoch ?? record.nanos;
+  if (secs !== undefined) {
+    return asNumber(secs, 0) * 1000 + Math.floor(asNumber(nanos, 0) / 1_000_000);
+  }
+  return Date.now();
+};
+
+export function normalizeIpReputation(value: unknown): IpReputation {
+  const raw = asRecord(value);
+
+  return {
+    ip: asString(raw.ip),
+    ipType: normalizeIpType(raw.ipType ?? raw.ip_type),
+    asn: asString(raw.asn, 'Unknown'),
+    asnOrg: asString(raw.asnOrg ?? raw.asn_org, 'Unknown'),
+    fraudScore: asNumber(raw.fraudScore ?? raw.fraud_score, 0),
+    riskLevel: normalizeEnum(raw.riskLevel ?? raw.risk_level, RISK_LEVELS, 'Medium'),
+    isProxy: asBoolean(raw.isProxy ?? raw.is_proxy),
+    isVpn: asBoolean(raw.isVpn ?? raw.is_vpn),
+    isTor: asBoolean(raw.isTor ?? raw.is_tor),
+    countryCode: asString(raw.countryCode ?? raw.country_code, 'Unknown'),
+    city: asString(raw.city) || undefined,
+    checkedAt: normalizeCheckedAt(raw.checkedAt ?? raw.checked_at),
+  };
+}
+
+function normalizeRiskRoutingRule(value: unknown): RiskRoutingRule {
+  const raw = asRecord(value);
+  const requiredIpType = raw.requiredIpType ?? raw.required_ip_type;
+  const domainPatterns = raw.domainPatterns ?? raw.domain_patterns;
+  const normalizedRequiredIpType = normalizeIpType(requiredIpType);
+
+  return {
+    domainPatterns: Array.isArray(domainPatterns)
+      ? domainPatterns.map((item) => String(item))
+      : [],
+    enabled: asBoolean(raw.enabled, true),
+    requiredIpType:
+      requiredIpType === undefined || requiredIpType === null
+        ? undefined
+        : normalizedRequiredIpType === 'Unknown'
+          ? undefined
+          : (normalizedRequiredIpType as Exclude<IpType, 'Unknown'>),
+    maxFraudScore: asNumber(raw.maxFraudScore ?? raw.max_fraud_score, 100),
+    fallbackPolicy: normalizeEnum(
+      raw.fallbackPolicy ?? raw.fallback_policy,
+      FALLBACK_POLICIES,
+      'Warn',
+    ),
+    description: asString(raw.description),
+  };
+}
+
+export function normalizeIpReputationConfig(value: unknown): IpReputationConfig {
+  const raw = asRecord(value);
+  const routingRules = raw.routingRules ?? raw.routing_rules;
+
+  return {
+    enabled: asBoolean(raw.enabled, true),
+    cacheTtl: asNumber(raw.cacheTtl ?? raw.cache_ttl, 3600),
+    routingRules: Array.isArray(routingRules)
+      ? routingRules.map(normalizeRiskRoutingRule)
+      : [],
+    useLocalDb: asBoolean(raw.useLocalDb ?? raw.use_local_db, true),
+  };
+}
+
+function serializeRiskRoutingRule(rule: RiskRoutingRule): RawRecord {
+  return {
+    domain_patterns: rule.domainPatterns,
+    enabled: rule.enabled,
+    required_ip_type: toTauriIpType(rule.requiredIpType),
+    max_fraud_score: rule.maxFraudScore,
+    fallback_policy: rule.fallbackPolicy,
+    description: rule.description,
+  };
+}
+
+function serializeIpReputationConfig(config: IpReputationConfig): RawRecord {
+  return {
+    enabled: config.enabled,
+    cache_ttl: config.cacheTtl,
+    routing_rules: config.routingRules.map(serializeRiskRoutingRule),
+    use_local_db: config.useLocalDb,
+  };
+}
+
 /**
  * 获取 IP 信誉度配置
  */
 export async function ipReputationGetConfig(): Promise<IpReputationConfig> {
-  return await invoke<IpReputationConfig>('ip_reputation_get_config');
+  return normalizeIpReputationConfig(await invoke('ip_reputation_get_config'));
 }
 
 /**
@@ -53,21 +201,24 @@ export async function ipReputationGetConfig(): Promise<IpReputationConfig> {
 export async function ipReputationUpdateConfig(
   config: IpReputationConfig
 ): Promise<void> {
-  await invoke('ip_reputation_update_config', { config });
+  await invoke('ip_reputation_update_config', {
+    config: serializeIpReputationConfig(config),
+  });
 }
 
 /**
  * 检测 IP 信誉度
  */
 export async function ipReputationCheckIp(ip: string): Promise<IpReputation> {
-  return await invoke<IpReputation>('ip_reputation_check_ip', { ip });
+  return normalizeIpReputation(await invoke('ip_reputation_check_ip', { ip }));
 }
 
 /**
  * 获取预定义路由规则
  */
 export async function ipReputationGetPredefinedRules(): Promise<RiskRoutingRule[]> {
-  return await invoke<RiskRoutingRule[]>('ip_reputation_get_predefined_rules');
+  const rules = await invoke<unknown[]>('ip_reputation_get_predefined_rules');
+  return rules.map(normalizeRiskRoutingRule);
 }
 
 /**
@@ -101,7 +252,8 @@ export async function ipReputationGetCacheStats(): Promise<[number, number]> {
  * 获取缓存中所有条目
  */
 export async function ipReputationGetCacheEntries(): Promise<IpReputation[]> {
-  return await invoke<IpReputation[]>('ip_reputation_get_cache_entries');
+  const entries = await invoke<unknown[]>('ip_reputation_get_cache_entries');
+  return entries.map(normalizeIpReputation);
 }
 
 /**

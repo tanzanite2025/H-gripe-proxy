@@ -2,8 +2,14 @@
  * 反主动探测 Tauri 命令
  */
 
+use crate::anti_probe::AntiProbeConfig;
 use std::net::IpAddr;
 use super::{CmdResult, StringifyErr};
+
+#[tauri::command]
+pub fn anti_probe_get_config() -> CmdResult<AntiProbeConfig> {
+    Ok(crate::feat::anti_probe_get_config())
+}
 
 /// 验证握手暗号
 #[tauri::command]

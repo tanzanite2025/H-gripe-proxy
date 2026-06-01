@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
@@ -9,16 +10,11 @@ use tokio::sync::RwLock;
 use super::asn_classifier::{self, AsnCategory};
 use super::runtime_diagnostics::geoip::fetch_ip_location;
 
-/// IP 信誉度配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpReputationConfig {
-    /// 启用 IP 信誉度检测
     pub enabled: bool,
-    /// 缓存时长（秒）
     pub cache_ttl: u64,
-    /// 风控等级路由规则
     pub routing_rules: Vec<RiskRoutingRule>,
-    /// 使用本地数据库（不调用 API）
     pub use_local_db: bool,
 }
 
@@ -26,43 +22,29 @@ impl Default for IpReputationConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            cache_ttl: 3600, // 1小时
+            cache_ttl: 3600,
             routing_rules: get_predefined_routing_rules(),
-            use_local_db: true, // 默认使用本地数据库
+            use_local_db: true,
         }
     }
 }
 
-/// IP 信誉度信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpReputation {
-    /// IP 地址
     pub ip: String,
-    /// IP 类型
     pub ip_type: IpType,
-    /// ASN
     pub asn: String,
-    /// ASN 组织
     pub asn_org: String,
-    /// 欺诈评分（0-100）
     pub fraud_score: u8,
-    /// 风险等级
     pub risk_level: RiskLevel,
-    /// 是否为代理
     pub is_proxy: bool,
-    /// 是否为 VPN
     pub is_vpn: bool,
-    /// 是否为 Tor
     pub is_tor: bool,
-    /// 国家代码
     pub country_code: String,
-    /// 城市
     pub city: Option<String>,
-    /// 检测时间
     pub checked_at: SystemTime,
 }
 
-/// IP 类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum IpType {
@@ -85,13 +67,12 @@ impl From<AsnCategory> for IpType {
     }
 }
 
-/// 风险等级
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RiskLevel {
-    Low,      // 0-30
-    Medium,   // 31-60
-    High,     // 61-85
-    VeryHigh, // 86-100
+    Low,
+    Medium,
+    High,
+    VeryHigh,
 }
 
 impl RiskLevel {
@@ -105,45 +86,29 @@ impl RiskLevel {
     }
 }
 
-/// 风控等级路由规则
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RiskRoutingRule {
-    /// 域名模式
     pub domain_patterns: Vec<String>,
-    /// 是否启用
     pub enabled: bool,
-    /// 要求的 IP 类型
     pub required_ip_type: Option<IpType>,
-    /// 最大欺诈评分
     pub max_fraud_score: u8,
-    /// 故障转移策略
     pub fallback_policy: RiskFallbackPolicy,
-    /// 描述
     pub description: String,
 }
 
-
-/// 风控故障转移策略
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RiskFallbackPolicy {
-    /// 阻止连接
     Block,
-    /// 警告但允许
     Warn,
-    /// 允许
     Allow,
 }
 
-/// IP 信誉度管理器
 pub struct IpReputationManager {
-    /// 配置
     config: Arc<RwLock<IpReputationConfig>>,
-    /// IP 信誉度缓存
     cache: Arc<RwLock<HashMap<String, IpReputation>>>,
 }
 
 impl IpReputationManager {
-    /// 创建新的 IP 信誉度管理器
     pub fn new() -> Self {
         Self {
             config: Arc::new(RwLock::new(IpReputationConfig::default())),
@@ -151,15 +116,13 @@ impl IpReputationManager {
         }
     }
 
-    /// 获取配置
     pub async fn get_config(&self) -> Result<IpReputationConfig> {
         Ok(self.config.read().await.clone())
     }
 
-    /// 更新配置
     pub async fn update_config(&self, config: IpReputationConfig) -> Result<()> {
         *self.config.write().await = config;
-        log::info!("[IpReputation] 配置已更新");
+        log::info!("[IpReputation] config updated");
         Ok(())
     }
 
@@ -176,7 +139,7 @@ impl IpReputationManager {
                 .unwrap_or_default();
 
             if age < Duration::from_secs(cache_ttl) {
-                log::debug!("[IpReputation] 使用缓存的 IP 元数据: {}", ip);
+                log::debug!("[IpReputation] using cached metadata for {ip}");
                 return Ok(cached.clone());
             }
         }
@@ -194,19 +157,17 @@ impl IpReputationManager {
         Ok(reputation)
     }
 
-    /// 检测 IP 信誉度
     pub async fn check_ip_reputation(&self, ip: &str) -> Result<IpReputation> {
         let enabled = self.config.read().await.enabled;
 
         if !enabled {
-            // 如果未启用，返回默认的低风险评估
             return Ok(self.create_default_reputation(ip));
         }
 
         let reputation = self.inspect_ip_metadata(ip).await?;
 
         log::info!(
-            "[IpReputation] IP {} 信誉度: {:?}, 欺诈评分: {}",
+            "[IpReputation] IP {} type {:?}, fraud score {}",
             ip,
             reputation.ip_type,
             reputation.fraud_score
@@ -215,7 +176,6 @@ impl IpReputationManager {
         Ok(reputation)
     }
 
-    /// 本地检测 IP 信誉度（GeoIP + ASN 分类器）
     async fn check_ip_local(&self, ip: &str) -> Result<IpReputation> {
         let client = Client::builder()
             .timeout(Duration::from_secs(10))
@@ -225,16 +185,17 @@ impl IpReputationManager {
         let geo_info = fetch_ip_location(&client, ip).await;
 
         let asn_num = geo_info.asn;
-        let asn_org = geo_info.asn_organization.as_deref()
+        let asn_org = geo_info
+            .asn_organization
+            .as_deref()
             .or(geo_info.isp.as_deref())
             .or(geo_info.organization.as_deref());
 
         let asn_info = asn_classifier::get_asn_info(asn_num, asn_org);
-        let ip_type = IpType::from(asn_info.category);
+        let ip_type = self.resolve_ip_type(ip, &asn_info);
         let fraud_score = self.calculate_fraud_score(&ip_type, &asn_info);
         let risk_level = RiskLevel::from_score(fraud_score);
 
-        // ASN 名称优先用查表结果，兜底用 GeoIP 返回
         let asn_display = if asn_info.name != "Unknown" {
             asn_info.name.clone()
         } else {
@@ -256,15 +217,25 @@ impl IpReputationManager {
             is_proxy: false,
             is_vpn: false,
             is_tor: false,
-            country_code: geo_info.country_code.map(|s| s.into()).unwrap_or_else(|| "Unknown".to_string()),
+            country_code: geo_info
+                .country_code
+                .map(|s| s.into())
+                .unwrap_or_else(|| "Unknown".to_string()),
             city: geo_info.city.map(|s| s.into()),
             checked_at: SystemTime::now(),
         })
     }
 
-    /// 检测 IP 类型（ASN 分类器 + IP 前缀兜底）
+    fn resolve_ip_type(&self, ip: &str, asn_info: &asn_classifier::AsnInfo) -> IpType {
+        let asn_ip_type = IpType::from(asn_info.category);
+        if asn_ip_type == IpType::Unknown {
+            self.detect_ip_type(ip)
+        } else {
+            asn_ip_type
+        }
+    }
+
     fn detect_ip_type(&self, ip: &str) -> IpType {
-        // IP 前缀兜底（无 GeoIP 时使用）
         let datacenter_prefixes = [
             "45.76.", "104.238.", "207.246.", "149.28.", // Vultr
             "13.", "52.", "54.", // AWS
@@ -277,37 +248,38 @@ impl IpReputationManager {
             }
         }
 
-        // RFC1918 / 链路本地
-        if ip.starts_with("10.") || ip.starts_with("172.16.") || ip.starts_with("192.168.") || ip.starts_with("127.") {
+        if is_private_or_reserved_ip(ip) {
             return IpType::Unknown;
         }
 
-        // 默认假设住宅
-        IpType::Residential
+        IpType::Unknown
     }
 
-    /// 计算欺诈评分（基于 ASN 分类 + 细分）
     fn calculate_fraud_score(&self, ip_type: &IpType, asn_info: &asn_classifier::AsnInfo) -> u8 {
         match ip_type {
             IpType::Datacenter => {
-                // 已知数据中心 ASN 更高分
                 let name_lower = asn_info.name.to_lowercase();
-                if name_lower.contains("m247") || name_lower.contains("stark") || name_lower.contains("floki") {
-                    95 // 已知代理/VPN 托管商
-                } else if name_lower.contains("cloudflare") || name_lower.contains("akamai") || name_lower.contains("fastly") {
-                    70 // CDN 不算特别危险
+                if name_lower.contains("m247")
+                    || name_lower.contains("stark")
+                    || name_lower.contains("floki")
+                {
+                    95
+                } else if name_lower.contains("cloudflare")
+                    || name_lower.contains("akamai")
+                    || name_lower.contains("fastly")
+                {
+                    70
                 } else {
-                    85 // 普通机房
+                    85
                 }
             }
             IpType::Residential => 15,
             IpType::Mobile => 10,
-            IpType::Education => 25, // 教育网可能被滥用
+            IpType::Education => 25,
             IpType::Unknown => 50,
         }
     }
 
-    /// 创建默认的低风险评估
     fn create_default_reputation(&self, ip: &str) -> IpReputation {
         IpReputation {
             ip: ip.to_string(),
@@ -325,25 +297,17 @@ impl IpReputationManager {
         }
     }
 
-
-    /// 为域名选择合适的节点（考虑 IP 信誉度）
     pub async fn select_node_for_domain(
         &self,
         domain: &str,
-        available_nodes: &[(String, String)], // (node_name, node_ip)
+        available_nodes: &[(String, String)],
     ) -> Result<String> {
         let config = self.config.read().await;
 
         if !config.enabled {
-            // 未启用，使用默认选择
-            return Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .0
-                .clone());
+            return Ok(first_node_name(available_nodes)?.to_string());
         }
 
-        // 1. 查找匹配的路由规则
         let rule = config.routing_rules.iter().find(|r| {
             r.enabled
                 && r.domain_patterns
@@ -352,7 +316,6 @@ impl IpReputationManager {
         });
 
         if let Some(rule) = rule {
-            // 2. 检测所有节点的 IP 信誉度
             let mut suitable_nodes = Vec::new();
             let mut all_fraud_scores: Vec<u8> = Vec::new();
 
@@ -360,7 +323,6 @@ impl IpReputationManager {
                 match self.check_ip_reputation(node_ip).await {
                     Ok(reputation) => {
                         all_fraud_scores.push(reputation.fraud_score);
-                        // 检查是否满足要求
                         let type_match = rule
                             .required_ip_type
                             .as_ref()
@@ -373,7 +335,7 @@ impl IpReputationManager {
                             suitable_nodes.push((node_name.clone(), reputation));
                         } else {
                             log::debug!(
-                                "[IpReputation] 节点 {} 不满足要求: type_match={}, score_match={} (score={}, max={})",
+                                "[IpReputation] node {} rejected: type_match={}, score_match={} (score={}, max={})",
                                 node_name,
                                 type_match,
                                 score_match,
@@ -383,51 +345,37 @@ impl IpReputationManager {
                         }
                     }
                     Err(e) => {
-                        log::warn!("[IpReputation] 检测节点 {} 失败: {}", node_name, e);
+                        log::warn!("[IpReputation] failed to inspect node {node_name}: {e}");
                     }
                 }
             }
 
-            // 3. 根据故障转移策略处理
             if suitable_nodes.is_empty() {
                 match rule.fallback_policy {
                     RiskFallbackPolicy::Block => {
                         log::error!(
-                            "[IpReputation] 域名 {} 没有满足信誉度要求的节点，阻止连接",
-                            domain
+                            "[IpReputation] domain {domain} has no node satisfying reputation requirements"
                         );
-                        // 通知黑洞熔断器：欺诈评分过高
                         let max_score = all_fraud_scores.iter().max().copied().unwrap_or(100);
                         crate::feat::blackhole_breaker_record_fraud_score(domain, max_score).await;
-                        return Err(anyhow!("没有满足信誉度要求的节点"));
+                        return Err(anyhow!("no node satisfies reputation requirements"));
                     }
-                    RiskFallbackPolicy::Warn => {
-                        log::warn!(
-                            "[IpReputation] 域名 {} 没有满足要求的节点，使用默认节点",
-                            domain
-                        );
-                        return Ok(available_nodes
-                            .first()
-                            .ok_or_else(|| anyhow!("没有可用节点"))?
-                            .0
-                            .clone());
-                    }
-                    RiskFallbackPolicy::Allow => {
-                        return Ok(available_nodes
-                            .first()
-                            .ok_or_else(|| anyhow!("没有可用节点"))?
-                            .0
-                            .clone());
+                    RiskFallbackPolicy::Warn | RiskFallbackPolicy::Allow => {
+                        if matches!(rule.fallback_policy, RiskFallbackPolicy::Warn) {
+                            log::warn!(
+                                "[IpReputation] domain {domain} has no suitable node; using default node"
+                            );
+                        }
+                        return Ok(first_node_name(available_nodes)?.to_string());
                     }
                 }
             }
 
-            // 4. 选择信誉度最好的节点（欺诈评分最低）
             suitable_nodes.sort_by_key(|(_, rep)| rep.fraud_score);
             let selected = &suitable_nodes.first().unwrap().0;
 
             log::info!(
-                "[IpReputation] 域名 {} 选择节点 {} (欺诈评分: {})",
+                "[IpReputation] domain {} selected node {} (fraud score {})",
                 domain,
                 selected,
                 suitable_nodes.first().unwrap().1.fraud_score
@@ -435,24 +383,17 @@ impl IpReputationManager {
 
             Ok(selected.clone())
         } else {
-            // 没有匹配的规则，使用默认选择
-            Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .0
-                .clone())
+            Ok(first_node_name(available_nodes)?.to_string())
         }
     }
 
-    /// 清除缓存
     pub async fn clear_cache(&self) -> Result<()> {
         let mut cache = self.cache.write().await;
         cache.clear();
-        log::info!("[IpReputation] 缓存已清除");
+        log::info!("[IpReputation] cache cleared");
         Ok(())
     }
 
-    /// 获取缓存统计
     pub async fn get_cache_stats(&self) -> (usize, usize) {
         let cache = self.cache.read().await;
         let cache_ttl = self.config.read().await.cache_ttl;
@@ -469,59 +410,83 @@ impl IpReputationManager {
         (total, expired)
     }
 
-    /// 获取缓存中所有条目
     pub async fn get_cache_entries(&self) -> Vec<IpReputation> {
         let cache = self.cache.read().await;
         cache.values().cloned().collect()
     }
 }
 
-/// 检查 IP 类型是否匹配
+fn first_node_name(available_nodes: &[(String, String)]) -> Result<&str> {
+    available_nodes
+        .first()
+        .map(|(name, _)| name.as_str())
+        .ok_or_else(|| anyhow!("no available nodes"))
+}
+
+fn is_carrier_grade_nat_ip(octets: [u8; 4]) -> bool {
+    octets[0] == 100 && (100..=127).contains(&octets[1])
+}
+
+fn is_private_or_reserved_ip(ip: &str) -> bool {
+    match ip.parse::<IpAddr>() {
+        Ok(IpAddr::V4(addr)) => {
+            addr.is_private()
+                || addr.is_loopback()
+                || addr.is_link_local()
+                || addr.is_unspecified()
+                || addr.is_broadcast()
+                || addr.is_documentation()
+                || is_carrier_grade_nat_ip(addr.octets())
+        }
+        Ok(IpAddr::V6(addr)) => {
+            addr.is_loopback()
+                || addr.is_unspecified()
+                || addr.is_unique_local()
+                || addr.is_unicast_link_local()
+        }
+        Err(_) => true,
+    }
+}
+
 pub fn matches_ip_type(actual: &IpType, required: &IpType) -> bool {
     match (actual, required) {
         (IpType::Residential, IpType::Residential) => true,
-        (IpType::Mobile, IpType::Residential) => true, // Mobile 也算 Residential
+        (IpType::Mobile, IpType::Residential) => true,
         (IpType::Mobile, IpType::Mobile) => true,
-        (IpType::Education, IpType::Residential) => true, // Education 有时也算
+        (IpType::Education, IpType::Residential) => true,
         (a, r) => a == r,
     }
 }
 
-/// 域名匹配（复用 session_affinity 的函数）
 fn domain_matches(domain: &str, pattern: &str) -> bool {
-    if pattern.starts_with("*.") {
-        let suffix = &pattern[2..];
+    if let Some(suffix) = pattern.strip_prefix("*.") {
         domain.ends_with(suffix) || domain == suffix
-    } else if pattern.starts_with('*') {
-        let suffix = &pattern[1..];
+    } else if let Some(suffix) = pattern.strip_prefix('*') {
         domain.ends_with(suffix)
     } else {
         domain == pattern
     }
 }
 
-/// 获取预定义的风控路由规则
 pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
     vec![
-        // AI 服务（极高风控）
         RiskRoutingRule {
             domain_patterns: vec!["*.openai.com".to_string(), "*.anthropic.com".to_string()],
             enabled: true,
             required_ip_type: Some(IpType::Residential),
             max_fraud_score: 30,
             fallback_policy: RiskFallbackPolicy::Block,
-            description: "AI 服务 - 必须使用住宅 IP，欺诈评分 < 30".to_string(),
+            description: "AI services require residential IP and fraud score below 30".to_string(),
         },
-        // 金融服务（极高风控）
         RiskRoutingRule {
             domain_patterns: vec!["*.stripe.com".to_string(), "*.paypal.com".to_string()],
             enabled: true,
             required_ip_type: Some(IpType::Residential),
             max_fraud_score: 20,
             fallback_policy: RiskFallbackPolicy::Block,
-            description: "金融服务 - 必须使用住宅 IP，欺诈评分 < 20".to_string(),
+            description: "Financial services require residential IP and fraud score below 20"
+                .to_string(),
         },
-        // 游戏平台（高风控）
         RiskRoutingRule {
             domain_patterns: vec![
                 "*.steampowered.com".to_string(),
@@ -532,9 +497,9 @@ pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
             required_ip_type: Some(IpType::Residential),
             max_fraud_score: 50,
             fallback_policy: RiskFallbackPolicy::Warn,
-            description: "游戏平台 - 建议使用住宅 IP，欺诈评分 < 50".to_string(),
+            description: "Game platforms prefer residential IP and fraud score below 50"
+                .to_string(),
         },
-        // 社交媒体（中风控）
         RiskRoutingRule {
             domain_patterns: vec![
                 "*.twitter.com".to_string(),
@@ -546,7 +511,7 @@ pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
             required_ip_type: None,
             max_fraud_score: 70,
             fallback_policy: RiskFallbackPolicy::Warn,
-            description: "社交媒体 - 欺诈评分 < 70".to_string(),
+            description: "Social media prefers fraud score below 70".to_string(),
         },
     ]
 }
@@ -559,24 +524,61 @@ mod tests {
     async fn test_ip_type_detection() {
         let manager = IpReputationManager::new();
 
-        // 测试机房 IP
         assert_eq!(manager.detect_ip_type("45.76.123.45"), IpType::Datacenter);
         assert_eq!(manager.detect_ip_type("13.52.100.1"), IpType::Datacenter);
 
-        // 测试住宅 IP
-        assert_eq!(manager.detect_ip_type("192.168.1.1"), IpType::Residential);
+        assert_eq!(manager.detect_ip_type("192.168.1.1"), IpType::Unknown);
+        assert_eq!(manager.detect_ip_type("172.20.1.1"), IpType::Unknown);
+        assert_eq!(manager.detect_ip_type("100.64.1.1"), IpType::Unknown);
+    }
+
+    #[tokio::test]
+    async fn test_unknown_asn_uses_ip_prefix_fallback() {
+        let manager = IpReputationManager::new();
+        let unknown_asn = asn_classifier::AsnInfo {
+            name: "Unknown".to_string(),
+            category: asn_classifier::AsnCategory::Unknown,
+        };
+
+        assert_eq!(
+            manager.resolve_ip_type("45.76.123.45", &unknown_asn),
+            IpType::Datacenter
+        );
+    }
+
+    #[tokio::test]
+    async fn test_known_asn_wins_over_ip_prefix_fallback() {
+        let manager = IpReputationManager::new();
+        let mobile_asn = asn_classifier::AsnInfo {
+            name: "China Mobile".to_string(),
+            category: asn_classifier::AsnCategory::Mobile,
+        };
+
+        assert_eq!(
+            manager.resolve_ip_type("45.76.123.45", &mobile_asn),
+            IpType::Mobile
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unknown_public_ip_without_asn_metadata_stays_unknown() {
+        let manager = IpReputationManager::new();
+        let unknown_asn = asn_classifier::AsnInfo {
+            name: "Unknown".to_string(),
+            category: asn_classifier::AsnCategory::Unknown,
+        };
+
+        assert_eq!(manager.resolve_ip_type("8.8.8.8", &unknown_asn), IpType::Unknown);
     }
 
     #[tokio::test]
     async fn test_fraud_score_calculation() {
         let manager = IpReputationManager::new();
         let dc_info = asn_classifier::AsnInfo {
-            asn: 20473,
             name: "Vultr".to_string(),
             category: asn_classifier::AsnCategory::Datacenter,
         };
         let res_info = asn_classifier::AsnInfo {
-            asn: 7922,
             name: "Comcast".to_string(),
             category: asn_classifier::AsnCategory::Residential,
         };

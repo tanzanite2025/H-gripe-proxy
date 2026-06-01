@@ -1,5 +1,5 @@
 use crate::core::egress_identity::{
-    EgressSelectionContext, ResolvedEgressIdentity,
+    EgressIdentityConfig, EgressSelectionContext, ResolvedEgressIdentity,
 };
 use crate::core::stable_egress::enrich_egress_selection_context as core_enrich_context;
 use anyhow::Result;
@@ -11,6 +11,13 @@ pub async fn enrich_egress_selection_context(
     let coordinator = crate::feat::get_coordinator();
     let ip_reputation_manager = crate::feat::get_ip_reputation_manager();
     core_enrich_context(ctx, &coordinator.multipath_manager(), &ip_reputation_manager).await
+}
+
+pub fn egress_identity_get_config() -> EgressIdentityConfig {
+    let _ = crate::feat::sync_coordinator_from_advanced_config();
+    crate::feat::get_coordinator()
+        .egress_identity_manager()
+        .get_config()
 }
 
 pub async fn egress_identity_preview_match(

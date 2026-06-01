@@ -21,6 +21,28 @@ pub(super) fn mapping_sequence_len(mapping: &Mapping, key: &str) -> usize {
         .unwrap_or(0)
 }
 
+fn is_encrypted_dns_endpoint(value: &str) -> bool {
+    let normalized = value.trim().to_ascii_lowercase();
+    normalized.starts_with("https://")
+        || normalized.starts_with("tls://")
+        || normalized.starts_with("quic://")
+        || normalized.starts_with("h3://")
+}
+
+pub(super) fn mapping_plain_dns_sequence_len(mapping: &Mapping, key: &str) -> usize {
+    mapping
+        .get(key)
+        .and_then(|value| value.as_sequence())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .filter(|item| !is_encrypted_dns_endpoint(item))
+                .count()
+        })
+        .unwrap_or(0)
+}
+
 pub(super) fn mapping_nested_string_list(mapping: &Mapping, key: &str, nested_key: &str) -> Vec<String> {
     mapping
         .get(key)
@@ -85,19 +107,32 @@ pub(super) fn infer_routing_mode(domestic_dns: &[String], foreign_dns: &[String]
 
 pub(super) fn infer_leak_protection_level(dns_mapping: &Mapping) -> Option<String> {
     let enhanced_mode = mapping_string(dns_mapping, "enhanced-mode");
-    let prefer_h3 = mapping_bool(dns_mapping, "prefer-h3").unwrap_or(false);
     let ipv6 = mapping_bool(dns_mapping, "ipv6").unwrap_or(true);
-    let default_nameserver_count = mapping_sequence_len(dns_mapping, "default-nameserver");
+    let default_nameserver_plain_count =
+        mapping_plain_dns_sequence_len(dns_mapping, "default-nameserver");
     let has_fake_ip_range = dns_mapping.get("fake-ip-range").is_some();
+    let all_nameservers_encrypted =
+        mapping_plain_dns_sequence_len(dns_mapping, "nameserver") == 0
+            && mapping_plain_dns_sequence_len(dns_mapping, "fallback") == 0
+            && mapping_plain_dns_sequence_len(dns_mapping, "proxy-server-nameserver") == 0;
 
     match enhanced_mode.as_deref() {
-        Some("fake-ip") if prefer_h3 && default_nameserver_count == 0 && !ipv6 && has_fake_ip_range => {
+        Some("fake-ip")
+            if all_nameservers_encrypted
+                && default_nameserver_plain_count == 0
+                && !ipv6
+                && has_fake_ip_range =>
+        {
             Some("paranoid".into())
         }
-        Some("fake-ip") if prefer_h3 && default_nameserver_count == 0 && has_fake_ip_range => {
+        Some("fake-ip")
+            if all_nameservers_encrypted
+                && default_nameserver_plain_count == 0
+                && has_fake_ip_range =>
+        {
             Some("strict".into())
         }
-        Some("redir-host") if prefer_h3 => Some("basic".into()),
+        Some("redir-host") if all_nameservers_encrypted => Some("basic".into()),
         Some("redir-host") => Some("none".into()),
         Some(_) => Some("custom".into()),
         None => None,

@@ -71,12 +71,6 @@ pub async fn security_policy_get_state(name: &str) -> Result<Option<AppliedPolic
     Ok(manager.get_applied_state(name).await)
 }
 
-/// Load policies from advanced config into the manager (called on startup/config change)
-pub async fn security_policy_load_from_config(policies: Vec<SecurityPolicy>) {
-    let manager = get_security_policy_manager();
-    manager.load_policies(policies).await;
-}
-
 /// Reload: revoke all, load new config, apply all enabled
 pub async fn security_policy_reload(policies: Vec<SecurityPolicy>) -> Result<Vec<String>> {
     // Revoke existing

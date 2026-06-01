@@ -164,10 +164,6 @@ impl SecurityPolicyManager {
         format!("{}{}", SECURITY_SOURCE_PREFIX, policy_name)
     }
 
-    /// Extract policy name from a source tag, if it belongs to security policies
-    pub fn policy_name_from_source(source: &str) -> Option<&str> {
-        source.strip_prefix(SECURITY_SOURCE_PREFIX)
-    }
 }
 
 /// Global SecurityPolicyManager instance

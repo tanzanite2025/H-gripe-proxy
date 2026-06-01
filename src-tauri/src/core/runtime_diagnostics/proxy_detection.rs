@@ -5,6 +5,7 @@ use super::{
 };
 use crate::core::{
     CoreManager,
+    ip_reputation::IpReputation,
     manager::RunningMode,
     runtime_status::ProxyDetectionResult,
 };
@@ -49,20 +50,38 @@ fn build_proxy_detection_recommendations(
     runtime_risk_type: &[String],
     observation_path: &str,
     observation_incomplete: bool,
+    proxy_reputation: Option<&IpReputation>,
 ) -> Vec<String> {
     let mut recommendations = Vec::new();
 
     if proxy_effective {
         if ip_changed {
-            recommendations.push("已观察到代理前后出口 IP 变化，说明软件自身流量出口已发生切换".into());
+            recommendations.push(
+                "Direct and proxy egress IPs differ; app traffic is using a different exit.".into(),
+            );
         }
 
         if location_changed {
-            recommendations.push("已观察到代理前后地理位置变化，可继续结合目标站点校验出口纯净度".into());
+            recommendations.push(
+                "Direct and proxy egress locations differ; combine this with IP reputation for quality checks."
+                    .into(),
+            );
+        }
+
+        if let Some(reputation) = proxy_reputation {
+            recommendations.push(
+                format!(
+                    "Proxy egress reputation: {:?}, score {}, ASN {}.",
+                    reputation.ip_type, reputation.fraud_score, reputation.asn
+                )
+                .into(),
+            );
         }
 
         if recommendations.is_empty() {
-            recommendations.push("已观察到代理前后出口差异，当前代理检测结果可视为有效".into());
+            recommendations.push(
+                "Proxy egress differs from direct egress; the proxy path appears effective.".into(),
+            );
         }
 
         return recommendations;
@@ -70,97 +89,65 @@ fn build_proxy_detection_recommendations(
 
     for risk in runtime_risk_type {
         match risk.as_str() {
-            "core-not-running" => {
-                recommendations.push("当前本地 core 未运行，请先启动代理核心后再检测软件出口".into())
-            }
-            "direct-egress-unavailable" => {
-                recommendations.push("未能观测到直连出口，请检查当前网络是否允许直连访问外部 IP 观测服务".into())
-            }
+            "core-not-running" => recommendations
+                .push("Local core is not running; start it before testing proxy egress.".into()),
+            "direct-egress-unavailable" => recommendations.push(
+                "Direct egress could not be observed; check direct access to external IP lookup services."
+                    .into(),
+            ),
             "local-core-proxy-unreachable" => recommendations.push(
-                "未能通过本地 core 代理观测出口，请检查 mixed-port、本地监听和核心运行状态".into(),
+                "Proxy egress through local core could not be observed; check mixed-port, local listener, and core state."
+                    .into(),
+            ),
+            "proxy-reputation-unavailable" => recommendations.push(
+                "Proxy egress was observed, but its IP reputation could not be resolved.".into(),
             ),
             _ => {}
         }
     }
 
+    if let Some(reputation) = proxy_reputation {
+        recommendations.push(
+            format!(
+                "Proxy egress reputation: {:?}, score {}, ASN {}.",
+                reputation.ip_type, reputation.fraud_score, reputation.asn
+            )
+            .into(),
+        );
+    }
+
     if core_running && observation_path == PROXY_DETECTION_OBSERVATION_DIRECT_VS_CORE_PROXY {
         recommendations.push(
-            "已完成直连与本地 core 出口对比，但未观察到明显出口变化，请检查当前规则命中、节点选择和上游出口纯净度"
+            "Direct and proxy egress were compared but no clear exit change was observed; check rule matching and selected node."
                 .into(),
         );
     }
 
     if observation_incomplete {
-        recommendations.push("当前观测不完整，请在直连与本地 core 两条路径都可用时重新检测".into());
+        recommendations.push(
+            "Observation is incomplete; retry when both direct and local-core proxy paths are available."
+                .into(),
+        );
     }
 
     if recommendations.is_empty() {
-        recommendations.push("未观察到明确的代理出口变化，请检查代理模式、规则链路和当前节点出口".into());
+        recommendations.push(
+            "No clear proxy egress change was observed; check proxy mode, rule path, and current node."
+                .into(),
+        );
     }
 
     recommendations
 }
 
-pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
-    let core_running = *CoreManager::global().get_running_mode() != RunningMode::NotRunning;
-    let network_manager = NetworkManager::new();
-    let mut warnings = Vec::new();
-    let mut runtime_risk_type = Vec::new();
-
-    let direct_info = match network_manager
-        .create_request(ProxyType::None, Some(8), None, false)
-        .await
-    {
-        Ok(client) => match fetch_public_ip_location(&client).await {
-            Ok(info) if info.ip.is_some() => Some(info),
-            Ok(_) => {
-                warnings.push("直连出口观测返回了不完整结果，缺少 IP 字段".into());
-                runtime_risk_type.push("direct-egress-unavailable".into());
-                None
-            }
-            Err(err) => {
-                warnings.push(format!("直连出口观测失败: {err}").into());
-                runtime_risk_type.push("direct-egress-unavailable".into());
-                None
-            }
-        },
-        Err(err) => {
-            warnings.push(format!("无法建立直连观测请求: {err}").into());
-            runtime_risk_type.push("direct-egress-unavailable".into());
-            None
-        }
-    };
-
-    let proxy_info = if core_running {
-        match network_manager
-            .create_request(ProxyType::Localhost, Some(8), None, false)
-            .await
-        {
-            Ok(client) => match fetch_public_ip_location(&client).await {
-                Ok(info) if info.ip.is_some() => Some(info),
-                Ok(_) => {
-                    warnings.push("本地 core 代理出口观测返回了不完整结果，缺少 IP 字段".into());
-                    runtime_risk_type.push("local-core-proxy-unreachable".into());
-                    None
-                }
-                Err(err) => {
-                    warnings.push(format!("本地 core 代理出口观测失败: {err}").into());
-                    runtime_risk_type.push("local-core-proxy-unreachable".into());
-                    None
-                }
-            },
-            Err(err) => {
-                warnings.push(format!("无法建立本地 core 代理观测请求: {err}").into());
-                runtime_risk_type.push("local-core-proxy-unreachable".into());
-                None
-            }
-        }
-    } else {
-        warnings.push("当前本地 core 未运行，无法观测软件代理出口".into());
-        runtime_risk_type.push("core-not-running".into());
-        None
-    };
-
+fn build_proxy_detection_result_from_observations(
+    core_running: bool,
+    direct_info: Option<super::geoip::GeoIpInfo>,
+    proxy_info: Option<super::geoip::GeoIpInfo>,
+    proxy_reputation: Option<IpReputation>,
+    mut runtime_risk_type: Vec<String>,
+    warnings: Vec<String>,
+) -> ProxyDetectionResult {
     runtime_risk_type.sort();
     runtime_risk_type.dedup();
 
@@ -209,14 +196,15 @@ pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
         &runtime_risk_type,
         observation_path,
         observation_incomplete,
+        proxy_reputation.as_ref(),
     );
     let error = if !direct_observed && !proxy_observed {
-        Some("无法观测到软件流量的直连或代理出口".into())
+        Some("Unable to observe either direct or proxy egress for app traffic".into())
     } else {
         None
     };
 
-    Ok(ProxyDetectionResult {
+    ProxyDetectionResult {
         checked: true,
         core_running,
         direct_observed,
@@ -240,8 +228,148 @@ pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
         proxy_location: proxy_info
             .as_ref()
             .and_then(|info| build_proxy_detection_location(info)),
+        proxy_reputation,
         observation_path: observation_path.into(),
         error,
         timestamp: current_timestamp_ms(),
-    })
+    }
+}
+
+pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
+    let core_running = *CoreManager::global().get_running_mode() != RunningMode::NotRunning;
+    let network_manager = NetworkManager::new();
+    let mut warnings = Vec::new();
+    let mut runtime_risk_type = Vec::new();
+
+    let direct_info = match network_manager
+        .create_request(ProxyType::None, Some(8), None, false)
+        .await
+    {
+        Ok(client) => match fetch_public_ip_location(&client).await {
+            Ok(info) if info.ip.is_some() => Some(info),
+            Ok(_) => {
+                warnings.push("Direct egress lookup returned an incomplete result without IP.".into());
+                runtime_risk_type.push("direct-egress-unavailable".into());
+                None
+            }
+            Err(err) => {
+                warnings.push(format!("Direct egress lookup failed: {err}").into());
+                runtime_risk_type.push("direct-egress-unavailable".into());
+                None
+            }
+        },
+        Err(err) => {
+            warnings.push(format!("Unable to build direct lookup request: {err}").into());
+            runtime_risk_type.push("direct-egress-unavailable".into());
+            None
+        }
+    };
+
+    let proxy_info = if core_running {
+        match network_manager
+            .create_request(ProxyType::Localhost, Some(8), None, false)
+            .await
+        {
+            Ok(client) => match fetch_public_ip_location(&client).await {
+                Ok(info) if info.ip.is_some() => Some(info),
+                Ok(_) => {
+                    warnings.push(
+                        "Local-core proxy egress lookup returned an incomplete result without IP."
+                            .into(),
+                    );
+                    runtime_risk_type.push("local-core-proxy-unreachable".into());
+                    None
+                }
+                Err(err) => {
+                    warnings.push(format!("Local-core proxy egress lookup failed: {err}").into());
+                    runtime_risk_type.push("local-core-proxy-unreachable".into());
+                    None
+                }
+            },
+            Err(err) => {
+                warnings.push(format!("Unable to build local-core proxy lookup request: {err}").into());
+                runtime_risk_type.push("local-core-proxy-unreachable".into());
+                None
+            }
+        }
+    } else {
+        warnings.push("Local core is not running; proxy egress cannot be observed.".into());
+        runtime_risk_type.push("core-not-running".into());
+        None
+    };
+
+    let proxy_reputation =
+        if let Some(proxy_ip) = proxy_info.as_ref().and_then(|info| info.ip.as_deref()) {
+            match crate::feat::get_ip_reputation_manager()
+                .inspect_ip_metadata(proxy_ip)
+                .await
+            {
+                Ok(reputation) => Some(reputation),
+                Err(err) => {
+                    warnings.push(format!("Proxy egress reputation lookup failed: {err}").into());
+                    runtime_risk_type.push("proxy-reputation-unavailable".into());
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+    Ok(build_proxy_detection_result_from_observations(
+        core_running,
+        direct_info,
+        proxy_info,
+        proxy_reputation,
+        runtime_risk_type,
+        warnings,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::ip_reputation::{IpReputation, IpType, RiskLevel};
+    use std::time::SystemTime;
+
+    #[test]
+    fn test_proxy_detection_result_includes_proxy_reputation() {
+        let proxy_reputation = IpReputation {
+            ip: "203.0.113.10".to_string(),
+            ip_type: IpType::Datacenter,
+            asn: "AS16509".to_string(),
+            asn_org: "Amazon AWS".to_string(),
+            fraud_score: 85,
+            risk_level: RiskLevel::High,
+            is_proxy: false,
+            is_vpn: false,
+            is_tor: false,
+            country_code: "US".to_string(),
+            city: Some("Seattle".to_string()),
+            checked_at: SystemTime::UNIX_EPOCH,
+        };
+
+        let result = build_proxy_detection_result_from_observations(
+            true,
+            Some(super::super::geoip::GeoIpInfo {
+                ip: Some("198.51.100.10".into()),
+                country_code: Some("US".into()),
+                ..Default::default()
+            }),
+            Some(super::super::geoip::GeoIpInfo {
+                ip: Some("203.0.113.10".into()),
+                country_code: Some("US".into()),
+                asn: Some(16509),
+                asn_organization: Some("Amazon AWS".into()),
+                ..Default::default()
+            }),
+            Some(proxy_reputation),
+            Vec::new(),
+            Vec::new(),
+        );
+
+        let reputation = result.proxy_reputation.expect("proxy reputation");
+        assert_eq!(reputation.ip_type, IpType::Datacenter);
+        assert_eq!(reputation.fraud_score, 85);
+        assert_eq!(reputation.asn, "AS16509");
+    }
 }

@@ -12,6 +12,22 @@ export interface SecurityStatus {
   leak_type?: string | null
 }
 
+export interface DecoyDeploymentPlan {
+  paths: string[]
+}
+
+export interface DecoyAccessResult {
+  path: string
+  accessed: boolean
+}
+
+export interface DecoyBatchResult {
+  total: number
+  succeeded: number
+  failed: string[]
+  accessed: DecoyAccessResult[]
+}
+
 /**
  * 启动安全监控
  */
@@ -54,6 +70,24 @@ export async function securityCheckDecoyAccess(
   decoyPath: string,
 ): Promise<boolean> {
   return invoke<boolean>('security_check_decoy_access', { decoyPath })
+}
+
+export async function securityDeployDecoyPlan(
+  plan: DecoyDeploymentPlan,
+): Promise<DecoyBatchResult> {
+  return invoke<DecoyBatchResult>('security_deploy_decoy_plan', { plan })
+}
+
+export async function securityCleanupDecoyPlan(
+  plan: DecoyDeploymentPlan,
+): Promise<DecoyBatchResult> {
+  return invoke<DecoyBatchResult>('security_cleanup_decoy_plan', { plan })
+}
+
+export async function securityCheckDecoyPlanAccess(
+  plan: DecoyDeploymentPlan,
+): Promise<DecoyBatchResult> {
+  return invoke<DecoyBatchResult>('security_check_decoy_plan_access', { plan })
 }
 
 /**

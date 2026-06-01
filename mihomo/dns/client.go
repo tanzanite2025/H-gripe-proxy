@@ -14,10 +14,11 @@ import (
 )
 
 type client struct {
-	port   string
-	host   string
-	dialer *dnsDialer
-	schema string
+	port      string
+	host      string
+	dialer    *dnsDialer
+	schema    string
+	proxyName string
 }
 
 var _ dnsClient = (*client)(nil)
@@ -26,6 +27,8 @@ var _ dnsClient = (*client)(nil)
 func (c *client) Address() string {
 	return fmt.Sprintf("%s://%s", c.schema, net.JoinHostPort(c.host, c.port))
 }
+
+func (c *client) ProxyName() string { return c.proxyName }
 
 func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) {
 	network := "udp"
@@ -90,10 +93,11 @@ func (c *client) ResetConnection() {}
 func newClient(addr string, resolver *Resolver, netType string, params map[string]string, proxyAdapter C.ProxyAdapter, proxyName string) *client {
 	host, port, _ := net.SplitHostPort(addr)
 	c := &client{
-		port:   port,
-		host:   host,
-		dialer: newDNSDialer(resolver, proxyAdapter, proxyName),
-		schema: "udp",
+		port:      port,
+		host:      host,
+		dialer:    newDNSDialer(resolver, proxyAdapter, proxyName),
+		schema:    "udp",
+		proxyName: dnsClientProxyName(proxyAdapter, proxyName),
 	}
 	if strings.HasPrefix(netType, "tcp") {
 		c.schema = "tcp"

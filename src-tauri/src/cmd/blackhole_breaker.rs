@@ -36,6 +36,12 @@ pub async fn blackhole_breaker_should_block_domain(domain: String) -> CmdResult<
     Ok(crate::feat::blackhole_breaker_should_block_domain(&domain).await)
 }
 
+/// Check whether a node is blocked by breaker rules.
+#[tauri::command]
+pub async fn blackhole_breaker_should_block_node(node_name: String) -> CmdResult<bool> {
+    Ok(crate::feat::blackhole_breaker_should_block_node(&node_name).await)
+}
+
 /// 手动重置熔断规则
 #[tauri::command]
 pub async fn blackhole_breaker_reset_rule(rule_id: String) -> CmdResult<()> {

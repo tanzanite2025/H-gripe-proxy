@@ -1002,6 +1002,37 @@ pub struct DnsServerStats {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
+pub struct DnsQueryEvent {
+    pub domain: String,
+    pub q_type: String,
+    pub server: String,
+    pub protocol: String,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub proxy_name: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub proxy_chain: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub egress: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub rule: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub rule_payload: Option<String>,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub error: Option<String>,
+    #[ts(type = "number")]
+    pub latency_us: u64,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct DnsPollutedEntry {
     pub domain: String,
     pub ip: String,
@@ -1056,6 +1087,7 @@ pub struct DnsMetrics {
     pub cache: DnsCacheStats,
     pub queries: DnsQueryStats,
     pub servers: Vec<DnsServerStats>,
+    pub recent: Vec<DnsQueryEvent>,
     pub pollution: DnsPollutionStats,
     pub trust: DnsTrustSummary,
 }

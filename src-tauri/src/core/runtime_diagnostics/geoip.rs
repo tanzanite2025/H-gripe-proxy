@@ -90,6 +90,14 @@ fn parse_geo_ip_info(data: &JsonValue) -> GeoIpInfo {
     }
 }
 
+fn has_location_identity(info: &GeoIpInfo) -> bool {
+    info.country.is_some() || info.country_code.is_some() || info.ip.is_some()
+}
+
+fn has_asn_metadata(info: &GeoIpInfo) -> bool {
+    info.asn.is_some() || info.asn_organization.is_some() || info.organization.is_some() || info.isp.is_some()
+}
+
 pub(super) async fn fetch_json(client: &Client, url: &str) -> Result<JsonValue> {
     let response = client
         .get(url)
@@ -128,6 +136,8 @@ pub(super) async fn fetch_public_ip_location(client: &Client) -> Result<GeoIpInf
 }
 
 pub async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
+    let mut fallback: Option<GeoIpInfo> = None;
+
     for url in [
         format!("https://ipapi.co/{ip}/json/"),
         format!("https://ipwho.is/{ip}"),
@@ -135,8 +145,11 @@ pub async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
         match fetch_json(client, &url).await {
             Ok(data) => {
                 let info = parse_geo_ip_info(&data);
-                if info.country.is_some() {
+                if has_location_identity(&info) && has_asn_metadata(&info) {
                     return info;
+                }
+                if has_location_identity(&info) {
+                    fallback.get_or_insert(info);
                 }
             }
             Err(err) => {
@@ -145,7 +158,7 @@ pub async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
         }
     }
 
-    GeoIpInfo::default()
+    fallback.unwrap_or_default()
 }
 
 pub(super) fn build_proxy_detection_location(info: &GeoIpInfo) -> Option<ProxyDetectionLocation> {
@@ -193,4 +206,3 @@ pub(super) fn has_proxy_detection_location_delta(direct: &GeoIpInfo, proxy: &Geo
 
     false
 }
-

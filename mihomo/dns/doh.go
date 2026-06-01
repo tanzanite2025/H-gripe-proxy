@@ -67,6 +67,7 @@ type dnsOverHTTPS struct {
 	httpVersions   []C.HTTPVersion
 	dialer         *dnsDialer
 	addr           string
+	proxyName      string
 	skipCertVerify bool
 }
 
@@ -86,9 +87,10 @@ func newDoHClient(urlString string, r *Resolver, preferH3 bool, params map[strin
 	}
 
 	doh := &dnsOverHTTPS{
-		url:    u,
-		addr:   u.String(),
-		dialer: newDNSDialer(r, proxyAdapter, proxyName),
+		url:       u,
+		addr:      u.String(),
+		dialer:    newDNSDialer(r, proxyAdapter, proxyName),
+		proxyName: dnsClientProxyName(proxyAdapter, proxyName),
 		quicConfig: &quic.Config{
 			KeepAlivePeriod: QUICKeepAlivePeriod,
 			TokenStore:      newQUICTokenStore(),
@@ -109,6 +111,8 @@ func newDoHClient(urlString string, r *Resolver, preferH3 bool, params map[strin
 func (doh *dnsOverHTTPS) Address() string {
 	return doh.addr
 }
+
+func (doh *dnsOverHTTPS) ProxyName() string { return doh.proxyName }
 
 func (doh *dnsOverHTTPS) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
 	// Quote from https://www.rfc-editor.org/rfc/rfc8484.html:

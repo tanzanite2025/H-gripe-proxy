@@ -1,6 +1,11 @@
-use crate::core::egress_identity::ResolvedEgressIdentity;
+use crate::core::egress_identity::{EgressIdentityConfig, ResolvedEgressIdentity};
 
 use super::{CmdResult, StringifyErr};
+
+#[tauri::command]
+pub fn egress_identity_get_config() -> CmdResult<EgressIdentityConfig> {
+    Ok(crate::feat::egress_identity_get_config())
+}
 
 #[tauri::command]
 pub async fn egress_identity_preview_match(

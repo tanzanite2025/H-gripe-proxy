@@ -9,6 +9,7 @@ import {
   BasePage,
   BaseSearchBox,
   BaseStyledSelect,
+  type SearchState,
   VirtualList,
 } from '@/components/base'
 import {
@@ -16,6 +17,12 @@ import {
   ConnectionDetailRef,
 } from '@/components/connection/connection-detail'
 import { ConnectionItem } from '@/components/connection/connection-item'
+import {
+  CONNECTION_ORDER_OPTIONS,
+  type ConnectionOrderKey,
+  filterAndOrderConnections,
+  getConnectionViewSpec,
+} from '@/components/connection/connection-page-model'
 import { ConnectionTable } from '@/components/connection/connection-table'
 import {
   Box,
@@ -31,49 +38,13 @@ import { useConnectionData } from '@/hooks/data'
 import { useConnectionSetting } from '@/hooks/system'
 import parseTraffic from '@/utils/format'
 
-type OrderFunc = (list: IConnectionsItem[]) => IConnectionsItem[]
-
-const ORDER_OPTIONS = [
-  {
-    id: 'default',
-    labelKey: 'connections.components.order.default',
-    fn: (list: IConnectionsItem[]) =>
-      list.sort(
-        (a, b) =>
-          new Date(b.start || '0').getTime()! -
-          new Date(a.start || '0').getTime()!,
-      ),
-  },
-  {
-    id: 'uploadSpeed',
-    labelKey: 'connections.components.order.uploadSpeed',
-    fn: (list: IConnectionsItem[]) =>
-      list.sort((a, b) => b.curUpload! - a.curUpload!),
-  },
-  {
-    id: 'downloadSpeed',
-    labelKey: 'connections.components.order.downloadSpeed',
-    fn: (list: IConnectionsItem[]) =>
-      list.sort((a, b) => b.curDownload! - a.curDownload!),
-  },
-] as const
-
-type OrderKey = (typeof ORDER_OPTIONS)[number]['id']
-
-const orderFunctionMap = ORDER_OPTIONS.reduce<Record<OrderKey, OrderFunc>>(
-  (acc, option) => {
-    acc[option.id] = option.fn
-    return acc
-  },
-  {} as Record<OrderKey, OrderFunc>,
-)
-
 const ConnectionsPage = () => {
   const { t } = useTranslation()
   const [match, setMatch] = useState<(input: string) => boolean>(
     () => () => true,
   )
-  const [curOrderOpt, setCurOrderOpt] = useState<OrderKey>('default')
+  const [searchText, setSearchText] = useState('')
+  const [curOrderOpt, setCurOrderOpt] = useState<ConnectionOrderKey>('default')
   const [connectionsType, setConnectionsType] = useState<'active' | 'closed'>(
     'active',
   )
@@ -86,33 +57,40 @@ const ConnectionsPage = () => {
   const [setting, setSetting] = useConnectionSetting()
 
   const isTableLayout = setting.layout === 'table'
+  const viewSpec = useMemo(
+    () => getConnectionViewSpec(connectionsType),
+    [connectionsType],
+  )
 
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false)
 
   const [filterConn] = useMemo(() => {
-    const orderFunc = orderFunctionMap[curOrderOpt]
     const conns =
       (connectionsType === 'active'
         ? connections?.activeConnections
         : connections?.closedConnections) ?? []
-    let matchConns = conns.filter((conn) => {
-      const { host, destinationIP, process } = conn.metadata
-      return (
-        match(host || '') || match(destinationIP || '') || match(process || '')
-      )
-    })
 
-    if (orderFunc) matchConns = orderFunc(matchConns ?? [])
-
-    return [matchConns]
-  }, [connections, connectionsType, match, curOrderOpt])
+    return [
+      filterAndOrderConnections({
+        connections: conns,
+        match,
+        orderKey: curOrderOpt,
+        searchText,
+        viewMode: viewSpec.mode,
+      }),
+    ]
+  }, [connections, connectionsType, curOrderOpt, match, searchText, viewSpec.mode])
 
   const onCloseAll = useLockFn(closeAllConnections)
 
   const detailRef = useRef<ConnectionDetailRef>(null!)
 
-  const handleSearch = useCallback((match: (content: string) => boolean) => {
+  const handleSearch = useCallback((
+    match: (content: string) => boolean,
+    state: SearchState,
+  ) => {
     setMatch(() => match)
+    setSearchText(state.text)
   }, [])
 
   const hasTableData = filterConn.length > 0
@@ -155,26 +133,32 @@ const ConnectionsPage = () => {
               {connections?.closedConnections.length}
             </Button>
           </ButtonGroup>
-          {!isTableLayout && (
+          {!isTableLayout && viewSpec.showSortControl && (
             <BaseStyledSelect
               value={curOrderOpt}
-              onChange={(e) => setCurOrderOpt(e.target.value as OrderKey)}
+              onChange={(e) =>
+                setCurOrderOpt(e.target.value as ConnectionOrderKey)
+              }
             >
-              {ORDER_OPTIONS.map((option) => (
+              {CONNECTION_ORDER_OPTIONS.map((option) => (
                 <SelectMenuItem key={option.id} value={option.id}>
                   <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
                 </SelectMenuItem>
               ))}
             </BaseStyledSelect>
           )}
-          <Box className="mx-1">
-            {t('shared.labels.downloaded')}:{' '}
-            {parseTraffic(connections?.downloadTotal)}
-          </Box>
-          <Box className="mx-1">
-            {t('shared.labels.uploaded')}:{' '}
-            {parseTraffic(connections?.uploadTotal)}
-          </Box>
+          {viewSpec.showTrafficTotals && (
+            <Box className="mx-1">
+              {t('shared.labels.downloaded')}:{' '}
+              {parseTraffic(connections?.downloadTotal)}
+            </Box>
+          )}
+          {viewSpec.showTrafficTotals && (
+            <Box className="mx-1">
+              {t('shared.labels.uploaded')}:{' '}
+              {parseTraffic(connections?.uploadTotal)}
+            </Box>
+          )}
           <IconButton
             color="inherit"
             size="small"
@@ -208,11 +192,13 @@ const ConnectionsPage = () => {
             </Tooltip>
           )}
           <div className="flex-1" />
-          <Button size="small" variant="primary" onClick={onCloseAll}>
-            <span style={{ whiteSpace: 'nowrap' }}>
-              {t('shared.actions.closeAll')}
-            </span>
-          </Button>
+          {viewSpec.showCloseAllAction && (
+            <Button size="small" variant="primary" onClick={onCloseAll}>
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {t('shared.actions.closeAll')}
+              </span>
+            </Button>
+          )}
         </Box>
         <Box className="flex items-center">
           <BaseSearchBox onSearch={handleSearch} />
@@ -224,8 +210,9 @@ const ConnectionsPage = () => {
       ) : isTableLayout ? (
         <ConnectionTable
           connections={filterConn}
+          viewMode={viewSpec.mode}
           onShowDetail={(detail) =>
-            detailRef.current?.open(detail, connectionsType === 'closed')
+            detailRef.current?.open(detail, viewSpec.mode)
           }
           columnManagerOpen={isTableLayout && isColumnManagerOpen}
           onCloseColumnManager={() => setIsColumnManagerOpen(false)}
@@ -237,11 +224,11 @@ const ConnectionsPage = () => {
           renderItem={(i) => (
             <ConnectionItem
               value={filterConn[i]}
-              closed={connectionsType === 'closed'}
+              viewMode={viewSpec.mode}
               onShowDetail={() =>
                 detailRef.current?.open(
                   filterConn[i],
-                  connectionsType === 'closed',
+                  viewSpec.mode,
                 )
               }
             />

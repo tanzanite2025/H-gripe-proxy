@@ -1,5 +1,13 @@
 use std::net::IpAddr;
 
+use crate::anti_probe::AntiProbeConfig;
+
+pub fn anti_probe_get_config() -> AntiProbeConfig {
+    let coordinator = crate::feat::get_coordinator();
+    let service = coordinator.anti_probe();
+    service.get_config()
+}
+
 pub fn anti_probe_verify_handshake(ip: &IpAddr, token: &str) -> bool {
     let coordinator = crate::feat::get_coordinator();
     let service = coordinator.anti_probe();

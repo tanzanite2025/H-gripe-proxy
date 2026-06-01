@@ -204,7 +204,27 @@ pub fn multipath_get_node_stats() -> HashMap<String, NodeStats> {
     manager.get_node_stats()
 }
 
-/// 获取活跃会话数
+/// Select a node for a multipath session.
+pub fn multipath_select_node(domain: &str, session_id: u64) -> Option<String> {
+    let manager = multipath_manager();
+    manager.select_node(domain, session_id)
+}
+
+pub fn multipath_record_connection_end(node_name: &str, bytes: u64) {
+    let manager = multipath_manager();
+    manager.record_connection_end(node_name, bytes);
+}
+
+pub fn multipath_record_latency(node_name: &str, latency_us: u64) {
+    let manager = multipath_manager();
+    manager.record_latency(node_name, latency_us);
+}
+
+pub fn multipath_record_error(node_name: &str) {
+    let manager = multipath_manager();
+    manager.record_error(node_name);
+}
+
 pub fn multipath_get_active_session_count() -> usize {
     let manager = multipath_manager();
     manager.active_session_count()

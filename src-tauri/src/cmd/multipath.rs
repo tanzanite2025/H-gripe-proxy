@@ -133,7 +133,33 @@ pub fn multipath_get_node_stats() -> CmdResult<HashMap<String, NodeStats>> {
     Ok(crate::feat::multipath_get_node_stats())
 }
 
-/// 获取活跃会话数
+/// Select a node for a multipath session.
+#[tauri::command]
+pub fn multipath_select_node(domain: String, session_id: u64) -> CmdResult<Option<String>> {
+    Ok(crate::feat::multipath_select_node(&domain, session_id))
+}
+
+/// Record the end of a multipath node connection.
+#[tauri::command]
+pub fn multipath_record_connection_end(node_name: String, bytes: u64) -> CmdResult<()> {
+    crate::feat::multipath_record_connection_end(&node_name, bytes);
+    Ok(())
+}
+
+/// Record a multipath node latency sample.
+#[tauri::command]
+pub fn multipath_record_latency(node_name: String, latency_us: u64) -> CmdResult<()> {
+    crate::feat::multipath_record_latency(&node_name, latency_us);
+    Ok(())
+}
+
+/// Record a multipath node error.
+#[tauri::command]
+pub fn multipath_record_error(node_name: String) -> CmdResult<()> {
+    crate::feat::multipath_record_error(&node_name);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn multipath_get_active_session_count() -> CmdResult<usize> {
     Ok(crate::feat::multipath_get_active_session_count())

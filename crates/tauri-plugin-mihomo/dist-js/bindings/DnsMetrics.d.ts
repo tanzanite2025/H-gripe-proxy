@@ -20,6 +20,21 @@ export type DnsServerStats = {
     lastQuery: string;
     lastError?: string;
 };
+export type DnsQueryEvent = {
+    domain: string;
+    qType: string;
+    server: string;
+    protocol: string;
+    proxyName?: string | null;
+    proxyChain?: string | null;
+    egress?: string | null;
+    rule?: string | null;
+    rulePayload?: string | null;
+    success: boolean;
+    error?: string | null;
+    latencyUs: number;
+    timestamp: string;
+};
 export type DnsPollutedEntry = {
     domain: string;
     ip: string;
@@ -52,6 +67,7 @@ export type DnsMetrics = {
     cache: DnsCacheStats;
     queries: DnsQueryStats;
     servers: DnsServerStats[];
+    recent: DnsQueryEvent[];
     pollution: DnsPollutionStats;
     trust: DnsTrustSummary;
 };

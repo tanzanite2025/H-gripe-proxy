@@ -2,7 +2,7 @@ import { extractErrorMessage } from 'foxts/extract-error-message'
 
 import { debugLog } from '@/utils/misc'
 
-import { testDnsLeak } from './cmds'
+import { testDnsLeak, type DnsMetrics } from './cmds'
 
 export interface DNSLeakResult {
   // DNS 服务器信息
@@ -24,6 +24,7 @@ export interface DNSLeakResult {
   warnings: string[]
   observedLeakType: string[]
   runtimeRiskType: string[]
+  dnsMetrics?: DnsMetrics | null
   
   // 位置信息
   dnsLocation?: string  // DNS 服务器所在国家
@@ -82,8 +83,9 @@ export async function detectDNSLeak(): Promise<DNSLeakResult> {
       assessment: result.assessment,
       confidence: result.confidence,
       warnings: result.warnings,
-      observedLeakType: result.observed_leak_type,
-      runtimeRiskType: result.runtime_risk_type,
+      observedLeakType: result.observed_leak_type.map(formatDNSLeakSignal),
+      runtimeRiskType: result.runtime_risk_type.map(formatDNSRuntimeRisk),
+      dnsMetrics: result.dns_metrics,
       dnsLocation: result.dns_location ?? 'Unknown',
       ipLocation: result.ip_location,
       locationMatch: result.location_match,
@@ -150,5 +152,37 @@ export function getDNSLeakRiskDescription(riskLevel: DNSLeakResult['riskLevel'])
         description: 'DNS 严重泄漏，您的真实位置可能暴露',
         color: 'text-error',
       }
+  }
+}
+
+export function formatDNSRuntimeRisk(type: string): string {
+  switch (type) {
+    case 'plain-dns-bootstrap':
+      return '存在明文 DNS bootstrap，可能绕过加密解析链路'
+    case 'dns-protection-insufficient':
+      return '当前 DNS 防护级别不足，建议切换到严格或偏执模式'
+    case 'system-hosts-enabled':
+      return '仍启用系统 hosts，可能绕过 Clash DNS 规则'
+    case 'runtime-dns-not-synced':
+      return '运行时 DNS 配置尚未同步到当前内核'
+    case 'core-dns-unencrypted-server':
+      return '本地内核报告正在使用未加密 DNS server'
+    case 'core-dns-high-risk-score':
+      return '本地内核 DNS trust risk score 偏高'
+    case 'core-dns-polluted-response':
+      return '本地内核检测到 DNS 污染响应'
+    case 'core-dns-high-failure-rate':
+      return '本地内核 DNS 查询失败率偏高'
+    default:
+      return type
+  }
+}
+
+export function formatDNSLeakSignal(type: string): string {
+  switch (type) {
+    case 'dns-location-mismatch':
+      return 'DNS 出口位置与代理出口位置不一致'
+    default:
+      return type
   }
 }

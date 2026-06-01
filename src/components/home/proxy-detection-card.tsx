@@ -1,8 +1,3 @@
-/**
- * 代理检测卡片组件
- * 显示代理是否生效，对比直连和代理的 IP 信息
- */
-
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertCircle as ErrorOutlined,
@@ -29,15 +24,15 @@ import { EnhancedCard } from './enhanced-card'
 const getAssessmentLabel = (assessment?: string) => {
   switch (assessment) {
     case 'effective':
-      return '出口已变化'
+      return 'Exit changed'
     case 'same-egress':
-      return '出口未变化'
+      return 'Same exit'
     case 'runtime-risk':
-      return '存在运行风险'
+      return 'Runtime risk'
     case 'inconclusive':
-      return '结果不确定'
+      return 'Inconclusive'
     default:
-      return assessment || '未知'
+      return assessment || 'Unknown'
   }
 }
 
@@ -46,7 +41,6 @@ const getAssessmentColor = (assessment?: string) => {
     case 'effective':
       return 'success' as const
     case 'same-egress':
-      return 'warning' as const
     case 'runtime-risk':
       return 'warning' as const
     case 'inconclusive':
@@ -59,37 +53,39 @@ const getAssessmentColor = (assessment?: string) => {
 const getConfidenceLabel = (confidence?: string) => {
   switch (confidence) {
     case 'high':
-      return '高置信度'
+      return 'High confidence'
     case 'medium':
-      return '中置信度'
+      return 'Medium confidence'
     case 'low':
-      return '低置信度'
+      return 'Low confidence'
     default:
-      return confidence || '未知'
+      return confidence || 'Unknown'
   }
 }
 
 const formatObservationPath = (observationPath?: string) => {
   switch (observationPath) {
     case 'direct-vs-core-proxy':
-      return '直连 vs 本地 core 代理'
+      return 'Direct vs core'
     case 'direct-only':
-      return '仅直连'
+      return 'Direct only'
     case 'core-proxy-only':
-      return '仅本地 core 代理'
+      return 'Core only'
     default:
-      return observationPath || '未知'
+      return observationPath || 'Unknown'
   }
 }
 
 const formatRuntimeRiskLabel = (risk: string) => {
   switch (risk) {
     case 'core-not-running':
-      return '本地 core 未运行'
+      return 'Local core is not running'
     case 'direct-egress-unavailable':
-      return '直连出口不可观测'
+      return 'Direct egress unavailable'
     case 'local-core-proxy-unreachable':
-      return '本地 core 代理出口不可观测'
+      return 'Core proxy egress unavailable'
+    case 'proxy-reputation-unavailable':
+      return 'Proxy reputation unavailable'
     default:
       return risk
   }
@@ -97,40 +93,50 @@ const formatRuntimeRiskLabel = (risk: string) => {
 
 const formatLocation = (location?: ProxyDetectionResult['direct_location']) => {
   if (!location) {
-    return '未观测到'
+    return 'Not observed'
   }
 
-  return [location.country, location.region, location.city].filter(Boolean).join(' ') || '未知'
+  return [location.country, location.region, location.city].filter(Boolean).join(' ') || 'Unknown'
+}
+
+const getRiskColor = (riskLevel?: string) => {
+  switch (riskLevel) {
+    case 'Low':
+      return 'success' as const
+    case 'Medium':
+      return 'info' as const
+    case 'High':
+    case 'VeryHigh':
+      return 'warning' as const
+    default:
+      return 'default' as const
+  }
 }
 
 const ProxyDetectionCardContainer = forwardRef<
   HTMLElement,
   React.PropsWithChildren<{ onRefresh: () => void }>
->(({ children, onRefresh }, ref) => {
-
-  return (
-    <EnhancedCard
-      title="代理检测"
-      icon={<InfoOutlined />}
-      iconColor="info"
-      ref={ref}
-      fixedHeight={280}
-      action={
-        <IconButton size="small" onClick={onRefresh}>
-          <RefreshOutlined className="h-4 w-4" />
-        </IconButton>
-      }
-    >
-      {children}
-    </EnhancedCard>
-  )
-})
+>(({ children, onRefresh }, ref) => (
+  <EnhancedCard
+    title="Proxy Detection"
+    icon={<InfoOutlined />}
+    iconColor="info"
+    ref={ref}
+    fixedHeight={280}
+    action={
+      <IconButton size="small" onClick={onRefresh}>
+        <RefreshOutlined className="h-4 w-4" />
+      </IconButton>
+    }
+  >
+    {children}
+  </EnhancedCard>
+))
 
 ProxyDetectionCardContainer.displayName = 'ProxyDetectionCardContainer'
 
 export const ProxyDetectionCard = () => {
   const { data, error, isLoading, isFetching, refetch } = useProxyDetection()
-  const [showAdvice, setShowAdvice] = useState(false)
   const [adviceDialogOpen, setAdviceDialogOpen] = useState(false)
 
   const handleRefresh = useCallback(() => {
@@ -144,7 +150,6 @@ export const ProxyDetectionCard = () => {
         error={error}
         isLoading={isLoading}
         isFetching={isFetching}
-        showAdvice={showAdvice}
         onToggleAdvice={() => setAdviceDialogOpen(true)}
         adviceDialogOpen={adviceDialogOpen}
         onCloseAdviceDialog={() => setAdviceDialogOpen(false)}
@@ -159,7 +164,6 @@ interface ProxyDetectionCardUIProps {
   error?: Error | null
   isLoading: boolean
   isFetching: boolean
-  showAdvice: boolean
   onToggleAdvice: () => void
   adviceDialogOpen: boolean
   onCloseAdviceDialog: () => void
@@ -171,7 +175,6 @@ const ProxyDetectionCardUI = ({
   error,
   isLoading,
   isFetching,
-  showAdvice,
   onToggleAdvice,
   adviceDialogOpen,
   onCloseAdviceDialog,
@@ -189,13 +192,13 @@ const ProxyDetectionCardUI = ({
 
   if (error && !result) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-error">
+      <div className="flex h-full flex-col items-center justify-center text-error">
         <ErrorOutlined className="mb-2 h-10 w-10" />
         <p className="text-base text-error">
-          {error instanceof Error ? error.message : '检测失败'}
+          {error instanceof Error ? error.message : 'Detection failed'}
         </p>
         <Button onClick={onRetry} className="mt-4">
-          重试
+          Retry
         </Button>
       </div>
     )
@@ -205,23 +208,23 @@ const ProxyDetectionCardUI = ({
     return null
   }
 
+  const reputation = result.proxy_reputation
   const advice = result.recommendations
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 代理状态 */}
       <div className="flex items-center gap-2">
         {result.proxy_effective ? (
           <>
             <CheckCircleOutlined className="h-8 w-8 text-success" />
             <div>
               <p className="text-base font-medium text-success">
-                ✅ 已观察到代理出口变化
+                Proxy exit changed
               </p>
               <p className="text-xs text-text-secondary">
-                {result.ip_changed && 'IP 地址已改变'}
-                {result.ip_changed && result.location_changed && ' • '}
-                {result.location_changed && '地理位置已改变'}
+                {result.ip_changed && 'IP changed'}
+                {result.ip_changed && result.location_changed && ' / '}
+                {result.location_changed && 'Location changed'}
               </p>
             </div>
           </>
@@ -230,10 +233,10 @@ const ProxyDetectionCardUI = ({
             <WarningOutlined className="h-8 w-8 text-warning" />
             <div>
               <p className="text-base font-medium text-warning">
-                ⚠️ 未观察到代理出口变化
+                Same egress observed
               </p>
               <p className="text-xs text-text-secondary">
-                当前软件流量的直连与本地 core 代理出口没有明显差异
+                Direct and local-core proxy paths currently look identical.
               </p>
             </div>
           </>
@@ -242,10 +245,10 @@ const ProxyDetectionCardUI = ({
             <InfoOutlined className="h-8 w-8 text-info" />
             <div>
               <p className="text-base font-medium text-info">
-                ℹ️ 当前代理观测不完整
+                Observation incomplete
               </p>
               <p className="text-xs text-text-secondary">
-                还未同时拿到软件自身流量的直连与代理两条出口观测
+                Direct and proxy paths were not both observed.
               </p>
             </div>
           </>
@@ -261,18 +264,24 @@ const ProxyDetectionCardUI = ({
         <Chip label={getConfidenceLabel(result.confidence)} color="info" size="small" />
         <Chip label={formatObservationPath(result.observation_path)} size="small" />
         <Chip
-          label={result.core_running ? '本地 core 已运行' : '本地 core 未运行'}
+          label={result.core_running ? 'Core running' : 'Core stopped'}
           color={result.core_running ? 'success' : 'warning'}
           size="small"
         />
+        {reputation ? (
+          <Chip
+            label={`${reputation.ipType} / score ${reputation.fraudScore}`}
+            color={getRiskColor(reputation.riskLevel)}
+            size="small"
+          />
+        ) : null}
       </div>
 
-      {/* IP 信息对比 */}
       <div className="flex flex-col gap-1.5 text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-text-secondary shrink-0">直连出口</span>
+          <span className="shrink-0 text-xs text-text-secondary">Direct</span>
           <p className="uds-mono text-xs font-medium">
-            {result.direct_ip || '未观测到'}
+            {result.direct_ip || 'Not observed'}
           </p>
           {result.direct_ip && result.direct_location && (
             <p className="text-xs text-text-secondary">
@@ -281,9 +290,9 @@ const ProxyDetectionCardUI = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-text-secondary shrink-0">代理出口</span>
+          <span className="shrink-0 text-xs text-text-secondary">Proxy</span>
           <p className="uds-mono text-xs font-medium">
-            {result.proxy_ip || '未观测到'}
+            {result.proxy_ip || 'Not observed'}
           </p>
           {result.proxy_ip && result.proxy_location && (
             <p className="text-xs text-text-secondary">
@@ -291,23 +300,29 @@ const ProxyDetectionCardUI = ({
             </p>
           )}
         </div>
+        {reputation ? (
+          <p className="truncate text-xs text-text-secondary">
+            ASN {reputation.asn} · {reputation.asnOrg}
+          </p>
+        ) : null}
       </div>
 
       {result.observation_incomplete ? (
         <Alert severity="info" className="text-xs">
-          当前仅拿到了部分出口观测结果，建议在直连与本地 core 两条路径都可用时重新检测。
+          Only part of the egress observation is available. Retry when both direct
+          and local-core proxy paths are reachable.
         </Alert>
       ) : null}
 
       {result.runtime_risk_detected && result.runtime_risk_type.length > 0 ? (
         <Alert severity="warning" className="text-xs">
-          {result.runtime_risk_type.map(formatRuntimeRiskLabel).join('；')}
+          {result.runtime_risk_type.map(formatRuntimeRiskLabel).join('; ')}
         </Alert>
       ) : null}
 
       {result.warnings.length ? (
         <Alert severity="warning" className="text-xs">
-          {result.warnings.join('；')}
+          {result.warnings.join('; ')}
         </Alert>
       ) : null}
 
@@ -317,30 +332,28 @@ const ProxyDetectionCardUI = ({
         </Alert>
       ) : null}
 
-      {/* 建议弹窗 */}
       <Dialog open={adviceDialogOpen} onClose={onCloseAdviceDialog}>
-        <DialogTitle>检测建议</DialogTitle>
+        <DialogTitle>Detection Advice</DialogTitle>
         <DialogContent>
-          <ul className="list-disc list-inside space-y-1 text-sm text-text-secondary">
+          <ul className="list-inside list-disc space-y-1 text-sm text-text-secondary">
             {advice.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onCloseAdviceDialog}>关闭</Button>
+          <Button onClick={onCloseAdviceDialog}>Close</Button>
         </DialogActions>
       </Dialog>
 
-      {/* 操作按钮 */}
-      <div className="flex gap-2 mt-2">
+      <div className="mt-2 flex gap-2">
         <Button
           size="small"
           variant="outlined"
           onClick={onToggleAdvice}
           className="flex-1"
         >
-          查看建议
+          Advice
         </Button>
         <Button
           size="small"
@@ -349,7 +362,7 @@ const ProxyDetectionCardUI = ({
           loading={isFetching}
           className="flex-1"
         >
-          重新检测
+          Refresh
         </Button>
       </div>
     </div>
@@ -360,8 +373,8 @@ function useProxyDetection() {
   return useQuery({
     queryKey: ['proxy-detection'],
     queryFn: testProxyDetection,
-    staleTime: 5 * 60 * 1000, // 5分钟
-    gcTime: 10 * 60 * 1000, // 10分钟
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 1,
   })

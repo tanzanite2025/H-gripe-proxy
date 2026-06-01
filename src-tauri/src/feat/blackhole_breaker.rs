@@ -33,6 +33,12 @@ pub async fn blackhole_breaker_should_block_domain(domain: &str) -> bool {
         .await
 }
 
+pub async fn blackhole_breaker_should_block_node(node_name: &str) -> bool {
+    get_blackhole_breaker_manager()
+        .should_block_node(node_name)
+        .await
+}
+
 pub async fn blackhole_breaker_reset_rule(rule_id: &str) -> anyhow::Result<()> {
     get_blackhole_breaker_manager().reset_rule(rule_id).await
 }

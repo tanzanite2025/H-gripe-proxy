@@ -21,7 +21,6 @@ pub enum AsnCategory {
 /// ASN 分类条目
 #[derive(Debug, Clone)]
 pub struct AsnInfo {
-    pub asn: u32,
     pub name: String,
     pub category: AsnCategory,
 }
@@ -33,7 +32,6 @@ fn build_asn_table() -> HashMap<u32, AsnInfo> {
 
     for &(asn, name) in asn_data::datacenter::datacenter_asns() {
         map.insert(asn, AsnInfo {
-            asn,
             name: name.to_string(),
             category: AsnCategory::Datacenter,
         });
@@ -41,15 +39,20 @@ fn build_asn_table() -> HashMap<u32, AsnInfo> {
 
     for &(asn, name) in asn_data::mobile::mobile_asns() {
         map.insert(asn, AsnInfo {
-            asn,
             name: name.to_string(),
             category: AsnCategory::Mobile,
         });
     }
 
+    for &(asn, name) in asn_data::residential::residential_asns() {
+        map.insert(asn, AsnInfo {
+            name: name.to_string(),
+            category: AsnCategory::Residential,
+        });
+    }
+
     for &(asn, name) in asn_data::education::education_asns() {
         map.insert(asn, AsnInfo {
-            asn,
             name: name.to_string(),
             category: AsnCategory::Education,
         });
@@ -71,6 +74,12 @@ pub fn classify_by_org_name(org_name: &str) -> AsnCategory {
     for kw in asn_data::education::education_keywords() {
         if lower.contains(&kw.to_lowercase()) {
             return AsnCategory::Education;
+        }
+    }
+
+    for kw in asn_data::residential::residential_keywords() {
+        if lower.contains(&kw.to_lowercase()) {
+            return AsnCategory::Residential;
         }
     }
 
@@ -122,7 +131,6 @@ pub fn get_asn_info(asn: Option<u32>, org_name: Option<&str>) -> AsnInfo {
     let category = classify(asn, org_name);
 
     AsnInfo {
-        asn: asn.unwrap_or(0),
         name: org_name.unwrap_or("Unknown").to_string(),
         category,
     }
@@ -147,7 +155,8 @@ mod tests {
         assert_eq!(classify_by_org_name("Amazon.com, Inc."), AsnCategory::Datacenter);
         assert_eq!(classify_by_org_name("China Mobile"), AsnCategory::Mobile);
         assert_eq!(classify_by_org_name("Tsinghua University"), AsnCategory::Education);
-        assert_eq!(classify_by_org_name("Comcast Cable"), AsnCategory::Unknown);
+        assert_eq!(classify_by_org_name("Comcast Cable"), AsnCategory::Residential);
+        assert_eq!(classify_by_org_name("Charter Communications"), AsnCategory::Residential);
     }
 
     #[test]

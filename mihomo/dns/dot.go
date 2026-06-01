@@ -22,6 +22,7 @@ type dnsOverTLS struct {
 	port           string
 	host           string
 	dialer         *dnsDialer
+	proxyName      string
 	skipCertVerify bool
 	disableReuse   bool
 
@@ -35,6 +36,8 @@ var _ dnsClient = (*dnsOverTLS)(nil)
 func (t *dnsOverTLS) Address() string {
 	return fmt.Sprintf("tls://%s", net.JoinHostPort(t.host, t.port))
 }
+
+func (t *dnsOverTLS) ProxyName() string { return t.proxyName }
 
 func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) {
 	// miekg/dns ExchangeContext doesn't respond to context cancel.
@@ -162,9 +165,10 @@ func (t *dnsOverTLS) Close() error {
 func newDoTClient(addr string, resolver *Resolver, params map[string]string, proxyAdapter C.ProxyAdapter, proxyName string) *dnsOverTLS {
 	host, port, _ := net.SplitHostPort(addr)
 	c := &dnsOverTLS{
-		port:   port,
-		host:   host,
-		dialer: newDNSDialer(resolver, proxyAdapter, proxyName),
+		port:      port,
+		host:      host,
+		dialer:    newDNSDialer(resolver, proxyAdapter, proxyName),
+		proxyName: dnsClientProxyName(proxyAdapter, proxyName),
 	}
 	c.connections.SetBaseCap(maxOldDotConns)
 	if params["skip-cert-verify"] == "true" {

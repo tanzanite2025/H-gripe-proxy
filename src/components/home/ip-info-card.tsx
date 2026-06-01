@@ -25,6 +25,28 @@ const riskColorMap: Record<IpReputation['riskLevel'], string> = {
   VeryHigh: 'text-red-500',
 }
 
+const formatReputationSummary = ({
+  ip,
+  reputation,
+  reputationLoading,
+  reputationError,
+}: {
+  ip?: string
+  reputation?: IpReputation
+  reputationLoading: boolean
+  reputationError: unknown
+}) => {
+  if (!ip) return '未获取 IP'
+  if (reputationLoading) return '检测中'
+  if (reputationError) return '检测失败'
+  if (!reputation) return '未检测'
+  if (!Number.isFinite(reputation.fraudScore) || !reputation.riskLevel) {
+    return '结果异常'
+  }
+
+  return `${getRiskLevelText(reputation.riskLevel)} / ${reputation.fraudScore}`
+}
+
 const formatLocation = (city?: string, region?: string, country?: string) =>
   [city, region].filter(Boolean).join(', ') || country || 'Unknown'
 
@@ -35,7 +57,11 @@ interface IpInfoCardProps {
 export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const { data: ipInfo, error, isLoading } = useIPInfo()
   const ip = ipInfo?.ip
-  const { data: reputation, isLoading: reputationLoading } = useQuery({
+  const {
+    data: reputation,
+    error: reputationError,
+    isLoading: reputationLoading,
+  } = useQuery({
     queryKey: ['ip-reputation-summary', ip],
     queryFn: () => ipReputationCheckIp(ip!),
     enabled: Boolean(ip),
@@ -47,11 +73,12 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const country = ipInfo?.country || 'Unknown'
   const flag = getCountryFlag(ipInfo?.country_code)
   const location = formatLocation(ipInfo?.city, ipInfo?.region, ipInfo?.country)
-  const riskText = reputation
-    ? `${getRiskLevelText(reputation.riskLevel)} / ${reputation.fraudScore}`
-    : reputationLoading
-      ? '检测中'
-      : 'Unknown'
+  const riskText = formatReputationSummary({
+    ip,
+    reputation,
+    reputationLoading,
+    reputationError,
+  })
 
   if (isLoading) {
     return (
@@ -103,7 +130,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
       <span
         className={cn(
           'the-ip-card__value',
-          reputation ? riskColorMap[reputation.riskLevel] : undefined,
+          reputation ? riskColorMap[reputation.riskLevel] ?? 'text-gray-500' : undefined,
         )}
         data-tauri-drag-region="true"
       >

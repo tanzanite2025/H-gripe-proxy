@@ -195,6 +195,41 @@ pub async fn save_dns_config_mapping(dns_config: &Mapping) -> anyhow::Result<()>
     Ok(())
 }
 
+fn build_dns_runtime_patch(saved_config: Mapping) -> Mapping {
+    let mut patch = Mapping::new();
+
+    if let Some(dns) = saved_config.get("dns").cloned() {
+        patch.insert("dns".into(), dns);
+    }
+
+    if let Some(hosts) = saved_config.get("hosts").cloned() {
+        patch.insert("hosts".into(), hosts);
+    }
+
+    patch
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dns_runtime_patch_uses_root_mapping_without_nested_dns() {
+        let mut dns = Mapping::new();
+        dns.insert("enable".into(), true.into());
+        let mut saved = Mapping::new();
+        saved.insert("dns".into(), dns.into());
+        saved.insert("hosts".into(), Mapping::new().into());
+
+        let patch = build_dns_runtime_patch(saved);
+        let dns_mapping = patch.get("dns").and_then(|value| value.as_mapping()).unwrap();
+
+        assert!(dns_mapping.get("enable").is_some());
+        assert!(dns_mapping.get("dns").is_none());
+        assert!(patch.get("hosts").is_some());
+    }
+}
+
 /// 切换 Clash 核心
 pub async fn change_clash_core(clash_core: &str) -> anyhow::Result<Option<String>> {
     logging!(info, Type::Config, "changing core to {clash_core}");
@@ -265,15 +300,14 @@ pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
             e
         })?;
 
-        let patch_config = serde_yaml_ng::from_str::<Mapping>(&dns_yaml).map_err(|e| {
+        let saved_config = serde_yaml_ng::from_str::<Mapping>(&dns_yaml).map_err(|e| {
             logging!(error, Type::Config, "Failed to parse DNS config: {e}");
             e
         })?;
 
         logging!(info, Type::Config, "Applying DNS config from file");
 
-        let mut patch = Mapping::new();
-        patch.insert("dns".into(), patch_config.into());
+        let patch = build_dns_runtime_patch(saved_config);
 
         Config::runtime().await.edit_draft(|d| {
             d.patch_config(&patch);

@@ -1,5 +1,7 @@
 import { AlertTriangle, Shield } from 'lucide-react'
 
+import type { HoneypotDecoy, NewHoneypotDecoyInput } from './security-honeypot-decoys'
+import type { HoneypotDecoyStrategyProfile } from './security-honeypot-decoy-strategy'
 import type { SecurityStatus } from '@/services/security'
 
 import HoneypotDecoyPanel from './security-panels/honeypot-decoy-panel'
@@ -10,12 +12,21 @@ import SelfDestructPanel from './security-panels/self-destruct-panel'
 interface SecurityMonitorUIProps {
   monitorEnabled: boolean
   status: SecurityStatus
+  honeypotDecoys: HoneypotDecoy[]
+  activeDecoyId: string
   decoyPath: string
   encryptionKey: string
   hasEncryptionKey: boolean
   selfDestructConfirm: string
   onToggleMonitor: () => void
   onDecoyPathChange: (path: string) => void
+  onActiveDecoyChange: (decoyId: string) => void
+  onAddHoneypotDecoy: (input: NewHoneypotDecoyInput) => void
+  onRemoveHoneypotDecoy: (decoyId: string) => void
+  onHoneypotDecoyEnabledChange: (decoyId: string, enabled: boolean) => void
+  onApplyHoneypotDecoyStrategy: (
+    profile?: Partial<HoneypotDecoyStrategyProfile>,
+  ) => void
   onDeployDecoy: () => void
   onCleanupDecoy: () => void
   onCheckDecoyAccess: () => void
@@ -28,12 +39,19 @@ interface SecurityMonitorUIProps {
 export default function SecurityMonitorUI({
   monitorEnabled,
   status,
+  honeypotDecoys,
+  activeDecoyId,
   decoyPath,
   encryptionKey,
   hasEncryptionKey,
   selfDestructConfirm,
   onToggleMonitor,
   onDecoyPathChange,
+  onActiveDecoyChange,
+  onAddHoneypotDecoy,
+  onRemoveHoneypotDecoy,
+  onHoneypotDecoyEnabledChange,
+  onApplyHoneypotDecoyStrategy,
   onDeployDecoy,
   onCleanupDecoy,
   onCheckDecoyAccess,
@@ -72,8 +90,15 @@ export default function SecurityMonitorUI({
             onToggleMonitor={onToggleMonitor}
           />
           <HoneypotDecoyPanel
+            honeypotDecoys={honeypotDecoys}
+            activeDecoyId={activeDecoyId}
             decoyPath={decoyPath}
             onDecoyPathChange={onDecoyPathChange}
+            onActiveDecoyChange={onActiveDecoyChange}
+            onAddHoneypotDecoy={onAddHoneypotDecoy}
+            onRemoveHoneypotDecoy={onRemoveHoneypotDecoy}
+            onHoneypotDecoyEnabledChange={onHoneypotDecoyEnabledChange}
+            onApplyHoneypotDecoyStrategy={onApplyHoneypotDecoyStrategy}
             onDeployDecoy={onDeployDecoy}
             onCleanupDecoy={onCleanupDecoy}
             onCheckDecoyAccess={onCheckDecoyAccess}
