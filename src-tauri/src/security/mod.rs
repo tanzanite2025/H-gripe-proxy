@@ -12,12 +12,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 
 pub mod anti_debug;
-pub mod config_decoy;
+pub mod honeypot;
 pub mod local_security;
 pub mod local_stealth;
 pub mod firewall;
 pub mod leak_monitor;
-pub mod memory_honeypot;
 pub mod self_destruct;
 
 static SECURITY_COMPROMISED: AtomicBool = AtomicBool::new(false);

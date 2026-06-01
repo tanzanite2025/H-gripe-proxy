@@ -11,7 +11,7 @@ test('security status checks use hidden Windows commands', () => {
     'utf8',
   )
   const memoryHoneypot = readFileSync(
-    join(repoRoot, 'src-tauri', 'src', 'security', 'memory_honeypot.rs'),
+    join(repoRoot, 'src-tauri', 'src', 'security', 'honeypot', 'memory.rs'),
     'utf8',
   )
 

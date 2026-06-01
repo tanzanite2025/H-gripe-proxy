@@ -85,14 +85,14 @@ pub fn security_self_destruct(confirmation: String) -> CmdResult {
 
 /// 获取蜜罐状态
 #[tauri::command]
-pub fn security_honeypot_get_status() -> CmdResult<crate::security::memory_honeypot::HoneypotStats> {
-    Ok(crate::security::memory_honeypot::get_global_honeypot_stats())
+pub fn security_honeypot_get_status() -> CmdResult<crate::security::honeypot::HoneypotStats> {
+    Ok(crate::security::honeypot::get_global_honeypot_stats())
 }
 
 /// 检查蜜罐是否被触发
 #[tauri::command]
 pub fn security_honeypot_is_triggered() -> CmdResult<bool> {
-    Ok(crate::security::memory_honeypot::check_global_honeypot())
+    Ok(crate::security::honeypot::check_global_honeypot())
 }
 
 /// 安全状态

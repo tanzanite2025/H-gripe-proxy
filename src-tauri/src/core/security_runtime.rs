@@ -1,9 +1,8 @@
 use crate::security::{
-    config_decoy::{generate_encryption_key, ConfigDecoy, SecureConfigStorage},
+    honeypot,
     leak_monitor::LeakMonitor,
     local_security::LocalSecurityMonitor,
     local_stealth::LocalStealthManager,
-    memory_honeypot,
     anti_debug,
     SecurityMonitor,
 };
@@ -59,9 +58,9 @@ pub async fn start_monitor() {
         .security
         .honeypot;
     if hp_cfg.enabled {
-        memory_honeypot::init_global_honeypot_with_count(hp_cfg.token_count);
+        honeypot::init_global_honeypot_with_count(hp_cfg.token_count);
     } else {
-        memory_honeypot::init_global_honeypot();
+        honeypot::init_global_honeypot();
     }
 
     // 启动蜜罐监控线程（幂等）
@@ -69,7 +68,7 @@ pub async fn start_monitor() {
         HONEYPOT_FLAG.store(true, Ordering::SeqCst);
         let flag = HONEYPOT_FLAG.clone();
         std::thread::spawn(move || {
-            crate::security::memory_honeypot::monitor_loop(flag);
+            crate::security::honeypot::monitor_loop(flag);
         });
     }
 
@@ -106,7 +105,7 @@ pub fn stop_monitor() {
 }
 
 pub async fn check_status() -> SecurityStatus {
-    let honeypot_triggered = memory_honeypot::check_global_honeypot();
+    let honeypot_triggered = honeypot::check_global_honeypot();
     if honeypot_triggered {
         crate::security::mark_security_compromised();
     }
@@ -124,7 +123,7 @@ pub async fn check_status() -> SecurityStatus {
         compromised: crate::security::is_security_compromised(),
         debugger_present: crate::security::anti_debug::is_debugger_present() || suspicious_parent,
         memory_scanning: honeypot_triggered
-            || crate::security::memory_honeypot::detect_memory_scanning(),
+            || crate::security::honeypot::detect_memory_scanning(),
         leak_detected: leak_status.leak_detected,
         leak_type: leak_status.leak_type,
         anti_debug_enabled: anti_cfg.enabled,
@@ -134,27 +133,27 @@ pub async fn check_status() -> SecurityStatus {
 
 // ---------- Config decoy ----------
 pub fn deploy_decoy(decoy_path: PathBuf) -> Result<()> {
-    let decoy = ConfigDecoy::new(decoy_path);
+    let decoy = honeypot::ConfigDecoy::new(decoy_path);
     decoy.deploy().map_err(|e| anyhow!(e))
 }
 
 pub fn cleanup_decoy(decoy_path: PathBuf) -> Result<()> {
-    let decoy = ConfigDecoy::new(decoy_path);
+    let decoy = honeypot::ConfigDecoy::new(decoy_path);
     decoy.cleanup().map_err(|e| anyhow!(e))
 }
 
 pub fn check_decoy_access(decoy_path: PathBuf) -> Result<bool> {
-    let decoy = ConfigDecoy::new(decoy_path);
+    let decoy = honeypot::ConfigDecoy::new(decoy_path);
     Ok(decoy.check_access())
 }
 
 // ---------- Encryption ----------
 pub fn generate_key() -> String {
-    generate_encryption_key()
+    honeypot::generate_encryption_key()
 }
 
 pub fn encrypt_data(data: Vec<u8>) -> Result<Vec<u8>> {
-    let storage = SecureConfigStorage::new();
+    let storage = honeypot::SecureConfigStorage::new();
     if !storage.is_key_available() {
         anyhow::bail!("加密密钥未设置，请设置环境变量 CLASH_VERGE_SECURE_KEY");
     }
@@ -162,7 +161,7 @@ pub fn encrypt_data(data: Vec<u8>) -> Result<Vec<u8>> {
 }
 
 pub fn decrypt_data(data: Vec<u8>) -> Result<Vec<u8>> {
-    let storage = SecureConfigStorage::new();
+    let storage = honeypot::SecureConfigStorage::new();
     if !storage.is_key_available() {
         anyhow::bail!("加密密钥未设置，请设置环境变量 CLASH_VERGE_SECURE_KEY");
     }
@@ -170,7 +169,7 @@ pub fn decrypt_data(data: Vec<u8>) -> Result<Vec<u8>> {
 }
 
 pub fn is_key_available() -> bool {
-    let storage = SecureConfigStorage::new();
+    let storage = honeypot::SecureConfigStorage::new();
     storage.is_key_available()
 }
 
