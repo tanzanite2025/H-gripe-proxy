@@ -9,6 +9,9 @@
         "rules": "قوانین",
         "logs": "لاگ‌ها",
         "unlock": "Test",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "تنظیمات"
       },

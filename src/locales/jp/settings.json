@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS上書き",
           "ipv6": "IPv6",
           "unifiedDelay": "統一遅延",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "ログレベル",
           "portConfig": "ポート設定",
           "external": "外部制御",
@@ -136,6 +137,11 @@
           "openUwpTool": "Windows 8以降では、UWPアプリケーション（Microsoft Storeなど）がローカルホストのネットワークサービスに直接アクセスすることが制限されています。このツールを使用すると、この制限を回避できます。"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

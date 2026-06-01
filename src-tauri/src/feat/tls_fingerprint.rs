@@ -19,3 +19,9 @@ pub fn tls_fingerprint_generate_config() -> Option<serde_json::Value> {
     let service = coordinator.tls_fingerprint();
     service.generate_clash_config()
 }
+
+pub fn tls_fingerprint_clear() {
+    let coordinator = crate::feat::get_coordinator();
+    let service = coordinator.tls_fingerprint();
+    service.clear();
+}

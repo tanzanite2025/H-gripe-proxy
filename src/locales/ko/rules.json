@@ -21,6 +21,18 @@
       }
     }
   },
+  "dialogs": {
+    "create": {
+      "title": "Create Runtime Rule",
+      "ok": "Create",
+      "cancel": "Cancel",
+      "ruleType": "Rule Type",
+      "payload": "Payload",
+      "payloadPlaceholder": "e.g. google.com",
+      "proxy": "Proxy / Policy",
+      "proxyPlaceholder": "e.g. DIRECT, REJECT, Proxy-Name"
+    }
+  },
   "modals": {
     "editor": {
       "form": {

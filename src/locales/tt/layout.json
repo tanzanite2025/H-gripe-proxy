@@ -9,6 +9,9 @@
         "rules": "Кагыйдәләр",
         "logs": "Логлар",
         "unlock": "Test",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "Көйләүләр"
       },

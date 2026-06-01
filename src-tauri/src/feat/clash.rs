@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    core::{CoreManager, handle, tray},
+    core::{CoreManager, handle, manager::CLASH_LOGGER, tray},
     feat::clean_async,
     process::AsyncHandler,
     utils::{self, dirs},
@@ -311,4 +311,9 @@ pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
 /// 获取 Clash 日志
 pub async fn get_clash_logs() -> Vec<CompactString> {
     CoreManager::global().get_clash_logs().await.unwrap_or_default()
+}
+
+/// 清除 Clash 日志缓存
+pub async fn clear_clash_logs() {
+    CLASH_LOGGER.clear_logs().await;
 }

@@ -83,6 +83,12 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
     Ok(feat::get_clash_logs().await)
 }
 
+#[tauri::command]
+pub async fn clear_logs() -> CmdResult {
+    feat::clear_clash_logs().await;
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 pub struct GeoDataUpdateTime {
     pub mmdb: Option<u64>,

@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS 覆寫",
           "ipv6": "IPv6",
           "unifiedDelay": "統一延遲",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "日誌等級",
           "portConfig": "連接埠設定",
           "external": "外部控制",
@@ -136,6 +137,11 @@
           "openUwpTool": "Windows 8 開始限制 UWP 應用程式（如Microsoft Store）直接存取本機主機的網路服務，使用此工具可繞過該限制"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

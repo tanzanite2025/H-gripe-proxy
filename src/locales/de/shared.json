@@ -75,7 +75,8 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core_panic_recovered": "The core crashed unexpectedly. System proxy has been automatically disabled to prevent network disconnection."
     },
     "notices": {
       "raw": "{{message}}",

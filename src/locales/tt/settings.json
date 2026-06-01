@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "Бердәм задержка",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Лог дәрәҗәсе",
           "portConfig": "Порт көйләүләре",
           "external": "Тышкы",
@@ -136,6 +137,11 @@
           "openUwpTool": "Windows 8'дән башлап UWP кушымталары (Microsoft Store кебек) локаль хосттагы челтәр хезмәтләренә турыдан-туры тоташа алмый. Бу инструмент әлеге чикләүне әйләнеп узарга ярдәм итә"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

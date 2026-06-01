@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "تأخير موحد",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "مستوى السجلات",
           "portConfig": "تكوين المنافذ",
           "external": "خارجي",
@@ -136,6 +137,11 @@
           "openUwpTool": "منذ نظام ويندوز 8، يتم تقييد تطبيقات UWP من الوصول المباشر إلى المضيف المحلي. هذه الأداة تتيح تجاوز هذا التقييد"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

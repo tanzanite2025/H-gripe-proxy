@@ -9,6 +9,9 @@
         "rules": "Kurallar",
         "logs": "Günlükler",
         "unlock": "Test",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "Ayarlar"
       },

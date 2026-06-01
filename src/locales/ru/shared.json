@@ -75,7 +75,8 @@
   "feedback": {
     "errors": {
       "trafficStats": "Ошибка статистики трафика",
-      "trafficStatsDescription": "Компонент статистики трафика столкнулся с ошибкой и был отключён во избежание сбоев."
+      "trafficStatsDescription": "Компонент статистики трафика столкнулся с ошибкой и был отключён во избежание сбоев.",
+      "core_panic_recovered": "The core crashed unexpectedly. System proxy has been automatically disabled to prevent network disconnection."
     },
     "notices": {
       "raw": "{{message}}",

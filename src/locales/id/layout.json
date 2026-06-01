@@ -9,6 +9,9 @@
         "rules": "Aturan",
         "logs": "Log",
         "unlock": "Test",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "Pengaturan"
       },

@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "Keterlambatan Terpadu",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Tingkat Log",
           "portConfig": "Konfigurasi Port",
           "external": "Eksternal",
@@ -136,6 +137,11 @@
           "openUwpTool": "Sejak Windows 8, aplikasi UWP (seperti Microsoft Store) dibatasi dari mengakses layanan jaringan host lokal secara langsung, dan alat ini dapat digunakan untuk melewati pembatasan ini"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

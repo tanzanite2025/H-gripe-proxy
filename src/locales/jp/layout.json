@@ -9,6 +9,9 @@
         "rules": "ルール",
         "logs": "ログ",
         "unlock": "テスト",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "設定"
       },

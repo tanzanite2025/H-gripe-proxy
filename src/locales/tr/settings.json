@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS Üzerine Yazma",
           "ipv6": "IPv6",
           "unifiedDelay": "Birleşik Gecikme",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Günlük Seviyesi",
           "portConfig": "Port Yapılandırması",
           "external": "Harici",
@@ -136,6 +137,11 @@
           "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

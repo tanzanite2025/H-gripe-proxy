@@ -28,3 +28,10 @@ pub fn tls_fingerprint_get_current() -> CmdResult<Option<TlsFingerprint>> {
 pub fn tls_fingerprint_generate_config() -> CmdResult<Option<serde_json::Value>> {
     Ok(crate::feat::tls_fingerprint_generate_config())
 }
+
+/// 清除当前指纹
+#[tauri::command]
+pub fn tls_fingerprint_clear() -> CmdResult {
+    crate::feat::tls_fingerprint_clear();
+    Ok(())
+}

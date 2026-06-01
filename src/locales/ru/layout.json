@@ -9,6 +9,9 @@
         "rules": "Правила",
         "logs": "Логи",
         "unlock": "Тест",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "Настройки"
       },

@@ -26,6 +26,7 @@ const TEMP_DIR = path.join(cwd, 'node_modules/.verge')
 const FORCE = process.argv.includes('--force') || process.argv.includes('-f')
 const VERSION_CACHE_FILE = path.join(TEMP_DIR, '.version_cache.json')
 const HASH_CACHE_FILE = path.join(TEMP_DIR, '.hash_cache.json')
+const MIHOMO_SOURCE_DIR = path.join(cwd, 'mihomo')
 
 const PLATFORM_MAP = {
   'x86_64-pc-windows-msvc': 'win32',
@@ -166,6 +167,52 @@ async function updateHashCache(targetPath) {
   }
 }
 
+async function findLatestSourceMtime(dir, extensions) {
+  let latest = 0
+
+  async function walk(currentDir) {
+    let entries = []
+    try {
+      entries = await fsp.readdir(currentDir, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const entry of entries) {
+      if (entry.name === '.git' || entry.name === 'bin') continue
+
+      const entryPath = path.join(currentDir, entry.name)
+      if (entry.isDirectory()) {
+        await walk(entryPath)
+      } else if (extensions.has(path.extname(entry.name)) || entry.name === 'go.mod' || entry.name === 'go.sum' || entry.name === 'Makefile') {
+        const stat = await fsp.stat(entryPath)
+        latest = Math.max(latest, stat.mtimeMs)
+      }
+    }
+  }
+
+  await walk(dir)
+  return latest
+}
+
+async function assertLocalSidecarFresh(sidecarPath) {
+  if (!fs.existsSync(MIHOMO_SOURCE_DIR)) return
+
+  const [sidecarStat, sourceMtime] = await Promise.all([
+    fsp.stat(sidecarPath),
+    findLatestSourceMtime(MIHOMO_SOURCE_DIR, new Set(['.go'])),
+  ])
+
+  if (sourceMtime > sidecarStat.mtimeMs + 1000) {
+    throw new Error(
+      [
+        `Local sidecar is older than mihomo source: "${sidecarPath}".`,
+        'Rebuild mihomo and replace the sidecar before packaging, otherwise the installer will contain an old core.',
+      ].join(' '),
+    )
+  }
+}
+
 // =======================
 // Mihomo target maps (local sidecar only)
 // =======================
@@ -217,6 +264,7 @@ async function resolveLocalSidecar(binInfo) {
     await fsp.chmod(sidecarPath, 0o755)
   }
 
+  await assertLocalSidecarFresh(sidecarPath)
   log_success(`Using local sidecar: "${sidecarPath}"`)
 }
 

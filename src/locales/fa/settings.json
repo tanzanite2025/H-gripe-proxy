@@ -97,6 +97,7 @@
           "dnsOverwrite": "بازنویسی DNS",
           "ipv6": "IPv6",
           "unifiedDelay": "معادلDELAY",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "سطح لاگ",
           "portConfig": "پیکربندی پورت",
           "external": "خارجی",
@@ -136,6 +137,11 @@
           "openUwpTool": "از ویندوز 8 به بعد، برنامه‌های UWP (مانند Microsoft Store) از دسترسی مستقیم به خدمات شبکه محلی محدود شده‌اند و این ابزار می‌تواند برای دور زدن این محدودیت استفاده شود"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

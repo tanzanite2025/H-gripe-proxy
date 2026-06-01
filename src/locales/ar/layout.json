@@ -9,6 +9,9 @@
         "rules": "القواعد",
         "logs": "السجلات",
         "unlock": "Test",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "الإعدادات"
       },

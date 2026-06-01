@@ -9,6 +9,9 @@
         "rules": "규칙",
         "logs": "로그",
         "unlock": "테스트",
+        "networkDiagnostic": "Diagnostic",
+        "dns": "DNS",
+        "security": "Security",
         "webTest": "Web Test",
         "settings": "설정"
       },

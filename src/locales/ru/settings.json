@@ -97,6 +97,7 @@
           "dnsOverwrite": "Переопределение настроек DNS",
           "ipv6": "IPv6",
           "unifiedDelay": "Точная задержка",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Уровень логов",
           "portConfig": "Настройка порта",
           "external": "Внешний контроллер",
@@ -136,6 +137,11 @@
           "openUwpTool": "С Windows 8 приложения UWP (такие как Microsoft Store) ограничены в прямом доступе к сетевым службам локального хоста, и этот инструмент позволяет обойти это ограничение"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Отладка",
             "info": "Информация",

@@ -75,7 +75,8 @@
   "feedback": {
     "errors": {
       "trafficStats": "流量統計錯誤",
-      "trafficStatsDescription": "流量統計元件發生錯誤，已停用以避免當機。"
+      "trafficStatsDescription": "流量統計元件發生錯誤，已停用以避免當機。",
+      "core_panic_recovered": "The core crashed unexpectedly. System proxy has been automatically disabled to prevent network disconnection."
     },
     "notices": {
       "raw": "{{message}}",

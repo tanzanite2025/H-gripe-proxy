@@ -26,6 +26,31 @@ interface CachedIpInfo {
 const IP_CACHE_KEY = 'clash-verge-ip-info'
 const CACHE_TTL = 30 * 60 * 1000 // 30分钟
 
+const isString = (value: unknown): value is string => typeof value === 'string'
+const isNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+const isValidIpInfo = (value: unknown): value is IpInfo => {
+  if (!value || typeof value !== 'object') return false
+
+  const data = value as Partial<IpInfo>
+  return (
+    isString(data.ip) &&
+    data.ip.trim().length > 0 &&
+    isString(data.country_code) &&
+    isString(data.country) &&
+    isString(data.region) &&
+    isString(data.city) &&
+    isString(data.organization) &&
+    isNumber(data.asn) &&
+    isString(data.asn_organization) &&
+    isNumber(data.longitude) &&
+    isNumber(data.latitude) &&
+    isString(data.timezone) &&
+    isNumber(data.lastFetchTs)
+  )
+}
+
 /**
  * 获取缓存的 IP 信息
  */
@@ -38,6 +63,12 @@ export const getCachedIpInfo = (): IpInfo | null => {
     }
 
     const { data, timestamp }: CachedIpInfo = JSON.parse(cached)
+
+    if (!isValidIpInfo(data) || !isNumber(timestamp)) {
+      console.debug('[IpCache] 缓存格式无效，已清除')
+      localStorage.removeItem(IP_CACHE_KEY)
+      return null
+    }
 
     // 检查是否过期
     const age = Date.now() - timestamp

@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS-Überschreibung",
           "ipv6": "IPv6",
           "unifiedDelay": "Einheitliche Latenz",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Protokolliergrad",
           "portConfig": "Port-Konfiguration",
           "external": "Externe Steuerung",
@@ -136,6 +137,11 @@
           "openUwpTool": "Ab Windows 8 wird die direkte Netzwerkverbindung von UWP-Anwendungen (z. B. Microsoft Store) zu lokalen Hosts eingeschränkt. Mit diesem Tool können Sie diese Einschränkung umgehen."
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

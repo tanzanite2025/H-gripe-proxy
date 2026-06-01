@@ -530,12 +530,11 @@ export async function cmdGetProxyDelay(
   const testUrl = url || 'http://cp.cloudflare.com/generate_204'
 
   try {
-    // 不再在前端编码代理名称，由后端统一处理编码
     const result = await invoke<{ delay: number }>(
-      'clash_api_get_proxy_delay',
+      'plugin:mihomo|delay_proxy_by_name',
       {
-        name,
-        url: testUrl, // 传递经过验证的URL
+        proxyName: name,
+        testUrl,
         timeout,
       },
     )

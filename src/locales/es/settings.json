@@ -97,6 +97,7 @@
           "dnsOverwrite": "Sobrescritura de DNS",
           "ipv6": "IPv6",
           "unifiedDelay": "Latencia unificada",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Nivel de registro",
           "portConfig": "Configuración de puerto",
           "external": "Control externo",
@@ -136,6 +137,11 @@
           "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción."
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",
