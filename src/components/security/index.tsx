@@ -14,11 +14,12 @@ import TlsFingerprintSelector from './tls-fingerprint-selector'
 interface TabPanelProps {
   children?: React.ReactNode
   index: number
+  mounted: boolean
   value: number
 }
 
 function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props
+  const { children, value, index, mounted, ...other } = props
 
   return (
     <div
@@ -28,16 +29,19 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`security-tab-${index}`}
       {...other}
     >
-      {value === index && <div>{children}</div>}
+      {mounted && <div>{children}</div>}
     </div>
   )
 }
 
 export default function SecurityConfig() {
   const [tabValue, setTabValue] = useState(0)
+  const [visitedTabs, setVisitedTabs] = useState([0])
 
   const handleTabChange = (_event: SyntheticEvent, newValue: string | number) => {
-    setTabValue(Number(newValue))
+    const nextValue = Number(newValue)
+    setTabValue(nextValue)
+    setVisitedTabs((prev) => (prev.includes(nextValue) ? prev : [...prev, nextValue]))
   }
 
   return (
@@ -51,19 +55,19 @@ export default function SecurityConfig() {
         </Tabs>
       </div>
 
-      <TabPanel value={tabValue} index={0}>
+      <TabPanel value={tabValue} index={0} mounted={visitedTabs.includes(0)}>
         <AntiProbeConfigComponent />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={1} mounted={visitedTabs.includes(1)}>
         <SessionAffinityConfigComponent />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={2} mounted={visitedTabs.includes(2)}>
         <TlsFingerprintSelector />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={3}>
+      <TabPanel value={tabValue} index={3} mounted={visitedTabs.includes(3)}>
         <SecurityMonitor />
       </TabPanel>
     </div>

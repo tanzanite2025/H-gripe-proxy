@@ -206,7 +206,7 @@ pub fn detect_memory_scanning() -> bool {
 
 #[cfg(target_os = "windows")]
 fn detect_memory_scanning_windows() -> bool {
-    use std::process::Command;
+    use crate::utils::command::hidden_command;
 
     // 检查是否有可疑的内存扫描工具在运行
     let suspicious_tools = [
@@ -219,7 +219,7 @@ fn detect_memory_scanning_windows() -> bool {
     ];
 
     for tool in &suspicious_tools {
-        if let Ok(output) = Command::new("tasklist")
+        if let Ok(output) = hidden_command("tasklist")
             .args(&["/FI", &format!("IMAGENAME eq {}.exe", tool)])
             .output()
         {

@@ -268,10 +268,10 @@ pub fn check_parent_process() -> bool {
 
 #[cfg(target_os = "windows")]
 fn check_parent_process_windows() -> bool {
-    use std::process::Command;
+    use crate::utils::command::hidden_command;
 
     // 获取父进程名称
-    if let Ok(output) = Command::new("wmic")
+    if let Ok(output) = hidden_command("wmic")
         .args(&["process", "where", &format!("ProcessId={}", std::process::id()), "get", "ParentProcessId"])
         .output()
     {

@@ -404,6 +404,59 @@ interface RealityOptions {
   'public-key'?: string
   'short-id'?: string
 }
+interface EchOptions {
+  enable?: boolean
+  config?: string
+  'query-server-name'?: string
+}
+interface AntiDpiOptions {
+  enabled?: boolean
+  'padding-mode'?: 'random' | 'size_uniform' | 'none' | string
+  'min-padding'?: number
+  'max-padding'?: number
+  'jitter-ms'?: number
+  'burst-before'?: number
+  'dummy-traffic'?: boolean
+}
+interface TrojanPaddingOptions {
+  enabled?: boolean
+  'min-padding'?: number
+  'max-padding'?: number
+  'jitter-min'?: number
+  'jitter-max'?: number
+  'burst-size'?: number
+}
+interface TrojanBehaviorOptions {
+  enabled?: boolean
+  'session-simulation'?: boolean
+  'idle-timeout-sec'?: number
+  'heartbeat-interval-sec'?: number
+  'traffic-normalization'?: boolean
+  'target-packet-per-sec'?: number
+  'target-bytes-per-sec'?: number
+  'packet-size-normalization'?: boolean
+  'min-packet-size'?: number
+  'max-packet-size'?: number
+  'adaptive-timing'?: boolean
+}
+interface TrojanPlusOptions {
+  enabled?: boolean
+  'mux-enabled'?: boolean
+  behavior?: TrojanBehaviorOptions
+}
+interface Hysteria2RealmOptions {
+  enable?: boolean
+  'server-url'?: string
+  token?: string
+  'realm-id'?: string
+  'stun-servers'?: string[]
+  sni?: string
+  'skip-cert-verify'?: boolean
+  fingerprint?: string
+  certificate?: string
+  'private-key'?: string
+  alpn?: string[]
+}
 type ClientFingerprint =
   | 'chrome'
   | 'firefox'
@@ -453,6 +506,11 @@ type MieruMultiplexing =
   | 'MULTIPLEXING_LOW'
   | 'MULTIPLEXING_MIDDLE'
   | 'MULTIPLEXING_HIGH'
+type MieruHandshakeMode =
+  | 'HANDSHAKE_DEFAULT'
+  | 'HANDSHAKE_STANDARD'
+  | 'HANDSHAKE_NO_WAIT'
+  | string
 type SudokuAeadMethod = 'chacha20-poly1305' | 'aes-128-gcm' | 'none'
 type SudokuTableType =
   | 'prefer_ascii'
@@ -492,6 +550,8 @@ interface IProxyHttpConfig extends IProxyBaseConfig {
   sni?: string
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   headers?: {
     [key: string]: string
   }
@@ -508,6 +568,8 @@ interface IProxySocks5Config extends IProxyBaseConfig {
   udp?: boolean
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
 }
 // ssh
 interface IProxySshConfig extends IProxyBaseConfig {
@@ -533,8 +595,11 @@ interface IProxyTrojanConfig extends IProxyBaseConfig {
   sni?: string
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   udp?: boolean
   network?: NetworkType
+  'ech-opts'?: EchOptions
   'reality-opts'?: RealityOptions
   'grpc-opts'?: GrpcOptions
   'ws-opts'?: WsOptions
@@ -544,6 +609,8 @@ interface IProxyTrojanConfig extends IProxyBaseConfig {
     password?: string
   }
   'client-fingerprint'?: ClientFingerprint
+  'padding-opts'?: TrojanPaddingOptions
+  'plus-opts'?: TrojanPlusOptions
 }
 // anytls
 interface IProxyAnyTLSConfig extends IProxyBaseConfig {
@@ -589,8 +656,11 @@ interface IProxyTuicConfig extends IProxyBaseConfig {
   'fast-open'?: boolean
   'max-open-streams'?: number
   cwnd?: number
+  'bbr-profile'?: string
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   ca?: string
   'ca-str'?: string
   'recv-window-conn'?: number
@@ -598,6 +668,7 @@ interface IProxyTuicConfig extends IProxyBaseConfig {
   'disable-mtu-discovery'?: boolean
   'max-datagram-frame-size'?: number
   sni?: string
+  'ech-opts'?: EchOptions
   'udp-over-stream'?: boolean
   'udp-over-stream-version'?: number
 }
@@ -613,6 +684,7 @@ interface IProxyMieruConfig extends IProxyBaseConfig {
   username?: string
   password?: string
   multiplexing?: MieruMultiplexing
+  'handshake-mode'?: MieruHandshakeMode
   'traffic-pattern'?: string
 }
 // masque
@@ -625,10 +697,106 @@ interface IProxyMasqueConfig extends IProxyBaseConfig {
   'public-key'?: string
   ip?: string
   ipv6?: string
+  uri?: string
+  sni?: string
+  mtu?: number
+  udp?: boolean
+  'skip-cert-verify'?: boolean
+  network?: string
+  'congestion-controller'?: string
+  cwnd?: number
+  'bbr-profile'?: string
+  'remote-dns-resolve'?: boolean
+  dns?: string[]
+}
+// gost relay
+interface IProxyGostRelayConfig extends IProxyBaseConfig {
+  name: string
+  type: 'gost-relay'
+  server?: string
+  port?: number
+  forward?: boolean
+  udp?: boolean
+  tls?: boolean
+  mux?: boolean
+  sni?: string
+  username?: string
+  password?: string
+  'skip-cert-verify'?: boolean
+  fingerprint?: string
+  certificate?: string
+  'private-key'?: string
+  'client-fingerprint'?: ClientFingerprint
+}
+// trust tunnel
+interface IProxyTrustTunnelConfig extends IProxyBaseConfig {
+  name: string
+  type: 'trusttunnel'
+  server?: string
+  port?: number
+  username?: string
+  password?: string
+  alpn?: string[]
+  sni?: string
+  'ech-opts'?: {
+    enable?: boolean
+    config?: string
+  }
+  'client-fingerprint'?: ClientFingerprint
+  'skip-cert-verify'?: boolean
+  fingerprint?: string
+  certificate?: string
+  'private-key'?: string
+  udp?: boolean
+  'health-check'?: boolean
+  quic?: boolean
+  'congestion-controller'?: string
+  cwnd?: number
+  'bbr-profile'?: string
+  'max-connections'?: number
+  'min-streams'?: number
+  'max-streams'?: number
+}
+// openvpn
+interface IProxyOpenVPNConfig extends IProxyBaseConfig {
+  name: string
+  type: 'openvpn'
+  server?: string
+  port?: number
+  proto?: string
+  dev?: string
+  cipher?: string
+  auth?: string
+  'comp-lzo'?: string
+  ca?: string
+  cert?: string
+  key?: string
+  'tls-crypt'?: string
+  username?: string
+  password?: string
   mtu?: number
   udp?: boolean
   'remote-dns-resolve'?: boolean
   dns?: string[]
+}
+// tailscale
+interface IProxyTailscaleConfig extends IProxyBaseConfig {
+  name: string
+  type: 'tailscale'
+  hostname?: string
+  'auth-key'?: string
+  'control-url'?: string
+  'state-dir'?: string
+  ephemeral?: boolean
+  udp?: boolean
+  'accept-routes'?: boolean
+  'exit-node'?: string
+  'exit-node-allow-lan-access'?: boolean
+}
+// reject
+interface IProxyRejectConfig extends IProxyBaseConfig {
+  name: string
+  type: 'reject'
 }
 // vless
 interface IProxyVlessConfig extends IProxyBaseConfig {
@@ -644,7 +812,9 @@ interface IProxyVlessConfig extends IProxyBaseConfig {
   'packet-addr'?: boolean
   xudp?: boolean
   'packet-encoding'?: string
+  encryption?: string
   network?: NetworkType
+  'ech-opts'?: EchOptions
   'reality-opts'?: RealityOptions
   'http-opts'?: HttpOptions
   'h2-opts'?: H2Options
@@ -657,8 +827,11 @@ interface IProxyVlessConfig extends IProxyBaseConfig {
   }
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   servername?: string
   'client-fingerprint'?: ClientFingerprint
+  'anti-dpi-opts'?: AntiDpiOptions
   smux?: boolean
 }
 // vmess
@@ -676,7 +849,10 @@ interface IProxyVmessConfig extends IProxyBaseConfig {
   alpn?: string[]
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   servername?: string
+  'ech-opts'?: EchOptions
   'reality-opts'?: RealityOptions
   'http-opts'?: HttpOptions
   'h2-opts'?: H2Options
@@ -688,6 +864,7 @@ interface IProxyVmessConfig extends IProxyBaseConfig {
   'global-padding'?: boolean
   'authenticated-length'?: boolean
   'client-fingerprint'?: ClientFingerprint
+  'anti-dpi-opts'?: AntiDpiOptions
   smux?: boolean
 }
 interface WireGuardPeerOptions {
@@ -731,8 +908,11 @@ interface IProxyHysteriaConfig extends IProxyBaseConfig {
   'auth-str'?: string
   obfs?: string
   sni?: string
+  'ech-opts'?: EchOptions
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   alpn?: string[]
   ca?: string
   'ca-str'?: string
@@ -757,14 +937,26 @@ interface IProxyHysteria2Config extends IProxyBaseConfig {
   password?: string
   obfs?: string
   'obfs-password'?: string
+  'obfs-min-packet-size'?: number
+  'obfs-max-packet-size'?: number
   sni?: string
+  'ech-opts'?: EchOptions
   'skip-cert-verify'?: boolean
   fingerprint?: string
+  certificate?: string
+  'private-key'?: string
   alpn?: string[]
   ca?: string
   'ca-str'?: string
   cwnd?: number
+  'bbr-profile'?: string
   'udp-mtu'?: number
+  'adaptive-bw'?: boolean
+  'realm-opts'?: Hysteria2RealmOptions
+  'initial-stream-receive-window'?: number
+  'max-stream-receive-window'?: number
+  'initial-connection-receive-window'?: number
+  'max-connection-receive-window'?: number
 }
 // shadowsocks
 interface IProxyShadowsocksConfig extends IProxyBaseConfig {
@@ -811,6 +1003,11 @@ interface IProxySudokuConfig extends IProxyBaseConfig {
   'padding-max'?: number
   'table-type'?: SudokuTableType
   'enable-pure-downlink'?: boolean
+  'http-mask'?: boolean
+  'http-mask-mode'?: SudokuHttpMaskMode
+  'http-mask-tls'?: boolean
+  'http-mask-host'?: string
+  'http-mask-multiplex'?: SudokuHttpMaskMultiplex
   httpmask?: {
     disable?: boolean
     mode?: SudokuHttpMaskMode
@@ -863,6 +1060,7 @@ interface IProxySnellConfig extends IProxyBaseConfig {
   psk?: string
   udp?: boolean
   version?: number
+  reuse?: boolean
   'obfs-opts'?: {
     mode?: 'http' | 'tls'
     host?: string
@@ -880,6 +1078,11 @@ interface IProxyConfig
     IProxyTuicConfig,
     IProxyMieruConfig,
     IProxyMasqueConfig,
+    IProxyGostRelayConfig,
+    IProxyTrustTunnelConfig,
+    IProxyOpenVPNConfig,
+    IProxyTailscaleConfig,
+    IProxyRejectConfig,
     IProxyVlessConfig,
     IProxyVmessConfig,
     IProxyWireguardConfig,
@@ -906,6 +1109,11 @@ interface IProxyConfig
     | 'ssh'
     | 'socks5'
     | 'masque'
+    | 'gost-relay'
+    | 'trusttunnel'
+    | 'openvpn'
+    | 'tailscale'
+    | 'reject'
     | 'vmess'
     | 'vless'
     | 'mieru'

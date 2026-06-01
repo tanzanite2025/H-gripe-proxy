@@ -356,9 +356,9 @@ impl LocalSecurityMonitor {
     /// 获取网络连接信息
     #[cfg(target_os = "windows")]
     async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
-        use std::process::Command;
+        use crate::utils::command::hidden_command;
         
-        let output = Command::new("netstat")
+        let output = hidden_command("netstat")
             .args(&["-ano", "-p", "TCP"])
             .output()
             .map_err(|e| anyhow!("Failed to execute netstat: {}", e))?;

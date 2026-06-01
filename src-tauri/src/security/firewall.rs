@@ -9,11 +9,14 @@
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::local_security::LocalSecurityConfig;
+#[cfg(target_os = "windows")]
+use crate::utils::command::hidden_command;
 
 /// 防火墙规则
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,7 +158,7 @@ impl FirewallManager {
         #[cfg(target_os = "windows")]
         {
             // Windows: 检查是否以管理员身份运行
-            let output = Command::new("net")
+            let output = hidden_command("net")
                 .args(&["session"])
                 .output()?;
             Ok(output.status.success())
@@ -195,7 +198,7 @@ impl FirewallManager {
             rule_name, port
         );
 
-        let output = Command::new("powershell")
+        let output = hidden_command("powershell")
             .args(&["-Command", &allow_cmd])
             .output()
             .map_err(|e| anyhow!("Failed to execute PowerShell: {}", e))?;
@@ -211,7 +214,7 @@ impl FirewallManager {
             rule_name_block, port
         );
 
-        let output = Command::new("powershell")
+        let output = hidden_command("powershell")
             .args(&["-Command", &block_cmd])
             .output()
             .map_err(|e| anyhow!("Failed to execute PowerShell: {}", e))?;
@@ -235,7 +238,7 @@ impl FirewallManager {
             rule_name
         );
 
-        let _ = Command::new("powershell")
+        let _ = hidden_command("powershell")
             .args(&["-Command", &remove_allow_cmd])
             .output();
 
@@ -245,7 +248,7 @@ impl FirewallManager {
             rule_name_block
         );
 
-        let _ = Command::new("powershell")
+        let _ = hidden_command("powershell")
             .args(&["-Command", &remove_block_cmd])
             .output();
 
@@ -261,7 +264,7 @@ impl FirewallManager {
             rule_name
         );
 
-        let output = Command::new("powershell")
+        let output = hidden_command("powershell")
             .args(&["-Command", &check_cmd])
             .output()
             .map_err(|e| anyhow!("Failed to execute PowerShell: {}", e))?;

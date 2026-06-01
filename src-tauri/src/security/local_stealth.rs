@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+#[cfg(target_os = "windows")]
+use crate::utils::command::hidden_command;
+
 /// 本地隐蔽配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalStealthConfig {
@@ -354,7 +357,7 @@ impl AntiDiscoveryManager {
     #[cfg(target_os = "windows")]
     async fn disable_mdns_service(&self) -> Result<(), String> {
         // Windows: 停止 DNS-SD 服务（Bonjour mDNS）并禁用防火墙规则
-        let output = std::process::Command::new("netsh")
+        let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "add", "rule",
                 "name=Block_mDNS_In", "dir=in", "action=block",
                 "protocol=UDP", "localport=5353"])
@@ -365,7 +368,7 @@ impl AntiDiscoveryManager {
             return Err(String::from_utf8_lossy(&output.stderr).to_string());
         }
 
-        let output = std::process::Command::new("netsh")
+        let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "add", "rule",
                 "name=Block_mDNS_Out", "dir=out", "action=block",
                 "protocol=UDP", "localport=5353"])
@@ -382,7 +385,7 @@ impl AntiDiscoveryManager {
     #[cfg(target_os = "windows")]
     async fn disable_upnp_service(&self) -> Result<(), String> {
         // Windows: 停止 UPnP Device Host 服务
-        let output = std::process::Command::new("net")
+        let output = hidden_command("net")
             .args(&["stop", "upnphost"])
             .output();
 
@@ -392,7 +395,7 @@ impl AntiDiscoveryManager {
         }
 
         // 阻止 SSDP 端口 (1900)
-        let output = std::process::Command::new("netsh")
+        let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "add", "rule",
                 "name=Block_SSDP_In", "dir=in", "action=block",
                 "protocol=UDP", "localport=1900"])
@@ -411,7 +414,7 @@ impl AntiDiscoveryManager {
         // Windows: 通过注册表禁用 LLMNR
         // HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
         // EnableMulticast = 0
-        let output = std::process::Command::new("reg")
+        let output = hidden_command("reg")
             .args(&["add",
                 r"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient",
                 "/v", "EnableMulticast", "/t", "REG_DWORD",
@@ -430,7 +433,7 @@ impl AntiDiscoveryManager {
     async fn disable_netbios_service(&self) -> Result<(), String> {
         // Windows: 通过防火墙阻止 NetBIOS 端口 (137, 138, 139)
         for port in [137, 138, 139] {
-            let output = std::process::Command::new("netsh")
+            let output = hidden_command("netsh")
                 .args(&["advfirewall", "firewall", "add", "rule",
                     &format!("name=Block_NetBIOS_{}_In", port).to_string(),
                     "dir=in", "action=block",
@@ -444,7 +447,7 @@ impl AntiDiscoveryManager {
         }
 
         // TCP 139
-        let output = std::process::Command::new("netsh")
+        let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "add", "rule",
                 "name=Block_NetBIOS_139_TCP_In", "dir=in", "action=block",
                 "protocol=TCP", "localport=139"])
@@ -461,7 +464,7 @@ impl AntiDiscoveryManager {
     #[cfg(target_os = "windows")]
     async fn disable_ssdp_service(&self) -> Result<(), String> {
         // 阻止 SSDP 端口 (1900) 出站
-        let output = std::process::Command::new("netsh")
+        let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "add", "rule",
                 "name=Block_SSDP_Out", "dir=out", "action=block",
                 "protocol=UDP", "localport=1900"])
@@ -479,10 +482,10 @@ impl AntiDiscoveryManager {
 
     #[cfg(target_os = "windows")]
     async fn restore_mdns_service(&self) -> String {
-        let output = std::process::Command::new("netsh")
+        let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_mDNS_In"])
             .output();
-        let output2 = std::process::Command::new("netsh")
+        let output2 = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_mDNS_Out"])
             .output();
         match (output, output2) {
@@ -493,7 +496,7 @@ impl AntiDiscoveryManager {
 
     #[cfg(target_os = "windows")]
     async fn restore_upnp_service(&self) -> String {
-        let _ = std::process::Command::new("netsh")
+        let _ = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_SSDP_In"])
             .output();
         "UPnP 已恢复".to_string()
@@ -501,7 +504,7 @@ impl AntiDiscoveryManager {
 
     #[cfg(target_os = "windows")]
     async fn restore_llmnr_service(&self) -> String {
-        let output = std::process::Command::new("reg")
+        let output = hidden_command("reg")
             .args(&["delete",
                 r"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient",
                 "/v", "EnableMulticast", "/f"])
@@ -515,12 +518,12 @@ impl AntiDiscoveryManager {
     #[cfg(target_os = "windows")]
     async fn restore_netbios_service(&self) -> String {
         for port in [137, 138, 139] {
-            let _ = std::process::Command::new("netsh")
+            let _ = hidden_command("netsh")
                 .args(&["advfirewall", "firewall", "delete", "rule",
                     &format!("name=Block_NetBIOS_{}_In", port).to_string()])
                 .output();
         }
-        let _ = std::process::Command::new("netsh")
+        let _ = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule",
                 "name=Block_NetBIOS_139_TCP_In"])
             .output();
@@ -529,7 +532,7 @@ impl AntiDiscoveryManager {
 
     #[cfg(target_os = "windows")]
     async fn restore_ssdp_service(&self) -> String {
-        let _ = std::process::Command::new("netsh")
+        let _ = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_SSDP_Out"])
             .output();
         "SSDP 已恢复".to_string()

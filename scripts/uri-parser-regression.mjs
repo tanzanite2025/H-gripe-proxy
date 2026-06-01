@@ -10,7 +10,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(currentDir, '..')
 const jiti = createJiti(import.meta.url, { moduleCache: false })
 const parseUriModule = await jiti.import(
-  path.join(rootDir, 'src/utils/uri-parser/index.ts'),
+  path.join(rootDir, 'src/utils/parser/uri/index.ts'),
 )
 const parseUri = parseUriModule.default ?? parseUriModule
 
