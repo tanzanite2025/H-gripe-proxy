@@ -24,12 +24,6 @@ import {
 import { useVerge } from '@/hooks/system'
 import { entry_lightweight_mode, openWebUrl } from '@/services/cmds'
 
-const LazyTestCard = lazy(() =>
-  import('@/components/home/test-card').then((module) => ({
-    default: module.TestCard,
-  })),
-)
-
 const LazyProxyDetectionCard = lazy(() =>
   import('@/components/home/proxy-detection-card').then((module) => ({
     default: module.ProxyDetectionCard,
@@ -229,7 +223,7 @@ const HomePage = () => {
       traffic: true,
       clashinfo: true,
       systeminfo: true,
-      test: true,
+      test: false,
       ip: true,
       proxyDetection: false,
       dnsLeak: false,
@@ -334,13 +328,6 @@ const HomePage = () => {
         </EnhancedCard>,
         12,
       ),
-      renderCard(
-        'test',
-        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
-          <LazyTestCard />
-        </Suspense>,
-      ),
-      
       renderCard(
         'proxyDetection',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>

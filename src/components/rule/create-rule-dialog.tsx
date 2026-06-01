@@ -1,5 +1,6 @@
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createRule } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog } from '@/components/base'
@@ -37,6 +38,7 @@ interface Props {
 
 export const CreateRuleDialog = (props: Props) => {
   const { open, onClose } = props
+  const { t } = useTranslation()
   const { refreshRules } = useAppRefreshers()
   const [ruleType, setRuleType] = useState('DOMAIN')
   const [payload, setPayload] = useState('')
@@ -48,7 +50,7 @@ export const CreateRuleDialog = (props: Props) => {
       return
     }
     try {
-      await createRule(ruleType, payload.trim(), proxy.trim())
+      await createRule(ruleType, payload.trim(), proxy.trim(), undefined, undefined, undefined)
       await refreshRules()
       showNotice.success(`Rule created: ${ruleType},${payload.trim()},${proxy.trim()}`)
       setPayload('')
@@ -61,16 +63,19 @@ export const CreateRuleDialog = (props: Props) => {
   return (
     <BaseDialog
       open={open}
-      title="Create Runtime Rule"
-      okBtn="Create"
-      cancelBtn="Cancel"
+      title={t('rules.dialogs.create.title')}
+      okBtn={t('rules.dialogs.create.ok')}
+      cancelBtn={t('rules.dialogs.create.cancel')}
       onOk={handleCreate}
+      onCancel={onClose}
       onClose={onClose}
+      panelStyle={{ minWidth: 480, minHeight: 320 }}
+      contentClassName="!overflow-visible"
     >
       <div className="flex flex-col gap-4 py-2">
         <div>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-text-secondary">
-            Rule Type
+            {t('rules.dialogs.create.ruleType')}
           </label>
           <Select
             value={ruleType}
@@ -82,19 +87,19 @@ export const CreateRuleDialog = (props: Props) => {
         </div>
 
         <TextField
-          label="Payload"
+          label={t('rules.dialogs.create.payload')}
           value={payload}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayload(e.target.value)}
-          placeholder="e.g. google.com"
+          placeholder={t('rules.dialogs.create.payloadPlaceholder')}
           size="small"
           fullWidth
         />
 
         <TextField
-          label="Proxy / Policy"
+          label={t('rules.dialogs.create.proxy')}
           value={proxy}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProxy(e.target.value)}
-          placeholder="e.g. DIRECT, REJECT, Proxy-Name"
+          placeholder={t('rules.dialogs.create.proxyPlaceholder')}
           size="small"
           fullWidth
         />

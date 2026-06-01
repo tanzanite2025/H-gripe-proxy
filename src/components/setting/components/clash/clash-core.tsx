@@ -89,7 +89,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const onUpgrade = useLockFn(async () => {
     try {
       setUpgrading(true)
-      await upgradeCore()
+      await upgradeCore("auto", false)
       setUpgrading(false)
       mutateVersion()
       showNotice.success(

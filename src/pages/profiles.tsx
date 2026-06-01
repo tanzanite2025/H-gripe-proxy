@@ -30,6 +30,7 @@ import { BasePage, DialogRef } from '@/components/base'
 import { ProfileHeader } from '@/components/profile/profile-header'
 import { ProfileItem } from '@/components/profile/profile-item'
 import { ProfileMore } from '@/components/profile/profile-more'
+import { ProfileRulesPanel } from '@/components/profile/profile-rules-panel'
 import {
   ProfileViewer,
   ProfileViewerRef,
@@ -97,6 +98,10 @@ const ProfilePage = () => {
   const [disabled, setDisabled] = useState(false)
   const [activatings, setActivatings] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Merge / Script editor states
+  const [mergeOpen, setMergeOpen] = useState(false)
+  const [scriptOpen, setScriptOpen] = useState(false)
 
   // Batch selection states
   const [batchMode, setBatchMode] = useState(false)
@@ -792,108 +797,94 @@ const ProfilePage = () => {
       full
       title={t('profiles.page.title')}
       contentStyle={{ height: '100%' }}
-      header={
-        <ProfileHeader
-          batchMode={batchMode}
-          error={error}
-          isStale={isStale}
-          selectedCount={selectedProfiles.size}
-          isAllSelected={isAllSelected}
-          getSelectionState={getSelectionState}
-          clearAllSelections={clearAllSelections}
-          selectAllProfiles={selectAllProfiles}
-          toggleBatchMode={toggleBatchMode}
-          onUpdateAll={onUpdateAll}
-          onOpenConfig={() => configRef.current?.open()}
-          onReactivate={() => onEnhance(true)}
-          onEmergencyRefresh={onEmergencyRefresh}
-          onDeleteSelectedProfiles={deleteSelectedProfiles}
-          url={url}
-          setUrl={setUrl}
-          disabled={disabled}
-          loading={loading}
-          onImport={onImport}
-          onCopyLink={onCopyLink}
-          onCreate={() => viewerRef.current?.create()}
-        />
-      }
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={onDragEnd}
-      >
-        <Box
-          className="pl-[10px] pr-[10px] pt-4 h-[calc(100%-48px)] overflow-y-auto"
-        >
-          <Box className="mb-6">
-            <Grid container spacing={{ xs: 3, lg: 3 }}>
-              <SortableContext
-                items={profileItems.map((x) => {
-                  return x.uid
-                })}
-              >
-                {profileItems.map((item) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={item.file}>
-                    <ProfileItem
-                      id={item.uid}
-                      selected={profiles.current === item.uid}
-                      activating={activatings.includes(item.uid)}
-                      itemData={item}
-                      mutateProfiles={mutateProfiles}
-                      onSelect={(f) => onSelect(item.uid, f)}
-                      onEdit={() => viewerRef.current?.edit(item)}
-                      onSave={async (prev, curr) => {
-                        if (prev !== curr && profiles.current === item.uid) {
-                          await onEnhance(false)
-                          //  await restartCore();
-                          //   Notice.success(t("settings.feedback.notifications.clash.restartSuccess"), 1000);
-                        }
-                      }}
-                      onDelete={() => {
-                        if (batchMode) {
-                          toggleProfileSelection(item.uid)
-                        } else {
-                          onDelete(item.uid)
-                        }
-                      }}
-                      batchMode={batchMode}
-                      isSelected={selectedProfiles.has(item.uid)}
-                      onSelectionChange={() => toggleProfileSelection(item.uid)}
-                    />
-                  </Grid>
-                ))}
-              </SortableContext>
-            </Grid>
-          </Box>
-          <Box className="mt-12 mb-[10px]">
-            <Grid container spacing={{ xs: 3, lg: 3 }}>
-              <Grid item xs={12} sm={6} md={6} lg={6}>
-                <ProfileMore
-                  id="Merge"
-                  onSave={async (prev, curr) => {
-                    if (prev !== curr) {
-                      await onEnhance(false)
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={6} lg={6}>
-                <ProfileMore
-                  id="Script"
-                  logInfo={chainLogs['Script']}
-                  onSave={async (prev, curr) => {
-                    if (prev !== curr) {
-                      await onEnhance(false)
-                    }
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+      {/* 60% profiles + 40% rules split layout */}
+      <Box className="flex flex-col h-full overflow-hidden">
+        {/* Row 1: Toolbar (icon buttons + input + import/new) */}
+        <Box className="shrink-0 px-[10px] pt-2 pb-1">
+          <ProfileHeader
+            batchMode={batchMode}
+            error={error}
+            isStale={isStale}
+            selectedCount={selectedProfiles.size}
+            isAllSelected={isAllSelected}
+            getSelectionState={getSelectionState}
+            clearAllSelections={clearAllSelections}
+            selectAllProfiles={selectAllProfiles}
+            toggleBatchMode={toggleBatchMode}
+            onUpdateAll={onUpdateAll}
+            onOpenConfig={() => configRef.current?.open()}
+            onReactivate={() => onEnhance(true)}
+            onEmergencyRefresh={onEmergencyRefresh}
+            onDeleteSelectedProfiles={deleteSelectedProfiles}
+            onOpenMerge={() => setMergeOpen(true)}
+            onOpenScript={() => setScriptOpen(true)}
+            url={url}
+            setUrl={setUrl}
+            disabled={disabled}
+            loading={loading}
+            onImport={onImport}
+            onCopyLink={onCopyLink}
+            onCreate={() => viewerRef.current?.create()}
+          />
         </Box>
-        <DragOverlay />
-      </DndContext>
+
+        {/* Row 2: Profile cards (60%) */}
+        <Box className="flex-[3_0_0] overflow-y-auto min-h-0">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <Box className="pl-[10px] pr-[10px] pt-4">
+              <Box className="mb-6">
+                <Grid container spacing={{ xs: 3, lg: 3 }}>
+                  <SortableContext
+                    items={profileItems.map((x) => {
+                      return x.uid
+                    })}
+                  >
+                    {profileItems.map((item) => (
+                      <Grid item xs={12} sm={6} md={4} lg={3} key={item.file}>
+                        <ProfileItem
+                          id={item.uid}
+                          selected={profiles.current === item.uid}
+                          activating={activatings.includes(item.uid)}
+                          itemData={item}
+                          mutateProfiles={mutateProfiles}
+                          onSelect={(f) => onSelect(item.uid, f)}
+                          onEdit={() => viewerRef.current?.edit(item)}
+                          onSave={async (prev, curr) => {
+                            if (prev !== curr && profiles.current === item.uid) {
+                              await onEnhance(false)
+                            }
+                          }}
+                          onDelete={() => {
+                            if (batchMode) {
+                              toggleProfileSelection(item.uid)
+                            } else {
+                              onDelete(item.uid)
+                            }
+                          }}
+                          batchMode={batchMode}
+                          isSelected={selectedProfiles.has(item.uid)}
+                          onSelectionChange={() => toggleProfileSelection(item.uid)}
+                        />
+                      </Grid>
+                    ))}
+                  </SortableContext>
+                </Grid>
+              </Box>
+            </Box>
+            <DragOverlay />
+          </DndContext>
+        </Box>
+
+        {/* Bottom 40%: Rules panel (fixed at bottom) */}
+        <Box className="flex-[2_0_0] min-h-0">
+          <ProfileRulesPanel />
+        </Box>
+      </Box>
 
       <ProfileViewer
         ref={viewerRef}
@@ -906,6 +897,30 @@ const ProfilePage = () => {
         }}
       />
       <ConfigViewer ref={configRef} />
+
+      {/* Merge editor (rendered by ProfileMore, triggered from toolbar) */}
+      <ProfileMore
+        id="Merge"
+        open={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        onSave={async (prev, curr) => {
+          if (prev !== curr) {
+            await onEnhance(false)
+          }
+        }}
+      />
+      {/* Script editor (rendered by ProfileMore, triggered from toolbar) */}
+      <ProfileMore
+        id="Script"
+        open={scriptOpen}
+        onClose={() => setScriptOpen(false)}
+        logInfo={chainLogs['Script']}
+        onSave={async (prev, curr) => {
+          if (prev !== curr) {
+            await onEnhance(false)
+          }
+        }}
+      />
     </BasePage>
   )
 }

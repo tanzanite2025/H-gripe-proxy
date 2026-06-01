@@ -18,20 +18,26 @@ interface Props {
   logInfo?: [string, string][]
   id: 'Merge' | 'Script'
   onSave?: (prev?: string, curr?: string) => void
+  open?: boolean
+  onClose?: () => void
 }
 
 const EMPTY_LOG_INFO: [string, string][] = []
 
 // profile enhanced item
 export const ProfileMore = (props: Props) => {
-  const { id, logInfo, onSave } = props
+  const { id, logInfo, onSave, open: externalOpen, onClose: externalOnClose } = props
 
   const entries = logInfo ?? EMPTY_LOG_INFO
   const { t } = useTranslation()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
-  const [fileOpen, setFileOpen] = useState(false)
+  const [internalFileOpen, setInternalFileOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+
+  // External open (from toolbar button) takes priority
+  const fileOpen = externalOpen ?? internalFileOpen
+  const closeFile = externalOnClose ?? (() => setInternalFileOpen(false))
 
   const loadDocument = useCallback(() => readProfileFile(id), [id])
   const document = useEditorDocument({
@@ -41,7 +47,7 @@ export const ProfileMore = (props: Props) => {
 
   const onEditFile = () => {
     setAnchorEl(null)
-    setFileOpen(true)
+    setInternalFileOpen(true)
   }
 
   const onOpenFile = useLockFn(async () => {
@@ -82,6 +88,8 @@ export const ProfileMore = (props: Props) => {
 
   return (
     <>
+      {/* Only render the card when not externally controlled (i.e. still used as a card in grid) */}
+      {!externalOpen && !externalOnClose && (
       <ProfileBox
         onDoubleClick={onEditFile}
         onContextMenu={(event) => {
@@ -129,6 +137,7 @@ export const ProfileMore = (props: Props) => {
             ))}
         </div>
       </ProfileBox>
+      )}
 
       <Menu
         open={!!anchorEl}
@@ -166,7 +175,7 @@ export const ProfileMore = (props: Props) => {
           dirty={document.dirty}
           onChange={document.setValue}
           onSave={handleSave}
-          onClose={() => setFileOpen(false)}
+          onClose={closeFile}
         />
       )}
       {logOpen && (

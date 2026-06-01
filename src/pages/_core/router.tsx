@@ -8,10 +8,10 @@ import HomePage from '../home'
 import NetworkDiagnosticPage from '../network-diagnostic'
 import ProfilesPage from '../profiles'
 import ProxiesPage from '../proxies'
-import RulesPage from '../rules'
+// import RulesPage from '../rules'
 import SecurityPage from '../security'
 import SettingsPage from '../settings'
-import UnlockPage from '../unlock'
+import WebTestPage from '../web-test'
 
 export const navItems = [
   {
@@ -39,22 +39,10 @@ export const navItems = [
     Component: ConnectionsPage,
   },
   {
-    label: 'layout.components.navigation.tabs.rules',
-    path: '/rules',
-    icon: [],
-    Component: RulesPage,
-  },
-  {
     label: 'layout.components.navigation.tabs.logs',
     path: '/logs',
     icon: [],
     Component: () => null /* KeepAlive: real LogsPage rendered in Layout */,
-  },
-  {
-    label: 'layout.components.navigation.tabs.unlock',
-    path: '/unlock',
-    icon: [],
-    Component: UnlockPage,
   },
   {
     label: 'layout.components.navigation.tabs.networkDiagnostic',
@@ -73,6 +61,12 @@ export const navItems = [
     path: '/security',
     icon: [],
     Component: SecurityPage,
+  },
+  {
+    label: 'layout.components.navigation.tabs.webTest',
+    path: '/web-test',
+    icon: [],
+    Component: WebTestPage,
   },
   {
     label: 'layout.components.navigation.tabs.settings',

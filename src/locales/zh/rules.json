@@ -21,6 +21,18 @@
       }
     }
   },
+  "dialogs": {
+    "create": {
+      "title": "创建运行时规则",
+      "ok": "创建",
+      "cancel": "取消",
+      "ruleType": "规则类型",
+      "payload": "匹配内容",
+      "payloadPlaceholder": "例如 google.com",
+      "proxy": "代理策略",
+      "proxyPlaceholder": "例如 DIRECT, REJECT, 代理名称"
+    }
+  },
   "modals": {
     "editor": {
       "form": {

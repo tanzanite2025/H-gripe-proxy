@@ -212,6 +212,7 @@ pub struct TunConfig {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub udp_timeout: Option<i64>,
 
+    #[ts(type = "number")]
     pub file_descriptor: u32,
 
     // The following `inet*` fields will be deprecated
@@ -499,6 +500,7 @@ pub struct Proxy {
     pub dialer_proxy: String,
 
     #[serde(rename(serialize = "routingMark", deserialize = "routing-mark"))]
+    #[ts(type = "number")]
     pub routing_mark: i32,
 
     #[serde(rename(serialize = "providerName", deserialize = "provider-name"))]
@@ -569,6 +571,7 @@ pub struct Proxies {
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 pub struct ProxyDelay {
+    #[ts(type = "number")]
     pub delay: u32,
 }
 
@@ -632,10 +635,13 @@ fn default_source() -> String {
 #[ts(export)]
 pub struct Rules {
     pub rules: Vec<Rule>,
+    #[ts(type = "number", optional)]
     #[serde(default)]
     pub total: Option<i32>,
+    #[ts(type = "number", optional)]
     #[serde(default)]
     pub page: Option<i32>,
+    #[ts(type = "number", optional)]
     #[serde(default)]
     pub page_size: Option<i32>,
 }
@@ -644,11 +650,13 @@ pub struct Rules {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct Rule {
+    #[ts(type = "number")]
     pub index: i32,
     #[serde(rename = "type")]
     pub rule_type: RuleType,
     pub payload: String,
     pub proxy: String,
+    #[ts(type = "number")]
     pub size: i32,
     #[serde(default = "default_source")]
     pub source: String,
@@ -744,6 +752,7 @@ pub struct RuleProvider {
     pub behavior: RuleBehavior,
     pub format: RuleFormat,
     pub name: String,
+    #[ts(type = "number")]
     pub rule_count: u32,
     #[serde(rename = "type")]
     pub provider_type: ProviderType,
@@ -761,6 +770,7 @@ pub struct Connections {
     #[ts(type = "number")]
     pub upload_total: u64,
     pub connections: Option<Vec<Connection>>,
+    #[ts(type = "number")]
     pub memory: u32,
 }
 
@@ -882,6 +892,7 @@ pub struct ConnectionMetaData {
     pub inbound_user: String,
     pub host: String,
     pub dns_mode: DNSMode,
+    #[ts(type = "number")]
     pub uid: u32,
     pub process: String,
     pub process_path: String,
@@ -904,7 +915,9 @@ pub struct Traffic {
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 pub struct Memory {
+    #[ts(type = "number")]
     pub inuse: u32,
+    #[ts(type = "number")]
     pub oslimit: u32,
 }
 
@@ -943,8 +956,11 @@ pub enum WebSocketMessage {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsCacheStats {
+    #[ts(type = "number")]
     pub hit: u64,
+    #[ts(type = "number")]
     pub miss: u64,
+    #[ts(type = "number")]
     pub size: u64,
     pub hit_rate: f64,
 }
@@ -953,10 +969,15 @@ pub struct DnsCacheStats {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsQueryStats {
+    #[ts(type = "number")]
     pub total: u64,
+    #[ts(type = "number")]
     pub success: u64,
+    #[ts(type = "number")]
     pub failed: u64,
+    #[ts(type = "number")]
     pub avg_latency_us: u64,
+    #[ts(type = "number")]
     pub max_latency_us: u64,
 }
 
@@ -965,9 +986,13 @@ pub struct DnsQueryStats {
 #[serde(rename_all = "camelCase")]
 pub struct DnsServerStats {
     pub server: String,
+    #[ts(type = "number")]
     pub queries: u64,
+    #[ts(type = "number")]
     pub successes: u64,
+    #[ts(type = "number")]
     pub failures: u64,
+    #[ts(type = "number")]
     pub avg_latency_us: u64,
     pub last_query: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -988,7 +1013,9 @@ pub struct DnsPollutedEntry {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsPollutionStats {
+    #[ts(type = "number")]
     pub total_checked: u64,
+    #[ts(type = "number")]
     pub polluted_count: u64,
     pub pollution_rate: f64,
     pub recent_polluted: Vec<DnsPollutedEntry>,
@@ -1010,8 +1037,11 @@ pub struct DnsServerClassification {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsTrustSummary {
+    #[ts(type = "number")]
     pub total: u64,
+    #[ts(type = "number")]
     pub encrypted: u64,
+    #[ts(type = "number")]
     pub unencrypted: u64,
     pub by_trust_level: HashMap<String, u64>,
     pub servers: Vec<DnsServerClassification>,
@@ -1035,7 +1065,9 @@ pub struct DnsMetrics {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineStats {
+    #[ts(type = "number")]
     pub active_connections: i64,
+    #[ts(type = "number")]
     pub tracked_conns: i64,
 }
 
@@ -1078,6 +1110,7 @@ pub struct BufferPoolStats {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct SizeClassStats {
+    #[ts(type = "number")]
     pub size: i32,
     #[ts(type = "number")]
     pub allocs: i64,
@@ -1106,6 +1139,7 @@ pub struct RuleTrafficSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct EgressStatus {
     pub stable: bool,
+    #[ts(type = "number")]
     pub change_count: i64,
 }
 
@@ -1117,6 +1151,7 @@ pub struct TLSFingerprintStats {
     #[ts(type = "number")]
     pub rotation_count: i64,
     pub usage_snapshot: HashMap<String, i64>,
+    // Note: HashMap<String, i64> maps to Record<string, number> in TS which is correct
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -1130,7 +1165,9 @@ pub struct TLSRotationResult {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PerfStats {
+    #[ts(type = "number")]
     pub goroutines: i64,
+    #[ts(type = "number")]
     pub gogc: i64,
     #[ts(type = "number")]
     pub mem_limit: i64,
@@ -1146,6 +1183,7 @@ pub struct PerfStats {
     pub num_gc: i64,
     #[ts(type = "number")]
     pub gc_pause_total: i64,
+    #[ts(type = "number")]
     pub protected_conns: i64,
     pub rule_version: String,
 }
@@ -1155,6 +1193,7 @@ pub struct PerfStats {
 #[serde(rename_all = "camelCase")]
 pub struct HotReloadStatus {
     pub rule_version: String,
+    #[ts(type = "number")]
     pub protected_conns: i64,
     pub xdp_loaded: bool,
 }

@@ -205,7 +205,7 @@ export const useProxyDelayCheck = ({
       try {
         await Promise.race([
           delayManager.checkListDelay(proxyNames, groupName, timeout),
-          delayGroup(groupName, url, timeout),
+          delayGroup(groupName, url, timeout, false),
         ])
         debugLog(`[CurrentProxyCard] 延迟测试完成，组: ${groupName}`)
       } catch (error) {

@@ -12,6 +12,7 @@
         "networkDiagnostic": "Diagnostic",
         "dns": "DNS",
         "security": "Security",
+        "webTest": "Web Test",
         "settings": "Settings"
       },
       "menu": {

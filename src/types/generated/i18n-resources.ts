@@ -185,13 +185,17 @@ export interface TranslationResources {
           }
           tabs: {
             connections: string
+            dns: string
             home: string
             logs: string
+            networkDiagnostic: string
             profiles: string
             proxies: string
             rules: string
+            security: string
             settings: string
             unlock: string
+            webTest: string
           }
         }
       }
@@ -485,6 +489,18 @@ export interface TranslationResources {
       }
     }
     rules: {
+      dialogs: {
+        create: {
+          cancel: string
+          ok: string
+          payload: string
+          payloadPlaceholder: string
+          proxy: string
+          proxyPlaceholder: string
+          ruleType: string
+          title: string
+        }
+      }
       feedback: {
         notifications: {
           provider: {

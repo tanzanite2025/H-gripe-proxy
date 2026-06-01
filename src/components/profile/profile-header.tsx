@@ -20,6 +20,8 @@ export interface ProfileHeaderProps {
   onReactivate: () => void
   onEmergencyRefresh: () => void
   onDeleteSelectedProfiles: () => void
+  onOpenMerge: () => void
+  onOpenScript: () => void
   // import bar
   url: string
   setUrl: (url: string) => void
@@ -45,6 +47,8 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
   onReactivate,
   onEmergencyRefresh,
   onDeleteSelectedProfiles,
+  onOpenMerge,
+  onOpenScript,
   url,
   setUrl,
   disabled,
@@ -188,6 +192,24 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
           }}
         />
       </Box>
+
+      {/* Merge & Script */}
+      <Button
+        variant="primary"
+        size="small"
+        className="rounded-[6px] shrink-0"
+        onClick={onOpenMerge}
+      >
+        {t('profiles.components.more.global.merge')}
+      </Button>
+      <Button
+        variant="primary"
+        size="small"
+        className="rounded-[6px] shrink-0"
+        onClick={onOpenScript}
+      >
+        {t('profiles.components.more.global.script')}
+      </Button>
 
       {/* 导入 & 新建 */}
       <Button

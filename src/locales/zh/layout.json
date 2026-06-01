@@ -12,6 +12,7 @@
         "networkDiagnostic": "网络诊断",
         "dns": "DNS",
         "security": "安全",
+        "webTest": "网页测试",
         "settings": "设置"
       },
       "menu": {

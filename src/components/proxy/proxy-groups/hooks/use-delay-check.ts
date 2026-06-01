@@ -62,7 +62,7 @@ export function useDelayCheck(options: UseDelayCheckOptions) {
       try {
         await Promise.race([
           delayManager.checkListDelay(names, groupName, timeout),
-          delayGroup(groupName, url, timeout).then((result) => {
+          delayGroup(groupName, url, timeout, false).then((result) => {
             debugLog(
               `[ProxyGroups] getGroupProxyDelays返回结果数量:`,
               Object.keys(result || {}).length,

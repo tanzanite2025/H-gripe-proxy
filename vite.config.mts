@@ -8,6 +8,9 @@ import svgr from 'vite-plugin-svgr'
 export default defineConfig({
   root: 'src',
   server: { host: '127.0.0.1', port: 3500 },
+  optimizeDeps: {
+    include: ['tauri-plugin-mihomo-api'],
+  },
   plugins: [
     svgr(),
     react(),

@@ -12,6 +12,7 @@
         "networkDiagnostic": "網路診斷",
         "dns": "DNS",
         "security": "安全",
+        "webTest": "網頁測試",
         "settings": "設定"
       },
       "menu": {
