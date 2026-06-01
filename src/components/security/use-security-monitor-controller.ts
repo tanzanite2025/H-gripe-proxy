@@ -8,6 +8,12 @@ import {
   securityCheckStatus,
 } from '@/services/security'
 
+import {
+  DEFAULT_HONEYPOT_DECOY_ID,
+  createDefaultHoneypotDecoys,
+  getActiveHoneypotDecoyPath,
+  updateActiveHoneypotDecoyPath,
+} from './security-honeypot-decoys'
 import { createSecurityMonitorActions } from './security-monitor-actions'
 
 const DEFAULT_SECURITY_STATUS: SecurityStatus = {
@@ -21,10 +27,12 @@ const DEFAULT_SECURITY_STATUS: SecurityStatus = {
 export function useSecurityMonitorController() {
   const [monitorEnabled, setMonitorEnabled] = useState(false)
   const [status, setStatus] = useState<SecurityStatus>(DEFAULT_SECURITY_STATUS)
-  const [decoyPath, setDecoyPath] = useState('config_decoy.yaml')
+  const [honeypotDecoys, setHoneypotDecoys] = useState(createDefaultHoneypotDecoys)
+  const [activeDecoyId, setActiveDecoyId] = useState(DEFAULT_HONEYPOT_DECOY_ID)
   const [encryptionKey, setEncryptionKey] = useState('')
   const [hasEncryptionKey, setHasEncryptionKey] = useState(false)
   const [selfDestructConfirm, setSelfDestructConfirm] = useState('')
+  const decoyPath = getActiveHoneypotDecoyPath(honeypotDecoys, activeDecoyId)
 
   useEffect(() => {
     const unlisten = listen<SecurityStatus>('security-alert', (event) => {
@@ -72,6 +80,12 @@ export function useSecurityMonitorController() {
     setEncryptionKey,
   })
 
+  const handleDecoyPathChange = (path: string) => {
+    setHoneypotDecoys((decoys) =>
+      updateActiveHoneypotDecoyPath(decoys, activeDecoyId, path),
+    )
+  }
+
   return {
     monitorEnabled,
     status,
@@ -80,7 +94,7 @@ export function useSecurityMonitorController() {
     hasEncryptionKey,
     selfDestructConfirm,
     ...actions,
-    onDecoyPathChange: setDecoyPath,
+    onDecoyPathChange: handleDecoyPathChange,
     onSelfDestructConfirmChange: setSelfDestructConfirm,
   }
 }
