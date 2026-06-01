@@ -52,10 +52,14 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
   if (horizontal) {
     return (
       <LightweightTrafficErrorBoundary>
-        <div className="flex flex-row items-center gap-4 select-none">
+        <div
+          className="flex flex-row items-center gap-4 select-none"
+          data-tauri-drag-region="true"
+        >
           {/* 上传速度 */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" data-tauri-drag-region="true">
             <span
+              data-tauri-drag-region="true"
               className={cn(
                 'uds-mono text-sm font-semibold',
                 (traffic?.up || 0) > 0
@@ -69,8 +73,9 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
           </div>
 
           {/* 下载速度 */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" data-tauri-drag-region="true">
             <span
+              data-tauri-drag-region="true"
               className={cn(
                 'uds-mono text-sm font-semibold',
                 (traffic?.down || 0) > 0
@@ -85,8 +90,11 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
 
           {/* 内存占用 */}
           {displayMemory && (
-            <div className="flex items-center gap-1">
-              <span className="uds-mono text-sm font-semibold text-gray-500 opacity-60">
+            <div className="flex items-center gap-1" data-tauri-drag-region="true">
+              <span
+                className="uds-mono text-sm font-semibold text-gray-500 opacity-60"
+                data-tauri-drag-region="true"
+              >
                 {inuse}
                 {inuseUnit}
               </span>

@@ -21,6 +21,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import AppIcon from '@/assets/image/icon_dark.svg?react'
 import { BaseErrorBoundary } from '@/components/base'
+import { IpInfoCard } from '@/components/home/ip-info-card'
 import { LayoutItem } from '@/components/layout/layout-item'
 import { LayoutTraffic } from '@/components/layout/layout-traffic'
 import { NoticeManager } from '@/components/layout/notice-manager'
@@ -321,18 +322,22 @@ const Layout = () => {
           </div>
 
           {/* 右侧：状态组件、升级按钮及窗口控件 */}
-          <div className="layout-header__right">
-            <div className="the-traffic">
-              <LayoutTraffic horizontal />
-            </div>
+          <div className="layout-header__right" data-tauri-drag-region="true">
+            <IpInfoCard className="layout-header__ip-card" />
 
-            <UpdateButton className="the-newbtn" />
-
-            {OS !== 'macos' && (
-              <div className="the-window-ctrls">
-                <WindowControls ref={windowControlsRef} />
+            <div className="layout-header__controls">
+              <div className="the-traffic">
+                <LayoutTraffic horizontal />
               </div>
-            )}
+
+              <UpdateButton className="the-newbtn" />
+
+              {OS !== 'macos' && (
+                <div className="the-window-ctrls">
+                  <WindowControls ref={windowControlsRef} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

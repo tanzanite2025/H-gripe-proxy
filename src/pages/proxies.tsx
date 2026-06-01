@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BasePage, TooltipIcon } from '@/components/base'
-import { IpInfoCard } from '@/components/home/ip-info-card'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
@@ -196,9 +195,6 @@ const ProxyPage = () => {
         </Grid>
         <Grid item xs={12} lg={6} xl={6} style={{ height: '100%', overflow: 'hidden' }}>
           <div className="h-full flex flex-col gap-4 overflow-y-auto pr-2 pb-4">
-            <Suspense fallback={<Skeleton variant="rectangular" height={250} />}>
-              <IpInfoCard />
-            </Suspense>
             <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
               <LazyProxyDetectionCard />
             </Suspense>

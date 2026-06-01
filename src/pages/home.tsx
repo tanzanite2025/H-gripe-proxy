@@ -39,9 +39,9 @@ const LazyWebRTCLeakCard = lazy(() =>
     default: module.WebRTCLeakCard,
   })),
 )
-const LazyClashInfoCard = lazy(() =>
-  import('@/components/home/clash-info-card').then((module) => ({
-    default: module.ClashInfoCard,
+const LazySpeedTestCard = lazy(() =>
+  import('@/components/home/speed-test-card').then((module) => ({
+    default: module.SpeedTestCard,
   })),
 )
 const LazySystemInfoCard = lazy(() =>
@@ -58,10 +58,8 @@ interface HomeCardsSettings {
   mode: boolean
   traffic: boolean
   info: boolean
-  clashinfo: boolean
   systeminfo: boolean
   test: boolean
-  ip: boolean
   proxyDetection: boolean
   dnsLeak: boolean
   speedTest: boolean
@@ -127,19 +125,6 @@ const HomeSettingsDialog = ({
           <FormControlLabel
             control={
               <Checkbox
-                checked={cards.clashinfo || false}
-                onChange={() => handleToggle('clashinfo')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                {t('home.page.settings.cards.clashInfo')}
-              </span>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
                 checked={cards.systeminfo || false}
                 onChange={() => handleToggle('systeminfo')}
               />
@@ -189,6 +174,19 @@ const HomeSettingsDialog = ({
               </span>
             }
           />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cards.speedTest || false}
+                onChange={() => handleToggle('speedTest')}
+              />
+            }
+            label={
+              <span className="uds-label">
+                网络速度测试
+              </span>
+            }
+          />
         </FormGroup>
       </DialogContent>
       <DialogActions>
@@ -221,13 +219,11 @@ const HomePage = () => {
       network: true,
       mode: true,
       traffic: true,
-      clashinfo: true,
       systeminfo: true,
       test: false,
-      ip: true,
       proxyDetection: false,
       dnsLeak: false,
-      speedTest: false,
+      speedTest: true,
       webrtcLeak: false,
     }),
     [],
@@ -329,6 +325,13 @@ const HomePage = () => {
         12,
       ),
       renderCard(
+        'speedTest',
+        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
+          <LazySpeedTestCard />
+        </Suspense>,
+        12,
+      ),
+      renderCard(
         'proxyDetection',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
           <LazyProxyDetectionCard />
@@ -344,12 +347,6 @@ const HomePage = () => {
         'webrtcLeak',
         <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
           <LazyWebRTCLeakCard />
-        </Suspense>,
-      ),
-      renderCard(
-        'clashinfo',
-        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
-          <LazyClashInfoCard />
         </Suspense>,
       ),
     ],

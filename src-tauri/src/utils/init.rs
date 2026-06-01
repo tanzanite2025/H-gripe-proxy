@@ -1,8 +1,7 @@
 // #[cfg(not(feature = "tracing"))]
 use crate::{
     config::{Config, IClashTemp, IProfiles, IVerge},
-    constants,
-    logging,
+    constants, logging,
     process::AsyncHandler,
     utils::{
         dirs::{self, PathBufExec as _},
@@ -12,12 +11,104 @@ use crate::{
 use anyhow::Result;
 use chrono::{Local, TimeZone as _};
 use clash_verge_logging::Type;
-#[cfg(target_os = "windows")]
-use std::path::Path;
-use std::{path::PathBuf, str::FromStr as _};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr as _,
+};
 use tokio::fs;
 use tokio::fs::DirEntry;
 use tokio::process::Command;
+
+const STARTUP_SCRIPT_AUTH_FILE: &str = ".startup_script_authorization.json";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct StartupScriptAuthorization {
+    canonical_path: String,
+    sha256: String,
+}
+
+fn startup_script_authorization_path() -> Result<PathBuf> {
+    Ok(dirs::app_home_dir()?.join(STARTUP_SCRIPT_AUTH_FILE))
+}
+
+async fn build_startup_script_authorization(script_path: &Path) -> Result<StartupScriptAuthorization> {
+    let canonical_path = dunce::canonicalize(script_path)?;
+    let content = fs::read(&canonical_path).await?;
+    let sha256 = hex::encode(Sha256::digest(&content));
+    Ok(StartupScriptAuthorization {
+        canonical_path: canonical_path.to_string_lossy().into_owned().into(),
+        sha256: sha256.into(),
+    })
+}
+
+async fn startup_script_authorization_matches(
+    script_path: &Path,
+    authorization: &StartupScriptAuthorization,
+) -> Result<bool> {
+    let current = build_startup_script_authorization(script_path).await?;
+    Ok(current.canonical_path == authorization.canonical_path && current.sha256 == authorization.sha256)
+}
+
+async fn load_startup_script_authorization() -> Result<Option<StartupScriptAuthorization>> {
+    let auth_path = startup_script_authorization_path()?;
+    if !auth_path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(auth_path).await?;
+    Ok(Some(serde_json::from_str(&content)?))
+}
+
+pub async fn authorize_startup_script(script_path: String) -> Result<()> {
+    let script_path = PathBuf::from(script_path);
+    validate_startup_script_path(&script_path)?;
+
+    let authorization = build_startup_script_authorization(&script_path).await?;
+    let auth_path = startup_script_authorization_path()?;
+    if let Some(parent) = auth_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+    fs::write(auth_path, serde_json::to_string_pretty(&authorization)?).await?;
+    Ok(())
+}
+
+pub async fn clear_startup_script_authorization() -> Result<()> {
+    let auth_path = startup_script_authorization_path()?;
+    if auth_path.exists() {
+        auth_path.remove_if_exists().await?;
+    }
+    Ok(())
+}
+
+fn validate_startup_script_path(script_path: &Path) -> Result<&'static str> {
+    let extension = script_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let shell_type = match extension.as_str() {
+        "sh" => "bash",
+        "ps1" | "bat" => "powershell",
+        _ => {
+            return Err(anyhow::anyhow!(
+                "unsupported script extension: {}",
+                script_path.display()
+            ));
+        }
+    };
+
+    if !script_path.exists() {
+        return Err(anyhow::anyhow!("script not found: {}", script_path.display()));
+    }
+    if !script_path.is_file() {
+        return Err(anyhow::anyhow!(
+            "startup script path is not a file: {}",
+            script_path.display()
+        ));
+    }
+    Ok(shell_type)
+}
 
 #[cfg(target_os = "windows")]
 async fn delete_snapshot_logs(log_dir: &Path) -> Result<()> {
@@ -419,17 +510,27 @@ pub async fn startup_script() -> Result<()> {
         return Ok(());
     }
 
-    let shell_type = if script_path.ends_with(".sh") {
-        "bash"
-    } else if script_path.ends_with(".ps1") || script_path.ends_with(".bat") {
-        "powershell"
-    } else {
-        return Err(anyhow::anyhow!("unsupported script extension: {}", script_path));
+    let script_dir = PathBuf::from(script_path.as_str());
+    let shell_type = validate_startup_script_path(&script_dir)?;
+
+    let Some(authorization) = load_startup_script_authorization().await? else {
+        logging!(
+            warn,
+            Type::Setup,
+            "Startup script skipped because it has not been locally authorized: {}",
+            script_path
+        );
+        return Ok(());
     };
 
-    let script_dir = PathBuf::from(script_path.as_str());
-    if !script_dir.exists() {
-        return Err(anyhow::anyhow!("script not found: {}", script_path));
+    if !startup_script_authorization_matches(&script_dir, &authorization).await? {
+        logging!(
+            warn,
+            Type::Setup,
+            "Startup script skipped because local authorization no longer matches: {}",
+            script_path
+        );
+        return Ok(());
     }
 
     let parent_dir = script_dir.parent();
@@ -460,4 +561,43 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
             );
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn startup_script_authorization_requires_same_path_and_hash() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let script = temp.path().join("startup.ps1");
+        fs::write(&script, "Write-Output safe").await.expect("write script");
+
+        let authorization = build_startup_script_authorization(&script)
+            .await
+            .expect("build authorization");
+
+        assert!(
+            startup_script_authorization_matches(&script, &authorization)
+                .await
+                .expect("check authorized script")
+        );
+
+        fs::write(&script, "Write-Output changed").await.expect("modify script");
+        assert!(
+            !startup_script_authorization_matches(&script, &authorization)
+                .await
+                .expect("check changed script")
+        );
+
+        let other_script = temp.path().join("other.ps1");
+        fs::write(&other_script, "Write-Output safe")
+            .await
+            .expect("write other script");
+        assert!(
+            !startup_script_authorization_matches(&other_script, &authorization)
+                .await
+                .expect("check other script")
+        );
+    }
 }

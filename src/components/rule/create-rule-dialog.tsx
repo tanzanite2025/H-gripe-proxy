@@ -70,7 +70,6 @@ export const CreateRuleDialog = (props: Props) => {
       onCancel={onClose}
       onClose={onClose}
       panelStyle={{ minWidth: 480, minHeight: 320 }}
-      contentClassName="!overflow-visible"
     >
       <div className="flex flex-col gap-4 py-2">
         <div>

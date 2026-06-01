@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,6 +30,16 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
+type defaultResolverGuardMode string
+
+const (
+	defaultResolverGuardSoft   defaultResolverGuardMode = "soft"
+	defaultResolverGuardStrict defaultResolverGuardMode = "strict"
+
+	defaultResolverGuardModeEnv   = "MIHOMO_DEFAULT_RESOLVER_GUARD"
+	defaultResolverGuardStrictEnv = "MIHOMO_STRICT_DEFAULT_RESOLVER"
+)
+
 var (
 	version                bool
 	testConfig             bool
@@ -46,6 +57,44 @@ var (
 	postDown               string
 )
 
+func defaultResolverGuardModeFromEnv() defaultResolverGuardMode {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv(defaultResolverGuardModeEnv)))
+	if mode == "" {
+		mode = strings.ToLower(strings.TrimSpace(os.Getenv(defaultResolverGuardStrictEnv)))
+	}
+
+	switch mode {
+	case "strict", "debug", "panic", "exit", "1", "true", "yes", "on":
+		return defaultResolverGuardStrict
+	default:
+		return defaultResolverGuardSoft
+	}
+}
+
+func installDefaultResolverGuard() {
+	mode := defaultResolverGuardModeFromEnv()
+
+	net.DefaultResolver.PreferGo = true
+	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+		buf := make([]byte, 1024)
+		for {
+			n := runtime.Stack(buf, true)
+			if n < len(buf) {
+				buf = buf[:n]
+				break
+			}
+			buf = make([]byte, 2*len(buf))
+		}
+
+		message := fmt.Sprintf("blocked unexpected net.DefaultResolver lookup: network=%s address=%s", network, address)
+		fmt.Fprintf(os.Stderr, "%s\n\n%s", message, buf)
+		if mode == defaultResolverGuardStrict {
+			os.Exit(2)
+		}
+		return nil, errors.New(message)
+	}
+}
+
 func init() {
 	flag.StringVar(&homeDir, "d", os.Getenv("CLASH_HOME_DIR"), "set configuration directory")
 	flag.StringVar(&configFile, "f", os.Getenv("CLASH_CONFIG_FILE"), "specify configuration file")
@@ -60,27 +109,14 @@ func init() {
 	flag.BoolVar(&geodataMode, "m", false, "set geodata mode")
 	flag.BoolVar(&version, "v", false, "show current version of mihomo")
 	flag.BoolVar(&testConfig, "t", false, "test configuration and exit")
-	flag.Parse()
 }
 
 func main() {
-	// Defensive programming: panic when code mistakenly calls net.DefaultResolver
-	net.DefaultResolver.PreferGo = true
-	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-		//panic("should never be called")
-		buf := make([]byte, 1024)
-		for {
-			n := runtime.Stack(buf, true)
-			if n < len(buf) {
-				buf = buf[:n]
-				break
-			}
-			buf = make([]byte, 2*len(buf))
-		}
-		fmt.Fprintf(os.Stderr, "panic: should never be called\n\n%s", buf) // always print all goroutine stack
-		os.Exit(2)
-		return nil, nil
-	}
+	flag.Parse()
+
+	// Guard against accidental use of Go's system resolver. Release defaults to
+	// a controlled error; strict/debug mode keeps the hard fail for leak hunting.
+	installDefaultResolverGuard()
 
 	_, _ = maxprocs.Set(maxprocs.Logger(func(string, ...any) {}))
 

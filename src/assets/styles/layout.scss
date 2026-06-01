@@ -10,12 +10,13 @@
   // 顶部一体化导航页眉
   .layout-header {
     position: relative;
-    height: 72px;
+    height: 92px;
     display: flex;
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-    padding: 0 16px 10px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 4px 16px 6px;
     border-bottom: 1px solid var(--color-divider);
     background-color: var(--color-card);
     backdrop-filter: blur(10px);
@@ -43,7 +44,10 @@
     }
 
     .the-menu-wrapper {
+      order: 2;
       flex: 0 1 auto;
+      align-self: center;
+      max-width: 100%;
       display: flex;
       align-items: center;
       overflow-x: auto;
@@ -143,10 +147,97 @@
     }
 
     .layout-header__right {
+      order: 1;
+      align-self: flex-end;
+      width: 100%;
+      min-height: 32px;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      padding-left: 16px;
+      gap: 12px;
+      padding-left: 0;
+      flex-wrap: nowrap;
+
+      .layout-header__ip-card {
+        flex: 0 1 auto;
+      }
+
+      .layout-header__controls {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+
+      .the-ip-card {
+        height: 28px;
+        width: auto;
+        max-width: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: visible;
+        border-radius: 9999px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background-color: rgba(25, 27, 31, 0.42);
+        padding: 0 10px;
+        backdrop-filter: blur(10px);
+        white-space: nowrap;
+
+        &__flag,
+        &__primary,
+        &__muted,
+        &__mono,
+        &__value {
+          min-width: 0;
+          overflow: visible;
+          text-overflow: clip;
+          white-space: nowrap;
+        }
+
+        &__flag {
+          flex: 0 0 auto;
+          font-size: 14px;
+          line-height: 1;
+        }
+
+        &__primary {
+          flex: 0 0 auto;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--color-text-primary);
+        }
+
+        &__muted {
+          flex: 0 0 auto;
+          font-size: 11px;
+          color: var(--color-text-secondary);
+          opacity: 0.72;
+        }
+
+        &__mono {
+          flex: 0 0 auto;
+          font-family: var(--font-mono);
+          font-size: 11px;
+          color: var(--color-text-primary);
+        }
+
+        &__value {
+          flex: 0 0 auto;
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--color-text-primary);
+        }
+
+        &__divider {
+          flex: 0 0 auto;
+          width: 1px;
+          height: 14px;
+          background-color: var(--color-divider);
+          opacity: 0.8;
+        }
+      }
 
       .the-traffic {
         display: flex;
@@ -165,8 +256,8 @@
       .the-window-ctrls {
         display: flex;
         align-items: center;
-        height: 40px;
-        margin-left: 8px;
+        height: 32px;
+        margin-left: 4px;
         gap: 4px;
 
         button {

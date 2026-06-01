@@ -1,217 +1,114 @@
 import { useQuery } from '@tanstack/react-query'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { useEffect } from 'foxact/use-abortable-effect'
-import { useIntersection } from 'foxact/use-intersection'
-import type { XOR } from 'foxts/ts-xor'
-import { MapPin, RefreshCw } from 'lucide-react'
+import { Globe2, ShieldAlert } from 'lucide-react'
+
+import { useIPInfo } from '@/hooks/data'
 import {
-  forwardRef,
-  useCallback,
-  useEffectEvent,
-  useMemo,
-  useState,
-} from 'react'
-import { useTranslation } from 'react-i18next'
+  getRiskLevelText,
+  ipReputationCheckIp,
+  type IpReputation,
+} from '@/services/ip-reputation'
+import { cn } from '@/utils/cn'
 
-import { IconButton } from '@/components/tailwind/IconButton'
-import { getIpInfo } from '@/services/api'
-
-import { EnhancedCard } from './enhanced-card'
-import { IPInfoCardUI } from './ip-info-card-ui'
-
-// 定义刷新时间（秒）
-const IP_REFRESH_SECONDS = 300
-const COUNTDOWN_TICK_INTERVAL = 5_000
-const IP_INFO_CACHE_KEY = 'cv_ip_info_cache'
-
-type CountDownState = XOR<
-  {
-    type: 'countdown'
-    remainingSeconds: number
-  },
-  {
-    type: 'revalidating'
-  }
->
-
-const IPInfoCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
-  ({ children }, ref) => {
-    const { t } = useTranslation()
-    const { refetch: mutate } = useIPInfo()
-
-    return (
-      <EnhancedCard
-        title={t('home.components.ipInfo.title')}
-        icon={<MapPin className="h-5 w-5" />}
-        iconColor="info"
-        ref={ref}
-        action={
-          <IconButton size="small" onClick={() => mutate()}>
-            <RefreshCw className="h-4 w-4" />
-          </IconButton>
-        }
-      >
-        {children}
-      </EnhancedCard>
-    )
-  },
-)
-
-IPInfoCardContainer.displayName = 'IPInfoCardContainer'
-
-// IP信息卡片组件
-export const IpInfoCard = () => {
-  const [showIp, setShowIp] = useState(false)
-  const appWindow = useMemo(() => getCurrentWebviewWindow(), [])
-
-  // track ip info card has been in viewport or not
-  // hasIntersected default to false, and will be true once the card is in viewport
-  // and will never be false again afterwards (unless resetIntersected is called or
-  // the component is unmounted)
-  const [containerRef, hasIntersected, _resetIntersected] = useIntersection({
-    rootMargin: '0px',
-  })
-
-  const [countdown, setCountdown] = useState<CountDownState>({
-    type: 'countdown',
-    remainingSeconds: IP_REFRESH_SECONDS,
-  })
-
-  const { data: ipInfo, error, isLoading, refetch: mutate } = useIPInfo()
-
-  // function useEffectEvent
-  const onCountdownTick = useEffectEvent(async () => {
-    const now = Date.now()
-    const ts = ipInfo?.lastFetchTs
-    if (!ts) {
-      return
-    }
-
-    const elapsed = Math.floor((now - ts) / 1000)
-    const remaining = IP_REFRESH_SECONDS - elapsed
-
-    if (remaining <= 0) {
-      if (
-        // has intersected at least once
-        // this avoids unncessary revalidation if user never scrolls down,
-        // then we will only load initially once.
-        hasIntersected &&
-        // is online
-        navigator.onLine &&
-        // there is no ongoing revalidation already scheduled
-        countdown.type !== 'revalidating' &&
-        // window is visible
-        (await appWindow.isVisible())
-      ) {
-        setCountdown({ type: 'revalidating' })
-        // we do not care about the result of mutate here. after mutate is done,
-        // simply wait for next interval tick with `setCountdown({ type: "countdown", ... })`
-        try {
-          await mutate()
-        } finally {
-          // in case mutate throws error, we still need to reset the countdown state
-          setCountdown({
-            type: 'countdown',
-            remainingSeconds: IP_REFRESH_SECONDS,
-          })
-        }
-      } else {
-        // do nothing. we even skip "setCountdown" to reduce re-renders
-        //
-        // but the remaining time still <= 0, and setInterval is not stopped, this
-        // callback will still be regularly triggered, as soon as the window is visible
-        // or network online again, we mutate() immediately in the following tick.
-      }
-    } else {
-      setCountdown({
-        type: 'countdown',
-        remainingSeconds: remaining,
-      })
-    }
-  })
-
-  // Countdown / refresh scheduler — updates UI every 1s and triggers immediate revalidation when expired
-  useEffect(() => {
-    let timer: number | null = null
-
-    // Do not add document.hidden check here as it is not reliable in Tauri.
-    //
-    // Thank god IntersectionObserver is a DOM API that relies on DOM/webview
-    // instead of Tauri, which is reliable enough.
-    if (hasIntersected) {
-      console.debug(
-        'IP info card has entered the viewport, starting the countdown interval.',
-      )
-      timer = window.setInterval(onCountdownTick, COUNTDOWN_TICK_INTERVAL)
-    } else {
-      console.debug(
-        'IP info card has not yet entered the viewport, no counting down.',
-      )
-    }
-
-    // This will fire when the window is minimized or restored
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    // Tauri's visibility change detection is actually broken on some platforms:
-    // https://github.com/tauri-apps/tauri/issues/10592
-    //
-    // It is working on macOS though (tested).
-    // So at least we should try to pause countdown on supported platforms to
-    // reduce power consumption.
-    function onVisibilityChange() {
-      if (document.hidden) {
-        console.debug('Document hidden, pause the interval')
-        // Pause the timer
-        if (timer != null) {
-          clearInterval(timer)
-          timer = null
-        }
-      } else if (hasIntersected) {
-        console.debug('Document visible, resume the interval')
-        // Resume the timer only when previous one is cleared
-        if (timer == null) {
-          timer = window.setInterval(onCountdownTick, COUNTDOWN_TICK_INTERVAL)
-        }
-      } else {
-        console.debug(
-          'Document visible, but IP info card has never entered the viewport, not even once, not starting the interval.',
-        )
-      }
-    }
-
-    return () => {
-      if (timer != null) clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [hasIntersected])
-
-  const toggleShowIp = useCallback(() => {
-    setShowIp((prev) => !prev)
-  }, [])
-
-  return (
-    <IPInfoCardContainer ref={containerRef}>
-      <IPInfoCardUI
-        ipInfo={ipInfo}
-        error={error}
-        isLoading={isLoading}
-        showIp={showIp}
-        countdown={countdown}
-        onToggleShowIp={toggleShowIp}
-        onRetry={() => mutate()}
-      />
-    </IPInfoCardContainer>
-  )
+const getCountryFlag = (countryCode: string | undefined) => {
+  if (!countryCode) return ''
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map((char) => 127397 + char.charCodeAt(0))
+  return String.fromCodePoint(...codePoints)
 }
 
-function useIPInfo() {
-  return useQuery({
-    queryKey: [IP_INFO_CACHE_KEY],
-    queryFn: getIpInfo,
-    staleTime: Infinity,
+const riskColorMap: Record<IpReputation['riskLevel'], string> = {
+  Low: 'text-green-500',
+  Medium: 'text-yellow-500',
+  High: 'text-orange-500',
+  VeryHigh: 'text-red-500',
+}
+
+const formatLocation = (city?: string, region?: string, country?: string) =>
+  [city, region].filter(Boolean).join(', ') || country || 'Unknown'
+
+interface IpInfoCardProps {
+  className?: string
+}
+
+export const IpInfoCard = ({ className }: IpInfoCardProps) => {
+  const { data: ipInfo, error, isLoading } = useIPInfo()
+  const ip = ipInfo?.ip
+  const { data: reputation, isLoading: reputationLoading } = useQuery({
+    queryKey: ['ip-reputation-summary', ip],
+    queryFn: () => ipReputationCheckIp(ip!),
+    enabled: Boolean(ip),
+    staleTime: 5 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
     retry: 1,
-    retryDelay: 30_000,
   })
+
+  const country = ipInfo?.country || 'Unknown'
+  const flag = getCountryFlag(ipInfo?.country_code)
+  const location = formatLocation(ipInfo?.city, ipInfo?.region, ipInfo?.country)
+  const riskText = reputation
+    ? `${getRiskLevelText(reputation.riskLevel)} / ${reputation.fraudScore}`
+    : reputationLoading
+      ? '检测中'
+      : 'Unknown'
+
+  if (isLoading) {
+    return (
+      <div className={cn('the-ip-card', className)} data-tauri-drag-region="true">
+        <Globe2
+          className="h-3.5 w-3.5 shrink-0 text-teal-400"
+          data-tauri-drag-region="true"
+        />
+        <span className="the-ip-card__muted" data-tauri-drag-region="true">
+          IP 检测中...
+        </span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className={cn('the-ip-card', className)} data-tauri-drag-region="true">
+        <Globe2
+          className="h-3.5 w-3.5 shrink-0 text-red-400"
+          data-tauri-drag-region="true"
+        />
+        <span className="the-ip-card__muted" data-tauri-drag-region="true">
+          IP 获取失败
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn('the-ip-card', className)}
+      data-tauri-drag-region="true"
+      title={`${country} / ${ip || 'Unknown'} · ${location} · 欺诈: ${riskText}`}
+    >
+      <span className="the-ip-card__flag" data-tauri-drag-region="true">{flag}</span>
+      <span className="the-ip-card__primary" data-tauri-drag-region="true">{country}</span>
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">IP</span>
+      <span className="the-ip-card__mono" data-tauri-drag-region="true">{ip || 'Unknown'}</span>
+      <span className="the-ip-card__divider" data-tauri-drag-region="true" />
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">位置</span>
+      <span className="the-ip-card__value" data-tauri-drag-region="true">{location}</span>
+      <span className="the-ip-card__divider" data-tauri-drag-region="true" />
+      <ShieldAlert
+        className="h-3.5 w-3.5 shrink-0 text-text-secondary"
+        data-tauri-drag-region="true"
+      />
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">欺诈</span>
+      <span
+        className={cn(
+          'the-ip-card__value',
+          reputation ? riskColorMap[reputation.riskLevel] : undefined,
+        )}
+        data-tauri-drag-region="true"
+      >
+        {riskText}
+      </span>
+    </div>
+  )
 }

@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS 覆写",
           "ipv6": "IPv6",
           "unifiedDelay": "统一延迟",
+          "findProcessMode": "进程匹配模式",
           "logLevel": "日志等级",
           "portConfig": "端口设置",
           "external": "外部控制",
@@ -136,6 +137,11 @@
           "openUwpTool": "Windows 8 开始限制 UWP 应用（如微软商店）直接访问本地主机的网络服务，使用此工具可绕过该限制"
         },
         "options": {
+          "findProcessMode": {
+            "always": "始终开启",
+            "strict": "智能",
+            "off": "关闭"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",

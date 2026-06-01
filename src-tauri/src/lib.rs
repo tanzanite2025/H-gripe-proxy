@@ -191,6 +191,8 @@ mod app_init {
             cmd::get_geo_data_update_time,
             cmd::get_verge_config,
             cmd::patch_verge_config,
+            cmd::authorize_startup_script,
+            cmd::clear_startup_script_authorization,
             cmd::test_delay,
             cmd::download_icon_cache,
             #[cfg(debug_assertions)]

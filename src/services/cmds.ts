@@ -434,6 +434,14 @@ export async function patchVergeConfig(payload: IVergeConfig) {
   return invoke<void>('patch_verge_config', { payload })
 }
 
+export async function authorizeStartupScript(path: string) {
+  return invoke<void>('authorize_startup_script', { path })
+}
+
+export async function clearStartupScriptAuthorization() {
+  return invoke<void>('clear_startup_script_authorization')
+}
+
 export async function applyDnsConfig(apply: boolean) {
   return invoke<void>('apply_dns_config', { apply })
 }

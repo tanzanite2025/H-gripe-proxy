@@ -151,6 +151,17 @@ fn version_lte(a: &str, b: &str) -> bool {
     true // equal
 }
 
+fn encode_url_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => encoded.push(byte as char),
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded
+}
+
 // ─── Startup Install & Cache Management ─────────────────────────────────────
 
 impl SilentUpdater {
@@ -362,12 +373,11 @@ impl SilentUpdater {
 
 impl SilentUpdater {
     /// Show a small centered splash window indicating update is being installed.
-    /// Injects HTML via eval() after window creation so it doesn't depend on any
-    /// external file in the bundle.
     fn show_update_splash(app_handle: &tauri::AppHandle, version: &str) {
         use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-        let window = match WebviewWindowBuilder::new(app_handle, "update-splash", WebviewUrl::App("index.html".into()))
+        let splash_url = format!("update-splash.html?version={}", encode_url_component(version));
+        match WebviewWindowBuilder::new(app_handle, "update-splash", WebviewUrl::App(splash_url.into()))
             .title("Clash Verge - Updating")
             .inner_size(300.0, 180.0)
             .resizable(false)
@@ -380,55 +390,12 @@ impl SilentUpdater {
             .visible(true)
             .build()
         {
-            Ok(w) => w,
+            Ok(_) => {}
             Err(e) => {
                 logging!(warn, Type::System, "Failed to create update splash: {e}");
                 return;
             }
         };
-
-        let js = format!(
-            r#"
-            document.documentElement.innerHTML = `
-            <head><meta charset="utf-8"/><style>
-              *{{margin:0;padding:0;box-sizing:border-box}}
-              html,body{{height:100%;overflow:hidden;user-select:none;-webkit-user-select:none;
-                font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}}
-              body{{display:flex;flex-direction:column;align-items:center;justify-content:center;
-                background:#1e1e2e;color:#cdd6f4}}
-              @media(prefers-color-scheme:light){{
-                body{{background:#eff1f5;color:#4c4f69}}
-                .bar{{background:#dce0e8}}.fill{{background:#1e66f5}}.sub{{color:#6c6f85}}
-              }}
-              .icon{{width:48px;height:48px;margin-bottom:16px;animation:pulse 2s ease-in-out infinite}}
-              .title{{font-size:16px;font-weight:600;margin-bottom:6px}}
-              .sub{{font-size:13px;color:#a6adc8;margin-bottom:20px}}
-              .bar{{width:200px;height:4px;background:#313244;border-radius:2px;overflow:hidden}}
-              .fill{{height:100%;width:30%;background:#89b4fa;border-radius:2px;animation:ind 1.5s ease-in-out infinite}}
-              @keyframes ind{{0%{{width:0;margin-left:0}}50%{{width:40%;margin-left:30%}}100%{{width:0;margin-left:100%}}}}
-              @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.6}}}}
-            </style></head>
-            <body>
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <div class="title">Installing Update...</div>
-              <div class="sub">v{version}</div>
-              <div class="bar"><div class="fill"></div></div>
-            </body>`;
-            "#
-        );
-
-        // Retry eval a few times — the webview may not be ready immediately
-        std::thread::spawn(move || {
-            for i in 0..10 {
-                std::thread::sleep(std::time::Duration::from_millis(100 * (i + 1)));
-                if window.eval(&js).is_ok() {
-                    return;
-                }
-            }
-        });
 
         logging!(info, Type::System, "Update splash window shown");
     }

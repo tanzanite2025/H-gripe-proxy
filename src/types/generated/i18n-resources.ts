@@ -1093,6 +1093,7 @@ export interface TranslationResources {
               clashCore: string
               dnsOverwrite: string
               external: string
+              findProcessMode: string
               ipv6: string
               logLevel: string
               openUwpTool: string
@@ -1126,6 +1127,11 @@ export interface TranslationResources {
               webUI: string
             }
             options: {
+              findProcessMode: {
+                always: string
+                off: string
+                strict: string
+              }
               logLevel: {
                 debug: string
                 error: string

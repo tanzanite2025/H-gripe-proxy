@@ -39,6 +39,7 @@ const SettingClash = ({ onError }: Props) => {
     'allow-lan': allowLan,
     'log-level': logLevel,
     'unified-delay': unifiedDelay,
+    'find-process-mode': findProcessMode,
   } = clash ?? {}
 
   const { verge_mixed_port } = verge ?? {}
@@ -183,6 +184,32 @@ const SettingClash = ({ onError }: Props) => {
           onGuard={(e) => patchClash({ 'unified-delay': e })}
         >
           <Switch checked={unifiedDelay ?? false} />
+        </GuardState>
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.sections.clash.form.fields.findProcessMode')}
+      >
+        <GuardState
+          value={findProcessMode ?? 'strict'}
+          onCatch={onError}
+          onFormat={(e: any) => e.target.value}
+          onChange={(e) => onChangeData({ 'find-process-mode': e })}
+          onGuard={(e) => patchClash({ 'find-process-mode': e })}
+        >
+          <div className="w-[100px]">
+            <Select size="small">
+              <MenuItem value="always">
+                {t('settings.sections.clash.form.options.findProcessMode.always')}
+              </MenuItem>
+              <MenuItem value="strict">
+                {t('settings.sections.clash.form.options.findProcessMode.strict')}
+              </MenuItem>
+              <MenuItem value="off">
+                {t('settings.sections.clash.form.options.findProcessMode.off')}
+              </MenuItem>
+            </Select>
+          </div>
         </GuardState>
       </SettingItem>
 

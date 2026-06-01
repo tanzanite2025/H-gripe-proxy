@@ -12,6 +12,8 @@ import { useVerge } from '@/hooks/system'
 import { updateLastCheckTime } from '@/hooks/system/use-update'
 import { navItems } from '@/pages/_core/router'
 import {
+  authorizeStartupScript,
+  clearStartupScriptAuthorization,
   copyClashEnv,
   openAppDir,
   openCoreDir,
@@ -247,8 +249,15 @@ const SettingVergeBasic = ({ onError }: Props) => {
                 ],
               })
               if (selected) {
-                onChangeData({ startup_script: `${selected}` })
-                patchVerge({ startup_script: `${selected}` })
+                const scriptPath = `${selected}`
+                try {
+                  await authorizeStartupScript(scriptPath)
+                  onChangeData({ startup_script: scriptPath })
+                  await patchVerge({ startup_script: scriptPath })
+                } catch (err: any) {
+                  await clearStartupScriptAuthorization().catch(() => {})
+                  showNotice.error(err)
+                }
               }
             }}
           >
@@ -257,8 +266,13 @@ const SettingVergeBasic = ({ onError }: Props) => {
           {startup_script && (
             <Button
               onClick={async () => {
-                onChangeData({ startup_script: '' })
-                patchVerge({ startup_script: '' })
+                try {
+                  await clearStartupScriptAuthorization()
+                  onChangeData({ startup_script: '' })
+                  await patchVerge({ startup_script: '' })
+                } catch (err: any) {
+                  showNotice.error(err)
+                }
               }}
             >
               {t('shared.actions.clear')}

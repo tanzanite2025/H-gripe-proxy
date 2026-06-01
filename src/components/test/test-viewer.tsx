@@ -130,7 +130,7 @@ export const TestViewer = forwardRef<TestViewerRef, Props>(
             ? t('tests.modals.test.title.create')
             : t('tests.modals.test.title.edit')
         }
-        className="w-[375px] max-h-[80%]"
+        panelStyle={{ minWidth: 420, minHeight: 380 }}
         okBtn={t('shared.actions.save')}
         cancelBtn={t('shared.actions.cancel')}
         onClose={handleClose}

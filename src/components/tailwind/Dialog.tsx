@@ -138,7 +138,7 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
     return (
       <div
         ref={ref}
-        className={cn('py-2 overflow-y-auto', className)}
+        className={cn('flex-1 min-h-0 py-2 overflow-y-auto', className)}
       >
         {children}
       </div>

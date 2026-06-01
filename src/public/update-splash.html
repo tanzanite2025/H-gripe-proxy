@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Clash Verge - Updating</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #1e1e2e;
+        color: #cdd6f4;
+      }
+
+      @media (prefers-color-scheme: light) {
+        body {
+          background: #eff1f5;
+          color: #4c4f69;
+        }
+
+        .bar {
+          background: #dce0e8;
+        }
+
+        .fill {
+          background: #1e66f5;
+        }
+
+        .sub {
+          color: #6c6f85;
+        }
+      }
+
+      .icon {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 16px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      .title {
+        margin-bottom: 6px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .sub {
+        margin-bottom: 20px;
+        color: #a6adc8;
+        font-size: 13px;
+      }
+
+      .bar {
+        width: 200px;
+        height: 4px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: #313244;
+      }
+
+      .fill {
+        width: 30%;
+        height: 100%;
+        border-radius: 2px;
+        background: #89b4fa;
+        animation: ind 1.5s ease-in-out infinite;
+      }
+
+      @keyframes ind {
+        0% {
+          width: 0;
+          margin-left: 0;
+        }
+
+        50% {
+          width: 40%;
+          margin-left: 30%;
+        }
+
+        100% {
+          width: 0;
+          margin-left: 100%;
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.6;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+    <div class="title">Installing Update...</div>
+    <div class="sub" id="version"></div>
+    <div class="bar"><div class="fill"></div></div>
+    <script>
+      const version = new URLSearchParams(window.location.search).get("version") || "";
+      document.getElementById("version").textContent = version ? `v${version}` : "";
+    </script>
+  </body>
+</html>

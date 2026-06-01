@@ -97,6 +97,7 @@
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "Unified Delay",
+          "findProcessMode": "Find Process Mode",
           "logLevel": "Log Level",
           "portConfig": "Port Config",
           "external": "External",
@@ -136,6 +137,11 @@
           "openUwpTool": "Since Windows 8, UWP apps (such as Microsoft Store) are restricted from directly accessing local host network services, and this tool can be used to bypass this restriction"
         },
         "options": {
+          "findProcessMode": {
+            "always": "Always",
+            "strict": "Strict",
+            "off": "Off"
+          },
           "logLevel": {
             "debug": "Debug",
             "info": "Info",
