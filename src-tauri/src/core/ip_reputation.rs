@@ -37,6 +37,9 @@ pub struct IpReputation {
     pub asn_org: String,
     pub fraud_score: u8,
     pub risk_level: RiskLevel,
+    pub confidence: u8,
+    pub evidence: Vec<IpReputationEvidence>,
+    pub residential_state: ResidentialVerificationState,
     pub is_proxy: bool,
     pub is_vpn: bool,
     pub is_tor: bool,
@@ -73,6 +76,33 @@ pub enum RiskLevel {
     Medium,
     High,
     VeryHigh,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum IpReputationEvidenceKind {
+    AsnTable,
+    OrgKeyword,
+    IpPrefix,
+    ReservedIp,
+    GeoIp,
+    Default,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IpReputationEvidence {
+    pub kind: IpReputationEvidenceKind,
+    pub label: String,
+    pub weight: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ResidentialVerificationState {
+    NotResidential,
+    ObservedResidential,
+    VerifiedResidential,
+    Unknown,
 }
 
 impl RiskLevel {
@@ -193,6 +223,9 @@ impl IpReputationManager {
 
         let asn_info = asn_classifier::get_asn_info(asn_num, asn_org);
         let ip_type = self.resolve_ip_type(ip, &asn_info);
+        let evidence = self.build_reputation_evidence(ip, asn_num, asn_org, &asn_info, &ip_type);
+        let confidence = self.calculate_confidence(&ip_type, &evidence);
+        let residential_state = self.resolve_residential_state(&ip_type, confidence);
         let fraud_score = self.calculate_fraud_score(&ip_type, &asn_info);
         let risk_level = RiskLevel::from_score(fraud_score);
 
@@ -214,6 +247,9 @@ impl IpReputationManager {
             asn_org: asn_display,
             fraud_score,
             risk_level,
+            confidence,
+            evidence,
+            residential_state,
             is_proxy: false,
             is_vpn: false,
             is_tor: false,
@@ -280,6 +316,99 @@ impl IpReputationManager {
         }
     }
 
+    fn build_reputation_evidence(
+        &self,
+        ip: &str,
+        asn: Option<u32>,
+        org_name: Option<&str>,
+        asn_info: &asn_classifier::AsnInfo,
+        ip_type: &IpType,
+    ) -> Vec<IpReputationEvidence> {
+        let mut evidence = Vec::new();
+
+        if let Some(asn_num) = asn {
+            if asn_classifier::classify_by_asn(asn_num).is_some() {
+                evidence.push(IpReputationEvidence {
+                    kind: IpReputationEvidenceKind::AsnTable,
+                    label: format!("ASN table matched AS{asn_num} as {:?}", ip_type),
+                    weight: 70,
+                });
+            }
+        }
+
+        if let Some(org) = org_name {
+            if asn_classifier::classify_by_org_name(org) != asn_classifier::AsnCategory::Unknown
+                && asn_info.name == org
+            {
+                evidence.push(IpReputationEvidence {
+                    kind: IpReputationEvidenceKind::OrgKeyword,
+                    label: format!("organization name matched classification keywords: {org}"),
+                    weight: 45,
+                });
+            }
+        }
+
+        if self.detect_ip_type(ip) != IpType::Unknown && asn_info.category == asn_classifier::AsnCategory::Unknown {
+            evidence.push(IpReputationEvidence {
+                kind: IpReputationEvidenceKind::IpPrefix,
+                label: format!("IP prefix matched known {:?} range", ip_type),
+                weight: 35,
+            });
+        }
+
+        if is_private_or_reserved_ip(ip) {
+            evidence.push(IpReputationEvidence {
+                kind: IpReputationEvidenceKind::ReservedIp,
+                label: "IP is private or reserved; public reputation is inconclusive".to_string(),
+                weight: 10,
+            });
+        }
+
+        if evidence.is_empty() {
+            evidence.push(IpReputationEvidence {
+                kind: IpReputationEvidenceKind::Default,
+                label: "no ASN, organization, or prefix evidence matched".to_string(),
+                weight: 15,
+            });
+        }
+
+        evidence
+    }
+
+    fn calculate_confidence(&self, ip_type: &IpType, evidence: &[IpReputationEvidence]) -> u8 {
+        let strongest = evidence.iter().map(|item| item.weight).max().unwrap_or(0);
+        let support_count = evidence
+            .iter()
+            .filter(|item| {
+                !matches!(
+                    item.kind,
+                    IpReputationEvidenceKind::Default | IpReputationEvidenceKind::ReservedIp
+                )
+            })
+            .count();
+        let support_bonus = support_count.saturating_sub(1).min(2) as u8 * 10;
+        let type_penalty = if matches!(ip_type, IpType::Unknown) { 20 } else { 0 };
+
+        strongest.saturating_add(support_bonus).saturating_sub(type_penalty).min(95)
+    }
+
+    fn resolve_residential_state(
+        &self,
+        ip_type: &IpType,
+        confidence: u8,
+    ) -> ResidentialVerificationState {
+        match ip_type {
+            IpType::Residential | IpType::Mobile | IpType::Education if confidence >= 90 => {
+                ResidentialVerificationState::VerifiedResidential
+            }
+            IpType::Residential | IpType::Mobile | IpType::Education => {
+                ResidentialVerificationState::ObservedResidential
+            }
+            IpType::Unknown => ResidentialVerificationState::Unknown,
+            IpType::Datacenter => ResidentialVerificationState::NotResidential,
+        }
+    }
+
     fn create_default_reputation(&self, ip: &str) -> IpReputation {
         IpReputation {
             ip: ip.to_string(),
@@ -288,6 +417,13 @@ impl IpReputationManager {
             asn_org: "Unknown".to_string(),
             fraud_score: 50,
             risk_level: RiskLevel::Medium,
+            confidence: 0,
+            evidence: vec![IpReputationEvidence {
+                kind: IpReputationEvidenceKind::Default,
+                label: "IP reputation checks are disabled".to_string(),
+                weight: 0,
+            }],
+            residential_state: ResidentialVerificationState::Unknown,
             is_proxy: false,
             is_vpn: false,
             is_tor: false,
@@ -558,6 +694,65 @@ mod tests {
             manager.resolve_ip_type("45.76.123.45", &mobile_asn),
             IpType::Mobile
         );
+    }
+
+    #[test]
+    fn test_residential_reputation_is_observed_not_verified_by_default() {
+        let manager = IpReputationManager::new();
+        let asn_info = asn_classifier::AsnInfo {
+            name: "Comcast Cable".to_string(),
+            category: asn_classifier::AsnCategory::Residential,
+        };
+
+        let evidence = manager.build_reputation_evidence(
+            "203.0.113.10",
+            Some(7922),
+            Some("Comcast Cable"),
+            &asn_info,
+            &IpType::Residential,
+        );
+        let confidence = manager.calculate_confidence(&IpType::Residential, &evidence);
+
+        assert_eq!(
+            manager.resolve_residential_state(&IpType::Residential, confidence),
+            ResidentialVerificationState::ObservedResidential
+        );
+        assert!(confidence < 90);
+        assert!(evidence.iter().any(|item| item.kind == IpReputationEvidenceKind::AsnTable));
+    }
+
+    #[test]
+    fn test_prefix_fallback_has_lower_confidence_than_asn_table() {
+        let manager = IpReputationManager::new();
+        let unknown_asn = asn_classifier::AsnInfo {
+            name: "Unknown".to_string(),
+            category: asn_classifier::AsnCategory::Unknown,
+        };
+        let datacenter_asn = asn_classifier::AsnInfo {
+            name: "Amazon AWS".to_string(),
+            category: asn_classifier::AsnCategory::Datacenter,
+        };
+
+        let prefix_evidence = manager.build_reputation_evidence(
+            "45.76.123.45",
+            None,
+            None,
+            &unknown_asn,
+            &IpType::Datacenter,
+        );
+        let asn_evidence = manager.build_reputation_evidence(
+            "52.1.1.1",
+            Some(16509),
+            Some("Amazon AWS"),
+            &datacenter_asn,
+            &IpType::Datacenter,
+        );
+
+        assert!(
+            manager.calculate_confidence(&IpType::Datacenter, &asn_evidence)
+                > manager.calculate_confidence(&IpType::Datacenter, &prefix_evidence)
+        );
+        assert!(prefix_evidence.iter().any(|item| item.kind == IpReputationEvidenceKind::IpPrefix));
     }
 
     #[tokio::test]

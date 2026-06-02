@@ -3,10 +3,13 @@ import { Globe2, ShieldAlert } from 'lucide-react'
 
 import { useIPInfo } from '@/hooks/data'
 import {
+  getIpTypeText,
+  getResidentialStateText,
   getRiskLevelText,
   ipReputationCheckIp,
   type IpReputation,
 } from '@/services/ip-reputation'
+import { getCurrentEgressIdentity } from '@/services/cmds'
 import { cn } from '@/utils/cn'
 
 const getCountryFlag = (countryCode: string | undefined) => {
@@ -47,6 +50,25 @@ const formatReputationSummary = ({
   return `${getRiskLevelText(reputation.riskLevel)} / ${reputation.fraudScore}`
 }
 
+const formatEgressTypeSummary = ({
+  ip,
+  reputation,
+  reputationLoading,
+  reputationError,
+}: {
+  ip?: string
+  reputation?: IpReputation
+  reputationLoading: boolean
+  reputationError: unknown
+}) => {
+  if (!ip) return '未获取'
+  if (reputationLoading) return '识别中'
+  if (reputationError) return '识别失败'
+  if (!reputation) return '未识别'
+
+  return `${getIpTypeText(reputation.ipType)} / ${reputation.confidence}`
+}
+
 const formatLocation = (city?: string, region?: string, country?: string) =>
   [city, region].filter(Boolean).join(', ') || country || 'Unknown'
 
@@ -58,27 +80,60 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const { data: ipInfo, error, isLoading } = useIPInfo()
   const ip = ipInfo?.ip
   const {
+    data: currentIdentity,
+    error: currentIdentityError,
+    isLoading: currentIdentityLoading,
+  } = useQuery({
+    queryKey: ['current-egress-identity'],
+    queryFn: getCurrentEgressIdentity,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+  const identityReputation = currentIdentity?.reputation
+  const {
     data: reputation,
     error: reputationError,
     isLoading: reputationLoading,
   } = useQuery({
     queryKey: ['ip-reputation-summary', ip],
     queryFn: () => ipReputationCheckIp(ip!),
-    enabled: Boolean(ip),
+    enabled: Boolean(ip) && !identityReputation,
     staleTime: 5 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
   })
+  const effectiveReputation = identityReputation ?? reputation
+  const effectiveReputationLoading = currentIdentityLoading || (!identityReputation && reputationLoading)
+  const effectiveReputationError = currentIdentityError && reputationError
 
   const country = ipInfo?.country || 'Unknown'
   const flag = getCountryFlag(ipInfo?.country_code)
+  const displayIp = currentIdentity?.egress_ip || ip
   const location = formatLocation(ipInfo?.city, ipInfo?.region, ipInfo?.country)
   const riskText = formatReputationSummary({
     ip,
-    reputation,
-    reputationLoading,
-    reputationError,
+    reputation: effectiveReputation,
+    reputationLoading: effectiveReputationLoading,
+    reputationError: effectiveReputationError,
   })
+  const egressTypeText = formatEgressTypeSummary({
+    ip: currentIdentity?.egress_ip ?? ip,
+    reputation: effectiveReputation,
+    reputationLoading: effectiveReputationLoading,
+    reputationError: effectiveReputationError,
+  })
+  const residentialStateText = effectiveReputation
+    ? getResidentialStateText(effectiveReputation.residentialState)
+    : '未确认'
+  const identitySourceText =
+    currentIdentity?.source === 'mihomoEgressStatus'
+      ? '内核出口快照'
+      : currentIdentity?.source === 'mihomoConnectionMetadata'
+      ? '内核连接元数据'
+      : currentIdentity?.source === 'publicIpObservation'
+        ? '出口观测'
+        : '出口观测'
 
   if (isLoading) {
     return (
@@ -112,12 +167,12 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     <div
       className={cn('the-ip-card', className)}
       data-tauri-drag-region="true"
-      title={`${country} / ${ip || 'Unknown'} · ${location} · 欺诈: ${riskText}`}
+      title={`${country} / ${currentIdentity?.egress_ip || ip || 'Unknown'} · ${location} · ${identitySourceText} · ${currentIdentity?.proxy_name || '当前出口'} · 出口类型: ${egressTypeText} · ${residentialStateText} · 风险: ${riskText}`}
     >
       <span className="the-ip-card__flag" data-tauri-drag-region="true">{flag}</span>
       <span className="the-ip-card__primary" data-tauri-drag-region="true">{country}</span>
       <span className="the-ip-card__muted" data-tauri-drag-region="true">IP</span>
-      <span className="the-ip-card__mono" data-tauri-drag-region="true">{ip || 'Unknown'}</span>
+      <span className="the-ip-card__mono" data-tauri-drag-region="true">{displayIp || 'Unknown'}</span>
       <span className="the-ip-card__divider" data-tauri-drag-region="true" />
       <span className="the-ip-card__muted" data-tauri-drag-region="true">位置</span>
       <span className="the-ip-card__value" data-tauri-drag-region="true">{location}</span>
@@ -126,15 +181,15 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
         className="h-3.5 w-3.5 shrink-0 text-text-secondary"
         data-tauri-drag-region="true"
       />
-      <span className="the-ip-card__muted" data-tauri-drag-region="true">欺诈</span>
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">出口类型</span>
       <span
         className={cn(
           'the-ip-card__value',
-          reputation ? riskColorMap[reputation.riskLevel] ?? 'text-gray-500' : undefined,
+          effectiveReputation ? riskColorMap[effectiveReputation.riskLevel] ?? 'text-gray-500' : undefined,
         )}
         data-tauri-drag-region="true"
       >
-        {riskText}
+        {egressTypeText}
       </span>
     </div>
   )

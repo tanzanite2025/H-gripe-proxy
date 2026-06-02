@@ -507,6 +507,8 @@ fn dedupe_node_names(nodes: Vec<std::string::String>) -> Vec<std::string::String
 const RESIDENTIAL_PROXY_PREFIX: &str = "VERGE-RES-";
 /// 链式代理组前缀
 const CHAIN_GROUP_PREFIX: &str = "VERGE-CHAIN-";
+/// 住宅代理验证专用组
+const RESIDENTIAL_VERIFY_GROUP: &str = "VERGE-RES-VERIFY";
 
 /// 注入住宅链式代理
 ///
@@ -521,18 +523,6 @@ fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &Advanc
 
     let enabled_proxies = pool.enabled_proxies();
     if enabled_proxies.is_empty() {
-        return config;
-    }
-
-    // 收集需要链式住宅路由的 profile
-    let chain_profiles: Vec<_> = advanced_config
-        .egress_identity
-        .profiles
-        .iter()
-        .filter(|p| p.enabled && p.use_residential_chain)
-        .collect();
-
-    if chain_profiles.is_empty() {
         return config;
     }
 
@@ -558,7 +548,13 @@ fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &Advanc
     }
     config.insert("proxies".into(), Value::Sequence(existing_proxies));
 
-    // 2. 为每个需要链式路由的 profile，在 VERGE-STABLE-* 组中
+    // 2. 维护住宅验证专用组，避免验证时借用 GLOBAL 影响用户当前选择
+    let residential_names: Vec<Value> = residential_mappings
+        .iter()
+        .map(|(name, _)| Value::from(name.as_str()))
+        .collect();
+
+    // 3. 为每个需要链式路由的 profile，在 VERGE-STABLE-* 组中
     //    给前置节点添加 dialer-proxy 指向住宅出口
     let mut proxy_groups = config
         .get("proxy-groups")
@@ -571,9 +567,28 @@ fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &Advanc
         group
             .get("name")
             .and_then(Value::as_str)
-            .map(|name| !name.starts_with(CHAIN_GROUP_PREFIX))
+            .map(|name| !name.starts_with(CHAIN_GROUP_PREFIX) && name != RESIDENTIAL_VERIFY_GROUP)
             .unwrap_or(true)
     });
+
+    let mut verify_group = Mapping::new();
+    verify_group.insert("name".into(), Value::from(RESIDENTIAL_VERIFY_GROUP));
+    verify_group.insert("type".into(), Value::from("select"));
+    verify_group.insert("proxies".into(), Value::Sequence(residential_names));
+    proxy_groups.push(Value::Mapping(verify_group));
+
+    // 收集需要链式住宅路由的 profile
+    let chain_profiles: Vec<_> = advanced_config
+        .egress_identity
+        .profiles
+        .iter()
+        .filter(|p| p.enabled && p.use_residential_chain)
+        .collect();
+
+    if chain_profiles.is_empty() {
+        config.insert("proxy-groups".into(), Value::Sequence(proxy_groups));
+        return config;
+    }
 
     // 为每个 chain profile 创建链式代理组
     let mut new_chain_groups = Sequence::new();
@@ -696,6 +711,43 @@ mod tests {
         assert_eq!(
             stable_dns_policy_key("example.com"),
             Some("example.com".to_string())
+        );
+    }
+
+    #[test]
+    fn test_residential_verify_group_is_injected_without_chain_profiles() {
+        let mut advanced = AdvancedConfig::default();
+        advanced.residential_pool.enabled = true;
+        advanced.residential_pool.proxies.push(crate::config::ResidentialProxy {
+            name: "US-1".to_string(),
+            proxy_type: crate::config::ResidentialProxyType::Vmess,
+            server: "127.0.0.1".to_string(),
+            port: 10000,
+            username: None,
+            password: None,
+            cipher: None,
+            uuid: Some("00000000-0000-0000-0000-000000000000".to_string()),
+            trojan_password: None,
+            tls: None,
+            sni: None,
+            skip_cert_verify: None,
+            region: Some("US".to_string()),
+            enabled: true,
+        });
+
+        let config = apply_residential_chain_proxies(Mapping::new(), &advanced);
+        let groups = config
+            .get("proxy-groups")
+            .and_then(Value::as_sequence)
+            .expect("proxy-groups should exist");
+        let verify_group = groups
+            .iter()
+            .find(|group| group.get("name").and_then(Value::as_str) == Some(RESIDENTIAL_VERIFY_GROUP))
+            .expect("verify group should be injected");
+
+        assert_eq!(
+            verify_group.get("proxies").and_then(Value::as_sequence).unwrap(),
+            &vec![Value::from("VERGE-RES-US-1")]
         );
     }
 

@@ -6,6 +6,7 @@ use crate::{
         runtime_diagnostics::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
         },
+        current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
         CoreManager,
         runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
@@ -53,6 +54,15 @@ pub async fn test_dns_leak() -> CmdResult<DnsLeakTestResult> {
 #[tauri::command]
 pub async fn test_proxy_detection() -> CmdResult<ProxyDetectionResult> {
     build_proxy_detection_result().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_current_egress_identity(
+    app_handle: tauri::AppHandle,
+) -> CmdResult<CurrentEgressIdentity> {
+    build_current_egress_identity(Some(&app_handle))
+        .await
+        .stringify_err()
 }
 
 /// 获取运行时存在的键

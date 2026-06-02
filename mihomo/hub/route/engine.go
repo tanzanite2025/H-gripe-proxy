@@ -53,11 +53,7 @@ func getRuleTraffic(w http.ResponseWriter, r *http.Request) {
 }
 
 func getEgressStatus(w http.ResponseWriter, r *http.Request) {
-	status := map[string]any{
-		"stable":      tunnel.DefaultEgressMonitor.IsEgressStable(),
-		"changeCount": tunnel.DefaultEgressMonitor.ChangeCount(),
-	}
-	render.JSON(w, r, status)
+	render.JSON(w, r, tunnel.DefaultEgressMonitor.Snapshot())
 }
 
 func getTLSFingerprintStats(w http.ResponseWriter, r *http.Request) {

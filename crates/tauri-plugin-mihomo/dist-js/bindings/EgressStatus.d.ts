@@ -1,1 +1,1 @@
-﻿export type EgressStatus = { stable: boolean, changeCount: number, };
+export type EgressStatus = { stable: boolean, changeCount: number, observedCount?: number, egressIp?: string, remoteDestination?: string, proxyName?: string, proxyChain?: string, destinationAsn?: string, asnOrg?: string, rule?: string, rulePayload?: string, updatedAt?: string, };

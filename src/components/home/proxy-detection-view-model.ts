@@ -1,4 +1,5 @@
 import type { ProxyDetectionLocation, ProxyDetectionResult } from '@/services/cmds'
+import { getIpTypeText, getResidentialStateText } from '@/services/ip-reputation'
 
 import type { DnsStatusColor } from '@/components/setting/dns-runtime-view-model'
 
@@ -163,9 +164,9 @@ export function buildProxyDetectionViewModel(result: ProxyDetectionResult) {
       .join('; '),
     reputation: reputation
       ? {
-          label: `${reputation.ipType} / score ${reputation.fraudScore}`,
+          label: `${getIpTypeText(reputation.ipType)} / ${reputation.confidence}`,
           color: getProxyDetectionReputationRiskColor(reputation.riskLevel),
-          asnLabel: `ASN ${reputation.asn} · ${reputation.asnOrg}`,
+          asnLabel: `ASN ${reputation.asn} · ${reputation.asnOrg} · ${getResidentialStateText(reputation.residentialState)}`,
         }
       : null,
   }

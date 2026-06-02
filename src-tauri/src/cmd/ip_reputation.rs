@@ -1,4 +1,6 @@
 use crate::core::ip_reputation::*;
+use crate::core::residential_verification::ResidentialProxyVerification;
+use crate::config::ResidentialProxy;
 use super::{CmdResult, StringifyErr};
 
 /// 获取 IP 信誉度配置
@@ -52,4 +54,15 @@ pub async fn ip_reputation_get_cache_stats() -> CmdResult<(usize, usize)> {
 #[tauri::command]
 pub async fn ip_reputation_get_cache_entries() -> CmdResult<Vec<IpReputation>> {
     Ok(crate::feat::ip_reputation_get_cache_entries().await)
+}
+
+/// 验证住宅代理实际出口
+#[tauri::command]
+pub async fn ip_reputation_verify_residential_proxy(
+    app_handle: tauri::AppHandle,
+    proxy: ResidentialProxy,
+) -> CmdResult<ResidentialProxyVerification> {
+    crate::core::residential_verification::verify_residential_proxy(proxy, Some(&app_handle))
+        .await
+        .stringify_err()
 }

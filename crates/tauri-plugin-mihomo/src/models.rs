@@ -1173,6 +1173,46 @@ pub struct EgressStatus {
     pub stable: bool,
     #[ts(type = "number")]
     pub change_count: i64,
+
+    #[ts(optional, type = "number")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub observed_count: Option<i64>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub egress_ip: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub remote_destination: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub proxy_name: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub proxy_chain: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub destination_asn: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub asn_org: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub rule: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub rule_payload: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

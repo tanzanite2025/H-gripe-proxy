@@ -3,7 +3,7 @@
  * 用户在此添加/编辑/删除住宅/ISP 代理节点
  */
 
-import { Pencil, Plus, Trash2, Shield } from 'lucide-react'
+import { CheckCircle2, Loader2, Pencil, Plus, Shield, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { Switch } from '@/components/base'
@@ -20,6 +20,10 @@ import {
 import { Select } from '@/components/tailwind/Select'
 import type { SelectPrimitiveValue } from '@/components/tailwind/Select'
 import type { ResidentialProxy, ResidentialProxyPool, ResidentialProxyType } from '@/services/coordinator'
+import {
+  ipReputationVerifyResidentialProxy,
+  type ResidentialProxyVerification,
+} from '@/services/ip-reputation'
 
 interface Props {
   config: ResidentialProxyPool
@@ -61,6 +65,8 @@ export function ResidentialPoolPanel({ config, onChange }: Props) {
   const [editingProxy, setEditingProxy] = useState<ResidentialProxy | null>(null)
   const [editIndex, setEditIndex] = useState<number>(-1)
   const [isAdding, setIsAdding] = useState(false)
+  const [verifyingName, setVerifyingName] = useState<string | null>(null)
+  const [verificationByName, setVerificationByName] = useState<Record<string, ResidentialProxyVerification>>({})
 
   const handleToggle = (checked: boolean) => {
     onChange({ ...config, enabled: checked })
@@ -88,6 +94,27 @@ export function ResidentialPoolPanel({ config, onChange }: Props) {
     const newProxies = [...config.proxies]
     newProxies[index] = { ...newProxies[index], enabled }
     onChange({ ...config, proxies: newProxies })
+  }
+
+  const handleVerifyProxy = async (proxy: ResidentialProxy) => {
+    setVerifyingName(proxy.name)
+    try {
+      const verification = await ipReputationVerifyResidentialProxy(proxy)
+      setVerificationByName((prev) => ({ ...prev, [proxy.name]: verification }))
+    } catch (error) {
+      setVerificationByName((prev) => ({
+        ...prev,
+        [proxy.name]: {
+          proxyName: proxy.name,
+          status: 'failed',
+          probeMethod: 'directProxy',
+          message: String(error),
+          checkedAt: Date.now(),
+        },
+      }))
+    } finally {
+      setVerifyingName(null)
+    }
   }
 
   const handleSaveProxy = (proxy: ResidentialProxy) => {
@@ -173,6 +200,13 @@ export function ResidentialPoolPanel({ config, onChange }: Props) {
                         {proxy.region && (
                           <Chip label={proxy.region} color="info" size="small" />
                         )}
+                        {verificationByName[proxy.name] && (
+                          <Chip
+                            label={getVerificationLabel(verificationByName[proxy.name])}
+                            color={getVerificationColor(verificationByName[proxy.name])}
+                            size="small"
+                          />
+                        )}
                       </div>
                       <span className="text-xs text-gray-500">
                         {proxy.server}:{proxy.port}
@@ -180,6 +214,18 @@ export function ResidentialPoolPanel({ config, onChange }: Props) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => void handleVerifyProxy(proxy)}
+                      disabled={verifyingName === proxy.name || !proxy.enabled}
+                      className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
+                      title="验证出口"
+                    >
+                      {verifyingName === proxy.name ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                     <button
                       onClick={() => handleEdit(proxy, index)}
                       className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -224,6 +270,38 @@ export function ResidentialPoolPanel({ config, onChange }: Props) {
       </Dialog>
     </div>
   )
+}
+
+function getVerificationLabel(verification: ResidentialProxyVerification): string {
+  switch (verification.status) {
+    case 'verified':
+      return '已验证'
+    case 'observed':
+      return `观测住宅 ${verification.reputation?.confidence ?? 0}`
+    case 'rejected':
+      return '非住宅'
+    case 'needsMihomoProbe':
+      return '待内核验证'
+    default:
+      return '验证失败'
+  }
+}
+
+function getVerificationColor(
+  verification: ResidentialProxyVerification,
+): 'success' | 'warning' | 'error' | 'default' | 'info' {
+  switch (verification.status) {
+    case 'verified':
+      return 'success'
+    case 'observed':
+      return 'info'
+    case 'rejected':
+      return 'error'
+    case 'needsMihomoProbe':
+      return 'warning'
+    default:
+      return 'default'
+  }
 }
 
 function ProxyEditForm({

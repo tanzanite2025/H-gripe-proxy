@@ -304,6 +304,39 @@ export async function testProxyDetection() {
   }
 }
 
+export type CurrentEgressIdentitySource =
+  | 'mihomoEgressStatus'
+  | 'mihomoConnectionMetadata'
+  | 'publicIpObservation'
+  | 'unavailable'
+
+export interface CurrentEgressIdentity {
+  source: CurrentEgressIdentitySource
+  proxy_name: string | null
+  proxy_chain: string[]
+  egress_ip: string | null
+  remote_destination: string | null
+  destination_asn: string | null
+  asn_org: string | null
+  rule: string | null
+  rule_payload: string | null
+  updated_at: string | null
+  reputation: IpReputation | null
+  message: string
+}
+
+export async function getCurrentEgressIdentity(): Promise<CurrentEgressIdentity> {
+  const result = await invoke<CurrentEgressIdentity & { reputation?: unknown }>(
+    'get_current_egress_identity',
+  )
+
+  return {
+    ...result,
+    proxy_chain: Array.isArray(result.proxy_chain) ? result.proxy_chain : [],
+    reputation: result.reputation ? normalizeIpReputation(result.reputation) : null,
+  }
+}
+
 export interface TorRuntimeStatus {
   enabled: boolean
   socks_host: string

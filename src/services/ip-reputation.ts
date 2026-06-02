@@ -1,12 +1,30 @@
 import { invoke } from '@tauri-apps/api/core';
 
+import type { ResidentialProxy } from '@/services/coordinator';
+
 type RawRecord = Record<string, unknown>;
 type IpType = IpReputation['ipType'];
 type RiskLevel = IpReputation['riskLevel'];
+type IpReputationEvidenceKind = IpReputationEvidence['kind'];
+type ResidentialVerificationState = IpReputation['residentialState'];
 type FallbackPolicy = RiskRoutingRule['fallbackPolicy'];
 
 const IP_TYPES: IpType[] = ['Datacenter', 'Residential', 'Mobile', 'Education', 'Unknown'];
 const RISK_LEVELS: RiskLevel[] = ['Low', 'Medium', 'High', 'VeryHigh'];
+const EVIDENCE_KINDS: IpReputationEvidenceKind[] = [
+  'asnTable',
+  'orgKeyword',
+  'ipPrefix',
+  'reservedIp',
+  'geoIp',
+  'default',
+];
+const RESIDENTIAL_STATES: ResidentialVerificationState[] = [
+  'notResidential',
+  'observedResidential',
+  'verifiedResidential',
+  'unknown',
+];
 const FALLBACK_POLICIES: FallbackPolicy[] = ['Block', 'Warn', 'Allow'];
 const IP_TYPE_ALIASES: Record<string, IpType> = {
   datacenter: 'Datacenter',
@@ -36,11 +54,42 @@ export interface IpReputation {
   asnOrg: string;
   fraudScore: number;
   riskLevel: 'Low' | 'Medium' | 'High' | 'VeryHigh';
+  confidence: number;
+  evidence: IpReputationEvidence[];
+  residentialState:
+    | 'notResidential'
+    | 'observedResidential'
+    | 'verifiedResidential'
+    | 'unknown';
   isProxy: boolean;
   isVpn: boolean;
   isTor: boolean;
   countryCode: string;
   city?: string;
+  checkedAt: number;
+}
+
+export interface IpReputationEvidence {
+  kind: 'asnTable' | 'orgKeyword' | 'ipPrefix' | 'reservedIp' | 'geoIp' | 'default';
+  label: string;
+  weight: number;
+}
+
+export type ResidentialProxyVerificationStatus =
+  | 'verified'
+  | 'observed'
+  | 'rejected'
+  | 'needsMihomoProbe'
+  | 'failed';
+
+export interface ResidentialProxyVerification {
+  proxyName: string;
+  status: ResidentialProxyVerificationStatus;
+  egressIp?: string;
+  reputation?: IpReputation;
+  probeMethod: 'directProxy' | 'mihomoCore';
+  mihomoProxyName?: string;
+  message: string;
   checkedAt: number;
 }
 
@@ -88,6 +137,44 @@ const normalizeIpType = (value: unknown): IpType => {
   return 'Unknown';
 };
 
+function normalizeResidentialProxyVerification(value: unknown): ResidentialProxyVerification {
+  const raw = asRecord(value);
+  const status = asString(raw.status, 'failed') as ResidentialProxyVerificationStatus;
+
+  return {
+    proxyName: asString(raw.proxyName ?? raw.proxy_name),
+    status,
+    egressIp: asString(raw.egressIp ?? raw.egress_ip) || undefined,
+    reputation:
+      raw.reputation === undefined || raw.reputation === null
+        ? undefined
+        : normalizeIpReputation(raw.reputation),
+    probeMethod:
+      asString(raw.probeMethod ?? raw.probe_method) === 'mihomoCore'
+        ? 'mihomoCore'
+        : 'directProxy',
+    mihomoProxyName: asString(raw.mihomoProxyName ?? raw.mihomo_proxy_name) || undefined,
+    message: asString(raw.message),
+    checkedAt: normalizeCheckedAt(raw.checkedAt ?? raw.checked_at),
+  };
+}
+
+const normalizeResidentialState = (value: unknown): ResidentialVerificationState =>
+  normalizeEnum(value, RESIDENTIAL_STATES, 'unknown');
+
+const normalizeEvidenceKind = (value: unknown): IpReputationEvidenceKind =>
+  normalizeEnum(value, EVIDENCE_KINDS, 'default');
+
+function normalizeIpReputationEvidence(value: unknown): IpReputationEvidence {
+  const raw = asRecord(value);
+
+  return {
+    kind: normalizeEvidenceKind(raw.kind),
+    label: asString(raw.label),
+    weight: asNumber(raw.weight, 0),
+  };
+}
+
 const toTauriIpType = (value?: Exclude<IpType, 'Unknown'>): string | null =>
   value ? value.charAt(0).toLowerCase() + value.slice(1) : null;
 
@@ -118,6 +205,13 @@ export function normalizeIpReputation(value: unknown): IpReputation {
     asnOrg: asString(raw.asnOrg ?? raw.asn_org, 'Unknown'),
     fraudScore: asNumber(raw.fraudScore ?? raw.fraud_score, 0),
     riskLevel: normalizeEnum(raw.riskLevel ?? raw.risk_level, RISK_LEVELS, 'Medium'),
+    confidence: asNumber(raw.confidence, 0),
+    evidence: Array.isArray(raw.evidence)
+      ? raw.evidence.map(normalizeIpReputationEvidence)
+      : [],
+    residentialState: normalizeResidentialState(
+      raw.residentialState ?? raw.residential_state,
+    ),
     isProxy: asBoolean(raw.isProxy ?? raw.is_proxy),
     isVpn: asBoolean(raw.isVpn ?? raw.is_vpn),
     isTor: asBoolean(raw.isTor ?? raw.is_tor),
@@ -256,6 +350,14 @@ export async function ipReputationGetCacheEntries(): Promise<IpReputation[]> {
   return entries.map(normalizeIpReputation);
 }
 
+export async function ipReputationVerifyResidentialProxy(
+  proxy: ResidentialProxy,
+): Promise<ResidentialProxyVerification> {
+  return normalizeResidentialProxyVerification(
+    await invoke('ip_reputation_verify_residential_proxy', { proxy }),
+  );
+}
+
 /**
  * 获取 IP 类型的显示文本
  */
@@ -264,13 +366,26 @@ export function getIpTypeText(ipType: string): string {
     case 'Datacenter':
       return '机房 IP';
     case 'Residential':
-      return '住宅 IP';
+      return '住宅特征';
     case 'Mobile':
-      return '移动 IP';
+      return '移动特征';
     case 'Education':
-      return '教育网 IP';
+      return '教育网特征';
     default:
       return '未知';
+  }
+}
+
+export function getResidentialStateText(state: string): string {
+  switch (state) {
+    case 'notResidential':
+      return '非住宅';
+    case 'observedResidential':
+      return '观测像住宅';
+    case 'verifiedResidential':
+      return '已验证住宅';
+    default:
+      return '未确认';
   }
 }
 

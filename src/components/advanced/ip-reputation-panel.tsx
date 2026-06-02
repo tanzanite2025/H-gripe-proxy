@@ -103,7 +103,7 @@ export function IpReputationPanel({ config, onChange }: Props) {
             <div>
               <h3 className="text-sm font-semibold">IP 信誉数据库</h3>
               <p className="text-xs text-gray-500 mt-1">
-                基于 ASN 分类 + GeoIP 查询的本地 IP 信誉评估，自动识别机房/住宅/移动 IP
+                为当前节点/当前出口身份识别提供底层证据，手动 IP 查询仅用于调试
               </p>
             </div>
             <Switch checked={config.enabled} onCheckedChange={handleToggleEnabled} />
@@ -131,11 +131,11 @@ export function IpReputationPanel({ config, onChange }: Props) {
         </div>
       </Card>
 
-      {/* IP 查询 */}
+      {/* 调试查询 */}
       {config.enabled && (
         <Card>
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold">IP 信誉查询</h3>
+            <h3 className="text-sm font-semibold">调试查询</h3>
             <div className="flex gap-2">
               <TextField
                 placeholder="输入 IP 地址，如 45.76.123.45"

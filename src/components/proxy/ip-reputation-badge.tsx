@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   ipReputationCheckIp,
   getIpTypeText,
+  getResidentialStateText,
   getRiskLevelText,
   getRiskLevelColor,
   type IpReputation,
@@ -95,6 +96,7 @@ export function IpReputationBadge({ ip }: { ip: string }) {
         className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded ${getIpTypeColor(
           reputation.ipType
         )}`}
+        title={`${getResidentialStateText(reputation.residentialState)}，置信度 ${reputation.confidence}`}
       >
         <span>{getIpTypeIcon(reputation.ipType)}</span>
         <span>{getIpTypeText(reputation.ipType)}</span>
@@ -107,6 +109,10 @@ export function IpReputationBadge({ ip }: { ip: string }) {
         )} bg-opacity-10`}
       >
         <span>评分: {reputation.fraudScore}</span>
+      </span>
+
+      <span className="text-xs text-gray-500">
+        置信: {reputation.confidence}
       </span>
 
       {/* 风险等级 */}
@@ -166,7 +172,9 @@ export function IpReputationBadgeSimple({ ip }: { ip: string }) {
       className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${getIpTypeColor(
         reputation.ipType
       )}`}
-      title={`欺诈评分: ${reputation.fraudScore}`}
+      title={`评分: ${reputation.fraudScore}，${getResidentialStateText(
+        reputation.residentialState
+      )}，置信度: ${reputation.confidence}`}
     >
       <span>{getIpTypeIcon(reputation.ipType)}</span>
       <span>{getIpTypeText(reputation.ipType)}</span>

@@ -340,6 +340,13 @@ mod tests {
             asn_org: "Amazon AWS".to_string(),
             fraud_score: 85,
             risk_level: RiskLevel::High,
+            confidence: 70,
+            evidence: vec![crate::core::ip_reputation::IpReputationEvidence {
+                kind: crate::core::ip_reputation::IpReputationEvidenceKind::AsnTable,
+                label: "ASN table matched AS16509 as Datacenter".to_string(),
+                weight: 70,
+            }],
+            residential_state: crate::core::ip_reputation::ResidentialVerificationState::NotResidential,
             is_proxy: false,
             is_vpn: false,
             is_tor: false,

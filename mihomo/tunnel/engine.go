@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,13 +19,13 @@ import (
 
 // ProxyConnPool manages reusable connections to proxy servers.
 type ProxyConnPool struct {
-	mu             sync.Mutex
-	conns          map[poolKey][]*pooledConn
-	maxIdlePerKey  int
-	maxIdleTime    time.Duration
+	mu              sync.Mutex
+	conns           map[poolKey][]*pooledConn
+	maxIdlePerKey   int
+	maxIdleTime     time.Duration
 	cleanupInterval time.Duration
-	closed         bool
-	done           chan struct{}
+	closed          bool
+	done            chan struct{}
 }
 
 type poolKey struct {
@@ -316,13 +317,13 @@ func (s *ProxyScheduler) RecordLatency(name string, latency time.Duration) {
 
 // FailoverGroup wraps multiple proxy adapters with automatic failover.
 type FailoverGroup struct {
-	mu             sync.Mutex
-	adapters       []C.ProxyAdapter
-	index          int
-	failCounts     map[string]int
-	maxFails       int
-	cooldown       time.Duration
-	cooldownUntil  map[string]time.Time
+	mu            sync.Mutex
+	adapters      []C.ProxyAdapter
+	index         int
+	failCounts    map[string]int
+	maxFails      int
+	cooldown      time.Duration
+	cooldownUntil map[string]time.Time
 }
 
 // NewFailoverGroup creates a failover group from a list of proxy adapters.
@@ -662,11 +663,42 @@ func (lq *LinkQuality) IsHealthy(maxLatency time.Duration, minSuccessRate float6
 
 // EgressMonitor monitors egress IP stability for a proxy chain.
 type EgressMonitor struct {
-	mu          sync.Mutex
-	egressIPs   map[string]time.Time
-	lockedIP    string
-	locked      bool
-	changeCount atomic.Int64
+	mu                sync.Mutex
+	egressIPs         map[string]time.Time
+	currentIP         string
+	proxyName         string
+	proxyChain        string
+	remoteDestination string
+	rule              string
+	rulePayload       string
+	updatedAt         time.Time
+	lockedIP          string
+	locked            bool
+	changeCount       atomic.Int64
+}
+
+// EgressIdentityObservation describes the latest successful outbound path.
+type EgressIdentityObservation struct {
+	ProxyName         string
+	ProxyChain        string
+	RemoteDestination string
+	EgressIP          string
+	Rule              string
+	RulePayload       string
+}
+
+// EgressIdentitySnapshot is the public engine status for current egress identity.
+type EgressIdentitySnapshot struct {
+	Stable            bool      `json:"stable"`
+	ChangeCount       int64     `json:"changeCount"`
+	ObservedCount     int       `json:"observedCount"`
+	EgressIP          string    `json:"egressIp,omitempty"`
+	ProxyName         string    `json:"proxyName,omitempty"`
+	ProxyChain        string    `json:"proxyChain,omitempty"`
+	RemoteDestination string    `json:"remoteDestination,omitempty"`
+	Rule              string    `json:"rule,omitempty"`
+	RulePayload       string    `json:"rulePayload,omitempty"`
+	UpdatedAt         time.Time `json:"updatedAt,omitempty"`
 }
 
 // NewEgressMonitor creates an egress IP monitor.
@@ -681,7 +713,13 @@ func (em *EgressMonitor) RecordEgress(ip string) {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 
-	now := time.Now()
+	em.recordEgressLocked(strings.TrimSpace(ip), time.Now())
+}
+
+func (em *EgressMonitor) recordEgressLocked(ip string, now time.Time) {
+	if ip == "" {
+		return
+	}
 	if _, exists := em.egressIPs[ip]; !exists {
 		em.egressIPs[ip] = now
 		if len(em.egressIPs) > 1 {
@@ -689,10 +727,32 @@ func (em *EgressMonitor) RecordEgress(ip string) {
 			log.Warnln("[EgressMonitor] egress IP changed to %s (changes: %d)", ip, em.changeCount.Load())
 		}
 	}
+	em.currentIP = ip
+	em.updatedAt = now
 
 	if em.locked && em.lockedIP != "" && em.lockedIP != ip {
 		log.Warnln("[EgressMonitor] egress IP %s differs from locked IP %s", ip, em.lockedIP)
 	}
+}
+
+// RecordIdentity records the latest successful outbound identity snapshot.
+func (em *EgressMonitor) RecordIdentity(observation EgressIdentityObservation) {
+	now := time.Now()
+	egressIP := strings.TrimSpace(observation.EgressIP)
+	if egressIP == "" {
+		egressIP = extractEgressIP(observation.RemoteDestination)
+	}
+
+	em.mu.Lock()
+	defer em.mu.Unlock()
+
+	em.recordEgressLocked(egressIP, now)
+	em.proxyName = strings.TrimSpace(observation.ProxyName)
+	em.proxyChain = strings.TrimSpace(observation.ProxyChain)
+	em.remoteDestination = strings.TrimSpace(observation.RemoteDestination)
+	em.rule = strings.TrimSpace(observation.Rule)
+	em.rulePayload = strings.TrimSpace(observation.RulePayload)
+	em.updatedAt = now
 }
 
 // LockEgress locks the expected egress IP.
@@ -713,6 +773,53 @@ func (em *EgressMonitor) IsEgressStable() bool {
 // ChangeCount returns the number of egress IP changes observed.
 func (em *EgressMonitor) ChangeCount() int64 {
 	return em.changeCount.Load()
+}
+
+// CurrentIP returns the most recently observed egress IP.
+func (em *EgressMonitor) CurrentIP() string {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	return em.currentIP
+}
+
+// ObservedCount returns the number of unique egress IPs observed.
+func (em *EgressMonitor) ObservedCount() int {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	return len(em.egressIPs)
+}
+
+// Snapshot returns the current egress identity and stability state.
+func (em *EgressMonitor) Snapshot() EgressIdentitySnapshot {
+	em.mu.Lock()
+	defer em.mu.Unlock()
+
+	return EgressIdentitySnapshot{
+		Stable:            len(em.egressIPs) <= 1,
+		ChangeCount:       em.changeCount.Load(),
+		ObservedCount:     len(em.egressIPs),
+		EgressIP:          em.currentIP,
+		ProxyName:         em.proxyName,
+		ProxyChain:        em.proxyChain,
+		RemoteDestination: em.remoteDestination,
+		Rule:              em.rule,
+		RulePayload:       em.rulePayload,
+		UpdatedAt:         em.updatedAt,
+	}
+}
+
+func extractEgressIP(remoteDestination string) string {
+	remoteDestination = strings.TrimSpace(remoteDestination)
+	if remoteDestination == "" {
+		return ""
+	}
+
+	host, _, err := net.SplitHostPort(remoteDestination)
+	if err == nil {
+		return strings.Trim(host, "[]")
+	}
+
+	return strings.Trim(remoteDestination, "[]")
 }
 
 // ============================================================

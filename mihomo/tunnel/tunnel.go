@@ -699,6 +699,19 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 	logMetadata(metadata, rule, remoteConn)
+	ruleType := ""
+	rulePayload := ""
+	if rule != nil {
+		ruleType = rule.RuleType().String()
+		rulePayload = rule.Payload()
+	}
+	DefaultEgressMonitor.RecordIdentity(EgressIdentityObservation{
+		ProxyName:         proxy.Name(),
+		ProxyChain:        remoteConn.Chains().String(),
+		RemoteDestination: remoteConn.RemoteDestination(),
+		Rule:              ruleType,
+		RulePayload:       rulePayload,
+	})
 
 	// Track connection in the engine
 	connTrackID := metadata.SourceDetail() + "->" + metadata.RemoteAddress()
