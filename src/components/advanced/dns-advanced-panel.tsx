@@ -7,6 +7,7 @@ import { Settings2 } from 'lucide-react'
 
 import { Switch } from '@/components/base'
 import { DnsLeakProtectionCard } from '@/components/setting/dns-leak-protection-card'
+import { buildDnsRuntimeViewModel } from '@/components/setting/dns-runtime-view-model'
 import { DnsRoutingCard } from '@/components/setting/dns-routing-card'
 import { DnsStatsCard } from '@/components/setting/dns-stats-card'
 import { Alert } from '@/components/tailwind/Alert'
@@ -75,16 +76,8 @@ export function DnsAdvancedPanel({
           ? '严格'
           : '偏执'
 
-  const runtimeSnapshotSummary = runtimeStatus
-    ? [
-        runtimeStatus.snapshot.enhanced_mode
-          ? `模式 ${runtimeStatus.snapshot.enhanced_mode}`
-          : null,
-        `nameserver ${runtimeStatus.snapshot.nameserver_count}`,
-        `fallback ${runtimeStatus.snapshot.fallback_count}`,
-      ]
-        .filter(Boolean)
-        .join(' / ')
+  const runtimeView = runtimeStatus
+    ? buildDnsRuntimeViewModel(runtimeStatus)
     : null
 
   return (
@@ -116,7 +109,7 @@ export function DnsAdvancedPanel({
           />
           {runtimePending && <Chip size="small" color="info" label="切换中..." />}
           {runtimeStatusPending && <Chip size="small" color="info" label="同步后端状态中..." />}
-          {runtimeStatus?.runtime_matches_saved && (
+          {runtimeView?.runtimeAlignment.color === 'success' && (
             <Chip size="small" color="success" label="后端确认已与已保存配置一致" />
           )}
         </div>
@@ -127,7 +120,7 @@ export function DnsAdvancedPanel({
             : '当前仅保存统一 DNS 配置，尚未将派生的 DNS 配置应用到 core 运行时。'}
         </Alert>
 
-        {runtimeStatus && (
+        {runtimeView && (
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div className="rounded-lg border border-border px-3 py-2 space-y-1">
               <div className="text-xs text-muted-foreground">后端确认的当前运行态</div>
@@ -135,20 +128,20 @@ export function DnsAdvancedPanel({
                 <span>DNS 段</span>
                 <Chip
                   size="small"
-                  color={runtimeStatus.runtime_has_dns ? 'success' : 'warning'}
-                  label={runtimeStatus.runtime_has_dns ? '存在' : '缺失'}
+                  color={runtimeView.runtimeDnsPresence.color}
+                  label={runtimeView.runtimeDnsPresence.label}
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Hosts 段</span>
                 <Chip
                   size="small"
-                  color={runtimeStatus.runtime_has_hosts ? 'success' : 'warning'}
-                  label={runtimeStatus.runtime_has_hosts ? '存在' : '缺失'}
+                  color={runtimeView.runtimeHostsPresence.color}
+                  label={runtimeView.runtimeHostsPresence.label}
                 />
               </div>
-              {runtimeSnapshotSummary && (
-                <div className="text-xs text-muted-foreground">{runtimeSnapshotSummary}</div>
+              {runtimeView.summary && (
+                <div className="text-xs text-muted-foreground">{runtimeView.summary}</div>
               )}
             </div>
 
@@ -158,22 +151,16 @@ export function DnsAdvancedPanel({
                 <span>dns_config.yaml</span>
                 <Chip
                   size="small"
-                  color={runtimeStatus.dns_config_valid ? 'success' : 'warning'}
-                  label={
-                    runtimeStatus.dns_config_exists
-                      ? runtimeStatus.dns_config_valid
-                        ? '存在且有效'
-                        : '存在但无效'
-                      : '不存在'
-                  }
+                  color={runtimeView.dnsConfig.color}
+                  label={runtimeView.dnsConfig.label}
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>运行态对齐</span>
                 <Chip
                   size="small"
-                  color={runtimeStatus.runtime_matches_saved ? 'success' : 'warning'}
-                  label={runtimeStatus.runtime_matches_saved ? '已对齐' : '未对齐'}
+                  color={runtimeView.runtimeAlignment.color}
+                  label={runtimeView.runtimeAlignment.label}
                 />
               </div>
             </div>

@@ -1,14 +1,10 @@
 use crate::config::Config;
+use crate::core::runtime_diagnostics::geoip::fetch_public_ip_location;
 use anyhow::{anyhow, Result};
 use reqwest::{Client, Proxy};
-use serde_json::Value;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const TOR_PROBE_SOURCES: &[&str] = &[
-    "https://api.ip.sb/geoip",
-    "https://ipapi.co/json",
-    "https://ipwho.is/",
-];
+const TOR_OBSERVATION_SOURCE: &str = "shared-geoip-probe";
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TorRuntimeStatus {
@@ -205,18 +201,9 @@ fn build_tor_client(config: &TorConfig) -> Result<Client> {
         .build()?)
 }
 
-fn parse_exit_node(value: &Value) -> Option<String> {
-    let country = value
-        .get("country")
-        .and_then(|item| item.as_str())
-        .or_else(|| value.get("country_name").and_then(|item| item.as_str()))
-        .map(str::trim)
-        .filter(|item| !item.is_empty());
-    let city = value
-        .get("city")
-        .and_then(|item| item.as_str())
-        .map(str::trim)
-        .filter(|item| !item.is_empty());
+fn build_tor_exit_node(city: Option<&str>, country: Option<&str>) -> Option<String> {
+    let city = city.map(str::trim).filter(|item| !item.is_empty());
+    let country = country.map(str::trim).filter(|item| !item.is_empty());
 
     match (city, country) {
         (Some(city), Some(country)) => Some(format!("{city}, {country}")),
@@ -227,31 +214,11 @@ fn parse_exit_node(value: &Value) -> Option<String> {
 }
 
 async fn query_tor_exit(client: &Client) -> Result<(String, Option<String>, String)> {
-    let mut errors = Vec::new();
+    let info = fetch_public_ip_location(client).await?;
+    let ip = info.ip.ok_or_else(|| anyhow!("Tor exit lookup returned no IP"))?;
+    let exit_node = build_tor_exit_node(info.city.as_deref(), info.country.as_deref());
 
-    for url in TOR_PROBE_SOURCES {
-        match client.get(*url).send().await {
-            Ok(response) => match response.error_for_status() {
-                Ok(response) => match response.json::<Value>().await {
-                    Ok(value) => {
-                        let ip = value
-                            .get("ip")
-                            .and_then(|item| item.as_str())
-                            .map(str::trim)
-                            .filter(|item| !item.is_empty())
-                            .ok_or_else(|| anyhow!("missing IP field from {url}"))?;
-
-                        return Ok((ip.to_string(), parse_exit_node(&value), (*url).to_string()));
-                    }
-                    Err(err) => errors.push(format!("{url}: failed to decode response: {err}")),
-                },
-                Err(err) => errors.push(format!("{url}: bad status: {err}")),
-            },
-            Err(err) => errors.push(format!("{url}: request failed: {err}")),
-        }
-    }
-
-    Err(anyhow!(errors.join(" | ")))
+    Ok((ip.to_string(), exit_node, TOR_OBSERVATION_SOURCE.to_string()))
 }
 
 fn compose_tor_runtime_status(

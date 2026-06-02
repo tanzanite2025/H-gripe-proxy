@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import dayjs from 'dayjs'
-import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
 import { normalizeIpReputation, type IpReputation } from '@/services/ip-reputation'
@@ -354,7 +353,9 @@ export async function getRuntimeProxyChainConfig(proxyChainExitNode: string) {
   })
 }
 
-export async function updateProxyChainConfigInRuntime(proxyChainConfig: any) {
+export async function updateProxyChainConfigInRuntime(
+  proxyChainConfig: string[] | null,
+) {
   return invoke<void>('update_proxy_chain_config_in_runtime', {
     proxyChainConfig,
   })
@@ -372,111 +373,6 @@ export async function syncTrayProxySelection() {
   return invoke<void>('sync_tray_proxy_selection')
 }
 
-export async function calcuProxies(): Promise<{
-  global: IProxyGroupItem
-  direct: IProxyItem
-  groups: IProxyGroupItem[]
-  records: Record<string, IProxyItem>
-  proxies: IProxyItem[]
-}> {
-  const [proxyResponse, providerResponse] = await Promise.all([
-    getProxies(),
-    calcuProxyProviders(),
-  ])
-
-  const proxyRecord = proxyResponse.proxies
-  const providerRecord = providerResponse
-
-  // provider name map
-  const providerMap = Object.fromEntries(
-    Object.entries(providerRecord).flatMap(([provider, item]) =>
-      item!.proxies.map((p) => [p.name, { ...p, provider }]),
-    ),
-  )
-
-  // compatible with proxy-providers
-  const generateItem = (name: string) => {
-    if (proxyRecord[name]) return proxyRecord[name]
-    if (providerMap[name]) return providerMap[name]
-    return {
-      name,
-      type: 'unknown',
-      udp: false,
-      xudp: false,
-      tfo: false,
-      mptcp: false,
-      smux: false,
-      history: [],
-    }
-  }
-
-  const { GLOBAL: global, DIRECT: direct, REJECT: reject } = proxyRecord
-
-  let groups: IProxyGroupItem[] = Object.values(proxyRecord).reduce<
-    IProxyGroupItem[]
-  >((acc, each) => {
-    if (each?.name !== 'GLOBAL' && each?.all) {
-      acc.push({
-        ...each,
-        all: each.all!.map((item) => generateItem(item)),
-      })
-    }
-
-    return acc
-  }, [])
-
-  if (global?.all) {
-    const globalGroups: IProxyGroupItem[] = global.all.reduce<
-      IProxyGroupItem[]
-    >((acc, name) => {
-      if (proxyRecord[name]?.all) {
-        acc.push({
-          ...proxyRecord[name],
-          all: proxyRecord[name].all!.map((item) => generateItem(item)),
-        })
-      }
-      return acc
-    }, [])
-
-    const globalNames = new Set(globalGroups.map((each) => each.name))
-    groups = groups
-      .filter((group) => {
-        return !globalNames.has(group.name)
-      })
-      .concat(globalGroups)
-  }
-
-  const proxies = [direct, reject].concat(
-    Object.values(proxyRecord).filter(
-      (p) => !p?.all?.length && p?.name !== 'DIRECT' && p?.name !== 'REJECT',
-    ),
-  )
-
-  const _global = {
-    ...global,
-    all: global?.all?.map((item) => generateItem(item)) || [],
-  }
-
-  return {
-    global: _global as IProxyGroupItem,
-    direct: direct as IProxyItem,
-    groups,
-    records: proxyRecord as Record<string, IProxyItem>,
-    proxies: (proxies as IProxyItem[]) ?? [],
-  }
-}
-
-export async function calcuProxyProviders() {
-  const providers = await getProxyProviders()
-  return Object.fromEntries(
-    Object.entries(providers.providers)
-      .sort()
-      .filter(
-        ([_, item]) =>
-          item?.vehicleType === 'HTTP' || item?.vehicleType === 'File',
-      ),
-  )
-}
 
 export async function getClashLogs() {
   const regex = /time="(.+?)"\s+level=(.+?)\s+msg="(.+?)"/

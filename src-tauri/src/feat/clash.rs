@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    core::{CoreManager, handle, manager::CLASH_LOGGER, tray},
+    core::{CoreManager, handle, manager::CLASH_LOGGER, runtime_snapshot::RuntimeSnapshotService, tray},
     feat::clean_async,
     process::AsyncHandler,
     utils::{self, dirs},
@@ -65,9 +65,10 @@ pub async fn restart_app() {
 fn after_change_clash_mode() {
     AsyncHandler::spawn(move || async {
         let mihomo = handle::Handle::mihomo().await;
-        match mihomo.get_connections().await {
-            Ok(connections) => {
-                if let Some(connections_array) = connections.connections {
+        let snapshot_service = RuntimeSnapshotService::global();
+        match snapshot_service.refresh_connections_result().await {
+            Ok(snapshot) => {
+                if let Some(connections_array) = snapshot.connections.and_then(|connections| connections.connections) {
                     for connection in connections_array {
                         let _ = mihomo.close_connection(&connection.id).await;
                     }

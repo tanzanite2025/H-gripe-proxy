@@ -20,98 +20,7 @@ import {
 } from '@/services/cmds'
 
 import { EnhancedCard } from './enhanced-card'
-
-const getAssessmentLabel = (assessment?: string) => {
-  switch (assessment) {
-    case 'effective':
-      return 'Exit changed'
-    case 'same-egress':
-      return 'Same exit'
-    case 'runtime-risk':
-      return 'Runtime risk'
-    case 'inconclusive':
-      return 'Inconclusive'
-    default:
-      return assessment || 'Unknown'
-  }
-}
-
-const getAssessmentColor = (assessment?: string) => {
-  switch (assessment) {
-    case 'effective':
-      return 'success' as const
-    case 'same-egress':
-    case 'runtime-risk':
-      return 'warning' as const
-    case 'inconclusive':
-      return 'info' as const
-    default:
-      return 'default' as const
-  }
-}
-
-const getConfidenceLabel = (confidence?: string) => {
-  switch (confidence) {
-    case 'high':
-      return 'High confidence'
-    case 'medium':
-      return 'Medium confidence'
-    case 'low':
-      return 'Low confidence'
-    default:
-      return confidence || 'Unknown'
-  }
-}
-
-const formatObservationPath = (observationPath?: string) => {
-  switch (observationPath) {
-    case 'direct-vs-core-proxy':
-      return 'Direct vs core'
-    case 'direct-only':
-      return 'Direct only'
-    case 'core-proxy-only':
-      return 'Core only'
-    default:
-      return observationPath || 'Unknown'
-  }
-}
-
-const formatRuntimeRiskLabel = (risk: string) => {
-  switch (risk) {
-    case 'core-not-running':
-      return 'Local core is not running'
-    case 'direct-egress-unavailable':
-      return 'Direct egress unavailable'
-    case 'local-core-proxy-unreachable':
-      return 'Core proxy egress unavailable'
-    case 'proxy-reputation-unavailable':
-      return 'Proxy reputation unavailable'
-    default:
-      return risk
-  }
-}
-
-const formatLocation = (location?: ProxyDetectionResult['direct_location']) => {
-  if (!location) {
-    return 'Not observed'
-  }
-
-  return [location.country, location.region, location.city].filter(Boolean).join(' ') || 'Unknown'
-}
-
-const getRiskColor = (riskLevel?: string) => {
-  switch (riskLevel) {
-    case 'Low':
-      return 'success' as const
-    case 'Medium':
-      return 'info' as const
-    case 'High':
-    case 'VeryHigh':
-      return 'warning' as const
-    default:
-      return 'default' as const
-  }
-}
+import { buildProxyDetectionViewModel } from './proxy-detection-view-model'
 
 const ProxyDetectionCardContainer = forwardRef<
   HTMLElement,
@@ -210,33 +119,32 @@ const ProxyDetectionCardUI = ({
 
   const reputation = result.proxy_reputation
   const advice = result.recommendations
+  const view = buildProxyDetectionViewModel(result)
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        {result.proxy_effective ? (
+        {view.summary.state === 'effective' ? (
           <>
             <CheckCircleOutlined className="h-8 w-8 text-success" />
             <div>
-              <p className="text-base font-medium text-success">
-                Proxy exit changed
+              <p className={`text-base font-medium ${view.summary.colorClass}`}>
+                {view.summary.title}
               </p>
               <p className="text-xs text-text-secondary">
-                {result.ip_changed && 'IP changed'}
-                {result.ip_changed && result.location_changed && ' / '}
-                {result.location_changed && 'Location changed'}
+                {view.summary.description}
               </p>
             </div>
           </>
-        ) : result.assessment === 'same-egress' ? (
+        ) : view.summary.state === 'same-egress' ? (
           <>
             <WarningOutlined className="h-8 w-8 text-warning" />
             <div>
-              <p className="text-base font-medium text-warning">
-                Same egress observed
+              <p className={`text-base font-medium ${view.summary.colorClass}`}>
+                {view.summary.title}
               </p>
               <p className="text-xs text-text-secondary">
-                Direct and local-core proxy paths currently look identical.
+                {view.summary.description}
               </p>
             </div>
           </>
@@ -244,11 +152,11 @@ const ProxyDetectionCardUI = ({
           <>
             <InfoOutlined className="h-8 w-8 text-info" />
             <div>
-              <p className="text-base font-medium text-info">
-                Observation incomplete
+              <p className={`text-base font-medium ${view.summary.colorClass}`}>
+                {view.summary.title}
               </p>
               <p className="text-xs text-text-secondary">
-                Direct and proxy paths were not both observed.
+                {view.summary.description}
               </p>
             </div>
           </>
@@ -257,21 +165,21 @@ const ProxyDetectionCardUI = ({
 
       <div className="flex flex-wrap gap-2 text-sm">
         <Chip
-          label={getAssessmentLabel(result.assessment)}
-          color={getAssessmentColor(result.assessment)}
+          label={view.assessment.label}
+          color={view.assessment.color}
           size="small"
         />
-        <Chip label={getConfidenceLabel(result.confidence)} color="info" size="small" />
-        <Chip label={formatObservationPath(result.observation_path)} size="small" />
+        <Chip label={view.confidence.label} color={view.confidence.color} size="small" />
+        <Chip label={view.observationPath.label} size="small" />
         <Chip
-          label={result.core_running ? 'Core running' : 'Core stopped'}
-          color={result.core_running ? 'success' : 'warning'}
+          label={view.core.label}
+          color={view.core.color}
           size="small"
         />
         {reputation ? (
           <Chip
-            label={`${reputation.ipType} / score ${reputation.fraudScore}`}
-            color={getRiskColor(reputation.riskLevel)}
+            label={view.reputation?.label}
+            color={view.reputation?.color}
             size="small"
           />
         ) : null}
@@ -281,28 +189,28 @@ const ProxyDetectionCardUI = ({
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-xs text-text-secondary">Direct</span>
           <p className="uds-mono text-xs font-medium">
-            {result.direct_ip || 'Not observed'}
+            {view.direct.ip}
           </p>
-          {result.direct_ip && result.direct_location && (
+          {view.direct.observed && (
             <p className="text-xs text-text-secondary">
-              {formatLocation(result.direct_location)}
+              {view.direct.location}
             </p>
           )}
         </div>
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-xs text-text-secondary">Proxy</span>
           <p className="uds-mono text-xs font-medium">
-            {result.proxy_ip || 'Not observed'}
+            {view.proxy.ip}
           </p>
-          {result.proxy_ip && result.proxy_location && (
+          {view.proxy.observed && (
             <p className="text-xs text-text-secondary">
-              {formatLocation(result.proxy_location)}
+              {view.proxy.location}
             </p>
           )}
         </div>
         {reputation ? (
           <p className="truncate text-xs text-text-secondary">
-            ASN {reputation.asn} · {reputation.asnOrg}
+            {view.reputation?.asnLabel}
           </p>
         ) : null}
       </div>
@@ -316,7 +224,7 @@ const ProxyDetectionCardUI = ({
 
       {result.runtime_risk_detected && result.runtime_risk_type.length > 0 ? (
         <Alert severity="warning" className="text-xs">
-          {result.runtime_risk_type.map(formatRuntimeRiskLabel).join('; ')}
+          {view.runtimeRiskText}
         </Alert>
       ) : null}
 

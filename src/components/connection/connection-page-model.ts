@@ -1,3 +1,5 @@
+import { buildConnectionViewModel } from './connection-view-model'
+
 export type ConnectionOrderKey =
   | 'default'
   | 'uploadSpeed'
@@ -183,3 +185,40 @@ export const filterAndOrderConnections = ({
 export const getConnectionViewSpec = (
   viewMode: ConnectionViewMode,
 ): ConnectionViewSpec => CONNECTION_VIEW_SPECS[viewMode]
+
+export const formatConnectionHost = (connection: IConnectionsItem): string => {
+  return buildConnectionViewModel(connection).host
+}
+
+export const formatConnectionDestination = (
+  connection: IConnectionsItem,
+): string => {
+  return buildConnectionViewModel(connection).destination
+}
+
+export const formatConnectionRemoteDestination = (
+  connection: IConnectionsItem,
+): string => {
+  return buildConnectionViewModel(connection).remoteDestination
+}
+
+export const formatConnectionSource = (connection: IConnectionsItem): string => {
+  return buildConnectionViewModel(connection).source
+}
+
+export const formatConnectionChains = (
+  connection: IConnectionsItem,
+): string => buildConnectionViewModel(connection).chains
+
+export const formatConnectionRule = (connection: IConnectionsItem): string =>
+  buildConnectionViewModel(connection).rule
+
+export const formatConnectionProcess = (
+  connection: IConnectionsItem,
+): string => {
+  return buildConnectionViewModel(connection).process
+}
+
+export const formatConnectionType = (connection: IConnectionsItem): string => {
+  return buildConnectionViewModel(connection).type
+}

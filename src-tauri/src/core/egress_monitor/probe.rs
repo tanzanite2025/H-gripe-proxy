@@ -1,10 +1,9 @@
 /**
  * 出口 IP 探测逻辑
  */
-
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tokio::time::Instant;
 
 use super::config::EgressIpProbeResult;
@@ -24,60 +23,14 @@ pub async fn probe_egress_ip() -> Result<EgressIpProbeResult> {
     })
 }
 
-/// 通过多个 GeoIP 服务探测出口 IP 和国家代码
 async fn fetch_exit_ip_geo(client: &reqwest::Client) -> Result<(String, Option<String>)> {
-    let urls = [
-        "https://api.ip.sb/geoip",
-        "https://ipapi.co/json",
-        "https://ipwho.is/",
-    ];
+    let info = crate::core::runtime_diagnostics::geoip::fetch_public_ip_observation(client).await?;
+    let ip = info.ip.ok_or_else(|| anyhow!("public IP observation returned no IP"))?;
 
-    for url in &urls {
-        match client.get(*url).send().await {
-            Ok(resp) if resp.status().is_success() => {
-                if let Ok(data) = resp.json::<serde_json::Value>().await {
-                    let ip = data
-                        .get("ip")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-
-                    if let Some(ip) = ip {
-                        let country_code = data
-                            .get("country_code")
-                            .or_else(|| data.get("data").and_then(|d| d.get("country_code")))
-                            .or_else(|| data.get("country"))
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_uppercase());
-                        return Ok((ip, country_code));
-                    }
-                }
-            }
-            Ok(_) => continue,
-            Err(_) => continue,
-        }
-    }
-
-    // 降级：仅获取 IP（不带 Geo）
-    let plain_urls = [
-        "https://api.ipify.org",
-        "https://ifconfig.me/ip",
-        "https://icanhazip.com",
-    ];
-
-    for url in &plain_urls {
-        if let Ok(resp) = client.get(*url).send().await {
-            if resp.status().is_success() {
-                if let Ok(ip) = resp.text().await {
-                    let ip = ip.trim().to_string();
-                    if !ip.is_empty() {
-                        return Ok((ip, None));
-                    }
-                }
-            }
-        }
-    }
-
-    Err(anyhow!("所有 IP 探测服务均不可用"))
+    Ok((
+        ip.to_string(),
+        info.country_code.map(|code| code.to_uppercase().to_string()),
+    ))
 }
 
 /// 构建走 Mihomo 代理的 HTTP 客户端
@@ -85,8 +38,7 @@ async fn build_proxied_client() -> Result<reqwest::Client> {
     use crate::config::Config;
 
     let verge = Config::verge().await.latest_arc();
-    let proxy_enabled = verge.enable_system_proxy.unwrap_or(false)
-        || verge.enable_tun_mode.unwrap_or(false);
+    let proxy_enabled = verge.enable_system_proxy.unwrap_or(false) || verge.enable_tun_mode.unwrap_or(false);
 
     if !proxy_enabled {
         return Err(anyhow!("代理未启用，无法探测出口 IP"));

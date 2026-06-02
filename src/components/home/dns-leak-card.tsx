@@ -13,6 +13,7 @@ import { forwardRef, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
 import { IconButton } from '@/components/tailwind/IconButton'
+import { buildHomeDnsLeakViewModel } from '@/components/setting/dns-leak-test-view-model'
 import { Skeleton } from '@/components/tailwind/Skeleton'
 import {
   detectDNSLeak,
@@ -111,13 +112,7 @@ const DNSLeakCardUI = ({
   }
 
   const riskInfo = getDNSLeakRiskDescription(result.riskLevel)
-  const statusMessage = result.observedLeak
-    ? '已观测到外部 DNS 泄漏迹象'
-    : result.runtimeRiskDetected
-      ? '当前未观测到外部泄漏，但运行态存在 DNS 风险'
-      : result.observationIncomplete
-        ? '当前外部观测不完整，结果偏保守'
-        : '当前未发现 DNS 泄漏或运行态风险'
+  const leakView = buildHomeDnsLeakViewModel(result)
 
   return (
     <div className="flex flex-col gap-3">
@@ -133,23 +128,13 @@ const DNSLeakCardUI = ({
         <div className="p-2 bg-surface-variant rounded">
           <p className="text-xs text-text-secondary mb-1">结果判定</p>
           <p className="text-sm font-medium">
-            {result.assessment === 'observed-leak'
-              ? '已观测泄漏'
-              : result.assessment === 'runtime-risk'
-                ? '运行态风险'
-                : result.assessment === 'inconclusive'
-                  ? '结果不完整'
-                  : '安全'}
+            {leakView.assessment.label}
           </p>
         </div>
         <div className="p-2 bg-surface-variant rounded">
           <p className="text-xs text-text-secondary mb-1">结果置信度</p>
           <p className="text-sm font-medium">
-            {result.confidence === 'high'
-              ? '高'
-              : result.confidence === 'medium'
-                ? '中'
-                : '低'}
+            {leakView.confidence.label}
           </p>
         </div>
         <div className="p-2 bg-surface-variant rounded">

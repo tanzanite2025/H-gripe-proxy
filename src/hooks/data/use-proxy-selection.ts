@@ -1,11 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react'
-import {
-  closeConnection,
-  getConnections,
-  selectNodeForGroup,
-} from 'tauri-plugin-mihomo-api'
 
 import { useVerge } from '@/hooks/system'
+import { closeConnectionsForProxy } from '@/services/connection-runtime'
+import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
 import { syncTrayProxySelection } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
 
@@ -14,14 +11,10 @@ import { useProfiles } from './use-profiles'
 // 缓存连接清理
 const cleanupConnections = async (previousProxy: string) => {
   try {
-    const { connections } = await getConnections()
-    const cleanupPromises = (connections ?? [])
-      .filter((conn) => conn.chains.includes(previousProxy))
-      .map((conn) => closeConnection(conn.id))
+    const cleanupCount = await closeConnectionsForProxy(previousProxy)
 
-    if (cleanupPromises.length > 0) {
-      await Promise.allSettled(cleanupPromises)
-      debugLog(`[ProxySelection] 清理了 ${cleanupPromises.length} 个连接`)
+    if (cleanupCount > 0) {
+      debugLog(`[ProxySelection] 清理了 ${cleanupCount} 个连接`)
     }
   } catch (error) {
     console.warn('[ProxySelection] 连接清理失败:', error)
@@ -92,7 +85,9 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
       debugLog(`[ProxySelection] 代理切换: ${groupName} -> ${proxyName}`)
 
       try {
-        await selectNodeForGroup(groupName, proxyName)
+        await applyProxyRuntimeSelection(groupName, proxyName, {
+          syncTray: false,
+        })
         onSuccess?.()
         syncTraySelection()
         persistSelection(groupName, proxyName, skipConfigSave)
@@ -114,7 +109,9 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
         )
 
         try {
-          await selectNodeForGroup(groupName, proxyName)
+          await applyProxyRuntimeSelection(groupName, proxyName, {
+            syncTray: false,
+          })
           onSuccess?.()
           syncTraySelection()
           persistSelection(groupName, proxyName, skipConfigSave)

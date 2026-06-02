@@ -1,13 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { selectNodeForGroup } from 'tauri-plugin-mihomo-api'
 
 import {
-  calcuProxies,
   getProfiles,
   patchProfile,
   patchProfilesConfig,
-  syncTrayProxySelection,
 } from '@/services/cmds'
+import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
+import { calcuProxies } from '@/services/proxy-runtime'
 import { queryClient } from '@/services/query-client'
 import { debugLog } from '@/utils/misc'
 
@@ -179,8 +178,7 @@ export const useProfiles = () => {
           )
           hasChange = true
           try {
-            await selectNodeForGroup(name, savedProxy)
-            await syncTrayProxySelection()
+            await applyProxyRuntimeSelection(name, savedProxy)
           } catch (error: unknown) {
             console.warn(
               `[ActivateSelected] 切换代理组 ${name} 失败:`,

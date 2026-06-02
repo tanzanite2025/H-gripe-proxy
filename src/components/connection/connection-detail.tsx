@@ -9,6 +9,7 @@ import {
   type ConnectionDetailField,
   type ConnectionViewMode,
 } from '@/components/connection/connection-page-model'
+import { buildConnectionViewModel } from '@/components/connection/connection-view-model'
 import { Button } from '@/components/tailwind/Button'
 import { Snackbar } from '@/components/tailwind/Snackbar'
 import parseTraffic from '@/utils/format'
@@ -60,15 +61,7 @@ interface InnerProps {
 
 const InnerConnectionDetail = ({ data, viewMode, onClose }: InnerProps) => {
   const { t } = useTranslation()
-  const { metadata, rulePayload } = data
-  const chains = [...data.chains].reverse().join(' / ')
-  const rule = rulePayload ? `${data.rule}(${rulePayload})` : data.rule
-  const host = metadata.host
-    ? `${metadata.host}:${metadata.destinationPort}`
-    : `${metadata.remoteDestination}:${metadata.destinationPort}`
-  const Destination = metadata.destinationIP
-    ? metadata.destinationIP
-    : metadata.remoteDestination
+  const viewModel = buildConnectionViewModel(data)
   const closed = viewMode === 'closed'
   const { detailFields } = getConnectionViewSpec(viewMode)
 
@@ -76,7 +69,10 @@ const InnerConnectionDetail = ({ data, viewMode, onClose }: InnerProps) => {
     ConnectionDetailField,
     { label: string; value: string }
   > = {
-    host: { label: t('connections.components.fields.host'), value: host },
+    host: {
+      label: t('connections.components.fields.host'),
+      value: viewModel.host,
+    },
     download: {
       label: t('shared.labels.downloaded'),
       value: parseTraffic(data.download).join(' '),
@@ -95,12 +91,15 @@ const InnerConnectionDetail = ({ data, viewMode, onClose }: InnerProps) => {
     },
     chains: {
       label: t('connections.components.fields.chains'),
-      value: chains,
+      value: viewModel.chains,
     },
-    rule: { label: t('connections.components.fields.rule'), value: rule },
+    rule: {
+      label: t('connections.components.fields.rule'),
+      value: viewModel.rule,
+    },
     process: {
       label: t('connections.components.fields.process'),
-      value: `${metadata.process ?? ''}${metadata.processPath ? `(${metadata.processPath})` : ''}`,
+      value: viewModel.process,
     },
     time: {
       label: t('connections.components.fields.time'),
@@ -108,19 +107,19 @@ const InnerConnectionDetail = ({ data, viewMode, onClose }: InnerProps) => {
     },
     source: {
       label: t('connections.components.fields.source'),
-      value: `${metadata.sourceIP}:${metadata.sourcePort}`,
+      value: viewModel.source,
     },
     destination: {
       label: t('connections.components.fields.destination'),
-      value: Destination ?? '',
+      value: viewModel.destination,
     },
     destinationPort: {
       label: t('connections.components.fields.destinationPort'),
-      value: `${metadata.destinationPort}`,
+      value: viewModel.destinationPort,
     },
     type: {
       label: t('connections.components.fields.type'),
-      value: `${metadata.type}(${metadata.network})`,
+      value: viewModel.type,
     },
   }
 

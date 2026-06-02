@@ -22,87 +22,12 @@ import { Chip } from '@/components/tailwind/Chip'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import type { DnsRuntimeStatus } from '@/services/cmds'
 import { getDnsMetrics, dnsWarmup, type DnsMetrics } from '@/services/dns-api'
+import { buildDnsRuntimeViewModel } from './dns-runtime-view-model'
 
 interface Props {
   runtimeStatus?: DnsRuntimeStatus
   runtimeStatusPending: boolean
   onRefresh: () => void
-}
-
-const getRoutingModeLabel = (mode: string | null) => {
-  switch (mode) {
-    case 'speed':
-      return '速度优先'
-    case 'privacy':
-      return '隐私优先'
-    case 'balanced':
-      return '平衡模式'
-    case 'custom':
-      return '自定义'
-    default:
-      return 'N/A'
-  }
-}
-
-const getLeakProtectionLabel = (level: string | null) => {
-  switch (level) {
-    case 'none':
-      return '无防护'
-    case 'basic':
-      return '基础'
-    case 'strict':
-      return '严格'
-    case 'paranoid':
-      return '偏执'
-    case 'custom':
-      return '自定义'
-    default:
-      return 'N/A'
-  }
-}
-
-const getLeakSecurityLabel = (security: string | null) => {
-  switch (security) {
-    case 'low':
-      return '低'
-    case 'medium':
-      return '中'
-    case 'high':
-      return '高'
-    case 'very-high':
-      return '极高'
-    case 'custom':
-      return '自定义'
-    default:
-      return 'N/A'
-  }
-}
-
-const getLeakSecurityColor = (security: string | null) => {
-  switch (security) {
-    case 'low':
-      return 'error' as const
-    case 'medium':
-      return 'warning' as const
-    case 'high':
-      return 'info' as const
-    case 'very-high':
-      return 'success' as const
-    default:
-      return 'default' as const
-  }
-}
-
-const getBoolLabel = (
-  value: boolean | null,
-  enabledLabel = '已启用',
-  disabledLabel = '已关闭',
-) => {
-  if (value === null) {
-    return 'N/A'
-  }
-
-  return value ? enabledLabel : disabledLabel
 }
 
 export const DnsStatsCard = ({
@@ -145,12 +70,7 @@ export const DnsStatsCard = ({
     )
   }
 
-  const { snapshot, derived } = runtimeStatus
-  const domesticDns = derived.domestic_dns.join(', ') || 'N/A'
-  const foreignDns = derived.foreign_dns.join(', ') || 'N/A'
-  const runtimeSource = runtimeStatus.enable_dns_settings
-    ? '来自已保存 dns_config.yaml 派生配置'
-    : '来自当前基础 runtime 配置'
+  const runtimeView = buildDnsRuntimeViewModel(runtimeStatus)
 
   return (
     <Card>
@@ -183,31 +103,31 @@ export const DnsStatsCard = ({
             <div className="flex justify-between">
               <div className="text-sm">Nameserver 数量</div>
               <div className="text-sm font-bold">
-                {snapshot.nameserver_count}
+                {runtimeView.nameserverCount}
               </div>
             </div>
             <div className="flex justify-between">
               <div className="text-sm">Fallback 数量</div>
               <div className="text-sm font-bold text-green-600 dark:text-green-400">
-                {snapshot.fallback_count}
+                {runtimeView.fallbackCount}
               </div>
             </div>
             <div className="flex justify-between">
               <div className="text-sm">Nameserver Policy 数量</div>
               <div className="text-sm font-bold text-yellow-600 dark:text-yellow-400">
-                {snapshot.nameserver_policy_count}
+                {runtimeView.routing.policyCount}
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">Default Nameserver 数量</div>
               <div className="text-sm font-bold">
-                {derived.default_nameserver_count}
+                {runtimeView.defaultNameserverCount}
               </div>
             </div>
             <div className="flex justify-between">
               <div className="text-sm">当前运行态</div>
               <div className="text-sm font-bold">
-                {runtimeStatus.runtime_has_dns ? 'DNS 已注入' : 'DNS 未注入'}
+                {runtimeView.runtimeDnsInjectedLabel}
               </div>
             </div>
           </div>
@@ -224,49 +144,49 @@ export const DnsStatsCard = ({
             <div className="flex justify-between">
               <div className="text-sm">增强模式</div>
               <div className="text-sm font-bold">
-                {snapshot.enhanced_mode ?? 'N/A'}
+                {runtimeView.enhancedModeLabel}
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">IPv6</div>
               <Chip
                 icon={<CheckCircleRounded className="h-3 w-3" />}
-                label={getBoolLabel(snapshot.ipv6, '已开启', '已关闭')}
+                label={runtimeView.options.ipv6.label}
                 size="small"
-                color={snapshot.ipv6 === null ? 'default' : snapshot.ipv6 ? 'success' : 'warning'}
+                color={runtimeView.options.ipv6.color}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">Prefer H3</div>
               <Chip
                 icon={<WarningRounded className="h-3 w-3" />}
-                label={getBoolLabel(derived.prefer_h3, '已开启', '已关闭')}
+                label={runtimeView.options.preferH3.label}
                 size="small"
-                color={derived.prefer_h3 === null ? 'default' : derived.prefer_h3 ? 'success' : 'warning'}
+                color={runtimeView.options.preferH3.color}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">Use Hosts</div>
               <Chip
                 icon={<ErrorRounded className="h-3 w-3" />}
-                label={getBoolLabel(snapshot.use_hosts, '已开启', '已关闭')}
+                label={runtimeView.options.useHosts.label}
                 size="small"
-                color={snapshot.use_hosts === null ? 'default' : snapshot.use_hosts ? 'success' : 'warning'}
+                color={runtimeView.options.useHosts.color}
               />
             </div>
             <div className="flex justify-between">
               <div className="text-sm">Use System Hosts</div>
               <div className="text-sm font-bold text-primary-600 dark:text-primary-400">
-                {getBoolLabel(snapshot.use_system_hosts, '已开启', '已关闭')}
+                {runtimeView.options.useSystemHosts.label}
               </div>
             </div>
             <div className="flex justify-between">
               <div className="text-sm">Respect Rules</div>
               <div
                 className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold"
-                title={getBoolLabel(snapshot.respect_rules, '已开启', '已关闭')}
+                title={runtimeView.options.respectRules.label}
               >
-                {getBoolLabel(snapshot.respect_rules, '已开启', '已关闭')}
+                {runtimeView.options.respectRules.label}
               </div>
             </div>
           </div>
@@ -283,39 +203,33 @@ export const DnsStatsCard = ({
             <div className="flex items-center justify-between">
               <div className="text-sm">dns_config.yaml</div>
               <Chip
-                label={
-                  runtimeStatus.dns_config_exists
-                    ? runtimeStatus.dns_config_valid
-                      ? '存在且有效'
-                      : '存在但无效'
-                    : '不存在'
-                }
+                label={runtimeView.dnsConfig.label}
                 size="small"
-                color={runtimeStatus.dns_config_valid ? 'success' : 'warning'}
+                color={runtimeView.dnsConfig.color}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">DNS 段对齐</div>
               <Chip
-                label={runtimeStatus.runtime_dns_matches_saved ? '已对齐' : '未对齐'}
+                label={runtimeView.runtimeDnsAlignment.label}
                 size="small"
-                color={runtimeStatus.runtime_dns_matches_saved ? 'success' : 'warning'}
+                color={runtimeView.runtimeDnsAlignment.color}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">Hosts 段对齐</div>
               <Chip
-                label={runtimeStatus.runtime_hosts_matches_saved ? '已对齐' : '未对齐'}
+                label={runtimeView.runtimeHostsAlignment.label}
                 size="small"
-                color={runtimeStatus.runtime_hosts_matches_saved ? 'success' : 'warning'}
+                color={runtimeView.runtimeHostsAlignment.color}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">整体运行态</div>
               <Chip
-                label={runtimeStatus.runtime_matches_saved ? '已对齐' : '未对齐'}
+                label={runtimeView.runtimeAlignment.label}
                 size="small"
-                color={runtimeStatus.runtime_matches_saved ? 'success' : 'warning'}
+                color={runtimeView.runtimeAlignment.color}
               />
             </div>
           </div>
@@ -333,41 +247,33 @@ export const DnsStatsCard = ({
             <div className="flex items-center justify-between">
               <div className="text-sm">分流模式</div>
               <Chip
-                label={getRoutingModeLabel(derived.routing_mode)}
+                label={runtimeView.routing.modeLabel}
                 size="small"
-                color={
-                  derived.routing_mode === 'speed'
-                    ? 'success'
-                    : derived.routing_mode === 'privacy'
-                      ? 'info'
-                      : derived.routing_mode === 'balanced'
-                        ? 'warning'
-                        : 'default'
-                }
+                color={runtimeView.routing.modeColor}
               />
             </div>
             <div className="flex justify-between">
               <div className="text-sm">国内 DNS</div>
               <div
                 className="max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
-                title={domesticDns}
+                title={runtimeView.routing.domesticDns}
               >
-                {domesticDns}
+                {runtimeView.routing.domesticDns}
               </div>
             </div>
             <div className="flex justify-between">
               <div className="text-sm">国外 DNS</div>
               <div
                 className="max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
-                title={foreignDns}
+                title={runtimeView.routing.foreignDns}
               >
-                {foreignDns}
+                {runtimeView.routing.foreignDns}
               </div>
             </div>
             <div className="flex justify-between">
               <div className="text-sm">策略组数量</div>
               <div className="text-sm font-bold">
-                {snapshot.nameserver_policy_count}
+                {runtimeView.routing.policyCount}
               </div>
             </div>
           </div>
@@ -385,34 +291,34 @@ export const DnsStatsCard = ({
             <div className="flex items-center justify-between">
               <div className="text-sm">覆盖开关</div>
               <Chip
-                label={runtimeStatus.enable_dns_settings ? '已启用' : '未启用'}
+                label={runtimeView.runtimeOverride.label}
                 size="small"
-                color={runtimeStatus.enable_dns_settings ? 'success' : 'warning'}
+                color={runtimeView.runtimeOverride.color}
               />
             </div>
             <div className="flex justify-between">
               <div className="text-sm">当前来源</div>
               <div
                 className="max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
-                title={runtimeSource}
+                title={runtimeView.runtimeSource}
               >
-                {runtimeSource}
+                {runtimeView.runtimeSource}
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">当前生效情况</div>
               <Chip
-                label={runtimeStatus.runtime_has_dns ? '运行态已携带 DNS' : '运行态未携带 DNS'}
+                label={runtimeView.runtimeEffect.label}
                 size="small"
-                color={runtimeStatus.runtime_has_dns ? 'success' : 'warning'}
+                color={runtimeView.runtimeEffect.color}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">已保存产物</div>
               <Chip
-                label={runtimeStatus.runtime_matches_saved ? '已生效' : '未完全生效'}
+                label={runtimeView.savedArtifact.label}
                 size="small"
-                color={runtimeStatus.runtime_matches_saved ? 'success' : 'warning'}
+                color={runtimeView.savedArtifact.color}
               />
             </div>
           </div>
@@ -430,24 +336,24 @@ export const DnsStatsCard = ({
             <div className="flex items-center justify-between">
               <div className="text-sm">防护级别</div>
               <Chip
-                label={getLeakProtectionLabel(derived.leak_protection_level)}
+                label={runtimeView.leak.levelLabel}
                 size="small"
-                color={getLeakSecurityColor(derived.leak_protection_security)}
+                color={runtimeView.leak.securityColor}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">安全等级</div>
               <Chip
-                label={getLeakSecurityLabel(derived.leak_protection_security)}
+                label={runtimeView.leak.securityLabel}
                 size="small"
-                color={getLeakSecurityColor(derived.leak_protection_security)}
+                color={runtimeView.leak.securityColor}
               />
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm">安全状态</div>
-              {derived.leak_protection_safe === null ? (
+              {runtimeView.leak.safe === null ? (
                 <Chip label="未知" size="small" color="default" />
-              ) : derived.leak_protection_safe ? (
+              ) : runtimeView.leak.safe ? (
                 <Chip icon={<CheckCircleRounded className="h-3 w-3" />} label="安全" size="small" color="success" />
               ) : (
                 <Chip icon={<WarningRounded className="h-3 w-3" />} label="不安全" size="small" color="error" />

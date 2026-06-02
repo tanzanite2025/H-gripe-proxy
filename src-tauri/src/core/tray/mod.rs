@@ -1,4 +1,5 @@
 use crate::config::{IProfilePreview, IVerge};
+use crate::core::runtime_snapshot::RuntimeSnapshotService;
 use crate::core::service;
 use crate::core::tray::menu_def::TrayAction;
 use crate::module::lightweight;
@@ -587,12 +588,13 @@ async fn create_tray_menu(
     let current_proxy_mode = mode.unwrap_or("");
 
     // TODO: should update tray menu again when it was timeout error
+    let snapshot_service = RuntimeSnapshotService::global();
     let proxy_nodes_data = tokio::time::timeout(
         Duration::from_millis(1000),
-        handle::Handle::mihomo().await.get_proxies(),
+        snapshot_service.refresh_proxies_result(),
     )
     .await
-    .map_or(None, |res| res.ok());
+    .map_or(None, |res| res.ok().and_then(|snapshot| snapshot.proxies));
 
     let runtime_proxy_groups_order = cmd::get_runtime_config()
         .await

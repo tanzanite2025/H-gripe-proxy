@@ -7,7 +7,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::core::handle;
+use crate::core::{handle, runtime_snapshot::RuntimeSnapshotService};
 use tauri::Emitter;
 
 /// 重绑定上下文：IP 变化时传给策略的画像信息
@@ -42,8 +42,15 @@ impl RebindStrategy for RoundRobinRebind {
             log::info!("[RebindStrategy::RoundRobin] 尝试自动重绑定，新 IP: {}", current_ip);
 
             // 获取当前所有 VERGE-STABLE-* 组及其选中节点
-            let proxies = match handle::Handle::mihomo().await.get_proxies().await {
-                Ok(p) => p,
+            let snapshot_service = RuntimeSnapshotService::global();
+            let proxies = match snapshot_service.refresh_proxies_result().await {
+                Ok(snapshot) => match snapshot.proxies {
+                    Some(proxies) => proxies,
+                    None => {
+                        log::warn!("[RebindStrategy::RoundRobin] core is not running");
+                        return false;
+                    }
+                },
                 Err(e) => {
                     log::warn!("[RebindStrategy::RoundRobin] 获取代理组失败: {:?}", e);
                     return false;
@@ -166,8 +173,15 @@ impl RebindStrategy for SmartRebind {
             let target_country = ctx.previous_country.as_deref().unwrap_or("");
 
             // 获取代理组
-            let proxies = match handle::Handle::mihomo().await.get_proxies().await {
-                Ok(p) => p,
+            let snapshot_service = RuntimeSnapshotService::global();
+            let proxies = match snapshot_service.refresh_proxies_result().await {
+                Ok(snapshot) => match snapshot.proxies {
+                    Some(proxies) => proxies,
+                    None => {
+                        log::warn!("[RebindStrategy::Smart] core is not running");
+                        return false;
+                    }
+                },
                 Err(e) => {
                     log::warn!("[RebindStrategy::Smart] 获取代理组失败: {:?}", e);
                     return false;

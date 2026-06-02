@@ -22,7 +22,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   closeAllConnections,
-  selectNodeForGroup,
 } from 'tauri-plugin-mihomo-api'
 
 import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
@@ -34,18 +33,30 @@ import { Dialog, DialogTitle, DialogContent, DialogActions } from '@/components/
 import { IconButton } from '@/components/tailwind/IconButton'
 import { Paper } from '@/components/tailwind/Paper'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import { syncTrayProxySelection, updateProxyChainConfigInRuntime } from '@/services/cmds'
 import { getAdvancedConfig, saveAdvancedConfig, type ResidentialProxy } from '@/services/coordinator'
+import {
+  applyProxyRuntimeSelection,
+  tryApplyProxyRuntimeSelection,
+} from '@/services/proxy-runtime-selection'
 import { debugLog } from '@/utils/misc'
 
 import { ProxyChainHelpDialog } from './proxy-chain-help-dialog'
+import {
+  applyProxyChainRuntimeIntent,
+  clearProxyChainRuntimeConfig,
+} from './proxy-chain-runtime'
+import {
+  buildProxyChainRuntimeIntent,
+  clearProxyChainStorage,
+  isProxyChainConnected,
+  loadProxyChainRuntimeGroup,
+  proxyChainEntryNode,
+  proxyChainTargetGroup,
+  saveProxyChainRuntimeSelection,
+  type ProxyChainItem,
+} from './proxy-chain-types'
 
-export interface ProxyChainItem {
-  id: string
-  name: string
-  type?: string
-  delay?: number
-}
+export type { ProxyChainItem } from './proxy-chain-types'
 
 interface ParsedChainConfig {
   proxies?: Array<{
@@ -279,25 +290,7 @@ export const ProxyChain = ({
   }, [residentialPool])
 
   const isConnected = useMemo(() => {
-    if (!proxies || proxyChain.length < 2) {
-      return false
-    }
-
-    const lastNode = proxyChain[proxyChain.length - 1]
-
-    if (mode === 'global') {
-      return proxies.global?.now === lastNode.name
-    }
-
-    if (!selectedGroup || !Array.isArray(proxies.groups)) {
-      return false
-    }
-
-    const proxyChainGroup = proxies.groups.find(
-      (group: { name: string }) => group.name === selectedGroup,
-    )
-
-    return proxyChainGroup?.now === lastNode.name
+    return isProxyChainConnected(proxies, proxyChain, mode, selectedGroup)
   }, [proxies, proxyChain, mode, selectedGroup])
 
   // 监听链的变化，但排除从配置加载的情况
@@ -350,32 +343,28 @@ export const ProxyChain = ({
     if (isConnected) {
       setIsConnecting(true)
       try {
-        await updateProxyChainConfigInRuntime(null)
+        await clearProxyChainRuntimeConfig()
 
-        const targetGroup =
-          mode === 'global'
-            ? 'GLOBAL'
-            : selectedGroup || localStorage.getItem('proxy-chain-group')
+        const targetGroup = proxyChainTargetGroup(
+          mode,
+          selectedGroup,
+          loadProxyChainRuntimeGroup(),
+        )
 
         if (targetGroup) {
-          try {
-            await selectNodeForGroup(targetGroup, 'DIRECT')
-            await syncTrayProxySelection()
-          } catch {
-            if (proxyChain.length >= 1) {
-              try {
-                await selectNodeForGroup(targetGroup, proxyChain[0].name)
-                await syncTrayProxySelection()
-              } catch {
-                // ignore
-              }
+          const selectedDirect = await tryApplyProxyRuntimeSelection(
+            targetGroup,
+            'DIRECT',
+          )
+          if (!selectedDirect) {
+            const entryNode = proxyChainEntryNode(proxyChain)
+            if (entryNode) {
+              await tryApplyProxyRuntimeSelection(targetGroup, entryNode.name)
             }
           }
         }
 
-        localStorage.removeItem('proxy-chain-group')
-        localStorage.removeItem('proxy-chain-exit-node')
-        localStorage.removeItem('proxy-chain-items')
+        clearProxyChainStorage()
 
         await closeAllConnections()
         await refreshProxy()
@@ -397,27 +386,19 @@ export const ProxyChain = ({
 
     setIsConnecting(true)
     try {
-      // 第一步：保存链式代理配置
-      const chainProxies = proxyChain.map((node) => node.name)
-      debugLog('Saving chain config:', chainProxies)
-      await updateProxyChainConfigInRuntime(chainProxies)
-      debugLog('Chain configuration saved successfully')
-
-      // 第二步：连接到代理链的最后一个节点
-      const lastNode = proxyChain[proxyChain.length - 1]
-      debugLog(`Connecting to proxy chain, last node: ${lastNode.name}`)
-
-      // 根据模式确定使用的代理组名称
-      if (mode !== 'global' && !selectedGroup) {
-        throw new Error('规则模式下必须选择代理组')
+      const intent = buildProxyChainRuntimeIntent(proxyChain, mode, selectedGroup)
+      if (!intent) {
+        throw new Error('invalid proxy chain intent')
       }
 
-      const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
+      debugLog('Saving chain config:', intent.runtimePayload)
+      await applyProxyChainRuntimeIntent(intent)
+      debugLog('Chain configuration saved successfully')
 
-      await selectNodeForGroup(targetGroup || 'GLOBAL', lastNode.name)
-      await syncTrayProxySelection()
-      localStorage.setItem('proxy-chain-group', targetGroup || 'GLOBAL')
-      localStorage.setItem('proxy-chain-exit-node', lastNode.name)
+      debugLog(`Connecting to proxy chain, last node: ${intent.exitNode}`)
+
+      await applyProxyRuntimeSelection(intent.targetGroup, intent.exitNode)
+      saveProxyChainRuntimeSelection(intent.targetGroup, intent.exitNode)
 
       // 刷新代理信息以更新连接状态
       refreshProxy()
@@ -539,10 +520,8 @@ export const ProxyChain = ({
             <IconButton
               size="small"
               onClick={() => {
-                updateProxyChainConfigInRuntime(null)
-                localStorage.removeItem('proxy-chain-group')
-                localStorage.removeItem('proxy-chain-exit-node')
-                localStorage.removeItem('proxy-chain-items')
+                clearProxyChainRuntimeConfig()
+                clearProxyChainStorage()
                 onUpdateChain([])
               }}
               className="text-red-500 hover:bg-red-500/10"

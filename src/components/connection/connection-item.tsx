@@ -8,6 +8,7 @@ import {
   getConnectionViewSpec,
   type ConnectionViewMode,
 } from '@/components/connection/connection-page-model'
+import { buildConnectionViewModel } from '@/components/connection/connection-view-model'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { ListItem, ListItemText } from '@/components/tailwind/List'
 import parseTraffic from '@/utils/format'
@@ -21,8 +22,9 @@ interface Props {
 export const ConnectionItem = (props: Props) => {
   const { value, viewMode, onShowDetail } = props
 
-  const { id, metadata, chains, start, curUpload, curDownload } = value
+  const { id, start, curUpload, curDownload } = value
   const { t } = useTranslation()
+  const viewModel = buildConnectionViewModel(value)
   const closed = viewMode === 'closed'
   const { listMetaFields } = getConnectionViewSpec(viewMode)
 
@@ -50,37 +52,37 @@ export const ConnectionItem = (props: Props) => {
     >
       <ListItemText
         className="select-text cursor-pointer"
-        primary={metadata.host || metadata.destinationIP}
+        primary={viewModel.title}
         onClick={onShowDetail}
         secondary={
           <div className="flex flex-wrap">
             {hasField('network') && (
               <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1 uppercase text-success">
-                {metadata.network}
+                {viewModel.network}
               </span>
             )}
 
             {hasField('type') && (
               <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
-                {metadata.type}
+                {viewModel.typeLabel}
               </span>
             )}
 
-            {hasField('process') && !!metadata.process && (
+            {hasField('process') && !!viewModel.processLabel && (
               <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
-                {metadata.process}
+                {viewModel.processLabel}
               </span>
             )}
 
             {hasField('rule') && (
               <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
-                {value.rule}
+                {viewModel.ruleLabel}
               </span>
             )}
 
-            {hasField('chains') && chains?.length > 0 && (
+            {hasField('chains') && viewModel.hasChains && (
               <span className="text-[10px] px-1 leading-tight border border-text-secondary/35 rounded mt-1 mr-1">
-                {[...chains].reverse().join(' / ')}
+                {viewModel.chains}
               </span>
             )}
 

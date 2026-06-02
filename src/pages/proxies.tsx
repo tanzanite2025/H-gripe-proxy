@@ -7,6 +7,8 @@ import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
+import { clearProxyChainRuntimeConfig } from '@/components/proxy/proxy-chain-runtime'
+import { loadProxyChainRuntimeExitNode } from '@/components/proxy/proxy-chain-types'
 import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import {
@@ -16,7 +18,6 @@ import {
 import {
   getRuntimeProxyChainConfig,
   patchClashMode,
-  updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
 
@@ -78,7 +79,7 @@ const ProxyPage = () => {
       // 退出链式代理模式时，清除链式代理配置
       try {
         debugLog('Exiting chain mode, clearing chain configuration')
-        await updateProxyChainConfigInRuntime(null)
+        await clearProxyChainRuntimeConfig()
         debugLog('Chain configuration cleared successfully')
       } catch (error) {
         console.error('Failed to clear chain configuration:', error)
@@ -97,7 +98,7 @@ const ProxyPage = () => {
 
     const fetchChainConfig = async () => {
       try {
-        const exitNode = localStorage.getItem('proxy-chain-exit-node')
+        const exitNode = loadProxyChainRuntimeExitNode()
 
         if (!exitNode) {
           console.error('No proxy chain exit node found in localStorage')

@@ -1,13 +1,11 @@
 use super::{
     constants::*,
-    geoip::{build_proxy_detection_location, fetch_public_ip_location, has_proxy_detection_location_delta},
+    geoip::{build_proxy_detection_location, fetch_public_ip_observation, has_proxy_detection_location_delta},
     helpers::current_timestamp_ms,
+    input::{DiagnosticsInput, build_diagnostics_input},
 };
 use crate::core::{
-    CoreManager,
-    ip_reputation::IpReputation,
-    manager::RunningMode,
-    runtime_status::ProxyDetectionResult,
+    ip_reputation::IpReputation, runtime_snapshot::RuntimeSnapshotService, runtime_status::ProxyDetectionResult,
 };
 use crate::utils::network::{NetworkManager, ProxyType};
 use anyhow::Result;
@@ -42,6 +40,14 @@ fn build_proxy_detection_confidence(direct_observed: bool, proxy_observed: bool)
     }
 }
 
+fn proxy_detection_runtime_risks_from_input(input: &DiagnosticsInput) -> Vec<String> {
+    if input.core_running {
+        Vec::new()
+    } else {
+        vec!["core-not-running".into()]
+    }
+}
+
 fn build_proxy_detection_recommendations(
     core_running: bool,
     proxy_effective: bool,
@@ -56,15 +62,12 @@ fn build_proxy_detection_recommendations(
 
     if proxy_effective {
         if ip_changed {
-            recommendations.push(
-                "Direct and proxy egress IPs differ; app traffic is using a different exit.".into(),
-            );
+            recommendations.push("Direct and proxy egress IPs differ; app traffic is using a different exit.".into());
         }
 
         if location_changed {
             recommendations.push(
-                "Direct and proxy egress locations differ; combine this with IP reputation for quality checks."
-                    .into(),
+                "Direct and proxy egress locations differ; combine this with IP reputation for quality checks.".into(),
             );
         }
 
@@ -79,9 +82,7 @@ fn build_proxy_detection_recommendations(
         }
 
         if recommendations.is_empty() {
-            recommendations.push(
-                "Proxy egress differs from direct egress; the proxy path appears effective.".into(),
-            );
+            recommendations.push("Proxy egress differs from direct egress; the proxy path appears effective.".into());
         }
 
         return recommendations;
@@ -124,17 +125,13 @@ fn build_proxy_detection_recommendations(
     }
 
     if observation_incomplete {
-        recommendations.push(
-            "Observation is incomplete; retry when both direct and local-core proxy paths are available."
-                .into(),
-        );
+        recommendations
+            .push("Observation is incomplete; retry when both direct and local-core proxy paths are available.".into());
     }
 
     if recommendations.is_empty() {
-        recommendations.push(
-            "No clear proxy egress change was observed; check proxy mode, rule path, and current node."
-                .into(),
-        );
+        recommendations
+            .push("No clear proxy egress change was observed; check proxy mode, rule path, and current node.".into());
     }
 
     recommendations
@@ -172,21 +169,15 @@ fn build_proxy_detection_result_from_observations(
     };
 
     let location_changed = match (direct_info.as_ref(), proxy_info.as_ref()) {
-        (Some(direct_info), Some(proxy_info)) => {
-            has_proxy_detection_location_delta(direct_info, proxy_info)
-        }
+        (Some(direct_info), Some(proxy_info)) => has_proxy_detection_location_delta(direct_info, proxy_info),
         _ => false,
     };
 
     let proxy_effective = ip_changed || location_changed;
     let observation_incomplete = !(direct_observed && proxy_observed);
     let runtime_risk_detected = !runtime_risk_type.is_empty();
-    let assessment = build_proxy_detection_assessment(
-        direct_observed,
-        proxy_observed,
-        proxy_effective,
-        runtime_risk_detected,
-    );
+    let assessment =
+        build_proxy_detection_assessment(direct_observed, proxy_observed, proxy_effective, runtime_risk_detected);
     let confidence = build_proxy_detection_confidence(direct_observed, proxy_observed);
     let recommendations = build_proxy_detection_recommendations(
         core_running,
@@ -236,16 +227,18 @@ fn build_proxy_detection_result_from_observations(
 }
 
 pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
-    let core_running = *CoreManager::global().get_running_mode() != RunningMode::NotRunning;
+    let snapshot_service = RuntimeSnapshotService::global();
+    let diagnostics_input = build_diagnostics_input(&snapshot_service).await;
+    let core_running = diagnostics_input.core_running;
     let network_manager = NetworkManager::new();
     let mut warnings = Vec::new();
-    let mut runtime_risk_type = Vec::new();
+    let mut runtime_risk_type = proxy_detection_runtime_risks_from_input(&diagnostics_input);
 
     let direct_info = match network_manager
         .create_request(ProxyType::None, Some(8), None, false)
         .await
     {
-        Ok(client) => match fetch_public_ip_location(&client).await {
+        Ok(client) => match fetch_public_ip_observation(&client).await {
             Ok(info) if info.ip.is_some() => Some(info),
             Ok(_) => {
                 warnings.push("Direct egress lookup returned an incomplete result without IP.".into());
@@ -270,13 +263,10 @@ pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
             .create_request(ProxyType::Localhost, Some(8), None, false)
             .await
         {
-            Ok(client) => match fetch_public_ip_location(&client).await {
+            Ok(client) => match fetch_public_ip_observation(&client).await {
                 Ok(info) if info.ip.is_some() => Some(info),
                 Ok(_) => {
-                    warnings.push(
-                        "Local-core proxy egress lookup returned an incomplete result without IP."
-                            .into(),
-                    );
+                    warnings.push("Local-core proxy egress lookup returned an incomplete result without IP.".into());
                     runtime_risk_type.push("local-core-proxy-unreachable".into());
                     None
                 }
@@ -294,26 +284,24 @@ pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
         }
     } else {
         warnings.push("Local core is not running; proxy egress cannot be observed.".into());
-        runtime_risk_type.push("core-not-running".into());
         None
     };
 
-    let proxy_reputation =
-        if let Some(proxy_ip) = proxy_info.as_ref().and_then(|info| info.ip.as_deref()) {
-            match crate::feat::get_ip_reputation_manager()
-                .inspect_ip_metadata(proxy_ip)
-                .await
-            {
-                Ok(reputation) => Some(reputation),
-                Err(err) => {
-                    warnings.push(format!("Proxy egress reputation lookup failed: {err}").into());
-                    runtime_risk_type.push("proxy-reputation-unavailable".into());
-                    None
-                }
+    let proxy_reputation = if let Some(proxy_ip) = proxy_info.as_ref().and_then(|info| info.ip.as_deref()) {
+        match crate::feat::get_ip_reputation_manager()
+            .inspect_ip_metadata(proxy_ip)
+            .await
+        {
+            Ok(reputation) => Some(reputation),
+            Err(err) => {
+                warnings.push(format!("Proxy egress reputation lookup failed: {err}").into());
+                runtime_risk_type.push("proxy-reputation-unavailable".into());
+                None
             }
-        } else {
-            None
-        };
+        }
+    } else {
+        None
+    };
 
     Ok(build_proxy_detection_result_from_observations(
         core_running,
@@ -330,6 +318,18 @@ mod tests {
     use super::*;
     use crate::core::ip_reputation::{IpReputation, IpType, RiskLevel};
     use std::time::SystemTime;
+
+    #[test]
+    fn test_proxy_detection_core_state_from_diagnostics_input() {
+        let input = DiagnosticsInput {
+            core_running: false,
+            ..DiagnosticsInput::default()
+        };
+
+        let risks = proxy_detection_runtime_risks_from_input(&input);
+
+        assert_eq!(risks, vec!["core-not-running".to_string()]);
+    }
 
     #[test]
     fn test_proxy_detection_result_includes_proxy_reputation() {

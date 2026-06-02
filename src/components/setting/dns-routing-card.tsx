@@ -9,6 +9,7 @@ import { Chip } from '@/components/tailwind/Chip'
 import { ToggleButton, ToggleButtonGroup } from '@/components/tailwind/ToggleButtonGroup'
 import type { DnsRuntimeStatus } from '@/services/cmds'
 import type { DnsRoutingMode } from '@/services/coordinator'
+import { buildDnsRuntimeViewModel } from './dns-runtime-view-model'
 
 interface Props {
   mode: DnsRoutingMode
@@ -37,22 +38,9 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
     }
   }
 
-  const getModeColor = (mode: DnsRoutingMode): 'success' | 'info' | 'warning' | 'default' => {
-    switch (mode) {
-      case 'speed':
-        return 'success'
-      case 'privacy':
-        return 'info'
-      case 'balanced':
-        return 'warning'
-      case 'custom':
-        return 'default'
-    }
-  }
-
-  const runtimeMode = (runtimeStatus?.derived.routing_mode as DnsRoutingMode | null) ?? null
-  const runtimeDomesticDns = runtimeStatus?.derived.domestic_dns.join(', ') || '未配置'
-  const runtimeForeignDns = runtimeStatus?.derived.foreign_dns.join(', ') || '未配置'
+  const runtimeView = runtimeStatus
+    ? buildDnsRuntimeViewModel(runtimeStatus)
+    : null
 
   return (
     <div>
@@ -112,18 +100,8 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
             </div>
             <div className="mt-0.5">
               <Chip
-                label={
-                  runtimeMode === 'speed'
-                    ? '速度优先'
-                    : runtimeMode === 'privacy'
-                      ? '隐私优先'
-                      : runtimeMode === 'balanced'
-                        ? '平衡模式'
-                        : runtimeMode === 'custom'
-                          ? '自定义'
-                          : 'N/A'
-                }
-                color={runtimeMode ? getModeColor(runtimeMode) : 'default'}
+                label={runtimeView?.routing.modeLabel ?? 'N/A'}
+                color={runtimeView?.routing.modeColor ?? 'default'}
                 size="small"
               />
             </div>
@@ -134,7 +112,7 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
               国内域名 DNS
             </div>
             <div className="mt-0.5 text-sm">
-              {runtimeDomesticDns}
+              {runtimeView?.routing.domesticDnsConfig ?? '未配置'}
             </div>
           </div>
 
@@ -143,17 +121,17 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
               国外域名 DNS
             </div>
             <div className="mt-0.5 text-sm">
-              {runtimeForeignDns}
+              {runtimeView?.routing.foreignDnsConfig ?? '未配置'}
             </div>
           </div>
 
-          {runtimeStatus?.snapshot.nameserver_policy_count ? (
+          {runtimeView?.routing.policyCount ? (
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 策略组数量
               </div>
               <div className="mt-0.5 text-sm">
-                {runtimeStatus.snapshot.nameserver_policy_count} 个策略组
+                {runtimeView.routing.policyCountLabel}
               </div>
             </div>
           ) : null}

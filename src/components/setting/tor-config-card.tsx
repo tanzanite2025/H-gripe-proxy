@@ -17,6 +17,7 @@ import { TextField } from '@/components/tailwind/TextField'
 import { useVerge } from '@/hooks/system'
 import { getTorStatus, testTorConnection } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { buildTorRuntimeViewModel } from './tor-runtime-view-model'
 
 const DEFAULT_TOR_CONFIG = {
   enabled: false,
@@ -46,62 +47,6 @@ const torUsageInstructions = {
 }
 
 const buildTorSocksUrl = (host: string, port: number) => `socks5://${host}:${port}`
-
-const getAssessmentLabel = (assessment?: string) => {
-  switch (assessment) {
-    case 'connected':
-      return '已验证连通'
-    case 'runtime-risk':
-      return '存在运行风险'
-    case 'inconclusive':
-      return '结果不确定'
-    case 'disabled':
-      return '未启用'
-    default:
-      return assessment || '未知'
-  }
-}
-
-const getAssessmentColor = (assessment?: string) => {
-  switch (assessment) {
-    case 'connected':
-      return 'success' as const
-    case 'runtime-risk':
-      return 'warning' as const
-    case 'inconclusive':
-      return 'info' as const
-    case 'disabled':
-      return 'default' as const
-    default:
-      return 'default' as const
-  }
-}
-
-const getConfidenceLabel = (confidence?: string) => {
-  switch (confidence) {
-    case 'high':
-      return '高置信度'
-    case 'medium':
-      return '中置信度'
-    case 'low':
-      return '低置信度'
-    default:
-      return confidence || '未知'
-  }
-}
-
-const formatRuntimeRiskLabel = (risk: string) => {
-  switch (risk) {
-    case 'non-local-socks-endpoint':
-      return 'SOCKS 端点不是本机地址'
-    case 'invalid-socks-port':
-      return 'SOCKS 端口无效'
-    case 'bridges-enabled-without-bridges':
-      return '启用网桥但未配置网桥'
-    default:
-      return risk
-  }
-}
 
 const parseBridgeList = (value: string) =>
   value
@@ -171,6 +116,12 @@ export const TorConfigCard = () => {
     refetchOnWindowFocus: false,
     retry: false,
   })
+
+  const runtimeView = buildTorRuntimeViewModel(
+    status,
+    currentConfig.enabled,
+    statusLoading || statusFetching || testing,
+  )
 
   const saveTorConfig = async (nextConfig: typeof DEFAULT_TOR_CONFIG) => {
     setSaving(true)
@@ -400,49 +351,49 @@ export const TorConfigCard = () => {
             <div className="space-y-1.5">
               <div className="flex items-center gap-1">
                 <div className="text-sm">Tor 状态:</div>
-                {(status?.enabled ?? currentConfig.enabled) ? (
+                {runtimeView.enabled.active ? (
                   <Chip
                     icon={<CheckIcon className="h-3 w-3" />}
-                    label="已启用"
-                    color="success"
+                    label={runtimeView.enabled.label}
+                    color={runtimeView.enabled.color}
                     size="small"
                   />
                 ) : (
-                  <Chip icon={<ErrorIcon className="h-3 w-3" />} label="未启用" size="small" />
+                  <Chip icon={<ErrorIcon className="h-3 w-3" />} label={runtimeView.enabled.label} size="small" />
                 )}
               </div>
 
               <div className="flex items-center gap-1">
                 <div className="text-sm">连接状态:</div>
-                {status?.connected ? (
+                {runtimeView.connection.connected ? (
                   <Chip
                     icon={<CheckIcon className="h-3 w-3" />}
-                    label="已连接"
-                    color="success"
+                    label={runtimeView.connection.label}
+                    color={runtimeView.connection.color}
                     size="small"
                   />
-                ) : statusLoading || statusFetching || testing ? (
-                  <Chip label="检测中" color="info" size="small" />
+                ) : runtimeView.connection.color === 'info' ? (
+                  <Chip label={runtimeView.connection.label} color={runtimeView.connection.color} size="small" />
                 ) : (
-                  <Chip icon={<ErrorIcon className="h-3 w-3" />} label="未连接" color="error" size="small" />
+                  <Chip icon={<ErrorIcon className="h-3 w-3" />} label={runtimeView.connection.label} color={runtimeView.connection.color} size="small" />
                 )}
               </div>
 
-              {status?.assessment && (
+              {runtimeView.assessment && (
                 <div className="flex items-center gap-1">
                   <div className="text-sm">结果评估:</div>
                   <Chip
-                    label={getAssessmentLabel(status.assessment)}
-                    color={getAssessmentColor(status.assessment)}
+                    label={runtimeView.assessment.label}
+                    color={runtimeView.assessment.color}
                     size="small"
                   />
                 </div>
               )}
 
-              {status?.confidence && (
+              {runtimeView.confidence && (
                 <div className="flex items-center gap-1">
                   <div className="text-sm">结果置信度:</div>
-                  <Chip label={getConfidenceLabel(status.confidence)} color="info" size="small" />
+                  <Chip label={runtimeView.confidence.label} color={runtimeView.confidence.color} size="small" />
                 </div>
               )}
 
@@ -476,7 +427,7 @@ export const TorConfigCard = () => {
 
               {status?.runtime_risk_detected && status.runtime_risk_type.length > 0 ? (
                 <Alert severity="warning" className="text-xs">
-                  {status.runtime_risk_type.map(formatRuntimeRiskLabel).join('；')}
+                  {runtimeView.runtimeRiskText}
                 </Alert>
               ) : null}
 

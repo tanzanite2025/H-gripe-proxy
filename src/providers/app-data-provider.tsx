@@ -5,16 +5,18 @@ import {
   getBaseConfig,
   getRuleProviders,
   getRules,
-  } from 'tauri-plugin-mihomo-api'
+} from 'tauri-plugin-mihomo-api'
 
 import { useVerge } from '@/hooks/system'
 import {
-  calcuProxies,
-  calcuProxyProviders,
   getAppUptime,
   getRunningMode,
   getSystemProxy,
 } from '@/services/cmds'
+import {
+  calcuProxies,
+  calcuProxyProviders,
+} from '@/services/proxy-runtime'
 
 import {
   ClashConfigContext,

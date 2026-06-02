@@ -27,7 +27,6 @@ import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { IconButton } from '@/components/tailwind/IconButton'
 import parseTraffic from '@/utils/format'
-import { truncateStr } from '@/utils/format'
 
 import {
   getConnectionViewSpec,
@@ -37,6 +36,7 @@ import {
 import { createCloseConnectionAction } from './connection-actions'
 import { ConnectionColumnManager } from './connection-column-manager'
 import { ConnectionTableUI } from './connection-table-ui'
+import { buildConnectionViewModel } from './connection-view-model'
 
 type TickListener = () => void
 let _tickNow = Date.now()
@@ -93,13 +93,11 @@ const reconcileColumnOrder = (
 type ColumnField = ConnectionTableField | 'actions'
 
 const getConnectionCellValue = (field: ColumnField, each: IConnectionsItem) => {
-  const { metadata, rulePayload } = each
+  const viewModel = buildConnectionViewModel(each)
 
   switch (field) {
     case 'host':
-      return metadata.host
-        ? `${metadata.host}:${metadata.destinationPort}`
-        : `${metadata.remoteDestination}:${metadata.destinationPort}`
+      return viewModel.host
     case 'download':
       return each.download
     case 'upload':
@@ -109,21 +107,19 @@ const getConnectionCellValue = (field: ColumnField, each: IConnectionsItem) => {
     case 'ulSpeed':
       return each.curUpload
     case 'chains':
-      return [...each.chains].reverse().join(' / ')
+      return viewModel.chains
     case 'rule':
-      return rulePayload ? `${each.rule}(${rulePayload})` : each.rule
+      return viewModel.rule
     case 'process':
-      return truncateStr(metadata.process || metadata.processPath)
+      return viewModel.process
     case 'time':
       return each.start
     case 'source':
-      return `${metadata.sourceIP}:${metadata.sourcePort}`
+      return viewModel.source
     case 'remoteDestination':
-      return metadata.destinationIP
-        ? `${metadata.destinationIP}:${metadata.destinationPort}`
-        : `${metadata.remoteDestination}:${metadata.destinationPort}`
+      return viewModel.remoteDestination
     case 'type':
-      return `${metadata.type}(${metadata.network})`
+      return viewModel.type
     case 'actions':
       return ''
     default:

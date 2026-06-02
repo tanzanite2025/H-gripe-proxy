@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useProxiesData } from '@/providers/app-data-context'
-import { updateProxyChainConfigInRuntime } from '@/services/cmds'
 
-export interface ProxyChainItem {
-  id: string
-  name: string
-  type?: string
-  delay?: number
-}
+import {
+  clearProxyChainStorage,
+  loadProxyChainStorage,
+  saveProxyChainStorage,
+  type ProxyChainItem,
+} from '../../proxy-chain-types'
+import { clearProxyChainRuntimeConfig } from '../../proxy-chain-runtime'
 
 interface UseChainModeOptions {
   isChainMode: boolean
@@ -25,17 +25,9 @@ export function useChainMode(options: UseChainModeOptions) {
   const { proxies: proxiesData } = useProxiesData()
 
   // 代理链状态
-  const [proxyChain, setProxyChain] = useState<ProxyChainItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('proxy-chain-items')
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    } catch {
-      // ignore
-    }
-    return []
-  })
+  const [proxyChain, setProxyChain] = useState<ProxyChainItem[]>(
+    loadProxyChainStorage,
+  )
 
   // 选中的代理组
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
@@ -51,11 +43,7 @@ export function useChainMode(options: UseChainModeOptions) {
 
   // 持久化代理链到 localStorage
   useEffect(() => {
-    if (proxyChain.length > 0) {
-      localStorage.setItem('proxy-chain-items', JSON.stringify(proxyChain))
-    } else {
-      localStorage.removeItem('proxy-chain-items')
-    }
+    saveProxyChainStorage(proxyChain)
   }, [proxyChain])
 
   // 获取可用的代理组（链式模式下只显示 Selector 类型）
@@ -108,10 +96,8 @@ export function useChainMode(options: UseChainModeOptions) {
       handleGroupMenuClose()
 
       if (isChainMode && mode === 'rule') {
-        updateProxyChainConfigInRuntime(null)
-        localStorage.removeItem('proxy-chain-group')
-        localStorage.removeItem('proxy-chain-exit-node')
-        localStorage.removeItem('proxy-chain-items')
+        clearProxyChainRuntimeConfig()
+        clearProxyChainStorage()
         setProxyChain([])
       }
     },

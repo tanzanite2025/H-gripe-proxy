@@ -1,17 +1,16 @@
 use super::{
     constants::*,
-    geoip::{fetch_ip_location, fetch_public_ip_location, GeoIpInfo},
+    geoip::{GeoIpInfo, fetch_ip_location, fetch_public_ip_location},
     helpers::current_timestamp_ms,
+    input::{DiagnosticsInput, build_diagnostics_input},
     runtime_state::build_dns_runtime_status,
 };
 use crate::core::{
-    handle::Handle,
-    CoreManager,
-    manager::RunningMode,
+    runtime_snapshot::RuntimeSnapshotService,
     runtime_status::{DnsLeakServer, DnsLeakTestResult, DnsRuntimeStatus},
 };
 use crate::utils::network::{NetworkManager, ProxyType};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use reqwest::Client;
 use smartstring::alias::String;
@@ -53,17 +52,11 @@ fn parse_dns_server_value(value: &serde_json::Value) -> Option<DnsLeakServer> {
 
 fn parse_dns_servers(data: &serde_json::Value) -> Vec<DnsLeakServer> {
     if let Some(items) = data.as_array() {
-        return items
-            .iter()
-            .filter_map(parse_dns_server_value)
-            .collect();
+        return items.iter().filter_map(parse_dns_server_value).collect();
     }
 
     if let Some(items) = data.get("dns_servers").and_then(|item| item.as_array()) {
-        return items
-            .iter()
-            .filter_map(parse_dns_server_value)
-            .collect();
+        return items.iter().filter_map(parse_dns_server_value).collect();
     }
 
     Vec::new()
@@ -86,10 +79,7 @@ async fn query_dns_leak_servers(client: &Client) -> Result<Vec<DnsLeakServer>> {
     let mut observed_servers = Vec::new();
     let mut errors: Vec<String> = Vec::new();
 
-    for url in [
-        "https://ipleak.net/json/",
-        "https://www.dnsleaktest.com/api/query",
-    ] {
+    for url in ["https://ipleak.net/json/", "https://www.dnsleaktest.com/api/query"] {
         match super::geoip::fetch_json(client, url).await {
             Ok(data) => {
                 observed_servers.extend(parse_dns_servers(&data));
@@ -140,10 +130,8 @@ async fn enrich_dns_servers(client: &Client, servers: Vec<DnsLeakServer>) -> Vec
 }
 
 async fn observe_dns_leak_with_client(client: &Client) -> (Option<GeoIpInfo>, Vec<DnsLeakServer>, Vec<String>) {
-    let (public_ip_result, dns_servers_result) = tokio::join!(
-        fetch_public_ip_location(client),
-        query_dns_leak_servers(client)
-    );
+    let (public_ip_result, dns_servers_result) =
+        tokio::join!(fetch_public_ip_location(client), query_dns_leak_servers(client));
 
     let mut warnings = Vec::new();
 
@@ -164,20 +152,6 @@ async fn observe_dns_leak_with_client(client: &Client) -> (Option<GeoIpInfo>, Ve
     };
 
     (public_ip_info, dns_servers, warnings)
-}
-
-async fn fetch_dns_metrics(core_running: bool, warnings: &mut Vec<String>) -> Option<DnsMetrics> {
-    if !core_running {
-        return None;
-    }
-
-    match Handle::mihomo().await.get_dns_metrics().await {
-        Ok(metrics) => Some(metrics),
-        Err(err) => {
-            warnings.push(format!("failed to fetch DNS metrics from local core: {err}").into());
-            None
-        }
-    }
 }
 
 fn build_metrics_risk_types(metrics: Option<&DnsMetrics>) -> Vec<String> {
@@ -238,6 +212,10 @@ fn build_runtime_risk_types(runtime_status: &DnsRuntimeStatus, metrics: Option<&
     risk_types.sort();
     risk_types.dedup();
     risk_types
+}
+
+fn build_runtime_risk_types_from_input(runtime_status: &DnsRuntimeStatus, input: &DiagnosticsInput) -> Vec<String> {
+    build_runtime_risk_types(runtime_status, input.dns_metrics.as_ref())
 }
 
 fn build_observed_leak_types(location_mismatch: bool) -> Vec<String> {
@@ -303,7 +281,9 @@ fn build_dns_leak_recommendations(
     match observation_path {
         DNS_LEAK_OBSERVATION_CORE_PROXY => {}
         DNS_LEAK_OBSERVATION_CORE_PROXY_FALLBACK_DIRECT => {
-            recommendations.push("Local-core DNS observation was incomplete; some results fell back to direct observation.".into());
+            recommendations.push(
+                "Local-core DNS observation was incomplete; some results fell back to direct observation.".into(),
+            );
         }
         _ => {
             recommendations.push("DNS leak test did not fully run through the local core proxy path.".into());
@@ -312,7 +292,9 @@ fn build_dns_leak_recommendations(
 
     if observation_incomplete {
         recommendations.push(match confidence {
-            DNS_LEAK_CONFIDENCE_LOW => "External DNS observation is incomplete; retry later for a stronger result.".into(),
+            DNS_LEAK_CONFIDENCE_LOW => {
+                "External DNS observation is incomplete; retry later for a stronger result.".into()
+            }
             _ => "External DNS observation has gaps; combine this with runtime DNS state.".into(),
         });
     }
@@ -343,36 +325,49 @@ fn build_dns_leak_recommendations(
 
     if let Some(metrics) = metrics {
         if metrics.trust.unencrypted > 0 {
-            recommendations.push(format!(
-                "Local core reports {} unencrypted DNS server(s) in use.",
-                metrics.trust.unencrypted
-            ).into());
+            recommendations.push(
+                format!(
+                    "Local core reports {} unencrypted DNS server(s) in use.",
+                    metrics.trust.unencrypted
+                )
+                .into(),
+            );
         }
         if metrics.trust.leak_risk_score >= 0.7 {
-            recommendations.push(format!(
-                "Local core DNS trust risk score is {:.2}; inspect the server list exported by the core.",
-                metrics.trust.leak_risk_score
-            ).into());
+            recommendations.push(
+                format!(
+                    "Local core DNS trust risk score is {:.2}; inspect the server list exported by the core.",
+                    metrics.trust.leak_risk_score
+                )
+                .into(),
+            );
         }
         if metrics.pollution.polluted_count > 0 {
-            recommendations.push(format!(
-                "Local core detected {} polluted DNS response(s).",
-                metrics.pollution.polluted_count
-            ).into());
+            recommendations.push(
+                format!(
+                    "Local core detected {} polluted DNS response(s).",
+                    metrics.pollution.polluted_count
+                )
+                .into(),
+            );
         }
         if metrics.queries.total >= 5 {
             let failure_rate = metrics.queries.failed as f64 / metrics.queries.total as f64;
             if failure_rate >= 0.25 {
-                recommendations.push(format!(
-                    "Local core DNS failure rate is {:.0}%; check resolver health and routing.",
-                    failure_rate * 100.0
-                ).into());
+                recommendations.push(
+                    format!(
+                        "Local core DNS failure rate is {:.0}%; check resolver health and routing.",
+                        failure_rate * 100.0
+                    )
+                    .into(),
+                );
             }
         }
     }
 
     if runtime_status.derived.leak_protection_safe == Some(false) {
-        recommendations.push("Enable at least basic DNS leak protection; use strict or paranoid for sensitive exits.".into());
+        recommendations
+            .push("Enable at least basic DNS leak protection; use strict or paranoid for sensitive exits.".into());
     }
 
     if matches!(
@@ -396,10 +391,11 @@ fn build_dns_leak_recommendations(
 
 pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
     let runtime_status = build_dns_runtime_status().await?;
-    let core_running = *CoreManager::global().get_running_mode() != RunningMode::NotRunning;
+    let snapshot_service = RuntimeSnapshotService::global();
+    let diagnostics_input = build_diagnostics_input(&snapshot_service).await;
+    let core_running = diagnostics_input.core_running;
     let network_manager = NetworkManager::new();
     let mut warnings = Vec::new();
-    let dns_metrics = fetch_dns_metrics(core_running, &mut warnings).await;
 
     let (public_ip_info, dns_servers, observation_path) = if core_running {
         match network_manager
@@ -448,25 +444,21 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
                 }
             }
             Err(err) => {
-                warnings.push(format!("failed to create local-core DNS check request; fell back to direct: {err}").into());
+                warnings
+                    .push(format!("failed to create local-core DNS check request; fell back to direct: {err}").into());
 
                 let direct_client = network_manager
                     .create_request(ProxyType::None, Some(8), None, false)
                     .await
                     .map_err(|inner_err| anyhow!(inner_err.to_string()))?;
-                let (public_ip_info, dns_servers, direct_warnings) =
-                    observe_dns_leak_with_client(&direct_client).await;
+                let (public_ip_info, dns_servers, direct_warnings) = observe_dns_leak_with_client(&direct_client).await;
                 warnings.extend(
                     direct_warnings
                         .into_iter()
                         .map(|warning| format!("while checking directly: {warning}").into()),
                 );
 
-                (
-                    public_ip_info,
-                    dns_servers,
-                    DNS_LEAK_OBSERVATION_DIRECT,
-                )
+                (public_ip_info, dns_servers, DNS_LEAK_OBSERVATION_DIRECT)
             }
         }
     } else {
@@ -474,15 +466,10 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
             .create_request(ProxyType::None, Some(8), None, false)
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
-        let (public_ip_info, dns_servers, direct_warnings) =
-            observe_dns_leak_with_client(&direct_client).await;
+        let (public_ip_info, dns_servers, direct_warnings) = observe_dns_leak_with_client(&direct_client).await;
         warnings.extend(direct_warnings);
 
-        (
-            public_ip_info,
-            dns_servers,
-            DNS_LEAK_OBSERVATION_DIRECT,
-        )
+        (public_ip_info, dns_servers, DNS_LEAK_OBSERVATION_DIRECT)
     };
 
     let checked_via_core_proxy = observation_path == DNS_LEAK_OBSERVATION_CORE_PROXY;
@@ -490,17 +477,13 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
         .as_ref()
         .and_then(|info| info.country.clone())
         .unwrap_or_else(|| "Unknown".into());
-    let dns_countries: Vec<String> = dns_servers
-        .iter()
-        .filter_map(|server| server.country.clone())
-        .collect();
+    let dns_countries: Vec<String> = dns_servers.iter().filter_map(|server| server.country.clone()).collect();
     let dns_location = dns_countries.first().cloned();
     let location_comparable = !dns_countries.is_empty() && ip_location != "Unknown";
 
-    let location_mismatch =
-        location_comparable && dns_countries.iter().any(|country| country != &ip_location);
+    let location_mismatch = location_comparable && dns_countries.iter().any(|country| country != &ip_location);
 
-    let runtime_risk_type = build_runtime_risk_types(&runtime_status, dns_metrics.as_ref());
+    let runtime_risk_type = build_runtime_risk_types_from_input(&runtime_status, &diagnostics_input);
     let observed_leak_type = build_observed_leak_types(location_mismatch);
     let runtime_risk_detected = !runtime_risk_type.is_empty();
     let observed_leak = !observed_leak_type.is_empty();
@@ -510,28 +493,22 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
     leak_type.dedup();
 
     let observation_incomplete = !location_comparable;
-    let assessment = build_dns_leak_assessment(
-        observed_leak,
-        runtime_risk_detected,
-        observation_incomplete,
-    );
+    let assessment = build_dns_leak_assessment(observed_leak, runtime_risk_detected, observation_incomplete);
     let confidence = build_dns_leak_confidence(
         observation_path,
         observation_incomplete,
-        dns_metrics.as_ref(),
+        diagnostics_input.dns_metrics.as_ref(),
     );
 
     let has_leak = observed_leak;
-    let risk_level = if location_mismatch
-        && dns_countries.iter().any(|country| country == "China")
-        && ip_location != "China"
-    {
-        "danger".into()
-    } else if observed_leak || runtime_risk_detected || observation_incomplete {
-        "warning".into()
-    } else {
-        "safe".into()
-    };
+    let risk_level =
+        if location_mismatch && dns_countries.iter().any(|country| country == "China") && ip_location != "China" {
+            "danger".into()
+        } else if observed_leak || runtime_risk_detected || observation_incomplete {
+            "warning".into()
+        } else {
+            "safe".into()
+        };
 
     Ok(DnsLeakTestResult {
         has_leak,
@@ -550,14 +527,14 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
             observation_incomplete,
             location_mismatch,
             &runtime_status,
-            dns_metrics.as_ref(),
+            diagnostics_input.dns_metrics.as_ref(),
             dns_location.as_deref(),
             ip_location.as_str(),
             observation_path,
             confidence,
         ),
         dns_servers,
-        dns_metrics,
+        dns_metrics: diagnostics_input.dns_metrics,
         dns_location,
         ip_location,
         location_match: location_comparable && !location_mismatch,
@@ -573,13 +550,10 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::runtime_status::{
-        DnsRuntimeDerivedState, DnsRuntimeSnapshot, DnsRuntimeStatus,
-    };
+    use crate::core::runtime_status::{DnsRuntimeDerivedState, DnsRuntimeSnapshot, DnsRuntimeStatus};
     use std::collections::HashMap;
     use tauri_plugin_mihomo::models::{
-        DnsCacheStats, DnsPollutionStats, DnsQueryStats, DnsServerClassification,
-        DnsTrustSummary,
+        DnsCacheStats, DnsPollutionStats, DnsQueryStats, DnsServerClassification, DnsTrustSummary,
     };
 
     fn runtime_status_for_risk(snapshot: DnsRuntimeSnapshot, derived: DnsRuntimeDerivedState) -> DnsRuntimeStatus {
@@ -706,5 +680,74 @@ mod tests {
         assert!(risks.iter().any(|risk| risk == "core-dns-high-risk-score"));
         assert!(risks.iter().any(|risk| risk == "core-dns-polluted-response"));
         assert!(risks.iter().any(|risk| risk == "core-dns-high-failure-rate"));
+    }
+
+    #[test]
+    fn test_runtime_risk_types_use_diagnostics_input_metrics() {
+        let metrics = DnsMetrics {
+            cache: DnsCacheStats {
+                hit: 0,
+                miss: 0,
+                size: 0,
+                hit_rate: 0.0,
+            },
+            queries: DnsQueryStats {
+                total: 10,
+                success: 10,
+                failed: 0,
+                avg_latency_us: 10,
+                max_latency_us: 20,
+            },
+            servers: vec![],
+            recent: vec![],
+            pollution: DnsPollutionStats {
+                total_checked: 0,
+                polluted_count: 0,
+                pollution_rate: 0.0,
+                recent_polluted: vec![],
+            },
+            trust: DnsTrustSummary {
+                total: 1,
+                encrypted: 0,
+                unencrypted: 1,
+                by_trust_level: HashMap::new(),
+                servers: vec![],
+                leak_risk_score: 0.8,
+                last_evaluated: "2026-06-02T00:00:00Z".into(),
+            },
+        };
+        let input = DiagnosticsInput {
+            core_running: true,
+            dns_metrics: Some(metrics),
+            ..DiagnosticsInput::default()
+        };
+        let runtime_status = runtime_status_for_risk(
+            DnsRuntimeSnapshot {
+                enhanced_mode: Some("fake-ip".into()),
+                ipv6: Some(true),
+                nameserver_count: 2,
+                fallback_count: 2,
+                nameserver_policy_count: 2,
+                use_hosts: Some(true),
+                use_system_hosts: Some(false),
+                respect_rules: Some(true),
+            },
+            DnsRuntimeDerivedState {
+                routing_mode: Some("balanced".into()),
+                domestic_dns: vec![],
+                foreign_dns: vec![],
+                default_nameserver_count: 0,
+                default_nameserver_plain_count: 0,
+                prefer_h3: Some(false),
+                leak_protection_level: Some("strict".into()),
+                leak_protection_security: Some("high".into()),
+                leak_protection_safe: Some(true),
+            },
+        );
+
+        let risks = build_runtime_risk_types_from_input(&runtime_status, &input);
+
+        assert!(risks.iter().any(|risk| risk == "core-dns-unencrypted-server"));
+        assert!(risks.iter().any(|risk| risk == "core-dns-high-risk-score"));
     }
 }

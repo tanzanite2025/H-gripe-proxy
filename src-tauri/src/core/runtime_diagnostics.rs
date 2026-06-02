@@ -1,7 +1,8 @@
 mod constants;
-mod helpers;
-pub mod geoip;
 mod dns_leak;
+pub mod geoip;
+mod helpers;
+pub mod input;
 mod proxy_detection;
 mod runtime_state;
 

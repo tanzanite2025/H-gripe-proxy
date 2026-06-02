@@ -19,6 +19,8 @@ import {
 import {
   dnsLeakProtectionService,
 } from '@/services/dns-leak-protection'
+import { buildDnsLeakTestViewModel } from './dns-leak-test-view-model'
+import { buildDnsRuntimeViewModel } from './dns-runtime-view-model'
 
 interface Props {
   level: DnsLeakProtectionLevel
@@ -31,16 +33,11 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
   const [testResult, setTestResult] = useState<DnsLeakTestResult | null>(null)
 
   const previewDescription = dnsLeakProtectionService.getLevelDescription(level)
-  const runtimeLevel = runtimeStatus?.derived.leak_protection_level
-  const runtimeSecurity = runtimeStatus?.derived.leak_protection_security
-  const runtimeSafe = runtimeStatus?.derived.leak_protection_safe
-  const runtimeFeatures = [
-    runtimeStatus?.snapshot.enhanced_mode === 'fake-ip' ? '启用 Fake-IP 模式' : null,
-    runtimeStatus?.derived.default_nameserver_plain_count === 0 ? '阻止明文 DNS' : null,
-    runtimeStatus?.snapshot.ipv6 === false ? '阻止 IPv6 DNS' : null,
-    runtimeStatus?.derived.prefer_h3 ? 'DoH 优先使用 HTTP/3' : null,
-    runtimeStatus?.snapshot.respect_rules ? '遵循运行时规则' : null,
-  ].filter(Boolean) as string[]
+  const runtimeView = runtimeStatus
+    ? buildDnsRuntimeViewModel(runtimeStatus)
+    : null
+  const runtimeFeatures = runtimeView?.leak.features ?? []
+  const testView = testResult ? buildDnsLeakTestViewModel(testResult) : null
 
   const handleLevelChange = (
     _event: React.MouseEvent<HTMLElement>,
@@ -61,24 +58,6 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
       console.error('DNS leak test failed:', err)
     } finally {
       setTesting(false)
-    }
-  }
-
-  const getSecurityColor = (
-    security: string,
-  ): 'default' | 'error' | 'warning' | 'info' | 'success' => {
-    switch (security) {
-      case 'low':
-        return 'error'
-      case 'medium':
-        return 'warning'
-      case 'high':
-        return 'info'
-      case 'very-high':
-      case 'maximum':
-        return 'success'
-      default:
-        return 'default'
     }
   }
 
@@ -153,28 +132,18 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
           <div className="flex items-center gap-1">
             <div className="text-sm">安全级别:</div>
             <Chip
-              icon={getSecurityIcon(runtimeSecurity || 'unknown')}
-              label={
-                runtimeSecurity === 'low'
-                  ? '低'
-                  : runtimeSecurity === 'medium'
-                    ? '中'
-                    : runtimeSecurity === 'high'
-                      ? '高'
-                      : runtimeSecurity === 'very-high' || runtimeSecurity === 'maximum'
-                        ? '最高'
-                        : '未知'
-              }
+              icon={getSecurityIcon(runtimeView?.leak.security || 'unknown')}
+              label={runtimeView?.leak.securityUnknownLabel ?? '未知'}
               size="small"
-              color={getSecurityColor(runtimeSecurity || 'unknown')}
+              color={runtimeView?.leak.securityColor ?? 'default'}
             />
           </div>
 
           <div className="flex items-center gap-1">
             <div className="text-sm">防护状态:</div>
-            {runtimeSafe === null ? (
+            {runtimeView?.leak.safe === null || !runtimeView ? (
               <Chip label="未知" size="small" color="default" />
-            ) : runtimeSafe ? (
+            ) : runtimeView.leak.safe ? (
               <Chip icon={<CheckIcon className="h-3 w-3" />} label="安全" size="small" color="success" />
             ) : (
               <Chip icon={<WarningIcon className="h-3 w-3" />} label="不安全" size="small" color="error" />
@@ -184,21 +153,9 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
           <div className="flex items-center gap-1">
             <div className="text-sm">防护级别:</div>
             <Chip
-              label={
-                runtimeLevel === 'none'
-                  ? '无防护'
-                  : runtimeLevel === 'basic'
-                    ? '基础'
-                    : runtimeLevel === 'strict'
-                      ? '严格'
-                      : runtimeLevel === 'paranoid'
-                        ? '偏执'
-                        : runtimeLevel === 'custom'
-                          ? '自定义'
-                          : '未知'
-              }
+              label={runtimeView?.leak.levelUnknownLabel ?? '未知'}
               size="small"
-              color={getSecurityColor(runtimeSecurity || 'unknown')}
+              color={runtimeView?.leak.securityColor ?? 'default'}
             />
           </div>
         </div>
@@ -212,7 +169,10 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
         </div>
 
         <List dense className="py-0">
-          {(runtimeFeatures.length > 0 ? runtimeFeatures : ['暂未识别到后端运行态特性']).map((feature) => (
+          {(runtimeFeatures.length > 0
+            ? runtimeFeatures
+            : ['暂未识别到后端运行态特性']
+          ).map((feature) => (
             <ListItem key={feature} className="px-0 py-0.5">
               <ListItemIcon className="min-w-[28px]">
                 <CheckIcon className="h-4 w-4 text-green-500" />
@@ -240,89 +200,35 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
           {testing ? '测试中...' : '开始测试'}
         </Button>
 
-        {testResult && (
+        {testResult && testView && (
           <div className="mt-2">
-            {testResult.assessment === 'observed-leak' ? (
-              <Alert severity="error" className="text-xs">
-                检测到 DNS 泄漏！
-              </Alert>
-            ) : testResult.assessment === 'runtime-risk' ? (
-              <Alert severity="warning" className="text-xs">
-                当前未观测到明确外部泄漏，但运行态存在 DNS 风险信号
-              </Alert>
-            ) : testResult.assessment === 'inconclusive' ? (
-              <Alert severity="info" className="text-xs">
-                当前外部观测不完整，结果仅供参考
-              </Alert>
-            ) : (
-              <Alert severity="success" className="text-xs">
-                未检测到 DNS 泄漏
-              </Alert>
-            )}
+            <Alert severity={testView.alert.severity} className="text-xs">
+              {testView.alert.message}
+            </Alert>
 
             <div className="mt-1 space-y-1">
               <div className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
                 <span>风险等级</span>
                 <Chip
                   size="small"
-                  color={
-                    testResult.risk_level === 'danger'
-                      ? 'error'
-                      : testResult.risk_level === 'warning'
-                        ? 'warning'
-                        : 'success'
-                  }
-                  label={
-                    testResult.risk_level === 'danger'
-                      ? '高风险'
-                      : testResult.risk_level === 'warning'
-                        ? '警告'
-                        : '安全'
-                  }
+                  color={testView.riskLevel.color}
+                  label={testView.riskLevel.label}
                 />
               </div>
               <div className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
                 <span>结果判定</span>
                 <Chip
                   size="small"
-                  color={
-                    testResult.assessment === 'observed-leak'
-                      ? 'error'
-                      : testResult.assessment === 'runtime-risk'
-                        ? 'warning'
-                        : testResult.assessment === 'inconclusive'
-                          ? 'info'
-                          : 'success'
-                  }
-                  label={
-                    testResult.assessment === 'observed-leak'
-                      ? '已观测泄漏'
-                      : testResult.assessment === 'runtime-risk'
-                        ? '运行态风险'
-                        : testResult.assessment === 'inconclusive'
-                          ? '结果不完整'
-                          : '安全'
-                  }
+                  color={testView.assessment.color}
+                  label={testView.assessment.label}
                 />
               </div>
               <div className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
                 <span>结果置信度</span>
                 <Chip
                   size="small"
-                  color={
-                    testResult.confidence === 'high'
-                      ? 'success'
-                      : testResult.confidence === 'medium'
-                        ? 'info'
-                        : 'warning'
-                  }
-                  label={
-                    testResult.confidence === 'high'
-                      ? '高'
-                      : testResult.confidence === 'medium'
-                        ? '中'
-                        : '低'
-                  }
+                  color={testView.confidence.color}
+                  label={testView.confidence.label}
                 />
               </div>
               <div className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
@@ -337,20 +243,8 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                 <span>检测方式</span>
                 <Chip
                   size="small"
-                  color={
-                    testResult.observation_path === 'core-proxy'
-                      ? 'success'
-                      : testResult.observation_path === 'core-proxy-fallback-direct'
-                        ? 'warning'
-                        : 'warning'
-                  }
-                  label={
-                    testResult.observation_path === 'core-proxy'
-                      ? '通过本地 core'
-                      : testResult.observation_path === 'core-proxy-fallback-direct'
-                        ? 'core 回退直连'
-                        : '直连检测'
-                  }
+                  color={testView.observationPath.color}
+                  label={testView.observationPath.label}
                 />
               </div>
             </div>

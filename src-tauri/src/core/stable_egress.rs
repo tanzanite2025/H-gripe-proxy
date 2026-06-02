@@ -4,17 +4,15 @@ use std::net::IpAddr;
 use anyhow::Result;
 use serde_yaml_ng::{Mapping, Value};
 
+use crate::core::coordinator::CoreCoordinator;
 use crate::core::{
     coordinator_status::{
-        CoordinatorBindingInfo, CoordinatorResolvedEgressIdentity, CoordinatorRuntimeState,
-        StableEgressBackwriteStatus,
+        CoordinatorBindingInfo, CoordinatorResolvedEgressIdentity, CoordinatorRuntimeState, StableEgressBackwriteStatus,
     },
     egress_identity::{EgressNodeMetadata, EgressSelectionContext, ResolvedEgressIdentity},
-    handle,
     ip_reputation::IpReputationManager,
     session_affinity::{BindingInfo, SessionAffinityManager},
 };
-use crate::core::coordinator::CoreCoordinator;
 use crate::multipath::MultipathManager;
 
 pub const STABLE_EGRESS_GROUP_PREFIX: &str = "VERGE-STABLE-";
@@ -155,26 +153,10 @@ pub async fn project_runtime_status(
 }
 
 async fn source_group_selected_nodes() -> HashMap<String, String> {
-    handle::Handle::mihomo()
+    crate::core::runtime_snapshot::RuntimeSnapshotService::global()
+        .refresh_proxies()
         .await
-        .get_proxies()
-        .await
-        .ok()
-        .map(|proxies| {
-            proxies
-                .proxies
-                .into_iter()
-                .filter_map(|(group_name, group_data)| {
-                    group_data
-                        .now
-                        .as_ref()
-                        .map(|value| value.trim())
-                        .filter(|value| !value.is_empty())
-                        .map(|value| (group_name, value.to_string()))
-                })
-                .collect::<HashMap<_, _>>()
-        })
-        .unwrap_or_default()
+        .stable_group_selected_nodes()
 }
 
 fn project_assignment(
@@ -220,10 +202,7 @@ fn project_binding(
 }
 
 fn source_group_name_for_assignment(assignment: &ResolvedEgressIdentity) -> Option<String> {
-    let domain_pattern = assignment
-        .assignment_key
-        .as_deref()?
-        .strip_prefix("domain-pattern:")?;
+    let domain_pattern = assignment.assignment_key.as_deref()?.strip_prefix("domain-pattern:")?;
     Some(stable_egress_group_name(domain_pattern))
 }
 
@@ -300,14 +279,16 @@ pub async fn enrich_egress_selection_context(
                 ordered_nodes.push(node.name.clone());
             }
 
-            metadata_index.entry(node.name.clone()).or_insert_with(|| EgressNodeMetadata {
-                name: node.name.clone(),
-                server: Some(node.server.clone()),
-                pool_name: Some(pool.name.clone()),
-                pool_type: Some(format!("{:?}", pool.pool_type)),
-                ip_type: None,
-                fraud_score: None,
-            });
+            metadata_index
+                .entry(node.name.clone())
+                .or_insert_with(|| EgressNodeMetadata {
+                    name: node.name.clone(),
+                    server: Some(node.server.clone()),
+                    pool_name: Some(pool.name.clone()),
+                    pool_type: Some(format!("{:?}", pool.pool_type)),
+                    ip_type: None,
+                    fraud_score: None,
+                });
         }
     }
 
@@ -334,19 +315,11 @@ pub async fn enrich_egress_selection_context(
                             metadata.fraud_score = Some(reputation.fraud_score);
                         }
                         Err(error) => {
-                            log::warn!(
-                                "[EgressIdentity] 检测节点 {} 的 IP 元数据失败: {}",
-                                node_name,
-                                error
-                            );
+                            log::warn!("[EgressIdentity] 检测节点 {} 的 IP 元数据失败: {}", node_name, error);
                         }
                     }
                 } else {
-                    log::warn!(
-                        "[EgressIdentity] 无法解析节点 {} 的 server 地址 {}",
-                        node_name,
-                        server
-                    );
+                    log::warn!("[EgressIdentity] 无法解析节点 {} 的 server 地址 {}", node_name, server);
                 }
             }
         }
@@ -382,11 +355,12 @@ pub async fn sync_runtime_stable_egress_selection(
         return Ok(());
     }
 
-    let proxies = handle::Handle::mihomo()
+    let proxies = crate::core::runtime_snapshot::RuntimeSnapshotService::global()
+        .refresh_proxies_result()
         .await
-        .get_proxies()
-        .await
-        .map_err(|e| anyhow::anyhow!("获取代理组失败: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("failed to get proxy groups: {}", e))?
+        .proxies
+        .ok_or_else(|| anyhow::anyhow!("core is not running"))?;
 
     let egress_identity_manager = coordinator.egress_identity_manager();
     let multipath_manager = coordinator.multipath_manager();
@@ -406,10 +380,7 @@ pub async fn sync_runtime_stable_egress_selection(
             continue;
         };
 
-        let available_nodes = with_selected_node(
-            group_data.all.clone().unwrap_or_default(),
-            &selected_node,
-        );
+        let available_nodes = with_selected_node(group_data.all.clone().unwrap_or_default(), &selected_node);
 
         if available_nodes.is_empty() {
             continue;
@@ -431,11 +402,9 @@ pub async fn sync_runtime_stable_egress_selection(
             )
             .await;
 
-            if let Err(error) = egress_identity_manager.record_domain_override(
-                domain_pattern,
-                egress_context,
-                selected_node.clone(),
-            ) {
+            if let Err(error) =
+                egress_identity_manager.record_domain_override(domain_pattern, egress_context, selected_node.clone())
+            {
                 log::warn!(
                     "Failed to backwrite stable egress selection into egress identity for {} -> {}: {}",
                     domain_pattern,

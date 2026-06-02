@@ -1,9 +1,21 @@
+use crate::core::runtime_status::ProxyDetectionLocation;
 use anyhow::{Context as _, Result, anyhow};
 use clash_verge_logging::{Type, logging};
-use crate::core::runtime_status::ProxyDetectionLocation;
 use reqwest::Client;
 use serde_json::Value as JsonValue;
 use smartstring::alias::String;
+
+const PUBLIC_IP_GEO_SOURCES: [&str; 3] = [
+    "https://api.ip.sb/geoip",
+    "https://ipapi.co/json",
+    "https://ipwho.is/",
+];
+
+const PUBLIC_IP_PLAIN_SOURCES: [&str; 3] = [
+    "https://api.ipify.org",
+    "https://ifconfig.me/ip",
+    "https://icanhazip.com",
+];
 
 #[derive(Debug, Clone, Default)]
 pub struct GeoIpInfo {
@@ -31,14 +43,11 @@ fn json_nested_string(value: &JsonValue, key: &str, nested_key: &str) -> Option<
 }
 
 fn parse_json_u32(value: &JsonValue) -> Option<u32> {
-    value
-        .as_u64()
-        .map(|item| item as u32)
-        .or_else(|| {
-            value
-                .as_str()
-                .and_then(|item| item.trim_start_matches("AS").parse::<u32>().ok())
-        })
+    value.as_u64().map(|item| item as u32).or_else(|| {
+        value
+            .as_str()
+            .and_then(|item| item.trim_start_matches("AS").parse::<u32>().ok())
+    })
 }
 
 fn json_u32(value: &JsonValue, key: &str) -> Option<u32> {
@@ -113,12 +122,8 @@ pub(super) async fn fetch_json(client: &Client, url: &str) -> Result<JsonValue> 
         .with_context(|| format!("failed to parse json: {url}"))
 }
 
-pub(super) async fn fetch_public_ip_location(client: &Client) -> Result<GeoIpInfo> {
-    for url in [
-        "https://api.ip.sb/geoip",
-        "https://ipapi.co/json",
-        "https://ipwho.is/",
-    ] {
+pub async fn fetch_public_ip_location(client: &Client) -> Result<GeoIpInfo> {
+    for url in PUBLIC_IP_GEO_SOURCES {
         match fetch_json(client, url).await {
             Ok(data) => {
                 let info = parse_geo_ip_info(&data);
@@ -135,13 +140,72 @@ pub(super) async fn fetch_public_ip_location(client: &Client) -> Result<GeoIpInf
     Err(anyhow!("failed to fetch public IP location"))
 }
 
+pub async fn fetch_public_ip_plain(client: &Client) -> Result<String> {
+    for url in PUBLIC_IP_PLAIN_SOURCES {
+        match client.get(url).send().await {
+            Ok(response) if response.status().is_success() => match response.text().await {
+                Ok(ip) => {
+                    let ip = ip.trim();
+                    if !ip.is_empty() {
+                        return Ok(ip.into());
+                    }
+                }
+                Err(err) => {
+                    logging!(warn, Type::Config, "Plain public IP source failed for {url}: {err}");
+                }
+            },
+            Ok(response) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Plain public IP source returned status {} for {url}",
+                    response.status()
+                );
+            }
+            Err(err) => {
+                logging!(warn, Type::Config, "Plain public IP source failed for {url}: {err}");
+            }
+        }
+    }
+
+    Err(anyhow!("failed to fetch plain public IP"))
+}
+
+pub async fn fetch_public_ip_observation(client: &Client) -> Result<GeoIpInfo> {
+    match fetch_public_ip_location(client).await {
+        Ok(info) if info.ip.is_some() => Ok(info),
+        Ok(info) => {
+            let ip = fetch_public_ip_plain(client).await?;
+            Ok(GeoIpInfo {
+                ip: Some(ip),
+                country_code: info.country_code,
+                country: info.country,
+                region: info.region,
+                city: info.city,
+                organization: info.organization,
+                asn: info.asn,
+                asn_organization: info.asn_organization,
+                isp: info.isp,
+            })
+        }
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Config,
+                "Public IP geo lookup failed, falling back to plain IP sources: {err}"
+            );
+            Ok(GeoIpInfo {
+                ip: Some(fetch_public_ip_plain(client).await?),
+                ..GeoIpInfo::default()
+            })
+        }
+    }
+}
+
 pub async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
     let mut fallback: Option<GeoIpInfo> = None;
 
-    for url in [
-        format!("https://ipapi.co/{ip}/json/"),
-        format!("https://ipwho.is/{ip}"),
-    ] {
+    for url in [format!("https://ipapi.co/{ip}/json/"), format!("https://ipwho.is/{ip}")] {
         match fetch_json(client, &url).await {
             Ok(data) => {
                 let info = parse_geo_ip_info(&data);
@@ -153,7 +217,11 @@ pub async fn fetch_ip_location(client: &Client, ip: &str) -> GeoIpInfo {
                 }
             }
             Err(err) => {
-                logging!(warn, Type::Config, "DNS leak geo lookup failed for {ip} via {url}: {err}");
+                logging!(
+                    warn,
+                    Type::Config,
+                    "DNS leak geo lookup failed for {ip} via {url}: {err}"
+                );
             }
         }
     }
@@ -192,9 +260,7 @@ pub(super) fn has_proxy_detection_location_delta(direct: &GeoIpInfo, proxy: &Geo
         return direct_country_code != proxy_country_code;
     }
 
-    if let (Some(direct_country), Some(proxy_country)) =
-        (direct.country.as_deref(), proxy.country.as_deref())
-    {
+    if let (Some(direct_country), Some(proxy_country)) = (direct.country.as_deref(), proxy.country.as_deref()) {
         if direct_country != proxy_country {
             return true;
         }
@@ -205,4 +271,45 @@ pub(super) fn has_proxy_detection_location_delta(direct: &GeoIpInfo, proxy: &Geo
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn public_ip_source_order_is_stable() {
+        assert_eq!(
+            PUBLIC_IP_GEO_SOURCES,
+            ["https://api.ip.sb/geoip", "https://ipapi.co/json", "https://ipwho.is/"]
+        );
+        assert_eq!(
+            PUBLIC_IP_PLAIN_SOURCES,
+            [
+                "https://api.ipify.org",
+                "https://ifconfig.me/ip",
+                "https://icanhazip.com"
+            ]
+        );
+    }
+
+    #[test]
+    fn parses_partial_geoip_metadata_from_supported_shapes() {
+        let info = parse_geo_ip_info(&json!({
+            "ip": "203.0.113.10",
+            "country_code": "JP",
+            "city": "Tokyo",
+            "asn": "AS64500",
+            "connection": {
+                "isp": "Example Transit"
+            }
+        }));
+
+        assert_eq!(info.ip.as_deref(), Some("203.0.113.10"));
+        assert_eq!(info.country_code.as_deref(), Some("JP"));
+        assert_eq!(info.city.as_deref(), Some("Tokyo"));
+        assert_eq!(info.asn, Some(64500));
+        assert_eq!(info.asn_organization.as_deref(), Some("Example Transit"));
+    }
 }
