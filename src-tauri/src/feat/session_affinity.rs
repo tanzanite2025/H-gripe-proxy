@@ -20,9 +20,7 @@ static SESSION_AFFINITY_MANAGER: Lazy<Arc<SessionAffinityManager>> = Lazy::new(|
 });
 
 fn load_session_affinity_config() -> anyhow::Result<SessionAffinityConfig> {
-    Ok(super::coordinator::get_coordinator()
-        .get_advanced_config()
-        .session_affinity)
+    Ok(crate::config::AdvancedConfig::load_default().session_affinity)
 }
 
 /// 获取会话绑定管理器实例

@@ -19,7 +19,9 @@ pub fn get_coordinator() -> Arc<CoreCoordinator> {
 pub fn sync_coordinator_from_advanced_config() -> Result<()> {
     let path = AdvancedConfig::default_path()?;
     let config = AdvancedConfig::load(&path)?;
-    COORDINATOR.hydrate_from_advanced_config(&config)
+    COORDINATOR.hydrate_from_advanced_config(&config)?;
+    futures::executor::block_on(crate::feat::get_session_affinity_manager().update_config(config.session_affinity))?;
+    Ok(())
 }
 
 /// 保存高级配置（业务逻辑）
