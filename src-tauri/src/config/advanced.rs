@@ -662,6 +662,15 @@ impl AdvancedConfig {
             .unwrap_or_default()
     }
 
+    pub fn load_default_strict() -> Result<Self> {
+        let path = Self::default_path()?;
+        if path.exists() {
+            Self::load(&path)
+        } else {
+            Ok(Self::default())
+        }
+    }
+
     /// 保存配置到默认路径
     pub fn save_default(&self) -> Result<()> {
         let path = Self::default_path()?;

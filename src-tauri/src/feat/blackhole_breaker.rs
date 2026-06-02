@@ -60,7 +60,7 @@ pub async fn blackhole_breaker_record_fraud_score(domain: &str, fraud_score: u8)
 }
 
 fn persist_blackhole_breaker_config(config: &BlackholeBreakerConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default();
+    let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.blackhole_breaker = config.clone();
     advanced.validate()?;
     advanced.save_default()?;

@@ -54,7 +54,7 @@ pub async fn ip_reputation_get_cache_entries() -> Vec<IpReputation> {
 }
 
 fn persist_ip_reputation_config(config: &IpReputationConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default();
+    let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.ip_reputation = config.clone();
     advanced.validate()?;
     advanced.save_default()?;

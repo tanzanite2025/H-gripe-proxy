@@ -19,8 +19,28 @@ pub fn get_coordinator() -> Arc<CoreCoordinator> {
 pub fn sync_coordinator_from_advanced_config() -> Result<()> {
     let path = AdvancedConfig::default_path()?;
     let config = AdvancedConfig::load(&path)?;
+    COORDINATOR.hydrate_from_advanced_config(&config)
+}
+
+pub async fn sync_coordinator_from_advanced_config_async() -> Result<()> {
+    let path = AdvancedConfig::default_path()?;
+    let config = AdvancedConfig::load(&path)?;
     COORDINATOR.hydrate_from_advanced_config(&config)?;
-    futures::executor::block_on(crate::feat::get_session_affinity_manager().update_config(config.session_affinity))?;
+    crate::feat::apply_egress_monitor_config(config.egress_monitor.clone()).await?;
+    crate::feat::apply_ip_reputation_config(config.ip_reputation.clone()).await?;
+    crate::feat::apply_blackhole_breaker_config(config.blackhole_breaker.clone()).await;
+    crate::core::security_runtime::apply_local_stealth_config(config.local_stealth.clone()).await;
+    let traffic_obfuscation = if config.traffic_obfuscation.enabled {
+        config.traffic_obfuscation.clone()
+    } else if config.traffic_padding.enabled {
+        TrafficObfuscationConfig::from_legacy_padding(&config.traffic_padding)
+    } else {
+        config.traffic_obfuscation.clone()
+    };
+    crate::feat::apply_traffic_obfuscation_config(traffic_obfuscation).await?;
+    crate::feat::get_session_affinity_manager()
+        .update_config(config.session_affinity)
+        .await?;
     Ok(())
 }
 
@@ -63,7 +83,7 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
 
 /// 获取协调器状态（业务逻辑）
 pub async fn coordinator_get_status() -> Result<CoordinatorStatus> {
-    let _ = sync_coordinator_from_advanced_config();
+    let _ = sync_coordinator_from_advanced_config_async().await;
     let config = COORDINATOR.get_advanced_config();
     let security_compromised = crate::security::is_security_compromised();
     let runtime_state = project_runtime_status(

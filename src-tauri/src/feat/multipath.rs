@@ -13,7 +13,7 @@ fn multipath_manager() -> Arc<MultipathManager> {
 }
 
 fn persist_multipath_config(config: &MultipathConfig) -> Result<()> {
-    let mut advanced_config = AdvancedConfig::load_default();
+    let mut advanced_config = AdvancedConfig::load_default_strict()?;
     advanced_config.multipath = config.clone();
     advanced_config.validate()?;
     advanced_config.save_default()?;

@@ -53,7 +53,7 @@ pub async fn egress_monitor_is_running() -> bool {
 }
 
 fn persist_egress_monitor_config(config: &EgressMonitorConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default();
+    let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.egress_monitor = config.clone();
     advanced.validate()?;
     advanced.save_default()?;

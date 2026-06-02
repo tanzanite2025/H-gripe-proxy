@@ -6,7 +6,7 @@ pub fn timezone_spoof_get_config() -> TimezoneSpoofConfig {
 }
 
 pub async fn timezone_spoof_update_config(config: TimezoneSpoofConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default();
+    let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.timezone_spoof = config;
     advanced.validate()?;
     advanced.save_default()?;

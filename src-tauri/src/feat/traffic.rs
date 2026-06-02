@@ -128,7 +128,7 @@ pub async fn traffic_obfuscation_apply_profile(profile: ObfuscationProfile) -> R
 }
 
 async fn persist_traffic_obfuscation_config(config: &TrafficObfuscationConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default();
+    let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.traffic_obfuscation = config.clone();
     advanced.traffic_padding.enabled = false;
     advanced.validate()?;

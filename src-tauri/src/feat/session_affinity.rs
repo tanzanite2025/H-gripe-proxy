@@ -67,7 +67,7 @@ pub async fn session_affinity_cleanup_expired() -> Result<()> {
 
 /// 为域名选择节点
 pub async fn session_affinity_select_node_for_domain(domain: &str, available_nodes: Vec<String>) -> Result<String> {
-    let _ = crate::feat::sync_coordinator_from_advanced_config();
+    let _ = crate::feat::sync_coordinator_from_advanced_config_async().await;
     let coordinator = crate::feat::get_coordinator();
     let egress_context = crate::feat::enrich_egress_selection_context(EgressSelectionContext {
         domain: Some(domain.to_owned()),
@@ -97,7 +97,7 @@ pub async fn session_affinity_select_node_for_process(
     source_port: u16,
     available_nodes: Vec<String>,
 ) -> Result<String> {
-    let _ = crate::feat::sync_coordinator_from_advanced_config();
+    let _ = crate::feat::sync_coordinator_from_advanced_config_async().await;
     let process_name = process_detection::get_process_name_by_port(source_port).ok();
     let coordinator = crate::feat::get_coordinator();
     let enriched_context = crate::feat::enrich_egress_selection_context(EgressSelectionContext {
@@ -138,7 +138,7 @@ pub async fn session_affinity_select_node_for_connection(
     source_port: u16,
     available_nodes: Vec<String>,
 ) -> Result<String> {
-    let _ = crate::feat::sync_coordinator_from_advanced_config();
+    let _ = crate::feat::sync_coordinator_from_advanced_config_async().await;
     let coordinator = crate::feat::get_coordinator();
     let egress_context = crate::feat::enrich_egress_selection_context(EgressSelectionContext {
         source_ip: Some(source_ip.to_owned()),

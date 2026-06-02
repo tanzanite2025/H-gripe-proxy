@@ -23,7 +23,7 @@ pub async fn egress_identity_preview_match(
     source_port: Option<u16>,
     available_nodes: Option<Vec<String>>,
 ) -> Result<ResolvedEgressIdentity> {
-    let _ = crate::feat::sync_coordinator_from_advanced_config();
+    let _ = crate::feat::sync_coordinator_from_advanced_config_async().await;
     let ctx = enrich_egress_selection_context(EgressSelectionContext {
         shortcut_id,
         process_name,
@@ -50,7 +50,7 @@ pub async fn egress_identity_assign_match(
     source_port: Option<u16>,
     available_nodes: Option<Vec<String>>,
 ) -> Result<ResolvedEgressIdentity> {
-    let _ = crate::feat::sync_coordinator_from_advanced_config();
+    let _ = crate::feat::sync_coordinator_from_advanced_config_async().await;
     let ctx = enrich_egress_selection_context(EgressSelectionContext {
         shortcut_id,
         process_name,

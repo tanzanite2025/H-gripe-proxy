@@ -121,7 +121,7 @@ pub async fn copy_clash_env() {
 
 /// 同步运行时稳定出口选择状态（从 Mihomo 回写到管理器）
 pub async fn sync_runtime_stable_egress_selection() -> Result<()> {
-    super::coordinator::sync_coordinator_from_advanced_config()?;
+    super::coordinator::sync_coordinator_from_advanced_config_async().await?;
 
     let runtime_config = Config::runtime().await.latest_arc().config.clone();
     let Some(runtime_config) = runtime_config else {
