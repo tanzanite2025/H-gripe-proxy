@@ -70,6 +70,10 @@ export async function blackholeBreakerShouldBlockDomain(domain: string): Promise
   return invoke('blackhole_breaker_should_block_domain', { domain })
 }
 
+export async function blackholeBreakerShouldBlockNode(nodeName: string): Promise<boolean> {
+  return invoke('blackhole_breaker_should_block_node', { nodeName })
+}
+
 export async function blackholeBreakerResetRule(ruleId: string): Promise<void> {
   return invoke('blackhole_breaker_reset_rule', { ruleId })
 }
