@@ -663,48 +663,78 @@ func (lq *LinkQuality) IsHealthy(maxLatency time.Duration, minSuccessRate float6
 
 // EgressMonitor monitors egress IP stability for a proxy chain.
 type EgressMonitor struct {
-	mu                sync.Mutex
-	egressIPs         map[string]time.Time
-	currentIP         string
-	proxyName         string
-	proxyChain        string
-	remoteDestination string
-	rule              string
-	rulePayload       string
-	updatedAt         time.Time
-	lockedIP          string
-	locked            bool
-	changeCount       atomic.Int64
+	mu                    sync.Mutex
+	egressIPs             map[string]time.Time
+	currentIP             string
+	proxyName             string
+	proxyChain            string
+	proxyEndpoint         string
+	rule                  string
+	rulePayload           string
+	egressSource          string
+	confidence            int
+	sampleCount           int
+	lastVerifiedAt        time.Time
+	updatedAt             time.Time
+	snapshotsByProxyChain map[string]EgressIdentitySnapshot
+	lastProbeByProxyChain map[string]time.Time
+	lockedIP              string
+	locked                bool
+	changeCount           atomic.Int64
+}
+
+// EgressProbeFunc observes the public egress IP through a proxy path.
+type EgressProbeFunc func(context.Context, EgressProbeRequest) (string, error)
+
+// EgressProbeRequest describes a low-frequency public egress probe.
+type EgressProbeRequest struct {
+	ProxyName     string
+	ProxyChain    string
+	ProxyEndpoint string
+	Rule          string
+	RulePayload   string
+	Interval      time.Duration
+	Probe         EgressProbeFunc
+	Now           func() time.Time
 }
 
 // EgressIdentityObservation describes the latest successful outbound path.
 type EgressIdentityObservation struct {
-	ProxyName         string
-	ProxyChain        string
-	RemoteDestination string
-	EgressIP          string
-	Rule              string
-	RulePayload       string
+	ProxyName      string
+	ProxyChain     string
+	ProxyEndpoint  string
+	PublicEgressIP string
+	Rule           string
+	RulePayload    string
+	EgressSource   string
+	Confidence     int
 }
 
 // EgressIdentitySnapshot is the public engine status for current egress identity.
 type EgressIdentitySnapshot struct {
-	Stable            bool      `json:"stable"`
-	ChangeCount       int64     `json:"changeCount"`
-	ObservedCount     int       `json:"observedCount"`
-	EgressIP          string    `json:"egressIp,omitempty"`
-	ProxyName         string    `json:"proxyName,omitempty"`
-	ProxyChain        string    `json:"proxyChain,omitempty"`
-	RemoteDestination string    `json:"remoteDestination,omitempty"`
-	Rule              string    `json:"rule,omitempty"`
-	RulePayload       string    `json:"rulePayload,omitempty"`
-	UpdatedAt         time.Time `json:"updatedAt,omitempty"`
+	Stable         bool      `json:"stable"`
+	ChangeCount    int64     `json:"changeCount"`
+	ObservedCount  int       `json:"observedCount"`
+	EgressIP       string    `json:"egressIp,omitempty"`
+	PublicEgressIP string    `json:"publicEgressIp,omitempty"`
+	ProxyEndpoint  string    `json:"proxyEndpoint,omitempty"`
+	ProxyName      string    `json:"proxyName,omitempty"`
+	ProxyChain     string    `json:"proxyChain,omitempty"`
+	Rule           string    `json:"rule,omitempty"`
+	RulePayload    string    `json:"rulePayload,omitempty"`
+	EgressSource   string    `json:"egressSource,omitempty"`
+	Confidence     int       `json:"confidence,omitempty"`
+	SampleCount    int       `json:"sampleCount,omitempty"`
+	LastVerifiedAt time.Time `json:"lastVerifiedAt,omitempty"`
+	UpdatedAt      time.Time `json:"updatedAt,omitempty"`
 }
 
 // NewEgressMonitor creates an egress IP monitor.
 func NewEgressMonitor() *EgressMonitor {
 	return &EgressMonitor{
-		egressIPs: make(map[string]time.Time),
+		egressIPs:             make(map[string]time.Time),
+		snapshotsByProxyChain: make(map[string]EgressIdentitySnapshot),
+		lastProbeByProxyChain: make(map[string]time.Time),
 	}
 }
 
@@ -738,21 +768,71 @@ func (em *EgressMonitor) recordEgressLocked(ip string, now time.Time) {
 // RecordIdentity records the latest successful outbound identity snapshot.
 func (em *EgressMonitor) RecordIdentity(observation EgressIdentityObservation) {
 	now := time.Now()
-	egressIP := strings.TrimSpace(observation.EgressIP)
-	if egressIP == "" {
-		egressIP = extractEgressIP(observation.RemoteDestination)
-	}
+	publicEgressIP := strings.TrimSpace(observation.PublicEgressIP)
 
 	em.mu.Lock()
 	defer em.mu.Unlock()
 
-	em.recordEgressLocked(egressIP, now)
+	em.recordEgressLocked(publicEgressIP, now)
 	em.proxyName = strings.TrimSpace(observation.ProxyName)
 	em.proxyChain = strings.TrimSpace(observation.ProxyChain)
-	em.remoteDestination = strings.TrimSpace(observation.RemoteDestination)
+	em.proxyEndpoint = strings.TrimSpace(observation.ProxyEndpoint)
 	em.rule = strings.TrimSpace(observation.Rule)
 	em.rulePayload = strings.TrimSpace(observation.RulePayload)
+	em.egressSource = strings.TrimSpace(observation.EgressSource)
+	em.confidence = observation.Confidence
+	if publicEgressIP != "" {
+		em.sampleCount++
+		em.lastVerifiedAt = now
+	}
 	em.updatedAt = now
+
+	if em.proxyChain != "" {
+		em.snapshotsByProxyChain[em.proxyChain] = em.snapshotLocked()
+	}
+}
+
+// MaybeProbePublicEgress runs a low-frequency public egress probe per proxy chain.
+func (em *EgressMonitor) MaybeProbePublicEgress(ctx context.Context, request EgressProbeRequest) error {
+	proxyChain := strings.TrimSpace(request.ProxyChain)
+	if proxyChain == "" || request.Probe == nil {
+		return nil
+	}
+
+	now := time.Now()
+	if request.Now != nil {
+		now = request.Now()
+	}
+	interval := request.Interval
+	if interval <= 0 {
+		interval = time.Minute
+	}
+
+	em.mu.Lock()
+	if lastProbe, exists := em.lastProbeByProxyChain[proxyChain]; exists && now.Sub(lastProbe) < interval {
+		em.mu.Unlock()
+		return nil
+	}
+	em.lastProbeByProxyChain[proxyChain] = now
+	em.mu.Unlock()
+
+	publicEgressIP, err := request.Probe(ctx, request)
+	if err != nil {
+		return err
+	}
+
+	em.RecordIdentity(EgressIdentityObservation{
+		ProxyName:      request.ProxyName,
+		ProxyChain:     proxyChain,
+		ProxyEndpoint:  request.ProxyEndpoint,
+		PublicEgressIP: publicEgressIP,
+		Rule:           request.Rule,
+		RulePayload:    request.RulePayload,
+		EgressSource:   "publicProbe",
+		Confidence:     90,
+	})
+
+	return nil
 }
 
 // LockEgress locks the expected egress IP.
@@ -794,32 +874,39 @@ func (em *EgressMonitor) Snapshot() EgressIdentitySnapshot {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 
+	return em.snapshotLocked()
+}
+
+func (em *EgressMonitor) snapshotLocked() EgressIdentitySnapshot {
 	return EgressIdentitySnapshot{
-		Stable:            len(em.egressIPs) <= 1,
-		ChangeCount:       em.changeCount.Load(),
-		ObservedCount:     len(em.egressIPs),
-		EgressIP:          em.currentIP,
-		ProxyName:         em.proxyName,
-		ProxyChain:        em.proxyChain,
-		RemoteDestination: em.remoteDestination,
-		Rule:              em.rule,
-		RulePayload:       em.rulePayload,
-		UpdatedAt:         em.updatedAt,
+		Stable:         len(em.egressIPs) <= 1,
+		ChangeCount:    em.changeCount.Load(),
+		ObservedCount:  len(em.egressIPs),
+		EgressIP:       em.currentIP,
+		PublicEgressIP: em.currentIP,
+		ProxyEndpoint:  em.proxyEndpoint,
+		ProxyName:      em.proxyName,
+		ProxyChain:     em.proxyChain,
+		Rule:           em.rule,
+		RulePayload:    em.rulePayload,
+		EgressSource:   em.egressSource,
+		Confidence:     em.confidence,
+		SampleCount:    em.sampleCount,
+		LastVerifiedAt: em.lastVerifiedAt,
+		UpdatedAt:      em.updatedAt,
 	}
 }
 
-func extractEgressIP(remoteDestination string) string {
-	remoteDestination = strings.TrimSpace(remoteDestination)
-	if remoteDestination == "" {
-		return ""
-	}
+// SnapshotsByProxyChain returns a copy of per-chain egress identity snapshots.
+func (em *EgressMonitor) SnapshotsByProxyChain() map[string]EgressIdentitySnapshot {
+	em.mu.Lock()
+	defer em.mu.Unlock()
 
-	host, _, err := net.SplitHostPort(remoteDestination)
-	if err == nil {
-		return strings.Trim(host, "[]")
+	snapshots := make(map[string]EgressIdentitySnapshot, len(em.snapshotsByProxyChain))
+	for proxyChain, snapshot := range em.snapshotsByProxyChain {
+		snapshots[proxyChain] = snapshot
 	}
-
-	return strings.Trim(remoteDestination, "[]")
+	return snapshots
 }
 
 // ============================================================

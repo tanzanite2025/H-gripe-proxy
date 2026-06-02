@@ -14,6 +14,7 @@ pub mod dns;
 pub mod egress_identity;
 pub mod egress_monitor;
 pub mod http;
+pub mod identity_consistency;
 pub mod ip_reputation;
 pub mod lightweight;
 pub mod media_unlock_checker;
@@ -51,6 +52,7 @@ pub use egress_identity::*;
 pub use egress_monitor::*;
 #[allow(unused_imports)]
 pub use http::*;
+pub use identity_consistency::*;
 pub use ip_reputation::*;
 pub use lightweight::*;
 pub use media_unlock_checker::*;

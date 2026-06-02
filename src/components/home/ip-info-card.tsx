@@ -9,7 +9,7 @@ import {
   ipReputationCheckIp,
   type IpReputation,
 } from '@/services/ip-reputation'
-import { getCurrentEgressIdentity } from '@/services/cmds'
+import { getCurrentEgressIdentity, getIdentityConsistencyReport } from '@/services/cmds'
 import { cn } from '@/utils/cn'
 
 const getCountryFlag = (countryCode: string | undefined) => {
@@ -27,6 +27,13 @@ const riskColorMap: Record<IpReputation['riskLevel'], string> = {
   High: 'text-orange-500',
   VeryHigh: 'text-red-500',
 }
+
+const consistencyColorMap = {
+  good: 'text-green-500',
+  warning: 'text-yellow-500',
+  danger: 'text-red-500',
+  unknown: 'text-gray-500',
+} as const
 
 const formatReputationSummary = ({
   ip,
@@ -90,6 +97,13 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     gcTime: 5 * 60 * 1000,
     retry: 1,
   })
+  const { data: consistencyReport } = useQuery({
+    queryKey: ['identity-consistency-report'],
+    queryFn: getIdentityConsistencyReport,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: 1,
+  })
   const identityReputation = currentIdentity?.reputation
   const {
     data: reputation,
@@ -109,7 +123,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
 
   const country = ipInfo?.country || 'Unknown'
   const flag = getCountryFlag(ipInfo?.country_code)
-  const displayIp = currentIdentity?.egress_ip || ip
+  const displayIp = currentIdentity?.public_egress_ip || currentIdentity?.egress_ip || ip
   const location = formatLocation(ipInfo?.city, ipInfo?.region, ipInfo?.country)
   const riskText = formatReputationSummary({
     ip,
@@ -118,7 +132,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     reputationError: effectiveReputationError,
   })
   const egressTypeText = formatEgressTypeSummary({
-    ip: currentIdentity?.egress_ip ?? ip,
+    ip: currentIdentity?.public_egress_ip ?? currentIdentity?.egress_ip ?? ip,
     reputation: effectiveReputation,
     reputationLoading: effectiveReputationLoading,
     reputationError: effectiveReputationError,
@@ -126,6 +140,14 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const residentialStateText = effectiveReputation
     ? getResidentialStateText(effectiveReputation.residentialState)
     : '未确认'
+  const consistencyText = consistencyReport
+    ? `${consistencyReport.score} / ${consistencyReport.level}`
+    : '未评分'
+  const consistencyIssuesText =
+    consistencyReport?.issues
+      .slice(0, 3)
+      .map((issue) => issue.message)
+      .join('; ') || '无'
   const identitySourceText =
     currentIdentity?.source === 'mihomoEgressStatus'
       ? '内核出口快照'
@@ -134,6 +156,18 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
       : currentIdentity?.source === 'publicIpObservation'
         ? '出口观测'
         : '出口观测'
+
+  const cardTitle = [
+    `${country} / ${displayIp || 'Unknown'}`,
+    location,
+    identitySourceText,
+    currentIdentity?.proxy_name || '当前出口',
+    `出口类型: ${egressTypeText}`,
+    residentialStateText,
+    `风险: ${riskText}`,
+    `一致性: ${consistencyText}`,
+    `问题: ${consistencyIssuesText}`,
+  ].join(' | ')
 
   if (isLoading) {
     return (
@@ -167,7 +201,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     <div
       className={cn('the-ip-card', className)}
       data-tauri-drag-region="true"
-      title={`${country} / ${currentIdentity?.egress_ip || ip || 'Unknown'} · ${location} · ${identitySourceText} · ${currentIdentity?.proxy_name || '当前出口'} · 出口类型: ${egressTypeText} · ${residentialStateText} · 风险: ${riskText}`}
+      title={cardTitle}
     >
       <span className="the-ip-card__flag" data-tauri-drag-region="true">{flag}</span>
       <span className="the-ip-card__primary" data-tauri-drag-region="true">{country}</span>
@@ -190,6 +224,17 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
         data-tauri-drag-region="true"
       >
         {egressTypeText}
+      </span>
+      <span className="the-ip-card__divider" data-tauri-drag-region="true" />
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">一致性</span>
+      <span
+        className={cn(
+          'the-ip-card__value',
+          consistencyReport ? consistencyColorMap[consistencyReport.level] : 'text-gray-500',
+        )}
+        data-tauri-drag-region="true"
+      >
+        {consistencyReport ? consistencyReport.score : '--'}
       </span>
     </div>
   )

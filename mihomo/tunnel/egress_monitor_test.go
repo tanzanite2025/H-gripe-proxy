@@ -1,6 +1,10 @@
 package tunnel
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+)
 
 type egressMonitorTestRule struct{}
 
@@ -46,26 +50,27 @@ func TestEgressMonitorRecordsIdentitySnapshot(t *testing.T) {
 	monitor := NewEgressMonitor()
 
 	monitor.RecordIdentity(EgressIdentityObservation{
-		ProxyName:         "proxy-a",
-		ProxyChain:        "relay[proxy-a]",
-		RemoteDestination: "203.0.113.10:443",
-		Rule:              "DomainSuffix",
-		RulePayload:       "example.org",
+		ProxyName:      "proxy-a",
+		ProxyChain:     "relay[proxy-a]",
+		ProxyEndpoint:  "203.0.113.10:443",
+		PublicEgressIP: "198.51.100.20",
+		Rule:           "DomainSuffix",
+		RulePayload:    "example.org",
 	})
 
 	snapshot := monitor.Snapshot()
 
-	if snapshot.EgressIP != "203.0.113.10" {
-		t.Fatalf("expected egress IP host to be extracted, got %q", snapshot.EgressIP)
+	if snapshot.PublicEgressIP != "198.51.100.20" {
+		t.Fatalf("expected public egress IP to be retained, got %q", snapshot.PublicEgressIP)
+	}
+	if snapshot.ProxyEndpoint != "203.0.113.10:443" {
+		t.Fatalf("expected proxy endpoint to be retained, got %q", snapshot.ProxyEndpoint)
 	}
 	if snapshot.ProxyName != "proxy-a" {
 		t.Fatalf("expected proxy name to be retained, got %q", snapshot.ProxyName)
 	}
 	if snapshot.ProxyChain != "relay[proxy-a]" {
 		t.Fatalf("expected proxy chain to be retained, got %q", snapshot.ProxyChain)
-	}
-	if snapshot.RemoteDestination != "203.0.113.10:443" {
-		t.Fatalf("expected remote destination to be retained, got %q", snapshot.RemoteDestination)
 	}
 	if snapshot.Rule != "DomainSuffix" {
 		t.Fatalf("expected rule to be retained, got %q", snapshot.Rule)
@@ -84,15 +89,132 @@ func TestEgressMonitorRecordsIdentitySnapshot(t *testing.T) {
 	}
 }
 
-func TestEgressMonitorRecordsHostOnlyRemoteDestination(t *testing.T) {
+func TestEgressMonitorDoesNotTreatProxyEndpointAsPublicEgress(t *testing.T) {
 	monitor := NewEgressMonitor()
 
 	monitor.RecordIdentity(EgressIdentityObservation{
-		ProxyName:         "proxy-a",
-		RemoteDestination: "198.51.100.20",
+		ProxyName:     "proxy-a",
+		ProxyChain:    "proxy-a",
+		ProxyEndpoint: "203.0.113.10:443",
 	})
 
-	if got := monitor.Snapshot().EgressIP; got != "198.51.100.20" {
-		t.Fatalf("expected host-only remote destination to be used as egress IP, got %q", got)
+	snapshot := monitor.Snapshot()
+
+	if snapshot.PublicEgressIP != "" {
+		t.Fatalf("expected proxy endpoint not to be treated as public egress IP, got %q", snapshot.PublicEgressIP)
+	}
+	if snapshot.ProxyEndpoint != "203.0.113.10:443" {
+		t.Fatalf("expected proxy endpoint to be retained, got %q", snapshot.ProxyEndpoint)
+	}
+	if snapshot.ObservedCount != 0 {
+		t.Fatalf("expected proxy endpoint-only observation not to affect public egress stability, got %d", snapshot.ObservedCount)
+	}
+}
+
+func TestEgressMonitorKeepsSnapshotsByProxyChain(t *testing.T) {
+	monitor := NewEgressMonitor()
+
+	monitor.RecordIdentity(EgressIdentityObservation{
+		ProxyName:      "proxy-a",
+		ProxyChain:     "relay[proxy-a]",
+		PublicEgressIP: "198.51.100.20",
+	})
+	monitor.RecordIdentity(EgressIdentityObservation{
+		ProxyName:      "proxy-b",
+		ProxyChain:     "relay[proxy-b]",
+		PublicEgressIP: "198.51.100.21",
+	})
+
+	snapshots := monitor.SnapshotsByProxyChain()
+
+	if got := snapshots["relay[proxy-a]"].PublicEgressIP; got != "198.51.100.20" {
+		t.Fatalf("expected proxy-a snapshot to be retained, got %q", got)
+	}
+	if got := snapshots["relay[proxy-b]"].PublicEgressIP; got != "198.51.100.21" {
+		t.Fatalf("expected proxy-b snapshot to be retained, got %q", got)
+	}
+}
+
+func TestEgressMonitorSchedulesPublicEgressProbeAndRecordsResult(t *testing.T) {
+	monitor := NewEgressMonitor()
+	probeCalls := 0
+
+	err := monitor.MaybeProbePublicEgress(context.Background(), EgressProbeRequest{
+		ProxyName:     "proxy-a",
+		ProxyChain:    "relay[proxy-a]",
+		ProxyEndpoint: "203.0.113.10:443",
+		Rule:          "DomainSuffix",
+		RulePayload:   "example.org",
+		Probe: func(context.Context, EgressProbeRequest) (string, error) {
+			probeCalls++
+			return "198.51.100.20", nil
+		},
+		Now: func() time.Time {
+			return time.Unix(1000, 0)
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected probe to succeed, got %v", err)
+	}
+
+	snapshot := monitor.Snapshot()
+	if probeCalls != 1 {
+		t.Fatalf("expected one probe call, got %d", probeCalls)
+	}
+	if snapshot.PublicEgressIP != "198.51.100.20" {
+		t.Fatalf("expected public egress IP from probe, got %q", snapshot.PublicEgressIP)
+	}
+	if snapshot.ProxyEndpoint != "203.0.113.10:443" {
+		t.Fatalf("expected proxy endpoint to be retained, got %q", snapshot.ProxyEndpoint)
+	}
+	if snapshot.EgressSource != "publicProbe" {
+		t.Fatalf("expected public probe source, got %q", snapshot.EgressSource)
+	}
+	if snapshot.Confidence != 90 {
+		t.Fatalf("expected high confidence probe snapshot, got %d", snapshot.Confidence)
+	}
+	if snapshot.SampleCount != 1 {
+		t.Fatalf("expected one sample, got %d", snapshot.SampleCount)
+	}
+	if snapshot.LastVerifiedAt.IsZero() {
+		t.Fatal("expected last verified time to be set")
+	}
+}
+
+func TestEgressMonitorRateLimitsPublicEgressProbePerProxyChain(t *testing.T) {
+	monitor := NewEgressMonitor()
+	probeCalls := 0
+	now := time.Unix(1000, 0)
+	request := EgressProbeRequest{
+		ProxyName:     "proxy-a",
+		ProxyChain:    "relay[proxy-a]",
+		ProxyEndpoint: "203.0.113.10:443",
+		Interval:      time.Minute,
+		Probe: func(context.Context, EgressProbeRequest) (string, error) {
+			probeCalls++
+			return "198.51.100.20", nil
+		},
+		Now: func() time.Time {
+			return now
+		},
+	}
+
+	if err := monitor.MaybeProbePublicEgress(context.Background(), request); err != nil {
+		t.Fatalf("expected first probe to succeed, got %v", err)
+	}
+	if err := monitor.MaybeProbePublicEgress(context.Background(), request); err != nil {
+		t.Fatalf("expected rate-limited probe to be skipped without error, got %v", err)
+	}
+
+	if probeCalls != 1 {
+		t.Fatalf("expected second probe inside interval to be skipped, got %d calls", probeCalls)
+	}
+
+	now = now.Add(time.Minute + time.Second)
+	if err := monitor.MaybeProbePublicEgress(context.Background(), request); err != nil {
+		t.Fatalf("expected probe after interval to succeed, got %v", err)
+	}
+	if probeCalls != 2 {
+		t.Fatalf("expected probe after interval to run, got %d calls", probeCalls)
 	}
 }

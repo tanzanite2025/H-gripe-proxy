@@ -315,11 +315,16 @@ export interface CurrentEgressIdentity {
   proxy_name: string | null
   proxy_chain: string[]
   egress_ip: string | null
-  remote_destination: string | null
+  public_egress_ip: string | null
+  proxy_endpoint: string | null
   destination_asn: string | null
   asn_org: string | null
   rule: string | null
   rule_payload: string | null
+  egress_source: string | null
+  confidence: number | null
+  sample_count: number | null
+  last_verified_at: string | null
   updated_at: string | null
   reputation: IpReputation | null
   message: string
@@ -335,6 +340,76 @@ export async function getCurrentEgressIdentity(): Promise<CurrentEgressIdentity>
     proxy_chain: Array.isArray(result.proxy_chain) ? result.proxy_chain : [],
     reputation: result.reputation ? normalizeIpReputation(result.reputation) : null,
   }
+}
+
+export type IdentityConsistencyLevel = 'good' | 'warning' | 'danger' | 'unknown'
+
+export type IdentityConsistencyIssueKind =
+  | 'missingPublicEgress'
+  | 'lowEgressConfidence'
+  | 'highIpRisk'
+  | 'dnsLeak'
+  | 'dnsRuntimeRisk'
+  | 'randomTlsFingerprint'
+  | 'missingTlsFingerprint'
+  | 'observationIncomplete'
+
+export interface IdentityConsistencyIssue {
+  kind: IdentityConsistencyIssueKind
+  severity: IdentityConsistencyLevel
+  message: string
+}
+
+export interface IdentityConsistencyReport {
+  score: number
+  level: IdentityConsistencyLevel
+  issues: IdentityConsistencyIssue[]
+  public_egress_ip: string | null
+  proxy_chain: string[]
+  ip_type: string | null
+  residential_state: string | null
+  egress_source: string | null
+  egress_confidence: number | null
+  tls_fingerprint: string | null
+  dns_assessment: string | null
+}
+
+export interface IdentityConsistencySnapshot {
+  observed_at: string
+  report: IdentityConsistencyReport
+}
+
+export async function getIdentityConsistencyReport(): Promise<IdentityConsistencyReport> {
+  const result = await invoke<IdentityConsistencyReport>(
+    'get_identity_consistency_report',
+  )
+
+  return {
+    ...result,
+    proxy_chain: Array.isArray(result.proxy_chain) ? result.proxy_chain : [],
+    issues: Array.isArray(result.issues) ? result.issues : [],
+  }
+}
+
+export async function getIdentityConsistencyHistory(): Promise<IdentityConsistencySnapshot[]> {
+  const result = await invoke<IdentityConsistencySnapshot[]>(
+    'get_identity_consistency_history',
+  )
+
+  return Array.isArray(result)
+    ? result.map((snapshot) => ({
+        ...snapshot,
+        report: {
+          ...snapshot.report,
+          proxy_chain: Array.isArray(snapshot.report.proxy_chain)
+            ? snapshot.report.proxy_chain
+            : [],
+          issues: Array.isArray(snapshot.report.issues)
+            ? snapshot.report.issues
+            : [],
+        },
+      }))
+    : []
 }
 
 export interface TorRuntimeStatus {

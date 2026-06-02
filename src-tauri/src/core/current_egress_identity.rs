@@ -22,11 +22,16 @@ pub struct CurrentEgressIdentity {
     pub proxy_name: Option<String>,
     pub proxy_chain: Vec<String>,
     pub egress_ip: Option<String>,
-    pub remote_destination: Option<String>,
+    pub public_egress_ip: Option<String>,
+    pub proxy_endpoint: Option<String>,
     pub destination_asn: Option<String>,
     pub asn_org: Option<String>,
     pub rule: Option<String>,
     pub rule_payload: Option<String>,
+    pub egress_source: Option<String>,
+    pub confidence: Option<i64>,
+    pub sample_count: Option<i64>,
+    pub last_verified_at: Option<String>,
     pub updated_at: Option<String>,
     pub reputation: Option<IpReputation>,
     pub message: String,
@@ -71,9 +76,13 @@ async fn current_identity_from_mihomo_egress_status(
 }
 
 fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentEgressIdentity> {
-    let egress_ip = status.egress_ip.as_deref().and_then(non_empty_string);
-    let remote_destination = status
-        .remote_destination
+    let public_egress_ip = status
+        .public_egress_ip
+        .as_deref()
+        .and_then(non_empty_string)
+        .or_else(|| status.egress_ip.as_deref().and_then(non_empty_string));
+    let proxy_endpoint = status
+        .proxy_endpoint
         .as_deref()
         .and_then(non_empty_string);
     let proxy_name = status.proxy_name.as_deref().and_then(non_empty_string);
@@ -86,9 +95,16 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
     let asn_org = status.asn_org.as_deref().and_then(non_empty_string);
     let rule = status.rule.as_deref().and_then(non_empty_string);
     let rule_payload = status.rule_payload.as_deref().and_then(non_empty_string);
+    let egress_source = status.egress_source.as_deref().and_then(non_empty_string);
+    let confidence = status.confidence;
+    let sample_count = status.sample_count;
+    let last_verified_at = status
+        .last_verified_at
+        .as_deref()
+        .and_then(non_empty_string);
     let updated_at = status.updated_at.as_deref().and_then(non_empty_string);
 
-    if egress_ip.is_none()
+    if public_egress_ip.is_none()
         && proxy_name.is_none()
         && proxy_chain.is_empty()
         && destination_asn.is_none()
@@ -103,12 +119,17 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
         source: CurrentEgressIdentitySource::MihomoEgressStatus,
         proxy_name,
         proxy_chain,
-        egress_ip,
-        remote_destination,
+        egress_ip: public_egress_ip.clone(),
+        public_egress_ip,
+        proxy_endpoint,
         destination_asn,
         asn_org,
         rule,
         rule_payload,
+        egress_source,
+        confidence,
+        sample_count,
+        last_verified_at,
         updated_at,
         reputation: None,
         message: "identity derived from Mihomo egress status snapshot".to_string(),
@@ -138,11 +159,16 @@ async fn current_identity_from_mihomo_connections(
         proxy_name,
         proxy_chain,
         egress_ip: None,
-        remote_destination: None,
+        public_egress_ip: None,
+        proxy_endpoint: None,
         destination_asn,
         asn_org: None,
         rule: None,
         rule_payload: None,
+        egress_source: None,
+        confidence: None,
+        sample_count: None,
+        last_verified_at: None,
         updated_at: None,
         reputation: None,
         message: "proxy identity derived from Mihomo connection metadata".to_string(),
@@ -166,11 +192,16 @@ async fn current_identity_from_public_ip() -> Result<CurrentEgressIdentity> {
         proxy_name: None,
         proxy_chain: Vec::new(),
         egress_ip,
-        remote_destination: None,
+        public_egress_ip: None,
+        proxy_endpoint: None,
         destination_asn: None,
         asn_org: None,
         rule: None,
         rule_payload: None,
+        egress_source: None,
+        confidence: None,
+        sample_count: None,
+        last_verified_at: None,
         updated_at: None,
         reputation,
         message: "identity derived from current local-core public IP observation".to_string(),
@@ -209,13 +240,18 @@ mod tests {
             change_count: 0,
             observed_count: Some(1),
             egress_ip: Some("203.0.113.10".to_string()),
-            remote_destination: Some("203.0.113.10:443".to_string()),
+            public_egress_ip: Some("203.0.113.10".to_string()),
+            proxy_endpoint: Some("198.51.100.1:443".to_string()),
             proxy_name: Some("HK-Residential".to_string()),
             proxy_chain: Some("HK-Residential -> DIRECT".to_string()),
             destination_asn: Some("AS7922".to_string()),
             asn_org: Some("Comcast Cable Communications, LLC".to_string()),
             rule: Some("MATCH".to_string()),
             rule_payload: Some("".to_string()),
+            egress_source: Some("publicProbe".to_string()),
+            confidence: Some(90),
+            sample_count: Some(1),
+            last_verified_at: Some("2026-06-02T02:00:00Z".to_string()),
             updated_at: Some("2026-06-02T02:00:00Z".to_string()),
         };
 
@@ -224,8 +260,12 @@ mod tests {
         assert_eq!(identity.source, CurrentEgressIdentitySource::MihomoEgressStatus);
         assert_eq!(identity.egress_ip.as_deref(), Some("203.0.113.10"));
         assert_eq!(
-            identity.remote_destination.as_deref(),
-            Some("203.0.113.10:443")
+            identity.public_egress_ip.as_deref(),
+            Some("203.0.113.10")
+        );
+        assert_eq!(
+            identity.proxy_endpoint.as_deref(),
+            Some("198.51.100.1:443")
         );
         assert_eq!(identity.proxy_name.as_deref(), Some("HK-Residential"));
         assert_eq!(
@@ -236,6 +276,13 @@ mod tests {
         assert_eq!(identity.asn_org.as_deref(), Some("Comcast Cable Communications, LLC"));
         assert_eq!(identity.rule.as_deref(), Some("MATCH"));
         assert_eq!(identity.rule_payload, None);
+        assert_eq!(identity.egress_source.as_deref(), Some("publicProbe"));
+        assert_eq!(identity.confidence, Some(90));
+        assert_eq!(identity.sample_count, Some(1));
+        assert_eq!(
+            identity.last_verified_at.as_deref(),
+            Some("2026-06-02T02:00:00Z")
+        );
         assert_eq!(identity.updated_at.as_deref(), Some("2026-06-02T02:00:00Z"));
     }
 }

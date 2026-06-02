@@ -1184,7 +1184,11 @@ pub struct EgressStatus {
 
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub remote_destination: Option<String>,
+    pub public_egress_ip: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub proxy_endpoint: Option<String>,
 
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -1209,6 +1213,22 @@ pub struct EgressStatus {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub rule_payload: Option<String>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub egress_source: Option<String>,
+
+    #[ts(optional, type = "number")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub confidence: Option<i64>,
+
+    #[ts(optional, type = "number")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub sample_count: Option<i64>,
+
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_verified_at: Option<String>,
 
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none", default)]

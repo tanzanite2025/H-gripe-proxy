@@ -1,9 +1,17 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
 import { Switch } from '@/components/tailwind/Switch'
 import { TextField } from '@/components/tailwind/TextField'
+import {
+  getIdentityConsistencyHistory,
+  getIdentityConsistencyReport,
+  type IdentityConsistencyLevel,
+  type IdentityConsistencyReport,
+  type IdentityConsistencySnapshot,
+} from '@/services/cmds'
 import {
   type IpReputation,
   type IpReputationConfig,
@@ -21,6 +29,46 @@ interface Props {
   onChange: (config: IpReputationConfig) => void
 }
 
+const consistencyLevelText: Record<IdentityConsistencyLevel, string> = {
+  good: '良好',
+  warning: '需关注',
+  danger: '高风险',
+  unknown: '未知',
+}
+
+const consistencyScoreColor: Record<IdentityConsistencyLevel, string> = {
+  good: 'text-green-600',
+  warning: 'text-yellow-600',
+  danger: 'text-red-600',
+  unknown: 'text-gray-500',
+}
+
+const consistencyBadgeColor: Record<IdentityConsistencyLevel, string> = {
+  good: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  warning: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  danger: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  unknown: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
+}
+
+const formatConsistencyValue = (value: string | number | null | undefined) =>
+  value === null || value === undefined || value === '' ? '未观测' : String(value)
+
+const formatProxyChain = (report: IdentityConsistencyReport) =>
+  report.proxy_chain.length > 0 ? report.proxy_chain.join(' -> ') : '未观测'
+
+const formatSnapshotTime = (snapshot: IdentityConsistencySnapshot) =>
+  snapshot.observed_at ? new Date(snapshot.observed_at).toLocaleString() : '未知时间'
+
+const snapshotSummary = (snapshot: IdentityConsistencySnapshot) => {
+  const report = snapshot.report
+  return [
+    report.public_egress_ip || '未观测出口',
+    report.ip_type || '未知类型',
+    report.dns_assessment ? `DNS ${report.dns_assessment}` : null,
+    report.tls_fingerprint ? `TLS ${report.tls_fingerprint}` : null,
+  ].filter(Boolean).join(' / ')
+}
+
 export function IpReputationPanel({ config, onChange }: Props) {
   const [checkIp, setCheckIp] = useState('')
   const [checking, setChecking] = useState(false)
@@ -28,6 +76,33 @@ export function IpReputationPanel({ config, onChange }: Props) {
   const [cacheEntries, setCacheEntries] = useState<IpReputation[]>([])
   const [cacheStats, setCacheStats] = useState<[number, number] | null>(null)
   const [showCache, setShowCache] = useState(false)
+  const {
+    data: consistencyReport,
+    error: consistencyError,
+    isFetching: consistencyFetching,
+    refetch: refetchConsistencyReport,
+  } = useQuery({
+    queryKey: ['identity-consistency-report'],
+    queryFn: getIdentityConsistencyReport,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+  const {
+    data: consistencyHistory = [],
+    refetch: refetchConsistencyHistory,
+  } = useQuery({
+    queryKey: ['identity-consistency-history'],
+    queryFn: getIdentityConsistencyHistory,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+
+  const handleRefreshConsistency = async () => {
+    await refetchConsistencyReport()
+    await refetchConsistencyHistory()
+  }
 
   const handleCheck = async () => {
     if (!checkIp.trim()) return
@@ -96,6 +171,129 @@ export function IpReputationPanel({ config, onChange }: Props) {
 
   return (
     <div className="space-y-4">
+      <Card>
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold">当前出口一致性</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                汇总出口 IP、节点链路、DNS、TLS 指纹和 IP 风险，用于判断当前节点身份是否一致。
+              </p>
+            </div>
+            <Button
+              onClick={() => void handleRefreshConsistency()}
+              variant="outlined"
+              size="sm"
+              disabled={consistencyFetching}
+            >
+              {consistencyFetching ? '刷新中...' : '刷新'}
+            </Button>
+          </div>
+
+          {consistencyError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600 dark:border-red-900/40 dark:bg-red-950/20">
+              一致性报告获取失败
+            </div>
+          ) : consistencyReport ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">一致性评分</p>
+                  <p className={`text-2xl font-bold ${consistencyScoreColor[consistencyReport.level]}`}>
+                    {consistencyReport.score}
+                  </p>
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${consistencyBadgeColor[consistencyReport.level]}`}>
+                    {consistencyLevelText[consistencyReport.level]}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">公网出口</p>
+                  <p className="text-sm font-mono font-medium">
+                    {formatConsistencyValue(consistencyReport.public_egress_ip)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {formatConsistencyValue(consistencyReport.egress_source)}
+                    {consistencyReport.egress_confidence !== null
+                      ? ` / ${consistencyReport.egress_confidence}`
+                      : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">IP 类型</p>
+                  <p className="text-sm font-medium">
+                    {formatConsistencyValue(consistencyReport.ip_type)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {formatConsistencyValue(consistencyReport.residential_state)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">DNS / TLS</p>
+                  <p className="text-sm">
+                    {formatConsistencyValue(consistencyReport.dns_assessment)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {formatConsistencyValue(consistencyReport.tls_fingerprint)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div>
+                  <p className="text-xs text-gray-500">节点链路</p>
+                  <p className="text-sm font-medium break-all">
+                    {formatProxyChain(consistencyReport)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">主要问题</p>
+                  {consistencyReport.issues.length > 0 ? (
+                    <div className="mt-1 space-y-1">
+                      {consistencyReport.issues.slice(0, 4).map((issue) => (
+                        <div key={`${issue.kind}-${issue.message}`} className="flex items-start gap-2 text-xs">
+                          <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${issue.severity === 'danger' ? 'bg-red-500' : issue.severity === 'warning' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                          <span className="text-gray-600 dark:text-gray-300">{issue.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-green-600">暂无一致性问题</p>
+                  )}
+                </div>
+              </div>
+
+              {consistencyHistory.length > 0 && (
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-500">最近快照</p>
+                  <div className="mt-2 space-y-1">
+                    {consistencyHistory.slice(0, 3).map((snapshot) => (
+                      <div
+                        key={`${snapshot.observed_at}-${snapshot.report.public_egress_ip || 'unknown'}`}
+                        className="flex items-center justify-between gap-3 rounded bg-gray-50 px-2 py-1.5 text-xs dark:bg-gray-900/30"
+                      >
+                        <span className="font-mono text-gray-500">
+                          {formatSnapshotTime(snapshot)}
+                        </span>
+                        <span className="truncate text-gray-600 dark:text-gray-300">
+                          {snapshotSummary(snapshot)}
+                        </span>
+                        <span className={consistencyScoreColor[snapshot.report.level]}>
+                          {snapshot.report.score}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/30">
+              一致性报告加载中...
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* 全局开关 + 配置 */}
       <Card>
         <div className="space-y-4">

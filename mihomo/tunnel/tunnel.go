@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"path/filepath"
 	"runtime"
@@ -34,6 +36,12 @@ import (
 const (
 	queueCapacity  = 64  // chan capacity tcpQueue and udpQueue
 	senderCapacity = 128 // chan capacity of PacketSender
+)
+
+const (
+	publicEgressProbeURL      = "https://api.ipify.org"
+	publicEgressProbeInterval = time.Minute
+	publicEgressProbeTimeout  = 8 * time.Second
 )
 
 var (
@@ -706,12 +714,13 @@ func handleTCPConn(connCtx C.ConnContext) {
 		rulePayload = rule.Payload()
 	}
 	DefaultEgressMonitor.RecordIdentity(EgressIdentityObservation{
-		ProxyName:         proxy.Name(),
-		ProxyChain:        remoteConn.Chains().String(),
-		RemoteDestination: remoteConn.RemoteDestination(),
-		Rule:              ruleType,
-		RulePayload:       rulePayload,
+		ProxyName:     proxy.Name(),
+		ProxyChain:    remoteConn.Chains().String(),
+		ProxyEndpoint: remoteConn.RemoteDestination(),
+		Rule:          ruleType,
+		RulePayload:   rulePayload,
 	})
+	schedulePublicEgressProbe(proxy, remoteConn.Chains().String(), remoteConn.RemoteDestination(), ruleType, rulePayload)
 
 	// Track connection in the engine
 	connTrackID := metadata.SourceDetail() + "->" + metadata.RemoteAddress()
@@ -770,6 +779,66 @@ func logMetadata(metadata *C.Metadata, rule C.Rule, remoteConn C.Connection) {
 	default:
 		log.Infoln("[%s] %s --> %s doesn't match any rule using %s", strings.ToUpper(metadata.NetWork.String()), metadata.SourceDetail(), metadata.RemoteAddress(), remoteConn.Chains().String())
 	}
+}
+
+func schedulePublicEgressProbe(proxy C.ProxyAdapter, proxyChain, proxyEndpoint, ruleType, rulePayload string) {
+	if proxy == nil || proxyChain == "" {
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), publicEgressProbeTimeout)
+		defer cancel()
+
+		err := DefaultEgressMonitor.MaybeProbePublicEgress(ctx, EgressProbeRequest{
+			ProxyName:     proxy.Name(),
+			ProxyChain:    proxyChain,
+			ProxyEndpoint: proxyEndpoint,
+			Rule:          ruleType,
+			RulePayload:   rulePayload,
+			Interval:      publicEgressProbeInterval,
+			Probe: func(ctx context.Context, _ EgressProbeRequest) (string, error) {
+				return probePublicEgressIP(ctx, proxy)
+			},
+		})
+		if err != nil {
+			log.Debugln("[EgressMonitor] public egress probe failed for %s: %v", proxyChain, err)
+		}
+	}()
+}
+
+func probePublicEgressIP(ctx context.Context, proxy C.ProxyAdapter) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, publicEgressProbeURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	transport := &http.Transport{
+		DialContext: proxydialer.New(proxy, false).DialContext,
+	}
+	client := http.Client{
+		Timeout:   publicEgressProbeTimeout,
+		Transport: transport,
+	}
+	defer client.CloseIdleConnections()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 128))
+	if err != nil {
+		return "", err
+	}
+
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip) == nil {
+		return "", fmt.Errorf("invalid public egress probe response: %q", ip)
+	}
+
+	return ip, nil
 }
 
 func match(metadata *C.Metadata, helper C.RuleMatchHelper) (C.Proxy, C.Rule, error) {
