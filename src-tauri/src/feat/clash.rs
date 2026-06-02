@@ -1,6 +1,9 @@
 use crate::{
     config::Config,
-    core::{CoreManager, handle, manager::CLASH_LOGGER, runtime_snapshot::RuntimeSnapshotService, tray},
+    core::{
+        CoreManager, clash_mode::ClashMode, handle, manager::CLASH_LOGGER, runtime_snapshot::RuntimeSnapshotService,
+        tray,
+    },
     feat::clean_async,
     process::AsyncHandler,
     utils::{self, dirs},
@@ -82,10 +85,11 @@ fn after_change_clash_mode() {
     });
 }
 
-/// Change Clash mode (rule/global/direct/script)
-pub async fn change_clash_mode(mode: String) {
+/// Change Clash mode (rule/global/direct)
+pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
+    let mode = mode.as_str();
     let mut mapping = Mapping::new();
-    mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
+    mapping.insert(Value::from("mode"), Value::from(mode));
     // Convert YAML mapping to JSON Value
     let json_value = serde_json::json!({
         "mode": mode
@@ -100,17 +104,20 @@ pub async fn change_clash_mode(mode: String) {
 
             // 分离数据获取和异步调用
             let clash_data = clash.data_arc();
-            if clash_data.save_config().await.is_ok() {
-                handle::Handle::refresh_clash();
-                tray::Tray::global().update_menu_and_icon().await;
-            }
+            clash_data.save_config().await?;
+            handle::Handle::refresh_clash();
+            tray::Tray::global().update_menu_and_icon().await;
 
             let is_auto_close_connection = Config::verge().await.data_arc().auto_close_connection.unwrap_or(false);
             if is_auto_close_connection {
                 after_change_clash_mode();
             }
+            Ok(())
         }
-        Err(err) => logging!(error, Type::Core, "{err}"),
+        Err(err) => {
+            logging!(error, Type::Core, "{err}");
+            Err(anyhow::anyhow!("{err}"))
+        }
     }
 }
 
@@ -314,27 +321,21 @@ pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
             d.patch_config(&patch);
         });
 
-        CoreManager::global()
-            .update_config_checked()
-            .await
-            .map_err(|err| {
-                let err = format!("Failed to apply config with DNS: {err}");
-                logging!(error, Type::Config, "{err}");
-                anyhow::anyhow!("{err}")
-            })?;
+        CoreManager::global().update_config_checked().await.map_err(|err| {
+            let err = format!("Failed to apply config with DNS: {err}");
+            logging!(error, Type::Config, "{err}");
+            anyhow::anyhow!("{err}")
+        })?;
 
         logging!(info, Type::Config, "DNS config successfully applied");
     } else {
         logging!(info, Type::Config, "DNS settings disabled, regenerating config");
 
-        CoreManager::global()
-            .update_config_checked()
-            .await
-            .map_err(|err| {
-                let err = format!("Failed to apply regenerated config: {err}");
-                logging!(error, Type::Config, "{err}");
-                anyhow::anyhow!("{err}")
-            })?;
+        CoreManager::global().update_config_checked().await.map_err(|err| {
+            let err = format!("Failed to apply regenerated config: {err}");
+            logging!(error, Type::Config, "{err}");
+            anyhow::anyhow!("{err}")
+        })?;
 
         logging!(info, Type::Config, "Config regenerated successfully");
     }

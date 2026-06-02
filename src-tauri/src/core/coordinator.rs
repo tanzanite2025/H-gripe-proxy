@@ -1,28 +1,25 @@
+use anyhow::Result;
+use parking_lot::RwLock;
 /**
  * 核心协调器
- * 
+ *
  * 统一管理所有高级功能模块：
  * - 安全防御层（反探测、TLS 指纹、内生欺骗）
  * - 路由决策层（多路径路由）
  * - 数据平面层（XDP 代理）
  */
-
 use std::sync::Arc;
-use parking_lot::RwLock;
-use anyhow::Result;
 
-use crate::anti_probe::{AntiProbeService, AntiProbeConfig};
+use crate::anti_probe::{AntiProbeConfig, AntiProbeService};
 use crate::config::AdvancedConfig;
 use crate::core::egress_identity::EgressIdentityManager;
 use crate::core::egress_monitor::EgressMonitor;
-use crate::tls_fingerprint::TlsFingerprintService;
-use crate::security::SecurityMonitor;
 use crate::multipath::MultipathManager;
+use crate::security::SecurityMonitor;
+use crate::tls_fingerprint::TlsFingerprintService;
 
 #[cfg(target_os = "linux")]
 use crate::xdp::XdpManager;
-
-
 
 /// 核心协调器
 pub struct CoreCoordinator {
@@ -87,7 +84,10 @@ impl CoreCoordinator {
     fn apply_sub_configs(&self, config: &AdvancedConfig) {
         self.anti_probe.update_config(config.security.anti_probe.clone());
         self.multipath_manager.update_config(config.multipath.clone());
-        if let Err(e) = self.egress_identity_manager.update_config(config.egress_identity.clone()) {
+        if let Err(e) = self
+            .egress_identity_manager
+            .update_config(config.egress_identity.clone())
+        {
             log::warn!("[Coordinator] 更新 egress_identity 配置失败: {}", e);
         }
         if let Err(e) = self.egress_monitor.update_config(config.egress_monitor.clone()) {
@@ -257,4 +257,3 @@ impl Default for CoreCoordinator {
         Self::new()
     }
 }
-

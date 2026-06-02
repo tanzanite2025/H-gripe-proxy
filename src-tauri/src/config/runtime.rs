@@ -2,9 +2,13 @@ use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 
-use crate::enhance::{apply_stable_egress_policy, field::use_keys};
+use crate::{
+    core::clash_mode::ClashMode,
+    enhance::{apply_stable_egress_policy, field::use_keys},
+};
 
 const PATCH_CONFIG_INNER: [&str; 5] = ["allow-lan", "ipv6", "log-level", "unified-delay", "tunnels"];
+const PATCH_CONFIG_MODE: &str = "mode";
 
 #[derive(Default, Clone)]
 pub struct IRuntime {
@@ -35,6 +39,14 @@ impl IRuntime {
             if let Some(value) = patch.get(key) {
                 config.insert((*key).into(), value.clone());
             }
+        }
+
+        if let Some(mode) = patch
+            .get(PATCH_CONFIG_MODE)
+            .and_then(Value::as_str)
+            .and_then(|mode| mode.parse::<ClashMode>().ok())
+        {
+            config.insert(PATCH_CONFIG_MODE.into(), mode.as_str().into());
         }
 
         let patch_tun = patch.get("tun");
@@ -139,5 +151,42 @@ impl IRuntime {
 
         let stabilized = apply_stable_egress_policy(config.clone());
         *config = stabilized;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn patch_config_applies_supported_clash_mode_to_runtime_config() {
+        let mut runtime = IRuntime {
+            config: Some(Mapping::new()),
+            ..IRuntime::default()
+        };
+        let mut patch = Mapping::new();
+        patch.insert("mode".into(), " GLOBAL ".into());
+
+        runtime.patch_config(&patch);
+
+        let config = runtime.config.as_ref().unwrap();
+        assert_eq!(config.get("mode").and_then(Value::as_str), Some("global"));
+    }
+
+    #[test]
+    fn patch_config_ignores_unsupported_clash_mode_in_runtime_config() {
+        let mut config = Mapping::new();
+        config.insert("mode".into(), "rule".into());
+        let mut runtime = IRuntime {
+            config: Some(config),
+            ..IRuntime::default()
+        };
+        let mut patch = Mapping::new();
+        patch.insert("mode".into(), "script".into());
+
+        runtime.patch_config(&patch);
+
+        let config = runtime.config.as_ref().unwrap();
+        assert_eq!(config.get("mode").and_then(Value::as_str), Some("rule"));
     }
 }

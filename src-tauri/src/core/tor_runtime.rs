@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::core::runtime_diagnostics::geoip::fetch_public_ip_location;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::{Client, Proxy};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -81,15 +81,11 @@ fn collect_warnings(runtime_risk_type: &[String]) -> Vec<String> {
 
     for risk in runtime_risk_type {
         match risk.as_str() {
-            "non-local-socks-endpoint" => warnings.push(
-                "Tor SOCKS5 端点不是本机地址，当前将信任外部 SOCKS 代理。".to_string(),
-            ),
-            "invalid-socks-port" => {
-                warnings.push("Tor SOCKS5 端口为 0，属于无效配置。".to_string())
+            "non-local-socks-endpoint" => {
+                warnings.push("Tor SOCKS5 端点不是本机地址，当前将信任外部 SOCKS 代理。".to_string())
             }
-            "bridges-enabled-without-bridges" => {
-                warnings.push("已启用网桥模式，但当前未配置任何网桥".to_string())
-            }
+            "invalid-socks-port" => warnings.push("Tor SOCKS5 端口为 0，属于无效配置。".to_string()),
+            "bridges-enabled-without-bridges" => warnings.push("已启用网桥模式，但当前未配置任何网桥".to_string()),
             _ => {}
         }
     }
@@ -236,18 +232,8 @@ fn compose_tor_runtime_status(
     error: Option<String>,
 ) -> TorRuntimeStatus {
     let runtime_risk_detected = !runtime_risk_type.is_empty();
-    let assessment = derive_assessment(
-        config.enabled,
-        connected,
-        runtime_risk_detected,
-        observation_incomplete,
-    );
-    let confidence = derive_confidence(
-        config.enabled,
-        connected,
-        runtime_risk_detected,
-        observation_incomplete,
-    );
+    let assessment = derive_assessment(config.enabled, connected, runtime_risk_detected, observation_incomplete);
+    let confidence = derive_confidence(config.enabled, connected, runtime_risk_detected, observation_incomplete);
     let status = if !config.enabled {
         "disabled"
     } else if connected {

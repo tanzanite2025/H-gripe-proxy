@@ -4,7 +4,6 @@
  * 移除 proxy-groups 中引用了不存在的代理/组/provider 的条目，
  * 避免运行时因找不到节点而报错。
  */
-
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::HashSet;
@@ -91,8 +90,8 @@ pub fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::parse_yaml;
+    use super::*;
 
     #[test]
     fn remove_missing_proxies_from_groups() {

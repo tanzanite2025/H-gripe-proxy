@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -146,10 +146,6 @@ impl IpReputationManager {
         }
     }
 
-    pub async fn get_config(&self) -> Result<IpReputationConfig> {
-        Ok(self.config.read().await.clone())
-    }
-
     pub async fn update_config(&self, config: IpReputationConfig) -> Result<()> {
         *self.config.write().await = config;
         log::info!("[IpReputation] config updated");
@@ -164,9 +160,7 @@ impl IpReputationManager {
 
         let cache = self.cache.read().await;
         if let Some(cached) = cache.get(ip) {
-            let age = SystemTime::now()
-                .duration_since(cached.checked_at)
-                .unwrap_or_default();
+            let age = SystemTime::now().duration_since(cached.checked_at).unwrap_or_default();
 
             if age < Duration::from_secs(cache_ttl) {
                 log::debug!("[IpReputation] using cached metadata for {ip}");
@@ -295,10 +289,7 @@ impl IpReputationManager {
         match ip_type {
             IpType::Datacenter => {
                 let name_lower = asn_info.name.to_lowercase();
-                if name_lower.contains("m247")
-                    || name_lower.contains("stark")
-                    || name_lower.contains("floki")
-                {
+                if name_lower.contains("m247") || name_lower.contains("stark") || name_lower.contains("floki") {
                     95
                 } else if name_lower.contains("cloudflare")
                     || name_lower.contains("akamai")
@@ -337,8 +328,7 @@ impl IpReputationManager {
         }
 
         if let Some(org) = org_name {
-            if asn_classifier::classify_by_org_name(org) != asn_classifier::AsnCategory::Unknown
-                && asn_info.name == org
+            if asn_classifier::classify_by_org_name(org) != asn_classifier::AsnCategory::Unknown && asn_info.name == org
             {
                 evidence.push(IpReputationEvidence {
                     kind: IpReputationEvidenceKind::OrgKeyword,
@@ -389,14 +379,13 @@ impl IpReputationManager {
         let support_bonus = support_count.saturating_sub(1).min(2) as u8 * 10;
         let type_penalty = if matches!(ip_type, IpType::Unknown) { 20 } else { 0 };
 
-        strongest.saturating_add(support_bonus).saturating_sub(type_penalty).min(95)
+        strongest
+            .saturating_add(support_bonus)
+            .saturating_sub(type_penalty)
+            .min(95)
     }
 
-    fn resolve_residential_state(
-        &self,
-        ip_type: &IpType,
-        confidence: u8,
-    ) -> ResidentialVerificationState {
+    fn resolve_residential_state(&self, ip_type: &IpType, confidence: u8) -> ResidentialVerificationState {
         match ip_type {
             IpType::Residential | IpType::Mobile | IpType::Education if confidence >= 90 => {
                 ResidentialVerificationState::VerifiedResidential
@@ -433,23 +422,17 @@ impl IpReputationManager {
         }
     }
 
-    pub async fn select_node_for_domain(
-        &self,
-        domain: &str,
-        available_nodes: &[(String, String)],
-    ) -> Result<String> {
+    pub async fn select_node_for_domain(&self, domain: &str, available_nodes: &[(String, String)]) -> Result<String> {
         let config = self.config.read().await;
 
         if !config.enabled {
             return Ok(first_node_name(available_nodes)?.to_string());
         }
 
-        let rule = config.routing_rules.iter().find(|r| {
-            r.enabled
-                && r.domain_patterns
-                    .iter()
-                    .any(|p| domain_matches(domain, p))
-        });
+        let rule = config
+            .routing_rules
+            .iter()
+            .find(|r| r.enabled && r.domain_patterns.iter().any(|p| domain_matches(domain, p)));
 
         if let Some(rule) = rule {
             let mut suitable_nodes = Vec::new();
@@ -489,18 +472,14 @@ impl IpReputationManager {
             if suitable_nodes.is_empty() {
                 match rule.fallback_policy {
                     RiskFallbackPolicy::Block => {
-                        log::error!(
-                            "[IpReputation] domain {domain} has no node satisfying reputation requirements"
-                        );
+                        log::error!("[IpReputation] domain {domain} has no node satisfying reputation requirements");
                         let max_score = all_fraud_scores.iter().max().copied().unwrap_or(100);
                         crate::feat::blackhole_breaker_record_fraud_score(domain, max_score).await;
                         return Err(anyhow!("no node satisfies reputation requirements"));
                     }
                     RiskFallbackPolicy::Warn | RiskFallbackPolicy::Allow => {
                         if matches!(rule.fallback_policy, RiskFallbackPolicy::Warn) {
-                            log::warn!(
-                                "[IpReputation] domain {domain} has no suitable node; using default node"
-                            );
+                            log::warn!("[IpReputation] domain {domain} has no suitable node; using default node");
                         }
                         return Ok(first_node_name(available_nodes)?.to_string());
                     }
@@ -537,9 +516,7 @@ impl IpReputationManager {
         let expired = cache
             .values()
             .filter(|rep| {
-                let age = SystemTime::now()
-                    .duration_since(rep.checked_at)
-                    .unwrap_or_default();
+                let age = SystemTime::now().duration_since(rep.checked_at).unwrap_or_default();
                 age > Duration::from_secs(cache_ttl)
             })
             .count();
@@ -575,10 +552,7 @@ fn is_private_or_reserved_ip(ip: &str) -> bool {
                 || is_carrier_grade_nat_ip(addr.octets())
         }
         Ok(IpAddr::V6(addr)) => {
-            addr.is_loopback()
-                || addr.is_unspecified()
-                || addr.is_unique_local()
-                || addr.is_unicast_link_local()
+            addr.is_loopback() || addr.is_unspecified() || addr.is_unique_local() || addr.is_unicast_link_local()
         }
         Err(_) => true,
     }
@@ -620,8 +594,7 @@ pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
             required_ip_type: Some(IpType::Residential),
             max_fraud_score: 20,
             fallback_policy: RiskFallbackPolicy::Block,
-            description: "Financial services require residential IP and fraud score below 20"
-                .to_string(),
+            description: "Financial services require residential IP and fraud score below 20".to_string(),
         },
         RiskRoutingRule {
             domain_patterns: vec![
@@ -633,8 +606,7 @@ pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
             required_ip_type: Some(IpType::Residential),
             max_fraud_score: 50,
             fallback_policy: RiskFallbackPolicy::Warn,
-            description: "Game platforms prefer residential IP and fraud score below 50"
-                .to_string(),
+            description: "Game platforms prefer residential IP and fraud score below 50".to_string(),
         },
         RiskRoutingRule {
             domain_patterns: vec![
@@ -690,10 +662,7 @@ mod tests {
             category: asn_classifier::AsnCategory::Mobile,
         };
 
-        assert_eq!(
-            manager.resolve_ip_type("45.76.123.45", &mobile_asn),
-            IpType::Mobile
-        );
+        assert_eq!(manager.resolve_ip_type("45.76.123.45", &mobile_asn), IpType::Mobile);
     }
 
     #[test]
@@ -718,7 +687,11 @@ mod tests {
             ResidentialVerificationState::ObservedResidential
         );
         assert!(confidence < 90);
-        assert!(evidence.iter().any(|item| item.kind == IpReputationEvidenceKind::AsnTable));
+        assert!(
+            evidence
+                .iter()
+                .any(|item| item.kind == IpReputationEvidenceKind::AsnTable)
+        );
     }
 
     #[test]
@@ -733,13 +706,8 @@ mod tests {
             category: asn_classifier::AsnCategory::Datacenter,
         };
 
-        let prefix_evidence = manager.build_reputation_evidence(
-            "45.76.123.45",
-            None,
-            None,
-            &unknown_asn,
-            &IpType::Datacenter,
-        );
+        let prefix_evidence =
+            manager.build_reputation_evidence("45.76.123.45", None, None, &unknown_asn, &IpType::Datacenter);
         let asn_evidence = manager.build_reputation_evidence(
             "52.1.1.1",
             Some(16509),
@@ -752,7 +720,11 @@ mod tests {
             manager.calculate_confidence(&IpType::Datacenter, &asn_evidence)
                 > manager.calculate_confidence(&IpType::Datacenter, &prefix_evidence)
         );
-        assert!(prefix_evidence.iter().any(|item| item.kind == IpReputationEvidenceKind::IpPrefix));
+        assert!(
+            prefix_evidence
+                .iter()
+                .any(|item| item.kind == IpReputationEvidenceKind::IpPrefix)
+        );
     }
 
     #[tokio::test]
@@ -778,14 +750,8 @@ mod tests {
             category: asn_classifier::AsnCategory::Residential,
         };
 
-        assert_eq!(
-            manager.calculate_fraud_score(&IpType::Datacenter, &dc_info),
-            85
-        );
-        assert_eq!(
-            manager.calculate_fraud_score(&IpType::Residential, &res_info),
-            15
-        );
+        assert_eq!(manager.calculate_fraud_score(&IpType::Datacenter, &dc_info), 85);
+        assert_eq!(manager.calculate_fraud_score(&IpType::Residential, &res_info), 15);
     }
 
     #[tokio::test]
@@ -802,8 +768,10 @@ mod tests {
         let rules = get_predefined_routing_rules();
 
         assert!(!rules.is_empty());
-        assert!(rules.iter().any(|r| r
-            .domain_patterns
-            .contains(&"*.openai.com".to_string())));
+        assert!(
+            rules
+                .iter()
+                .any(|r| r.domain_patterns.contains(&"*.openai.com".to_string()))
+        );
     }
 }

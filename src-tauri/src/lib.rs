@@ -1,23 +1,23 @@
 #![allow(non_snake_case)]
 #![recursion_limit = "512"]
 
+mod anti_probe;
 mod cmd;
 pub mod config;
 mod constants;
 mod core;
 mod enhance;
 mod feat;
-mod module;
-mod process;
-pub mod utils;
-mod anti_probe;
-mod tls_fingerprint;
-mod security;
 mod http;
+mod module;
+mod multipath;
+mod process;
+mod security;
+mod tls_fingerprint;
 mod traffic;
+pub mod utils;
 #[cfg(target_os = "linux")]
 mod xdp;
-mod multipath;
 
 use crate::constants::files;
 use crate::{
@@ -180,6 +180,7 @@ mod app_init {
             cmd::get_current_egress_identity,
             cmd::get_identity_consistency_report,
             cmd::get_identity_consistency_history,
+            cmd::get_identity_consistency_drift_report,
             cmd::get_tor_status,
             cmd::test_tor_connection,
             cmd::get_runtime_exists,
@@ -446,7 +447,9 @@ pub fn run() {
             let obf_cfg = if cfg.traffic_obfuscation.enabled {
                 Some(cfg.traffic_obfuscation)
             } else if cfg.traffic_padding.enabled {
-                Some(crate::traffic::TrafficObfuscationConfig::from_legacy_padding(&cfg.traffic_padding))
+                Some(crate::traffic::TrafficObfuscationConfig::from_legacy_padding(
+                    &cfg.traffic_padding,
+                ))
             } else {
                 None
             };
@@ -454,7 +457,12 @@ pub fn run() {
             if let Some(obf_cfg) = obf_cfg {
                 AsyncHandler::spawn(move || async move {
                     if let Err(e) = crate::cmd::traffic::apply_traffic_obfuscation_config(obf_cfg).await {
-                        logging!(warn, Type::Setup, "Failed to apply traffic obfuscation config at startup: {}", e);
+                        logging!(
+                            warn,
+                            Type::Setup,
+                            "Failed to apply traffic obfuscation config at startup: {}",
+                            e
+                        );
                     }
                 });
             }
@@ -489,7 +497,6 @@ pub fn run() {
             }
 
             logging!(info, Type::System, "应用就绪");
-
         }
 
         #[cfg(target_os = "macos")]

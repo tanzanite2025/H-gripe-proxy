@@ -1,7 +1,7 @@
-use crate::core::session_affinity::*;
 use crate::core::egress_identity::EgressSelectionContext;
-use crate::core::session_affinity::SessionAffinityManager;
 use crate::core::session_affinity::SessionAffinityConfig;
+use crate::core::session_affinity::SessionAffinityManager;
+use crate::core::session_affinity::*;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
@@ -30,24 +30,16 @@ pub fn get_session_affinity_manager() -> Arc<SessionAffinityManager> {
     SESSION_AFFINITY_MANAGER.clone()
 }
 
-fn prioritize_available_nodes(
-    available_nodes: Vec<String>,
-    preferred_node: &str,
-) -> Vec<String> {
+fn prioritize_available_nodes(available_nodes: Vec<String>, preferred_node: &str) -> Vec<String> {
     if let Some(index) = available_nodes.iter().position(|node| node == preferred_node) {
         let mut reordered = Vec::with_capacity(available_nodes.len());
         reordered.push(available_nodes[index].clone());
         reordered.extend(
-            available_nodes
-                .into_iter()
-                .enumerate()
-                .filter_map(|(current_index, node)| {
-                    if current_index == index {
-                        None
-                    } else {
-                        Some(node)
-                    }
-                }),
+            available_nodes.into_iter().enumerate().filter_map(
+                |(current_index, node)| {
+                    if current_index == index { None } else { Some(node) }
+                },
+            ),
         );
         reordered
     } else {
@@ -62,9 +54,7 @@ pub async fn session_affinity_get_bindings() -> Result<Vec<BindingInfo>> {
 
 /// 清除域名绑定
 pub async fn session_affinity_clear_binding(domain: &str) -> Result<()> {
-    get_session_affinity_manager()
-        .clear_domain_binding(domain)
-        .await
+    get_session_affinity_manager().clear_domain_binding(domain).await
 }
 
 /// 获取预定义规则
@@ -74,16 +64,11 @@ pub fn session_affinity_get_predefined_rules() -> Vec<DomainBindingRule> {
 
 /// 清理过期绑定
 pub async fn session_affinity_cleanup_expired() -> Result<()> {
-    get_session_affinity_manager()
-        .cleanup_expired_bindings()
-        .await
+    get_session_affinity_manager().cleanup_expired_bindings().await
 }
 
 /// 为域名选择节点
-pub async fn session_affinity_select_node_for_domain(
-    domain: &str,
-    available_nodes: Vec<String>,
-) -> Result<String> {
+pub async fn session_affinity_select_node_for_domain(domain: &str, available_nodes: Vec<String>) -> Result<String> {
     let _ = crate::feat::sync_coordinator_from_advanced_config();
     let coordinator = crate::feat::get_coordinator();
     let egress_context = crate::feat::enrich_egress_selection_context(EgressSelectionContext {
@@ -96,9 +81,7 @@ pub async fn session_affinity_select_node_for_domain(
     let ordered_nodes = coordinator
         .egress_identity_manager()
         .assign(egress_context.clone())
-        .map(|resolved| {
-            prioritize_available_nodes(effective_available_nodes.clone(), &resolved.selected_node)
-        })
+        .map(|resolved| prioritize_available_nodes(effective_available_nodes.clone(), &resolved.selected_node))
         .unwrap_or_else(|_| effective_available_nodes.clone());
     let selected_node = get_session_affinity_manager()
         .select_node_for_domain(domain, &ordered_nodes)
@@ -133,9 +116,7 @@ pub async fn session_affinity_select_node_for_process(
             .egress_identity_manager()
             .assign(ctx)
             .ok()
-            .map(|resolved| {
-                prioritize_available_nodes(effective_available_nodes.clone(), &resolved.selected_node)
-            })
+            .map(|resolved| prioritize_available_nodes(effective_available_nodes.clone(), &resolved.selected_node))
             .unwrap_or_else(|| effective_available_nodes.clone())
     } else {
         effective_available_nodes.clone()
@@ -172,9 +153,7 @@ pub async fn session_affinity_select_node_for_connection(
     let ordered_nodes = coordinator
         .egress_identity_manager()
         .assign(egress_context.clone())
-        .map(|resolved| {
-            prioritize_available_nodes(effective_available_nodes.clone(), &resolved.selected_node)
-        })
+        .map(|resolved| prioritize_available_nodes(effective_available_nodes.clone(), &resolved.selected_node))
         .unwrap_or_else(|_| effective_available_nodes.clone());
     let selected_node = get_session_affinity_manager()
         .select_node_for_connection(source_ip, source_port, &ordered_nodes)

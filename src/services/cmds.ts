@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { ClashMode } from './clash-mode'
 import dayjs from 'dayjs'
 
 import { showNotice } from '@/services/notice-service'
@@ -379,6 +380,26 @@ export interface IdentityConsistencySnapshot {
   report: IdentityConsistencyReport
 }
 
+export type IdentityConsistencyDriftKind =
+  | 'publicEgressIp'
+  | 'ipType'
+  | 'dnsAssessment'
+  | 'tlsFingerprint'
+
+export interface IdentityConsistencyDrift {
+  kind: IdentityConsistencyDriftKind
+  from: string | null
+  to: string | null
+  first_observed_at: string
+  last_observed_at: string
+}
+
+export interface IdentityConsistencyDriftReport {
+  stable: boolean
+  drift_count: number
+  drifts: IdentityConsistencyDrift[]
+}
+
 export async function getIdentityConsistencyReport(): Promise<IdentityConsistencyReport> {
   const result = await invoke<IdentityConsistencyReport>(
     'get_identity_consistency_report',
@@ -410,6 +431,18 @@ export async function getIdentityConsistencyHistory(): Promise<IdentityConsisten
         },
       }))
     : []
+}
+
+export async function getIdentityConsistencyDriftReport(): Promise<IdentityConsistencyDriftReport> {
+  const result = await invoke<IdentityConsistencyDriftReport>(
+    'get_identity_consistency_drift_report',
+  )
+
+  return {
+    ...result,
+    drift_count: Number.isFinite(result.drift_count) ? result.drift_count : 0,
+    drifts: Array.isArray(result.drifts) ? result.drifts : [],
+  }
 }
 
 export interface TorRuntimeStatus {
@@ -473,7 +506,7 @@ export async function patchClashConfig(payload: Partial<IConfigData>) {
   return invoke<void>('patch_clash_config', { payload })
 }
 
-export async function patchClashMode(payload: string) {
+export async function patchClashMode(payload: ClashMode) {
   return invoke<void>('patch_clash_mode', { payload })
 }
 

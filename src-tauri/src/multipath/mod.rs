@@ -1,14 +1,13 @@
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 /**
  * 多路径阴影路由模块
- * 
+ *
  * 将流量分片到多个节点，降维打击行为分析
  */
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
-use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
 
 /// 多路径配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,9 +37,9 @@ impl Default for MultipathConfig {
             enabled: false,
             strategy: SlicingStrategy::RoundRobin,
             node_pools: Vec::new(),
-            min_fragment_size: 1024,      // 1KB
-            max_fragment_size: 65536,     // 64KB
-            reassembly_timeout: 5000,     // 5秒
+            min_fragment_size: 1024,  // 1KB
+            max_fragment_size: 65536, // 64KB
+            reassembly_timeout: 5000, // 5秒
             session_persistence: true,
             bindings: SessionBinding::all_predefined(),
         }
@@ -374,7 +373,7 @@ impl MultipathManager {
     /// 选择节点
     pub fn select_node(&self, domain: &str, session_id: u64) -> Option<String> {
         let config = self.config.read();
-        
+
         if !config.enabled {
             return None;
         }
@@ -398,9 +397,16 @@ impl MultipathManager {
         }
 
         // 选择节点池
-        let pool = config.node_pools.iter()
+        let pool = config
+            .node_pools
+            .iter()
             .find(|p| p.enabled && p.pool_type == pool_type)
-            .or_else(|| config.node_pools.iter().find(|p| p.enabled && p.pool_type == PoolType::General))?;
+            .or_else(|| {
+                config
+                    .node_pools
+                    .iter()
+                    .find(|p| p.enabled && p.pool_type == PoolType::General)
+            })?;
 
         // 根据策略选择节点
         let node = match config.strategy {
@@ -417,15 +423,18 @@ impl MultipathManager {
         // 如果需要单节点或会话保持，创建会话绑定
         if force_single || config.session_persistence {
             let mut sessions = self.sessions.write();
-            sessions.insert(session_id, StreamSession {
+            sessions.insert(
                 session_id,
-                domain: domain.to_string(),
-                bound_node: Some(node.name.clone()),
-                pool_type,
-                force_single_node: force_single,
-                created_at: Self::current_timestamp(),
-                last_activity: Self::current_timestamp(),
-            });
+                StreamSession {
+                    session_id,
+                    domain: domain.to_string(),
+                    bound_node: Some(node.name.clone()),
+                    pool_type,
+                    force_single_node: force_single,
+                    created_at: Self::current_timestamp(),
+                    last_activity: Self::current_timestamp(),
+                },
+            );
         }
 
         Some(node.name.clone())
@@ -452,7 +461,7 @@ impl MultipathManager {
         use rand::Rng;
         let enabled: Vec<_> = nodes.iter().filter(|n| n.enabled).cloned().collect();
         let total_weight: u32 = enabled.iter().map(|n| n.weight as u32).sum();
-        
+
         if total_weight == 0 {
             return enabled.first().cloned();
         }
@@ -473,44 +482,33 @@ impl MultipathManager {
     #[allow(dead_code)]
     fn select_least_connections(&self, nodes: &[PathNode]) -> Option<PathNode> {
         let stats = self.node_stats.read();
-        nodes.iter()
+        nodes
+            .iter()
             .filter(|n| n.enabled)
-            .min_by_key(|n| {
-                stats.get(&n.name)
-                    .map(|s| s.active_connections)
-                    .unwrap_or(0)
-            })
+            .min_by_key(|n| stats.get(&n.name).map(|s| s.active_connections).unwrap_or(0))
             .cloned()
     }
 
     #[allow(dead_code)]
     fn select_latency_based(&self, nodes: &[PathNode]) -> Option<PathNode> {
         let stats = self.node_stats.read();
-        nodes.iter()
+        nodes
+            .iter()
             .filter(|n| n.enabled)
-            .min_by_key(|n| {
-                stats.get(&n.name)
-                    .map(|s| s.avg_latency)
-                    .unwrap_or(u64::MAX)
-            })
+            .min_by_key(|n| stats.get(&n.name).map(|s| s.avg_latency).unwrap_or(u64::MAX))
             .cloned()
     }
 
     #[allow(dead_code)]
     fn current_timestamp() -> u64 {
         use std::time::{SystemTime, UNIX_EPOCH};
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
     }
 
     /// 记录连接开始（活跃连接 +1）
     pub fn record_connection_start(&self, node_name: &str) {
         let mut stats = self.node_stats.write();
-        stats.entry(node_name.to_string())
-            .or_default()
-            .active_connections += 1;
+        stats.entry(node_name.to_string()).or_default().active_connections += 1;
     }
 
     /// 记录连接结束（活跃连接 -1，累计字节数）
@@ -537,9 +535,7 @@ impl MultipathManager {
     /// 记录错误
     pub fn record_error(&self, node_name: &str) {
         let mut stats = self.node_stats.write();
-        stats.entry(node_name.to_string())
-            .or_default()
-            .error_count += 1;
+        stats.entry(node_name.to_string()).or_default().error_count += 1;
     }
 
     /// 清理过期会话（超过 reassembly_timeout 未活动）
@@ -549,9 +545,7 @@ impl MultipathManager {
         let now = Self::current_timestamp();
 
         let mut sessions = self.sessions.write();
-        sessions.retain(|_, session| {
-            now.saturating_sub(session.last_activity) < timeout
-        });
+        sessions.retain(|_, session| now.saturating_sub(session.last_activity) < timeout);
     }
 
     /// 获取节点统计

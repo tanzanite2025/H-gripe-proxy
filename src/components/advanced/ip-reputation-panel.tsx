@@ -6,8 +6,10 @@ import { Card } from '@/components/tailwind/Card'
 import { Switch } from '@/components/tailwind/Switch'
 import { TextField } from '@/components/tailwind/TextField'
 import {
+  getIdentityConsistencyDriftReport,
   getIdentityConsistencyHistory,
   getIdentityConsistencyReport,
+  type IdentityConsistencyDrift,
   type IdentityConsistencyLevel,
   type IdentityConsistencyReport,
   type IdentityConsistencySnapshot,
@@ -69,6 +71,15 @@ const snapshotSummary = (snapshot: IdentityConsistencySnapshot) => {
   ].filter(Boolean).join(' / ')
 }
 
+const driftKindText: Record<IdentityConsistencyDrift['kind'], string> = {
+  publicEgressIp: '公网出口',
+  ipType: 'IP 类型',
+  dnsAssessment: 'DNS',
+  tlsFingerprint: 'TLS 指纹',
+}
+
+const driftValue = (value: string | null) => value || '未观测'
+
 export function IpReputationPanel({ config, onChange }: Props) {
   const [checkIp, setCheckIp] = useState('')
   const [checking, setChecking] = useState(false)
@@ -98,10 +109,21 @@ export function IpReputationPanel({ config, onChange }: Props) {
     gcTime: 5 * 60 * 1000,
     retry: 1,
   })
+  const {
+    data: consistencyDriftReport,
+    refetch: refetchConsistencyDriftReport,
+  } = useQuery({
+    queryKey: ['identity-consistency-drift-report'],
+    queryFn: getIdentityConsistencyDriftReport,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: 1,
+  })
 
   const handleRefreshConsistency = async () => {
     await refetchConsistencyReport()
     await refetchConsistencyHistory()
+    await refetchConsistencyDriftReport()
   }
 
   const handleCheck = async () => {
@@ -261,6 +283,34 @@ export function IpReputationPanel({ config, onChange }: Props) {
                   )}
                 </div>
               </div>
+
+              {consistencyDriftReport && (
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500">身份漂移</p>
+                    <span className={consistencyDriftReport.stable ? 'text-xs text-green-600' : 'text-xs text-yellow-600'}>
+                      {consistencyDriftReport.stable
+                        ? '最近快照稳定'
+                        : `检测到 ${consistencyDriftReport.drift_count} 项变化`}
+                    </span>
+                  </div>
+                  {!consistencyDriftReport.stable && (
+                    <div className="mt-2 space-y-1">
+                      {consistencyDriftReport.drifts.slice(0, 4).map((drift) => (
+                        <div
+                          key={`${drift.kind}-${drift.from || 'none'}-${drift.to || 'none'}`}
+                          className="rounded bg-yellow-50 px-2 py-1.5 text-xs text-yellow-800 dark:bg-yellow-950/20 dark:text-yellow-300"
+                        >
+                          <span className="font-medium">{driftKindText[drift.kind]}</span>
+                          <span className="mx-1">{driftValue(drift.from)}</span>
+                          <span>{'->'}</span>
+                          <span className="mx-1">{driftValue(drift.to)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {consistencyHistory.length > 0 && (
                 <div className="pt-3 border-t border-gray-200 dark:border-gray-700">

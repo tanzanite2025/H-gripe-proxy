@@ -21,6 +21,7 @@ import {
 } from '@/components/tailwind/Select'
 import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProfiles } from '@/hooks/data'
+import { useRuntimeConfig } from '@/hooks/data/use-clash'
 import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
@@ -29,6 +30,7 @@ import {
   useProxiesData,
   useRulesData,
 } from '@/providers/app-data-context'
+import { DEFAULT_CLASH_MODE, resolveClashMode } from '@/services/clash-mode'
 import delayManager from '@/services/delay'
 
 import { ProxyInfoDisplay } from './components/proxy-info-display'
@@ -45,6 +47,7 @@ export const CurrentProxyCard = () => {
   const navigate = useNavigate()
   const { proxies } = useProxiesData()
   const { clashConfig } = useClashConfigData()
+  const { data: runtimeConfig } = useRuntimeConfig()
   const { rules } = useRulesData()
   const { refreshProxy } = useAppRefreshers()
   const { isCoreDataPending } = useCoreDataStatus()
@@ -64,7 +67,9 @@ export const CurrentProxyCard = () => {
   const currentProfileId = currentProfile?.uid || null
 
   // 判断模式
-  const mode = clashConfig?.mode?.toLowerCase() || 'rule'
+  const mode =
+    resolveClashMode(clashConfig?.mode, runtimeConfig?.mode) ??
+    DEFAULT_CLASH_MODE
   const isGlobalMode = mode === 'global'
   const isDirectMode = mode === 'direct'
 

@@ -1,12 +1,12 @@
 use crate::cmd::{CmdResult, StringifyErr};
 use crate::core::dns_runtime::{
-    dns_health_check as build_dns_health_check, dns_query as build_dns_query, DnsHealthCheckResult,
-    DnsProtocol, DnsQueryResult,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, dns_health_check as build_dns_health_check,
+    dns_query as build_dns_query,
 };
 use log::error;
 
 /// DNS 查询
-/// 
+///
 /// 支持自定义 DNS 服务器和协议（UDP/TCP/DoH/DoT）
 #[tauri::command]
 pub async fn dns_query(
@@ -18,7 +18,7 @@ pub async fn dns_query(
 }
 
 /// DNS 服务器健康检查
-/// 
+///
 /// 使用指定的测试域名检查 DNS 服务器的健康状态
 #[tauri::command]
 pub async fn dns_health_check(
@@ -73,4 +73,3 @@ pub async fn dns_batch_health_check(
 
     Ok(results)
 }
-

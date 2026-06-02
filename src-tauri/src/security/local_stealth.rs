@@ -6,7 +6,6 @@
  * 2. 端口隐蔽 - 端口随机化，避免使用标准端口
  * 3. 防本地发现 - 禁用 mDNS/UPnP 等服务发现协议
  */
-
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -141,16 +140,11 @@ impl Default for PortStealthConfig {
             port_range: (20000, 60000),
             avoid_ports: vec![
                 // 代理常见端口
-                7890, 7891, 7892, 7893, 1080, 8080, 8118,
-                // SOCKS
-                1080, 1081, 1082,
-                // HTTP 代理
-                3128, 8888, 9090,
-                // Mihomo API
-                9090, 9091,
-                // SS
-                8388, 8389,
-                // 常见服务
+                7890, 7891, 7892, 7893, 1080, 8080, 8118, // SOCKS
+                1080, 1081, 1082, // HTTP 代理
+                3128, 8888, 9090, // Mihomo API
+                9090, 9091, // SS
+                8388, 8389, // 常见服务
                 22, 80, 443, 3306, 5432, 6379, 27017,
             ],
         }
@@ -358,9 +352,17 @@ impl AntiDiscoveryManager {
     async fn disable_mdns_service(&self) -> Result<(), String> {
         // Windows: 停止 DNS-SD 服务（Bonjour mDNS）并禁用防火墙规则
         let output = hidden_command("netsh")
-            .args(&["advfirewall", "firewall", "add", "rule",
-                "name=Block_mDNS_In", "dir=in", "action=block",
-                "protocol=UDP", "localport=5353"])
+            .args(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                "name=Block_mDNS_In",
+                "dir=in",
+                "action=block",
+                "protocol=UDP",
+                "localport=5353",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -369,9 +371,17 @@ impl AntiDiscoveryManager {
         }
 
         let output = hidden_command("netsh")
-            .args(&["advfirewall", "firewall", "add", "rule",
-                "name=Block_mDNS_Out", "dir=out", "action=block",
-                "protocol=UDP", "localport=5353"])
+            .args(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                "name=Block_mDNS_Out",
+                "dir=out",
+                "action=block",
+                "protocol=UDP",
+                "localport=5353",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -385,9 +395,7 @@ impl AntiDiscoveryManager {
     #[cfg(target_os = "windows")]
     async fn disable_upnp_service(&self) -> Result<(), String> {
         // Windows: 停止 UPnP Device Host 服务
-        let output = hidden_command("net")
-            .args(&["stop", "upnphost"])
-            .output();
+        let output = hidden_command("net").args(&["stop", "upnphost"]).output();
 
         // 服务可能未运行，忽略错误
         if let Ok(output) = output {
@@ -396,9 +404,17 @@ impl AntiDiscoveryManager {
 
         // 阻止 SSDP 端口 (1900)
         let output = hidden_command("netsh")
-            .args(&["advfirewall", "firewall", "add", "rule",
-                "name=Block_SSDP_In", "dir=in", "action=block",
-                "protocol=UDP", "localport=1900"])
+            .args(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                "name=Block_SSDP_In",
+                "dir=in",
+                "action=block",
+                "protocol=UDP",
+                "localport=1900",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -415,10 +431,17 @@ impl AntiDiscoveryManager {
         // HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
         // EnableMulticast = 0
         let output = hidden_command("reg")
-            .args(&["add",
+            .args(&[
+                "add",
                 r"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient",
-                "/v", "EnableMulticast", "/t", "REG_DWORD",
-                "/d", "0", "/f"])
+                "/v",
+                "EnableMulticast",
+                "/t",
+                "REG_DWORD",
+                "/d",
+                "0",
+                "/f",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -434,10 +457,17 @@ impl AntiDiscoveryManager {
         // Windows: 通过防火墙阻止 NetBIOS 端口 (137, 138, 139)
         for port in [137, 138, 139] {
             let output = hidden_command("netsh")
-                .args(&["advfirewall", "firewall", "add", "rule",
+                .args(&[
+                    "advfirewall",
+                    "firewall",
+                    "add",
+                    "rule",
                     &format!("name=Block_NetBIOS_{}_In", port).to_string(),
-                    "dir=in", "action=block",
-                    "protocol=UDP", &format!("localport={}", port).to_string()])
+                    "dir=in",
+                    "action=block",
+                    "protocol=UDP",
+                    &format!("localport={}", port).to_string(),
+                ])
                 .output()
                 .map_err(|e| e.to_string())?;
 
@@ -448,9 +478,17 @@ impl AntiDiscoveryManager {
 
         // TCP 139
         let output = hidden_command("netsh")
-            .args(&["advfirewall", "firewall", "add", "rule",
-                "name=Block_NetBIOS_139_TCP_In", "dir=in", "action=block",
-                "protocol=TCP", "localport=139"])
+            .args(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                "name=Block_NetBIOS_139_TCP_In",
+                "dir=in",
+                "action=block",
+                "protocol=TCP",
+                "localport=139",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -465,9 +503,17 @@ impl AntiDiscoveryManager {
     async fn disable_ssdp_service(&self) -> Result<(), String> {
         // 阻止 SSDP 端口 (1900) 出站
         let output = hidden_command("netsh")
-            .args(&["advfirewall", "firewall", "add", "rule",
-                "name=Block_SSDP_Out", "dir=out", "action=block",
-                "protocol=UDP", "localport=1900"])
+            .args(&[
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                "name=Block_SSDP_Out",
+                "dir=out",
+                "action=block",
+                "protocol=UDP",
+                "localport=1900",
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -505,9 +551,13 @@ impl AntiDiscoveryManager {
     #[cfg(target_os = "windows")]
     async fn restore_llmnr_service(&self) -> String {
         let output = hidden_command("reg")
-            .args(&["delete",
+            .args(&[
+                "delete",
                 r"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient",
-                "/v", "EnableMulticast", "/f"])
+                "/v",
+                "EnableMulticast",
+                "/f",
+            ])
             .output();
         match output {
             Ok(o) if o.status.success() => "LLMNR 已恢复".to_string(),
@@ -519,13 +569,23 @@ impl AntiDiscoveryManager {
     async fn restore_netbios_service(&self) -> String {
         for port in [137, 138, 139] {
             let _ = hidden_command("netsh")
-                .args(&["advfirewall", "firewall", "delete", "rule",
-                    &format!("name=Block_NetBIOS_{}_In", port).to_string()])
+                .args(&[
+                    "advfirewall",
+                    "firewall",
+                    "delete",
+                    "rule",
+                    &format!("name=Block_NetBIOS_{}_In", port).to_string(),
+                ])
                 .output();
         }
         let _ = hidden_command("netsh")
-            .args(&["advfirewall", "firewall", "delete", "rule",
-                "name=Block_NetBIOS_139_TCP_In"])
+            .args(&[
+                "advfirewall",
+                "firewall",
+                "delete",
+                "rule",
+                "name=Block_NetBIOS_139_TCP_In",
+            ])
             .output();
         "NetBIOS 已恢复".to_string()
     }
@@ -682,19 +742,29 @@ impl AntiDiscoveryManager {
     }
 
     #[cfg(target_os = "macos")]
-    async fn restore_mdns_service(&self) -> String { "mDNS 已恢复".to_string() }
+    async fn restore_mdns_service(&self) -> String {
+        "mDNS 已恢复".to_string()
+    }
 
     #[cfg(target_os = "macos")]
-    async fn restore_upnp_service(&self) -> String { "UPnP 已恢复".to_string() }
+    async fn restore_upnp_service(&self) -> String {
+        "UPnP 已恢复".to_string()
+    }
 
     #[cfg(target_os = "macos")]
-    async fn restore_llmnr_service(&self) -> String { "LLMNR 已恢复".to_string() }
+    async fn restore_llmnr_service(&self) -> String {
+        "LLMNR 已恢复".to_string()
+    }
 
     #[cfg(target_os = "macos")]
-    async fn restore_netbios_service(&self) -> String { "NetBIOS 已恢复".to_string() }
+    async fn restore_netbios_service(&self) -> String {
+        "NetBIOS 已恢复".to_string()
+    }
 
     #[cfg(target_os = "macos")]
-    async fn restore_ssdp_service(&self) -> String { "SSDP 已恢复".to_string() }
+    async fn restore_ssdp_service(&self) -> String {
+        "SSDP 已恢复".to_string()
+    }
 }
 
 // ── 本地隐蔽总管理器 ──────────────────────────────────────────
@@ -768,14 +838,11 @@ impl LocalStealthManager {
     pub async fn update_config(&mut self, config: LocalStealthConfig) {
         self.process_manager.update_config(config.process_stealth.clone()).await;
         self.port_manager.update_config(config.port_stealth.clone()).await;
-        self.discovery_manager.update_config(config.anti_discovery.clone()).await;
+        self.discovery_manager
+            .update_config(config.anti_discovery.clone())
+            .await;
         let mut cfg = self.config.write().await;
         *cfg = config;
-    }
-
-    /// 获取配置
-    pub async fn get_config(&self) -> LocalStealthConfig {
-        self.config.read().await.clone()
     }
 
     /// 获取端口管理器引用（用于端口分配）

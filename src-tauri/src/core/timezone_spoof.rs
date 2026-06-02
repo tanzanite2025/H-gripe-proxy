@@ -12,7 +12,6 @@
  * - Mihomo 内置 NTP 服务可通过代理同步时间，
  *   选择出口区域附近的 NTP 服务器可减少时钟偏差
  */
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -140,9 +139,10 @@ pub fn select_ntp_server(country_code: &str) -> String {
         "SG" | "MY" | "TH" | "PH" | "VN" | "ID" | "MM" | "KH" | "LA" => "asia.pool.ntp.org",
         "IN" | "PK" | "BD" | "LK" | "NP" => "asia.pool.ntp.org",
         "AE" | "IL" | "SA" | "QA" | "KW" | "BH" | "OM" | "IQ" | "IR" => "asia.pool.ntp.org",
-        "GB" | "DE" | "FR" | "NL" | "RU" | "SE" | "CH" | "UA" | "PL" | "IT" | "ES"
-        | "PT" | "NO" | "FI" | "DK" | "AT" | "BE" | "IE" | "CZ" | "RO" | "HU" | "GR"
-        | "BG" | "HR" | "RS" | "SK" | "SI" | "LT" | "LV" | "EE" => "europe.pool.ntp.org",
+        "GB" | "DE" | "FR" | "NL" | "RU" | "SE" | "CH" | "UA" | "PL" | "IT" | "ES" | "PT" | "NO" | "FI" | "DK"
+        | "AT" | "BE" | "IE" | "CZ" | "RO" | "HU" | "GR" | "BG" | "HR" | "RS" | "SK" | "SI" | "LT" | "LV" | "EE" => {
+            "europe.pool.ntp.org"
+        }
         "US" | "CA" | "MX" | "GT" | "CR" | "PA" | "CU" | "JM" => "north-america.pool.ntp.org",
         "BR" | "AR" | "CL" | "CO" | "PE" | "VE" | "EC" | "UY" | "PY" | "BO" => "south-america.pool.ntp.org",
         "AU" | "NZ" | "PG" | "FJ" => "oceania.pool.ntp.org",

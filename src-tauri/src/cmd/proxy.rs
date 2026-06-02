@@ -1,9 +1,5 @@
 use super::CmdResult;
-use crate::{
-    core::tray::Tray,
-    feat,
-    process::AsyncHandler,
-};
+use crate::{core::tray::Tray, feat, process::AsyncHandler};
 use clash_verge_logging::{Type, logging};
 use std::sync::atomic::{AtomicBool, Ordering};
 

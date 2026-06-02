@@ -21,8 +21,8 @@ impl SecureConfigStorage {
     pub fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, String> {
         if let Some(ref key) = self.encryption_key {
             use aes_gcm::{
-                aead::{Aead, KeyInit},
                 Aes256Gcm, Nonce,
+                aead::{Aead, KeyInit},
             };
 
             let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
@@ -42,8 +42,8 @@ impl SecureConfigStorage {
     pub fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, String> {
         if let Some(ref key) = self.encryption_key {
             use aes_gcm::{
-                aead::{Aead, KeyInit},
                 Aes256Gcm, Nonce,
+                aead::{Aead, KeyInit},
             };
 
             if data.len() < 12 {
@@ -90,7 +90,9 @@ mod tests {
 
     #[test]
     fn test_secure_storage() {
-        unsafe { std::env::set_var("CLASH_VERGE_SECURE_KEY", generate_encryption_key()); }
+        unsafe {
+            std::env::set_var("CLASH_VERGE_SECURE_KEY", generate_encryption_key());
+        }
 
         let storage = SecureConfigStorage::new();
         assert!(storage.is_key_available());

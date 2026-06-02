@@ -1,13 +1,12 @@
 /**
  * 本地安全监控模块
- * 
+ *
  * 功能：
  * 1. 本地绑定监控 - 确保端口只绑定到 127.0.0.1
  * 2. 端口冲突检测 - 检测端口占用并支持自动切换
  * 3. 泄漏监控 - 实时监控本地安全状态
  */
-
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
@@ -94,16 +93,16 @@ impl Default for LeakMonitorStatus {
 pub enum SecurityError {
     #[error("Port {0} is not bound to localhost")]
     NotLocalBinding(u16),
-    
+
     #[error("Port {0} is already in use")]
     PortConflict(u16),
-    
+
     #[error("Failed to get network connections: {0}")]
     NetworkError(String),
-    
+
     #[error("Firewall configuration failed: {0}")]
     FirewallError(String),
-    
+
     #[error("Security leak detected: {0}")]
     LeakDetected(String),
 }
@@ -188,7 +187,7 @@ impl LocalSecurityMonitor {
     }
 
     /// 检查本地绑定是否安全
-    /// 
+    ///
     /// 返回 true 表示端口只绑定到 127.0.0.1，false 表示绑定到其他地址
     pub async fn check_local_binding(&self, port: u16) -> Result<bool> {
         // 检查缓存
@@ -198,10 +197,10 @@ impl LocalSecurityMonitor {
 
         // 执行实际检查
         let result = self.check_local_binding_impl(port).await?;
-        
+
         // 更新缓存
         self.cache.write().await.set(port, result);
-        
+
         Ok(result)
     }
 
@@ -209,7 +208,7 @@ impl LocalSecurityMonitor {
     async fn check_local_binding_impl(&self, port: u16) -> Result<bool> {
         let start = std::time::Instant::now();
         let connections = self.get_network_connections().await?;
-        
+
         // 查找指定端口的监听连接
         let listeners: Vec<_> = connections
             .iter()
@@ -227,18 +226,29 @@ impl LocalSecurityMonitor {
             if listener.local_address != "127.0.0.1" 
                 && listener.local_address != "::1" // IPv6 localhost
                 && listener.local_address != "0.0.0.0" // 这个不安全
-                && listener.local_address != "::" // IPv6 any，不安全
+                && listener.local_address != "::"
+            // IPv6 any，不安全
             {
                 // 如果绑定到其他地址，检查是否是本地地址
                 if !is_localhost(&listener.local_address) {
-                    log::warn!("Port {} bound to non-localhost address: {} (protocol {}), check took {:?}", 
-                              port, listener.local_address, listener.protocol, start.elapsed());
+                    log::warn!(
+                        "Port {} bound to non-localhost address: {} (protocol {}), check took {:?}",
+                        port,
+                        listener.local_address,
+                        listener.protocol,
+                        start.elapsed()
+                    );
                     return Ok(false);
                 }
             } else if listener.local_address == "0.0.0.0" || listener.local_address == "::" {
                 // 绑定到 0.0.0.0 或 :: 是不安全的
-                log::warn!("Port {} bound to wildcard address: {} (protocol {}), check took {:?}", 
-                          port, listener.local_address, listener.protocol, start.elapsed());
+                log::warn!(
+                    "Port {} bound to wildcard address: {} (protocol {}), check took {:?}",
+                    port,
+                    listener.local_address,
+                    listener.protocol,
+                    start.elapsed()
+                );
                 return Ok(false);
             }
         }
@@ -248,12 +258,12 @@ impl LocalSecurityMonitor {
     }
 
     /// 检查端口冲突
-    /// 
+    ///
     /// 返回 true 表示端口被占用，false 表示端口可用
     pub async fn check_port_conflict(&self, port: u16) -> Result<bool> {
         // 尝试绑定端口
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
-        
+
         match TcpListener::bind(addr) {
             Ok(_) => Ok(false), // 端口可用
             Err(_) => Ok(true), // 端口被占用
@@ -261,7 +271,7 @@ impl LocalSecurityMonitor {
     }
 
     /// 查找可用端口
-    /// 
+    ///
     /// 在配置的端口范围内查找第一个可用的端口
     pub async fn find_available_port(&self) -> Result<u16> {
         let config = self.config.read().await;
@@ -279,7 +289,7 @@ impl LocalSecurityMonitor {
     /// 执行完整的安全检查
     pub async fn perform_security_check(&self, port: u16) -> Result<LeakMonitorStatus> {
         let config = self.config.read().await.clone();
-        
+
         // 1. 检查本地绑定
         let binding_check = self.check_local_binding(port).await;
         let (binding_secure, binding_error) = match binding_check {
@@ -289,20 +299,20 @@ impl LocalSecurityMonitor {
 
         // 1.1 检查端口冲突
         let port_conflict = self.check_port_conflict(port).await.unwrap_or(false);
-        
+
         // 2. 检查防火墙规则
         let firewall_active = if config.auto_firewall {
             self.firewall_manager.check_firewall_rules(port).await.unwrap_or(false)
         } else {
             false
         };
-        
+
         // 3. 检查外部访问（TODO: 实现外部访问检查）
         let external_blocked = true; // 暂时返回 true
-        
+
         // 4. 检查进程隐蔽（TODO: 实现进程检查）
         let process_hidden = config.process_stealth;
-        
+
         // 5. 确定是否检测到泄漏
         let leak_error = if port_conflict {
             Some(SecurityError::PortConflict(port))
@@ -320,26 +330,23 @@ impl LocalSecurityMonitor {
 
         let leak_detected = leak_error.is_some();
         let leak_type = leak_error.as_ref().map(|e| e.to_string());
-        
+
         // 6. 生成状态
         let status = LeakMonitorStatus {
             local_binding_secure: binding_secure,
             firewall_rules_active: firewall_active,
             process_hidden,
             external_access_blocked: external_blocked,
-            last_check_time: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
+            last_check_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64,
             leak_detected,
             leak_type,
             auto_fix_applied: false,
         };
-        
+
         // 7. 更新状态
         let mut current_status = self.status.write().await;
         *current_status = status.clone();
-        
+
         Ok(status)
     }
 
@@ -357,15 +364,15 @@ impl LocalSecurityMonitor {
     #[cfg(target_os = "windows")]
     async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
         use crate::utils::command::hidden_command;
-        
+
         let output = hidden_command("netstat")
             .args(&["-ano", "-p", "TCP"])
             .output()
             .map_err(|e| anyhow!("Failed to execute netstat: {}", e))?;
-        
+
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut connections = Vec::new();
-        
+
         for line in stdout.lines().skip(4) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 4 {
@@ -379,7 +386,7 @@ impl LocalSecurityMonitor {
                 }
             }
         }
-        
+
         Ok(connections)
     }
 
@@ -387,12 +394,12 @@ impl LocalSecurityMonitor {
     #[cfg(target_os = "linux")]
     async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
         use std::fs;
-        
-        let content = fs::read_to_string("/proc/net/tcp")
-            .map_err(|e| anyhow!("Failed to read /proc/net/tcp: {}", e))?;
-        
+
+        let content =
+            fs::read_to_string("/proc/net/tcp").map_err(|e| anyhow!("Failed to read /proc/net/tcp: {}", e))?;
+
         let mut connections = Vec::new();
-        
+
         for line in content.lines().skip(1) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 4 {
@@ -407,7 +414,7 @@ impl LocalSecurityMonitor {
                 }
             }
         }
-        
+
         Ok(connections)
     }
 
@@ -415,15 +422,15 @@ impl LocalSecurityMonitor {
     #[cfg(target_os = "macos")]
     async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
         use std::process::Command;
-        
+
         let output = Command::new("lsof")
             .args(&["-iTCP", "-sTCP:LISTEN", "-n", "-P"])
             .output()
             .map_err(|e| anyhow!("Failed to execute lsof: {}", e))?;
-        
+
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut connections = Vec::new();
-        
+
         for line in stdout.lines().skip(1) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 9 {
@@ -437,7 +444,7 @@ impl LocalSecurityMonitor {
                 }
             }
         }
-        
+
         Ok(connections)
     }
 }
@@ -461,10 +468,10 @@ fn parse_hex_socket_addr(hex_str: &str) -> Option<(String, u16)> {
     if parts.len() == 2 {
         let addr_hex = parts[0];
         let port_hex = parts[1];
-        
+
         // 解析端口
         let port = u16::from_str_radix(port_hex, 16).ok()?;
-        
+
         // 解析地址（小端序）
         let addr_num = u32::from_str_radix(addr_hex, 16).ok()?;
         let addr = format!(
@@ -474,7 +481,7 @@ fn parse_hex_socket_addr(hex_str: &str) -> Option<(String, u16)> {
             (addr_num >> 16) & 0xFF,
             (addr_num >> 24) & 0xFF
         );
-        
+
         Some((addr, port))
     } else {
         None
@@ -501,10 +508,7 @@ fn parse_tcp_state(state_hex: &str) -> String {
 
 /// 检查地址是否为本地地址
 fn is_localhost(addr: &str) -> bool {
-    addr == "127.0.0.1" 
-        || addr == "::1" 
-        || addr.starts_with("127.") 
-        || addr == "localhost"
+    addr == "127.0.0.1" || addr == "::1" || addr.starts_with("127.") || addr == "localhost"
 }
 
 #[cfg(test)]
@@ -515,7 +519,7 @@ mod tests {
     async fn test_local_binding_check() {
         let config = LocalSecurityConfig::default();
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         // 测试一个不太可能被占用的端口
         let result = monitor.check_local_binding(65432).await;
         assert!(result.is_ok());
@@ -525,14 +529,14 @@ mod tests {
     async fn test_port_conflict_detection() {
         let config = LocalSecurityConfig::default();
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         // 绑定一个端口
         let _listener = TcpListener::bind("127.0.0.1:65433").unwrap();
-        
+
         // 检查冲突
         let conflict = monitor.check_port_conflict(65433).await.unwrap();
         assert!(conflict, "Port should be in conflict");
-        
+
         // 检查未占用的端口
         let no_conflict = monitor.check_port_conflict(65434).await.unwrap();
         assert!(!no_conflict, "Port should be available");
@@ -545,10 +549,10 @@ mod tests {
             ..Default::default()
         };
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         let port = monitor.find_available_port().await;
         assert!(port.is_ok());
-        
+
         let port_num = port.unwrap();
         assert!(port_num >= 65400 && port_num <= 65500);
     }
@@ -558,7 +562,7 @@ mod tests {
         let (addr, port) = parse_socket_addr("127.0.0.1:8080").unwrap();
         assert_eq!(addr, "127.0.0.1");
         assert_eq!(port, 8080);
-        
+
         let (addr, port) = parse_socket_addr("[::1]:8080").unwrap();
         assert_eq!(addr, "[::1]");
         assert_eq!(port, 8080);
@@ -578,17 +582,17 @@ mod tests {
     async fn test_cache_mechanism() {
         let config = LocalSecurityConfig::default();
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         // 第一次检查（无缓存）
         let start = SystemTime::now();
         let _ = monitor.check_local_binding(65435).await;
         let first_duration = start.elapsed().unwrap();
-        
+
         // 第二次检查（有缓存）
         let start = SystemTime::now();
         let _ = monitor.check_local_binding(65435).await;
         let second_duration = start.elapsed().unwrap();
-        
+
         // 缓存应该更快
         assert!(second_duration < first_duration);
     }
@@ -597,10 +601,10 @@ mod tests {
     async fn test_perform_security_check() {
         let config = LocalSecurityConfig::default();
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         let status = monitor.perform_security_check(65436).await;
         assert!(status.is_ok());
-        
+
         let status = status.unwrap();
         assert!(status.last_check_time > 0);
     }
@@ -610,23 +614,23 @@ mod tests {
     async fn bench_local_binding_check() {
         let config = LocalSecurityConfig::default();
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         // 预热
         let _ = monitor.check_local_binding(65437).await;
-        
+
         // 测试 10 次取平均值
         let mut total_duration = std::time::Duration::ZERO;
         const ITERATIONS: usize = 10;
-        
+
         for _ in 0..ITERATIONS {
             let start = std::time::Instant::now();
             let _ = monitor.check_local_binding(65437).await;
             total_duration += start.elapsed();
         }
-        
+
         let avg_duration = total_duration / ITERATIONS as u32;
         println!("Average check duration: {:?}", avg_duration);
-        
+
         // 验收标准：平均延迟 < 10ms
         assert!(
             avg_duration.as_millis() < 10,
@@ -640,19 +644,19 @@ mod tests {
     async fn bench_cached_binding_check() {
         let config = LocalSecurityConfig::default();
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         // 第一次检查（无缓存）
         let start = std::time::Instant::now();
         let _ = monitor.check_local_binding(65438).await;
         let uncached_duration = start.elapsed();
-        
+
         // 第二次检查（有缓存）
         let start = std::time::Instant::now();
         let _ = monitor.check_local_binding(65438).await;
         let cached_duration = start.elapsed();
-        
+
         println!("Uncached: {:?}, Cached: {:?}", uncached_duration, cached_duration);
-        
+
         // 缓存应该显著更快（至少快 50%）
         assert!(
             cached_duration < uncached_duration / 2,
@@ -660,7 +664,7 @@ mod tests {
             cached_duration,
             uncached_duration
         );
-        
+
         // 缓存命中应该 < 1ms
         assert!(
             cached_duration.as_micros() < 1000,
@@ -678,17 +682,17 @@ mod tests {
             ..Default::default()
         };
         let monitor = LocalSecurityMonitor::new(config);
-        
+
         // 占用几个端口
         let _listener1 = TcpListener::bind("127.0.0.1:65440").unwrap();
         let _listener2 = TcpListener::bind("127.0.0.1:65441").unwrap();
-        
+
         // 查找可用端口
         let available_port = monitor.find_available_port().await.unwrap();
-        
+
         // 应该找到 65442 或更高的端口
         assert!(available_port >= 65442 && available_port <= 65450);
-        
+
         // 验证找到的端口确实可用
         let conflict = monitor.check_port_conflict(available_port).await.unwrap();
         assert!(!conflict, "Found port should be available");
@@ -699,29 +703,30 @@ mod tests {
     async fn bench_concurrent_checks() {
         let config = LocalSecurityConfig::default();
         let monitor = Arc::new(LocalSecurityMonitor::new(config));
-        
+
         let start = std::time::Instant::now();
-        
+
         // 并发执行 100 次检查
         let mut handles = vec![];
         for i in 0..100 {
             let monitor_clone = monitor.clone();
-            let handle = tokio::spawn(async move {
-                monitor_clone.check_local_binding(65450 + (i % 10)).await
-            });
+            let handle = tokio::spawn(async move { monitor_clone.check_local_binding(65450 + (i % 10)).await });
             handles.push(handle);
         }
-        
+
         // 等待所有检查完成
         for handle in handles {
             let _ = handle.await;
         }
-        
+
         let total_duration = start.elapsed();
         let avg_duration = total_duration / 100;
-        
-        println!("100 concurrent checks took {:?}, avg {:?}", total_duration, avg_duration);
-        
+
+        println!(
+            "100 concurrent checks took {:?}, avg {:?}",
+            total_duration, avg_duration
+        );
+
         // 并发检查平均延迟应该 < 20ms（考虑到并发开销）
         assert!(
             avg_duration.as_millis() < 20,

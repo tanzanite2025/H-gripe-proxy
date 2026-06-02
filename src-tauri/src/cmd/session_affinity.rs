@@ -11,7 +11,9 @@ pub async fn session_affinity_get_bindings() -> CmdResult<Vec<BindingInfo>> {
 /// 清除域名绑定
 #[tauri::command]
 pub async fn session_affinity_clear_binding(domain: String) -> CmdResult<()> {
-    crate::feat::session_affinity_clear_binding(&domain).await.stringify_err()
+    crate::feat::session_affinity_clear_binding(&domain)
+        .await
+        .stringify_err()
 }
 
 /// 获取预定义规则

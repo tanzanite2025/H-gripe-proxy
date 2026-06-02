@@ -1,7 +1,7 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::identity_consistency::{
-    IdentityConsistencyInput, IdentityConsistencyReport, IdentityConsistencySnapshot,
-    append_identity_consistency_snapshot, build_identity_consistency_report,
+    IdentityConsistencyDriftReport, IdentityConsistencyInput, IdentityConsistencyReport, IdentityConsistencySnapshot,
+    append_identity_consistency_snapshot, build_identity_consistency_drift_report, build_identity_consistency_report,
 };
 use crate::core::{
     current_egress_identity::build_current_egress_identity,
@@ -13,12 +13,8 @@ const IDENTITY_CONSISTENCY_HISTORY_FILE: &str = "identity_consistency_history.js
 const IDENTITY_CONSISTENCY_HISTORY_LIMIT: usize = 24;
 
 #[tauri::command]
-pub async fn get_identity_consistency_report(
-    app_handle: tauri::AppHandle,
-) -> CmdResult<IdentityConsistencyReport> {
-    let current_identity = build_current_egress_identity(Some(&app_handle))
-        .await
-        .stringify_err()?;
+pub async fn get_identity_consistency_report(app_handle: tauri::AppHandle) -> CmdResult<IdentityConsistencyReport> {
+    let current_identity = build_current_egress_identity(Some(&app_handle)).await.stringify_err()?;
     let dns_runtime = build_dns_runtime_status().await.ok();
     let dns_leak = build_dns_leak_test_result().await.ok();
     let tls_fingerprint = crate::feat::tls_fingerprint_get_current();
@@ -40,15 +36,17 @@ pub async fn get_identity_consistency_history() -> CmdResult<Vec<IdentityConsist
     read_identity_consistency_history().await.stringify_err()
 }
 
+#[tauri::command]
+pub async fn get_identity_consistency_drift_report() -> CmdResult<IdentityConsistencyDriftReport> {
+    let history = read_identity_consistency_history().await.stringify_err()?;
+    Ok(build_identity_consistency_drift_report(&history))
+}
+
 async fn persist_identity_consistency_snapshot(report: IdentityConsistencyReport) -> anyhow::Result<()> {
     let history = read_identity_consistency_history().await.unwrap_or_default();
     let observed_at = chrono::Utc::now().to_rfc3339();
-    let history = append_identity_consistency_snapshot(
-        history,
-        report,
-        observed_at,
-        IDENTITY_CONSISTENCY_HISTORY_LIMIT,
-    );
+    let history =
+        append_identity_consistency_snapshot(history, report, observed_at, IDENTITY_CONSISTENCY_HISTORY_LIMIT);
     let path = identity_consistency_history_path()?;
 
     if let Some(parent) = path.parent() {

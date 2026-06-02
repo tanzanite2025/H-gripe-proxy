@@ -25,19 +25,13 @@ pub fn apply_tls_fingerprint_config(config: Mapping) -> Mapping {
 /// Apply TLS fingerprint with an explicit value.
 /// If `tls_fingerprint` is Some and valid, injects `global-client-fingerprint`.
 /// If None, ensures the field is absent or empty.
-pub fn apply_tls_fingerprint_config_with_advanced(
-    mut config: Mapping,
-    tls_fingerprint: &Option<String>,
-) -> Mapping {
+pub fn apply_tls_fingerprint_config_with_advanced(mut config: Mapping, tls_fingerprint: &Option<String>) -> Mapping {
     match tls_fingerprint {
         Some(name) if TlsFingerprintLibrary::is_valid(name) => {
             revise!(config, "global-client-fingerprint", name.clone());
         }
         Some(name) => {
-            log::warn!(
-                "[TLS Fingerprint] Invalid fingerprint name '{}', skipping",
-                name
-            );
+            log::warn!("[TLS Fingerprint] Invalid fingerprint name '{}', skipping", name);
         }
         None => {
             // Remove or clear the field

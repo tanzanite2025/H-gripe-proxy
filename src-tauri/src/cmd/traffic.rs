@@ -1,16 +1,14 @@
+use super::{CmdResult, StringifyErr as _};
 /**
  * 流量功能 Tauri 命令
  */
-
-use crate::traffic::{
-    ObfuscationProfile, ObfuscationStats,
-    TrafficObfuscationConfig,
-};
-use super::{CmdResult, StringifyErr as _};
+use crate::traffic::{ObfuscationProfile, ObfuscationStats, TrafficObfuscationConfig};
 
 /// 应用混淆配置（供内部调用，委托 feat 层）
 pub async fn apply_traffic_obfuscation_config(config: TrafficObfuscationConfig) -> CmdResult<()> {
-    crate::feat::apply_traffic_obfuscation_config(config).await.stringify_err()
+    crate::feat::apply_traffic_obfuscation_config(config)
+        .await
+        .stringify_err()
 }
 
 /// 获取流量混淆配置
@@ -21,10 +19,10 @@ pub async fn traffic_obfuscation_get_config() -> CmdResult<TrafficObfuscationCon
 
 /// 更新流量混淆配置
 #[tauri::command]
-pub async fn traffic_obfuscation_update_config(
-    config: TrafficObfuscationConfig,
-) -> CmdResult<()> {
-    crate::feat::traffic_obfuscation_update_config(config).await.stringify_err()
+pub async fn traffic_obfuscation_update_config(config: TrafficObfuscationConfig) -> CmdResult<()> {
+    crate::feat::traffic_obfuscation_update_config(config)
+        .await
+        .stringify_err()
 }
 
 /// 启动流量混淆
@@ -59,8 +57,8 @@ pub async fn traffic_obfuscation_is_running() -> CmdResult<bool> {
 
 /// 应用预设 Profile，返回生成的配置
 #[tauri::command]
-pub async fn traffic_obfuscation_apply_profile(
-    profile: ObfuscationProfile,
-) -> CmdResult<TrafficObfuscationConfig> {
-    crate::feat::traffic_obfuscation_apply_profile(profile).await.stringify_err()
+pub async fn traffic_obfuscation_apply_profile(profile: ObfuscationProfile) -> CmdResult<TrafficObfuscationConfig> {
+    crate::feat::traffic_obfuscation_apply_profile(profile)
+        .await
+        .stringify_err()
 }

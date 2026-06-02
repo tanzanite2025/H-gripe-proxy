@@ -1,6 +1,6 @@
+pub mod command;
 #[cfg(target_os = "macos")]
 pub mod connections_stream;
-pub mod command;
 pub mod dirs;
 pub mod help;
 pub mod init;

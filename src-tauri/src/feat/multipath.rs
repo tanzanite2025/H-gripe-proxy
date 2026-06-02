@@ -1,5 +1,8 @@
-use crate::multipath::{
-    MultipathConfig, MultipathManager, NodePool, PathNode, PoolType, SessionBinding, SlicingStrategy, NodeStats,
+use crate::{
+    config::AdvancedConfig,
+    multipath::{
+        MultipathConfig, MultipathManager, NodePool, NodeStats, PathNode, PoolType, SessionBinding, SlicingStrategy,
+    },
 };
 use anyhow::Result;
 use std::collections::HashMap;
@@ -10,10 +13,10 @@ fn multipath_manager() -> Arc<MultipathManager> {
 }
 
 fn persist_multipath_config(config: &MultipathConfig) -> Result<()> {
-    let path = crate::config::AdvancedConfig::default_path()?;
-    let mut advanced_config = crate::config::AdvancedConfig::load(&path)?;
+    let mut advanced_config = AdvancedConfig::load_default();
     advanced_config.multipath = config.clone();
-    advanced_config.save(&path)?;
+    advanced_config.validate()?;
+    advanced_config.save_default()?;
 
     let coordinator = crate::feat::get_coordinator();
     coordinator.apply_advanced_config(&advanced_config)?;
@@ -21,8 +24,6 @@ fn persist_multipath_config(config: &MultipathConfig) -> Result<()> {
 }
 
 pub fn apply_multipath_config(config: MultipathConfig) -> Result<()> {
-    let manager = multipath_manager();
-    manager.update_config(config.clone());
     persist_multipath_config(&config)?;
     log::info!("[Multipath] config updated");
     Ok(())
@@ -30,8 +31,7 @@ pub fn apply_multipath_config(config: MultipathConfig) -> Result<()> {
 
 /// 获取多路径配置
 pub fn multipath_get_config() -> MultipathConfig {
-    let manager = multipath_manager();
-    manager.get_config()
+    crate::feat::get_coordinator().get_advanced_config().multipath
 }
 
 /// 获取会话绑定规则

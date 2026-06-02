@@ -180,8 +180,16 @@ mod tests {
 
     #[test]
     fn normalize_icon_segment_accepts_single_name() {
-        assert!(normalize_icon_segment("group-icon.png").unwrap().ends_with("group-icon.png"));
-        assert!(normalize_icon_segment("alpha_1.webp").unwrap().ends_with("alpha_1.webp"));
+        assert!(
+            normalize_icon_segment("group-icon.png")
+                .unwrap()
+                .ends_with("group-icon.png")
+        );
+        assert!(
+            normalize_icon_segment("alpha_1.webp")
+                .unwrap()
+                .ends_with("alpha_1.webp")
+        );
     }
 
     #[test]

@@ -7,12 +7,6 @@
  * 包含：
  * - header_sanitization: HTTP 头净化（前端测试工具）
  */
-
 pub mod header_sanitization;
 
-pub use header_sanitization::{
-    HeaderSanitizationConfig,
-    HeaderSanitizer,
-    BrowserTemplate,
-    BrowserFingerprint,
-};
+pub use header_sanitization::{BrowserFingerprint, BrowserTemplate, HeaderSanitizationConfig, HeaderSanitizer};

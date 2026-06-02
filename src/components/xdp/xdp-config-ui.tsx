@@ -1,11 +1,17 @@
 /**
- * XDP 代理配置 UI 组件
+ * XDP proxy configuration UI.
  */
 
 import { AlertCircle, CheckCircle, Info, Rocket, Zap } from 'lucide-react'
+import type { ChangeEvent } from 'react'
 
-import { Button, Switch, Select } from '@/components/tailwind'
-import type { XdpConfig, XdpStatus, XdpSupportInfo } from '@/services/xdp'
+import { Button, Switch, Select, TextField } from '@/components/tailwind'
+import type {
+  XdpConfig,
+  XdpMode,
+  XdpStatus,
+  XdpSupportInfo,
+} from '@/services/xdp'
 
 interface XdpConfigUIProps {
   config: XdpConfig
@@ -20,6 +26,12 @@ interface XdpConfigUIProps {
   onStop: () => void
   formatBytes: (bytes: number) => string
   formatNumber: (num: number) => string
+}
+
+const xdpModeLabels: Record<XdpMode, string> = {
+  Native: 'Native (best performance, driver support required)',
+  Skb: 'SKB (better compatibility)',
+  Generic: 'Generic (works with most adapters)',
 }
 
 export default function XdpConfigUI({
@@ -39,29 +51,27 @@ export default function XdpConfigUI({
   return (
     <div className="p-6">
       <div className="space-y-6">
-        {/* 标题 */}
         <div className="flex items-center gap-2">
           <Rocket className="w-5 h-5 text-primary" />
-          <h2 className="text-xl font-semibold">XDP 零内核态切换代理</h2>
+          <h2 className="text-xl font-semibold">XDP Proxy</h2>
         </div>
 
-        {/* 说明 */}
         <div className="p-4 bg-blue-500 text-white rounded-lg">
           <div className="flex items-start gap-2">
             <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-sm">架构层面究极体</p>
+              <p className="font-semibold text-sm">Kernel data path</p>
               <p className="text-xs opacity-90 mt-1">
-                在网卡驱动层直接处理数据包，实现线速转发（10-100 Gbps）和微秒级延迟（~10μs）
+                XDP processes packets close to the network driver for lower
+                latency and higher throughput on supported Linux systems.
               </p>
             </div>
           </div>
         </div>
 
-        {/* 系统支持检查 */}
         {supportInfo && (
           <div className="p-4 bg-card border border-border rounded-lg">
-            <h3 className="text-sm font-semibold mb-4">系统支持</h3>
+            <h3 className="text-sm font-semibold mb-4">System Support</h3>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 {supportInfo.xdp_supported ? (
@@ -70,7 +80,7 @@ export default function XdpConfigUI({
                   <AlertCircle className="w-4 h-4 text-red-500" />
                 )}
                 <span className="text-sm">
-                  XDP 支持: {supportInfo.xdp_supported ? '是' : '否'}
+                  XDP: {supportInfo.xdp_supported ? 'supported' : 'unsupported'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -80,22 +90,24 @@ export default function XdpConfigUI({
                   <AlertCircle className="w-4 h-4 text-yellow-500" />
                 )}
                 <span className="text-sm">
-                  Native 模式: {supportInfo.native_mode_supported ? '支持' : '不支持'}
+                  Native mode:{' '}
+                  {supportInfo.native_mode_supported
+                    ? 'supported'
+                    : 'unsupported'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                内核版本: {supportInfo.kernel_version}
+                Kernel: {supportInfo.kernel_version}
               </p>
             </div>
           </div>
         )}
 
-        {/* 配置 */}
         <div className="p-4 bg-card border border-border rounded-lg">
-          <h3 className="text-sm font-semibold mb-4">配置</h3>
+          <h3 className="text-sm font-semibold mb-4">Configuration</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">启用 XDP 代理</label>
+              <label className="text-sm font-medium">Enable XDP proxy</label>
               <Switch
                 checked={config.enabled}
                 onCheckedChange={(checked) =>
@@ -105,7 +117,7 @@ export default function XdpConfigUI({
             </div>
 
             <Select
-              label="网卡接口"
+              label="Network interface"
               value={config.interface}
               onChange={(e) =>
                 onConfigChange({ ...config, interface: e.target.value })
@@ -121,39 +133,43 @@ export default function XdpConfigUI({
             </Select>
 
             <Select
-              label="XDP 模式"
+              label="XDP mode"
               value={config.mode}
               onChange={(e) =>
                 onConfigChange({
                   ...config,
-                  mode: e.target.value as 'Native' | 'Skb' | 'Hw',
+                  mode: e.target.value as XdpMode,
                 })
               }
               disabled={!config.enabled}
               fullWidth
             >
-              <option value="Native">Native（最高性能，需驱动支持）</option>
-              <option value="Skb">SKB（兼容性好）</option>
-              <option value="Hw">硬件卸载（需硬件支持）</option>
+              {Object.entries(xdpModeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </Select>
 
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">启用统计</label>
-              <Switch
-                checked={config.enable_stats}
-                onCheckedChange={(checked) =>
-                  onConfigChange({ ...config, enable_stats: checked })
-                }
-                disabled={!config.enabled}
-              />
-            </div>
+            <TextField
+              label="Queue size"
+              type="number"
+              value={String(config.queue_size)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                onConfigChange({
+                  ...config,
+                  queue_size: Number.parseInt(e.target.value, 10) || 4096,
+                })
+              }
+              disabled={!config.enabled}
+              fullWidth
+            />
           </div>
         </div>
 
-        {/* 状态 */}
         {status && (
           <div className="p-4 bg-card border border-border rounded-lg">
-            <h3 className="text-sm font-semibold mb-4">运行状态</h3>
+            <h3 className="text-sm font-semibold mb-4">Runtime Status</h3>
             <div className="space-y-4">
               <div className="flex gap-2 flex-wrap">
                 <span
@@ -168,15 +184,15 @@ export default function XdpConfigUI({
                   ) : (
                     <AlertCircle className="w-3 h-3" />
                   )}
-                  {status.running ? '运行中' : '已停止'}
+                  {status.running ? 'Running' : 'Stopped'}
                 </span>
                 {status.running && (
                   <>
                     <span className="px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm">
-                      接口: {status.interface}
+                      Interface: {status.interface}
                     </span>
                     <span className="px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm">
-                      模式: {status.mode}
+                      Mode: {status.mode}
                     </span>
                   </>
                 )}
@@ -184,44 +200,21 @@ export default function XdpConfigUI({
 
               {status.running && (
                 <div>
-                  <p className="text-xs font-semibold mb-2">统计信息</p>
+                  <p className="text-xs font-semibold mb-2">Statistics</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <p className="text-xs text-muted-foreground">总包数</p>
-                      <p className="text-sm font-medium">
-                        {formatNumber(status.stats.total_packets)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">代理包数</p>
-                      <p className="text-sm font-medium">
-                        {formatNumber(status.stats.proxied_packets)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">直连包数</p>
-                      <p className="text-sm font-medium">
-                        {formatNumber(status.stats.direct_packets)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">拒绝包数</p>
-                      <p className="text-sm font-medium">
-                        {formatNumber(status.stats.rejected_packets)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">错误数</p>
-                      <p className="text-sm font-medium text-red-500">
-                        {formatNumber(status.stats.errors)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">处理字节</p>
-                      <p className="text-sm font-medium">
-                        {formatBytes(status.stats.bytes_processed)}
-                      </p>
-                    </div>
+                    <Stat label="Total packets" value={formatNumber(status.stats.total_packets)} />
+                    <Stat label="Proxied packets" value={formatNumber(status.stats.proxied_packets)} />
+                    <Stat label="Direct packets" value={formatNumber(status.stats.direct_packets)} />
+                    <Stat label="Rejected packets" value={formatNumber(status.stats.rejected_packets)} />
+                    <Stat
+                      label="Errors"
+                      value={formatNumber(status.stats.errors)}
+                      valueClassName="text-red-500"
+                    />
+                    <Stat
+                      label="Bytes processed"
+                      value={formatBytes(status.stats.bytes_processed)}
+                    />
                   </div>
                 </div>
               )}
@@ -229,32 +222,27 @@ export default function XdpConfigUI({
           </div>
         )}
 
-        {/* 性能优势 */}
         <div className="p-4 bg-green-500 text-white rounded-lg">
           <div className="flex items-center gap-2 mb-4">
             <Zap className="w-5 h-5" />
-            <h3 className="text-sm font-semibold">性能优势</h3>
+            <h3 className="text-sm font-semibold">Performance Profile</h3>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
               <p className="text-3xl font-bold">10x</p>
-              <p className="text-xs opacity-90">延迟降低</p>
-              <p className="text-xs opacity-75">100μs → 10μs</p>
+              <p className="text-xs opacity-90">lower latency</p>
             </div>
             <div>
               <p className="text-3xl font-bold">10x</p>
-              <p className="text-xs opacity-90">吞吐量提升</p>
-              <p className="text-xs opacity-75">5 Gbps → 50 Gbps</p>
+              <p className="text-xs opacity-90">higher throughput</p>
             </div>
             <div>
               <p className="text-3xl font-bold">80%</p>
-              <p className="text-xs opacity-90">CPU 占用降低</p>
-              <p className="text-xs opacity-75">极低资源消耗</p>
+              <p className="text-xs opacity-90">less CPU overhead</p>
             </div>
           </div>
         </div>
 
-        {/* 操作按钮 */}
         <div className="flex gap-4">
           <Button
             variant="default"
@@ -262,7 +250,7 @@ export default function XdpConfigUI({
             disabled={saving || loading}
             className="flex-1"
           >
-            {saving ? '保存中...' : '保存配置'}
+            {saving ? 'Saving...' : 'Save configuration'}
           </Button>
           {status?.running ? (
             <Button
@@ -271,7 +259,7 @@ export default function XdpConfigUI({
               disabled={loading}
               className="flex-1"
             >
-              停止代理
+              Stop proxy
             </Button>
           ) : (
             <Button
@@ -280,11 +268,28 @@ export default function XdpConfigUI({
               disabled={loading || !config.enabled}
               className="flex-1 bg-green-500 hover:bg-green-600"
             >
-              启动代理
+              Start proxy
             </Button>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  valueClassName = '',
+}: {
+  label: string
+  value: string
+  valueClassName?: string
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-sm font-medium ${valueClassName}`}>{value}</p>
     </div>
   )
 }

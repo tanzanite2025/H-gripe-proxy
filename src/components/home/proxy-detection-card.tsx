@@ -7,6 +7,7 @@ import {
   TriangleAlert as WarningOutlined,
 } from 'lucide-react'
 import { forwardRef, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Alert } from '@/components/tailwind/Alert'
 import { Button } from '@/components/tailwind/Button'
@@ -24,10 +25,10 @@ import { buildProxyDetectionViewModel } from './proxy-detection-view-model'
 
 const ProxyDetectionCardContainer = forwardRef<
   HTMLElement,
-  React.PropsWithChildren<{ onRefresh: () => void }>
->(({ children, onRefresh }, ref) => (
+  React.PropsWithChildren<{ onRefresh: () => void; title: string }>
+>(({ children, onRefresh, title }, ref) => (
   <EnhancedCard
-    title="Proxy Detection"
+    title={title}
     icon={<InfoOutlined />}
     iconColor="info"
     ref={ref}
@@ -45,6 +46,7 @@ const ProxyDetectionCardContainer = forwardRef<
 ProxyDetectionCardContainer.displayName = 'ProxyDetectionCardContainer'
 
 export const ProxyDetectionCard = () => {
+  const { t } = useTranslation()
   const { data, error, isLoading, isFetching, refetch } = useProxyDetection()
   const [adviceDialogOpen, setAdviceDialogOpen] = useState(false)
 
@@ -53,7 +55,10 @@ export const ProxyDetectionCard = () => {
   }, [refetch])
 
   return (
-    <ProxyDetectionCardContainer onRefresh={handleRefresh}>
+    <ProxyDetectionCardContainer
+      onRefresh={handleRefresh}
+      title={t('home.components.proxyDetection.title')}
+    >
       <ProxyDetectionCardUI
         result={data}
         error={error}
@@ -89,6 +94,8 @@ const ProxyDetectionCardUI = ({
   onCloseAdviceDialog,
   onRetry,
 }: ProxyDetectionCardUIProps) => {
+  const { t } = useTranslation()
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2">
@@ -104,10 +111,12 @@ const ProxyDetectionCardUI = ({
       <div className="flex h-full flex-col items-center justify-center text-error">
         <ErrorOutlined className="mb-2 h-10 w-10" />
         <p className="text-base text-error">
-          {error instanceof Error ? error.message : 'Detection failed'}
+          {error instanceof Error
+            ? error.message
+            : t('home.components.proxyDetection.errors.failed')}
         </p>
         <Button onClick={onRetry} className="mt-4">
-          Retry
+          {t('home.components.proxyDetection.actions.retry')}
         </Button>
       </div>
     )
@@ -118,8 +127,8 @@ const ProxyDetectionCardUI = ({
   }
 
   const reputation = result.proxy_reputation
-  const advice = result.recommendations
-  const view = buildProxyDetectionViewModel(result)
+  const view = buildProxyDetectionViewModel(result, t)
+  const advice = view.recommendations
 
   return (
     <div className="flex flex-col gap-3">
@@ -187,7 +196,9 @@ const ProxyDetectionCardUI = ({
 
       <div className="flex flex-col gap-1.5 text-sm">
         <div className="flex items-center gap-2">
-          <span className="shrink-0 text-xs text-text-secondary">Direct</span>
+          <span className="shrink-0 text-xs text-text-secondary">
+            {t('home.components.proxyDetection.labels.direct')}
+          </span>
           <p className="uds-mono text-xs font-medium">
             {view.direct.ip}
           </p>
@@ -198,7 +209,9 @@ const ProxyDetectionCardUI = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="shrink-0 text-xs text-text-secondary">Proxy</span>
+          <span className="shrink-0 text-xs text-text-secondary">
+            {t('home.components.proxyDetection.labels.proxy')}
+          </span>
           <p className="uds-mono text-xs font-medium">
             {view.proxy.ip}
           </p>
@@ -217,8 +230,7 @@ const ProxyDetectionCardUI = ({
 
       {result.observation_incomplete ? (
         <Alert severity="info" className="text-xs">
-          Only part of the egress observation is available. Retry when both direct
-          and local-core proxy paths are reachable.
+          {t('home.components.proxyDetection.alerts.observationIncomplete')}
         </Alert>
       ) : null}
 
@@ -241,7 +253,9 @@ const ProxyDetectionCardUI = ({
       ) : null}
 
       <Dialog open={adviceDialogOpen} onClose={onCloseAdviceDialog}>
-        <DialogTitle>Detection Advice</DialogTitle>
+        <DialogTitle>
+          {t('home.components.proxyDetection.adviceDialog.title')}
+        </DialogTitle>
         <DialogContent>
           <ul className="list-inside list-disc space-y-1 text-sm text-text-secondary">
             {advice.map((item) => (
@@ -250,7 +264,9 @@ const ProxyDetectionCardUI = ({
           </ul>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onCloseAdviceDialog}>Close</Button>
+          <Button onClick={onCloseAdviceDialog}>
+            {t('home.components.proxyDetection.actions.close')}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -261,7 +277,7 @@ const ProxyDetectionCardUI = ({
           onClick={onToggleAdvice}
           className="flex-1"
         >
-          Advice
+          {t('home.components.proxyDetection.actions.advice')}
         </Button>
         <Button
           size="small"
@@ -270,7 +286,7 @@ const ProxyDetectionCardUI = ({
           loading={isFetching}
           className="flex-1"
         >
-          Refresh
+          {t('home.components.proxyDetection.actions.refresh')}
         </Button>
       </div>
     </div>

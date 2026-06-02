@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -108,7 +108,6 @@ pub enum TrackBy {
     /// 会话 ID
     SessionId,
 }
-
 
 /// 故障转移策略
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,21 +247,13 @@ impl SessionAffinityManager {
         Ok(())
     }
 
-
     /// 为域名选择节点（考虑会话绑定）
-    pub async fn select_node_for_domain(
-        &self,
-        domain: &str,
-        available_nodes: &[String],
-    ) -> Result<String> {
+    pub async fn select_node_for_domain(&self, domain: &str, available_nodes: &[String]) -> Result<String> {
         let config = self.config.read().await;
 
         if !config.enabled {
             // 会话绑定未启用，使用默认选择
-            return Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .clone());
+            return Ok(available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone());
         }
 
         // 1. 查找匹配的域名规则
@@ -297,18 +288,12 @@ impl SessionAffinityManager {
                 if !self.is_binding_expired(&binding) {
                     // 检查节点是否仍然可用
                     if available_nodes.contains(&binding.node_id) {
-                        log::debug!(
-                            "[SessionAffinity] 域名 {} 使用已绑定节点 {}",
-                            domain,
-                            binding.node_id
-                        );
+                        log::debug!("[SessionAffinity] 域名 {} 使用已绑定节点 {}", domain, binding.node_id);
                         return Ok(binding.node_id.clone());
                     } else {
                         // 节点不可用，根据故障转移策略处理
                         drop(bindings); // 释放读锁
-                        return self
-                            .handle_node_unavailable(domain, &binding, available_nodes)
-                            .await;
+                        return self.handle_node_unavailable(domain, &binding, available_nodes).await;
                     }
                 }
             }
@@ -324,10 +309,7 @@ impl SessionAffinityManager {
                 }
             } else {
                 // 自动选择节点（使用第一个可用节点）
-                available_nodes
-                    .first()
-                    .ok_or_else(|| anyhow!("没有可用节点"))?
-                    .clone()
+                available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone()
             };
 
             // 4. 创建绑定
@@ -342,10 +324,7 @@ impl SessionAffinityManager {
             Ok(node)
         } else {
             // 没有匹配的规则，使用默认选择
-            Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .clone())
+            Ok(available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone())
         }
     }
 
@@ -357,7 +336,6 @@ impl SessionAffinityManager {
             false
         }
     }
-
 
     /// 处理节点不可用
     async fn handle_node_unavailable(
@@ -387,10 +365,7 @@ impl SessionAffinityManager {
             }
             FallbackPolicy::AutoSwitch => {
                 // 自动切换到备用节点
-                let new_node = available_nodes
-                    .first()
-                    .ok_or_else(|| anyhow!("没有可用节点"))?
-                    .clone();
+                let new_node = available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone();
 
                 // 更新绑定
                 let mut bindings = self.domain_bindings.write().await;
@@ -399,11 +374,7 @@ impl SessionAffinityManager {
                 new_binding.bound_at = SystemTime::now();
                 bindings.insert(domain.to_string(), new_binding);
 
-                log::warn!(
-                    "[SessionAffinity] 域名 {} 自动切换到节点 {}",
-                    domain,
-                    new_node
-                );
+                log::warn!("[SessionAffinity] 域名 {} 自动切换到节点 {}", domain, new_node);
 
                 Ok(new_node)
             }
@@ -452,14 +423,8 @@ impl SessionAffinityManager {
             .as_secs();
 
         let (expires_at, remaining_seconds) = if let Some(exp) = binding.expires_at {
-            let exp_secs = exp
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let remaining = exp
-                .duration_since(SystemTime::now())
-                .ok()
-                .map(|d| d.as_secs());
+            let exp_secs = exp.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
+            let remaining = exp.duration_since(SystemTime::now()).ok().map(|d| d.as_secs());
             (Some(exp_secs), remaining)
         } else {
             (None, None)
@@ -516,7 +481,6 @@ impl SessionAffinityManager {
         Ok(())
     }
 }
-
 
 /// 检查域名是否匹配规则
 pub fn domain_matches(domain: &str, pattern: &str) -> bool {
@@ -659,16 +623,10 @@ mod tests {
         let nodes = vec!["node1".to_string(), "node2".to_string()];
 
         // 第一次选择
-        let node1 = manager
-            .select_node_for_domain("chat.openai.com", &nodes)
-            .await
-            .unwrap();
+        let node1 = manager.select_node_for_domain("chat.openai.com", &nodes).await.unwrap();
 
         // 第二次选择应该返回相同节点
-        let node2 = manager
-            .select_node_for_domain("chat.openai.com", &nodes)
-            .await
-            .unwrap();
+        let node2 = manager.select_node_for_domain("chat.openai.com", &nodes).await.unwrap();
 
         assert_eq!(node1, node2);
     }
@@ -679,10 +637,7 @@ mod tests {
         let nodes = vec!["node1".to_string()];
 
         // 创建绑定
-        manager
-            .select_node_for_domain("chat.openai.com", &nodes)
-            .await
-            .unwrap();
+        manager.select_node_for_domain("chat.openai.com", &nodes).await.unwrap();
 
         // 获取绑定
         let bindings = manager.get_all_bindings().await.unwrap();
@@ -692,7 +647,6 @@ mod tests {
     }
 }
 
-
 /// 进程检测模块
 #[cfg(target_os = "windows")]
 pub mod process_detection {
@@ -701,9 +655,7 @@ pub mod process_detection {
 
     /// 根据端口获取进程名称
     pub fn get_process_name_by_port(port: u16) -> Result<String> {
-        let output = Command::new("netstat")
-            .args(&["-ano"])
-            .output()?;
+        let output = Command::new("netstat").args(&["-ano"]).output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -729,7 +681,7 @@ pub mod process_detection {
             .output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         // 解析 CSV 输出
         if let Some(line) = stdout.lines().next() {
             // CSV 格式: "进程名","PID","会话名","会话#","内存使用"
@@ -833,18 +785,11 @@ pub mod process_detection {
 
 impl SessionAffinityManager {
     /// 为进程选择节点（考虑进程绑定）
-    pub async fn select_node_for_process(
-        &self,
-        source_port: u16,
-        available_nodes: &[String],
-    ) -> Result<String> {
+    pub async fn select_node_for_process(&self, source_port: u16, available_nodes: &[String]) -> Result<String> {
         let config = self.config.read().await;
 
         if !config.enabled {
-            return Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .clone());
+            return Ok(available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone());
         }
 
         // 尝试获取进程名
@@ -852,10 +797,7 @@ impl SessionAffinityManager {
             Ok(name) => name,
             Err(_) => {
                 // 无法获取进程名，使用默认选择
-                return Ok(available_nodes
-                    .first()
-                    .ok_or_else(|| anyhow!("没有可用节点"))?
-                    .clone());
+                return Ok(available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone());
             }
         };
 
@@ -890,10 +832,7 @@ impl SessionAffinityManager {
                     return Err(anyhow!("指定节点 {} 不可用", bound_node));
                 }
             } else {
-                available_nodes
-                    .first()
-                    .ok_or_else(|| anyhow!("没有可用节点"))?
-                    .clone()
+                available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone()
             };
 
             // 创建绑定
@@ -915,14 +854,10 @@ impl SessionAffinityManager {
 
             Ok(node)
         } else {
-            Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .clone())
+            Ok(available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone())
         }
     }
 }
-
 
 impl SessionAffinityManager {
     /// 为连接选择节点（考虑连接级绑定）
@@ -935,10 +870,7 @@ impl SessionAffinityManager {
         let config = self.config.read().await;
 
         if !config.enabled || !config.connection_binding.enabled {
-            return Ok(available_nodes
-                .first()
-                .ok_or_else(|| anyhow!("没有可用节点"))?
-                .clone());
+            return Ok(available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone());
         }
 
         let conn_id = ConnectionId {
@@ -964,18 +896,13 @@ impl SessionAffinityManager {
         drop(bindings);
 
         // 选择新节点
-        let node = available_nodes
-            .first()
-            .ok_or_else(|| anyhow!("没有可用节点"))?
-            .clone();
+        let node = available_nodes.first().ok_or_else(|| anyhow!("没有可用节点"))?.clone();
 
         // 创建绑定
         let binding = NodeBinding {
             node_id: node.clone(),
             bound_at: SystemTime::now(),
-            expires_at: Some(
-                SystemTime::now() + Duration::from_secs(config.connection_binding.timeout)
-            ),
+            expires_at: Some(SystemTime::now() + Duration::from_secs(config.connection_binding.timeout)),
             fallback_policy: FallbackPolicy::AutoSwitch,
         };
 
@@ -1005,7 +932,6 @@ impl SessionAffinityManager {
         });
     }
 }
-
 
 #[cfg(test)]
 #[path = "session_affinity_tests.rs"]

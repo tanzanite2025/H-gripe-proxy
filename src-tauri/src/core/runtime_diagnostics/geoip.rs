@@ -5,11 +5,7 @@ use reqwest::Client;
 use serde_json::Value as JsonValue;
 use smartstring::alias::String;
 
-const PUBLIC_IP_GEO_SOURCES: [&str; 3] = [
-    "https://api.ip.sb/geoip",
-    "https://ipapi.co/json",
-    "https://ipwho.is/",
-];
+const PUBLIC_IP_GEO_SOURCES: [&str; 3] = ["https://api.ip.sb/geoip", "https://ipapi.co/json", "https://ipwho.is/"];
 
 const PUBLIC_IP_PLAIN_SOURCES: [&str; 3] = [
     "https://api.ipify.org",

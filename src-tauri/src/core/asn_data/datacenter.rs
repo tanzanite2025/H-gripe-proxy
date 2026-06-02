@@ -30,7 +30,6 @@ pub fn datacenter_asns() -> &'static [(u32, &'static str)] {
         (55081, "Bandwidth Alliance"),
         (212278, "Bandwidth Alliance"),
         (209244, "Bandwidth Alliance"),
-
         // ── 中国云厂商 ──
         (41815, "Alibaba Cloud"),
         (37963, "Alibaba Cloud"),
@@ -51,7 +50,6 @@ pub fn datacenter_asns() -> &'static [(u32, &'static str)] {
         (38332, "Kingsoft Cloud"),
         (55933, "Qiniu Cloud"),
         (55800, "Qiniu Cloud"),
-
         // ── CDN ──
         (13335, "Cloudflare"),
         (54113, "Fastly"),
@@ -62,7 +60,6 @@ pub fn datacenter_asns() -> &'static [(u32, &'static str)] {
         (2906, "Netflix"),
         (55095, "Netflix"),
         (40027, "Netflix"),
-
         // ── 知名数据中心/托管商（M247/Stark/FlokiNET/ZenLayer 等）──
         (212238, "M247"),
         (9009, "M247"),

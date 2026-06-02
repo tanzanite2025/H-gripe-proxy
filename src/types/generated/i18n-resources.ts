@@ -93,6 +93,97 @@ export interface TranslationResources {
           }
           title: string
         }
+        proxyDetection: {
+          actions: {
+            advice: string
+            close: string
+            refresh: string
+            retry: string
+          }
+          advice: {
+            ipChanged: string
+            locationChanged: string
+            noClearChange: string
+            observationIncomplete: string
+            proxyEffective: string
+            reputation: string
+            sameEgress: string
+          }
+          adviceDialog: {
+            title: string
+          }
+          alerts: {
+            observationIncomplete: string
+          }
+          assessment: {
+            effective: string
+            inconclusive: string
+            runtimeRisk: string
+            sameEgress: string
+          }
+          confidence: {
+            high: string
+            low: string
+            medium: string
+          }
+          core: {
+            running: string
+            stopped: string
+          }
+          errors: {
+            failed: string
+          }
+          ipType: {
+            datacenter: string
+            education: string
+            mobile: string
+            residential: string
+            unknown: string
+          }
+          labels: {
+            direct: string
+            notObserved: string
+            proxy: string
+            unknown: string
+          }
+          observationPath: {
+            coreOnly: string
+            directOnly: string
+            directVsCore: string
+          }
+          patterns: {
+            asn: string
+            reputation: string
+          }
+          residentialState: {
+            notResidential: string
+            observedResidential: string
+            unknown: string
+            verifiedResidential: string
+          }
+          runtimeRisk: {
+            coreNotRunning: string
+            directEgressUnavailable: string
+            localCoreProxyUnreachable: string
+            proxyReputationUnavailable: string
+          }
+          summary: {
+            effective: {
+              ipChanged: string
+              locationChanged: string
+              title: string
+            }
+            incomplete: {
+              description: string
+              title: string
+            }
+            sameEgress: {
+              description: string
+              title: string
+            }
+          }
+          title: string
+        }
         proxyTun: {
           status: {
             systemProxyDisabled: string

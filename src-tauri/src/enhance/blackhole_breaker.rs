@@ -2,7 +2,6 @@
 ///
 /// 在 enhance 管线中，将当前处于 Open 状态的熔断规则
 /// 转换为 Mihomo DOMAIN-SUFFIX → REJECT-DROP 规则
-
 use serde_yaml_ng::Mapping;
 
 /// 将熔断器生成的 REJECT-DROP 规则注入到 Mihomo 配置的 rules 前部
@@ -29,10 +28,7 @@ pub async fn apply_blackhole_breaker_config(mut config: Mapping) -> Mapping {
             seq.insert(0, serde_yaml_ng::Value::String(rule_str));
         }
 
-        log::info!(
-            "[BlackholeBreaker] 注入了 {} 条 REJECT-DROP 规则",
-            reject_rules.len()
-        );
+        log::info!("[BlackholeBreaker] 注入了 {} 条 REJECT-DROP 规则", reject_rules.len());
     }
 
     config

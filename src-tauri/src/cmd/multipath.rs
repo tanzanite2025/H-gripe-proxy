@@ -1,12 +1,9 @@
+use super::{CmdResult, StringifyErr as _};
 /**
  * 多路径路由 Tauri 命令
  */
-
-use crate::multipath::{
-    MultipathConfig, NodePool, PathNode, SessionBinding, NodeStats,
-};
+use crate::multipath::{MultipathConfig, NodePool, NodeStats, PathNode, SessionBinding};
 use std::collections::HashMap;
-use super::{CmdResult, StringifyErr as _};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct TestResult {
@@ -101,10 +98,7 @@ pub async fn multipath_test_node(node: PathNode) -> CmdResult<TestResult> {
 
 /// 批量导入节点
 #[tauri::command]
-pub fn multipath_import_nodes(
-    pool_name: String,
-    nodes_yaml: String,
-) -> CmdResult<ImportResult> {
+pub fn multipath_import_nodes(pool_name: String, nodes_yaml: String) -> CmdResult<ImportResult> {
     match crate::feat::multipath_import_nodes(&pool_name, &nodes_yaml) {
         Ok(count) => Ok(ImportResult {
             success: true,

@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use hickory_proto::rr::Name;
-use hickory_resolver::config::*;
 use hickory_resolver::TokioAsyncResolver;
+use hickory_resolver::config::*;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
@@ -95,17 +95,14 @@ fn parse_dns_server_endpoint(server: &str, protocol: &DnsProtocol) -> Result<Dns
     validate_dns_scheme(parts.scheme.as_deref(), protocol)?;
 
     let port = parts.port.unwrap_or_else(|| default_dns_port(protocol));
-    let ip = parts
-        .host
-        .parse::<IpAddr>()
-        .or_else(|_| {
-            known_dns_ip_for_host(&parts.host).ok_or_else(|| {
-                anyhow!(
-                    "unsupported DNS hostname `{}`; use a known DNS provider hostname or an IP address",
-                    parts.host
-                )
-            })
-        })?;
+    let ip = parts.host.parse::<IpAddr>().or_else(|_| {
+        known_dns_ip_for_host(&parts.host).ok_or_else(|| {
+            anyhow!(
+                "unsupported DNS hostname `{}`; use a known DNS provider hostname or an IP address",
+                parts.host
+            )
+        })
+    })?;
 
     let tls_dns_name = match protocol {
         DnsProtocol::Doh | DnsProtocol::Dot => tls_dns_name_for_endpoint(&parts.host, ip),
@@ -126,11 +123,7 @@ fn parse_dns_server_parts(server: &str) -> Result<DnsServerParts> {
 
     let (scheme, authority) = if let Some(index) = trimmed.find("://") {
         let scheme = trimmed[..index].to_ascii_lowercase();
-        let authority = trimmed[index + 3..]
-            .split('/')
-            .next()
-            .unwrap_or_default()
-            .trim();
+        let authority = trimmed[index + 3..].split('/').next().unwrap_or_default().trim();
         (Some(scheme), authority)
     } else {
         (None, trimmed)
@@ -210,9 +203,7 @@ fn validate_dns_scheme(scheme: Option<&str>, protocol: &DnsProtocol) -> Result<(
 
 fn known_dns_ip_for_host(host: &str) -> Option<IpAddr> {
     let ip = match host {
-        "cloudflare-dns.com" | "one.one.one.one" | "1dot1dot1dot1.cloudflare-dns.com" => {
-            "1.1.1.1"
-        }
+        "cloudflare-dns.com" | "one.one.one.one" | "1dot1dot1dot1.cloudflare-dns.com" => "1.1.1.1",
         "dns.google" => "8.8.8.8",
         "dns.quad9.net" => "9.9.9.9",
         "dns.alidns.com" => "223.5.5.5",
@@ -240,10 +231,7 @@ fn tls_dns_name_for_endpoint(host: &str, ip: IpAddr) -> Option<String> {
     }
 }
 
-async fn create_resolver(
-    server: Option<String>,
-    protocol: Option<DnsProtocol>,
-) -> Result<TokioAsyncResolver> {
+async fn create_resolver(server: Option<String>, protocol: Option<DnsProtocol>) -> Result<TokioAsyncResolver> {
     let effective_protocol = infer_dns_protocol(server.as_deref(), protocol);
 
     let Some(server_addr) = server else {
@@ -368,8 +356,7 @@ mod tests {
 
     #[test]
     fn doh_url_uses_known_endpoint_and_tls_name() {
-        let endpoint =
-            parse_dns_server_endpoint("https://dns.google/dns-query", &DnsProtocol::Doh).unwrap();
+        let endpoint = parse_dns_server_endpoint("https://dns.google/dns-query", &DnsProtocol::Doh).unwrap();
 
         assert_eq!(endpoint.socket_addr.to_string(), "8.8.8.8:443");
         assert_eq!(endpoint.tls_dns_name.as_deref(), Some("dns.google"));
@@ -377,8 +364,7 @@ mod tests {
 
     #[test]
     fn dot_url_uses_known_endpoint_and_tls_name() {
-        let endpoint =
-            parse_dns_server_endpoint("tls://dns.quad9.net:853", &DnsProtocol::Dot).unwrap();
+        let endpoint = parse_dns_server_endpoint("tls://dns.quad9.net:853", &DnsProtocol::Dot).unwrap();
 
         assert_eq!(endpoint.socket_addr.to_string(), "9.9.9.9:853");
         assert_eq!(endpoint.tls_dns_name.as_deref(), Some("dns.quad9.net"));
@@ -398,9 +384,6 @@ mod tests {
             infer_dns_protocol(Some("https://cloudflare-dns.com/dns-query"), None),
             DnsProtocol::Doh
         );
-        assert_eq!(
-            infer_dns_protocol(Some("tls://dns.google"), None),
-            DnsProtocol::Dot
-        );
+        assert_eq!(infer_dns_protocol(Some("tls://dns.google"), None), DnsProtocol::Dot);
     }
 }

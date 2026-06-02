@@ -10,6 +10,7 @@ import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { clearProxyChainRuntimeConfig } from '@/components/proxy/proxy-chain-runtime'
 import { loadProxyChainRuntimeExitNode } from '@/components/proxy/proxy-chain-types'
 import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
+import { useRuntimeConfig } from '@/hooks/data/use-clash'
 import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
@@ -19,6 +20,13 @@ import {
   getRuntimeProxyChainConfig,
   patchClashMode,
 } from '@/services/cmds'
+import {
+  CLASH_MODES,
+  DEFAULT_CLASH_MODE,
+  type ClashMode,
+  resolveClashMode,
+} from '@/services/clash-mode'
+import { queryClient } from '@/services/query-client'
 import { debugLog } from '@/utils/misc'
 
 const LazyProxyDetectionCard = lazy(() =>
@@ -33,12 +41,6 @@ const LazyDNSLeakCard = lazy(() =>
   })),
 )
 
-const MODES = ['rule', 'global', 'direct'] as const
-type Mode = (typeof MODES)[number]
-const MODE_SET = new Set<string>(MODES)
-const isMode = (value: unknown): value is Mode =>
-  typeof value === 'string' && MODE_SET.has(value)
-
 const ProxyPage = () => {
   const { t } = useTranslation()
 
@@ -51,23 +53,39 @@ const ProxyPage = () => {
 
   const { clashConfig } = useClashConfigData()
   const { refreshClashConfig } = useAppRefreshers()
+  const { data: runtimeConfig } = useRuntimeConfig()
+  const [optimisticMode, setOptimisticMode] = useState<ClashMode | undefined>()
 
   const updateChainConfigData = useCallback((value: string | null) => {
     dispatchChainConfigData(value)
   }, [])
   const { verge } = useVerge()
 
-  const normalizedMode = clashConfig?.mode?.toLowerCase()
-  const curMode = isMode(normalizedMode) ? normalizedMode : undefined
+  const curMode = resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)
+  const displayMode = optimisticMode ?? curMode
   const chainWarning = t('proxies.page.chain.warning')
 
-  const onChangeMode = useLockFn(async (mode: Mode) => {
+  const onChangeMode = useLockFn(async (mode: ClashMode) => {
     // 断开连接
     if (mode !== curMode && verge?.auto_close_connection) {
       closeAllConnections()
     }
-    await patchClashMode(mode)
-    refreshClashConfig()
+    setOptimisticMode(mode)
+    queryClient.setQueryData(['getClashConfig'], (old: any) =>
+      old ? { ...old, mode } : old,
+    )
+    queryClient.setQueryData(['getRuntimeConfig'], (old: any) =>
+      old ? { ...old, mode } : old,
+    )
+    try {
+      await patchClashMode(mode)
+    } finally {
+      await Promise.all([
+        refreshClashConfig(),
+        queryClient.invalidateQueries({ queryKey: ['getRuntimeConfig'] }),
+      ])
+      setOptimisticMode(undefined)
+    }
   })
 
   const onToggleChainMode = useLockFn(async () => {
@@ -128,10 +146,13 @@ const ProxyPage = () => {
   }, [isChainMode, updateChainConfigData])
 
   useEffect(() => {
-    if (normalizedMode && !isMode(normalizedMode)) {
-      onChangeMode('rule')
+    const hasMode =
+      typeof clashConfig?.mode === 'string' ||
+      typeof runtimeConfig?.mode === 'string'
+    if (hasMode && !resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)) {
+      onChangeMode(DEFAULT_CLASH_MODE)
     }
-  }, [normalizedMode, onChangeMode])
+  }, [clashConfig?.mode, runtimeConfig?.mode, onChangeMode])
 
   return (
     <BasePage
@@ -163,10 +184,10 @@ const ProxyPage = () => {
             <ProviderButton />
 
             <ButtonGroup className="uds-toolbar" size="small">
-              {MODES.map((mode) => (
+              {CLASH_MODES.map((mode) => (
                 <Button
                   key={mode}
-                  variant={mode === curMode ? 'primary' : 'outlined'}
+                  variant={mode === displayMode ? 'primary' : 'outlined'}
                   onClick={() => onChangeMode(mode)}
                   className="capitalize"
                 >
@@ -187,7 +208,7 @@ const ProxyPage = () => {
           </Box>
           <div style={{ height: 'calc(100% - 36px)', overflow: 'hidden' }}>
             <ProxyGroups
-              mode={curMode ?? 'rule'}
+              mode={displayMode ?? DEFAULT_CLASH_MODE}
               isChainMode={isChainMode}
               chainConfigData={chainConfigData}
               onCloseChainMode={onToggleChainMode}

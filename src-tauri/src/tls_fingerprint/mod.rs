@@ -1,25 +1,12 @@
-/**
- * TLS 指纹伪装模块（Parrot Mode）
- * 
- * 与 Mihomo 内核 component/tls/utls.go 的 fingerprints map 完全对齐。
- * 指纹名称即为 Mihomo 配置中 `global-client-fingerprint` / `client-fingerprint` 的合法值。
- */
-
 use serde::{Deserialize, Serialize};
 
-/// TLS 指纹配置
-/// name 为 Mihomo 配置值，description 供 UI 展示
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TlsFingerprint {
-    /// Mihomo 配置值（如 "chrome", "firefox"）
     pub name: String,
-    /// UI 展示描述
     pub description: String,
-    /// 分类（浏览器 / 移动端 / 随机 / 经典）
     pub category: String,
 }
 
-/// 预定义的 TLS 指纹库 — 与 Mihomo utls.go fingerprints map 1:1 对齐
 pub struct TlsFingerprintLibrary;
 
 impl TlsFingerprintLibrary {
@@ -127,7 +114,6 @@ impl TlsFingerprintLibrary {
         }
     }
 
-    /// 获取所有预定义指纹（与 Mihomo utls.go fingerprints map 一致）
     pub fn get_all() -> Vec<TlsFingerprint> {
         vec![
             Self::chrome(),
@@ -146,18 +132,15 @@ impl TlsFingerprintLibrary {
         ]
     }
 
-    /// 根据名称获取指纹
     pub fn get_by_name(name: &str) -> Option<TlsFingerprint> {
         Self::get_all().into_iter().find(|fp| fp.name == name)
     }
 
-    /// 检查名称是否为合法的 Mihomo 指纹值
     pub fn is_valid(name: &str) -> bool {
         Self::get_all().iter().any(|fp| fp.name == name)
     }
 }
 
-/// TLS 指纹伪装服务
 pub struct TlsFingerprintService {
     current_fingerprint: parking_lot::RwLock<Option<TlsFingerprint>>,
 }
@@ -169,38 +152,21 @@ impl TlsFingerprintService {
         }
     }
 
-    /// 设置当前指纹
     pub fn set_fingerprint(&self, fingerprint: TlsFingerprint) {
         *self.current_fingerprint.write() = Some(fingerprint);
     }
 
-    /// 根据名称设置指纹
     pub fn set_by_name(&self, name: &str) -> Result<(), String> {
         if let Some(fp) = TlsFingerprintLibrary::get_by_name(name) {
             self.set_fingerprint(fp);
             Ok(())
         } else {
-            Err(format!("未找到指纹: {}", name))
+            Err(format!("TLS fingerprint not found: {}", name))
         }
     }
 
-    /// 获取当前指纹
-    pub fn get_fingerprint(&self) -> Option<TlsFingerprint> {
-        self.current_fingerprint.read().clone()
-    }
-
-    /// 清除当前指纹
     pub fn clear(&self) {
         *self.current_fingerprint.write() = None;
-    }
-
-    /// 生成 Clash 配置 — 输出 Mihomo 合法的 global-client-fingerprint 值
-    pub fn generate_clash_config(&self) -> Option<serde_json::Value> {
-        self.current_fingerprint.read().as_ref().map(|fp| {
-            serde_json::json!({
-                "global-client-fingerprint": fp.name,
-            })
-        })
     }
 }
 

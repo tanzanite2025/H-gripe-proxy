@@ -1,10 +1,9 @@
-﻿/**
+/**
  * 时序混淆配置模块
  *
  * 注意：真正的时序混淆由 Go 内核（mihomo）的 ObfuscatedConn 在连接层执行。
  * 此模块仅定义配置结构，供前端面板和 profile 派生使用。
  */
-
 use serde::{Deserialize, Serialize};
 
 /// 时序混淆配置

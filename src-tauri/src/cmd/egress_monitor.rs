@@ -1,5 +1,5 @@
-use crate::core::egress_monitor::{EgressMonitorConfig, EgressMonitorStats, EgressIpProbeResult};
 use super::{CmdResult, StringifyErr};
+use crate::core::egress_monitor::{EgressIpProbeResult, EgressMonitorConfig, EgressMonitorStats};
 
 /// 获取出口监控配置
 #[tauri::command]
@@ -16,15 +16,13 @@ pub async fn egress_monitor_update_config(config: EgressMonitorConfig) -> CmdRes
 /// 启动出口监控
 #[tauri::command]
 pub async fn egress_monitor_start() -> CmdResult<()> {
-    crate::feat::egress_monitor_start().await;
-    Ok(())
+    crate::feat::egress_monitor_start().await.stringify_err()
 }
 
 /// 停止出口监控
 #[tauri::command]
 pub async fn egress_monitor_stop() -> CmdResult<()> {
-    crate::feat::egress_monitor_stop().await;
-    Ok(())
+    crate::feat::egress_monitor_stop().await.stringify_err()
 }
 
 /// 获取出口监控统计

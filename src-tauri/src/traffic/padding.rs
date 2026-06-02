@@ -1,10 +1,9 @@
-﻿/**
+/**
  * 流量填充配置模块
  *
  * 注意：真正的流量填充由 Go 内核（mihomo）的 ObfuscatedConn 在连接层执行。
  * 此模块仅定义配置结构，供前端面板和 profile 派生使用。
  */
-
 use serde::{Deserialize, Serialize};
 
 /// 流量填充配置
@@ -81,17 +80,17 @@ pub struct PaddingFrequency {
 /// 频率类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FrequencyType {
-    Time,      // 每 N 秒
-    Request,   // 每 N 请求
-    Random,    // 随机
+    Time,    // 每 N 秒
+    Request, // 每 N 请求
+    Random,  // 随机
 }
 
 /// 填充时机
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PaddingTiming {
-    Before,    // 请求前
-    After,     // 请求后
-    Random,    // 随机
+    Before, // 请求前
+    After,  // 请求后
+    Random, // 随机
 }
 
 /// 性能控制
@@ -111,8 +110,8 @@ pub struct PerformanceControl {
 impl Default for PerformanceControl {
     fn default() -> Self {
         Self {
-            max_bandwidth: 1024 * 1024, // 1 MB/s
-            max_cpu_usage: 5.0,          // 5%
+            max_bandwidth: 1024 * 1024,   // 1 MB/s
+            max_cpu_usage: 5.0,           // 5%
             max_memory: 10 * 1024 * 1024, // 10 MB
             auto_downgrade: true,
         }

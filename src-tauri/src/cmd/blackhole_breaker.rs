@@ -1,5 +1,5 @@
-use crate::core::blackhole_breaker::*;
 use super::{CmdResult, StringifyErr};
+use crate::core::blackhole_breaker::*;
 
 /// 获取黑洞熔断器配置
 #[tauri::command]
@@ -10,8 +10,9 @@ pub async fn blackhole_breaker_get_config() -> CmdResult<BlackholeBreakerConfig>
 /// 更新黑洞熔断器配置
 #[tauri::command]
 pub async fn blackhole_breaker_update_config(config: BlackholeBreakerConfig) -> CmdResult<()> {
-    crate::feat::blackhole_breaker_update_config(config).await;
-    Ok(())
+    crate::feat::blackhole_breaker_update_config(config)
+        .await
+        .stringify_err()
 }
 
 /// 获取所有熔断规则运行时状态
@@ -22,10 +23,7 @@ pub async fn blackhole_breaker_get_states() -> CmdResult<Vec<BreakerRuntimeState
 
 /// 记录请求结果
 #[tauri::command]
-pub async fn blackhole_breaker_record_result(
-    rule_id: String,
-    success: bool,
-) -> CmdResult<()> {
+pub async fn blackhole_breaker_record_result(rule_id: String, success: bool) -> CmdResult<()> {
     crate::feat::blackhole_breaker_record_result(&rule_id, success).await;
     Ok(())
 }
@@ -53,17 +51,12 @@ pub async fn blackhole_breaker_reset_rule(rule_id: String) -> CmdResult<()> {
 /// 手动触发熔断
 #[tauri::command]
 pub async fn blackhole_breaker_trip_rule(rule_id: String) -> CmdResult<()> {
-    crate::feat::blackhole_breaker_trip_rule(&rule_id)
-        .await
-        .stringify_err()
+    crate::feat::blackhole_breaker_trip_rule(&rule_id).await.stringify_err()
 }
 
 /// 记录欺诈评分（IP 信誉集成）
 #[tauri::command]
-pub async fn blackhole_breaker_record_fraud_score(
-    domain: String,
-    fraud_score: u8,
-) -> CmdResult<()> {
+pub async fn blackhole_breaker_record_fraud_score(domain: String, fraud_score: u8) -> CmdResult<()> {
     crate::feat::blackhole_breaker_record_fraud_score(&domain, fraud_score).await;
     Ok(())
 }

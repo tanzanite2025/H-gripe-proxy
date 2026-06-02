@@ -219,7 +219,9 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
 /// 根据profile name修改profiles
 #[tauri::command]
 pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> CmdResult<ValidationOutcome> {
-    feat::patch_profiles_config_by_profile_index(profile_index).await.stringify_err()
+    feat::patch_profiles_config_by_profile_index(profile_index)
+        .await
+        .stringify_err()
 }
 
 /// 修改某个profile item的

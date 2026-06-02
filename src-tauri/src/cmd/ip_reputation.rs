@@ -1,7 +1,7 @@
+use super::{CmdResult, StringifyErr};
+use crate::config::ResidentialProxy;
 use crate::core::ip_reputation::*;
 use crate::core::residential_verification::ResidentialProxyVerification;
-use crate::config::ResidentialProxy;
-use super::{CmdResult, StringifyErr};
 
 /// 获取 IP 信誉度配置
 #[tauri::command]

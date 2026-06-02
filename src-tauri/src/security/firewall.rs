@@ -1,13 +1,12 @@
 /**
  * 防火墙管理模块
- * 
+ *
  * 功能：
  * 1. Windows 防火墙配置 - 使用 PowerShell
  * 2. Linux 防火墙配置 - 使用 iptables
  * 3. macOS 防火墙配置 - 使用 pf
  */
-
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::process::Command;
@@ -73,7 +72,7 @@ impl FirewallManager {
     }
 
     /// 配置防火墙规则
-    /// 
+    ///
     /// 为指定端口配置防火墙规则：
     /// - 允许本地访问（127.0.0.1）
     /// - 阻止外部访问
@@ -85,7 +84,7 @@ impl FirewallManager {
             cfg.auto_firewall,
             cfg.bind_address
         );
-        
+
         // 检查权限
         if !self.check_permissions().await? {
             return Err(anyhow!(
@@ -158,18 +157,14 @@ impl FirewallManager {
         #[cfg(target_os = "windows")]
         {
             // Windows: 检查是否以管理员身份运行
-            let output = hidden_command("net")
-                .args(&["session"])
-                .output()?;
+            let output = hidden_command("net").args(&["session"]).output()?;
             Ok(output.status.success())
         }
 
         #[cfg(target_os = "linux")]
         {
             // Linux: 检查是否为 root 或有 sudo 权限
-            let output = Command::new("id")
-                .args(&["-u"])
-                .output()?;
+            let output = Command::new("id").args(&["-u"]).output()?;
             let uid = String::from_utf8_lossy(&output.stdout).trim().to_string();
             Ok(uid == "0")
         }
@@ -177,9 +172,7 @@ impl FirewallManager {
         #[cfg(target_os = "macos")]
         {
             // macOS: 检查是否为 root 或有 sudo 权限
-            let output = Command::new("id")
-                .args(&["-u"])
-                .output()?;
+            let output = Command::new("id").args(&["-u"]).output()?;
             let uid = String::from_utf8_lossy(&output.stdout).trim().to_string();
             Ok(uid == "0")
         }
@@ -290,11 +283,17 @@ impl FirewallManager {
         // 阻止外部访问指定端口
         let block_external = Command::new("iptables")
             .args(&[
-                "-A", "INPUT",
-                "-p", "tcp",
-                "--dport", &port.to_string(),
-                "!", "-i", "lo",
-                "-j", "DROP"
+                "-A",
+                "INPUT",
+                "-p",
+                "tcp",
+                "--dport",
+                &port.to_string(),
+                "!",
+                "-i",
+                "lo",
+                "-j",
+                "DROP",
             ])
             .output()
             .map_err(|e| anyhow!("Failed to execute iptables: {}", e))?;
@@ -305,8 +304,7 @@ impl FirewallManager {
         }
 
         // 保存规则（Debian/Ubuntu）
-        let _ = Command::new("iptables-save")
-            .output();
+        let _ = Command::new("iptables-save").output();
 
         Ok(())
     }
@@ -316,11 +314,17 @@ impl FirewallManager {
         // 删除阻止规则
         let _ = Command::new("iptables")
             .args(&[
-                "-D", "INPUT",
-                "-p", "tcp",
-                "--dport", &port.to_string(),
-                "!", "-i", "lo",
-                "-j", "DROP"
+                "-D",
+                "INPUT",
+                "-p",
+                "tcp",
+                "--dport",
+                &port.to_string(),
+                "!",
+                "-i",
+                "lo",
+                "-j",
+                "DROP",
             ])
             .output();
 
@@ -335,7 +339,7 @@ impl FirewallManager {
             .map_err(|e| anyhow!("Failed to execute iptables: {}", e))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         // 检查是否存在针对该端口的规则
         Ok(stdout.contains(&format!("dpt:{}", port)))
     }
@@ -352,8 +356,7 @@ impl FirewallManager {
         );
 
         // 写入规则文件
-        std::fs::write("/etc/pf.anchors/clash_verge", rules)
-            .map_err(|e| anyhow!("Failed to write pf rules: {}", e))?;
+        std::fs::write("/etc/pf.anchors/clash_verge", rules).map_err(|e| anyhow!("Failed to write pf rules: {}", e))?;
 
         // 加载规则
         let output = Command::new("pfctl")
@@ -367,9 +370,7 @@ impl FirewallManager {
         }
 
         // 启用 pf
-        let _ = Command::new("pfctl")
-            .args(&["-e"])
-            .output();
+        let _ = Command::new("pfctl").args(&["-e"]).output();
 
         Ok(())
     }
@@ -380,9 +381,7 @@ impl FirewallManager {
         let _ = std::fs::remove_file("/etc/pf.anchors/clash_verge");
 
         // 重新加载 pf 配置
-        let _ = Command::new("pfctl")
-            .args(&["-f", "/etc/pf.conf"])
-            .output();
+        let _ = Command::new("pfctl").args(&["-f", "/etc/pf.conf"]).output();
 
         Ok(())
     }
@@ -411,7 +410,7 @@ mod tests {
     async fn test_firewall_manager_creation() {
         let config = LocalSecurityConfig::default();
         let manager = FirewallManager::new(config);
-        
+
         // 验证管理器创建成功
         assert!(manager.config.read().await.bind_address == "127.0.0.1");
     }
@@ -447,27 +446,27 @@ mod tests {
     async fn test_check_permissions() {
         let config = LocalSecurityConfig::default();
         let manager = FirewallManager::new(config);
-        
+
         // 检查权限（可能失败，取决于运行环境）
         let result = manager.check_permissions().await;
         assert!(result.is_ok());
     }
 
     // 注意：以下测试需要管理员/root权限，在CI环境中可能失败
-    
+
     #[tokio::test]
     #[ignore] // 需要管理员权限
     async fn test_configure_firewall() {
         let config = LocalSecurityConfig::default();
         let manager = FirewallManager::new(config);
-        
+
         let port = 65500;
         let result = manager.configure_firewall(port).await;
-        
+
         // 如果有权限，应该成功
         if manager.check_permissions().await.unwrap_or(false) {
             assert!(result.is_ok());
-            
+
             // 清理
             let _ = manager.remove_firewall_rules(port).await;
         }
@@ -478,17 +477,17 @@ mod tests {
     async fn test_check_firewall_rules() {
         let config = LocalSecurityConfig::default();
         let manager = FirewallManager::new(config);
-        
+
         let port = 65501;
-        
+
         // 配置规则
         if manager.check_permissions().await.unwrap_or(false) {
             let _ = manager.configure_firewall(port).await;
-            
+
             // 检查规则
             let exists = manager.check_firewall_rules(port).await.unwrap_or(false);
             assert!(exists);
-            
+
             // 清理
             let _ = manager.remove_firewall_rules(port).await;
         }
@@ -499,17 +498,17 @@ mod tests {
     async fn test_remove_firewall_rules() {
         let config = LocalSecurityConfig::default();
         let manager = FirewallManager::new(config);
-        
+
         let port = 65502;
-        
+
         if manager.check_permissions().await.unwrap_or(false) {
             // 配置规则
             let _ = manager.configure_firewall(port).await;
-            
+
             // 删除规则
             let result = manager.remove_firewall_rules(port).await;
             assert!(result.is_ok());
-            
+
             // 验证规则已删除
             let exists = manager.check_firewall_rules(port).await.unwrap_or(true);
             assert!(!exists);

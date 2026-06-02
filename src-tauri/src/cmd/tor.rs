@@ -1,5 +1,5 @@
 use crate::cmd::{CmdResult, StringifyErr};
-use crate::core::tor_runtime::{build_tor_runtime_status, TorRuntimeStatus};
+use crate::core::tor_runtime::{TorRuntimeStatus, build_tor_runtime_status};
 
 #[tauri::command]
 pub async fn get_tor_status() -> CmdResult<TorRuntimeStatus> {

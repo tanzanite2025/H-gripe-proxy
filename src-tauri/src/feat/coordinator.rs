@@ -1,16 +1,14 @@
 use crate::config::AdvancedConfig;
-use crate::core::coordinator::CoreCoordinator;
 use crate::core::coordinator_status::CoordinatorStatus;
 use crate::core::stable_egress::project_runtime_status;
+use crate::core::{CoreManager, coordinator::CoreCoordinator};
 use crate::traffic::TrafficObfuscationConfig;
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
 /// 全局协调器实例
-static COORDINATOR: Lazy<Arc<CoreCoordinator>> = Lazy::new(|| {
-    Arc::new(CoreCoordinator::new())
-});
+static COORDINATOR: Lazy<Arc<CoreCoordinator>> = Lazy::new(|| Arc::new(CoreCoordinator::new()));
 
 /// 获取协调器实例
 pub fn get_coordinator() -> Arc<CoreCoordinator> {
@@ -32,6 +30,12 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
     config.save(&path)?;
 
     crate::feat::save_dns_config_mapping(&config.dns.to_dns_config_mapping()).await?;
+    crate::feat::apply_egress_monitor_config(config.egress_monitor.clone()).await?;
+    crate::feat::apply_ip_reputation_config(config.ip_reputation.clone()).await?;
+    crate::feat::apply_blackhole_breaker_config(config.blackhole_breaker.clone()).await;
+    crate::core::security_runtime::apply_local_stealth_config(config.local_stealth.clone()).await;
+    #[cfg(target_os = "linux")]
+    get_coordinator().xdp_manager().update_config(config.xdp.clone());
 
     // 同步流量混淆配置：优先使用 traffic_obfuscation，兼容旧 traffic_padding
     let obf_config = if config.traffic_obfuscation.enabled {
@@ -50,6 +54,8 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
         .update_config(config.session_affinity.clone())
         .await?;
 
+    CoreManager::global().update_config_checked().await?;
+
     Ok(())
 }
 
@@ -60,9 +66,7 @@ pub async fn coordinator_get_status() -> Result<CoordinatorStatus> {
     let security_compromised = crate::security::is_security_compromised();
     let runtime_state = project_runtime_status(
         COORDINATOR.egress_identity_manager().get_active_assignments(),
-        crate::feat::get_session_affinity_manager()
-            .get_all_bindings()
-            .await?,
+        crate::feat::get_session_affinity_manager().get_all_bindings().await?,
     )
     .await;
     let egress_identity_active_assignments = runtime_state.egress_identity_assignments.len();

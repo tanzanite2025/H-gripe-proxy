@@ -1,8 +1,7 @@
 /**
  * 出口 IP 监控器 — 配置与数据类型
  */
-
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 // ── 重绑定策略类型 ──────────────────────────────────────────────────

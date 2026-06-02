@@ -1,9 +1,8 @@
+use super::{CmdResult, StringifyErr};
 /**
  * XDP 代理 Tauri 命令
  */
-
 use crate::xdp::{XdpConfig, XdpRoute, XdpStatus, XdpSupportInfo};
-use super::{CmdResult, StringifyErr};
 
 /// 获取 XDP 配置
 #[tauri::command]

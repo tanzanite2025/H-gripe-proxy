@@ -1,13 +1,12 @@
 /**
  * 泄漏监控循环模块
- * 
+ *
  * 功能：
  * 1. 定时监控循环 - 每 30 秒检查一次
  * 2. 泄漏检测 - 检测本地绑定、防火墙、外部访问泄漏
  * 3. 自动修复 - 修复检测到的泄漏问题
  * 4. 事件发送 - 向前端发送状态更新
  */
-
 use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,8 +14,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time;
 
-use super::local_security::{LocalSecurityMonitor, LeakMonitorStatus};
 use super::local_security::LocalSecurityConfig;
+use super::local_security::{LeakMonitorStatus, LocalSecurityMonitor};
 
 /// 泄漏监控器
 pub struct LeakMonitor {
@@ -129,11 +128,7 @@ impl LeakMonitor {
     }
 
     /// 自动修复泄漏
-    async fn auto_fix_leak(
-        monitor: &Arc<LocalSecurityMonitor>,
-        port: u16,
-        status: &LeakMonitorStatus,
-    ) -> Result<()> {
+    async fn auto_fix_leak(monitor: &Arc<LocalSecurityMonitor>, port: u16, status: &LeakMonitorStatus) -> Result<()> {
         log::info!("🔧 Attempting to auto-fix security leak");
 
         // 1. 如果本地绑定不安全，记录警告（无法自动修复）
@@ -279,22 +274,13 @@ mod tests {
 
     #[test]
     fn test_leak_type_as_str() {
-        assert_eq!(
-            LeakType::NonLocalBinding.as_str(),
-            "Non-localhost binding detected"
-        );
-        assert_eq!(
-            LeakType::FirewallInactive.as_str(),
-            "Firewall rules not active"
-        );
+        assert_eq!(LeakType::NonLocalBinding.as_str(), "Non-localhost binding detected");
+        assert_eq!(LeakType::FirewallInactive.as_str(), "Firewall rules not active");
         assert_eq!(
             LeakType::ExternalAccessNotBlocked.as_str(),
             "External access not blocked"
         );
-        assert_eq!(
-            LeakType::ProcessNotHidden.as_str(),
-            "Process not hidden"
-        );
+        assert_eq!(LeakType::ProcessNotHidden.as_str(), "Process not hidden");
     }
 
     #[tokio::test]

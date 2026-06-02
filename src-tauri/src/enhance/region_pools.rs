@@ -4,7 +4,6 @@
  * 为常见地区（TW/HK/JP/SG/US/KR）自动创建 load-balance + sticky-sessions 组，
  * 确保同源同目标流量锁定同一节点，避免 IP 频繁变化。
  */
-
 use regex::Regex;
 use serde_yaml_ng::{Mapping, Sequence, Value};
 use smartstring::alias::String;
@@ -27,9 +26,7 @@ impl StandardRegionPoolSpec {
     }
 
     fn matches(self, value: &str) -> bool {
-        Regex::new(self.filter)
-            .map(|re| re.is_match(value))
-            .unwrap_or(false)
+        Regex::new(self.filter).map(|re| re.is_match(value)).unwrap_or(false)
     }
 }
 
@@ -124,10 +121,7 @@ pub fn append_standard_region_pools(mut config: Mapping) -> Mapping {
         group.insert("url".into(), STANDARD_REGION_POOL_URL.into());
         group.insert("interval".into(), STANDARD_REGION_POOL_INTERVAL.into());
         group.insert("timeout".into(), STANDARD_REGION_POOL_TIMEOUT.into());
-        group.insert(
-            "max-failed-times".into(),
-            STANDARD_REGION_POOL_MAX_FAILED_TIMES.into(),
-        );
+        group.insert("max-failed-times".into(), STANDARD_REGION_POOL_MAX_FAILED_TIMES.into());
         group.insert("lazy".into(), true.into());
         group.insert("hidden".into(), true.into());
 
@@ -165,8 +159,8 @@ pub fn append_standard_region_pools(mut config: Mapping) -> Mapping {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::parse_yaml;
+    use super::*;
 
     #[test]
     fn append_standard_region_pool_from_static_proxies() {

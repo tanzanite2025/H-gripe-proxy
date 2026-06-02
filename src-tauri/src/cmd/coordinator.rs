@@ -1,10 +1,9 @@
+use super::{CmdResult, StringifyErr};
 /**
  * 核心协调器 Tauri 命令
  */
-
 use crate::config::AdvancedConfig;
 use crate::core::coordinator_status::CoordinatorStatus;
-use super::{CmdResult, StringifyErr};
 
 /// 初始化协调器
 #[tauri::command]

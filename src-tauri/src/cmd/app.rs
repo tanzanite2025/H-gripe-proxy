@@ -2,9 +2,9 @@ use super::CmdResult;
 use crate::core::autostart;
 use crate::{cmd::StringifyErr as _, feat, utils::dirs};
 use smartstring::alias::String;
+use tauri::Url;
 #[cfg(debug_assertions)]
 use tauri::{AppHandle, Manager as _};
-use tauri::Url;
 
 fn parse_web_url(url: &str) -> CmdResult<Url> {
     let url = url.trim();
@@ -111,5 +111,8 @@ pub fn get_auto_launch_status() -> CmdResult<bool> {
 /// 下载图标缓存
 #[tauri::command]
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
-    feat::download_icon_cache(url.to_string(), name.to_string()).await.map(Into::into).stringify_err()
+    feat::download_icon_cache(url.to_string(), name.to_string())
+        .await
+        .map(Into::into)
+        .stringify_err()
 }

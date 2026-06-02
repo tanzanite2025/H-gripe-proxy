@@ -17,6 +17,7 @@ import {
   calcuProxies,
   calcuProxyProviders,
 } from '@/services/proxy-runtime'
+import { queryClient } from '@/services/query-client'
 
 import {
   ClashConfigContext,
@@ -124,6 +125,23 @@ export const AppDataProvider = ({
   const refreshProxyProviders = useStableFn(_refetchProxyProviders)
   const refreshRuleProviders = useStableFn(_refetchRuleProviders)
 
+  const refreshCoreData = useCallback(async () => {
+    await Promise.all([
+      refreshProxy().catch(() => {}),
+      refreshClashConfig().catch(() => {}),
+      refreshProxyProviders().catch(() => {}),
+      refreshRules().catch(() => {}),
+      refreshRuleProviders().catch(() => {}),
+      queryClient.invalidateQueries({ queryKey: ['getRuntimeConfig'] }).catch(() => {}),
+    ])
+  }, [
+    refreshProxy,
+    refreshClashConfig,
+    refreshProxyProviders,
+    refreshRules,
+    refreshRuleProviders,
+  ])
+
   useEffect(() => {
     let lastProfileId: string | null = null
     let lastUpdateTime = 0
@@ -141,8 +159,7 @@ export const AppDataProvider = ({
       }
       lastProfileId = newProfileId
       lastUpdateTime = now
-      refreshRules().catch(() => {})
-      refreshRuleProviders().catch(() => {})
+      void refreshCoreData()
     }
 
     const handleRefreshProxy = () => {
@@ -150,6 +167,13 @@ export const AppDataProvider = ({
       if (now - lastUpdateTime <= refreshThrottle) return
       lastUpdateTime = now
       refreshProxy().catch(() => {})
+    }
+
+    const handleRefreshClash = () => {
+      const now = Date.now()
+      if (now - lastUpdateTime <= refreshThrottle) return
+      lastUpdateTime = now
+      void refreshCoreData()
     }
 
     const initializeListeners = async () => {
@@ -161,6 +185,16 @@ export const AppDataProvider = ({
         cleanupFns.push(unlistenProfile)
       } catch (error) {
         console.error('[AppDataProvider] 鐩戝惉 Profile 浜嬩欢澶辫触:', error)
+      }
+
+      try {
+        const unlistenClash = await listen(
+          'verge://refresh-clash-config',
+          handleRefreshClash,
+        )
+        cleanupFns.push(unlistenClash)
+      } catch (error) {
+        console.warn('[AppDataProvider] 璁剧疆 Clash 浜嬩欢鐩戝惉鍣ㄥけ璐?', error)
       }
 
       try {
@@ -185,7 +219,7 @@ export const AppDataProvider = ({
         }
       })
     }
-  }, [refreshProxy, refreshRules, refreshRuleProviders])
+  }, [refreshCoreData, refreshProxy])
 
   const refreshAll = useCallback(async () => {
     await Promise.all([

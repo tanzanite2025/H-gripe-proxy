@@ -26,7 +26,7 @@ export default function XdpConfigComponent() {
     enabled: false,
     interface: 'eth0',
     mode: 'Skb',
-    enable_stats: true,
+    queue_size: 4096,
   })
   const [supportInfo, setSupportInfo] = useState<XdpSupportInfo | null>(null)
   const [interfaces, setInterfaces] = useState<string[]>([])

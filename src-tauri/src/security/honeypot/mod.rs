@@ -5,11 +5,10 @@ pub mod strategy;
 
 pub use decoy_file::ConfigDecoy;
 pub use memory::{
-    check_global_honeypot, detect_memory_scanning, get_global_honeypot_stats,
-    init_global_honeypot, init_global_honeypot_with_count, monitor_loop, HoneypotStats,
+    HoneypotStats, check_global_honeypot, detect_memory_scanning, get_global_honeypot_stats, init_global_honeypot,
+    init_global_honeypot_with_count, monitor_loop,
 };
-pub use secure_storage::{generate_encryption_key, SecureConfigStorage};
+pub use secure_storage::{SecureConfigStorage, generate_encryption_key};
 pub use strategy::{
-    check_decoy_plan_access, cleanup_decoy_plan, deploy_decoy_plan, DecoyBatchResult,
-    DecoyDeploymentPlan,
+    DecoyBatchResult, DecoyDeploymentPlan, check_decoy_plan_access, cleanup_decoy_plan, deploy_decoy_plan,
 };

@@ -2,10 +2,15 @@ use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::notification::{NotificationEvent, notify_event};
 use crate::utils::window_manager::WindowManager;
-use crate::{config::Config, core::handle, feat, module::lightweight::entry_lightweight_mode};
+use crate::{
+    config::Config,
+    core::{clash_mode::ClashMode, handle},
+    feat,
+    module::lightweight::entry_lightweight_mode,
+};
 use anyhow::{Result, bail};
 use arc_swap::ArcSwap;
-use clash_verge_logging::{Type, logging};
+use clash_verge_logging::{Type, logging, logging_error};
 use smartstring::alias::String;
 use std::{
     collections::HashMap,
@@ -125,19 +130,19 @@ impl Hotkey {
             }
             HotkeyFunction::ClashModeRule => {
                 AsyncHandler::spawn(async move || {
-                    feat::change_clash_mode("rule".into()).await;
+                    logging_error!(Type::Core, feat::change_clash_mode(ClashMode::Rule).await);
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Rule" }).await;
                 });
             }
             HotkeyFunction::ClashModeGlobal => {
                 AsyncHandler::spawn(async move || {
-                    feat::change_clash_mode("global".into()).await;
+                    logging_error!(Type::Core, feat::change_clash_mode(ClashMode::Global).await);
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
                 });
             }
             HotkeyFunction::ClashModeDirect => {
                 AsyncHandler::spawn(async move || {
-                    feat::change_clash_mode("direct".into()).await;
+                    logging_error!(Type::Core, feat::change_clash_mode(ClashMode::Direct).await);
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Direct" }).await;
                 });
             }

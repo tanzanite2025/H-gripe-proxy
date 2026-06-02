@@ -4,7 +4,7 @@ use serde_yaml_ng::{Mapping, Value};
 use crate::process::AsyncHandler;
 
 use crate::constants::tun as tun_const;
-use crate::core::security_policy::{get_security_policy_manager, TUN_SECURITY_SUB_RULE};
+use crate::core::security_policy::{TUN_SECURITY_SUB_RULE, get_security_policy_manager};
 
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {

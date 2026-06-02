@@ -7,7 +7,7 @@ use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::window_manager::WindowManager;
 use crate::{
-    Type, cmd, config::Config, feat, logging, module::lightweight::is_in_lightweight_mode,
+    Type, cmd, config::Config, core::clash_mode::ClashMode, feat, logging, module::lightweight::is_in_lightweight_mode,
     utils::dirs::find_target_icons,
 };
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
@@ -589,12 +589,9 @@ async fn create_tray_menu(
 
     // TODO: should update tray menu again when it was timeout error
     let snapshot_service = RuntimeSnapshotService::global();
-    let proxy_nodes_data = tokio::time::timeout(
-        Duration::from_millis(1000),
-        snapshot_service.refresh_proxies_result(),
-    )
-    .await
-    .map_or(None, |res| res.ok().and_then(|snapshot| snapshot.proxies));
+    let proxy_nodes_data = tokio::time::timeout(Duration::from_millis(1000), snapshot_service.refresh_proxies_result())
+        .await
+        .map_or(None, |res| res.ok().and_then(|snapshot| snapshot.proxies));
 
     let runtime_proxy_groups_order = cmd::get_runtime_config()
         .await
@@ -924,7 +921,10 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                     && let Some(final_mode) = stripped.strip_suffix("_mode")
                 {
                     logging!(info, Type::ProxyMode, "Switch Proxy Mode To: {}", final_mode);
-                    feat::change_clash_mode(final_mode.into()).await;
+                    match final_mode.parse::<ClashMode>() {
+                        Ok(mode) => logging_error!(Type::ProxyMode, feat::change_clash_mode(mode).await),
+                        Err(err) => logging!(error, Type::ProxyMode, "{err}"),
+                    }
                 }
             }
             MenuIds::DASHBOARD => {

@@ -18,7 +18,13 @@ pub async fn egress_identity_preview_match(
     available_nodes: Option<Vec<String>>,
 ) -> CmdResult<ResolvedEgressIdentity> {
     crate::feat::egress_identity_preview_match(
-        process_name, exe_path, shortcut_id, domain, source_ip, source_port, available_nodes,
+        process_name,
+        exe_path,
+        shortcut_id,
+        domain,
+        source_ip,
+        source_port,
+        available_nodes,
     )
     .await
     .stringify_err()
@@ -35,7 +41,13 @@ pub async fn egress_identity_assign_match(
     available_nodes: Option<Vec<String>>,
 ) -> CmdResult<ResolvedEgressIdentity> {
     crate::feat::egress_identity_assign_match(
-        process_name, exe_path, shortcut_id, domain, source_ip, source_port, available_nodes,
+        process_name,
+        exe_path,
+        shortcut_id,
+        domain,
+        source_ip,
+        source_port,
+        available_nodes,
     )
     .await
     .stringify_err()

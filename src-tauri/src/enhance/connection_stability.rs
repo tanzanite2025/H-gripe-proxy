@@ -50,10 +50,7 @@ pub fn apply_connection_stability(mut config: Mapping) -> Mapping {
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
             if let Some(group_map) = group.as_mapping_mut() {
-                let group_type = group_map
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
+                let group_type = group_map.get("type").and_then(Value::as_str).unwrap_or("");
 
                 if group_type == "url-test" && !group_map.contains_key("tolerance") {
                     // 延迟差 < 50ms 不切换，避免 IP 频繁变化
@@ -124,27 +121,21 @@ fn build_smux_value(multiplex: &MultiplexConfig) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::parse_yaml;
+    use super::*;
 
     #[test]
     fn inject_keep_alive_interval_when_missing() {
         let config = Mapping::new();
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("keep-alive-interval").and_then(Value::as_i64),
-            Some(30)
-        );
+        assert_eq!(result.get("keep-alive-interval").and_then(Value::as_i64), Some(30));
     }
 
     #[test]
     fn inject_keep_alive_idle_when_missing() {
         let config = Mapping::new();
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("keep-alive-idle").and_then(Value::as_i64),
-            Some(30)
-        );
+        assert_eq!(result.get("keep-alive-idle").and_then(Value::as_i64), Some(30));
     }
 
     #[test]
@@ -152,20 +143,14 @@ mod tests {
         let mut config = Mapping::new();
         config.insert("keep-alive-idle".into(), Value::from(60));
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("keep-alive-idle").and_then(Value::as_i64),
-            Some(60)
-        );
+        assert_eq!(result.get("keep-alive-idle").and_then(Value::as_i64), Some(60));
     }
 
     #[test]
     fn inject_tcp_concurrent_when_missing() {
         let config = Mapping::new();
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("tcp-concurrent").and_then(Value::as_bool),
-            Some(true)
-        );
+        assert_eq!(result.get("tcp-concurrent").and_then(Value::as_bool), Some(true));
     }
 
     #[test]
@@ -173,10 +158,7 @@ mod tests {
         let mut config = Mapping::new();
         config.insert("tcp-concurrent".into(), Value::Bool(false));
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("tcp-concurrent").and_then(Value::as_bool),
-            Some(false)
-        );
+        assert_eq!(result.get("tcp-concurrent").and_then(Value::as_bool), Some(false));
     }
 
     #[test]
@@ -184,20 +166,14 @@ mod tests {
         let mut config = Mapping::new();
         config.insert("keep-alive-interval".into(), Value::from(60));
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("keep-alive-interval").and_then(Value::as_i64),
-            Some(60)
-        );
+        assert_eq!(result.get("keep-alive-interval").and_then(Value::as_i64), Some(60));
     }
 
     #[test]
     fn inject_unified_delay_when_missing() {
         let config = Mapping::new();
         let result = apply_connection_stability(config);
-        assert_eq!(
-            result.get("unified-delay").and_then(Value::as_bool),
-            Some(true)
-        );
+        assert_eq!(result.get("unified-delay").and_then(Value::as_bool), Some(true));
     }
 
     #[test]
@@ -208,10 +184,7 @@ mod tests {
             .get("profile")
             .and_then(Value::as_mapping)
             .expect("profile should exist");
-        assert_eq!(
-            profile.get("store-selected").and_then(Value::as_bool),
-            Some(true)
-        );
+        assert_eq!(profile.get("store-selected").and_then(Value::as_bool), Some(true));
     }
 
     #[test]
@@ -236,10 +209,7 @@ proxy-groups:
             .expect("proxy-groups should exist");
 
         let auto_group = groups[0].as_mapping().unwrap();
-        assert_eq!(
-            auto_group.get("tolerance").and_then(Value::as_i64),
-            Some(50)
-        );
+        assert_eq!(auto_group.get("tolerance").and_then(Value::as_i64), Some(50));
 
         let manual_group = groups[1].as_mapping().unwrap();
         assert!(manual_group.get("tolerance").is_none());
@@ -258,15 +228,9 @@ proxy-groups:
         let config = parse_yaml(yaml);
         let result = apply_connection_stability(config);
 
-        let groups = result
-            .get("proxy-groups")
-            .and_then(Value::as_sequence)
-            .unwrap();
+        let groups = result.get("proxy-groups").and_then(Value::as_sequence).unwrap();
         let auto_group = groups[0].as_mapping().unwrap();
-        assert_eq!(
-            auto_group.get("tolerance").and_then(Value::as_i64),
-            Some(100)
-        );
+        assert_eq!(auto_group.get("tolerance").and_then(Value::as_i64), Some(100));
     }
 
     #[test]

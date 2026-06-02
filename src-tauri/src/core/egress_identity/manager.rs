@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use parking_lot::RwLock;
 use serde::Serialize;
 
-use crate::core::ip_reputation::{matches_ip_type, IpType};
+use crate::core::ip_reputation::{IpType, matches_ip_type};
 use crate::core::session_affinity::domain_matches;
 
 use super::config::*;
@@ -66,9 +66,7 @@ impl SelectionPlan {
         }
 
         match &self.profile.failover_policy {
-            EgressFailoverPolicy::Block => {
-                Err(anyhow!("出口身份画像 {} 没有满足约束的候选节点", self.profile.id))
-            }
+            EgressFailoverPolicy::Block => Err(anyhow!("出口身份画像 {} 没有满足约束的候选节点", self.profile.id)),
             EgressFailoverPolicy::Manual | EgressFailoverPolicy::AutoSwitch => self
                 .fallback_nodes
                 .first()
@@ -124,9 +122,9 @@ impl EgressIdentityManager {
             .map(|profile| profile.id)
             .collect::<HashSet<_>>();
 
-        self.active_assignments.write().retain(|_, assignment| {
-            valid_profile_ids.contains(&assignment.profile_id)
-        });
+        self.active_assignments
+            .write()
+            .retain(|_, assignment| valid_profile_ids.contains(&assignment.profile_id));
 
         Ok(())
     }
@@ -146,8 +144,8 @@ impl EgressIdentityManager {
         let plan = self.build_selection_plan(&config, &ctx)?;
 
         if let Some(existing) = self.active_assignments.read().get(&assignment_key).cloned() {
-            let node_is_available = ctx.available_nodes.is_empty()
-                || ctx.available_nodes.contains(&existing.selected_node);
+            let node_is_available =
+                ctx.available_nodes.is_empty() || ctx.available_nodes.contains(&existing.selected_node);
             let override_requires_switch = plan
                 .domain_override_node
                 .as_ref()
@@ -169,9 +167,7 @@ impl EgressIdentityManager {
             tls_fingerprint: plan.profile.tls_fingerprint,
             matched_by: plan.matched_by,
         };
-        self.active_assignments
-            .write()
-            .insert(assignment_key, resolved.clone());
+        self.active_assignments.write().insert(assignment_key, resolved.clone());
         Ok(resolved)
     }
 
@@ -206,9 +202,7 @@ impl EgressIdentityManager {
             matched_by: plan.matched_by,
         };
 
-        self.active_assignments
-            .write()
-            .insert(assignment_key, resolved.clone());
+        self.active_assignments.write().insert(assignment_key, resolved.clone());
 
         Ok(resolved)
     }
@@ -249,20 +243,13 @@ impl EgressIdentityManager {
             matched_by: format!("manual_group_selection:{domain_pattern}"),
         };
 
-        self.active_assignments
-            .write()
-            .insert(assignment_key, resolved.clone());
+        self.active_assignments.write().insert(assignment_key, resolved.clone());
 
         Ok(resolved)
     }
 
     pub fn get_active_assignments(&self) -> Vec<ResolvedEgressIdentity> {
-        let mut assignments = self
-            .active_assignments
-            .read()
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut assignments = self.active_assignments.read().values().cloned().collect::<Vec<_>>();
 
         assignments.sort_by(|left, right| {
             left.assignment_key
@@ -364,10 +351,7 @@ impl EgressIdentityManager {
     }
 
     fn prioritize_node(mut nodes: Vec<String>, preferred_node: &str) -> Vec<String> {
-        if let Some(index) = nodes
-            .iter()
-            .position(|node| node.eq_ignore_ascii_case(preferred_node))
-        {
+        if let Some(index) = nodes.iter().position(|node| node.eq_ignore_ascii_case(preferred_node)) {
             let preferred = nodes.remove(index);
             nodes.insert(0, preferred);
         }
@@ -391,10 +375,7 @@ impl EgressIdentityManager {
                     .iter()
                     .find(|profile| profile.enabled && profile.id == rule.profile_id)
                 {
-                    return Ok((
-                        profile.clone(),
-                        format!("shortcut_id:{}", shortcut_id),
-                    ));
+                    return Ok((profile.clone(), format!("shortcut_id:{}", shortcut_id)));
                 }
             }
         }
@@ -433,11 +414,7 @@ impl EgressIdentityManager {
             } else {
                 ctx.domain
                     .as_ref()
-                    .map(|domain| {
-                        rule.domains
-                            .iter()
-                            .any(|pattern| domain_matches(domain, pattern))
-                    })
+                    .map(|domain| rule.domains.iter().any(|pattern| domain_matches(domain, pattern)))
                     .unwrap_or(false)
             };
 
@@ -447,10 +424,7 @@ impl EgressIdentityManager {
                     .iter()
                     .find(|profile| profile.enabled && profile.id == rule.profile_id)
                 {
-                    return Ok((
-                        profile.clone(),
-                        format!("app_rule:{}", rule.profile_id),
-                    ));
+                    return Ok((profile.clone(), format!("app_rule:{}", rule.profile_id)));
                 }
             }
         }
@@ -584,9 +558,7 @@ impl EgressIdentityManager {
                     .position(|preferred_node| preferred_node.eq_ignore_ascii_case(node_name))
                     .unwrap_or(usize::MAX),
                 Self::preferred_pool_rank(profile, metadata),
-                metadata
-                    .and_then(|metadata| metadata.fraud_score)
-                    .unwrap_or(u8::MAX),
+                metadata.and_then(|metadata| metadata.fraud_score).unwrap_or(u8::MAX),
                 if metadata.is_some() { 0usize } else { 1usize },
                 *original_index,
             )
@@ -598,10 +570,7 @@ impl EgressIdentityManager {
             .collect::<Vec<_>>()
     }
 
-    fn preferred_pool_rank(
-        profile: &EgressIdentityProfile,
-        metadata: Option<&EgressNodeMetadata>,
-    ) -> usize {
+    fn preferred_pool_rank(profile: &EgressIdentityProfile, metadata: Option<&EgressNodeMetadata>) -> usize {
         if profile.preferred_pools.is_empty() {
             return usize::MAX;
         }

@@ -93,7 +93,11 @@ impl Config {
         let tun_enabled = verge.enable_tun_mode.unwrap_or(false);
 
         if tun_enabled && !is_tun_runtime_available_at_startup().await {
-            logging!(warn, Type::Core, "TUN runtime unavailable during startup, disabling persisted TUN mode");
+            logging!(
+                warn,
+                Type::Core,
+                "TUN runtime unavailable during startup, disabling persisted TUN mode"
+            );
             let verge = Self::verge().await;
             verge.edit_draft(|d| {
                 d.enable_tun_mode = Some(false);

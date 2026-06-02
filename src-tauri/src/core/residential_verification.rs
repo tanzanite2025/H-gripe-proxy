@@ -109,7 +109,10 @@ async fn verify_residential_proxy_via_mihomo(
     }
 
     if !restore_errors.is_empty() {
-        return Err(anyhow!("failed to restore Mihomo verification state: {}", restore_errors.join("; ")));
+        return Err(anyhow!(
+            "failed to restore Mihomo verification state: {}",
+            restore_errors.join("; ")
+        ));
     }
 
     result
@@ -192,11 +195,7 @@ struct MihomoSelectionGuard<'a> {
 }
 
 impl<'a> MihomoSelectionGuard<'a> {
-    async fn select(
-        app_handle: &'a tauri::AppHandle,
-        group_name: &str,
-        node_name: &str,
-    ) -> Result<Self> {
+    async fn select(app_handle: &'a tauri::AppHandle, group_name: &str, node_name: &str) -> Result<Self> {
         let mihomo = app_handle.mihomo().read().await;
         let target = mihomo.get_proxy_by_name(node_name).await?;
         if !target.alive {
@@ -227,9 +226,7 @@ impl<'a> MihomoSelectionGuard<'a> {
     async fn restore(self) -> Result<()> {
         if let Some(previous_node) = self.previous_node {
             let mihomo = self.app_handle.mihomo().read().await;
-            mihomo
-                .select_node_for_group(&self.group_name, &previous_node)
-                .await?;
+            mihomo.select_node_for_group(&self.group_name, &previous_node).await?;
         }
 
         Ok(())
@@ -248,10 +245,7 @@ async fn build_mihomo_proxy_client() -> Result<Client> {
 }
 
 async fn local_mihomo_mixed_port() -> u16 {
-    let verge_port = crate::config::Config::verge()
-        .await
-        .data_arc()
-        .verge_mixed_port;
+    let verge_port = crate::config::Config::verge().await.data_arc().verge_mixed_port;
 
     match verge_port {
         Some(port) => port,
@@ -279,23 +273,24 @@ pub fn status_from_reputation(reputation: &IpReputation) -> ResidentialProxyVeri
     }
 }
 
-fn verification_message(
-    status: ResidentialProxyVerificationStatus,
-    reputation: &IpReputation,
-) -> String {
+fn verification_message(status: ResidentialProxyVerificationStatus, reputation: &IpReputation) -> String {
     match status {
         ResidentialProxyVerificationStatus::Verified => {
-            format!("egress verified as residential with confidence {}", reputation.confidence)
+            format!(
+                "egress verified as residential with confidence {}",
+                reputation.confidence
+            )
         }
         ResidentialProxyVerificationStatus::Observed => {
-            format!("egress has residential-like evidence with confidence {}", reputation.confidence)
+            format!(
+                "egress has residential-like evidence with confidence {}",
+                reputation.confidence
+            )
         }
         ResidentialProxyVerificationStatus::Rejected => {
             format!("egress is not residential-like: {:?}", reputation.ip_type)
         }
-        ResidentialProxyVerificationStatus::Failed => {
-            "egress reputation is inconclusive".to_string()
-        }
+        ResidentialProxyVerificationStatus::Failed => "egress reputation is inconclusive".to_string(),
         ResidentialProxyVerificationStatus::NeedsMihomoProbe => {
             "proxy type requires Mihomo-assisted verification".to_string()
         }
@@ -378,8 +373,14 @@ mod tests {
 
     #[test]
     fn test_direct_probe_supports_http_and_socks5_only() {
-        assert_eq!(residential_proxy_url(&proxy(ResidentialProxyType::Http)).unwrap(), "http://127.0.0.1:1080");
-        assert_eq!(residential_proxy_url(&proxy(ResidentialProxyType::Socks5)).unwrap(), "socks5://127.0.0.1:1080");
+        assert_eq!(
+            residential_proxy_url(&proxy(ResidentialProxyType::Http)).unwrap(),
+            "http://127.0.0.1:1080"
+        );
+        assert_eq!(
+            residential_proxy_url(&proxy(ResidentialProxyType::Socks5)).unwrap(),
+            "socks5://127.0.0.1:1080"
+        );
         assert!(residential_proxy_url(&proxy(ResidentialProxyType::Ss)).is_none());
         assert!(residential_proxy_url(&proxy(ResidentialProxyType::Vmess)).is_none());
         assert!(residential_proxy_url(&proxy(ResidentialProxyType::Trojan)).is_none());

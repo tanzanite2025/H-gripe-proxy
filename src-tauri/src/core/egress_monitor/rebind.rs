@@ -3,7 +3,6 @@
  *
  * 定义 RebindStrategy trait，后续智能故障转移只需新增策略实现。
  */
-
 use std::future::Future;
 use std::pin::Pin;
 
@@ -81,10 +80,7 @@ impl RebindStrategy for RoundRobinRebind {
                 }
 
                 // 找到当前节点在列表中的位置，尝试切换到下一个节点
-                let current_idx = all_nodes
-                    .iter()
-                    .position(|n| n.as_str() == current_node)
-                    .unwrap_or(0);
+                let current_idx = all_nodes.iter().position(|n| n.as_str() == current_node).unwrap_or(0);
 
                 let next_idx = (current_idx + 1) % all_nodes.len();
                 let next_node = &all_nodes[next_idx];
@@ -140,7 +136,9 @@ async fn backwrite_after_rebind() {
             &session_affinity,
             &ip_reputation,
             &runtime_config,
-        ).await {
+        )
+        .await
+        {
             log::warn!("[RebindStrategy] 重绑定后回写失败: {}", e);
         }
     }
@@ -223,7 +221,8 @@ impl RebindStrategy for SmartRebind {
                 ctx,
                 &coordinator.multipath_manager(),
                 &ip_reputation_manager,
-            ).await;
+            )
+            .await;
 
             // 建立元数据索引
             let metadata_index: std::collections::HashMap<String, _> = enriched_ctx
@@ -270,12 +269,7 @@ impl RebindStrategy for SmartRebind {
 
                     let metadata = metadata_index.get(node_name.as_str());
                     let delay = delay_index.get(node_name.as_str()).copied();
-                    let score = score_node(
-                        node_name,
-                        target_country,
-                        metadata,
-                        delay,
-                    ).await;
+                    let score = score_node(node_name, target_country, metadata, delay).await;
 
                     if score > best_score {
                         best_score = score;
@@ -284,10 +278,7 @@ impl RebindStrategy for SmartRebind {
                 }
 
                 let Some(best_node) = best_node else {
-                    log::debug!(
-                        "[RebindStrategy::Smart] 组 {} 无可用候选节点",
-                        group_name
-                    );
+                    log::debug!("[RebindStrategy::Smart] 组 {} 无可用候选节点", group_name);
                     continue;
                 };
 
@@ -368,9 +359,7 @@ async fn score_node(
             if let Some(server_ip) = crate::core::stable_egress::resolve_server_ip(server).await {
                 if let Ok(reputation) = ip_reputation_manager.inspect_ip_metadata(&server_ip).await {
                     // 同国家 +40
-                    if !target_country.is_empty()
-                        && reputation.country_code.eq_ignore_ascii_case(target_country)
-                    {
+                    if !target_country.is_empty() && reputation.country_code.eq_ignore_ascii_case(target_country) {
                         score += 40;
                     }
                     // 非代理/VPN +20

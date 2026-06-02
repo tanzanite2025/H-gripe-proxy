@@ -89,24 +89,32 @@ impl CoreManager {
 
                         let is_normal_exit = term.code == Some(0);
                         if !is_normal_exit {
-                            logging!(error, Type::Core, "Core sidecar exited abnormally! Triggering Core Panic Recovery...");
+                            logging!(
+                                error,
+                                Type::Core,
+                                "Core sidecar exited abnormally! Triggering Core Panic Recovery..."
+                            );
                             let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
 
                             if tun_enabled {
                                 crate::core::handle::Handle::notice_message(
                                     "core_panic_recovered",
-                                    "内核意外崩溃，已进入保护性停止状态以避免流量跑偏，正在尝试自动重启。"
+                                    "内核意外崩溃，已进入保护性停止状态以避免流量跑偏，正在尝试自动重启。",
                                 );
                             } else {
                                 if let Err(e) = crate::core::sysopt::Sysopt::global().reset_sysproxy().await {
                                     logging!(error, Type::Core, "Failed to reset sysproxy during recovery: {:?}", e);
                                 } else {
-                                    logging!(info, Type::Core, "Successfully reset sysproxy to prevent network outage.");
+                                    logging!(
+                                        info,
+                                        Type::Core,
+                                        "Successfully reset sysproxy to prevent network outage."
+                                    );
                                 }
 
                                 crate::core::handle::Handle::notice_message(
                                     "core_panic_recovered",
-                                    "内核意外崩溃，已为您自动解除系统代理，防止电脑断网！"
+                                    "内核意外崩溃，已为您自动解除系统代理，防止电脑断网！",
                                 );
                             }
                         }

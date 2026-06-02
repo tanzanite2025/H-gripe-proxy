@@ -1,42 +1,42 @@
 mod chain;
 pub mod field;
 mod merge;
+mod obfuscation;
 mod script;
 pub mod seq;
-mod obfuscation;
 mod sniffer;
 mod tls_fingerprint;
+mod traffic_obfuscation;
 mod tun;
 
-mod connection_stability;
 mod blackhole_breaker;
+mod connection_stability;
 mod proxy_cleanup;
 mod region_pools;
 mod stable_egress;
 mod timezone_spoof;
 
 use self::{
+    blackhole_breaker::apply_blackhole_breaker_config,
     chain::{AsyncChainItemFrom as _, ChainItem, ChainType},
+    connection_stability::{apply_connection_stability, apply_multiplex},
     field::{use_keys, use_lowercase, use_sort},
     merge::use_merge,
-    script::use_script,
-    seq::{SeqMap, use_seq},
     obfuscation::apply_obfuscation_config,
-    blackhole_breaker::apply_blackhole_breaker_config,
-    timezone_spoof::apply_timezone_spoof_config,
-    sniffer::apply_sniffer_config,
-    tls_fingerprint::apply_tls_fingerprint_config,
-    tun::use_tun,
-    tun::apply_tun_security_policy,
-    connection_stability::{apply_connection_stability, apply_multiplex},
     proxy_cleanup::cleanup_proxy_groups,
     region_pools::append_standard_region_pools,
+    script::use_script,
+    seq::{SeqMap, use_seq},
+    sniffer::apply_sniffer_config,
+    timezone_spoof::apply_timezone_spoof_config,
+    tls_fingerprint::apply_tls_fingerprint_config,
+    traffic_obfuscation::apply_traffic_obfuscation_config,
+    tun::apply_tun_security_policy,
+    tun::use_tun,
 };
 
 #[allow(unused_imports)]
-pub(crate) use self::stable_egress::{
-    apply_stable_egress_policy, apply_stable_egress_policy_with_advanced,
-};
+pub(crate) use self::stable_egress::{apply_stable_egress_policy, apply_stable_egress_policy_with_advanced};
 use crate::utils::dirs;
 use crate::{
     config::{Config, IVerge},
@@ -540,15 +540,13 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
 
                 if !has_proxy_ns {
                     // Auto-fill with domestic plain IP nameservers
-                    let fallback_ns: Vec<Value> = ["223.5.5.5", "119.29.29.29"]
-                        .into_iter()
-                        .map(Value::from)
-                        .collect();
-                    dns_mapping.insert(
-                        "proxy-server-nameserver".into(),
-                        Value::Sequence(fallback_ns),
+                    let fallback_ns: Vec<Value> = ["223.5.5.5", "119.29.29.29"].into_iter().map(Value::from).collect();
+                    dns_mapping.insert("proxy-server-nameserver".into(), Value::Sequence(fallback_ns));
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "respect-rules enabled but proxy-server-nameserver missing, auto-filled with domestic DNS"
                     );
-                    logging!(warn, Type::Core, "respect-rules enabled but proxy-server-nameserver missing, auto-filled with domestic DNS");
                 }
             }
         }
@@ -632,6 +630,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     config = apply_sniffer_config(config);
     config = apply_tls_fingerprint_config(config);
     config = apply_obfuscation_config(config);
+    config = apply_traffic_obfuscation_config(config);
     config = apply_blackhole_breaker_config(config).await;
     config = apply_timezone_spoof_config(config);
     config = use_sort(config);
@@ -680,8 +679,7 @@ rules:
   - MATCH,Proxy
 "#;
 
-        let config: serde_yaml_ng::Mapping =
-            serde_yaml_ng::from_str(config_str).expect("Failed to parse test yaml");
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(config_str).expect("Failed to parse test yaml");
         let mut advanced = crate::config::AdvancedConfig::default();
         advanced.egress_identity = crate::core::egress_identity::EgressIdentityConfig::recommended();
         advanced.egress_identity.enabled = true;
@@ -710,9 +708,7 @@ rules:
             .and_then(serde_yaml_ng::Value::as_mapping)
             .expect("profile should exist");
         assert_eq!(
-            profile
-                .get("store-selected")
-                .and_then(serde_yaml_ng::Value::as_bool),
+            profile.get("store-selected").and_then(serde_yaml_ng::Value::as_bool),
             Some(true)
         );
 
@@ -725,8 +721,7 @@ rules:
         let stable_group = groups
             .iter()
             .find(|group| {
-                group.get("name").and_then(serde_yaml_ng::Value::as_str)
-                    == Some("VERGE-STABLE-STAR-OPENAI-COM")
+                group.get("name").and_then(serde_yaml_ng::Value::as_str) == Some("VERGE-STABLE-STAR-OPENAI-COM")
             })
             .and_then(|group| group.as_mapping())
             .expect("stable group should exist");
@@ -761,9 +756,6 @@ rules:
             .and_then(serde_yaml_ng::Value::as_sequence)
             .expect("high-risk domain dns policy should exist");
         assert_eq!(high_risk_policy.len(), 1);
-        assert_eq!(
-            high_risk_policy[0].as_str(),
-            Some("https://dns.google/dns-query")
-        );
+        assert_eq!(high_risk_policy[0].as_str(), Some("https://dns.google/dns-query"));
     }
 }

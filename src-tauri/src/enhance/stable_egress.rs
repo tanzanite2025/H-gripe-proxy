@@ -1,20 +1,17 @@
+use crate::config::AdvancedConfig;
 /**
  * 稳定出口策略注入
  *
  * 读取 advanced.yaml 中的 session_affinity + egress_identity 配置，
  * 为高风险域名生成 VERGE-STABLE-* select 组 + DOMAIN-SUFFIX 规则 + DNS nameserver-policy。
  */
-
 use crate::core::egress_identity::{
-    DnsMode, EgressIdentityManager, EgressNodeMetadata, EgressSelectionContext,
-    ResolvedEgressIdentity,
+    DnsMode, EgressIdentityManager, EgressNodeMetadata, EgressSelectionContext, ResolvedEgressIdentity,
 };
 use crate::core::session_affinity::{DomainBindingRule, FallbackPolicy};
 use crate::core::stable_egress::{
-    STABLE_EGRESS_GROUP_PREFIX, domain_probe_for_pattern, stable_egress_group_name,
-    stable_egress_rule_line,
+    STABLE_EGRESS_GROUP_PREFIX, domain_probe_for_pattern, stable_egress_group_name, stable_egress_rule_line,
 };
-use crate::config::AdvancedConfig;
 use serde_yaml_ng::{Mapping, Sequence, Value};
 use std::collections::HashSet;
 
@@ -45,9 +42,7 @@ pub(crate) fn apply_stable_egress_policy_with_advanced(
         .session_affinity
         .domain_rules
         .iter()
-        .filter(|rule| {
-            rule.enabled && matches!(rule.fallback_policy.clone(), FallbackPolicy::Manual)
-        })
+        .filter(|rule| rule.enabled && matches!(rule.fallback_policy.clone(), FallbackPolicy::Manual))
         .cloned()
         .collect::<Vec<_>>();
 
@@ -62,8 +57,7 @@ pub(crate) fn apply_stable_egress_policy_with_advanced(
         return config;
     }
 
-    let egress_manager =
-        EgressIdentityManager::new_with_config(advanced_config.egress_identity.clone());
+    let egress_manager = EgressIdentityManager::new_with_config(advanced_config.egress_identity.clone());
     let metadata = build_static_egress_metadata(&static_proxies, advanced_config);
     let static_proxy_names = static_proxies
         .iter()
@@ -113,24 +107,14 @@ pub(crate) fn apply_stable_egress_policy_with_advanced(
             if !ordered_nodes.is_empty() {
                 group.insert(
                     "proxies".into(),
-                    Value::Sequence(
-                        ordered_nodes
-                            .iter()
-                            .map(|name| Value::from(name.as_str()))
-                            .collect(),
-                    ),
+                    Value::Sequence(ordered_nodes.iter().map(|name| Value::from(name.as_str())).collect()),
                 );
             }
 
             if !provider_names.is_empty() {
                 group.insert(
                     "use".into(),
-                    Value::Sequence(
-                        provider_names
-                            .iter()
-                            .map(|name| Value::from(name.as_str()))
-                            .collect(),
-                    ),
+                    Value::Sequence(provider_names.iter().map(|name| Value::from(name.as_str())).collect()),
                 );
             }
 
@@ -139,17 +123,11 @@ pub(crate) fn apply_stable_egress_policy_with_advanced(
 
         if let Some(policy_key) = stable_dns_policy_key(&rule.domain_pattern)
             && let Some(identity) = resolved_identity.as_ref()
-            && let Some(nameservers) =
-                stable_dns_server_override(&config, advanced_config, identity)
+            && let Some(nameservers) = stable_dns_server_override(&config, advanced_config, identity)
         {
             generated_dns_policy.insert(
                 Value::from(policy_key.as_str()),
-                Value::Sequence(
-                    nameservers
-                        .iter()
-                        .map(|server| Value::from(server.as_str()))
-                        .collect(),
-                ),
+                Value::Sequence(nameservers.iter().map(|server| Value::from(server.as_str())).collect()),
             );
         }
 
@@ -256,13 +234,7 @@ fn build_static_egress_metadata(
                     pool.nodes
                         .iter()
                         .find(|node| node.enabled && node.name.eq_ignore_ascii_case(&proxy.name))
-                        .map(|node| {
-                            (
-                                pool.name.clone(),
-                                format!("{:?}", pool.pool_type),
-                                node.server.clone(),
-                            )
-                        })
+                        .map(|node| (pool.name.clone(), format!("{:?}", pool.pool_type), node.server.clone()))
                 })
             {
                 metadata.pool_name = Some(pool_name);
@@ -284,17 +256,12 @@ fn resolve_stable_egress_ordered_nodes(
     metadata: &[EgressNodeMetadata],
     provider_names: &[std::string::String],
 ) -> (Vec<std::string::String>, Option<ResolvedEgressIdentity>) {
-    let resolved_identity =
-        preview_stable_egress_identity(manager, rule, static_proxy_names, metadata);
+    let resolved_identity = preview_stable_egress_identity(manager, rule, static_proxy_names, metadata);
 
     let mut ordered_nodes = static_proxy_names.to_vec();
 
     if let Some(identity) = resolved_identity.as_ref() {
-        ordered_nodes = prioritize_node_names(
-            ordered_nodes,
-            &identity.selected_node,
-            !provider_names.is_empty(),
-        );
+        ordered_nodes = prioritize_node_names(ordered_nodes, &identity.selected_node, !provider_names.is_empty());
     }
 
     if let Some(bound_node) = rule.bound_node.as_ref() {
@@ -355,40 +322,25 @@ fn stable_dns_server_override(
         .iter()
         .find(|profile| profile.id == resolved_identity.profile_id)?;
 
-    let remote_dns = matches!(resolved_identity.dns_mode, DnsMode::Remote)
-        || profile.dns_policy.force_remote_dns;
+    let remote_dns = matches!(resolved_identity.dns_mode, DnsMode::Remote) || profile.dns_policy.force_remote_dns;
     let hijack_dns = matches!(resolved_identity.dns_mode, DnsMode::Hijack);
 
     if !remote_dns && !hijack_dns {
         return None;
     }
 
-    let domestic_nameservers =
-        mapping_nested_string_sequence(dns_mapping, "nameserver-policy", "geosite:cn");
-    let foreign_nameservers = mapping_nested_string_sequence(
-        dns_mapping,
-        "nameserver-policy",
-        "geosite:geolocation-!cn",
-    );
+    let domestic_nameservers = mapping_nested_string_sequence(dns_mapping, "nameserver-policy", "geosite:cn");
+    let foreign_nameservers =
+        mapping_nested_string_sequence(dns_mapping, "nameserver-policy", "geosite:geolocation-!cn");
     let nameserver = mapping_string_sequence(dns_mapping, "nameserver");
     let fallback = mapping_string_sequence(dns_mapping, "fallback");
 
     if remote_dns {
-        first_non_empty_string_sequence([
-            foreign_nameservers,
-            fallback,
-            nameserver,
-            domestic_nameservers,
-        ])
-        .map(dedupe_string_sequence)
+        first_non_empty_string_sequence([foreign_nameservers, fallback, nameserver, domestic_nameservers])
+            .map(dedupe_string_sequence)
     } else {
-        first_non_empty_string_sequence([
-            nameserver,
-            domestic_nameservers,
-            fallback,
-            foreign_nameservers,
-        ])
-        .map(dedupe_string_sequence)
+        first_non_empty_string_sequence([nameserver, domestic_nameservers, fallback, foreign_nameservers])
+            .map(dedupe_string_sequence)
     }
 }
 
@@ -428,11 +380,7 @@ fn mapping_string_sequence(mapping: &Mapping, key: &str) -> Vec<std::string::Str
         .unwrap_or_default()
 }
 
-fn mapping_nested_string_sequence(
-    mapping: &Mapping,
-    key: &str,
-    nested_key: &str,
-) -> Vec<std::string::String> {
+fn mapping_nested_string_sequence(mapping: &Mapping, key: &str, nested_key: &str) -> Vec<std::string::String> {
     mapping
         .get(key)
         .and_then(Value::as_mapping)
@@ -600,9 +548,9 @@ fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &Advanc
             .and_then(|name| pool.get_by_name(name))
             .map(|p| format!("{}{}", RESIDENTIAL_PROXY_PREFIX, p.name))
             .or_else(|| {
-                enabled_proxies.first().map(|p| {
-                    format!("{}{}", RESIDENTIAL_PROXY_PREFIX, p.name)
-                })
+                enabled_proxies
+                    .first()
+                    .map(|p| format!("{}{}", RESIDENTIAL_PROXY_PREFIX, p.name))
             });
 
         let Some(res_name) = residential_name else {
@@ -622,9 +570,10 @@ fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &Advanc
                 let stable_group = stable_egress_group_name(domain);
 
                 // 在 proxy-groups 中找到该 stable group
-                if let Some(group) = proxy_groups.iter_mut().find(|g| {
-                    g.get("name").and_then(Value::as_str) == Some(stable_group.as_str())
-                }) {
+                if let Some(group) = proxy_groups
+                    .iter_mut()
+                    .find(|g| g.get("name").and_then(Value::as_str) == Some(stable_group.as_str()))
+                {
                     // 给组中的每个前置节点创建链式代理组
                     if let Some(proxies_seq) = group.get_mut("proxies").and_then(Value::as_sequence_mut) {
                         let mut chain_proxies = Sequence::new();
@@ -642,18 +591,11 @@ fn apply_residential_chain_proxies(mut config: Mapping, advanced_config: &Advanc
                                 let mut chain_group = Mapping::new();
                                 chain_group.insert("name".into(), Value::from(chain_group_name.as_str()));
                                 chain_group.insert("type".into(), Value::from("select"));
-                                chain_group.insert(
-                                    "proxies".into(),
-                                    Value::Sequence(vec![Value::from(node_name)]),
-                                );
+                                chain_group.insert("proxies".into(), Value::Sequence(vec![Value::from(node_name)]));
 
                                 // 注入 dialer-proxy 到原节点
                                 // Mihomo 支持 per-proxy dialer-proxy 字段
-                                inject_dialer_proxy_to_node(
-                                    &mut config,
-                                    node_name,
-                                    &res_name,
-                                );
+                                inject_dialer_proxy_to_node(&mut config, node_name, &res_name);
 
                                 new_chain_groups.push(Value::Mapping(chain_group));
                             }
@@ -692,26 +634,17 @@ mod tests {
 
     #[test]
     fn test_stable_dns_policy_key_wildcard_suffix() {
-        assert_eq!(
-            stable_dns_policy_key("*.openai.com"),
-            Some("+.openai.com".to_string())
-        );
+        assert_eq!(stable_dns_policy_key("*.openai.com"), Some("+.openai.com".to_string()));
     }
 
     #[test]
     fn test_stable_dns_policy_key_wildcard_prefix() {
-        assert_eq!(
-            stable_dns_policy_key("*openai.com"),
-            Some("+.openai.com".to_string())
-        );
+        assert_eq!(stable_dns_policy_key("*openai.com"), Some("+.openai.com".to_string()));
     }
 
     #[test]
     fn test_stable_dns_policy_key_exact_domain() {
-        assert_eq!(
-            stable_dns_policy_key("example.com"),
-            Some("example.com".to_string())
-        );
+        assert_eq!(stable_dns_policy_key("example.com"), Some("example.com".to_string()));
     }
 
     #[test]
@@ -765,11 +698,7 @@ mod tests {
 
     #[test]
     fn test_prioritize_node_names_existing() {
-        let nodes = vec![
-            "node-c".to_string(),
-            "node-a".to_string(),
-            "node-b".to_string(),
-        ];
+        let nodes = vec!["node-c".to_string(), "node-a".to_string(), "node-b".to_string()];
         let result = prioritize_node_names(nodes, "node-b", false);
         assert_eq!(result[0], "node-b");
         assert_eq!(result.len(), 3);
@@ -800,23 +729,14 @@ mod tests {
 
     #[test]
     fn test_dedupe_node_names() {
-        let nodes = vec![
-            "Node-A".to_string(),
-            "node-a".to_string(),
-            "Node-B".to_string(),
-        ];
+        let nodes = vec!["Node-A".to_string(), "node-a".to_string(), "Node-B".to_string()];
         let result = dedupe_node_names(nodes);
         assert_eq!(result.len(), 2);
     }
 
     #[test]
     fn test_dedupe_string_sequence() {
-        let seq = vec![
-            "a".to_string(),
-            "b".to_string(),
-            "a".to_string(),
-            "c".to_string(),
-        ];
+        let seq = vec!["a".to_string(), "b".to_string(), "a".to_string(), "c".to_string()];
         let result = dedupe_string_sequence(seq);
         assert_eq!(result, vec!["a", "b", "c"]);
     }
@@ -829,10 +749,7 @@ mod tests {
             first_non_empty_string_sequence([empty.clone(), non_empty.clone()]),
             Some(vec!["x".to_string()])
         );
-        assert_eq!(
-            first_non_empty_string_sequence([empty.clone(), empty]),
-            None
-        );
+        assert_eq!(first_non_empty_string_sequence([empty.clone(), empty]), None);
     }
 
     #[test]

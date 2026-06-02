@@ -163,7 +163,6 @@ impl SecurityPolicyManager {
     pub fn source_for_policy(policy_name: &str) -> String {
         format!("{}{}", SECURITY_SOURCE_PREFIX, policy_name)
     }
-
 }
 
 /// Global SecurityPolicyManager instance
@@ -188,15 +187,18 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
     } else {
         None
     };
-    let position = if policy.tun_only {
-        Some("prepend")
-    } else {
-        None
-    };
+    let position = if policy.tun_only { Some("prepend") } else { None };
 
     for rule in &policy.rules {
         let idx = mihomo
-            .create_rule(&rule.rule_type, &rule.payload, &rule.proxy, Some(&source), sub_rule, position)
+            .create_rule(
+                &rule.rule_type,
+                &rule.payload,
+                &rule.proxy,
+                Some(&source),
+                sub_rule,
+                position,
+            )
             .await?;
         indices.push(idx);
     }
@@ -284,11 +286,7 @@ pub async fn apply_all_enabled_policies() -> Result<Vec<String>> {
                     applied.push(policy.name.clone());
                 }
                 Err(e) => {
-                    log::error!(
-                        "[SecurityPolicy] failed to apply policy '{}': {}",
-                        policy.name,
-                        e
-                    );
+                    log::error!("[SecurityPolicy] failed to apply policy '{}': {}", policy.name, e);
                 }
             }
         }
@@ -310,11 +308,7 @@ pub async fn revoke_all_policies() -> Result<Vec<String>> {
                     revoked.push(state.name.clone());
                 }
                 Err(e) => {
-                    log::error!(
-                        "[SecurityPolicy] failed to revoke policy '{}': {}",
-                        state.name,
-                        e
-                    );
+                    log::error!("[SecurityPolicy] failed to revoke policy '{}': {}", state.name, e);
                 }
             }
         }

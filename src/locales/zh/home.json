@@ -130,6 +130,97 @@
         "global": "所有流量均通过代理服务器，适用于需要全局科学上网的场景",
         "direct": "所有流量不经过代理节点，但经过 Clash 内核转发连接目标服务器，适用于需要通过内核进行分流的特定场景"
       }
+    },
+    "proxyDetection": {
+      "title": "代理检测",
+      "actions": {
+        "retry": "重试",
+        "close": "关闭",
+        "advice": "建议",
+        "refresh": "刷新"
+      },
+      "errors": {
+        "failed": "检测失败"
+      },
+      "labels": {
+        "direct": "直连",
+        "proxy": "代理",
+        "unknown": "未知",
+        "notObserved": "未观测"
+      },
+      "summary": {
+        "effective": {
+          "title": "代理出口已变化",
+          "ipChanged": "IP 已变化",
+          "locationChanged": "位置已变化"
+        },
+        "sameEgress": {
+          "title": "观测到相同出口",
+          "description": "直连路径和本地内核代理路径当前看起来一致。"
+        },
+        "incomplete": {
+          "title": "观测不完整",
+          "description": "直连路径和代理路径没有同时观测到。"
+        }
+      },
+      "assessment": {
+        "effective": "出口已变化",
+        "sameEgress": "相同出口",
+        "runtimeRisk": "运行风险",
+        "inconclusive": "无法判断"
+      },
+      "confidence": {
+        "high": "高置信度",
+        "medium": "中置信度",
+        "low": "低置信度"
+      },
+      "observationPath": {
+        "directVsCore": "直连 vs 内核",
+        "directOnly": "仅直连",
+        "coreOnly": "仅内核"
+      },
+      "core": {
+        "running": "内核运行中",
+        "stopped": "内核已停止"
+      },
+      "runtimeRisk": {
+        "coreNotRunning": "本地内核未运行",
+        "directEgressUnavailable": "直连出口不可用",
+        "localCoreProxyUnreachable": "内核代理出口不可达",
+        "proxyReputationUnavailable": "代理出口信誉不可用"
+      },
+      "alerts": {
+        "observationIncomplete": "当前只获得了部分出口观测结果。请在直连路径和本地内核代理路径都可用时重试。"
+      },
+      "adviceDialog": {
+        "title": "检测建议"
+      },
+      "advice": {
+        "ipChanged": "直连和代理出口 IP 不同，应用流量正在使用不同出口。",
+        "locationChanged": "直连和代理出口位置不同，可结合 IP 信誉继续检查出口质量。",
+        "reputation": "代理出口信誉：{{ipType}}，评分 {{score}}，ASN {{asn}}。",
+        "proxyEffective": "代理出口不同于直连出口，代理路径看起来已生效。",
+        "sameEgress": "已比较直连和代理出口，但没有看到明确出口变化；请检查规则匹配和当前节点。",
+        "observationIncomplete": "观测不完整；请在直连和本地内核代理路径都可用时重试。",
+        "noClearChange": "没有观测到明确的代理出口变化；请检查代理模式、规则链路和当前节点。"
+      },
+      "ipType": {
+        "datacenter": "机房 IP",
+        "residential": "住宅特征",
+        "mobile": "移动特征",
+        "education": "教育网络",
+        "unknown": "未知"
+      },
+      "residentialState": {
+        "notResidential": "非住宅",
+        "observedResidential": "观测像住宅",
+        "verifiedResidential": "已验证住宅",
+        "unknown": "未确认"
+      },
+      "patterns": {
+        "reputation": "{{ipType}} / {{confidence}}",
+        "asn": "ASN {{asn}} / {{org}} / {{residentialState}}"
+      }
     }
   }
 }

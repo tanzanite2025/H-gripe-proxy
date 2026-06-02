@@ -1,6 +1,6 @@
 use serde_yaml_ng::{Mapping, Value};
 
-use crate::config::advanced::{ObfuscationLevel, AdvancedConfig};
+use crate::config::advanced::{AdvancedConfig, ObfuscationLevel};
 
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {

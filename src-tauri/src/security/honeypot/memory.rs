@@ -1,13 +1,12 @@
 /**
  * 内存蜜罐模块
- * 
+ *
  * 在内存中放置诱饵数据，检测是否有进程在扫描内存
  */
-
 use once_cell::sync::Lazy;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// 蜜罐令牌（Canary Token）
@@ -44,7 +43,8 @@ impl HoneypotToken {
         }
 
         // 生成假服务器地址（看起来像真的）
-        let fake_addr = b"https://fake-proxy-server-honeypot.example.com:8443/api/v1/connect?token=FAKE_TOKEN_DO_NOT_USE";
+        let fake_addr =
+            b"https://fake-proxy-server-honeypot.example.com:8443/api/v1/connect?token=FAKE_TOKEN_DO_NOT_USE";
         let len = fake_addr.len().min(256);
         token.fake_server[..len].copy_from_slice(&fake_addr[..len]);
 
@@ -66,10 +66,7 @@ impl HoneypotToken {
     #[allow(dead_code)]
     pub fn record_access(&self) {
         self.access_count.fetch_add(1, Ordering::Relaxed);
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         self.last_access.store(now, Ordering::Relaxed);
     }
 }
@@ -94,10 +91,7 @@ impl MemoryHoneypot {
             tokens.push(Box::new(HoneypotToken::new()));
         }
 
-        Self {
-            tokens,
-            enabled: true,
-        }
+        Self { tokens, enabled: true }
     }
 
     /// 检查是否有令牌被访问
@@ -108,10 +102,7 @@ impl MemoryHoneypot {
 
         for token in &self.tokens {
             if token.check_access() {
-                log::warn!(
-                    "🚨 内存蜜罐被触发！访问次数: {}",
-                    token.get_access_count()
-                );
+                log::warn!("🚨 内存蜜罐被触发！访问次数: {}", token.get_access_count());
                 return true;
             }
         }
@@ -156,8 +147,7 @@ pub struct HoneypotStats {
 }
 
 /// 全局内存蜜罐实例（线程安全）
-static GLOBAL_HONEYPOT: Lazy<RwLock<Option<MemoryHoneypot>>> =
-    Lazy::new(|| RwLock::new(None));
+static GLOBAL_HONEYPOT: Lazy<RwLock<Option<MemoryHoneypot>>> = Lazy::new(|| RwLock::new(None));
 
 /// 初始化全局蜜罐（使用配置中的令牌数量）
 pub fn init_global_honeypot_with_count(token_count: usize) {
@@ -241,14 +231,11 @@ fn detect_memory_scanning_unix() -> bool {
 
     // 检查是否有进程在读取我们的内存
     let pid = std::process::id();
-    
+
     #[cfg(target_os = "linux")]
     {
         // 检查 /proc/[pid]/maps 的访问
-        if let Ok(output) = Command::new("lsof")
-            .args(&["-p", &pid.to_string()])
-            .output()
-        {
+        if let Ok(output) = Command::new("lsof").args(&["-p", &pid.to_string()]).output() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 // 检查是否有其他进程在访问我们的内存映射
                 let lines: Vec<&str> = output_str.lines().collect();
@@ -316,7 +303,7 @@ mod tests {
     fn test_memory_honeypot() {
         let honeypot = MemoryHoneypot::new(3);
         assert!(!honeypot.check_compromise());
-        
+
         let stats = honeypot.get_stats();
         assert_eq!(stats.total_tokens, 3);
         assert_eq!(stats.compromised_tokens, 0);

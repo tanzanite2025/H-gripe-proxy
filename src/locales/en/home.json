@@ -130,6 +130,97 @@
         "global": "Forward all network requests through the selected proxy.",
         "direct": "Bypass the proxy and connect to the internet directly."
       }
+    },
+    "proxyDetection": {
+      "title": "Proxy Detection",
+      "actions": {
+        "retry": "Retry",
+        "close": "Close",
+        "advice": "Advice",
+        "refresh": "Refresh"
+      },
+      "errors": {
+        "failed": "Detection failed"
+      },
+      "labels": {
+        "direct": "Direct",
+        "proxy": "Proxy",
+        "unknown": "Unknown",
+        "notObserved": "Not observed"
+      },
+      "summary": {
+        "effective": {
+          "title": "Proxy exit changed",
+          "ipChanged": "IP changed",
+          "locationChanged": "Location changed"
+        },
+        "sameEgress": {
+          "title": "Same egress observed",
+          "description": "Direct and local-core proxy paths currently look identical."
+        },
+        "incomplete": {
+          "title": "Observation incomplete",
+          "description": "Direct and proxy paths were not both observed."
+        }
+      },
+      "assessment": {
+        "effective": "Exit changed",
+        "sameEgress": "Same exit",
+        "runtimeRisk": "Runtime risk",
+        "inconclusive": "Inconclusive"
+      },
+      "confidence": {
+        "high": "High confidence",
+        "medium": "Medium confidence",
+        "low": "Low confidence"
+      },
+      "observationPath": {
+        "directVsCore": "Direct vs core",
+        "directOnly": "Direct only",
+        "coreOnly": "Core only"
+      },
+      "core": {
+        "running": "Core running",
+        "stopped": "Core stopped"
+      },
+      "runtimeRisk": {
+        "coreNotRunning": "Local core is not running",
+        "directEgressUnavailable": "Direct egress unavailable",
+        "localCoreProxyUnreachable": "Core proxy egress unavailable",
+        "proxyReputationUnavailable": "Proxy reputation unavailable"
+      },
+      "alerts": {
+        "observationIncomplete": "Only part of the egress observation is available. Retry when both direct and local-core proxy paths are reachable."
+      },
+      "adviceDialog": {
+        "title": "Detection Advice"
+      },
+      "advice": {
+        "ipChanged": "Direct and proxy egress IPs differ; app traffic is using a different exit.",
+        "locationChanged": "Direct and proxy egress locations differ; combine this with IP reputation for quality checks.",
+        "reputation": "Proxy egress reputation: {{ipType}}, score {{score}}, ASN {{asn}}.",
+        "proxyEffective": "Proxy egress differs from direct egress; the proxy path appears effective.",
+        "sameEgress": "Direct and proxy egress were compared but no clear exit change was observed; check rule matching and selected node.",
+        "observationIncomplete": "Observation is incomplete; retry when both direct and local-core proxy paths are available.",
+        "noClearChange": "No clear proxy egress change was observed; check proxy mode, rule path, and current node."
+      },
+      "ipType": {
+        "datacenter": "Datacenter IP",
+        "residential": "Residential signal",
+        "mobile": "Mobile signal",
+        "education": "Education network",
+        "unknown": "Unknown"
+      },
+      "residentialState": {
+        "notResidential": "Not residential",
+        "observedResidential": "Looks residential",
+        "verifiedResidential": "Verified residential",
+        "unknown": "Unconfirmed"
+      },
+      "patterns": {
+        "reputation": "{{ipType}} / {{confidence}}",
+        "asn": "ASN {{asn}} / {{org}} / {{residentialState}}"
+      }
     }
   }
 }

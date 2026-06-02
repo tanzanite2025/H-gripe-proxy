@@ -1,7 +1,6 @@
 /**
  * 安全功能 Tauri 命令
  */
-
 use crate::cmd::{CmdResult, StringifyErr};
 use crate::core::security_runtime;
 use crate::core::security_runtime::SecurityStatus;
@@ -127,9 +126,7 @@ pub async fn local_security_get_config() -> CmdResult<security_runtime::LocalSec
 
 /// 更新本地安全配置
 #[tauri::command]
-pub async fn local_security_update_config(
-    config: security_runtime::LocalSecurityConfig,
-) -> CmdResult {
+pub async fn local_security_update_config(config: security_runtime::LocalSecurityConfig) -> CmdResult {
     security_runtime::local_security_update_config(config).await;
     log::info!("✅ 本地安全配置已更新");
     Ok(())
@@ -144,9 +141,7 @@ pub async fn local_security_get_status() -> CmdResult<security_runtime::LeakMoni
 /// 立即执行安全检查
 #[tauri::command]
 pub async fn local_security_check_now(port: u16) -> CmdResult<security_runtime::LeakMonitorStatus> {
-    security_runtime::local_security_check_now(port)
-        .await
-        .stringify_err()
+    security_runtime::local_security_check_now(port).await.stringify_err()
 }
 
 /// 检查本地绑定是否安全
@@ -208,9 +203,7 @@ pub async fn leak_monitor_start(port: u16) -> CmdResult {
 /// 停止泄漏监控循环
 #[tauri::command]
 pub async fn leak_monitor_stop() -> CmdResult {
-    security_runtime::leak_monitor_stop()
-        .await
-        .stringify_err()?;
+    security_runtime::leak_monitor_stop().await.stringify_err()?;
     log::info!("✅ 泄漏监控已停止");
     Ok(())
 }
@@ -224,9 +217,7 @@ pub async fn leak_monitor_is_running() -> CmdResult<bool> {
 /// 更新泄漏监控端口
 #[tauri::command]
 pub async fn leak_monitor_set_port(port: u16) -> CmdResult {
-    security_runtime::leak_monitor_set_port(port)
-        .await
-        .stringify_err()?;
+    security_runtime::leak_monitor_set_port(port).await.stringify_err()?;
     log::info!("✅ 泄漏监控端口已更新: {}", port);
     Ok(())
 }
@@ -234,9 +225,7 @@ pub async fn leak_monitor_set_port(port: u16) -> CmdResult {
 /// 获取泄漏监控端口
 #[tauri::command]
 pub async fn leak_monitor_get_port() -> CmdResult<u16> {
-    security_runtime::leak_monitor_get_port()
-        .await
-        .stringify_err()
+    security_runtime::leak_monitor_get_port().await.stringify_err()
 }
 
 // ==================== 本地隐蔽增强命令 ====================
@@ -249,10 +238,10 @@ pub async fn local_stealth_get_config() -> CmdResult<security_runtime::LocalStea
 
 /// 更新本地隐蔽配置
 #[tauri::command]
-pub async fn local_stealth_update_config(
-    config: security_runtime::LocalStealthConfig,
-) -> CmdResult {
-    security_runtime::local_stealth_update_config(config).await;
+pub async fn local_stealth_update_config(config: security_runtime::LocalStealthConfig) -> CmdResult {
+    security_runtime::local_stealth_update_config(config)
+        .await
+        .stringify_err()?;
     log::info!("✅ 本地隐蔽配置已更新");
     Ok(())
 }
@@ -260,9 +249,7 @@ pub async fn local_stealth_update_config(
 /// 应用所有隐蔽策略
 #[tauri::command]
 pub async fn local_stealth_apply() -> CmdResult<security_runtime::StealthApplyResult> {
-    security_runtime::local_stealth_apply()
-        .await
-        .stringify_err()
+    security_runtime::local_stealth_apply().await.stringify_err()
 }
 
 /// 恢复所有隐蔽策略
@@ -276,15 +263,11 @@ pub async fn local_stealth_restore() -> CmdResult {
 /// 分配随机隐蔽端口
 #[tauri::command]
 pub async fn local_stealth_allocate_port() -> CmdResult<u16> {
-    security_runtime::local_stealth_allocate_port()
-        .await
-        .stringify_err()
+    security_runtime::local_stealth_allocate_port().await.stringify_err()
 }
 
 /// 获取当前隐蔽端口
 #[tauri::command]
 pub async fn local_stealth_get_port() -> CmdResult<Option<u16>> {
-    security_runtime::local_stealth_get_port()
-        .await
-        .stringify_err()
+    security_runtime::local_stealth_get_port().await.stringify_err()
 }

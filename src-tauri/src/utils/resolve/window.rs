@@ -109,12 +109,11 @@ fn configure_windows_webview_autofill(window: &WebviewWindow) -> Result<(), Stri
     window
         .with_webview(move |webview| unsafe {
             let result = (|| -> Result<(), String> {
-                let core_webview = webview
-                    .controller()
-                    .CoreWebView2()
-                    .map_err(|err| err.to_string())?;
+                let core_webview = webview.controller().CoreWebView2().map_err(|err| err.to_string())?;
                 let settings = core_webview.Settings().map_err(|err| err.to_string())?;
-                let settings4 = settings.cast::<ICoreWebView2Settings4>().map_err(|err| err.to_string())?;
+                let settings4 = settings
+                    .cast::<ICoreWebView2Settings4>()
+                    .map_err(|err| err.to_string())?;
                 settings4
                     .SetIsGeneralAutofillEnabled(false)
                     .map_err(|err| err.to_string())?;

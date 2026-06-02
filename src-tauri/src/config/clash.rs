@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::constants::{network, tun as tun_const};
+use crate::core::clash_mode::ClashMode;
 use crate::utils::dirs::{ipc_path, path_to_str};
 use crate::utils::{dirs, help};
 use anyhow::Result;
@@ -14,6 +15,9 @@ use std::{
 #[derive(Default, Debug, Clone)]
 pub struct IClashTemp(pub Mapping);
 
+const PLACEHOLDER_SECRET: &str = "set-your-secret";
+const EXTERNAL_CONTROLLER_SECRET_BYTES: usize = 32;
+
 impl IClashTemp {
     pub async fn new() -> Self {
         let clash_path_result = dirs::clash_path();
@@ -25,22 +29,21 @@ impl IClashTemp {
 
         match map_result {
             Ok(mut map) => {
+                let should_save_secret = Self::secret_needs_rotation(map.get("secret"));
                 let template_map = Self::template().0;
                 for (key, value) in template_map.into_iter() {
                     if !map.contains_key(&key) {
                         map.insert(key, value);
                     }
                 }
+                Self::ensure_external_controller_secret(&mut map);
 
-                // 确保 secret 字段存在且不为空
-                if let Some(val) = map.get_mut("secret")
-                    && let Value::String(s) = val
-                    && s.is_empty()
-                {
-                    *s = "set-your-secret".into();
+                let temp = Self(Self::guard(map));
+                if should_save_secret && let Err(err) = temp.save_config().await {
+                    logging!(warn, Type::Config, "failed to save generated clash secret: {err}");
                 }
 
-                Self(Self::guard(map))
+                temp
             }
             Err(err) => {
                 logging!(error, Type::Config, "{err}");
@@ -106,7 +109,7 @@ impl IClashTemp {
             ]
             .into(),
         );
-        map.insert("secret".into(), "set-your-secret".into());
+        map.insert("secret".into(), Self::generate_external_controller_secret().into());
         map.insert("external-controller-cors".into(), cors_map.into());
         map.insert("unified-delay".into(), true.into());
         Self(map)
@@ -126,6 +129,8 @@ impl IClashTemp {
         #[cfg(windows)]
         let external_controller_pipe = Self::guard_external_controller_ipc();
 
+        Self::ensure_external_controller_secret(&mut config);
+
         #[cfg(not(target_os = "windows"))]
         config.insert("redir-port".into(), redir_port.into());
         #[cfg(target_os = "linux")]
@@ -142,10 +147,42 @@ impl IClashTemp {
         config
     }
 
+    fn generate_external_controller_secret() -> String {
+        use rand::Rng;
+
+        let mut rng = rand::thread_rng();
+        let secret: Vec<u8> = (0..EXTERNAL_CONTROLLER_SECRET_BYTES).map(|_| rng.r#gen()).collect();
+        hex::encode(secret)
+    }
+
+    fn secret_needs_rotation(value: Option<&Value>) -> bool {
+        match value {
+            Some(Value::String(secret)) => {
+                let secret = secret.trim();
+                secret.is_empty() || secret == PLACEHOLDER_SECRET
+            }
+            Some(_) | None => true,
+        }
+    }
+
+    fn ensure_external_controller_secret(config: &mut Mapping) {
+        if Self::secret_needs_rotation(config.get("secret")) {
+            config.insert("secret".into(), Self::generate_external_controller_secret().into());
+        }
+    }
+
     pub fn patch_config(&mut self, patch: &Mapping) {
         for (key, value) in patch.iter() {
+            if key.as_str() == Some("mode") {
+                if let Some(mode) = value.as_str().and_then(|mode| mode.parse::<ClashMode>().ok()) {
+                    self.0.insert(key.to_owned(), mode.as_str().into());
+                }
+                continue;
+            }
+
             self.0.insert(key.to_owned(), value.to_owned());
         }
+        Self::ensure_external_controller_secret(&mut self.0);
     }
 
     pub async fn save_config(&self) -> Result<()> {
@@ -349,38 +386,97 @@ fn test_clash_info() {
         IClashTemp(IClashTemp::guard(map)).get_client_info()
     }
 
-    fn get_result<S: Into<String>>(port: u16, server: S) -> ClashInfo {
-        ClashInfo {
-            mixed_port: port,
-            socks_port: 7898,
-            port: 7899,
-            server: server.into(),
-            secret: None,
-        }
+    fn assert_secure_secret(secret: &str) {
+        assert_eq!(secret.len(), EXTERNAL_CONTROLLER_SECRET_BYTES * 2);
+        assert_ne!(secret, PLACEHOLDER_SECRET);
+        assert!(secret.chars().all(|ch| ch.is_ascii_hexdigit()));
     }
 
-    assert_eq!(
+    fn assert_info<S: Into<String>>(actual: ClashInfo, port: u16, server: S) {
+        assert_eq!(actual.mixed_port, port);
+        assert_eq!(actual.socks_port, 7898);
+        assert_eq!(actual.port, 7899);
+        assert_eq!(actual.server, server.into());
+        assert_secure_secret(actual.secret.as_deref().unwrap());
+    }
+
+    assert_info(
         IClashTemp(IClashTemp::guard(Mapping::new())).get_client_info(),
-        get_result(7897, "127.0.0.1:9097")
+        7897,
+        "127.0.0.1:9097",
     );
 
-    assert_eq!(get_case("", ""), get_result(7897, "127.0.0.1:9097"));
+    assert_info(get_case("", ""), 7897, "127.0.0.1:9097");
 
-    assert_eq!(get_case(65537, ""), get_result(1, "127.0.0.1:9097"));
+    assert_info(get_case(65537, ""), 1, "127.0.0.1:9097");
 
-    assert_eq!(get_case(8888, "127.0.0.1:8888"), get_result(8888, "127.0.0.1:8888"));
+    assert_info(get_case(8888, "127.0.0.1:8888"), 8888, "127.0.0.1:8888");
 
-    assert_eq!(get_case(8888, "   :98888 "), get_result(8888, "127.0.0.1:9097"));
+    assert_info(get_case(8888, "   :98888 "), 8888, "127.0.0.1:9097");
 
-    assert_eq!(get_case(8888, "0.0.0.0:8080  "), get_result(8888, "127.0.0.1:8080"));
+    assert_info(get_case(8888, "0.0.0.0:8080  "), 8888, "127.0.0.1:8080");
 
-    assert_eq!(get_case(8888, "0.0.0.0:8080"), get_result(8888, "127.0.0.1:8080"));
+    assert_info(get_case(8888, "0.0.0.0:8080"), 8888, "127.0.0.1:8080");
 
-    assert_eq!(get_case(8888, "[::]:8080"), get_result(8888, "127.0.0.1:8080"));
+    assert_info(get_case(8888, "[::]:8080"), 8888, "127.0.0.1:8080");
 
-    assert_eq!(get_case(8888, "192.168.1.1:8080"), get_result(8888, "192.168.1.1:8080"));
+    assert_info(get_case(8888, "192.168.1.1:8080"), 8888, "192.168.1.1:8080");
 
-    assert_eq!(get_case(8888, "192.168.1.1:80800"), get_result(8888, "127.0.0.1:9097"));
+    assert_info(get_case(8888, "192.168.1.1:80800"), 8888, "127.0.0.1:9097");
+}
+
+#[test]
+fn guard_generates_secure_external_controller_secret() {
+    let guarded = IClashTemp::guard(Mapping::new());
+    let secret = guarded.get("secret").and_then(Value::as_str).unwrap();
+
+    assert_eq!(secret.len(), EXTERNAL_CONTROLLER_SECRET_BYTES * 2);
+    assert_ne!(secret, PLACEHOLDER_SECRET);
+    assert!(secret.chars().all(|ch| ch.is_ascii_hexdigit()));
+}
+
+#[test]
+fn guard_rotates_empty_and_placeholder_external_controller_secrets() {
+    for raw_secret in ["", PLACEHOLDER_SECRET] {
+        let mut map = Mapping::new();
+        map.insert("secret".into(), raw_secret.into());
+
+        let guarded = IClashTemp::guard(map);
+        let secret = guarded.get("secret").and_then(Value::as_str).unwrap();
+
+        assert_eq!(secret.len(), EXTERNAL_CONTROLLER_SECRET_BYTES * 2);
+        assert_ne!(secret, raw_secret);
+        assert_ne!(secret, PLACEHOLDER_SECRET);
+        assert!(secret.chars().all(|ch| ch.is_ascii_hexdigit()));
+    }
+}
+
+#[test]
+fn patch_config_normalizes_mode_and_secret() {
+    let mut config = IClashTemp(Mapping::new());
+    let mut patch = Mapping::new();
+    patch.insert("mode".into(), " GLOBAL ".into());
+    patch.insert("secret".into(), PLACEHOLDER_SECRET.into());
+
+    config.patch_config(&patch);
+
+    assert_eq!(config.0.get("mode").and_then(Value::as_str), Some("global"));
+    let secret = config.0.get("secret").and_then(Value::as_str).unwrap();
+    assert_eq!(secret.len(), EXTERNAL_CONTROLLER_SECRET_BYTES * 2);
+    assert_ne!(secret, PLACEHOLDER_SECRET);
+    assert!(secret.chars().all(|ch| ch.is_ascii_hexdigit()));
+}
+
+#[test]
+fn patch_config_ignores_invalid_mode_patch() {
+    let mut config = IClashTemp(Mapping::new());
+    config.0.insert("mode".into(), "rule".into());
+    let mut patch = Mapping::new();
+    patch.insert("mode".into(), "script".into());
+
+    config.patch_config(&patch);
+
+    assert_eq!(config.0.get("mode").and_then(Value::as_str), Some("rule"));
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

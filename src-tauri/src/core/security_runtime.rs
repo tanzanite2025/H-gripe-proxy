@@ -1,12 +1,8 @@
 use crate::security::{
-    honeypot,
-    leak_monitor::LeakMonitor,
-    local_security::LocalSecurityMonitor,
+    SecurityMonitor, anti_debug, honeypot, leak_monitor::LeakMonitor, local_security::LocalSecurityMonitor,
     local_stealth::LocalStealthManager,
-    anti_debug,
-    SecurityMonitor,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::path::PathBuf;
@@ -33,14 +29,15 @@ static LOCAL_SECURITY_MONITOR: Lazy<Arc<LocalSecurityMonitor>> =
 static LEAK_MONITOR: Lazy<Arc<tokio::sync::RwLock<Option<LeakMonitor>>>> =
     Lazy::new(|| Arc::new(tokio::sync::RwLock::new(None)));
 
-static HONEYPOT_FLAG: Lazy<Arc<AtomicBool>> =
-    Lazy::new(|| Arc::new(AtomicBool::new(false)));
+static HONEYPOT_FLAG: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
-static ANTI_DEBUG_FLAG: Lazy<Arc<AtomicBool>> =
-    Lazy::new(|| Arc::new(AtomicBool::new(false)));
+static ANTI_DEBUG_FLAG: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
-static LOCAL_STEALTH_MANAGER: Lazy<Arc<tokio::sync::RwLock<LocalStealthManager>>> =
-    Lazy::new(|| Arc::new(tokio::sync::RwLock::new(LocalStealthManager::new(LocalStealthConfig::default()))));
+static LOCAL_STEALTH_MANAGER: Lazy<Arc<tokio::sync::RwLock<LocalStealthManager>>> = Lazy::new(|| {
+    Arc::new(tokio::sync::RwLock::new(LocalStealthManager::new(
+        LocalStealthConfig::default(),
+    )))
+});
 
 pub use crate::security::local_security::{LeakMonitorStatus, LocalSecurityConfig};
 pub use crate::security::local_stealth::{LocalStealthConfig, StealthApplyResult};
@@ -53,10 +50,7 @@ pub async fn start_monitor() {
     }
 
     // 初始化内存蜜罐以检测内存扫描（从 coordinator 内存配置读取）
-    let hp_cfg = crate::feat::get_coordinator()
-        .get_advanced_config()
-        .security
-        .honeypot;
+    let hp_cfg = crate::feat::get_coordinator().get_advanced_config().security.honeypot;
     if hp_cfg.enabled {
         honeypot::init_global_honeypot_with_count(hp_cfg.token_count);
     } else {
@@ -82,10 +76,7 @@ pub async fn start_monitor() {
     }
 
     // 自动启动泄漏监控：选择可用端口
-    let port = LOCAL_SECURITY_MONITOR
-        .find_available_port()
-        .await
-        .unwrap_or(10808);
+    let port = LOCAL_SECURITY_MONITOR.find_available_port().await.unwrap_or(10808);
     let start_result = leak_monitor_start(port).await;
 
     if let Err(e) = start_result {
@@ -122,8 +113,7 @@ pub async fn check_status() -> SecurityStatus {
     SecurityStatus {
         compromised: crate::security::is_security_compromised(),
         debugger_present: crate::security::anti_debug::is_debugger_present() || suspicious_parent,
-        memory_scanning: honeypot_triggered
-            || crate::security::honeypot::detect_memory_scanning(),
+        memory_scanning: honeypot_triggered || crate::security::honeypot::detect_memory_scanning(),
         leak_detected: leak_status.leak_detected,
         leak_type: leak_status.leak_type,
         anti_debug_enabled: anti_cfg.enabled,
@@ -147,21 +137,15 @@ pub fn check_decoy_access(decoy_path: PathBuf) -> Result<bool> {
     Ok(decoy.check_access())
 }
 
-pub fn deploy_decoy_plan(
-    plan: honeypot::DecoyDeploymentPlan,
-) -> Result<honeypot::DecoyBatchResult> {
+pub fn deploy_decoy_plan(plan: honeypot::DecoyDeploymentPlan) -> Result<honeypot::DecoyBatchResult> {
     honeypot::deploy_decoy_plan(plan).map_err(|e| anyhow!(e))
 }
 
-pub fn cleanup_decoy_plan(
-    plan: honeypot::DecoyDeploymentPlan,
-) -> Result<honeypot::DecoyBatchResult> {
+pub fn cleanup_decoy_plan(plan: honeypot::DecoyDeploymentPlan) -> Result<honeypot::DecoyBatchResult> {
     honeypot::cleanup_decoy_plan(plan).map_err(|e| anyhow!(e))
 }
 
-pub fn check_decoy_plan_access(
-    plan: honeypot::DecoyDeploymentPlan,
-) -> Result<honeypot::DecoyBatchResult> {
+pub fn check_decoy_plan_access(plan: honeypot::DecoyDeploymentPlan) -> Result<honeypot::DecoyBatchResult> {
     honeypot::check_decoy_plan_access(plan).map_err(|e| anyhow!(e))
 }
 
@@ -214,18 +198,12 @@ pub async fn local_security_check_now(port: u16) -> Result<LeakMonitorStatus> {
 
 pub async fn local_security_check_binding(port: u16) -> Result<bool> {
     let monitor = LOCAL_SECURITY_MONITOR.clone();
-    monitor
-        .check_local_binding(port)
-        .await
-        .map_err(Into::into)
+    monitor.check_local_binding(port).await.map_err(Into::into)
 }
 
 pub async fn local_security_check_port_conflict(port: u16) -> Result<bool> {
     let monitor = LOCAL_SECURITY_MONITOR.clone();
-    monitor
-        .check_port_conflict(port)
-        .await
-        .map_err(Into::into)
+    monitor.check_port_conflict(port).await.map_err(Into::into)
 }
 
 pub async fn local_security_find_available_port() -> Result<u16> {
@@ -294,10 +272,7 @@ pub async fn leak_monitor_stop() -> Result<()> {
 
 pub async fn leak_monitor_is_running() -> bool {
     let leak_monitor_guard = LEAK_MONITOR.read().await;
-    leak_monitor_guard
-        .as_ref()
-        .map(|m| m.is_running())
-        .unwrap_or(false)
+    leak_monitor_guard.as_ref().map(|m| m.is_running()).unwrap_or(false)
 }
 
 pub async fn leak_monitor_set_port(port: u16) -> Result<()> {
@@ -323,13 +298,22 @@ pub async fn leak_monitor_get_port() -> Result<u16> {
 // ---------- Local stealth ----------
 
 pub async fn local_stealth_get_config() -> LocalStealthConfig {
-    let manager = LOCAL_STEALTH_MANAGER.read().await;
-    manager.get_config().await
+    crate::config::AdvancedConfig::load_default().local_stealth
 }
 
-pub async fn local_stealth_update_config(config: LocalStealthConfig) {
+pub async fn apply_local_stealth_config(config: LocalStealthConfig) {
     let mut manager = LOCAL_STEALTH_MANAGER.write().await;
     manager.update_config(config).await;
+}
+
+pub async fn local_stealth_update_config(config: LocalStealthConfig) -> Result<()> {
+    let mut advanced = crate::config::AdvancedConfig::load_default();
+    advanced.local_stealth = config.clone();
+    advanced.validate()?;
+    advanced.save_default()?;
+    crate::feat::get_coordinator().hydrate_from_advanced_config(&advanced)?;
+    apply_local_stealth_config(config).await;
+    Ok(())
 }
 
 pub async fn local_stealth_apply() -> Result<StealthApplyResult> {
@@ -344,7 +328,11 @@ pub async fn local_stealth_restore() {
 
 pub async fn local_stealth_allocate_port() -> Result<u16> {
     let manager = LOCAL_STEALTH_MANAGER.read().await;
-    manager.port_manager().allocate_stealth_port().await.map_err(|e| anyhow!(e))
+    manager
+        .port_manager()
+        .allocate_stealth_port()
+        .await
+        .map_err(|e| anyhow!(e))
 }
 
 pub async fn local_stealth_get_port() -> Result<Option<u16>> {

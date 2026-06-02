@@ -1,9 +1,8 @@
+use super::{CmdResult, StringifyErr as _};
 /**
  * TLS 指纹伪装 Tauri 命令
  */
-
 use crate::tls_fingerprint::TlsFingerprint;
-use super::CmdResult;
 
 /// 获取所有预定义指纹
 #[tauri::command]
@@ -32,6 +31,5 @@ pub fn tls_fingerprint_generate_config() -> CmdResult<Option<serde_json::Value>>
 /// 清除当前指纹
 #[tauri::command]
 pub fn tls_fingerprint_clear() -> CmdResult {
-    crate::feat::tls_fingerprint_clear();
-    Ok(())
+    crate::feat::tls_fingerprint_clear().stringify_err()
 }

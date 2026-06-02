@@ -26,7 +26,7 @@ type ValidationOutcome =
  */
 interface IConfigData {
   port: number
-  mode: string
+  mode: import('@/services/clash-mode').ClashMode
   ipv6: boolean
   'socket-port': number
   'allow-lan': boolean

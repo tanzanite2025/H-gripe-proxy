@@ -1,26 +1,25 @@
+use anyhow::Result;
 /**
  * 高级功能配置
- * 
+ *
  * 统一管理所有高级功能的配置
  */
-
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::path::PathBuf;
-use anyhow::Result;
 
 use super::ConfigFile;
 use crate::anti_probe::AntiProbeConfig;
 use crate::core::blackhole_breaker::BlackholeBreakerConfig;
-use crate::core::timezone_spoof::TimezoneSpoofConfig;
 use crate::core::egress_identity::EgressIdentityConfig;
 use crate::core::egress_monitor::EgressMonitorConfig;
 use crate::core::ip_reputation::IpReputationConfig;
 use crate::core::security_policy::SecurityPolicy;
 use crate::core::session_affinity::SessionAffinityConfig;
+use crate::core::timezone_spoof::TimezoneSpoofConfig;
 use crate::multipath::MultipathConfig;
 use crate::security::local_stealth::LocalStealthConfig;
-use crate::traffic::{TrafficPaddingConfig, TrafficObfuscationConfig};
+use crate::traffic::{TrafficObfuscationConfig, TrafficPaddingConfig};
 #[cfg(target_os = "linux")]
 use crate::xdp::XdpConfig;
 
@@ -30,7 +29,7 @@ pub struct AdvancedConfig {
     /// 安全防御配置
     #[serde(default)]
     pub security: SecurityConfig,
-    
+
     /// 多路径路由配置
     #[serde(default)]
     pub multipath: MultipathConfig,
@@ -121,15 +120,15 @@ pub struct SecurityConfig {
     /// 启用安全监控
     #[serde(default)]
     pub enabled: bool,
-    
+
     /// 反主动探测配置
     #[serde(default)]
     pub anti_probe: AntiProbeConfig,
-    
+
     /// TLS 指纹名称
     #[serde(default)]
     pub tls_fingerprint: Option<String>,
-    
+
     /// 配置欺骗配置
     #[serde(default)]
     pub config_decoy: ConfigDecoyConfig,
@@ -172,11 +171,11 @@ pub struct ConfigDecoyConfig {
     /// 启用配置欺骗
     #[serde(default)]
     pub enabled: bool,
-    
+
     /// 假配置文件路径
     #[serde(default)]
     pub decoy_path: Option<String>,
-    
+
     /// 加密密钥（从环境变量加载）
     #[serde(skip)]
     pub encryption_key: Option<String>,
@@ -248,9 +247,15 @@ impl Default for HoneypotConfig {
     }
 }
 
-fn default_honeypot_token_count() -> usize { 10 }
-fn default_honeypot_interval() -> u64 { 2 }
-fn default_true() -> bool { true }
+fn default_honeypot_token_count() -> usize {
+    10
+}
+fn default_honeypot_interval() -> u64 {
+    2
+}
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsAdvancedConfig {
@@ -346,9 +351,7 @@ impl DnsAdvancedConfig {
         );
         let force_doh = matches!(
             self.leak_protection_level,
-            DnsLeakProtectionLevel::Basic
-                | DnsLeakProtectionLevel::Strict
-                | DnsLeakProtectionLevel::Paranoid
+            DnsLeakProtectionLevel::Basic | DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
         );
         let block_plain_dns = matches!(
             self.leak_protection_level,
@@ -361,20 +364,14 @@ impl DnsAdvancedConfig {
         );
 
         let domestic_plain = vec!["223.5.5.5", "119.29.29.29"];
-        let domestic_doh = vec![
-            "https://dns.alidns.com/dns-query",
-            "https://doh.pub/dns-query",
-        ];
+        let domestic_doh = vec!["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"];
         let foreign_plain = vec!["1.1.1.1", "8.8.8.8", "9.9.9.9"];
         let foreign_doh = vec![
             "https://dns.google/dns-query",
             "https://cloudflare-dns.com/dns-query",
             "https://dns.quad9.net/dns-query",
         ];
-        let encrypted_ip_bootstrap = vec![
-            "https://1.1.1.1/dns-query",
-            "https://8.8.8.8/dns-query",
-        ];
+        let encrypted_ip_bootstrap = vec!["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"];
 
         let effective_mode = match self.routing_mode {
             DnsRoutingMode::Custom => DnsRoutingMode::Balanced,
@@ -469,13 +466,11 @@ impl DnsAdvancedConfig {
         };
         dns_mapping.insert(
             "default-nameserver".into(),
-            Value::Sequence(
-                if block_plain_dns {
-                    encrypted_ip_bootstrap.into_iter().map(Value::from).collect()
-                } else {
-                    proxy_server_nameserver.clone()
-                },
-            ),
+            Value::Sequence(if block_plain_dns {
+                encrypted_ip_bootstrap.into_iter().map(Value::from).collect()
+            } else {
+                proxy_server_nameserver.clone()
+            }),
         );
         dns_mapping.insert(
             "proxy-server-nameserver".into(),
@@ -566,9 +561,15 @@ pub struct MultiplexConfig {
 }
 
 impl MultiplexConfig {
-    fn default_protocol() -> String { "h2mux".to_string() }
-    fn default_max_connections() -> u32 { 4 }
-    fn default_min_streams() -> u32 { 4 }
+    fn default_protocol() -> String {
+        "h2mux".to_string()
+    }
+    fn default_max_connections() -> u32 {
+        4
+    }
+    fn default_min_streams() -> u32 {
+        4
+    }
 
     /// 推荐配置（默认关闭，用户主动开启时使用）
     pub fn recommended() -> Self {
@@ -617,8 +618,12 @@ pub struct BrutalConfig {
 }
 
 impl BrutalConfig {
-    fn default_up() -> u32 { 20 }
-    fn default_down() -> u32 { 50 }
+    fn default_up() -> u32 {
+        20
+    }
+    fn default_down() -> u32 {
+        50
+    }
 
     /// 推荐配置
     pub fn recommended() -> Self {
@@ -646,8 +651,7 @@ impl ConfigFile for AdvancedConfig {}
 impl AdvancedConfig {
     /// 获取 advanced.yaml 默认路径
     pub fn default_path() -> Result<PathBuf> {
-        crate::utils::dirs::app_home_dir()
-            .map(|dir| dir.join("advanced.yaml"))
+        crate::utils::dirs::app_home_dir().map(|dir| dir.join("advanced.yaml"))
     }
 
     /// 从默认路径加载配置，文件不存在则返回默认值
@@ -691,7 +695,7 @@ impl AdvancedConfig {
             if self.multipath.node_pools.is_empty() {
                 return Err(anyhow::anyhow!("多路径路由需要至少一个节点池"));
             }
-            
+
             for pool in &self.multipath.node_pools {
                 if pool.enabled && pool.nodes.is_empty() {
                     return Err(anyhow::anyhow!("节点池 '{}' 没有节点", pool.name));
@@ -702,7 +706,8 @@ impl AdvancedConfig {
         self.egress_identity.validate()?;
         self.egress_monitor.validate()?;
         self.dns.validate()?;
-        self.traffic_obfuscation.validate()
+        self.traffic_obfuscation
+            .validate()
             .map_err(|e| anyhow::anyhow!("流量混淆配置错误: {}", e))?;
 
         // 验证 XDP 配置（Linux）
@@ -1064,13 +1069,19 @@ impl ResidentialProxyPool {
             .map(|p| {
                 let mut m = Mapping::new();
                 m.insert("name".into(), Value::String(format!("VERGE-RES-{}", p.name)));
-                m.insert("type".into(), Value::String(match p.proxy_type {
-                    ResidentialProxyType::Socks5 => "socks5",
-                    ResidentialProxyType::Http => "http",
-                    ResidentialProxyType::Ss => "ss",
-                    ResidentialProxyType::Vmess => "vmess",
-                    ResidentialProxyType::Trojan => "trojan",
-                }.to_string()));
+                m.insert(
+                    "type".into(),
+                    Value::String(
+                        match p.proxy_type {
+                            ResidentialProxyType::Socks5 => "socks5",
+                            ResidentialProxyType::Http => "http",
+                            ResidentialProxyType::Ss => "ss",
+                            ResidentialProxyType::Vmess => "vmess",
+                            ResidentialProxyType::Trojan => "trojan",
+                        }
+                        .to_string(),
+                    ),
+                );
                 m.insert("server".into(), Value::String(p.server.clone()));
                 m.insert("port".into(), Value::from(p.port as i64));
 
@@ -1136,7 +1147,7 @@ mod tests {
     fn test_config_merge() {
         let mut config1 = AdvancedConfig::default();
         let config2 = AdvancedConfig::recommended();
-        
+
         config1.merge(&config2);
         assert!(config1.security.enabled);
         assert!(config1.multipath.enabled);
@@ -1151,13 +1162,16 @@ mod tests {
         let mapping = config.to_dns_config_mapping();
         let dns = mapping.get("dns").and_then(|value| value.as_mapping()).unwrap();
 
-        assert_eq!(dns.get("use-system-hosts").and_then(|value| value.as_bool()), Some(false));
-        let bootstrap = dns.get("default-nameserver").and_then(|value| value.as_sequence()).unwrap();
+        assert_eq!(
+            dns.get("use-system-hosts").and_then(|value| value.as_bool()),
+            Some(false)
+        );
+        let bootstrap = dns
+            .get("default-nameserver")
+            .and_then(|value| value.as_sequence())
+            .unwrap();
         assert!(!bootstrap.is_empty());
-        let bootstrap = bootstrap
-            .iter()
-            .filter_map(|value| value.as_str())
-            .collect::<Vec<_>>();
+        let bootstrap = bootstrap.iter().filter_map(|value| value.as_str()).collect::<Vec<_>>();
         assert_eq!(
             bootstrap,
             vec!["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"]

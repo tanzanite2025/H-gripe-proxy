@@ -26,7 +26,10 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
     calcuProxyProviders(),
   ])
 
-  const proxyRecord = proxyResponse.proxies
+  const proxyRecord = proxyResponse.proxies as unknown as Record<
+    string,
+    IProxyItem | undefined
+  >
   const providerRecord = providerResponse
 
   const providerMap = Object.fromEntries(
@@ -35,22 +38,29 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
     ),
   )
 
-  const generateItem = (name: string) => {
+  const fallbackProxy = (name: string, type = 'unknown'): IProxyItem => ({
+    name,
+    type,
+    udp: false,
+    xudp: false,
+    tfo: false,
+    mptcp: false,
+    smux: false,
+    history: [],
+  })
+
+  const generateItem = (name: string): IProxyItem => {
     if (proxyRecord[name]) return proxyRecord[name]
     if (providerMap[name]) return providerMap[name]
-    return {
-      name,
-      type: 'unknown',
-      udp: false,
-      xudp: false,
-      tfo: false,
-      mptcp: false,
-      smux: false,
-      history: [],
-    }
+    return fallbackProxy(name)
   }
 
   const { GLOBAL: global, DIRECT: direct, REJECT: reject } = proxyRecord
+  const rawProxies = Object.values(proxyRecord).filter(
+    (proxy): proxy is IProxyItem => Boolean(proxy),
+  )
+  const directItem = direct ?? fallbackProxy('DIRECT', 'Direct')
+  const rejectItem = reject ?? fallbackProxy('REJECT', 'Reject')
 
   let groups: IProxyGroupItem[] = Object.values(proxyRecord).reduce<
     IProxyGroupItem[]
@@ -84,23 +94,36 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
       .concat(globalGroups)
   }
 
-  const proxies = [direct, reject].concat(
-    Object.values(proxyRecord).filter(
+  const proxies = [directItem, rejectItem].concat(
+    rawProxies.filter(
       (proxy) =>
         !proxy?.all?.length && proxy?.name !== 'DIRECT' && proxy?.name !== 'REJECT',
     ),
   )
 
+  const fallbackGlobalNames = proxies
+    .map((proxy) => proxy.name)
+    .filter((name) => name !== 'REJECT')
+  const globalAllNames = global?.all?.length ? global.all : fallbackGlobalNames
   const runtimeGlobal = {
+    ...fallbackProxy('GLOBAL', 'Selector'),
     ...global,
-    all: global?.all?.map((item) => generateItem(item)) || [],
+    now: global?.now || globalAllNames[0] || 'DIRECT',
+    all: globalAllNames.map((item) => generateItem(item)),
+  }
+
+  const records = {
+    ...proxyRecord,
+    DIRECT: proxyRecord.DIRECT ?? directItem,
+    REJECT: proxyRecord.REJECT ?? rejectItem,
+    GLOBAL: proxyRecord.GLOBAL ?? runtimeGlobal,
   }
 
   return {
     global: runtimeGlobal as IProxyGroupItem,
-    direct: direct as IProxyItem,
+    direct: directItem as IProxyItem,
     groups,
-    records: proxyRecord as Record<string, IProxyItem>,
-    proxies: (proxies as IProxyItem[]) ?? [],
+    records: records as Record<string, IProxyItem>,
+    proxies,
   }
 }

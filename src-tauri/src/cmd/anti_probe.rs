@@ -1,10 +1,9 @@
+use super::{CmdResult, StringifyErr};
 /**
  * 反主动探测 Tauri 命令
  */
-
 use crate::anti_probe::AntiProbeConfig;
 use std::net::IpAddr;
-use super::{CmdResult, StringifyErr};
 
 #[tauri::command]
 pub fn anti_probe_get_config() -> CmdResult<AntiProbeConfig> {

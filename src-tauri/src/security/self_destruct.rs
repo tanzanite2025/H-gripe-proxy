@@ -1,9 +1,8 @@
 /**
  * 自毁机制模块
- * 
+ *
  * 当检测到安全威胁时，清除敏感数据并退出
  */
-
 use std::fs;
 use std::path::PathBuf;
 
@@ -47,7 +46,7 @@ fn clear_sensitive_memory() {
 
     // 这里应该清除所有敏感数据结构
     // 例如：密钥、密码、令牌等
-    
+
     // 强制垃圾回收（Rust 没有 GC，但可以显式 drop）
     // 实际应用中，应该遍历所有敏感数据结构并清零
 
@@ -113,8 +112,8 @@ fn secure_erase_file(path: &PathBuf) -> Result<(), String> {
     // 覆写 3 次
     for pass in 0..3 {
         let pattern = match pass {
-            0 => 0xFF, // 全 1
-            1 => 0x00, // 全 0
+            0 => 0xFF,                 // 全 1
+            1 => 0x00,                 // 全 0
             _ => rand::random::<u8>(), // 随机
         };
 

@@ -1,3 +1,4 @@
+pub mod direction;
 /**
  * 流量模块
  *
@@ -10,17 +11,10 @@
  * - direction: 方向混淆配置（仅配置，不执行）
  * - scheduler: 流量混淆薄代理层
  */
-
 pub mod padding;
-pub mod timing_jitter;
-pub mod direction;
 pub mod scheduler;
+pub mod timing_jitter;
 
 pub use padding::TrafficPaddingConfig;
 
-pub use scheduler::{
-    ObfuscationProfile,
-    TrafficObfuscationConfig,
-    ObfuscationStats,
-    ObfuscationScheduler,
-};
+pub use scheduler::{ObfuscationProfile, ObfuscationScheduler, ObfuscationStats, TrafficObfuscationConfig};

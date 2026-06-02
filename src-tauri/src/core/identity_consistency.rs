@@ -62,15 +62,37 @@ pub struct IdentityConsistencySnapshot {
     pub report: IdentityConsistencyReport,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum IdentityConsistencyDriftKind {
+    PublicEgressIp,
+    IpType,
+    DnsAssessment,
+    TlsFingerprint,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IdentityConsistencyDrift {
+    pub kind: IdentityConsistencyDriftKind,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub first_observed_at: String,
+    pub last_observed_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IdentityConsistencyDriftReport {
+    pub stable: bool,
+    pub drift_count: usize,
+    pub drifts: Vec<IdentityConsistencyDrift>,
+}
+
 pub fn build_identity_consistency_report(input: IdentityConsistencyInput<'_>) -> IdentityConsistencyReport {
     let mut score: i32 = 100;
     let mut issues = Vec::new();
     let identity = input.current_identity;
     let reputation = identity.reputation.as_ref();
-    let public_egress_ip = identity
-        .public_egress_ip
-        .clone()
-        .or_else(|| identity.egress_ip.clone());
+    let public_egress_ip = identity.public_egress_ip.clone().or_else(|| identity.egress_ip.clone());
 
     if public_egress_ip.is_none() {
         push_issue(
@@ -124,6 +146,62 @@ pub fn build_identity_consistency_report(input: IdentityConsistencyInput<'_>) ->
         egress_confidence: identity.confidence,
         tls_fingerprint: input.tls_fingerprint.map(|item| item.name.clone()),
         dns_assessment: input.dns_leak.map(|item| item.assessment.to_string()),
+    }
+}
+
+pub fn build_identity_consistency_drift_report(
+    history: &[IdentityConsistencySnapshot],
+) -> IdentityConsistencyDriftReport {
+    let mut drifts = Vec::new();
+    let Some(current) = history.first() else {
+        return IdentityConsistencyDriftReport {
+            stable: true,
+            drift_count: 0,
+            drifts,
+        };
+    };
+
+    for previous in history.iter().skip(1) {
+        push_drift_if_changed(
+            &mut drifts,
+            IdentityConsistencyDriftKind::PublicEgressIp,
+            previous.report.public_egress_ip.clone(),
+            current.report.public_egress_ip.clone(),
+            &previous.observed_at,
+            &current.observed_at,
+        );
+        push_drift_if_changed(
+            &mut drifts,
+            IdentityConsistencyDriftKind::IpType,
+            previous.report.ip_type.as_ref().map(|item| format!("{item:?}")),
+            current.report.ip_type.as_ref().map(|item| format!("{item:?}")),
+            &previous.observed_at,
+            &current.observed_at,
+        );
+        push_drift_if_changed(
+            &mut drifts,
+            IdentityConsistencyDriftKind::DnsAssessment,
+            previous.report.dns_assessment.clone(),
+            current.report.dns_assessment.clone(),
+            &previous.observed_at,
+            &current.observed_at,
+        );
+        push_drift_if_changed(
+            &mut drifts,
+            IdentityConsistencyDriftKind::TlsFingerprint,
+            previous.report.tls_fingerprint.clone(),
+            current.report.tls_fingerprint.clone(),
+            &previous.observed_at,
+            &current.observed_at,
+        );
+    }
+
+    dedupe_drifts(&mut drifts);
+
+    IdentityConsistencyDriftReport {
+        stable: drifts.is_empty(),
+        drift_count: drifts.len(),
+        drifts,
     }
 }
 
@@ -259,6 +337,43 @@ fn push_issue(
     });
 }
 
+fn push_drift_if_changed(
+    drifts: &mut Vec<IdentityConsistencyDrift>,
+    kind: IdentityConsistencyDriftKind,
+    from: Option<String>,
+    to: Option<String>,
+    first_observed_at: &str,
+    last_observed_at: &str,
+) {
+    if from == to {
+        return;
+    }
+
+    drifts.push(IdentityConsistencyDrift {
+        kind,
+        from,
+        to,
+        first_observed_at: first_observed_at.to_string(),
+        last_observed_at: last_observed_at.to_string(),
+    });
+}
+
+fn dedupe_drifts(drifts: &mut Vec<IdentityConsistencyDrift>) {
+    let mut deduped = Vec::new();
+
+    for drift in drifts.drain(..) {
+        if deduped.iter().any(|item: &IdentityConsistencyDrift| {
+            item.kind == drift.kind && item.from == drift.from && item.to == drift.to
+        }) {
+            continue;
+        }
+
+        deduped.push(drift);
+    }
+
+    *drifts = deduped;
+}
+
 fn level_from_score_and_issues(score: u8, issues: &[IdentityConsistencyIssue]) -> IdentityConsistencyLevel {
     if issues
         .iter()
@@ -372,8 +487,18 @@ mod tests {
 
         assert_eq!(report.level, IdentityConsistencyLevel::Danger);
         assert!(report.score <= 45);
-        assert!(report.issues.iter().any(|issue| issue.kind == IdentityConsistencyIssueKind::MissingPublicEgress));
-        assert!(report.issues.iter().any(|issue| issue.kind == IdentityConsistencyIssueKind::RandomTlsFingerprint));
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.kind == IdentityConsistencyIssueKind::MissingPublicEgress)
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.kind == IdentityConsistencyIssueKind::RandomTlsFingerprint)
+        );
     }
 
     #[test]
@@ -403,5 +528,49 @@ mod tests {
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].report.public_egress_ip.as_deref(), Some("198.51.100.22"));
         assert_eq!(history[1].report.public_egress_ip.as_deref(), Some("198.51.100.21"));
+    }
+
+    #[test]
+    fn drift_report_detects_identity_field_changes() {
+        let mut current = build_identity_consistency_report(IdentityConsistencyInput {
+            current_identity: &base_identity(),
+            dns_runtime: None,
+            dns_leak: None,
+            tls_fingerprint: Some(&stable_tls()),
+        });
+        current.public_egress_ip = Some("198.51.100.21".to_string());
+        current.tls_fingerprint = Some("firefox".to_string());
+
+        let mut previous = current.clone();
+        previous.public_egress_ip = Some("198.51.100.20".to_string());
+        previous.tls_fingerprint = Some("chrome".to_string());
+
+        let history = vec![
+            IdentityConsistencySnapshot {
+                observed_at: "t2".to_string(),
+                report: current,
+            },
+            IdentityConsistencySnapshot {
+                observed_at: "t1".to_string(),
+                report: previous,
+            },
+        ];
+
+        let report = build_identity_consistency_drift_report(&history);
+
+        assert!(!report.stable);
+        assert_eq!(report.drift_count, 2);
+        assert!(
+            report
+                .drifts
+                .iter()
+                .any(|drift| drift.kind == IdentityConsistencyDriftKind::PublicEgressIp)
+        );
+        assert!(
+            report
+                .drifts
+                .iter()
+                .any(|drift| drift.kind == IdentityConsistencyDriftKind::TlsFingerprint)
+        );
     }
 }

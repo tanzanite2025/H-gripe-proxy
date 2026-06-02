@@ -1,22 +1,21 @@
 /**
  * 安全模块
- * 
+ *
  * 包含：
  * - local_security: 本地安全监控
  * - firewall: 防火墙管理
  * - leak_monitor: 泄漏监控循环
  */
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 
 pub mod anti_debug;
+pub mod firewall;
 pub mod honeypot;
+pub mod leak_monitor;
 pub mod local_security;
 pub mod local_stealth;
-pub mod firewall;
-pub mod leak_monitor;
 pub mod self_destruct;
 
 static SECURITY_COMPROMISED: AtomicBool = AtomicBool::new(false);
@@ -74,11 +73,13 @@ pub fn reset_security_compromised() {
 }
 
 #[allow(unused_imports)]
-pub use local_security::{LocalSecurityConfig, LocalSecurityMonitor, LeakMonitorStatus, SecurityError};
-#[allow(unused_imports)]
-pub use firewall::{FirewallManager, FirewallRule, Protocol, Action};
+pub use firewall::{Action, FirewallManager, FirewallRule, Protocol};
 #[allow(unused_imports)]
 pub use leak_monitor::{LeakMonitor, LeakType, detect_leak_types};
 #[allow(unused_imports)]
-pub use local_stealth::{LocalStealthConfig, LocalStealthManager, StealthApplyResult,
-    ProcessStealthConfig, PortStealthConfig, AntiDiscoveryConfig};
+pub use local_security::{LeakMonitorStatus, LocalSecurityConfig, LocalSecurityMonitor, SecurityError};
+#[allow(unused_imports)]
+pub use local_stealth::{
+    AntiDiscoveryConfig, LocalStealthConfig, LocalStealthManager, PortStealthConfig, ProcessStealthConfig,
+    StealthApplyResult,
+};

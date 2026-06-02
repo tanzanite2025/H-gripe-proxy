@@ -1,12 +1,11 @@
 /**
  * 反主动探测模块
- * 
+ *
  * 功能：
  * 1. 幻影无响应（Drop on Probe）
  * 2. 严格白名单机制
  * 3. 基于时间戳和私钥的握手暗号
  */
-
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
@@ -74,10 +73,7 @@ impl AntiProbeService {
             // 缓存已验证的连接
             let key = format!("{}", client_ip);
             let now = current_timestamp();
-            self.verified_connections
-                .write()
-                .unwrap()
-                .insert(key, now);
+            self.verified_connections.write().unwrap().insert(key, now);
             return true;
         }
 
@@ -127,9 +123,7 @@ impl AntiProbeService {
         let now = current_timestamp();
         let mut connections = self.verified_connections.write().unwrap();
 
-        connections.retain(|_, &mut verified_time| {
-            now - verified_time < config.time_window
-        });
+        connections.retain(|_, &mut verified_time| now - verified_time < config.time_window);
     }
 
     /// 更新配置
@@ -162,10 +156,7 @@ fn generate_random_key() -> String {
 
 /// 获取当前时间戳（秒）
 fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
 
 #[cfg(test)]

@@ -7,14 +7,16 @@ import { invoke } from '@tauri-apps/api/core'
 export interface XdpConfig {
   enabled: boolean
   interface: string
-  mode: 'Native' | 'Skb' | 'Hw'
-  enable_stats: boolean
+  mode: XdpMode
+  queue_size: number
 }
+
+export type XdpMode = 'Native' | 'Skb' | 'Generic'
 
 export interface XdpStatus {
   running: boolean
   interface: string
-  mode: 'Native' | 'Skb' | 'Hw'
+  mode: XdpMode
   stats: XdpStats
 }
 

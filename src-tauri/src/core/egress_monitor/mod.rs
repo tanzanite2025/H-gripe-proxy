@@ -6,11 +6,10 @@
  * 2. 通知前端
  * 3. 若启用自动重绑定，通过 RebindStrategy 策略切换节点
  */
-
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use parking_lot::RwLock;
 use tokio::sync::Notify;
 use tokio::time::Instant;
@@ -25,8 +24,7 @@ pub mod watch;
 
 // 从子模块重新导出公共类型，保持外部 API 不变
 pub use config::{
-    EgressMonitorConfig, EgressMonitorStats, EgressIpChangeEvent, EgressIpProbeResult,
-    RebindStrategyType,
+    EgressIpChangeEvent, EgressIpProbeResult, EgressMonitorConfig, EgressMonitorStats, RebindStrategyType,
 };
 pub use rebind::{RebindStrategy, RoundRobinRebind, SmartRebind};
 pub use watch::ProxyGroupWatcher;
@@ -77,10 +75,6 @@ impl EgressMonitor {
         Ok(())
     }
 
-    pub fn get_config(&self) -> EgressMonitorConfig {
-        self.config.read().clone()
-    }
-
     pub fn get_stats(&self) -> EgressMonitorStats {
         let mut stats = self.stats.read().clone();
         if let Some(started_at) = *self.started_at.read() {
@@ -91,6 +85,11 @@ impl EgressMonitor {
 
     pub fn is_running(&self) -> bool {
         *self.running.read()
+    }
+
+    #[cfg(test)]
+    pub fn get_config(&self) -> EgressMonitorConfig {
+        self.config.read().clone()
     }
 
     /// 启动监控循环
@@ -117,17 +116,13 @@ impl EgressMonitor {
         let rebind_strategy = self.rebind_strategy.clone();
 
         AsyncHandler::spawn(move || async move {
-
             loop {
                 let interval_secs = config.read().probe_interval_secs;
                 let timeout_secs = config.read().probe_timeout_secs;
 
                 // 执行探测
-                let probe_result = tokio::time::timeout(
-                    Duration::from_secs(timeout_secs),
-                    probe::probe_egress_ip(),
-                )
-                .await;
+                let probe_result =
+                    tokio::time::timeout(Duration::from_secs(timeout_secs), probe::probe_egress_ip()).await;
 
                 match probe_result {
                     Ok(Ok(probe)) => {
@@ -150,12 +145,14 @@ impl EgressMonitor {
 
                                 let rebind_applied = if auto_rebind {
                                     let strategy = rebind_strategy.read().clone();
-                                    strategy.rebind(rebind::RebindContext {
-                                        previous_ip: prev.clone(),
-                                        current_ip: probe.ip.clone(),
-                                        previous_country: prev_country.clone(),
-                                        current_country: probe.country_code.clone(),
-                                    }).await
+                                    strategy
+                                        .rebind(rebind::RebindContext {
+                                            previous_ip: prev.clone(),
+                                            current_ip: probe.ip.clone(),
+                                            previous_country: prev_country.clone(),
+                                            current_country: probe.country_code.clone(),
+                                        })
+                                        .await
                                 } else {
                                     false
                                 };
@@ -190,10 +187,7 @@ impl EgressMonitor {
                                 if notify {
                                     let _ = handle::Handle::notice_message(
                                         "egress_ip_changed",
-                                        format!(
-                                            "出口 IP 变化: {} → {}",
-                                            prev, probe.ip
-                                        ),
+                                        format!("出口 IP 变化: {} → {}", prev, probe.ip),
                                     );
                                 }
                             }
@@ -252,12 +246,9 @@ impl EgressMonitor {
         let timeout_secs = self.config.read().probe_timeout_secs;
         let start = Instant::now();
 
-        let probe = tokio::time::timeout(
-            Duration::from_secs(timeout_secs),
-            probe::probe_egress_ip(),
-        )
-        .await
-        .map_err(|_| anyhow!("探测超时 ({}s)", timeout_secs))??;
+        let probe = tokio::time::timeout(Duration::from_secs(timeout_secs), probe::probe_egress_ip())
+            .await
+            .map_err(|_| anyhow!("探测超时 ({}s)", timeout_secs))??;
 
         let latency_ms = start.elapsed().as_millis() as u64;
 

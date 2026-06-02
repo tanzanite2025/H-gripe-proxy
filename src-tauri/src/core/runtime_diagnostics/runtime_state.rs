@@ -1,7 +1,6 @@
 use super::helpers::{
-    infer_leak_protection_level, infer_routing_mode, mapping_bool, mapping_nested_len,
-    mapping_nested_string_list, mapping_plain_dns_sequence_len, mapping_sequence_len,
-    mapping_string,
+    infer_leak_protection_level, infer_routing_mode, mapping_bool, mapping_nested_len, mapping_nested_string_list,
+    mapping_plain_dns_sequence_len, mapping_sequence_len, mapping_string,
 };
 use crate::{
     config::Config,
@@ -21,16 +20,8 @@ pub(super) fn build_dns_runtime_derived_state(runtime_config: Option<&Mapping>) 
 
     match dns_mapping {
         Some(dns_mapping) => {
-            let domestic_dns = mapping_nested_string_list(
-                dns_mapping,
-                "nameserver-policy",
-                "geosite:cn",
-            );
-            let foreign_dns = mapping_nested_string_list(
-                dns_mapping,
-                "nameserver-policy",
-                "geosite:geolocation-!cn",
-            );
+            let domestic_dns = mapping_nested_string_list(dns_mapping, "nameserver-policy", "geosite:cn");
+            let foreign_dns = mapping_nested_string_list(dns_mapping, "nameserver-policy", "geosite:geolocation-!cn");
             let leak_protection_level = infer_leak_protection_level(dns_mapping);
             let leak_protection_security = match leak_protection_level.as_deref() {
                 Some("none") => Some("low".into()),
@@ -52,10 +43,7 @@ pub(super) fn build_dns_runtime_derived_state(runtime_config: Option<&Mapping>) 
                 domestic_dns,
                 foreign_dns,
                 default_nameserver_count: mapping_sequence_len(dns_mapping, "default-nameserver"),
-                default_nameserver_plain_count: mapping_plain_dns_sequence_len(
-                    dns_mapping,
-                    "default-nameserver",
-                ),
+                default_nameserver_plain_count: mapping_plain_dns_sequence_len(dns_mapping, "default-nameserver"),
                 prefer_h3: mapping_bool(dns_mapping, "prefer-h3"),
                 leak_protection_level,
                 leak_protection_security,
@@ -110,11 +98,7 @@ pub async fn build_dns_runtime_status() -> Result<DnsRuntimeStatus> {
     let runtime = runtime.latest_arc();
     let runtime_config = runtime.config.as_ref();
 
-    let enable_dns_settings = Config::verge()
-        .await
-        .latest_arc()
-        .enable_dns_settings
-        .unwrap_or(false);
+    let enable_dns_settings = Config::verge().await.latest_arc().enable_dns_settings.unwrap_or(false);
 
     let dns_path = dirs::app_home_dir()?.join(constants::files::DNS_CONFIG);
     let dns_config_exists = dns_path.exists();
@@ -128,14 +112,8 @@ pub async fn build_dns_runtime_status() -> Result<DnsRuntimeStatus> {
             Ok(dns_yaml) => match serde_yaml_ng::from_str::<Mapping>(&dns_yaml) {
                 Ok(saved_mapping) => {
                     dns_config_valid = true;
-                    saved_dns_mapping = saved_mapping
-                        .get("dns")
-                        .and_then(|value| value.as_mapping())
-                        .cloned();
-                    saved_hosts_mapping = saved_mapping
-                        .get("hosts")
-                        .and_then(|value| value.as_mapping())
-                        .cloned();
+                    saved_dns_mapping = saved_mapping.get("dns").and_then(|value| value.as_mapping()).cloned();
+                    saved_hosts_mapping = saved_mapping.get("hosts").and_then(|value| value.as_mapping()).cloned();
                 }
                 Err(err) => {
                     logging!(warn, Type::Config, "Failed to parse DNS runtime artifact: {err}");

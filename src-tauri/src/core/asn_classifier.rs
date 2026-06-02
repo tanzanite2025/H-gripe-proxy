@@ -1,7 +1,6 @@
 /// ASN 分类器
 ///
 /// 基于 ASN 编号查表 + 组织名称关键词匹配，将 IP 归类为 Datacenter/Residential/Mobile/Education/Unknown
-
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
@@ -31,31 +30,43 @@ fn build_asn_table() -> HashMap<u32, AsnInfo> {
     let mut map = HashMap::new();
 
     for &(asn, name) in asn_data::datacenter::datacenter_asns() {
-        map.insert(asn, AsnInfo {
-            name: name.to_string(),
-            category: AsnCategory::Datacenter,
-        });
+        map.insert(
+            asn,
+            AsnInfo {
+                name: name.to_string(),
+                category: AsnCategory::Datacenter,
+            },
+        );
     }
 
     for &(asn, name) in asn_data::mobile::mobile_asns() {
-        map.insert(asn, AsnInfo {
-            name: name.to_string(),
-            category: AsnCategory::Mobile,
-        });
+        map.insert(
+            asn,
+            AsnInfo {
+                name: name.to_string(),
+                category: AsnCategory::Mobile,
+            },
+        );
     }
 
     for &(asn, name) in asn_data::residential::residential_asns() {
-        map.insert(asn, AsnInfo {
-            name: name.to_string(),
-            category: AsnCategory::Residential,
-        });
+        map.insert(
+            asn,
+            AsnInfo {
+                name: name.to_string(),
+                category: AsnCategory::Residential,
+            },
+        );
     }
 
     for &(asn, name) in asn_data::education::education_asns() {
-        map.insert(asn, AsnInfo {
-            name: name.to_string(),
-            category: AsnCategory::Education,
-        });
+        map.insert(
+            asn,
+            AsnInfo {
+                name: name.to_string(),
+                category: AsnCategory::Education,
+            },
+        );
     }
 
     map

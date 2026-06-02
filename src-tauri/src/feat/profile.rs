@@ -42,7 +42,12 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> Result<ValidationOutc
 
     let target_profile = profiles.current.as_ref();
 
-    logging!(info, Type::Config, "开始修改配置文件，目标profile: {:?}", target_profile);
+    logging!(
+        info,
+        Type::Config,
+        "开始修改配置文件，目标profile: {:?}",
+        target_profile
+    );
 
     let previous_profile = Config::profiles().await.data_arc().current.clone();
     logging!(info, Type::Config, "当前配置: {:?}", previous_profile);
@@ -111,7 +116,11 @@ async fn handle_validation_failure(
 ) -> Result<ValidationOutcome> {
     logging!(warn, Type::Config, "配置验证失败: {}", outcome);
     discard_and_restore(current_profile).await?;
-    crate::cmd::validate::handle_validation_notice(&outcome, crate::cmd::validate::ValidationNoticeTarget::Runtime, "运行时配置");
+    crate::cmd::validate::handle_validation_notice(
+        &outcome,
+        crate::cmd::validate::ValidationNoticeTarget::Runtime,
+        "运行时配置",
+    );
     Ok(outcome)
 }
 
@@ -338,7 +347,7 @@ async fn perform_profile_update(
     if is_mannual_trigger {
         handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
     }
-    Ok(is_current)
+    bail!("failed to update profile after all proxy attempts: {last_err}")
 }
 
 pub async fn update_profile(

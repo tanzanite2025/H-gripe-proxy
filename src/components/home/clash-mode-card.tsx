@@ -1,9 +1,10 @@
 import { useLockFn } from 'ahooks'
 import { Globe, Route, Send } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
+import { useRuntimeConfig } from '@/hooks/data/use-clash'
 import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
@@ -11,14 +12,14 @@ import {
   useCoreDataStatus,
 } from '@/providers/app-data-context'
 import { patchClashMode } from '@/services/cmds'
+import {
+  CLASH_MODES,
+  type ClashMode,
+  resolveClashMode,
+} from '@/services/clash-mode'
+import { queryClient } from '@/services/query-client'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { cn } from '@/utils/cn'
-
-const CLASH_MODES = ['rule', 'global', 'direct'] as const
-type ClashMode = (typeof CLASH_MODES)[number]
-
-const isClashMode = (mode: string): mode is ClashMode =>
-  (CLASH_MODES as readonly string[]).includes(mode)
 
 const MODE_META: Record<
   ClashMode,
@@ -44,16 +45,15 @@ export const ClashModeCard = () => {
   const { clashConfig } = useClashConfigData()
   const { isCoreDataPending } = useCoreDataStatus()
   const { refreshClashConfig } = useAppRefreshers()
+  const { data: runtimeConfig } = useRuntimeConfig()
+  const [optimisticMode, setOptimisticMode] = useState<ClashMode | undefined>()
 
   // 支持的模式列表
   const modeList = CLASH_MODES
 
   // 直接使用API返回的模式，不维护本地状态
-  const currentMode = clashConfig?.mode?.toLowerCase()
-  const currentModeKey =
-    typeof currentMode === 'string' && isClashMode(currentMode)
-      ? currentMode
-      : undefined
+  const currentModeKey = resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)
+  const displayMode = optimisticMode ?? currentModeKey
 
   const modeDescription = useMemo(() => {
     if (currentModeKey) {
@@ -77,17 +77,29 @@ export const ClashModeCard = () => {
 
   // 切换模式的处理函数
   const onChangeMode = useLockFn(async (mode: ClashMode) => {
-    if (mode === currentModeKey) return
+    if (mode === displayMode) return
     if (verge?.auto_close_connection) {
       closeAllConnections()
     }
 
+    setOptimisticMode(mode)
+    queryClient.setQueryData(['getClashConfig'], (old: any) =>
+      old ? { ...old, mode } : old,
+    )
+    queryClient.setQueryData(['getRuntimeConfig'], (old: any) =>
+      old ? { ...old, mode } : old,
+    )
+
     try {
       await patchClashMode(mode)
-      // 使用共享的刷新方法
-      refreshClashConfig()
     } catch (error) {
       console.error('Failed to change mode:', error)
+    } finally {
+      await Promise.all([
+        refreshClashConfig(),
+        queryClient.invalidateQueries({ queryKey: ['getRuntimeConfig'] }),
+      ])
+      setOptimisticMode(undefined)
     }
   })
 
@@ -96,7 +108,7 @@ export const ClashModeCard = () => {
       {/* 模式选择按钮组 - 工业滑块选择器 */}
       <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-solid border-divider rounded-3xl w-full">
         {modeList.map((mode) => {
-          const isActive = mode === currentModeKey
+          const isActive = mode === displayMode
           return (
             <div
               key={mode}

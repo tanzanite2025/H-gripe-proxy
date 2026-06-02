@@ -3,11 +3,9 @@ use crate::{
     cmd::StringifyErr as _,
     config::Config,
     core::{
-        runtime_diagnostics::{
-            build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
-        },
-        current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
         CoreManager,
+        current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
+        runtime_diagnostics::{build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result},
         runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
 };
@@ -57,12 +55,8 @@ pub async fn test_proxy_detection() -> CmdResult<ProxyDetectionResult> {
 }
 
 #[tauri::command]
-pub async fn get_current_egress_identity(
-    app_handle: tauri::AppHandle,
-) -> CmdResult<CurrentEgressIdentity> {
-    build_current_egress_identity(Some(&app_handle))
-        .await
-        .stringify_err()
+pub async fn get_current_egress_identity(app_handle: tauri::AppHandle) -> CmdResult<CurrentEgressIdentity> {
+    build_current_egress_identity(Some(&app_handle)).await.stringify_err()
 }
 
 /// 获取运行时存在的键

@@ -10,13 +10,12 @@
  * 2. 浏览器指纹伪造 - 伪造真实浏览器指纹
  * 3. 头部顺序规范化 - 规范化头部顺序
  */
-
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// 代理特征头列表
-/// 
+///
 /// 这些头部会暴露代理的存在，需要清除
 pub const PROXY_HEADERS: &[&str] = &[
     "X-Forwarded-For",
@@ -125,7 +124,7 @@ impl HeaderSanitizer {
     }
 
     /// 净化 HTTP 头
-    /// 
+    ///
     /// 执行以下操作：
     /// 1. 清除代理特征头
     /// 2. 伪造浏览器指纹
@@ -303,11 +302,7 @@ impl HeaderSanitizer {
     }
 
     /// 规范化头部顺序
-    fn normalize_header_order(
-        &self,
-        headers: &HashMap<String, String>,
-        order: &[String],
-    ) -> HashMap<String, String> {
+    fn normalize_header_order(&self, headers: &HashMap<String, String>, order: &[String]) -> HashMap<String, String> {
         let mut ordered_headers = HashMap::new();
 
         // 按照指定顺序添加头部
@@ -454,11 +449,7 @@ mod tests {
         headers.insert("Host".to_string(), "example.com".to_string());
         headers.insert("User-Agent".to_string(), "Test".to_string());
 
-        let order = vec![
-            "Host".to_string(),
-            "User-Agent".to_string(),
-            "Accept".to_string(),
-        ];
+        let order = vec!["Host".to_string(), "User-Agent".to_string(), "Accept".to_string()];
 
         let ordered = sanitizer.normalize_header_order(&headers, &order);
 

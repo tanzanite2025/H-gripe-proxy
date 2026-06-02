@@ -4,7 +4,6 @@
  * 在 enhance 管线中，根据配置注入 Mihomo ntp: 配置段
  * 选择与出口节点区域匹配的 NTP 服务器
  */
-
 use serde_yaml_ng::{Mapping, Value};
 
 use crate::config::advanced::AdvancedConfig;
@@ -47,7 +46,12 @@ pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {
                 .manual_ntp_server
                 .clone()
                 .unwrap_or_else(|| "pool.ntp.org".to_string());
-            build_ntp_enabled(&server, cfg.ntp_interval_min, cfg.write_to_system, cfg.dialer_proxy.as_deref())
+            build_ntp_enabled(
+                &server,
+                cfg.ntp_interval_min,
+                cfg.write_to_system,
+                cfg.dialer_proxy.as_deref(),
+            )
         }
         NtpStrategy::Auto => {
             // 尝试从出口身份推断区域
@@ -58,7 +62,12 @@ pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {
                 country_code,
                 server
             );
-            build_ntp_enabled(&server, cfg.ntp_interval_min, cfg.write_to_system, cfg.dialer_proxy.as_deref())
+            build_ntp_enabled(
+                &server,
+                cfg.ntp_interval_min,
+                cfg.write_to_system,
+                cfg.dialer_proxy.as_deref(),
+            )
         }
     };
 
@@ -67,12 +76,7 @@ pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {
 }
 
 /// 构建 NTP 启用的 YAML 映射
-fn build_ntp_enabled(
-    server: &str,
-    interval_min: u32,
-    write_to_system: bool,
-    dialer_proxy: Option<&str>,
-) -> Value {
+fn build_ntp_enabled(server: &str, interval_min: u32, write_to_system: bool, dialer_proxy: Option<&str>) -> Value {
     let mut ntp = Mapping::new();
     revise!(ntp, "enable", true);
     revise!(ntp, "server", server.to_string());

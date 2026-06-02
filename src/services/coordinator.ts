@@ -63,6 +63,7 @@ export interface CoordinatorStatus {
   sessionAffinityActiveBindings: number
   runtimeState: CoordinatorRuntimeState
   multipathEnabled: boolean
+  trafficObfuscationEnabled: boolean
   xdpEnabled?: boolean
   xdpRunning?: boolean
 }
@@ -77,6 +78,8 @@ export interface AdvancedConfig {
   egress_identity: EgressIdentityConfig
   egress_monitor: EgressMonitorConfig
   dns: AdvancedDnsConfig
+  traffic_obfuscation: TrafficObfuscationConfig
+  traffic_padding: TrafficPaddingConfig
   security_policies: ISecurityPolicy[]
   residential_pool: ResidentialProxyPool
   ip_reputation: IpReputationConfig
@@ -148,6 +151,73 @@ export interface ObfuscationConfig {
   enabled: boolean
   level: ObfuscationLevel
   autoAdjust: boolean
+}
+
+export type TrafficObfuscationProfile =
+  | 'none'
+  | 'conservative'
+  | 'aggressive'
+  | 'custom'
+
+export interface TrafficObfuscationConfig {
+  enabled: boolean
+  profile: TrafficObfuscationProfile
+  padding: TrafficPaddingConfig
+  timing: TimingJitterConfig
+  direction: DirectionObfuscationConfig
+}
+
+export type PaddingIntensity =
+  | 'Low'
+  | 'Medium'
+  | 'High'
+  | { Custom: number }
+
+export type FrequencyType = 'Time' | 'Request' | 'Random'
+
+export interface PaddingFrequency {
+  freqType: FrequencyType
+  interval: number
+}
+
+export type PaddingTiming = 'Before' | 'After' | 'Random'
+
+export interface PerformanceControl {
+  maxBandwidth: number
+  maxCpuUsage: number
+  maxMemory: number
+  autoDowngrade: boolean
+}
+
+export interface TrafficPaddingConfig {
+  enabled: boolean
+  minSize: number
+  maxSize: number
+  encrypt: boolean
+  intensity: PaddingIntensity
+  frequency: PaddingFrequency
+  timing: PaddingTiming
+  smartPadding: boolean
+  performanceControl: PerformanceControl
+}
+
+export type JitterMode = 'uniform' | 'gaussian' | 'pareto'
+
+export interface TimingJitterConfig {
+  enabled: boolean
+  mode: JitterMode
+  minDelayMs: number
+  maxDelayMs: number
+  batchWindowMs: number
+}
+
+export type DirectionMode = 'mirror' | 'pad' | 'random'
+
+export interface DirectionObfuscationConfig {
+  enabled: boolean
+  mode: DirectionMode
+  mirrorRatio: number
+  padToSize: number
 }
 
 export type IpType = 'Datacenter' | 'Residential' | 'Mobile' | 'Unknown'

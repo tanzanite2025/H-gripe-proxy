@@ -1,46 +1,52 @@
-use crate::xdp::{
-    get_xdp_manager, XdpAction, XdpConfig, XdpRoute, XdpStatus, XdpSupportInfo, XdpManager,
+use crate::{
+    config::AdvancedConfig,
+    feat::get_coordinator,
+    xdp::{XdpConfig, XdpManager, XdpRoute, XdpStatus, XdpSupportInfo},
 };
 use anyhow::Result;
 
 pub fn xdp_get_config() -> XdpConfig {
-    let manager = get_xdp_manager();
-    manager.get_config()
+    AdvancedConfig::load_default().xdp
 }
 
 pub fn xdp_update_config(config: XdpConfig) -> Result<()> {
-    let manager = get_xdp_manager();
-    manager.update_config(config)?;
+    let mut advanced = AdvancedConfig::load_default();
+    advanced.xdp = config;
+    advanced.validate()?;
+    advanced.save_default()?;
+    get_coordinator().apply_advanced_config(&advanced)?;
     Ok(())
 }
 
 pub fn xdp_get_status() -> XdpStatus {
-    let manager = get_xdp_manager();
+    let manager = get_coordinator().xdp_manager();
     manager.get_status()
 }
 
 pub fn xdp_start() -> Result<()> {
-    let manager = get_xdp_manager();
-    manager.start()
+    let mut config = AdvancedConfig::load_default().xdp;
+    config.enabled = true;
+    xdp_update_config(config)
 }
 
 pub fn xdp_stop() -> Result<()> {
-    let manager = get_xdp_manager();
-    manager.stop()
+    let mut config = AdvancedConfig::load_default().xdp;
+    config.enabled = false;
+    xdp_update_config(config)
 }
 
 pub fn xdp_add_route(route: XdpRoute) -> Result<()> {
-    let manager = get_xdp_manager();
+    let manager = get_coordinator().xdp_manager();
     manager.add_route(route)
 }
 
 pub fn xdp_remove_route(dest_ip: &str) -> Result<()> {
-    let manager = get_xdp_manager();
+    let manager = get_coordinator().xdp_manager();
     manager.remove_route(dest_ip)
 }
 
 pub fn xdp_update_stats() -> Result<()> {
-    let manager = get_xdp_manager();
+    let manager = get_coordinator().xdp_manager();
     manager.update_stats()
 }
 

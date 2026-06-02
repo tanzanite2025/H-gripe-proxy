@@ -8,7 +8,6 @@
 /// - Mihomo `REJECT-DROP` 策略作为黑洞出口
 /// - `RiskFallbackPolicy::Block` / `EgressFailoverPolicy::Block` 语义对齐
 /// - IP 信誉评分作为触发信号之一
-
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -227,10 +226,6 @@ impl BlackholeBreakerManager {
         }
     }
 
-    pub async fn get_config(&self) -> BlackholeBreakerConfig {
-        self.config.read().await.clone()
-    }
-
     pub async fn update_config(&self, config: BlackholeBreakerConfig) {
         *self.config.write().await = config;
         log::info!("[BlackholeBreaker] 配置已更新");
@@ -252,9 +247,7 @@ impl BlackholeBreakerManager {
         let now = now_secs();
 
         // 滑动窗口重置
-        if state.window_start.is_none()
-            || now - state.window_start.unwrap() > rule.trigger.window_secs
-        {
+        if state.window_start.is_none() || now - state.window_start.unwrap() > rule.trigger.window_secs {
             state.window_start = Some(now);
             state.window_total = 0;
             state.window_failures = 0;
@@ -512,7 +505,9 @@ impl BlackholeBreakerManager {
                 state.last_state_change = now;
                 log::warn!(
                     "[BlackholeBreaker] 规则 {} 因欺诈评分 {} >= {} 触发熔断",
-                    rule.id, fraud_score, max_score
+                    rule.id,
+                    fraud_score,
+                    max_score
                 );
             }
         }
@@ -597,10 +592,7 @@ pub fn get_predefined_breaker_rules() -> Vec<BreakerRule> {
         BreakerRule {
             id: "finance-breaker".to_string(),
             enabled: true,
-            domain_patterns: vec![
-                "*.stripe.com".to_string(),
-                "*.paypal.com".to_string(),
-            ],
+            domain_patterns: vec!["*.stripe.com".to_string(), "*.paypal.com".to_string()],
             node_patterns: vec![],
             trigger: BreakerTrigger {
                 consecutive_failures: 2,

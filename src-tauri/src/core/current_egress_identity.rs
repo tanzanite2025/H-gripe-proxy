@@ -37,9 +37,7 @@ pub struct CurrentEgressIdentity {
     pub message: String,
 }
 
-pub async fn build_current_egress_identity(
-    app_handle: Option<&tauri::AppHandle>,
-) -> Result<CurrentEgressIdentity> {
+pub async fn build_current_egress_identity(app_handle: Option<&tauri::AppHandle>) -> Result<CurrentEgressIdentity> {
     if let Some(app_handle) = app_handle {
         if let Ok(Some(identity)) = current_identity_from_mihomo_egress_status(app_handle).await {
             return Ok(identity);
@@ -65,11 +63,7 @@ async fn current_identity_from_mihomo_egress_status(
     };
 
     if let Some(ip) = identity.egress_ip.as_deref() {
-        identity.reputation = Some(
-            crate::feat::get_ip_reputation_manager()
-                .inspect_ip_metadata(ip)
-                .await?,
-        );
+        identity.reputation = Some(crate::feat::get_ip_reputation_manager().inspect_ip_metadata(ip).await?);
     }
 
     Ok(Some(identity))
@@ -81,16 +75,9 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
         .as_deref()
         .and_then(non_empty_string)
         .or_else(|| status.egress_ip.as_deref().and_then(non_empty_string));
-    let proxy_endpoint = status
-        .proxy_endpoint
-        .as_deref()
-        .and_then(non_empty_string);
+    let proxy_endpoint = status.proxy_endpoint.as_deref().and_then(non_empty_string);
     let proxy_name = status.proxy_name.as_deref().and_then(non_empty_string);
-    let proxy_chain = status
-        .proxy_chain
-        .as_deref()
-        .map(split_proxy_chain)
-        .unwrap_or_default();
+    let proxy_chain = status.proxy_chain.as_deref().map(split_proxy_chain).unwrap_or_default();
     let destination_asn = status.destination_asn.as_deref().and_then(non_empty_string);
     let asn_org = status.asn_org.as_deref().and_then(non_empty_string);
     let rule = status.rule.as_deref().and_then(non_empty_string);
@@ -98,10 +85,7 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
     let egress_source = status.egress_source.as_deref().and_then(non_empty_string);
     let confidence = status.confidence;
     let sample_count = status.sample_count;
-    let last_verified_at = status
-        .last_verified_at
-        .as_deref()
-        .and_then(non_empty_string);
+    let last_verified_at = status.last_verified_at.as_deref().and_then(non_empty_string);
     let updated_at = status.updated_at.as_deref().and_then(non_empty_string);
 
     if public_egress_ip.is_none()
@@ -215,10 +199,7 @@ fn non_empty_string(value: impl AsRef<str>) -> Option<String> {
 }
 
 fn split_proxy_chain(value: &str) -> Vec<String> {
-    value
-        .split("->")
-        .filter_map(non_empty_string)
-        .collect()
+    value.split("->").filter_map(non_empty_string).collect()
 }
 
 #[cfg(test)]
@@ -259,14 +240,8 @@ mod tests {
 
         assert_eq!(identity.source, CurrentEgressIdentitySource::MihomoEgressStatus);
         assert_eq!(identity.egress_ip.as_deref(), Some("203.0.113.10"));
-        assert_eq!(
-            identity.public_egress_ip.as_deref(),
-            Some("203.0.113.10")
-        );
-        assert_eq!(
-            identity.proxy_endpoint.as_deref(),
-            Some("198.51.100.1:443")
-        );
+        assert_eq!(identity.public_egress_ip.as_deref(), Some("203.0.113.10"));
+        assert_eq!(identity.proxy_endpoint.as_deref(), Some("198.51.100.1:443"));
         assert_eq!(identity.proxy_name.as_deref(), Some("HK-Residential"));
         assert_eq!(
             identity.proxy_chain,
@@ -279,10 +254,7 @@ mod tests {
         assert_eq!(identity.egress_source.as_deref(), Some("publicProbe"));
         assert_eq!(identity.confidence, Some(90));
         assert_eq!(identity.sample_count, Some(1));
-        assert_eq!(
-            identity.last_verified_at.as_deref(),
-            Some("2026-06-02T02:00:00Z")
-        );
+        assert_eq!(identity.last_verified_at.as_deref(), Some("2026-06-02T02:00:00Z"));
         assert_eq!(identity.updated_at.as_deref(), Some("2026-06-02T02:00:00Z"));
     }
 }

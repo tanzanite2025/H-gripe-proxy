@@ -1,3 +1,6 @@
+use crate::traffic::direction::DirectionObfuscationConfig;
+use crate::traffic::padding::TrafficPaddingConfig;
+use crate::traffic::timing_jitter::TimingJitterConfig;
 /**
  * 流量混淆调度器（薄代理层）
  *
@@ -9,11 +12,7 @@
  * 2. 通过 Mihomo API 获取 Go 端的真实混淆统计
  * 3. 向后兼容旧 TrafficPaddingConfig
  */
-
 use anyhow::Result;
-use crate::traffic::padding::TrafficPaddingConfig;
-use crate::traffic::timing_jitter::TimingJitterConfig;
-use crate::traffic::direction::DirectionObfuscationConfig;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -40,7 +39,10 @@ impl ObfuscationProfile {
     pub fn derive_configs(&self) -> (TrafficPaddingConfig, TimingJitterConfig, DirectionObfuscationConfig) {
         match self {
             ObfuscationProfile::None => (
-                TrafficPaddingConfig { enabled: false, ..TrafficPaddingConfig::default() },
+                TrafficPaddingConfig {
+                    enabled: false,
+                    ..TrafficPaddingConfig::default()
+                },
                 TimingJitterConfig::default(),
                 DirectionObfuscationConfig::default(),
             ),
@@ -72,7 +74,11 @@ impl ObfuscationProfile {
             ),
             ObfuscationProfile::Custom => {
                 // Custom 模式下使用用户提供的子配置，这里返回 default 作为占位
-                (TrafficPaddingConfig::default(), TimingJitterConfig::default(), DirectionObfuscationConfig::default())
+                (
+                    TrafficPaddingConfig::default(),
+                    TimingJitterConfig::default(),
+                    DirectionObfuscationConfig::default(),
+                )
             }
         }
     }
@@ -251,7 +257,10 @@ impl ObfuscationScheduler {
     async fn fetch_stats_from_mihomo() -> Result<ObfuscationStats> {
         use crate::core::handle;
         let mihomo = handle::Handle::mihomo().await;
-        let raw = mihomo.get_obfuscation_stats().await.map_err(|e| anyhow::anyhow!("{}", e))?;
+        let raw = mihomo
+            .get_obfuscation_stats()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
         let obf = &raw["obfuscation"];
         let tls = &raw["tls"];
         Ok(ObfuscationStats {
@@ -269,7 +278,10 @@ impl ObfuscationScheduler {
     async fn reset_stats_via_mihomo() -> Result<()> {
         use crate::core::handle;
         let mihomo = handle::Handle::mihomo().await;
-        mihomo.reset_obfuscation_stats().await.map_err(|e| anyhow::anyhow!("{}", e))
+        mihomo
+            .reset_obfuscation_stats()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 }
 

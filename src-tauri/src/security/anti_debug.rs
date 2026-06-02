@@ -1,15 +1,14 @@
+use std::sync::Arc;
 /**
  * 反调试模块
- * 
+ *
  * 检测：
  * 1. ptrace 注入（Linux/macOS）
  * 2. IsDebuggerPresent（Windows）
  * 3. 父进程异常
  * 4. 调试端口开放
  */
-
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::Duration;
 
 /// 反调试配置
@@ -60,7 +59,7 @@ pub fn is_debugger_present() -> bool {
 #[cfg(target_os = "windows")]
 fn check_debugger_windows() -> bool {
     use windows::Win32::System::Diagnostics::Debug::IsDebuggerPresent;
-    
+
     unsafe {
         // 检查 IsDebuggerPresent
         if IsDebuggerPresent().as_bool() {
@@ -115,11 +114,11 @@ unsafe fn get_peb() -> *const u8 {
 #[cfg(target_os = "windows")]
 fn check_debug_port_windows() -> bool {
     use windows::Win32::System::Threading::GetCurrentProcess;
-    
+
     unsafe {
         let process = GetCurrentProcess();
         let mut debug_port: usize = 0;
-        
+
         // NtQueryInformationProcess with ProcessDebugPort (7)
         let status = ntdll_query_information_process(
             process.0 as *mut _,
@@ -127,7 +126,7 @@ fn check_debug_port_windows() -> bool {
             &mut debug_port as *mut _ as *mut _,
             std::mem::size_of::<usize>(),
         );
-        
+
         status == 0 && debug_port != 0
     }
 }
@@ -189,7 +188,7 @@ fn check_debugger_processes_linux() -> bool {
 
     // 检查常见调试器进程
     let debuggers = ["gdb", "lldb", "strace", "ltrace", "radare2"];
-    
+
     for debugger in &debuggers {
         if let Ok(output) = Command::new("pgrep").arg(debugger).output() {
             if !output.stdout.is_empty() {
@@ -236,7 +235,7 @@ fn check_debugger_processes_macos() -> bool {
     use std::process::Command;
 
     let debuggers = ["lldb", "gdb", "dtrace"];
-    
+
     for debugger in &debuggers {
         if let Ok(output) = Command::new("pgrep").arg(debugger).output() {
             if !output.stdout.is_empty() {
@@ -272,7 +271,13 @@ fn check_parent_process_windows() -> bool {
 
     // 获取父进程名称
     if let Ok(output) = hidden_command("wmic")
-        .args(&["process", "where", &format!("ProcessId={}", std::process::id()), "get", "ParentProcessId"])
+        .args(&[
+            "process",
+            "where",
+            &format!("ProcessId={}", std::process::id()),
+            "get",
+            "ParentProcessId",
+        ])
         .output()
     {
         if let Ok(output_str) = String::from_utf8(output.stdout) {
@@ -319,30 +324,30 @@ fn check_parent_process_unix() -> bool {
 /// 反调试监控循环
 pub fn monitor_loop(enabled: Arc<AtomicBool>) {
     let config = AntiDebugConfig::default();
-    
+
     while enabled.load(Ordering::Relaxed) {
         if config.enabled && is_debugger_present() {
             log::warn!("🚨 检测到调试器！触发安全响应...");
-            
+
             // 标记安全状态为已破坏
             crate::security::mark_security_compromised();
-            
+
             if config.auto_destruct {
                 // 触发自毁
                 crate::security::self_destruct::execute();
             }
-            
+
             break;
         }
 
         if config.enabled && check_parent_process() {
             log::warn!("🚨 检测到可疑父进程！触发安全响应...");
             crate::security::mark_security_compromised();
-            
+
             if config.auto_destruct {
                 crate::security::self_destruct::execute();
             }
-            
+
             break;
         }
 
