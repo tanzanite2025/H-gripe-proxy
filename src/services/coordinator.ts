@@ -6,7 +6,11 @@ import { invoke } from '@tauri-apps/api/core'
 
 import type { BlackholeBreakerConfig } from '@/services/blackhole-breaker'
 import type { ResolvedEgressIdentity } from '@/services/egress-identity'
-import type { IpReputationConfig } from '@/services/ip-reputation'
+import {
+  normalizeIpReputationConfig,
+  serializeIpReputationConfig,
+  type IpReputationConfig,
+} from '@/services/ip-reputation'
 import type { LocalStealthConfig } from '@/services/local-stealth'
 import type { MultipathConfig } from '@/services/multipath'
 import type { BindingInfo, SessionAffinityConfig } from '@/services/session-affinity'
@@ -339,6 +343,20 @@ export interface XdpConfig {
   queue_size: number
 }
 
+function normalizeAdvancedConfig(config: AdvancedConfig): AdvancedConfig {
+  return {
+    ...config,
+    ip_reputation: normalizeIpReputationConfig(config.ip_reputation),
+  }
+}
+
+function serializeAdvancedConfig(config: AdvancedConfig) {
+  return {
+    ...config,
+    ip_reputation: serializeIpReputationConfig(config.ip_reputation),
+  }
+}
+
 export type XdpMode = 'Native' | 'Skb' | 'Generic'
 
 /**
@@ -359,28 +377,30 @@ export async function coordinatorShutdown(): Promise<void> {
  * 获取高级配置
  */
 export async function getAdvancedConfig(): Promise<AdvancedConfig> {
-  return await invoke('get_advanced_config')
+  const config = await invoke<AdvancedConfig>('get_advanced_config')
+  return normalizeAdvancedConfig(config)
 }
 
 /**
  * 保存高级配置
  */
 export async function saveAdvancedConfig(config: AdvancedConfig): Promise<void> {
-  await invoke('save_advanced_config', { config })
+  await invoke('save_advanced_config', { config: serializeAdvancedConfig(config) })
 }
 
 /**
  * 获取推荐配置
  */
 export async function getRecommendedAdvancedConfig(): Promise<AdvancedConfig> {
-  return await invoke('get_recommended_advanced_config')
+  const config = await invoke<AdvancedConfig>('get_recommended_advanced_config')
+  return normalizeAdvancedConfig(config)
 }
 
 /**
  * 验证高级配置
  */
 export async function validateAdvancedConfig(config: AdvancedConfig): Promise<void> {
-  await invoke('validate_advanced_config', { config })
+  await invoke('validate_advanced_config', { config: serializeAdvancedConfig(config) })
 }
 
 /**

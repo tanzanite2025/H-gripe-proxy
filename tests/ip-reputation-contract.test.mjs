@@ -5,6 +5,7 @@ import test from 'node:test'
 
 const repoRoot = process.cwd()
 const servicePath = join(repoRoot, 'src', 'services', 'ip-reputation.ts')
+const coordinatorPath = join(repoRoot, 'src', 'services', 'coordinator.ts')
 
 test('ip reputation service normalizes tauri snake_case contract at the boundary', () => {
   const service = readFileSync(servicePath, 'utf8')
@@ -58,5 +59,43 @@ test('ip reputation service normalizes tauri snake_case contract at the boundary
     service,
     /ipReputationGetCacheEntries[\s\S]*\.map\(normalizeIpReputation\)/,
     'cache entries should be normalized before UI reads them',
+  )
+})
+
+test('advanced config service preserves ip reputation camel/snake contract on read and write', () => {
+  const service = readFileSync(servicePath, 'utf8')
+  const coordinator = readFileSync(coordinatorPath, 'utf8')
+
+  assert.match(
+    service,
+    /export function serializeIpReputationConfig/,
+    'ip reputation config serializer should be reusable by aggregate AdvancedConfig saves',
+  )
+  assert.match(coordinator, /normalizeIpReputationConfig/)
+  assert.match(coordinator, /serializeIpReputationConfig/)
+  assert.match(
+    coordinator,
+    /function normalizeAdvancedConfig[\s\S]*normalizeIpReputationConfig/,
+    'aggregate AdvancedConfig normalization should normalize ip_reputation',
+  )
+  assert.match(
+    coordinator,
+    /function serializeAdvancedConfig[\s\S]*serializeIpReputationConfig/,
+    'aggregate AdvancedConfig serialization should serialize ip_reputation',
+  )
+  assert.match(
+    coordinator,
+    /getAdvancedConfig[\s\S]*normalizeAdvancedConfig/,
+    'aggregate AdvancedConfig loads should normalize ip_reputation before panels read it',
+  )
+  assert.match(
+    coordinator,
+    /saveAdvancedConfig[\s\S]*serializeAdvancedConfig/,
+    'aggregate AdvancedConfig saves should serialize ip_reputation before Tauri receives it',
+  )
+  assert.match(
+    coordinator,
+    /validateAdvancedConfig[\s\S]*serializeAdvancedConfig/,
+    'aggregate AdvancedConfig validation should use the same backend contract as saves',
   )
 })

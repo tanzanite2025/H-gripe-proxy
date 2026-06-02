@@ -273,7 +273,7 @@ function serializeRiskRoutingRule(rule: RiskRoutingRule): RawRecord {
   };
 }
 
-function serializeIpReputationConfig(config: IpReputationConfig): RawRecord {
+export function serializeIpReputationConfig(config: IpReputationConfig): RawRecord {
   return {
     enabled: config.enabled,
     cache_ttl: config.cacheTtl,

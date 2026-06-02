@@ -68,7 +68,7 @@
           "requireLiteralLeadingDot": false
         }
       },
-      "csp": "default-src 'self'; connect-src 'self' 127.0.0.1 http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' asset: data: https://*; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';"
+      "csp": "default-src 'self'; connect-src 'self' 127.0.0.1 http://127.0.0.1:* ws://127.0.0.1:* http://ipc.localhost http://tauri.localhost; img-src 'self' asset: data: https://* http://tauri.localhost; style-src 'self' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com http://tauri.localhost; script-src 'self' 'unsafe-inline';"
     }
   }
 }
