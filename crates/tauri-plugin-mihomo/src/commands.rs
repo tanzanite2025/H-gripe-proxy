@@ -194,8 +194,27 @@ pub(crate) async fn delete_rule(state: State<'_, RwLock<Mihomo>>, index: i32) ->
 }
 
 #[command]
-pub(crate) async fn create_rule(state: State<'_, RwLock<Mihomo>>, rule_type: String, payload: String, proxy: String, source: Option<String>, sub_rule: Option<String>, position: Option<String>) -> Result<i32> {
-    state.read().await.create_rule(&rule_type, &payload, &proxy, source.as_deref(), sub_rule.as_deref(), position.as_deref()).await
+pub(crate) async fn create_rule(
+    state: State<'_, RwLock<Mihomo>>,
+    rule_type: String,
+    payload: String,
+    proxy: String,
+    source: Option<String>,
+    sub_rule: Option<String>,
+    position: Option<String>,
+) -> Result<i32> {
+    state
+        .read()
+        .await
+        .create_rule(
+            &rule_type,
+            &payload,
+            &proxy,
+            source.as_deref(),
+            sub_rule.as_deref(),
+            position.as_deref(),
+        )
+        .await
 }
 
 #[command]
@@ -204,8 +223,16 @@ pub(crate) async fn get_sub_rules(state: State<'_, RwLock<Mihomo>>) -> Result<se
 }
 
 #[command]
-pub(crate) async fn delete_sub_rule_by_source(state: State<'_, RwLock<Mihomo>>, name: String, source_prefix: Option<String>) -> Result<i32> {
-    state.read().await.delete_sub_rule_by_source(&name, source_prefix.as_deref()).await
+pub(crate) async fn delete_sub_rule_by_source(
+    state: State<'_, RwLock<Mihomo>>,
+    name: String,
+    source_prefix: Option<String>,
+) -> Result<i32> {
+    state
+        .read()
+        .await
+        .delete_sub_rule_by_source(&name, source_prefix.as_deref())
+        .await
 }
 
 #[command]
@@ -353,7 +380,9 @@ pub(crate) async fn get_engine_stats(state: State<'_, RwLock<Mihomo>>) -> Result
 }
 
 #[command]
-pub(crate) async fn get_top_connections(state: State<'_, RwLock<Mihomo>>) -> Result<Vec<crate::models::ConnTrafficSnapshot>> {
+pub(crate) async fn get_top_connections(
+    state: State<'_, RwLock<Mihomo>>,
+) -> Result<Vec<crate::models::ConnTrafficSnapshot>> {
     state.read().await.get_top_connections().await
 }
 
@@ -363,7 +392,9 @@ pub(crate) async fn get_buffer_pool_stats(state: State<'_, RwLock<Mihomo>>) -> R
 }
 
 #[command]
-pub(crate) async fn get_rule_traffic(state: State<'_, RwLock<Mihomo>>) -> Result<std::collections::HashMap<String, crate::models::RuleTrafficSnapshot>> {
+pub(crate) async fn get_rule_traffic(
+    state: State<'_, RwLock<Mihomo>>,
+) -> Result<std::collections::HashMap<String, crate::models::RuleTrafficSnapshot>> {
     state.read().await.get_rule_traffic().await
 }
 
@@ -373,7 +404,9 @@ pub(crate) async fn get_egress_status(state: State<'_, RwLock<Mihomo>>) -> Resul
 }
 
 #[command]
-pub(crate) async fn get_tls_fingerprint_stats(state: State<'_, RwLock<Mihomo>>) -> Result<crate::models::TLSFingerprintStats> {
+pub(crate) async fn get_tls_fingerprint_stats(
+    state: State<'_, RwLock<Mihomo>>,
+) -> Result<crate::models::TLSFingerprintStats> {
     state.read().await.get_tls_fingerprint_stats().await
 }
 

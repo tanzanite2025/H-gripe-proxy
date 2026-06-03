@@ -7,6 +7,7 @@ import { once } from 'foxts/once'
 import { debugLog } from '@/utils/misc'
 
 import { getIpCheckConfig } from './adaptive-config'
+import { getCurrentPublicIpInfo } from './cmds'
 import {
   getCachedIpInfo,
   setCachedIpInfo,
@@ -48,6 +49,23 @@ interface ServiceConfig {
 
 // 可用的IP检测服务列表及字段映射
 // 包含国内和国际服务，随机打乱顺序以实现负载均衡和故障转移
+const mapBackendIpInfo = (
+  data: Awaited<ReturnType<typeof getCurrentPublicIpInfo>>,
+): IpInfo & { lastFetchTs: number } => ({
+  ip: data.ip,
+  country_code: data.country_code || '',
+  country: data.country || '',
+  region: data.region || '',
+  city: data.city || '',
+  organization: data.organization || '',
+  asn: data.asn || 0,
+  asn_organization: data.asn_organization || data.organization || '',
+  longitude: 0,
+  latitude: 0,
+  timezone: '',
+  lastFetchTs: Date.now(),
+})
+
 const IP_CHECK_SERVICES: ServiceConfig[] = [
   // 国内服务 - 优先级高，国内用户访问快
   {
@@ -203,6 +221,15 @@ export const getIpInfo = async (): Promise<
     const config = getIpCheckConfig()
     if (config.timeout === 0) {
       throw new Error('离线状态，无法获取IP信息')
+    }
+
+    try {
+      const ipInfo = mapBackendIpInfo(await getCurrentPublicIpInfo())
+      console.debug('[IpInfo] 使用后端本地核心代理观测获取IP信息')
+      setCachedIpInfo(ipInfo)
+      return ipInfo
+    } catch (error) {
+      debugLog('[IpInfo] 后端本地核心代理观测失败，回退到前端直连IP服务', error)
     }
 
     const shuffledServices = IP_CHECK_SERVICES.toSorted(

@@ -178,6 +178,7 @@ mod app_init {
             cmd::test_dns_leak,
             cmd::test_proxy_detection,
             cmd::get_current_egress_identity,
+            cmd::get_current_public_ip_info,
             cmd::get_identity_consistency_report,
             cmd::get_identity_consistency_history,
             cmd::get_identity_consistency_drift_report,

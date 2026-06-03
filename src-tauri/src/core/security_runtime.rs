@@ -1,6 +1,6 @@
 use crate::security::{
-    SecurityMonitor, anti_debug, honeypot, leak_monitor::LeakMonitor, local_security::LocalSecurityMonitor,
-    local_stealth::LocalStealthManager,
+    SecurityMonitor, anti_debug, honeypot, ingress_countermeasure::ThreatReason, leak_monitor::LeakMonitor,
+    local_security::LocalSecurityMonitor, local_stealth::LocalStealthManager,
 };
 use anyhow::{Result, anyhow, bail};
 use once_cell::sync::Lazy;
@@ -98,6 +98,7 @@ pub fn stop_monitor() {
 pub async fn check_status() -> SecurityStatus {
     let honeypot_triggered = honeypot::check_global_honeypot();
     if honeypot_triggered {
+        record_ingress_signal("memory-honeypot", ThreatReason::HoneypotTriggered);
         crate::security::mark_security_compromised();
     }
 
@@ -134,7 +135,11 @@ pub fn cleanup_decoy(decoy_path: PathBuf) -> Result<()> {
 
 pub fn check_decoy_access(decoy_path: PathBuf) -> Result<bool> {
     let decoy = honeypot::ConfigDecoy::new(decoy_path);
-    Ok(decoy.check_access())
+    let accessed = decoy.check_access();
+    if accessed {
+        record_ingress_signal("config-decoy", ThreatReason::HoneypotTriggered);
+    }
+    Ok(accessed)
 }
 
 pub fn deploy_decoy_plan(plan: honeypot::DecoyDeploymentPlan) -> Result<honeypot::DecoyBatchResult> {
@@ -146,7 +151,11 @@ pub fn cleanup_decoy_plan(plan: honeypot::DecoyDeploymentPlan) -> Result<honeypo
 }
 
 pub fn check_decoy_plan_access(plan: honeypot::DecoyDeploymentPlan) -> Result<honeypot::DecoyBatchResult> {
-    honeypot::check_decoy_plan_access(plan).map_err(|e| anyhow!(e))
+    let result = honeypot::check_decoy_plan_access(plan).map_err(|e| anyhow!(e))?;
+    if result.accessed.iter().any(|entry| entry.accessed) {
+        record_ingress_signal("decoy-plan", ThreatReason::HoneypotTriggered);
+    }
+    Ok(result)
 }
 
 // ---------- Encryption ----------
@@ -338,4 +347,12 @@ pub async fn local_stealth_allocate_port() -> Result<u16> {
 pub async fn local_stealth_get_port() -> Result<Option<u16>> {
     let manager = LOCAL_STEALTH_MANAGER.read().await;
     Ok(manager.port_manager().get_current_port().await)
+}
+
+fn record_ingress_signal(source: impl Into<String>, reason: ThreatReason) {
+    let ingress_countermeasure = crate::feat::get_coordinator().ingress_countermeasure();
+    let source = source.into();
+    tauri::async_runtime::spawn(async move {
+        ingress_countermeasure.record_signal(source, reason).await;
+    });
 }

@@ -1,5 +1,4 @@
 import dayjs from 'dayjs'
-import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CircularProgress } from '@/components/tailwind/CircularProgress'
@@ -8,13 +7,7 @@ import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import parseTraffic from '@/utils/format'
 
 import { ProfileBox } from './profile-box'
-
-const _round = `
-  @keyframes round {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-`
+import { ProfileCardActions } from './profile-card-actions'
 
 interface ProfileItemUIProps {
   // Basic info
@@ -57,7 +50,13 @@ interface ProfileItemUIProps {
   // Event handlers
   onClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
-  onUpdateClick: (e: React.MouseEvent) => void
+  onUseClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onDirectUpdateClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onProxyUpdateClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onEditProxiesClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onEditGroupsClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  canEditProxies: boolean
+  canEditGroups: boolean
   onToggleUpdateTimeDisplay: (e: React.MouseEvent) => void
   onSelectionChange?: () => void
 }
@@ -88,7 +87,13 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
     transition,
     onClick,
     onContextMenu,
-    onUpdateClick,
+    onUseClick,
+    onDirectUpdateClick,
+    onProxyUpdateClick,
+    onEditProxiesClick,
+    onEditGroupsClick,
+    canEditProxies,
+    canEditGroups,
     onToggleUpdateTimeDisplay,
     onSelectionChange,
   } = props
@@ -176,22 +181,6 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
               {name}
             </h2>
           </div>
-
-          {hasUrl && (
-            <IconButton
-              title={t('shared.actions.refresh')}
-              className="absolute p-[3px] -top-0.5 -right-1.5"
-              style={{
-                animation: loading ? '1s linear infinite round' : 'none',
-              }}
-              size="small"
-              color="inherit"
-              disabled={loading}
-              onClick={onUpdateClick}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </IconButton>
-          )}
         </div>
 
         {/* Second line: description or URL */}
@@ -249,6 +238,22 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
           value={progress}
           style={{ opacity: total > 0 ? 1 : 0 }}
         />
+
+        {!batchMode && (
+          <ProfileCardActions
+            hasUrl={hasUrl}
+            selected={selected}
+            activating={activating}
+            loading={loading}
+            canEditProxies={canEditProxies}
+            canEditGroups={canEditGroups}
+            onUseClick={onUseClick}
+            onDirectUpdateClick={onDirectUpdateClick}
+            onProxyUpdateClick={onProxyUpdateClick}
+            onEditProxiesClick={onEditProxiesClick}
+            onEditGroupsClick={onEditGroupsClick}
+          />
+        )}
       </ProfileBox>
     </div>
   )

@@ -14,8 +14,13 @@ use crate::core::{
     session_affinity::{BindingInfo, SessionAffinityManager},
 };
 use crate::multipath::MultipathManager;
+use crate::security::ingress_countermeasure::EgressSupportPolicy;
 
 pub const STABLE_EGRESS_GROUP_PREFIX: &str = "VERGE-STABLE-";
+
+pub fn current_egress_support_policy(coordinator: &CoreCoordinator) -> EgressSupportPolicy {
+    coordinator.ingress_countermeasure().current_egress_support_policy()
+}
 
 pub fn domain_probe_for_pattern(pattern: &str) -> Option<String> {
     let normalized = pattern

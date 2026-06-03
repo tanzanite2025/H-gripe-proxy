@@ -17,6 +17,7 @@ import { SecurityPolicyPanel } from '@/components/advanced/security-policy-panel
 import { TimezoneSpoofPanel } from '@/components/advanced/timezone-spoof-panel'
 import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { BasePage } from '@/components/base'
+import { IngressCountermeasurePanel } from '@/components/security/ingress-countermeasure-panel'
 import { LocalStealthPanel } from '@/components/security/local-stealth-panel'
 import { SessionAffinityBindings as SessionAffinityBindingsPanel } from '@/components/security/session-affinity-bindings'
 import { SessionAffinityConfig as SessionAffinityConfigPanel } from '@/components/security/session-affinity-config'
@@ -176,10 +177,18 @@ export default function AdvancedPage() {
       </Box>
 
       <TabPanel value={tabValue} index={securityTabIndex}>
-        <SecurityConfigPanel
-          config={localConfig.security}
-          onChange={(security) => setLocalConfig({ ...localConfig, security })}
-        />
+        <div className="space-y-4">
+          <SecurityConfigPanel
+            config={localConfig.security}
+            onChange={(security) => setLocalConfig({ ...localConfig, security })}
+          />
+          <IngressCountermeasurePanel
+            config={localConfig.ingress_countermeasure}
+            onChange={(ingress_countermeasure) =>
+              setLocalConfig({ ...localConfig, ingress_countermeasure })
+            }
+          />
+        </div>
       </TabPanel>
 
       <TabPanel value={tabValue} index={securityPolicyTabIndex}>

@@ -10,8 +10,14 @@ use smartstring::alias::String;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::Emitter as _;
+use tokio::fs;
 
 static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
+
+struct ProfileUpdateSnapshot {
+    item: PrfItem,
+    file_data: Option<String>,
+}
 
 /// Toggle proxy profile — directly calls the same logic as patch_profiles_config_by_profile_index
 pub async fn toggle_proxy_profile(profile_index: String) {
@@ -261,6 +267,53 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     }
 }
 
+async fn snapshot_profile_update(uid: &String) -> Result<Option<ProfileUpdateSnapshot>> {
+    let profiles = Config::profiles().await;
+    let profiles_arc = profiles.latest_arc();
+
+    if !profiles_arc.is_current_profile_index(uid) {
+        return Ok(None);
+    }
+
+    let item = profiles_arc.get_item(uid)?.clone();
+    let file_data = match item.file.as_ref() {
+        Some(file) => {
+            let path = crate::utils::dirs::app_profiles_dir()?.join(file.as_str());
+            Some(fs::read_to_string(path).await?.into())
+        }
+        None => None,
+    };
+
+    Ok(Some(ProfileUpdateSnapshot { item, file_data }))
+}
+
+async fn restore_profile_update_snapshot(snapshot: &ProfileUpdateSnapshot) -> Result<()> {
+    if let (Some(file), Some(file_data)) = (snapshot.item.file.as_ref(), snapshot.file_data.as_ref()) {
+        let path = crate::utils::dirs::app_profiles_dir()?.join(file.as_str());
+        fs::write(path, file_data.as_bytes()).await?;
+    }
+
+    let uid = snapshot
+        .item
+        .uid
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("profile update snapshot is missing uid"))?;
+    let restored_item = snapshot.item.clone();
+
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let items = profiles.items.get_or_insert_with(Vec::new);
+            let Some(item) = items.iter_mut().find(|item| item.uid.as_ref() == Some(&uid)) else {
+                bail!("failed to restore profile update snapshot for uid:{uid}");
+            };
+            *item = restored_item;
+            profiles.save_file().await?;
+            Ok((profiles, ()))
+        })
+        .await
+}
+
 async fn perform_profile_update(
     uid: &String,
     url: &String,
@@ -280,6 +333,8 @@ async fn perform_profile_update(
         .get_name_by_uid(uid)
         .cloned()
         .unwrap_or_else(|| String::from("UnKnown Profile"));
+    let strict_direct_update =
+        option.is_some_and(|option| option.with_proxy == Some(false) && option.self_proxy == Some(false));
 
     let mut last_err;
 
@@ -293,9 +348,25 @@ async fn perform_profile_update(
             logging!(
                 warn,
                 Type::Config,
-                "Warning: [订阅更新] 正常更新失败: {}，尝试使用Clash代理更新",
-                mask_err(&err.to_string())
+                "Warning: [订阅更新] 正常更新失败: {}{}",
+                mask_err(&err.to_string()),
+                if strict_direct_update {
+                    ""
+                } else {
+                    "，尝试使用Clash代理更新"
+                }
             );
+
+            if strict_direct_update {
+                if is_mannual_trigger {
+                    handle::Handle::notice_message("update_failed", format!("{profile_name} - {err}"));
+                }
+                bail!(
+                    "failed to update profile with direct connection: {}",
+                    mask_err(&err.to_string())
+                );
+            }
+
             last_err = err;
         }
     }
@@ -359,6 +430,11 @@ pub async fn update_profile(
 ) -> Result<()> {
     logging!(info, Type::Config, "[订阅更新] 开始更新订阅 {}", uid);
     let url_opt = should_update_profile(uid, ignore_auto_update).await?;
+    let rollback_snapshot = if url_opt.is_some() {
+        snapshot_profile_update(uid).await?
+    } else {
+        None
+    };
 
     let should_refresh = match url_opt {
         Some((url, opt)) => {
@@ -380,12 +456,24 @@ pub async fn update_profile(
             Ok(outcome) => {
                 let message = outcome.to_string();
                 logging!(error, Type::Config, "[订阅更新] 更新失败: {}", message);
-                handle::Handle::notice_message("update_failed", message);
+                if let Some(rollback_snapshot) = &rollback_snapshot {
+                    restore_profile_update_snapshot(&rollback_snapshot).await?;
+                }
+                handle::Handle::notice_message("update_failed", message.clone());
+                if is_mannual_trigger {
+                    bail!("failed to apply updated profile: {message}");
+                }
             }
             Err(err) => {
                 logging!(error, Type::Config, "[订阅更新] 更新失败: {}", err);
+                if let Some(rollback_snapshot) = &rollback_snapshot {
+                    restore_profile_update_snapshot(&rollback_snapshot).await?;
+                }
                 handle::Handle::notice_message("update_failed", format!("{err}"));
                 logging!(error, Type::Config, "{err}");
+                if is_mannual_trigger {
+                    bail!("failed to apply updated profile: {err}");
+                }
             }
         }
     }

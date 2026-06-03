@@ -6,6 +6,12 @@ use crate::process::AsyncHandler;
 use crate::constants::tun as tun_const;
 use crate::core::security_policy::{TUN_SECURITY_SUB_RULE, get_security_policy_manager};
 
+const LAN_DIRECT_RULES: [&str; 3] = [
+    "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+    "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+    "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+];
+
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {
         let ret_key = Value::String($key.into());
@@ -80,6 +86,7 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
 
         // 当TUN启用时，将修改后的DNS配置写回
         revise!(config, "dns", dns_val);
+        ensure_lan_direct_rules_before_match(&mut config);
     } else {
         // TUN未启用时，仅恢复系统DNS，不修改配置文件中的DNS设置
         #[cfg(target_os = "macos")]
@@ -93,6 +100,41 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     revise!(config, "tun", tun_val);
 
     config
+}
+
+fn ensure_lan_direct_rules_before_match(config: &mut Mapping) {
+    let rules_key = Value::from("rules");
+    let Some(rules) = config.get_mut(&rules_key) else {
+        config.insert(
+            rules_key,
+            Value::Sequence(LAN_DIRECT_RULES.iter().map(|rule| Value::from(*rule)).collect()),
+        );
+        return;
+    };
+
+    let Some(seq) = rules.as_sequence_mut() else {
+        return;
+    };
+
+    seq.retain(|rule| {
+        rule.as_str()
+            .is_none_or(|rule| !LAN_DIRECT_RULES.iter().any(|lan_rule| rule == *lan_rule))
+    });
+
+    let insert_at = seq
+        .iter()
+        .position(|rule| is_match_rule(rule))
+        .unwrap_or(seq.len());
+
+    for rule in LAN_DIRECT_RULES.iter().rev() {
+        seq.insert(insert_at, Value::from(*rule));
+    }
+}
+
+fn is_match_rule(rule: &Value) -> bool {
+    rule.as_str()
+        .map(|rule| rule.trim_start().starts_with("MATCH,"))
+        .unwrap_or(false)
 }
 
 /// Inject tun.rule and sub-rules.tun-security when there are enabled tun_only security policies.
@@ -140,4 +182,52 @@ pub async fn apply_tun_security_policy(mut config: Mapping) -> Mapping {
     }
 
     config
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::use_tun;
+    use serde_yaml_ng::{Mapping, Value};
+
+    fn parse_yaml(yaml: &str) -> Mapping {
+        serde_yaml_ng::from_str(yaml).expect("test yaml should parse")
+    }
+
+    #[test]
+    fn tun_enabled_inserts_private_lan_direct_rules_before_match() {
+        let config = parse_yaml(
+            r#"
+rules:
+  - DOMAIN-SUFFIX,example.com,Proxy
+  - MATCH,GLOBAL
+"#,
+        );
+
+        let config = use_tun(config, true);
+        let rules = config
+            .get("rules")
+            .and_then(Value::as_sequence)
+            .expect("rules should be a sequence");
+        let rules = rules.iter().filter_map(Value::as_str).collect::<Vec<_>>();
+        let match_index = rules
+            .iter()
+            .position(|rule| rule.trim_start().starts_with("MATCH,"))
+            .expect("test config should contain MATCH");
+
+        for expected_rule in [
+            "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+            "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+            "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+        ] {
+            let index = rules
+                .iter()
+                .position(|rule| *rule == expected_rule)
+                .unwrap_or_else(|| panic!("{expected_rule} should be injected"));
+            assert!(
+                index < match_index,
+                "{expected_rule} should be inserted before MATCH"
+            );
+        }
+    }
 }

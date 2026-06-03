@@ -16,6 +16,7 @@ use crate::core::egress_identity::EgressIdentityManager;
 use crate::core::egress_monitor::EgressMonitor;
 use crate::multipath::MultipathManager;
 use crate::security::SecurityMonitor;
+use crate::security::ingress_countermeasure::IngressCountermeasureRuntime;
 use crate::tls_fingerprint::TlsFingerprintService;
 
 #[cfg(target_os = "linux")]
@@ -31,6 +32,7 @@ pub struct CoreCoordinator {
     tls_fingerprint: Arc<TlsFingerprintService>,
     /// 多路径管理器
     multipath_manager: Arc<MultipathManager>,
+    ingress_countermeasure: Arc<IngressCountermeasureRuntime>,
     egress_identity_manager: Arc<EgressIdentityManager>,
     egress_monitor: Arc<EgressMonitor>,
     /// XDP 管理器（Linux）
@@ -48,6 +50,9 @@ impl CoreCoordinator {
             anti_probe: Arc::new(AntiProbeService::new(AntiProbeConfig::default())),
             tls_fingerprint: Arc::new(TlsFingerprintService::new()),
             multipath_manager: Arc::new(MultipathManager::new()),
+            ingress_countermeasure: Arc::new(IngressCountermeasureRuntime::new(
+                AdvancedConfig::default().ingress_countermeasure,
+            )),
             egress_identity_manager: Arc::new(EgressIdentityManager::new()),
             egress_monitor: Arc::new(EgressMonitor::new()),
             #[cfg(target_os = "linux")]
@@ -84,6 +89,8 @@ impl CoreCoordinator {
     fn apply_sub_configs(&self, config: &AdvancedConfig) {
         self.anti_probe.update_config(config.security.anti_probe.clone());
         self.multipath_manager.update_config(config.multipath.clone());
+        self.ingress_countermeasure
+            .update_config(config.ingress_countermeasure.clone());
         if let Err(e) = self
             .egress_identity_manager
             .update_config(config.egress_identity.clone())
@@ -214,6 +221,10 @@ impl CoreCoordinator {
     /// 获取多路径管理器
     pub fn multipath_manager(&self) -> Arc<MultipathManager> {
         self.multipath_manager.clone()
+    }
+
+    pub fn ingress_countermeasure(&self) -> Arc<IngressCountermeasureRuntime> {
+        self.ingress_countermeasure.clone()
     }
 
     pub fn egress_identity_manager(&self) -> Arc<EgressIdentityManager> {

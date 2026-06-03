@@ -90,7 +90,60 @@ export interface AdvancedConfig {
   blackhole_breaker: BlackholeBreakerConfig
   timezone_spoof: TimezoneSpoofConfig
   local_stealth: LocalStealthConfig
+  ingress_countermeasure: IngressCountermeasureConfig
   xdp?: XdpConfig
+}
+
+export interface IngressCountermeasureConfig {
+  enabled: boolean
+  classifierThresholds: ClassifierThresholds
+  personaProfiles: PersonaProfile[]
+  deceptionMode: DeceptionMode
+  responseDelayRanges: ResponseDelayRanges
+  fakeSurfacePolicies: FakeSurfacePolicy[]
+  egressStabilitySupport: EgressStabilitySupportConfig
+}
+
+export interface ClassifierThresholds {
+  lowConfidence: number
+  mediumConfidence: number
+  highConfidence: number
+}
+
+export interface PersonaProfile {
+  id: string
+  label: string
+  tone: PersonaTone
+  surfaceBias: SurfaceBias
+}
+
+export type PersonaTone = 'restrained' | 'neutral' | 'helpful'
+
+export type SurfaceBias = 'decoy' | 'balanced' | 'production'
+
+export type DeceptionMode =
+  | 'disabled'
+  | 'observeOnly'
+  | 'decoyPreferred'
+  | 'decoyOnly'
+
+export interface ResponseDelayRanges {
+  softDelayMinMs: number
+  softDelayMaxMs: number
+  hardDelayMinMs: number
+  hardDelayMaxMs: number
+}
+
+export interface FakeSurfacePolicy {
+  surface: string
+  priority: number
+  enabled: boolean
+}
+
+export interface EgressStabilitySupportConfig {
+  enabled: boolean
+  rebindGracePeriodMs: number
+  connectionWarmupMs: number
 }
 
 export interface SecurityConfig {

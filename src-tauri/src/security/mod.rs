@@ -13,6 +13,7 @@ use tauri::Emitter;
 pub mod anti_debug;
 pub mod firewall;
 pub mod honeypot;
+pub mod ingress_countermeasure;
 pub mod leak_monitor;
 pub mod local_security;
 pub mod local_stealth;

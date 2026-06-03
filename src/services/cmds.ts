@@ -343,6 +343,21 @@ export async function getCurrentEgressIdentity(): Promise<CurrentEgressIdentity>
   }
 }
 
+export interface CurrentPublicIpInfo {
+  ip: string
+  country_code: string | null
+  country: string | null
+  region: string | null
+  city: string | null
+  organization: string | null
+  asn: number | null
+  asn_organization: string | null
+}
+
+export async function getCurrentPublicIpInfo(): Promise<CurrentPublicIpInfo> {
+  return invoke<CurrentPublicIpInfo>('get_current_public_ip_info')
+}
+
 export type IdentityConsistencyLevel = 'good' | 'warning' | 'danger' | 'unknown'
 
 export type IdentityConsistencyIssueKind =

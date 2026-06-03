@@ -1,4 +1,4 @@
-﻿const COMMANDS: &[&str] = &[
+const COMMANDS: &[&str] = &[
     "update_controller",
     "update_secret",
     "get_version",
@@ -64,4 +64,3 @@ fn main() {
         .ios_path("ios")
         .build();
 }
-

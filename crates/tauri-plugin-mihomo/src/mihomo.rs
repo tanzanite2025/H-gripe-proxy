@@ -433,10 +433,10 @@ impl Mihomo {
         let client = self.build_request(Method::GET, "/dns/metrics")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
-                |e| format!("get dns metrics failed, {}", e),
-                |err_res| err_res.message,
-            );
+            let err_msg = response
+                .json::<ErrorResponse>()
+                .await
+                .map_or_else(|e| format!("get dns metrics failed, {}", e), |err_res| err_res.message);
             ret_failed_resp!("{}", err_msg);
         }
         Ok(response.json::<crate::models::DnsMetrics>().await?)
@@ -447,10 +447,10 @@ impl Mihomo {
         let client = self.build_request(Method::POST, "/dns/warmup")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
-                |e| format!("dns warmup failed, {}", e),
-                |err_res| err_res.message,
-            );
+            let err_msg = response
+                .json::<ErrorResponse>()
+                .await
+                .map_or_else(|e| format!("dns warmup failed, {}", e), |err_res| err_res.message);
             ret_failed_resp!("{}", err_msg);
         }
         Ok(())
@@ -753,10 +753,10 @@ impl Mihomo {
         let client = self.build_request(Method::GET, &path)?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response
-                .json::<ErrorResponse>()
-                .await
-                .map_or_else(|e| format!("get rules by source failed, {}", e), |err_res| err_res.message);
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("get rules by source failed, {}", e),
+                |err_res| err_res.message,
+            );
             ret_failed_resp!("{}", err_msg);
         }
         Ok(response.json::<Rules>().await?)
@@ -792,7 +792,15 @@ impl Mihomo {
     }
 
     /// Create a new runtime rule
-    pub async fn create_rule(&self, rule_type: &str, payload: &str, proxy: &str, source: Option<&str>, sub_rule: Option<&str>, position: Option<&str>) -> Result<i32> {
+    pub async fn create_rule(
+        &self,
+        rule_type: &str,
+        payload: &str,
+        proxy: &str,
+        source: Option<&str>,
+        sub_rule: Option<&str>,
+        position: Option<&str>,
+    ) -> Result<i32> {
         #[derive(serde::Serialize)]
         #[serde(rename_all = "camelCase")]
         struct CreateRuleReq {
@@ -857,10 +865,10 @@ impl Mihomo {
         let client = { self.build_request(Method::DELETE, &path)?.json(&body) };
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response
-                .json::<ErrorResponse>()
-                .await
-                .map_or_else(|e| format!("delete sub rule by source failed, {}", e), |err_res| err_res.message);
+            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
+                |e| format!("delete sub rule by source failed, {}", e),
+                |err_res| err_res.message,
+            );
             ret_failed_resp!("{}", err_msg);
         }
         let result: serde_json::Value = response.json().await?;
@@ -1072,10 +1080,10 @@ impl Mihomo {
         let client = self.build_request(Method::GET, "/engine/stats")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
-                |e| format!("get engine stats failed, {}", e),
-                |err_res| err_res.message,
-            );
+            let err_msg = response
+                .json::<ErrorResponse>()
+                .await
+                .map_or_else(|e| format!("get engine stats failed, {}", e), |err_res| err_res.message);
             ret_failed_resp!("{}", err_msg);
         }
         Ok(response.json::<crate::models::EngineStats>().await?)
@@ -1114,13 +1122,15 @@ impl Mihomo {
         let client = self.build_request(Method::GET, "/engine/rule-traffic")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
-                |e| format!("get rule traffic failed, {}", e),
-                |err_res| err_res.message,
-            );
+            let err_msg = response
+                .json::<ErrorResponse>()
+                .await
+                .map_or_else(|e| format!("get rule traffic failed, {}", e), |err_res| err_res.message);
             ret_failed_resp!("{}", err_msg);
         }
-        Ok(response.json::<HashMap<String, crate::models::RuleTrafficSnapshot>>().await?)
+        Ok(response
+            .json::<HashMap<String, crate::models::RuleTrafficSnapshot>>()
+            .await?)
     }
 
     /// 获取出口状态
@@ -1170,10 +1180,10 @@ impl Mihomo {
         let client = self.build_request(Method::GET, "/engine/perf/stats")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
-                |e| format!("get perf stats failed, {}", e),
-                |err_res| err_res.message,
-            );
+            let err_msg = response
+                .json::<ErrorResponse>()
+                .await
+                .map_or_else(|e| format!("get perf stats failed, {}", e), |err_res| err_res.message);
             ret_failed_resp!("{}", err_msg);
         }
         Ok(response.json::<crate::models::PerfStats>().await?)
@@ -1198,10 +1208,10 @@ impl Mihomo {
         let client = self.build_request(Method::GET, "/engine/perf/xdp")?;
         let response = self.send_by_protocol(client).await?;
         if !response.status().is_success() {
-            let err_msg = response.json::<ErrorResponse>().await.map_or_else(
-                |e| format!("get xdp status failed, {}", e),
-                |err_res| err_res.message,
-            );
+            let err_msg = response
+                .json::<ErrorResponse>()
+                .await
+                .map_or_else(|e| format!("get xdp status failed, {}", e), |err_res| err_res.message);
             ret_failed_resp!("{}", err_msg);
         }
         Ok(response.json::<crate::models::XDPStatus>().await?)

@@ -142,8 +142,11 @@ impl EgressMonitor {
                                 // IP 变化！
                                 let auto_rebind = config.read().auto_rebind_on_change;
                                 let notify = config.read().notify_on_change;
+                                let coordinator = crate::feat::get_coordinator();
+                                let drift_policy =
+                                    crate::core::stable_egress::current_egress_support_policy(&coordinator);
 
-                                let rebind_applied = if auto_rebind {
+                                let rebind_applied = if auto_rebind && !drift_policy.minimize_drift {
                                     let strategy = rebind_strategy.read().clone();
                                     strategy
                                         .rebind(rebind::RebindContext {
@@ -154,6 +157,12 @@ impl EgressMonitor {
                                         })
                                         .await
                                 } else {
+                                    if auto_rebind && drift_policy.minimize_drift {
+                                        log::info!(
+                                            "[EgressMonitor] 跳过自动重绑定，当前入口威胁级别为 {:?}，优先减少出口漂移",
+                                            drift_policy.strongest_threat_level
+                                        );
+                                    }
                                     false
                                 };
 

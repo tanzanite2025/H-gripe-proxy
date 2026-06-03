@@ -422,11 +422,6 @@ export const ProfileItem = (props: Props) => {
         ]
       : []),
     {
-      label: menuLabels.select,
-      handler: onForceSelect,
-      disabled: false,
-    },
-    {
       label: menuLabels.shareQrCode,
       handler: onShareQrCode,
       disabled: false,
@@ -447,16 +442,6 @@ export const ProfileItem = (props: Props) => {
       disabled: !option?.rules,
     },
     {
-      label: menuLabels.editProxies,
-      handler: onEditProxies,
-      disabled: !option?.proxies,
-    },
-    {
-      label: menuLabels.editGroups,
-      handler: onEditGroups,
-      disabled: !option?.groups,
-    },
-    {
       label: menuLabels.extendConfig,
       handler: onEditMerge,
       disabled: !option?.merge,
@@ -469,16 +454,6 @@ export const ProfileItem = (props: Props) => {
     {
       label: menuLabels.openFile,
       handler: onOpenFile,
-      disabled: false,
-    },
-    {
-      label: menuLabels.update,
-      handler: () => onUpdate(0),
-      disabled: false,
-    },
-    {
-      label: menuLabels.updateViaProxy,
-      handler: () => onUpdate(2),
       disabled: false,
     },
     {
@@ -499,11 +474,6 @@ export const ProfileItem = (props: Props) => {
   ]
   const fileModeMenu: ContextMenuItem[] = [
     {
-      label: menuLabels.select,
-      handler: onForceSelect,
-      disabled: false,
-    },
-    {
       label: menuLabels.editInfo,
       handler: onEditInfo,
       disabled: false,
@@ -517,16 +487,6 @@ export const ProfileItem = (props: Props) => {
       label: menuLabels.editRules,
       handler: onEditRules,
       disabled: !option?.rules,
-    },
-    {
-      label: menuLabels.editProxies,
-      handler: onEditProxies,
-      disabled: !option?.proxies,
-    },
-    {
-      label: menuLabels.editGroups,
-      handler: onEditGroups,
-      disabled: !option?.groups,
     },
     {
       label: menuLabels.extendConfig,
@@ -563,6 +523,15 @@ export const ProfileItem = (props: Props) => {
 
 
   // 监听自动更新事件
+  const handleContextMenuItemClick = (item: ContextMenuItem) => {
+    if (item.disabled) {
+      return
+    }
+
+    setAnchorEl(null)
+    item.handler()
+  }
+
   useEffect(() => {
     const handleUpdateStarted = (event: Event) => {
       const customEvent = event as CustomEvent<{ uid?: string }>
@@ -680,13 +649,38 @@ export const ProfileItem = (props: Props) => {
           setAnchorEl(event.currentTarget as HTMLElement)
           event.preventDefault()
         }}
-        onUpdateClick={(e) => {
-          e.stopPropagation()
+        onUseClick={() => {
+          if (activating) {
+            return
+          }
+          onForceSelect()
+        }}
+        onDirectUpdateClick={() => {
           if (activating || loading) {
             return
           }
-          onUpdate(1)
+          onUpdate(0)
         }}
+        onProxyUpdateClick={() => {
+          if (activating || loading) {
+            return
+          }
+          onUpdate(2)
+        }}
+        onEditProxiesClick={() => {
+          if (!option?.proxies) {
+            return
+          }
+          onEditProxies()
+        }}
+        onEditGroupsClick={() => {
+          if (!option?.groups) {
+            return
+          }
+          onEditGroups()
+        }}
+        canEditProxies={!!option?.proxies}
+        canEditGroups={!!option?.groups}
         onToggleUpdateTimeDisplay={toggleUpdateTimeDisplay}
         onSelectionChange={onSelectionChange}
       />
@@ -704,7 +698,7 @@ export const ProfileItem = (props: Props) => {
         {(hasUrl ? urlModeMenu : fileModeMenu).map((item) => (
           <MenuItem
             key={item.label}
-            onClick={item.handler}
+            onClick={() => handleContextMenuItemClick(item)}
             disabled={item.disabled}
             className={
               item.label === menuLabels.delete ? 'text-error' : undefined

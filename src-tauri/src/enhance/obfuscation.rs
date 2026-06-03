@@ -1,6 +1,7 @@
 use serde_yaml_ng::{Mapping, Value};
 
 use crate::config::advanced::{AdvancedConfig, ObfuscationLevel};
+use crate::security::ingress_countermeasure::{ThreatLevel, runtime_persona_profiles, select_persona};
 
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {
@@ -21,14 +22,16 @@ fn load_advanced_config() -> AdvancedConfig {
 /// - `global-ua`: set a browser-like User-Agent when obfuscation is enabled
 pub fn apply_obfuscation_config(config: Mapping) -> Mapping {
     let advanced = load_advanced_config();
-    apply_obfuscation_config_with_advanced(config, &advanced.security)
+    apply_obfuscation_config_for_threat(config, &advanced, ThreatLevel::Normal)
 }
 
-/// Apply obfuscation with an explicit SecurityConfig reference.
-pub fn apply_obfuscation_config_with_advanced(
-    mut config: Mapping,
-    security: &crate::config::advanced::SecurityConfig,
+fn apply_obfuscation_config_for_threat(
+    config: Mapping,
+    advanced: &AdvancedConfig,
+    threat_level: ThreatLevel,
 ) -> Mapping {
+    let mut config = config;
+    let security = &advanced.security;
     let obf = &security.obfuscation;
 
     if !obf.enabled {
@@ -64,5 +67,27 @@ pub fn apply_obfuscation_config_with_advanced(
         _ => {}
     }
 
+    let personas = runtime_persona_profiles(&advanced.ingress_countermeasure.persona_profiles);
+    if let Some(persona) = select_persona(threat_level, &personas) {
+        if threat_level != ThreatLevel::Normal {
+            revise!(config, "global-client-fingerprint", persona.tls_fingerprint.as_str());
+            revise!(config, "global-ua", persona_user_agent(&persona.ua_family));
+        } else if security.tls_fingerprint.is_none() && !config.contains_key("global-client-fingerprint") {
+            revise!(config, "global-client-fingerprint", persona.tls_fingerprint.as_str());
+        }
+    }
+
     config
+}
+
+fn persona_user_agent(ua_family: &str) -> &'static str {
+    match ua_family {
+        "firefox-esr" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+        "safari-mobile" => {
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+        }
+        _ => {
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        }
+    }
 }

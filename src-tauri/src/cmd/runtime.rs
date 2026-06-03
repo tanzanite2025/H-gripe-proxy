@@ -5,9 +5,13 @@ use crate::{
     core::{
         CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
-        runtime_diagnostics::{build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result},
-        runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
+        runtime_diagnostics::{
+            build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
+            geoip::fetch_public_ip_observation,
+        },
+        runtime_status::{CurrentPublicIpInfo, DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
+    utils::network::{NetworkManager, ProxyType},
 };
 use anyhow::{Context as _, anyhow};
 use clash_verge_logging::{Type, logging};
@@ -57,6 +61,27 @@ pub async fn test_proxy_detection() -> CmdResult<ProxyDetectionResult> {
 #[tauri::command]
 pub async fn get_current_egress_identity(app_handle: tauri::AppHandle) -> CmdResult<CurrentEgressIdentity> {
     build_current_egress_identity(Some(&app_handle)).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_current_public_ip_info() -> CmdResult<CurrentPublicIpInfo> {
+    let client = NetworkManager::new()
+        .create_request(ProxyType::Localhost, Some(8), None, false)
+        .await
+        .stringify_err()?;
+    let info = fetch_public_ip_observation(&client).await.stringify_err()?;
+    let ip = info.ip.ok_or_else(|| String::from("failed to observe public IP"))?;
+
+    Ok(CurrentPublicIpInfo {
+        ip,
+        country_code: info.country_code,
+        country: info.country,
+        region: info.region,
+        city: info.city,
+        organization: info.organization.or(info.isp),
+        asn: info.asn,
+        asn_organization: info.asn_organization,
+    })
 }
 
 /// 获取运行时存在的键
