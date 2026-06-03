@@ -15,12 +15,7 @@ fn multipath_manager() -> Arc<MultipathManager> {
 fn persist_multipath_config(config: &MultipathConfig) -> Result<()> {
     let mut advanced_config = AdvancedConfig::load_default_strict()?;
     advanced_config.multipath = config.clone();
-    advanced_config.validate()?;
-    advanced_config.save_default()?;
-
-    let coordinator = crate::feat::get_coordinator();
-    coordinator.apply_advanced_config(&advanced_config)?;
-    Ok(())
+    crate::feat::save_advanced_config_blocking(advanced_config)
 }
 
 pub fn apply_multipath_config(config: MultipathConfig) -> Result<()> {

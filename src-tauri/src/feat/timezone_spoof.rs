@@ -1,4 +1,4 @@
-use crate::{config::AdvancedConfig, core::CoreManager, core::timezone_spoof::TimezoneSpoofConfig};
+use crate::{config::AdvancedConfig, core::timezone_spoof::TimezoneSpoofConfig};
 use anyhow::Result;
 
 pub fn timezone_spoof_get_config() -> TimezoneSpoofConfig {
@@ -8,10 +8,7 @@ pub fn timezone_spoof_get_config() -> TimezoneSpoofConfig {
 pub async fn timezone_spoof_update_config(config: TimezoneSpoofConfig) -> Result<()> {
     let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.timezone_spoof = config;
-    advanced.validate()?;
-    advanced.save_default()?;
-    crate::feat::get_coordinator().hydrate_from_advanced_config(&advanced)?;
-    CoreManager::global().update_config_checked().await?;
+    crate::feat::save_advanced_config(&advanced).await?;
     log::info!("[TimezoneSpoof] config updated");
     Ok(())
 }

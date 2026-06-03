@@ -1,8 +1,8 @@
 use anyhow::Result;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Source prefix for security policy rules in Mihomo
 pub const SECURITY_SOURCE_PREFIX: &str = "security:";
@@ -85,8 +85,8 @@ impl SecurityPolicyManager {
     }
 
     /// Load policies from config (called on startup/config change)
-    pub async fn load_policies(&self, policies: Vec<SecurityPolicy>) {
-        let mut guard = self.policies.write().await;
+    pub fn sync_policies_from_config(&self, policies: Vec<SecurityPolicy>) {
+        let mut guard = self.policies.write();
         guard.clear();
         for policy in policies {
             guard.insert(policy.name.clone(), policy);
@@ -95,47 +95,41 @@ impl SecurityPolicyManager {
 
     /// Get all policy definitions
     pub async fn get_policies(&self) -> Vec<SecurityPolicy> {
-        let guard = self.policies.read().await;
+        let guard = self.policies.read();
         guard.values().cloned().collect()
     }
 
     /// Get a single policy by name
     pub async fn get_policy(&self, name: &str) -> Option<SecurityPolicy> {
-        let guard = self.policies.read().await;
+        let guard = self.policies.read();
         guard.get(name).cloned()
-    }
-
-    /// Add or update a policy definition
-    pub async fn upsert_policy(&self, policy: SecurityPolicy) {
-        let mut guard = self.policies.write().await;
-        guard.insert(policy.name.clone(), policy);
     }
 
     /// Remove a policy definition (also removes runtime state)
     pub async fn remove_policy(&self, name: &str) -> Option<SecurityPolicy> {
-        let mut guard = self.policies.write().await;
+        let mut guard = self.policies.write();
         let removed = guard.remove(name);
         drop(guard);
-        let mut states = self.applied_states.write().await;
+        let mut states = self.applied_states.write();
         states.remove(name);
         removed
     }
 
     /// Get all applied policy states
     pub async fn get_applied_states(&self) -> Vec<AppliedPolicyState> {
-        let guard = self.applied_states.read().await;
+        let guard = self.applied_states.read();
         guard.values().cloned().collect()
     }
 
     /// Get applied state for a specific policy
     pub async fn get_applied_state(&self, name: &str) -> Option<AppliedPolicyState> {
-        let guard = self.applied_states.read().await;
+        let guard = self.applied_states.read();
         guard.get(name).cloned()
     }
 
     /// Record that a policy has been applied with the given rule indices
     pub async fn mark_applied(&self, name: &str, enabled: bool, rule_indices: Vec<i32>) {
-        let mut guard = self.applied_states.write().await;
+        let mut guard = self.applied_states.write();
         guard.insert(
             name.to_string(),
             AppliedPolicyState {
@@ -149,7 +143,7 @@ impl SecurityPolicyManager {
 
     /// Mark a policy as revoked (no longer applied)
     pub async fn mark_revoked(&self, name: &str) {
-        let mut guard = self.applied_states.write().await;
+        let mut guard = self.applied_states.write();
         if let Some(state) = guard.get_mut(name) {
             state.applied = false;
             state.rule_indices.clear();
@@ -173,6 +167,13 @@ pub fn get_security_policy_manager() -> Arc<SecurityPolicyManager> {
 
 /// Apply a single policy to Mihomo by creating rules with the policy's source tag
 pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
+    let manager = get_security_policy_manager();
+    if let Some(state) = manager.get_applied_state(&policy.name).await
+        && state.applied
+    {
+        revoke_policy(&policy.name).await?;
+    }
+
     let mihomo = crate::core::handle::Handle::mihomo().await;
     let source = SecurityPolicyManager::source_for_policy(&policy.name);
     let mut indices = Vec::with_capacity(policy.rules.len());
@@ -191,7 +192,6 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
         indices.push(idx);
     }
 
-    let manager = get_security_policy_manager();
     manager
         .mark_applied(&policy.name, policy.enabled, indices.clone())
         .await;

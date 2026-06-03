@@ -318,11 +318,7 @@ pub async fn apply_local_stealth_config(config: LocalStealthConfig) {
 pub async fn local_stealth_update_config(config: LocalStealthConfig) -> Result<()> {
     let mut advanced = crate::config::AdvancedConfig::load_default_strict()?;
     advanced.local_stealth = config.clone();
-    advanced.validate()?;
-    advanced.save_default()?;
-    crate::feat::get_coordinator().hydrate_from_advanced_config(&advanced)?;
-    apply_local_stealth_config(config).await;
-    Ok(())
+    crate::feat::save_advanced_config(&advanced).await
 }
 
 pub async fn local_stealth_apply() -> Result<StealthApplyResult> {

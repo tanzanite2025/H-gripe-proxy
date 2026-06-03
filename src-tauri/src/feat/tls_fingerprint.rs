@@ -33,8 +33,5 @@ pub fn tls_fingerprint_generate_config() -> Option<serde_json::Value> {
 pub fn tls_fingerprint_clear() -> Result<()> {
     let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.security.tls_fingerprint = None;
-    advanced.validate()?;
-    advanced.save_default()?;
-    crate::feat::get_coordinator().apply_advanced_config(&advanced)?;
-    Ok(())
+    crate::feat::save_advanced_config_blocking(advanced)
 }

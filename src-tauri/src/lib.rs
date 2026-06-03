@@ -369,17 +369,12 @@ mod app_init {
             cmd::egress_monitor_reset_stats,
             cmd::egress_monitor_probe_now,
             cmd::egress_monitor_is_running,
-            cmd::security_policy_get_policies,
-            cmd::security_policy_get,
-            cmd::security_policy_upsert,
-            cmd::security_policy_remove,
             cmd::security_policy_apply,
             cmd::security_policy_revoke,
             cmd::security_policy_apply_all,
             cmd::security_policy_revoke_all,
             cmd::security_policy_get_states,
             cmd::security_policy_get_state,
-            cmd::security_policy_reload,
         ]
     }
 

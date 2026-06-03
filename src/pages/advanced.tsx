@@ -111,6 +111,9 @@ export default function AdvancedPage() {
   const multipathTabIndex = 10
   const xdpTabIndex = 11
   const performanceTabIndex = isLinux ? 12 : 11
+  const hasUnsavedSecurityPolicies =
+    JSON.stringify(localConfig?.security_policies ?? []) !==
+    JSON.stringify(loadedConfig?.security_policies ?? [])
 
 
   if (configLoading || statusLoading || !loadedConfig || !status || !localConfig) {
@@ -194,6 +197,7 @@ export default function AdvancedPage() {
       <TabPanel value={tabValue} index={securityPolicyTabIndex}>
         <SecurityPolicyPanel
           policies={localConfig.security_policies ?? []}
+          hasUnsavedChanges={hasUnsavedSecurityPolicies}
           onChange={(security_policies) =>
             setLocalConfig({ ...localConfig, security_policies })
           }

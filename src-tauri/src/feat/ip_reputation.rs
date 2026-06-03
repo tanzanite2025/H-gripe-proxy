@@ -20,8 +20,9 @@ pub async fn apply_ip_reputation_config(config: IpReputationConfig) -> Result<()
 }
 
 pub async fn ip_reputation_update_config(config: IpReputationConfig) -> Result<()> {
-    persist_ip_reputation_config(&config)?;
-    apply_ip_reputation_config(config).await
+    let mut advanced = AdvancedConfig::load_default_strict()?;
+    advanced.ip_reputation = config;
+    crate::feat::save_advanced_config(&advanced).await
 }
 
 pub async fn ip_reputation_check_ip(ip: &str) -> Result<IpReputation> {
@@ -51,13 +52,4 @@ pub async fn ip_reputation_get_cache_stats() -> (usize, usize) {
 
 pub async fn ip_reputation_get_cache_entries() -> Vec<IpReputation> {
     get_ip_reputation_manager().get_cache_entries().await
-}
-
-fn persist_ip_reputation_config(config: &IpReputationConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default_strict()?;
-    advanced.ip_reputation = config.clone();
-    advanced.validate()?;
-    advanced.save_default()?;
-    crate::feat::get_coordinator().hydrate_from_advanced_config(&advanced)?;
-    Ok(())
 }

@@ -7,7 +7,7 @@
 
 import { useLockFn } from 'ahooks'
 import { Plus, Shield, Trash2, Play, Square, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 
 import { Switch, TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from '@/components/tailwind'
@@ -22,6 +22,7 @@ import { showNotice } from '@/services/notice-service'
 
 interface Props {
   policies: ISecurityPolicy[]
+  hasUnsavedChanges?: boolean
   onChange: (policies: ISecurityPolicy[]) => void
 }
 
@@ -56,7 +57,7 @@ const RULE_TYPES = [
   'SUB-RULE',
 ]
 
-export function SecurityPolicyPanel({ policies, onChange }: Props) {
+export function SecurityPolicyPanel({ policies, hasUnsavedChanges = false, onChange }: Props) {
   const [editingPolicy, setEditingPolicy] = useState<ISecurityPolicy | null>(null)
   const [editingIndex, setEditingIndex] = useState<number>(-1) // -1 = 新建
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -72,6 +73,10 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
       showNotice('error', `获取策略状态失败: ${e.message || e}`)
     }
   })
+
+  useEffect(() => {
+    void refreshStates()
+  }, [refreshStates])
 
   // 打开新建对话框
   const handleCreate = () => {
@@ -142,6 +147,10 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
 
   // 应用单个策略到 Mihomo
   const handleApply = useLockFn(async (name: string) => {
+    if (hasUnsavedChanges) {
+      showNotice('info', 'Save the configuration first to apply or revoke policies.')
+      return
+    }
     setLoading(true)
     try {
       await securityPolicyApply(name)
@@ -156,6 +165,10 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
 
   // 撤销单个策略
   const handleRevoke = useLockFn(async (name: string) => {
+    if (hasUnsavedChanges) {
+      showNotice('info', 'Save the configuration first to apply or revoke policies.')
+      return
+    }
     setLoading(true)
     try {
       await securityPolicyRevoke(name)
@@ -170,6 +183,10 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
 
   // 应用所有已启用策略
   const handleApplyAll = useLockFn(async () => {
+    if (hasUnsavedChanges) {
+      showNotice('info', 'Save the configuration first to apply or revoke policies.')
+      return
+    }
     setLoading(true)
     try {
       const applied = await securityPolicyApplyAll()
@@ -184,6 +201,10 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
 
   // 撤销所有策略
   const handleRevokeAll = useLockFn(async () => {
+    if (hasUnsavedChanges) {
+      showNotice('info', 'Save the configuration first to apply or revoke policies.')
+      return
+    }
     setLoading(true)
     try {
       const revoked = await securityPolicyRevokeAll()
@@ -218,10 +239,10 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
         <Button variant="outlined" size="small" onClick={handleCreate}>
           <Plus className="w-4 h-4 mr-1" /> 新建策略
         </Button>
-        <Button variant="outlined" size="small" onClick={handleApplyAll} disabled={loading}>
+        <Button variant="outlined" size="small" onClick={handleApplyAll} disabled={loading || hasUnsavedChanges}>
           <Play className="w-4 h-4 mr-1" /> 应用全部
         </Button>
-        <Button variant="outlined" size="small" onClick={handleRevokeAll} disabled={loading}>
+        <Button variant="outlined" size="small" onClick={handleRevokeAll} disabled={loading || hasUnsavedChanges}>
           <Square className="w-4 h-4 mr-1" /> 撤销全部
         </Button>
         <Button variant="outlined" size="small" onClick={refreshStates}>
@@ -267,11 +288,11 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
                       onCheckedChange={(checked) => handleToggleEnabled(index, checked)}
                     />
                     {isApplied ? (
-                      <IconButton size="small" onClick={() => handleRevoke(policy.name)} disabled={loading}>
+                      <IconButton size="small" onClick={() => handleRevoke(policy.name)} disabled={loading || hasUnsavedChanges}>
                         <Square className="w-4 h-4" />
                       </IconButton>
                     ) : (
-                      <IconButton size="small" onClick={() => handleApply(policy.name)} disabled={loading || !policy.enabled}>
+                      <IconButton size="small" onClick={() => handleApply(policy.name)} disabled={loading || hasUnsavedChanges || !policy.enabled}>
                         <Play className="w-4 h-4" />
                       </IconButton>
                     )}

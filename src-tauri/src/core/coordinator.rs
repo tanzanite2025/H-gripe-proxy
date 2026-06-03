@@ -14,6 +14,7 @@ use crate::anti_probe::{AntiProbeConfig, AntiProbeService};
 use crate::config::AdvancedConfig;
 use crate::core::egress_identity::EgressIdentityManager;
 use crate::core::egress_monitor::EgressMonitor;
+use crate::core::security_policy::get_security_policy_manager;
 use crate::multipath::MultipathManager;
 use crate::security::SecurityMonitor;
 use crate::security::ingress_countermeasure::IngressCountermeasureRuntime;
@@ -62,6 +63,7 @@ impl CoreCoordinator {
     }
 
     pub fn hydrate_from_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
+        self.sync_security_policies_from_advanced_config(config);
         self.apply_sub_configs(config);
         *self.advanced_config.write() = config.clone();
         Ok(())
@@ -80,9 +82,14 @@ impl CoreCoordinator {
 
     pub fn apply_advanced_config(&self, config: &AdvancedConfig) -> Result<()> {
         let old = self.advanced_config.read().clone();
+        self.sync_security_policies_from_advanced_config(config);
         self.apply_sub_configs(config);
         *self.advanced_config.write() = config.clone();
         self.apply_runtime_changes(&old, config)
+    }
+
+    fn sync_security_policies_from_advanced_config(&self, config: &AdvancedConfig) {
+        get_security_policy_manager().sync_policies_from_config(config.security_policies.clone());
     }
 
     /// 将 AdvancedConfig 中的子配置分发到各管理器

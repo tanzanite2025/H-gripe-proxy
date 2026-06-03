@@ -1,10 +1,13 @@
 use crate::config::AdvancedConfig;
 use crate::core::coordinator_status::CoordinatorStatus;
+use crate::core::security_policy::{get_security_policy_manager, revoke_policy};
 use crate::core::stable_egress::project_runtime_status;
 use crate::core::{CoreManager, coordinator::CoreCoordinator};
+use crate::process::AsyncHandler;
 use crate::traffic::TrafficObfuscationConfig;
 use anyhow::Result;
 use once_cell::sync::Lazy;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 /// 全局协调器实例
@@ -15,16 +18,46 @@ pub fn get_coordinator() -> Arc<CoreCoordinator> {
     COORDINATOR.clone()
 }
 
+async fn revoke_removed_security_policies(config: &AdvancedConfig) -> Result<()> {
+    let expected_names: HashSet<&str> = config
+        .security_policies
+        .iter()
+        .map(|policy| policy.name.as_str())
+        .collect();
+    let manager = get_security_policy_manager();
+
+    for state in manager.get_applied_states().await {
+        if expected_names.contains(state.name.as_str()) {
+            continue;
+        }
+
+        if state.applied {
+            revoke_policy(&state.name).await?;
+        }
+
+        manager.remove_policy(&state.name).await;
+    }
+
+    Ok(())
+}
+
+fn revoke_removed_security_policies_blocking(config: &AdvancedConfig) -> Result<()> {
+    let config = config.clone();
+    AsyncHandler::block_on(async move { revoke_removed_security_policies(&config).await })
+}
+
 /// 从磁盘重新加载 AdvancedConfig 并同步到 coordinator 内存
 pub fn sync_coordinator_from_advanced_config() -> Result<()> {
     let path = AdvancedConfig::default_path()?;
     let config = AdvancedConfig::load(&path)?;
+    revoke_removed_security_policies_blocking(&config)?;
     COORDINATOR.hydrate_from_advanced_config(&config)
 }
 
 pub async fn sync_coordinator_from_advanced_config_async() -> Result<()> {
     let path = AdvancedConfig::default_path()?;
     let config = AdvancedConfig::load(&path)?;
+    revoke_removed_security_policies(&config).await?;
     COORDINATOR.hydrate_from_advanced_config(&config)?;
     crate::feat::apply_egress_monitor_config(config.egress_monitor.clone()).await?;
     crate::feat::apply_ip_reputation_config(config.ip_reputation.clone()).await?;
@@ -50,6 +83,7 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
 
     let path = AdvancedConfig::default_path()?;
     config.save(&path)?;
+    revoke_removed_security_policies(config).await?;
 
     crate::feat::save_dns_config_mapping(&config.dns.to_dns_config_mapping()).await?;
     crate::feat::apply_egress_monitor_config(config.egress_monitor.clone()).await?;
@@ -79,6 +113,10 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
     CoreManager::global().update_config_checked().await?;
 
     Ok(())
+}
+
+pub fn save_advanced_config_blocking(config: AdvancedConfig) -> Result<()> {
+    AsyncHandler::block_on(async move { save_advanced_config(&config).await })
 }
 
 /// 获取协调器状态（业务逻辑）

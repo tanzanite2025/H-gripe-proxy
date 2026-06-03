@@ -1,6 +1,5 @@
 use crate::{
     config::AdvancedConfig,
-    core::CoreManager,
     traffic::{ObfuscationProfile, ObfuscationScheduler, ObfuscationStats, TrafficObfuscationConfig},
 };
 use anyhow::Result;
@@ -46,9 +45,6 @@ pub async fn traffic_obfuscation_update_config(config: TrafficObfuscationConfig)
     config.validate().map_err(|e| anyhow::anyhow!("{}", e))?;
 
     persist_traffic_obfuscation_config(&config).await?;
-    apply_traffic_obfuscation_config(config).await?;
-    CoreManager::global().update_config_checked().await?;
-
     log::info!("traffic obfuscation config updated");
     Ok(())
 }
@@ -120,9 +116,6 @@ pub async fn traffic_obfuscation_apply_profile(profile: ObfuscationProfile) -> R
     };
 
     persist_traffic_obfuscation_config(&config).await?;
-    apply_traffic_obfuscation_config(config.clone()).await?;
-    CoreManager::global().update_config_checked().await?;
-
     log::info!("traffic obfuscation profile applied: {:?}", config.profile);
     Ok(config)
 }
@@ -131,10 +124,7 @@ async fn persist_traffic_obfuscation_config(config: &TrafficObfuscationConfig) -
     let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.traffic_obfuscation = config.clone();
     advanced.traffic_padding.enabled = false;
-    advanced.validate()?;
-    advanced.save_default()?;
-    crate::feat::get_coordinator().hydrate_from_advanced_config(&advanced)?;
-    Ok(())
+    crate::feat::save_advanced_config(&advanced).await
 }
 
 fn effective_traffic_obfuscation_config(advanced: &AdvancedConfig) -> TrafficObfuscationConfig {

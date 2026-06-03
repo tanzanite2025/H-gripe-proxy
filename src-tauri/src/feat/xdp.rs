@@ -12,10 +12,7 @@ pub fn xdp_get_config() -> XdpConfig {
 pub fn xdp_update_config(config: XdpConfig) -> Result<()> {
     let mut advanced = AdvancedConfig::load_default_strict()?;
     advanced.xdp = config;
-    advanced.validate()?;
-    advanced.save_default()?;
-    get_coordinator().apply_advanced_config(&advanced)?;
-    Ok(())
+    crate::feat::save_advanced_config_blocking(advanced)
 }
 
 pub fn xdp_get_status() -> XdpStatus {

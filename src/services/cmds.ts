@@ -866,23 +866,6 @@ export const isPortInUse = async (port: number) => {
   }
 }
 
-// Security Policy commands
-export async function securityPolicyGetPolicies() {
-  return invoke<ISecurityPolicy[]>('security_policy_get_policies')
-}
-
-export async function securityPolicyGet(name: string) {
-  return invoke<ISecurityPolicy | null>('security_policy_get', { name })
-}
-
-export async function securityPolicyUpsert(policy: ISecurityPolicy) {
-  return invoke<void>('security_policy_upsert', { policy })
-}
-
-export async function securityPolicyRemove(name: string) {
-  return invoke<void>('security_policy_remove', { name })
-}
-
 export async function securityPolicyApply(name: string) {
   return invoke<number[]>('security_policy_apply', { name })
 }
@@ -905,8 +888,4 @@ export async function securityPolicyGetStates() {
 
 export async function securityPolicyGetState(name: string) {
   return invoke<IAppliedPolicyState | null>('security_policy_get_state', { name })
-}
-
-export async function securityPolicyReload(policies: ISecurityPolicy[]) {
-  return invoke<string[]>('security_policy_reload', { policies })
 }

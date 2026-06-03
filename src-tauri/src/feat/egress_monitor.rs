@@ -20,8 +20,9 @@ pub async fn apply_egress_monitor_config(config: EgressMonitorConfig) -> Result<
 
 pub async fn egress_monitor_update_config(config: EgressMonitorConfig) -> Result<()> {
     config.validate()?;
-    persist_egress_monitor_config(&config)?;
-    apply_egress_monitor_config(config).await
+    let mut advanced = AdvancedConfig::load_default_strict()?;
+    advanced.egress_monitor = config;
+    crate::feat::save_advanced_config(&advanced).await
 }
 
 pub async fn egress_monitor_start() -> Result<()> {
@@ -50,13 +51,4 @@ pub async fn egress_monitor_probe_now() -> Result<EgressIpProbeResult> {
 
 pub async fn egress_monitor_is_running() -> bool {
     egress_monitor().is_running()
-}
-
-fn persist_egress_monitor_config(config: &EgressMonitorConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default_strict()?;
-    advanced.egress_monitor = config.clone();
-    advanced.validate()?;
-    advanced.save_default()?;
-    crate::feat::get_coordinator().hydrate_from_advanced_config(&advanced)?;
-    Ok(())
 }
