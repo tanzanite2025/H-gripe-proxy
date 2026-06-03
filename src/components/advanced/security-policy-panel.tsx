@@ -10,7 +10,17 @@ import { Plus, Shield, Trash2, Play, Square, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 
-import { Switch, TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from '@/components/tailwind'
+import {
+  Alert,
+  Switch,
+  TextField,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+} from '@/components/tailwind'
 import {
   securityPolicyGetStates,
   securityPolicyApply,
@@ -233,6 +243,12 @@ export function SecurityPolicyPanel({ policies, hasUnsavedChanges = false, onCha
           </p>
         </div>
       </div>
+
+      {hasUnsavedChanges && (
+        <Alert severity="warning" className="mb-4 text-sm">
+          Save the configuration before applying or revoking security policies.
+        </Alert>
+      )}
 
       {/* 操作栏 */}
       <div className="flex items-center gap-2 mb-4">

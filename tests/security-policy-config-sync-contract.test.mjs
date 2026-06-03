@@ -91,6 +91,8 @@ test('security policy runtime actions are gated when the editor has unsaved poli
   assert.match(panel, /hasUnsavedChanges\?: boolean/)
   assert.match(panel, /disabled=\{loading \|\| hasUnsavedChanges \|\| !policy\.enabled\}/)
   assert.match(panel, /disabled=\{loading \|\| hasUnsavedChanges\}/)
+  assert.match(panel, /\{hasUnsavedChanges && \(/)
+  assert.match(panel, /Save the configuration before applying or revoking security policies\./)
   assert.match(panel, /save the configuration first/i)
 })
 
