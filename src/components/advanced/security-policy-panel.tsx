@@ -27,7 +27,7 @@ interface Props {
 
 /** 空策略模板 */
 function emptyPolicy(): ISecurityPolicy {
-  return { name: '', enabled: true, description: '', rules: [], tunOnly: false }
+  return { name: '', enabled: true, description: '', rules: [] }
 }
 
 /** 空规则模板 */
@@ -260,11 +260,6 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
                         已禁用
                       </span>
                     )}
-                    {policy.tunOnly && (
-                      <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
-                        TUN
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Switch
@@ -349,16 +344,6 @@ export function SecurityPolicyPanel({ policies, onChange }: Props) {
                   checked={editingPolicy.enabled}
                   onCheckedChange={(checked) =>
                     setEditingPolicy({ ...editingPolicy, enabled: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">仅 TUN 流量</label>
-                <Switch
-                  checked={editingPolicy.tunOnly}
-                  onCheckedChange={(checked) =>
-                    setEditingPolicy({ ...editingPolicy, tunOnly: checked })
                   }
                 />
               </div>

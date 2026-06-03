@@ -1,4 +1,4 @@
-use super::CoreManager;
+use super::{CoreManager, RunningMode};
 use crate::{
     config::{Config, ConfigType, runtime::IRuntime},
     constants::timing,
@@ -59,6 +59,27 @@ impl CoreManager {
         self.perform_config_update().await
     }
 
+    pub async fn update_config_without_restart_with_force(&self, force: bool) -> Result<ValidationOutcome> {
+        if handle::Handle::global().is_exiting() {
+            return Ok(ValidationOutcome::Skipped {
+                reason: ValidationSkipReason::Exiting,
+            });
+        }
+
+        if !force && !self.should_update_config() {
+            logging!(debug, Type::Core, "Skipping config update due to debounce");
+            return Ok(ValidationOutcome::Skipped {
+                reason: ValidationSkipReason::Debounced,
+            });
+        }
+
+        if force {
+            self.set_last_update(Instant::now());
+        }
+
+        self.perform_config_update_without_restart().await
+    }
+
     pub async fn update_config_checked(&self) -> Result<()> {
         let outcome = self.update_config_forced().await?;
         if outcome.is_valid() {
@@ -92,12 +113,67 @@ impl CoreManager {
         self.apply_generate_config().await
     }
 
+    async fn perform_config_update_without_restart(&self) -> Result<ValidationOutcome> {
+        if let Err(err) = Config::generate().await {
+            let message: String = err.to_string().into();
+            Config::runtime().await.discard();
+            return Ok(ValidationOutcome::invalid_from_message(message));
+        }
+
+        self.apply_generate_config_without_restart().await
+    }
+
     pub async fn apply_generate_config(&self) -> Result<ValidationOutcome> {
         match CoreConfigValidator::global().validate_config_outcome().await {
             Ok(outcome) if outcome.is_valid() => {
                 let run_path = Config::generate_file(ConfigType::Run).await?;
                 self.apply_config(run_path).await?;
                 Ok(ValidationOutcome::Valid)
+            }
+            Ok(outcome) => {
+                Config::runtime().await.discard();
+                Ok(outcome)
+            }
+            Err(e) => {
+                Config::runtime().await.discard();
+                Err(e)
+            }
+        }
+    }
+
+    pub async fn apply_generate_config_without_restart(&self) -> Result<ValidationOutcome> {
+        match CoreConfigValidator::global().validate_config_outcome().await {
+            Ok(outcome) if outcome.is_valid() => {
+                if matches!(&*self.get_running_mode(), RunningMode::NotRunning) {
+                    match self.start_core().await {
+                        Ok(_) => {
+                            Config::runtime().await.apply();
+                            logging!(info, Type::Core, "Configuration applied by no-restart path via core start");
+                            Ok(ValidationOutcome::Valid)
+                        }
+                        Err(err) => {
+                            Config::runtime().await.discard();
+                            Err(anyhow!("Failed to start core without restarting: {}", err))
+                        }
+                    }
+                } else {
+                    let run_path = Config::generate_file(ConfigType::Run).await?;
+                    let path = dirs::path_to_str(&run_path)?;
+
+                    match self.reload_config(path).await {
+                        Ok(_) => {
+                            Config::runtime().await.apply();
+                            logging!(info, Type::Core, "Configuration applied by no-restart path via live reload");
+                            Ok(ValidationOutcome::Valid)
+                        }
+                        Err(err) => {
+                            Config::runtime().await.discard();
+                            Ok(ValidationOutcome::invalid_from_message(format!(
+                                "Failed to reload updated config without restarting core: {err}"
+                            )))
+                        }
+                    }
+                }
             }
             Ok(outcome) => {
                 Config::runtime().await.discard();

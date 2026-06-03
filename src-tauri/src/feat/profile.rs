@@ -445,7 +445,10 @@ pub async fn update_profile(
 
     if should_refresh {
         logging!(info, Type::Config, "[订阅更新] 更新内核配置");
-        match CoreManager::global().update_config_with_force(is_mannual_trigger).await {
+        match CoreManager::global()
+            .update_config_without_restart_with_force(is_mannual_trigger)
+            .await
+        {
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[订阅更新] 更新成功");
                 handle::Handle::refresh_clash();

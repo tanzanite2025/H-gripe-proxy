@@ -4,7 +4,6 @@ use serde_yaml_ng::{Mapping, Value};
 use crate::process::AsyncHandler;
 
 use crate::constants::tun as tun_const;
-use crate::core::security_policy::{TUN_SECURITY_SUB_RULE, get_security_policy_manager};
 
 const LAN_DIRECT_RULES: [&str; 3] = [
     "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
@@ -135,53 +134,6 @@ fn is_match_rule(rule: &Value) -> bool {
     rule.as_str()
         .map(|rule| rule.trim_start().starts_with("MATCH,"))
         .unwrap_or(false)
-}
-
-/// Inject tun.rule and sub-rules.tun-security when there are enabled tun_only security policies.
-/// This must be called after use_tun so the tun section already exists.
-pub async fn apply_tun_security_policy(mut config: Mapping) -> Mapping {
-    let manager = get_security_policy_manager();
-    let policies = manager.get_policies().await;
-    let has_tun_only = policies.iter().any(|p| p.tun_only && p.enabled);
-
-    if has_tun_only {
-        // Set tun.rule = "tun-security" so TUN listener uses the dedicated sub-rule list
-        let tun_key = Value::from("tun");
-        if let Some(tun_val) = config.get_mut(&tun_key) {
-            if let Some(tun_map) = tun_val.as_mapping_mut() {
-                revise!(tun_map, "rule", TUN_SECURITY_SUB_RULE);
-            }
-        }
-
-        // Ensure sub-rules has a tun-security entry (empty list, will be filled at runtime)
-        let sub_rules_key = Value::from("sub-rules");
-        let sub_rules_val = config.get(&sub_rules_key);
-        let mut sub_rules_val = sub_rules_val
-            .and_then(|v| v.as_mapping().cloned())
-            .unwrap_or_else(Mapping::new);
-
-        let tun_security_key = Value::from(TUN_SECURITY_SUB_RULE);
-        if !sub_rules_val.contains_key(&tun_security_key) {
-            // Insert empty sequence for tun-security sub-rules
-            sub_rules_val.insert(tun_security_key, Value::Sequence(Vec::new()));
-        }
-
-        revise!(config, "sub-rules", sub_rules_val);
-
-        // Auto-enable sniffer for TUN-only policies: TUN traffic arrives as pure IP,
-        // sniffer must extract domain names for rule matching to work.
-        let sniffer_key = Value::from("sniffer");
-        let mut sniffer_val = config
-            .get(&sniffer_key)
-            .and_then(|v| v.as_mapping().cloned())
-            .unwrap_or_else(Mapping::new);
-        revise!(sniffer_val, "enable", true);
-        revise!(sniffer_val, "parse-pure-ip", true);
-        revise!(sniffer_val, "force-dns-mapping", true);
-        revise!(config, "sniffer", sniffer_val);
-    }
-
-    config
 }
 
 #[cfg(test)]

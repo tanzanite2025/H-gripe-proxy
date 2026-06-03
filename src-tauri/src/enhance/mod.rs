@@ -31,7 +31,6 @@ use self::{
     timezone_spoof::apply_timezone_spoof_config,
     tls_fingerprint::apply_tls_fingerprint_config,
     traffic_obfuscation::apply_traffic_obfuscation_config,
-    tun::apply_tun_security_policy,
     tun::use_tun,
 };
 
@@ -626,7 +625,6 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     config = apply_multiplex(config);
 
     config = use_tun(config, enable_tun);
-    config = apply_tun_security_policy(config).await;
     config = apply_sniffer_config(config);
     config = apply_tls_fingerprint_config(config);
     config = apply_obfuscation_config(config);

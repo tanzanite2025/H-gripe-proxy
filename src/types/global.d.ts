@@ -1326,7 +1326,6 @@ interface ISecurityPolicy {
   enabled: boolean
   description: string
   rules: IPolicyRule[]
-  tunOnly: boolean
 }
 
 /** Runtime state of an applied security policy */

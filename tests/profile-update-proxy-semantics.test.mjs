@@ -24,6 +24,6 @@ test('current profile update rolls back downloaded content when runtime refresh 
   assert.match(profileFeature, /snapshot_profile_update/)
   assert.match(profileFeature, /restore_profile_update_snapshot/)
   assert.match(profileFeature, /rollback_snapshot/)
-  assert.match(profileFeature, /update_config_with_force\(is_mannual_trigger\)/)
+  assert.match(profileFeature, /update_config_without_restart_with_force\(is_mannual_trigger\)/)
   assert.match(profileFeature, /restore_profile_update_snapshot\(&rollback_snapshot\)\.await/)
 })

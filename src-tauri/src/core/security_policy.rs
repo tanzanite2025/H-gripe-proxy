@@ -19,9 +19,6 @@ pub struct PolicyRule {
     pub proxy: String,
 }
 
-/// Name of the sub-rule list used for TUN-only security policies
-pub const TUN_SECURITY_SUB_RULE: &str = "tun-security";
-
 /// A security policy definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,8 +33,8 @@ pub struct SecurityPolicy {
     pub description: String,
     /// Rules that make up this policy
     pub rules: Vec<PolicyRule>,
-    /// Whether this policy only applies to TUN traffic (inserted into tun-security sub-rule list)
-    #[serde(default)]
+    /// Legacy compatibility field for old persisted configs; no longer changes rule path.
+    #[serde(default, skip_serializing)]
     pub tun_only: bool,
 }
 
@@ -71,7 +68,7 @@ pub struct AppliedPolicyState {
     pub applied: bool,
 }
 
-/// Security Policy Manager — owns policy definitions and their runtime state
+/// Security Policy Manager owns policy definitions and their runtime state
 pub struct SecurityPolicyManager {
     /// Policy definitions (name -> policy)
     policies: RwLock<HashMap<String, SecurityPolicy>>,
@@ -180,15 +177,6 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
     let source = SecurityPolicyManager::source_for_policy(&policy.name);
     let mut indices = Vec::with_capacity(policy.rules.len());
 
-    // tun_only policies go into the dedicated TUN sub-rule list with prepend position
-    // so they have highest priority for TUN traffic
-    let sub_rule = if policy.tun_only {
-        Some(TUN_SECURITY_SUB_RULE)
-    } else {
-        None
-    };
-    let position = if policy.tun_only { Some("prepend") } else { None };
-
     for rule in &policy.rules {
         let idx = mihomo
             .create_rule(
@@ -196,8 +184,8 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
                 &rule.payload,
                 &rule.proxy,
                 Some(&source),
-                sub_rule,
-                position,
+                None,
+                None,
             )
             .await?;
         indices.push(idx);
@@ -219,46 +207,14 @@ pub async fn revoke_policy(policy_name: &str) -> Result<()> {
     if let Some(state) = &state {
         if state.applied {
             let mihomo = crate::core::handle::Handle::mihomo().await;
-
-            // Check if this is a tun_only policy — use sub-rule deletion
-            let policy = manager.get_policy(policy_name).await;
-            if let Some(p) = &policy {
-                if p.tun_only {
-                    let source = SecurityPolicyManager::source_for_policy(policy_name);
-                    if let Err(e) = mihomo
-                        .delete_sub_rule_by_source(TUN_SECURITY_SUB_RULE, Some(&source))
-                        .await
-                    {
-                        log::warn!(
-                            "[SecurityPolicy] failed to delete sub-rules for policy {}: {}",
-                            policy_name,
-                            e
-                        );
-                    }
-                } else {
-                    // Non-tun_only: delete global rules by index
-                    for &idx in &state.rule_indices {
-                        if let Err(e) = mihomo.delete_rule(idx).await {
-                            log::warn!(
-                                "[SecurityPolicy] failed to delete rule {} for policy {}: {}",
-                                idx,
-                                policy_name,
-                                e
-                            );
-                        }
-                    }
-                }
-            } else {
-                // Fallback: no policy definition found, delete by index
-                for &idx in &state.rule_indices {
-                    if let Err(e) = mihomo.delete_rule(idx).await {
-                        log::warn!(
-                            "[SecurityPolicy] failed to delete rule {} for policy {}: {}",
-                            idx,
-                            policy_name,
-                            e
-                        );
-                    }
+            for &idx in &state.rule_indices {
+                if let Err(e) = mihomo.delete_rule(idx).await {
+                    log::warn!(
+                        "[SecurityPolicy] failed to delete rule {} for policy {}: {}",
+                        idx,
+                        policy_name,
+                        e
+                    );
                 }
             }
         }
