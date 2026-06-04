@@ -39,6 +39,7 @@ import { ConfigViewer } from '@/components/setting/components/misc/config-editor
 import { Box, Grid } from '@/components/tailwind'
 import { useProfiles } from '@/hooks/data'
 import { useListen } from '@/hooks/system'
+import { useAppRefreshers } from '@/providers/app-data-context'
 import {
   createProfileFromLocalPath,
   deleteProfile,
@@ -94,6 +95,7 @@ const ProfilePage = () => {
   const { t } = useTranslation()
   const location = useLocation()
   const { addListener } = useListen()
+  const { refreshRules, refreshRuleProviders } = useAppRefreshers()
   const [url, setUrl] = useState('')
   const [disabled, setDisabled] = useState(false)
   const [activatings, setActivatings] = useState<string[]>([])
@@ -476,6 +478,8 @@ const ProfilePage = () => {
         }
 
         // 完成切换
+        await refreshRules()
+        await refreshRuleProviders()
         await mutateLogs()
         closeAllConnections()
 
@@ -534,6 +538,8 @@ const ProfilePage = () => {
     [
       profiles,
       patchProfiles,
+      refreshRules,
+      refreshRuleProviders,
       mutateLogs,
       executeBackgroundTasks,
       handleProfileInterrupt,

@@ -4,16 +4,23 @@
  */
 
 import { Settings2 } from 'lucide-react'
+import { useState } from 'react'
 
 import { Switch } from '@/components/base'
 import { DnsLeakProtectionCard } from '@/components/setting/dns-leak-protection-card'
 import { DnsRoutingCard } from '@/components/setting/dns-routing-card'
 import { buildDnsRuntimeViewModel } from '@/components/setting/dns-runtime-view-model'
 import { DnsStatsCard } from '@/components/setting/dns-stats-card'
+import { Tab, Tabs } from '@/components/tailwind'
 import { Alert } from '@/components/tailwind/Alert'
 import { Chip } from '@/components/tailwind/Chip'
 import type { DnsRuntimeStatus } from '@/services/cmds'
 import type { AdvancedDnsConfig } from '@/services/coordinator'
+
+const DNS_TAB_OVERVIEW = 'overview'
+const DNS_TAB_STATS = 'stats'
+const DNS_TAB_ROUTING = 'routing'
+const DNS_TAB_LEAK = 'leak'
 
 interface Props {
   config: AdvancedDnsConfig
@@ -40,6 +47,8 @@ export function DnsAdvancedPanel({
   runtimePending,
   onRuntimeToggle,
 }: Props) {
+  const [activeTab, setActiveTab] = useState(DNS_TAB_OVERVIEW)
+
   const previewModeLabel =
     config.routing_mode === 'speed'
       ? '速度优先'
@@ -79,6 +88,20 @@ export function DnsAdvancedPanel({
   const runtimeView = runtimeStatus
     ? buildDnsRuntimeViewModel(runtimeStatus)
     : null
+
+  const renderTabPanel = (
+    value: string,
+    children: React.ReactNode,
+    className = 'mt-4',
+  ) => (
+    <div
+      role="tabpanel"
+      hidden={activeTab !== value}
+      className={activeTab === value ? className : undefined}
+    >
+      {activeTab === value && children}
+    </div>
+  )
 
   return (
     <div className="space-y-4">
@@ -168,81 +191,103 @@ export function DnsAdvancedPanel({
         )}
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold">DNS 状态视角</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip size="small" color="info" label="当前运行态" />
-            <Chip size="small" color="default" label="已保存配置" />
-            <Chip size="small" color="warning" label="表单预览" />
-          </div>
-        </div>
+      <div className="bg-card border border-border rounded-lg p-4">
+        <Tabs
+          value={activeTab}
+          onChange={(_event, value) => setActiveTab(String(value))}
+          variant="scrollable"
+          className="border-b border-border"
+        >
+          <Tab label="概览" value={DNS_TAB_OVERVIEW} />
+          <Tab label="统计" value={DNS_TAB_STATS} />
+          <Tab label="分流" value={DNS_TAB_ROUTING} />
+          <Tab label="防泄漏" value={DNS_TAB_LEAK} />
+        </Tabs>
 
-        <Alert severity={hasUnsavedChanges ? 'warning' : 'info'} className="text-sm">
-          {hasUnsavedChanges
-            ? '下方统计卡显示的是当前运行态；右侧配置卡正在编辑的是表单预览，未保存变更尚未进入运行态。后端运行态状态以顶部“后端确认的当前运行态”为准。'
-            : '当前表单预览与已保存配置一致；下方统计卡显示的是当前运行态镜像。后端运行态状态以顶部“后端确认的当前运行态”为准。'}
-        </Alert>
+        {renderTabPanel(
+          DNS_TAB_OVERVIEW,
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold">DNS 状态视角</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip size="small" color="info" label="当前运行态" />
+                <Chip size="small" color="default" label="已保存配置" />
+                <Chip size="small" color="warning" label="表单预览" />
+              </div>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="rounded-lg border border-border px-3 py-2 space-y-2">
-            <div className="text-xs text-muted-foreground">已保存配置</div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span>分流模式</span>
-              <Chip size="small" label={savedModeLabel} />
-            </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span>零泄漏防护</span>
-              <Chip size="small" label={savedLeakLabel} />
-            </div>
-          </div>
+            <Alert severity={hasUnsavedChanges ? 'warning' : 'info'} className="text-sm">
+              {hasUnsavedChanges
+                ? '统计卡显示的是当前运行态；配置卡正在编辑的是表单预览，未保存变更尚未进入运行态。后端运行态状态以顶部“后端确认的当前运行态”为准。'
+                : '当前表单预览与已保存配置一致；统计卡显示的是当前运行态镜像。后端运行态状态以顶部“后端确认的当前运行态”为准。'}
+            </Alert>
 
-          <div className="rounded-lg border border-border px-3 py-2 space-y-2">
-            <div className="text-xs text-muted-foreground">表单预览</div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span>分流模式</span>
-              <Chip
-                size="small"
-                color={config.routing_mode === savedConfig.routing_mode ? 'default' : 'warning'}
-                label={previewModeLabel}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span>零泄漏防护</span>
-              <Chip
-                size="small"
-                color={
-                  config.leak_protection_level === savedConfig.leak_protection_level
-                    ? 'default'
-                    : 'warning'
-                }
-                label={previewLeakLabel}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border px-3 py-2 space-y-2">
+                <div className="text-xs text-muted-foreground">已保存配置</div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>分流模式</span>
+                  <Chip size="small" label={savedModeLabel} />
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>零泄漏防护</span>
+                  <Chip size="small" label={savedLeakLabel} />
+                </div>
+              </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* DNS 统计 */}
-        <div>
+              <div className="rounded-lg border border-border px-3 py-2 space-y-2">
+                <div className="text-xs text-muted-foreground">表单预览</div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>分流模式</span>
+                  <Chip
+                    size="small"
+                    color={
+                      config.routing_mode === savedConfig.routing_mode
+                        ? 'default'
+                        : 'warning'
+                    }
+                    label={previewModeLabel}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>零泄漏防护</span>
+                  <Chip
+                    size="small"
+                    color={
+                      config.leak_protection_level === savedConfig.leak_protection_level
+                        ? 'default'
+                        : 'warning'
+                    }
+                    label={previewLeakLabel}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>,
+        )}
+
+        {renderTabPanel(
+          DNS_TAB_STATS,
           <DnsStatsCard
             runtimeStatus={runtimeStatus}
             runtimeStatusPending={runtimeStatusPending}
             onRefresh={onRuntimeStatusRefresh}
-          />
-        </div>
+          />,
+        )}
 
-        {/* DNS 智能分流 + DNS 零泄漏防护 */}
-        <div className="flex flex-col gap-4">
+        {renderTabPanel(
+          DNS_TAB_ROUTING,
           <div className="bg-card border border-border rounded-lg p-4">
             <DnsRoutingCard
               mode={config.routing_mode}
               runtimeStatus={runtimeStatus}
               onChange={(routing_mode) => onChange({ ...config, routing_mode })}
             />
-          </div>
+          </div>,
+        )}
 
+        {renderTabPanel(
+          DNS_TAB_LEAK,
           <div className="bg-card border border-border rounded-lg p-4">
             <DnsLeakProtectionCard
               level={config.leak_protection_level}
@@ -251,8 +296,8 @@ export function DnsAdvancedPanel({
                 onChange({ ...config, leak_protection_level })
               }
             />
-          </div>
-        </div>
+          </div>,
+        )}
       </div>
     </div>
   )
