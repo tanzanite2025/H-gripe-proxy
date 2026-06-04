@@ -142,8 +142,10 @@ export interface TranslationResources {
           }
           labels: {
             direct: string
+            localEgress: string
             notObserved: string
             proxy: string
+            proxyEgress: string
             unknown: string
           }
           observationPath: {

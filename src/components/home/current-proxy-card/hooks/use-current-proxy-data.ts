@@ -47,7 +47,6 @@ interface UseCurrentProxyDataProps {
   clashConfig: any
   currentProfileId: string | null
   isGlobalMode: boolean
-  isDirectMode: boolean
   defaultLatencyTimeout: number
   refreshProxy: () => void
 }
@@ -62,7 +61,6 @@ export const useCurrentProxyData = ({
   clashConfig: _clashConfig,
   currentProfileId,
   isGlobalMode,
-  isDirectMode,
   defaultLatencyTimeout,
   refreshProxy,
 }: UseCurrentProxyDataProps) => {
@@ -177,14 +175,6 @@ export const useCurrentProxyData = ({
           group: 'GLOBAL',
         },
       }))
-    } else if (isDirectMode) {
-      setState((prev) => ({
-        ...prev,
-        selection: {
-          ...prev.selection,
-          group: 'DIRECT',
-        },
-      }))
     } else {
       const savedGroup = readProfileScopedItem(STORAGE_KEY_GROUP)
       setState((prev) => ({
@@ -195,7 +185,7 @@ export const useCurrentProxyData = ({
         },
       }))
     }
-  }, [isGlobalMode, isDirectMode, proxies, readProfileScopedItem])
+  }, [isGlobalMode, proxies, readProfileScopedItem])
 
   // 监听代理数据变化，更新状态
   useEffect(() => {
@@ -258,11 +248,7 @@ export const useCurrentProxyData = ({
       let newDisplayProxy = null
       let newGroup = prev.selection.group
 
-      if (isDirectMode) {
-        newGroup = 'DIRECT'
-        newProxy = 'DIRECT'
-        newDisplayProxy = proxies.records?.DIRECT || { name: 'DIRECT' }
-      } else if (isGlobalMode && proxies.global) {
+      if (isGlobalMode && proxies.global) {
         newGroup = 'GLOBAL'
         newProxy = proxies.global.now || ''
         newDisplayProxy = proxies.records?.[newProxy] || null
@@ -278,7 +264,7 @@ export const useCurrentProxyData = ({
             newProxy = firstGroup.now || firstGroup.all[0] || ''
             newDisplayProxy = proxies.records?.[newProxy] || null
 
-            if (!isGlobalMode && !isDirectMode) {
+            if (!isGlobalMode) {
               writeProfileScopedItem(STORAGE_KEY_GROUP, newGroup)
               if (newProxy) {
                 writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
@@ -306,7 +292,6 @@ export const useCurrentProxyData = ({
   }, [
     proxies,
     isGlobalMode,
-    isDirectMode,
     writeProfileScopedItem,
     matchPolicyName,
   ])
@@ -314,7 +299,7 @@ export const useCurrentProxyData = ({
   // 处理代理组变更
   const handleGroupChange = useCallback(
     (value: string | number) => {
-      if (isGlobalMode || isDirectMode) return
+      if (isGlobalMode) return
 
       const newGroup = String(value)
 
@@ -343,14 +328,12 @@ export const useCurrentProxyData = ({
         }
       })
     },
-    [isGlobalMode, isDirectMode, writeProfileScopedItem],
+    [isGlobalMode, writeProfileScopedItem],
   )
 
   // 处理代理节点变更
   const handleProxyChange = useCallback(
     (event: SelectChangeEvent<string>) => {
-      if (isDirectMode) return
-
       const newProxy = event.target.value
       const currentGroup = state.selection.group
       const previousProxy = state.selection.proxy
@@ -364,15 +347,14 @@ export const useCurrentProxyData = ({
         displayProxy: prev.proxyData.records[newProxy] || null,
       }))
 
-      if (!isGlobalMode && !isDirectMode) {
+      if (!isGlobalMode) {
         writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
       }
 
-      const skipConfigSave = isGlobalMode || isDirectMode
+      const skipConfigSave = isGlobalMode
       handleSelectChange(currentGroup, previousProxy, skipConfigSave)(event)
     },
     [
-      isDirectMode,
       isGlobalMode,
       state.selection,
       debouncedSetState,
@@ -434,9 +416,6 @@ export const useCurrentProxyData = ({
       return list
     }
 
-    if (isDirectMode) {
-      return [{ name: 'DIRECT' }]
-    }
     if (isGlobalMode && proxies?.global) {
       const options = proxies.global.all
         .filter((p: any) => {
@@ -462,7 +441,6 @@ export const useCurrentProxyData = ({
 
     return []
   }, [
-    isDirectMode,
     isGlobalMode,
     proxies,
     state.proxyData,

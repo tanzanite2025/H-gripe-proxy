@@ -145,6 +145,8 @@
       "labels": {
         "direct": "Direct",
         "proxy": "Proxy",
+        "localEgress": "Local egress",
+        "proxyEgress": "Proxy-chain egress",
         "unknown": "Unknown",
         "notObserved": "Not observed"
       },

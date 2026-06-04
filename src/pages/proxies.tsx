@@ -21,7 +21,6 @@ import {
   patchClashMode,
 } from '@/services/cmds'
 import {
-  CLASH_MODES,
   DEFAULT_CLASH_MODE,
   type ClashMode,
   resolveClashMode,
@@ -40,6 +39,13 @@ const LazyDNSLeakCard = lazy(() =>
     default: module.DNSLeakCard,
   })),
 )
+
+const PROXY_CHAIN_MODES = ['rule', 'global'] as const
+type ProxyChainMode = (typeof PROXY_CHAIN_MODES)[number]
+const PROXY_CHAIN_MODE_LABELS = {
+  rule: '应用规则',
+  global: '不应用规则',
+} as const
 
 const ProxyPage = () => {
   const { t } = useTranslation()
@@ -63,9 +69,10 @@ const ProxyPage = () => {
 
   const curMode = resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)
   const displayMode = optimisticMode ?? curMode
+  const proxyDisplayMode = displayMode === 'direct' ? DEFAULT_CLASH_MODE : displayMode
   const chainWarning = t('proxies.page.chain.warning')
 
-  const onChangeMode = useLockFn(async (mode: ClashMode) => {
+  const onChangeMode = useLockFn(async (mode: ProxyChainMode) => {
     // 断开连接
     if (mode !== curMode && verge?.auto_close_connection) {
       closeAllConnections()
@@ -150,7 +157,7 @@ const ProxyPage = () => {
       typeof clashConfig?.mode === 'string' ||
       typeof runtimeConfig?.mode === 'string'
     if (hasMode && !resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)) {
-      onChangeMode(DEFAULT_CLASH_MODE)
+      onChangeMode('rule')
     }
   }, [clashConfig?.mode, runtimeConfig?.mode, onChangeMode])
 
@@ -184,14 +191,13 @@ const ProxyPage = () => {
             <ProviderButton />
 
             <ButtonGroup className="uds-toolbar" size="small">
-              {CLASH_MODES.map((mode) => (
+              {PROXY_CHAIN_MODES.map((mode) => (
                 <Button
                   key={mode}
-                  variant={mode === displayMode ? 'primary' : 'outlined'}
+                  variant={mode === proxyDisplayMode ? 'primary' : 'outlined'}
                   onClick={() => onChangeMode(mode)}
-                  className="capitalize"
                 >
-                  {t(`proxies.page.modes.${mode}`)}
+                  {PROXY_CHAIN_MODE_LABELS[mode]}
                 </Button>
               ))}
             </ButtonGroup>
@@ -208,7 +214,7 @@ const ProxyPage = () => {
           </Box>
           <div style={{ height: 'calc(100% - 36px)', overflow: 'hidden' }}>
             <ProxyGroups
-              mode={displayMode ?? DEFAULT_CLASH_MODE}
+              mode={proxyDisplayMode ?? DEFAULT_CLASH_MODE}
               isChainMode={isChainMode}
               chainConfigData={chainConfigData}
               onCloseChainMode={onToggleChainMode}

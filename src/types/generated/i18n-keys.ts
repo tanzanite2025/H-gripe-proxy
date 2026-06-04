@@ -103,6 +103,8 @@ export const translationKeys = [
   'home.components.proxyDetection.errors.failed',
   'home.components.proxyDetection.labels.direct',
   'home.components.proxyDetection.labels.proxy',
+  'home.components.proxyDetection.labels.localEgress',
+  'home.components.proxyDetection.labels.proxyEgress',
   'home.components.proxyDetection.labels.unknown',
   'home.components.proxyDetection.labels.notObserved',
   'home.components.proxyDetection.summary.effective.title',

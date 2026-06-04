@@ -197,7 +197,7 @@ const ProxyDetectionCardUI = ({
       <div className="flex flex-col gap-1.5 text-sm">
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-xs text-text-secondary">
-            {t('home.components.proxyDetection.labels.direct')}
+            {t('home.components.proxyDetection.labels.localEgress')}
           </span>
           <p className="uds-mono text-xs font-medium">
             {view.direct.ip}
@@ -210,7 +210,7 @@ const ProxyDetectionCardUI = ({
         </div>
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-xs text-text-secondary">
-            {t('home.components.proxyDetection.labels.proxy')}
+            {t('home.components.proxyDetection.labels.proxyEgress')}
           </span>
           <p className="uds-mono text-xs font-medium">
             {view.proxy.ip}

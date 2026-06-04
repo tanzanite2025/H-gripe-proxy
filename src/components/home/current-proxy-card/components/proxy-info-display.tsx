@@ -10,7 +10,6 @@ interface ProxyInfoDisplayProps {
   proxy: any
   delay: number
   isGlobalMode: boolean
-  isDirectMode: boolean
 }
 
 /**
@@ -21,7 +20,6 @@ export const ProxyInfoDisplay = ({
   proxy,
   delay,
   isGlobalMode,
-  isDirectMode,
 }: ProxyInfoDisplayProps) => {
   const { t } = useTranslation()
 
@@ -56,15 +54,6 @@ export const ProxyInfoDisplay = ({
             className="mr-0.5"
           />
         )}
-        {isDirectMode && (
-          <Chip
-            size="small"
-            label={t('home.components.currentProxy.labels.directMode')}
-            color="success"
-            className="mr-0.5"
-          />
-        )}
-
         {/* 节点特性 */}
         {proxy.udp && (
           <Chip size="small" label="UDP" variant="outlined" className="mr-0.5" />
@@ -84,13 +73,11 @@ export const ProxyInfoDisplay = ({
       </div>
 
       {/* 显示延迟 */}
-      {!isDirectMode && (
-        <Chip
-          size="small"
-          label={delayManager.formatDelay(delay)}
-          color={convertDelayColor(delay)}
-        />
-      )}
+      <Chip
+        size="small"
+        label={delayManager.formatDelay(delay)}
+        color={convertDelayColor(delay)}
+      />
     </div>
   )
 }

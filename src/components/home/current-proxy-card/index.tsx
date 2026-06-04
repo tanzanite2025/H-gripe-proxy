@@ -70,8 +70,8 @@ export const CurrentProxyCard = () => {
   const mode =
     resolveClashMode(clashConfig?.mode, runtimeConfig?.mode) ??
     DEFAULT_CLASH_MODE
-  const isGlobalMode = mode === 'global'
-  const isDirectMode = mode === 'direct'
+  const proxyChainMode = mode === 'direct' ? DEFAULT_CLASH_MODE : mode
+  const isGlobalMode = proxyChainMode === 'global'
 
   // 数据管理
   const {
@@ -88,7 +88,6 @@ export const CurrentProxyCard = () => {
     clashConfig,
     currentProfileId,
     isGlobalMode,
-    isDirectMode,
     defaultLatencyTimeout,
     refreshProxy,
   })
@@ -98,7 +97,6 @@ export const CurrentProxyCard = () => {
     currentGroup: state.selection.group,
     currentProxy: state.selection.proxy,
     currentProxyRecord: state.displayProxy,
-    isDirectMode,
     autoDelayEnabled,
     autoDelayIntervalMs,
     defaultLatencyTimeout,
@@ -194,7 +192,6 @@ export const CurrentProxyCard = () => {
                 size="small"
                 color="inherit"
                 onClick={() => handleCheckAllDelay(isGlobalMode)}
-                disabled={isDirectMode}
               >
                 <NetworkCheckRounded className="h-5 w-5" />
               </IconButton>
@@ -231,7 +228,6 @@ export const CurrentProxyCard = () => {
               proxy={currentProxy}
               delay={currentDelay}
               isGlobalMode={isGlobalMode}
-              isDirectMode={isDirectMode}
             />
           </div>
 
@@ -241,7 +237,7 @@ export const CurrentProxyCard = () => {
               <Select
                 value={state.selection.group}
                 onChange={handleGroupSelectChange}
-                disabled={isGlobalMode || isDirectMode}
+                disabled={isGlobalMode}
                 size="small"
                 className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
               >
@@ -260,7 +256,6 @@ export const CurrentProxyCard = () => {
               <Select
                 value={state.selection.proxy}
                 onChange={handleProxyChange}
-                disabled={isDirectMode}
                 size="small"
                 renderValue={(selected: SelectPrimitiveValue) => <div className="truncate">{String(selected)}</div>}
                 className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
@@ -274,9 +269,7 @@ export const CurrentProxyCard = () => {
                   },
                 }}
               >
-                {isDirectMode
-                  ? null
-                  : proxyOptions.map((proxy) => {
+                {proxyOptions.map((proxy) => {
                       const delayValue =
                         state.proxyData.records[proxy.name] && state.selection.group
                           ? delayManager.getDelayFix(

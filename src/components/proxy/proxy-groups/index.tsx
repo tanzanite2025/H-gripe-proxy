@@ -2,7 +2,6 @@ import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
-import { BaseEmpty } from '@/components/base'
 import { Alert, Snackbar } from '@/components/tailwind'
 
 import { ScrollTopButton } from '../../layout/scroll-top-button'
@@ -42,6 +41,7 @@ interface Props {
  */
 export const ProxyGroups = (props: Props) => {
   const { mode, isChainMode = false, chainConfigData, onCloseChainMode } = props
+  const displayMode = mode === 'direct' ? 'rule' : mode
   const { t } = useTranslation()
   const { pathname } = useLocation()
 
@@ -65,7 +65,7 @@ export const ProxyGroups = (props: Props) => {
     handleCloseDuplicateWarning,
   } = useChainMode({
     isChainMode,
-    mode,
+    mode: displayMode,
   })
 
   // 代理组数据和业务逻辑
@@ -82,7 +82,7 @@ export const ProxyGroups = (props: Props) => {
     handleLocation,
     handleGroupLocationByName,
   } = useProxyGroups({
-    mode,
+    mode: displayMode,
     isChainMode,
     activeSelectedGroup,
   })
@@ -103,7 +103,7 @@ export const ProxyGroups = (props: Props) => {
     scrollToTop: scrollToTopFn,
     saveScrollPosition,
   } = useScrollPosition({
-    mode,
+    mode: displayMode,
     isChainMode,
     activeSelectedGroup,
     renderListLength: renderList.length,
@@ -178,7 +178,7 @@ export const ProxyGroups = (props: Props) => {
           virtualItems={virtualItems}
           renderList={renderList}
           activeStickyIndex={activeStickyIndex}
-          indent={mode === 'rule' || mode === 'script'}
+          indent={displayMode === 'rule' || displayMode === 'script'}
           isChainMode={isChainMode}
           measureElement={measureElement}
           onLocation={handleLocationWithScroll}
@@ -195,7 +195,7 @@ export const ProxyGroups = (props: Props) => {
       handleLocationWithScroll,
       isChainMode,
       measureElement,
-      mode,
+      displayMode,
       onHeadState,
       renderList,
       totalSize,
@@ -203,15 +203,10 @@ export const ProxyGroups = (props: Props) => {
     ],
   )
 
-  // Direct 模式直接返回空状态
-  if (mode === 'direct') {
-    return <BaseEmpty textKey="proxies.page.messages.directMode" />
-  }
-
   // 链式代理模式
   if (isChainMode) {
     const proxyGroups = proxiesData?.groups || []
-    const showRuleHeader = mode === 'rule' && proxyGroups.length > 0
+    const showRuleHeader = displayMode === 'rule' && proxyGroups.length > 0
 
     return (
       <>
@@ -261,7 +256,7 @@ export const ProxyGroups = (props: Props) => {
           proxyChain={proxyChain}
           onUpdateChain={setProxyChain}
           chainConfigData={chainConfigData}
-          mode={mode}
+          mode={displayMode}
           selectedGroup={activeSelectedGroup}
           onClose={onCloseChainMode ?? (() => {})}
         />
@@ -275,7 +270,7 @@ export const ProxyGroups = (props: Props) => {
       style={{ position: 'relative', height: '100%', willChange: 'transform' }}
     >
       {/* 代理组导航栏 */}
-      {mode === 'rule' && (
+      {displayMode === 'rule' && (
         <ProxyGroupNavigator
           proxyGroupNames={proxyGroupNames}
           onGroupLocation={handleGroupLocationByNameWithScroll}

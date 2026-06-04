@@ -145,6 +145,8 @@
       "labels": {
         "direct": "直连",
         "proxy": "代理",
+        "localEgress": "本机出口",
+        "proxyEgress": "代理链路出口",
         "unknown": "未知",
         "notObserved": "未观测"
       },

@@ -1,5 +1,5 @@
 import { useLockFn } from 'ahooks'
-import { Globe, Route, Send } from 'lucide-react'
+import { Globe, Route } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
@@ -12,30 +12,25 @@ import {
   useCoreDataStatus,
 } from '@/providers/app-data-context'
 import { patchClashMode } from '@/services/cmds'
-import {
-  CLASH_MODES,
-  type ClashMode,
-  resolveClashMode,
-} from '@/services/clash-mode'
+import { resolveClashMode } from '@/services/clash-mode'
 import { queryClient } from '@/services/query-client'
-import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { cn } from '@/utils/cn'
 
+const HOME_PROXY_CHAIN_MODES = ['rule', 'global'] as const
+
+type HomeProxyChainMode = (typeof HOME_PROXY_CHAIN_MODES)[number]
+
 const MODE_META: Record<
-  ClashMode,
-  { label: TranslationKey; description: TranslationKey }
+  HomeProxyChainMode,
+  { label: string; description: string }
 > = {
   rule: {
-    label: 'home.components.clashMode.labels.rule',
-    description: 'home.components.clashMode.descriptions.rule',
+    label: '应用规则',
+    description: '按订阅规则分流',
   },
   global: {
-    label: 'home.components.clashMode.labels.global',
-    description: 'home.components.clashMode.descriptions.global',
-  },
-  direct: {
-    label: 'home.components.clashMode.labels.direct',
-    description: 'home.components.clashMode.descriptions.direct',
+    label: '不应用规则',
+    description: '代理链路不套规则',
   },
 }
 
@@ -46,37 +41,36 @@ export const ClashModeCard = () => {
   const { isCoreDataPending } = useCoreDataStatus()
   const { refreshClashConfig } = useAppRefreshers()
   const { data: runtimeConfig } = useRuntimeConfig()
-  const [optimisticMode, setOptimisticMode] = useState<ClashMode | undefined>()
+  const [optimisticMode, setOptimisticMode] = useState<
+    HomeProxyChainMode | undefined
+  >()
 
-  // 支持的模式列表
-  const modeList = CLASH_MODES
-
-  // 直接使用API返回的模式，不维护本地状态
+  // 直连是顶部全局出口；首页卡片只展示代理链路内部的规则状态。
   const currentModeKey = resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)
-  const displayMode = optimisticMode ?? currentModeKey
+  const displayMode =
+    optimisticMode ?? (currentModeKey === 'direct' ? 'rule' : currentModeKey)
 
   const modeDescription = useMemo(() => {
-    if (currentModeKey) {
-      return t(MODE_META[currentModeKey].description)
+    if (displayMode) {
+      return MODE_META[displayMode].description
     }
     if (isCoreDataPending) {
       return '\u00A0'
     }
     return t('home.components.clashMode.errors.communication')
-  }, [currentModeKey, isCoreDataPending, t])
+  }, [displayMode, isCoreDataPending, t])
 
   // 模式图标映射
   const modeIcons = useMemo(
     () => ({
       rule: <Route className="h-4 w-4" />,
       global: <Globe className="h-4 w-4" />,
-      direct: <Send className="h-4 w-4" />,
     }),
     [],
   )
 
   // 切换模式的处理函数
-  const onChangeMode = useLockFn(async (mode: ClashMode) => {
+  const onChangeMode = useLockFn(async (mode: HomeProxyChainMode) => {
     if (mode === displayMode) return
     if (verge?.auto_close_connection) {
       closeAllConnections()
@@ -107,7 +101,7 @@ export const ClashModeCard = () => {
     <div className="flex flex-col w-full mt-1">
       {/* 模式选择按钮组 - 工业滑块选择器 */}
       <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-solid border-divider rounded-3xl w-full">
-        {modeList.map((mode) => {
+        {HOME_PROXY_CHAIN_MODES.map((mode) => {
           const isActive = mode === displayMode
           return (
             <div
@@ -125,7 +119,7 @@ export const ClashModeCard = () => {
             >
               {modeIcons[mode]}
               <span className="text-[11px] capitalize tracking-[0.02em] font-semibold">
-                {t(MODE_META[mode].label)}
+                {MODE_META[mode].label}
               </span>
             </div>
           )
@@ -135,7 +129,7 @@ export const ClashModeCard = () => {
       {/* 说明文本区域 - 微型 Badge 元数据排版 */}
       <div className="w-full mt-3 flex items-center gap-3 px-1">
         <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-sans font-semibold uppercase tracking-[0.1em] flex-shrink-0">
-          {currentModeKey || 'INFO'}
+          {displayMode || 'INFO'}
         </div>
         <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight">
           {modeDescription}

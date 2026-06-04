@@ -13,7 +13,6 @@ interface UseProxyDelayCheckProps {
   currentGroup: string
   currentProxy: string
   currentProxyRecord: any
-  isDirectMode: boolean
   autoDelayEnabled: boolean
   autoDelayIntervalMs: number
   defaultLatencyTimeout: number
@@ -30,7 +29,6 @@ export const useProxyDelayCheck = ({
   currentGroup,
   currentProxy,
   currentProxyRecord,
-  isDirectMode,
   autoDelayEnabled,
   autoDelayIntervalMs,
   defaultLatencyTimeout,
@@ -62,7 +60,6 @@ export const useProxyDelayCheck = ({
    */
   const checkCurrentProxyDelay = useCallback(async () => {
     if (autoCheckInProgressRef.current) return
-    if (isDirectMode) return
 
     const groupName = currentGroup
     const proxyName = currentProxy
@@ -101,7 +98,6 @@ export const useProxyDelayCheck = ({
       onDelayCheckComplete?.()
     }
   }, [
-    isDirectMode,
     refreshProxy,
     currentGroup,
     currentProxy,
@@ -112,7 +108,6 @@ export const useProxyDelayCheck = ({
    * 自动延迟检测定时器
    */
   useEffect(() => {
-    if (isDirectMode) return
     if (!autoDelayEnabled) return
     if (!currentGroup || !currentProxy) return
 
@@ -141,7 +136,6 @@ export const useProxyDelayCheck = ({
   }, [
     checkCurrentProxyDelay,
     autoDelayIntervalMs,
-    isDirectMode,
     currentGroup,
     currentProxy,
     autoDelayEnabled,
@@ -152,7 +146,7 @@ export const useProxyDelayCheck = ({
    */
   const handleCheckAllDelay = useLockFn(async (isGlobalMode: boolean) => {
     const groupName = currentGroup
-    if (!groupName || isDirectMode) return
+    if (!groupName) return
 
     debugLog(`[CurrentProxyCard] 开始测试所有延迟，组: ${groupName}`)
 
