@@ -1,1 +1,4 @@
-﻿export type XDPStatus = { loaded: boolean, enabled: boolean, };
+export type XDPStatus = {
+    loaded: boolean;
+    enabled: boolean;
+};

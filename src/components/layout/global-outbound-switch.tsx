@@ -7,8 +7,8 @@ import {
   useAppRefreshers,
   useClashConfigData,
 } from '@/providers/app-data-context'
-import { patchClashMode } from '@/services/cmds'
 import { DEFAULT_CLASH_MODE, resolveClashMode } from '@/services/clash-mode'
+import { patchClashMode } from '@/services/cmds'
 import { queryClient } from '@/services/query-client'
 
 export const GlobalOutboundSwitch = () => {

@@ -3,11 +3,11 @@ import './assets/styles/index.scss'
 
 import { ResizeObserver } from '@juggle/resize-observer'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { ComposeContextProvider } from 'foxact/compose-context-provider'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 import { BaseErrorBoundary } from './components/base'
@@ -90,12 +90,6 @@ window.addEventListener('unhandledrejection', (event) => {
 
 // Page close/refresh events
 window.addEventListener('beforeunload', () => {
-  // Clean up all WebSocket instances to prevent memory leaks
-  MihomoWebSocket.cleanupAll()
-})
-
-// Page loaded event
-window.addEventListener('DOMContentLoaded', () => {
   // Clean up all WebSocket instances to prevent memory leaks
   MihomoWebSocket.cleanupAll()
 })

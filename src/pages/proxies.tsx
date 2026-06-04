@@ -6,9 +6,9 @@ import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
-import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { clearProxyChainRuntimeConfig } from '@/components/proxy/proxy-chain-runtime'
 import { loadProxyChainRuntimeExitNode } from '@/components/proxy/proxy-chain-types'
+import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
 import { useRuntimeConfig } from '@/hooks/data/use-clash'
 import { useVerge } from '@/hooks/system'
@@ -17,14 +17,14 @@ import {
   useClashConfigData,
 } from '@/providers/app-data-context'
 import {
-  getRuntimeProxyChainConfig,
-  patchClashMode,
-} from '@/services/cmds'
-import {
   DEFAULT_CLASH_MODE,
   type ClashMode,
   resolveClashMode,
 } from '@/services/clash-mode'
+import {
+  getRuntimeProxyChainConfig,
+  patchClashMode,
+} from '@/services/cmds'
 import { queryClient } from '@/services/query-client'
 import { debugLog } from '@/utils/misc'
 

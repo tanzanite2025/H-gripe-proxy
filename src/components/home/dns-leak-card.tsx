@@ -11,9 +11,9 @@ import {
 } from 'lucide-react'
 import { forwardRef, useState } from 'react'
 
+import { buildHomeDnsLeakViewModel } from '@/components/setting/dns-leak-test-view-model'
 import { Button } from '@/components/tailwind/Button'
 import { IconButton } from '@/components/tailwind/IconButton'
-import { buildHomeDnsLeakViewModel } from '@/components/setting/dns-leak-test-view-model'
 import { Skeleton } from '@/components/tailwind/Skeleton'
 import {
   detectDNSLeak,

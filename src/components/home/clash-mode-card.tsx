@@ -11,8 +11,8 @@ import {
   useClashConfigData,
   useCoreDataStatus,
 } from '@/providers/app-data-context'
-import { patchClashMode } from '@/services/cmds'
 import { resolveClashMode } from '@/services/clash-mode'
+import { patchClashMode } from '@/services/cmds'
 import { queryClient } from '@/services/query-client'
 import { cn } from '@/utils/cn'
 

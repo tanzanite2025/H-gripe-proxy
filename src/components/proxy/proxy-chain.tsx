@@ -25,7 +25,6 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
-
 import { TooltipIcon } from '@/components/base'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'

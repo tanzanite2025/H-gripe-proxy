@@ -353,6 +353,66 @@ async function upgradeGeo() {
 async function clearAllWsConnections() {
     await core.invoke("plugin:mihomo|clear_all_ws_connections");
 }
+/**
+ * 获取引擎统计（活跃连接数、追踪连接数）
+ */
+async function getEngineStats() {
+    return await core.invoke("plugin:mihomo|get_engine_stats");
+}
+/**
+ * 获取 Top N 带宽连接
+ */
+async function getTopConnections() {
+    return await core.invoke("plugin:mihomo|get_top_connections");
+}
+/**
+ * 获取缓冲池统计
+ */
+async function getBufferPoolStats() {
+    return await core.invoke("plugin:mihomo|get_buffer_pool_stats");
+}
+/**
+ * 获取规则流量统计
+ */
+async function getRuleTraffic() {
+    return await core.invoke("plugin:mihomo|get_rule_traffic");
+}
+/**
+ * 获取出口状态
+ */
+async function getEgressStatus() {
+    return await core.invoke("plugin:mihomo|get_egress_status");
+}
+/**
+ * 获取 TLS 指纹统计
+ */
+async function getTlsFingerprintStats() {
+    return await core.invoke("plugin:mihomo|get_tls_fingerprint_stats");
+}
+/**
+ * 强制 TLS 指纹轮换
+ */
+async function forceTlsRotation() {
+    return await core.invoke("plugin:mihomo|force_tls_rotation");
+}
+/**
+ * 获取性能统计
+ */
+async function getPerfStats() {
+    return await core.invoke("plugin:mihomo|get_perf_stats");
+}
+/**
+ * 获取热重载状态
+ */
+async function getHotReloadStatus() {
+    return await core.invoke("plugin:mihomo|get_hot_reload_status");
+}
+/**
+ * 获取 XDP 状态
+ */
+async function getXdpStatus() {
+    return await core.invoke("plugin:mihomo|get_xdp_status");
+}
 class MihomoWebSocket {
     constructor(id, listeners) {
         this.id = id;
@@ -507,19 +567,29 @@ exports.disableRules = disableRules;
 exports.dnsWarmup = dnsWarmup;
 exports.flushDNS = flushDNS;
 exports.flushFakeIp = flushFakeIp;
+exports.forceTlsRotation = forceTlsRotation;
 exports.getBaseConfig = getBaseConfig;
+exports.getBufferPoolStats = getBufferPoolStats;
 exports.getConnections = getConnections;
 exports.getDnsMetrics = getDnsMetrics;
+exports.getEgressStatus = getEgressStatus;
+exports.getEngineStats = getEngineStats;
 exports.getGroupByName = getGroupByName;
 exports.getGroups = getGroups;
+exports.getHotReloadStatus = getHotReloadStatus;
+exports.getPerfStats = getPerfStats;
 exports.getProxies = getProxies;
 exports.getProxyByName = getProxyByName;
 exports.getProxyProviderByName = getProxyProviderByName;
 exports.getProxyProviders = getProxyProviders;
 exports.getRuleProviders = getRuleProviders;
+exports.getRuleTraffic = getRuleTraffic;
 exports.getRules = getRules;
 exports.getSubRules = getSubRules;
+exports.getTlsFingerprintStats = getTlsFingerprintStats;
+exports.getTopConnections = getTopConnections;
 exports.getVersion = getVersion;
+exports.getXdpStatus = getXdpStatus;
 exports.healthcheckNodeInProvider = healthcheckNodeInProvider;
 exports.healthcheckProxyProvider = healthcheckProxyProvider;
 exports.patchBaseConfig = patchBaseConfig;

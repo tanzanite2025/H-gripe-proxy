@@ -1,1 +1,5 @@
-﻿export type SizeClassStats = { size: number, allocs: number, peakUsed: number, };
+export type SizeClassStats = {
+    size: number;
+    allocs: number;
+    peakUsed: number;
+};

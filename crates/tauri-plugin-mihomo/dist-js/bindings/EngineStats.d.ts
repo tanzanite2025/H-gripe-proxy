@@ -1,1 +1,4 @@
-﻿export type EngineStats = { activeConnections: number, trackedConns: number, };
+export type EngineStats = {
+    activeConnections: number;
+    trackedConns: number;
+};

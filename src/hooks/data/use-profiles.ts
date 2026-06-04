@@ -5,8 +5,8 @@ import {
   patchProfile,
   patchProfilesConfig,
 } from '@/services/cmds'
-import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
 import { calcuProxies } from '@/services/proxy-runtime'
+import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
 import { queryClient } from '@/services/query-client'
 import { debugLog } from '@/utils/misc'
 

@@ -1,6 +1,5 @@
-import type { ProxyDetectionLocation, ProxyDetectionResult } from '@/services/cmds'
-
 import type { DnsStatusColor } from '@/components/setting/dns-runtime-view-model'
+import type { ProxyDetectionLocation, ProxyDetectionResult } from '@/services/cmds'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 
 type Translate = (key: TranslationKey, options?: Record<string, unknown>) => string

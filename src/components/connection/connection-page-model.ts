@@ -1,4 +1,4 @@
-import { buildConnectionViewModel } from './connection-view-model'
+import { buildConnectionViewModel } from './connection-view-model.ts'
 
 export type ConnectionOrderKey =
   | 'default'

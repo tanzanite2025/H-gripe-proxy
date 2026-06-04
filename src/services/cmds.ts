@@ -1,10 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { ClashMode } from './clash-mode'
 import dayjs from 'dayjs'
 
-import { showNotice } from '@/services/notice-service'
 import { normalizeIpReputation, type IpReputation } from '@/services/ip-reputation'
+import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/misc'
+
+import type { ClashMode } from './clash-mode'
 
 export async function copyClashEnv() {
   return invoke<void>('copy_clash_env')

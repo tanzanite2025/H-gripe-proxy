@@ -1,18 +1,30 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import {
   BaseConfig,
+  BufferPoolStats,
+  ConnTrafficSnapshot,
   Connections,
   CoreUpdaterChannel,
+  DnsMetrics,
+  EgressStatus,
+  EngineStats,
   Groups,
+  HotReloadStatus,
   LogLevel,
   MihomoVersion,
+  PerfStats,
   Proxies,
   Proxy,
   ProxyDelay,
   ProxyProvider,
   ProxyProviders,
+  Rule,
   RuleProviders,
+  RuleTrafficSnapshot,
   Rules,
+  TLSFingerprintStats,
+  TLSRotationResult,
+  XDPStatus,
 } from "./bindings";
 
 export * from "./bindings";
@@ -443,6 +455,80 @@ export async function upgradeGeo(): Promise<void> {
  */
 export async function clearAllWsConnections(): Promise<void> {
   await invoke<void>("plugin:mihomo|clear_all_ws_connections");
+}
+
+/**
+ * 获取引擎统计（活跃连接数、追踪连接数）
+ */
+export async function getEngineStats(): Promise<EngineStats> {
+  return await invoke<EngineStats>("plugin:mihomo|get_engine_stats");
+}
+
+/**
+ * 获取 Top N 带宽连接
+ */
+export async function getTopConnections(): Promise<ConnTrafficSnapshot[]> {
+  return await invoke<ConnTrafficSnapshot[]>("plugin:mihomo|get_top_connections");
+}
+
+/**
+ * 获取缓冲池统计
+ */
+export async function getBufferPoolStats(): Promise<BufferPoolStats> {
+  return await invoke<BufferPoolStats>("plugin:mihomo|get_buffer_pool_stats");
+}
+
+/**
+ * 获取规则流量统计
+ */
+export async function getRuleTraffic(): Promise<Record<string, RuleTrafficSnapshot>> {
+  return await invoke<Record<string, RuleTrafficSnapshot>>(
+    "plugin:mihomo|get_rule_traffic",
+  );
+}
+
+/**
+ * 获取出口状态
+ */
+export async function getEgressStatus(): Promise<EgressStatus> {
+  return await invoke<EgressStatus>("plugin:mihomo|get_egress_status");
+}
+
+/**
+ * 获取 TLS 指纹统计
+ */
+export async function getTlsFingerprintStats(): Promise<TLSFingerprintStats> {
+  return await invoke<TLSFingerprintStats>(
+    "plugin:mihomo|get_tls_fingerprint_stats",
+  );
+}
+
+/**
+ * 强制 TLS 指纹轮换
+ */
+export async function forceTlsRotation(): Promise<TLSRotationResult> {
+  return await invoke<TLSRotationResult>("plugin:mihomo|force_tls_rotation");
+}
+
+/**
+ * 获取性能统计
+ */
+export async function getPerfStats(): Promise<PerfStats> {
+  return await invoke<PerfStats>("plugin:mihomo|get_perf_stats");
+}
+
+/**
+ * 获取热重载状态
+ */
+export async function getHotReloadStatus(): Promise<HotReloadStatus> {
+  return await invoke<HotReloadStatus>("plugin:mihomo|get_hot_reload_status");
+}
+
+/**
+ * 获取 XDP 状态
+ */
+export async function getXdpStatus(): Promise<XDPStatus> {
+  return await invoke<XDPStatus>("plugin:mihomo|get_xdp_status");
 }
 
 export interface MessageKind<T, D> {

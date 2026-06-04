@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next'
 
 import { useProxiesData } from '@/providers/app-data-context'
 
+import { clearProxyChainRuntimeConfig } from '../../proxy-chain-runtime'
 import {
   clearProxyChainStorage,
   loadProxyChainStorage,
   saveProxyChainStorage,
   type ProxyChainItem,
 } from '../../proxy-chain-types'
-import { clearProxyChainRuntimeConfig } from '../../proxy-chain-runtime'
 
 interface UseChainModeOptions {
   isChainMode: boolean

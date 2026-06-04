@@ -19,6 +19,7 @@ import {
 import {
   dnsLeakProtectionService,
 } from '@/services/dns-leak-protection'
+
 import { buildDnsLeakTestViewModel } from './dns-leak-test-view-model'
 import { buildDnsRuntimeViewModel } from './dns-runtime-view-model'
 

@@ -1,5 +1,5 @@
-import type { ChangeEvent } from 'react'
 import { ShieldCheck } from 'lucide-react'
+import type { ChangeEvent } from 'react'
 
 import { Card, Select, Stack, Switch, TextField } from '@/components/tailwind'
 import type {

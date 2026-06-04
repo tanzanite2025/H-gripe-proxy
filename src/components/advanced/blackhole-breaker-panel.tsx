@@ -1,10 +1,9 @@
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 
+import { Button, Stack } from '@/components/tailwind'
 import { Card } from '@/components/tailwind/Card'
 import { Switch } from '@/components/tailwind/Switch'
-import { Button, Stack } from '@/components/tailwind'
-
 import {
   type BlackholeBreakerConfig,
   type BreakerRuntimeState,

@@ -1,1 +1,3 @@
-﻿export type TLSRotationResult = { newFingerprint: string, };
+export type TLSRotationResult = {
+    newFingerprint: string;
+};

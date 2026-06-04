@@ -1,6 +1,6 @@
+import { Check, CheckSquare, Clipboard, FileText, Flame, MinusSquare, RefreshCw, Square, Trash2, X } from 'lucide-react'
 import { type FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, CheckSquare, Clipboard, FileText, Flame, MinusSquare, RefreshCw, Square, Trash2, X } from 'lucide-react'
 
 import { BaseStyledTextField } from '@/components/base'
 import { Box, Button, IconButton } from '@/components/tailwind'

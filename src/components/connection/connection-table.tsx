@@ -28,13 +28,13 @@ import { closeConnection } from 'tauri-plugin-mihomo-api'
 import { IconButton } from '@/components/tailwind/IconButton'
 import parseTraffic from '@/utils/format'
 
+import { createCloseConnectionAction } from './connection-actions'
+import { ConnectionColumnManager } from './connection-column-manager'
 import {
   getConnectionViewSpec,
   type ConnectionTableField,
   type ConnectionViewMode,
 } from './connection-page-model'
-import { createCloseConnectionAction } from './connection-actions'
-import { ConnectionColumnManager } from './connection-column-manager'
 import { ConnectionTableUI } from './connection-table-ui'
 import { buildConnectionViewModel } from './connection-view-model'
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 
@@ -13,6 +13,17 @@ const proxyDetectionCardPath = join(
 )
 const zhHomeLocalePath = join(repoRoot, 'src', 'locales', 'zh', 'home.json')
 const enHomeLocalePath = join(repoRoot, 'src', 'locales', 'en', 'home.json')
+const localesPath = join(repoRoot, 'src', 'locales')
+
+const flattenKeys = (value, prefix = '') => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return [prefix]
+  }
+
+  return Object.entries(value).flatMap(([key, child]) =>
+    flattenKeys(child, prefix ? `${prefix}.${key}` : key),
+  )
+}
 
 test('proxy detection card avoids direct as a visible global-mode label', () => {
   const source = readFileSync(proxyDetectionCardPath, 'utf8')
@@ -50,4 +61,21 @@ test('proxy detection copy names egress paths instead of another direct mode', (
   assert.equal('proxy' in enProxyDetection.labels, false)
   assert.doesNotMatch(JSON.stringify(zhProxyDetection), /直连/)
   assert.doesNotMatch(JSON.stringify(enProxyDetection), /\bDirect\b/)
+})
+
+test('all home locales keep the proxy detection contract complete', () => {
+  const baseline = JSON.parse(readFileSync(enHomeLocalePath, 'utf8'))
+  const expectedKeys = flattenKeys(baseline.components.proxyDetection).sort()
+
+  for (const localeName of readdirSync(localesPath)) {
+    const homeLocalePath = join(localesPath, localeName, 'home.json')
+    const homeLocale = JSON.parse(readFileSync(homeLocalePath, 'utf8'))
+    const actualKeys = flattenKeys(homeLocale.components.proxyDetection).sort()
+
+    assert.deepEqual(
+      actualKeys,
+      expectedKeys,
+      `${localeName} proxyDetection locale shape should match en`,
+    )
+  }
 })

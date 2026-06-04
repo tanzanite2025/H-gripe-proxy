@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Globe2, ShieldAlert } from 'lucide-react'
 
 import { useIPInfo } from '@/hooks/data'
+import { getCurrentEgressIdentity, getIdentityConsistencyReport } from '@/services/cmds'
 import {
   getIpTypeText,
   getResidentialStateText,
@@ -9,7 +10,6 @@ import {
   ipReputationCheckIp,
   type IpReputation,
 } from '@/services/ip-reputation'
-import { getCurrentEgressIdentity, getIdentityConsistencyReport } from '@/services/cmds'
 import { cn } from '@/utils/cn'
 
 const getCountryFlag = (countryCode: string | undefined) => {
@@ -34,6 +34,9 @@ const consistencyColorMap = {
   danger: 'text-red-500',
   unknown: 'text-gray-500',
 } as const
+
+const getRiskColor = (reputation?: IpReputation) =>
+  reputation ? riskColorMap[reputation.riskLevel] ?? 'text-gray-500' : undefined
 
 const formatReputationSummary = ({
   ip,
@@ -219,7 +222,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
       <span
         className={cn(
           'the-ip-card__value',
-          effectiveReputation ? riskColorMap[effectiveReputation.riskLevel] ?? 'text-gray-500' : undefined,
+          getRiskColor(effectiveReputation),
         )}
         data-tauri-drag-region="true"
       >

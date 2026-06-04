@@ -3,8 +3,8 @@ import type { ChangeEvent } from 'react'
 
 import { Button, Switch, TextField } from '@/components/tailwind'
 
-import type { HoneypotDecoy, NewHoneypotDecoyInput } from '../security-honeypot-decoys'
 import type { HoneypotDecoyStrategyProfile } from '../security-honeypot-decoy-strategy'
+import type { HoneypotDecoy, NewHoneypotDecoyInput } from '../security-honeypot-decoys'
 
 interface HoneypotDecoyPanelProps {
   honeypotDecoys: HoneypotDecoy[]

@@ -1,9 +1,9 @@
 import { AlertTriangle, Shield } from 'lucide-react'
 
-import type { HoneypotDecoy, NewHoneypotDecoyInput } from './security-honeypot-decoys'
-import type { HoneypotDecoyStrategyProfile } from './security-honeypot-decoy-strategy'
 import type { SecurityStatus } from '@/services/security'
 
+import type { HoneypotDecoyStrategyProfile } from './security-honeypot-decoy-strategy'
+import type { HoneypotDecoy, NewHoneypotDecoyInput } from './security-honeypot-decoys'
 import HoneypotDecoyPanel from './security-panels/honeypot-decoy-panel'
 import SecureStoragePanel from './security-panels/secure-storage-panel'
 import SecurityStatusPanel from './security-panels/security-status-panel'

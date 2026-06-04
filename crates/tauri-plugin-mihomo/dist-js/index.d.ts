@@ -1,4 +1,4 @@
-import { BaseConfig, BufferPoolStats, ConnTrafficSnapshot, Connections, CoreUpdaterChannel, DnsMetrics, EgressStatus, EngineStats, Groups, HotReloadStatus, LogLevel, MihomoVersion, PerfStats, Proxies, Proxy, ProxyDelay, ProxyProvider, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, TLSFingerprintStats, TLSRotationResult, XDPStatus } from "./bindings";
+import { BaseConfig, BufferPoolStats, ConnTrafficSnapshot, Connections, CoreUpdaterChannel, DnsMetrics, EgressStatus, EngineStats, Groups, HotReloadStatus, LogLevel, MihomoVersion, PerfStats, Proxies, Proxy, ProxyDelay, ProxyProvider, ProxyProviders, Rule, RuleProviders, RuleTrafficSnapshot, Rules, TLSFingerprintStats, TLSRotationResult, XDPStatus } from "./bindings";
 export * from "./bindings";
 export type MihomoGroupDelay = Record<string, number>;
 /**

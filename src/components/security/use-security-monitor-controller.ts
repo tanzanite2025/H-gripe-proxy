@@ -9,6 +9,11 @@ import {
 } from '@/services/security'
 
 import {
+  type HoneypotDecoyStrategyProfile,
+  createHoneypotDecoyStrategyProfile,
+  mergeHoneypotDecoyStrategy,
+} from './security-honeypot-decoy-strategy'
+import {
   DEFAULT_HONEYPOT_DECOY_ID,
   type NewHoneypotDecoyInput,
   addHoneypotDecoy,
@@ -21,11 +26,6 @@ import {
   setHoneypotDecoyEnabled,
   updateActiveHoneypotDecoyPath,
 } from './security-honeypot-decoys'
-import {
-  type HoneypotDecoyStrategyProfile,
-  createHoneypotDecoyStrategyProfile,
-  mergeHoneypotDecoyStrategy,
-} from './security-honeypot-decoy-strategy'
 import { createSecurityMonitorActions } from './security-monitor-actions'
 
 const DEFAULT_SECURITY_STATUS: SecurityStatus = {

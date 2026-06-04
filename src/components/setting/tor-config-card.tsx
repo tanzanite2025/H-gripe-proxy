@@ -17,6 +17,7 @@ import { TextField } from '@/components/tailwind/TextField'
 import { useVerge } from '@/hooks/system'
 import { getTorStatus, testTorConnection } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+
 import { buildTorRuntimeViewModel } from './tor-runtime-view-model'
 
 const DEFAULT_TOR_CONFIG = {

@@ -351,7 +351,6 @@ async function upgradeGeo() {
 async function clearAllWsConnections() {
     await invoke("plugin:mihomo|clear_all_ws_connections");
 }
-// engine api
 /**
  * 获取引擎统计（活跃连接数、追踪连接数）
  */

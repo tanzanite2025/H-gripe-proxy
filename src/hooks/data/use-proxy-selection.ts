@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useRef } from 'react'
 
 import { useVerge } from '@/hooks/system'
+import { syncTrayProxySelection } from '@/services/cmds'
 import { closeConnectionsForProxy } from '@/services/connection-runtime'
 import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
-import { syncTrayProxySelection } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
 
 import { useProfiles } from './use-profiles'

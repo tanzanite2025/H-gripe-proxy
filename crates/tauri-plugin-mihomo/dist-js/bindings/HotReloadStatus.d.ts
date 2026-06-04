@@ -1,1 +1,5 @@
-﻿export type HotReloadStatus = { ruleVersion: string, protectedConns: number, xdpLoaded: boolean, };
+export type HotReloadStatus = {
+    ruleVersion: string;
+    protectedConns: number;
+    xdpLoaded: boolean;
+};
