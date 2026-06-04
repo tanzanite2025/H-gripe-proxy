@@ -81,6 +81,8 @@ export const Select = ({
   }
 
   const widthClass = fullWidth ? 'w-full' : ''
+  const nativeOptionClasses =
+    '[color-scheme:dark] [&>option]:bg-[var(--color-card)] [&>option]:text-[var(--color-text-primary)] [&>option:checked]:bg-[rgba(0,255,65,0.18)]'
 
   // If children are provided, support both single and multiple selection
   if (children) {
@@ -224,6 +226,7 @@ export const Select = ({
                 ? 'ring-2 ring-red-500 dark:ring-red-400'
                 : 'focus:ring-primary dark:focus:ring-primary-dark-mode'
             } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`,
+            nativeOptionClasses,
           )}
           aria-invalid={!!error}
         >
