@@ -14,6 +14,17 @@ test('subscription update uses no-restart config apply to avoid network-breaking
   assert.doesNotMatch(profileFeature, /update_config_with_force\(is_mannual_trigger\)/)
 })
 
+test('subscription update snapshot tolerates a missing current profile file', () => {
+  const profileFeature = readFileSync(profileFeaturePath, 'utf8')
+  const snapshot = profileFeature.match(
+    /async fn snapshot_profile_update\(uid: &String\) -> Result<Option<ProfileUpdateSnapshot>> \{[\s\S]*?\n\}/,
+  )
+
+  assert.ok(snapshot, 'snapshot_profile_update should exist')
+  assert.match(snapshot[0], /try_exists\(&path\)\.await/)
+  assert.match(snapshot[0], /Ok\(false\) => \{[\s\S]*?None[\s\S]*?\}/)
+})
+
 test('no-restart config apply never restarts core after reload failure', () => {
   const coreConfig = readFileSync(coreConfigPath, 'utf8')
   const method = coreConfig.match(

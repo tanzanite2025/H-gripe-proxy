@@ -279,7 +279,19 @@ async fn snapshot_profile_update(uid: &String) -> Result<Option<ProfileUpdateSna
     let file_data = match item.file.as_ref() {
         Some(file) => {
             let path = crate::utils::dirs::app_profiles_dir()?.join(file.as_str());
-            Some(fs::read_to_string(path).await?.into())
+            match fs::try_exists(&path).await {
+                Ok(true) => Some(fs::read_to_string(path).await?.into()),
+                Ok(false) => {
+                    logging!(
+                        warn,
+                        Type::Config,
+                        "Warning: [订阅更新] current profile file is missing before update, will recreate it: {}",
+                        file
+                    );
+                    None
+                }
+                Err(err) => return Err(err.into()),
+            }
         }
         None => None,
     };
