@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "Rule",
-      "global": "Global",
-      "direct": "Direct"
+      "global": "Global"
     },
     "actions": {
       "toggleChain": "Чылбыр прокси",
@@ -54,9 +53,7 @@
       "entryNode": "Кереш",
       "exitNode": "Чыгыш"
     },
-    "messages": {
-      "directMode": "Туры режим"
-    },
+    "messages": {},
     "title": {
       "default": "Прокси төркемнәре",
       "chainMode": "Proxy Chain Mode"

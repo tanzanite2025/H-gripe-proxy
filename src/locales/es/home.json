@@ -92,7 +92,6 @@
       },
       "labels": {
         "globalMode": "Global Mode",
-        "directMode": "Direct Mode",
         "group": "Grupo de proxy",
         "proxy": "Nodo",
         "noActiveNode": "No hay nodos de proxy activos"
@@ -122,13 +121,11 @@
       },
       "labels": {
         "rule": "Modo de reglas",
-        "global": "Modo global",
-        "direct": "Modo de conexión directa"
+        "global": "Modo global"
       },
       "descriptions": {
         "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy.",
-        "direct": "Bypass the proxy and connect to the internet directly."
+        "global": "Forward all network requests through the selected proxy."
       }
     }
   }

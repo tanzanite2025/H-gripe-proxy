@@ -237,7 +237,7 @@
           "collapseNavBar": "Навигация панелен җыю",
           "trayIcon": "Трей иконкасы",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "Гомуми трей иконкасы",
           "systemProxyTrayIcon": "Системалы прокси иконкасы",
           "tunTrayIcon": "Tun (виртуаль адаптер) иконкасы",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "Системалы проксины кабызу/сүндерү",
         "toggleTunMode": "Tun режимын кабызу/сүндерү",
         "entryLightweightMode": "Entry Lightweight Mode",
-        "direct": "Туры режим",
         "reactivateProfiles": "Профильләрне янәдән активлаштыру"
       }
     },

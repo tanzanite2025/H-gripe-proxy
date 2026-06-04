@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "規則",
-      "global": "全局",
-      "direct": "直連"
+      "global": "全局"
     },
     "actions": {
       "toggleChain": "鏈式代理",
@@ -54,9 +53,7 @@
       "entryNode": "入口",
       "exitNode": "出口"
     },
-    "messages": {
-      "directMode": "直連模式"
-    },
+    "messages": {},
     "title": {
       "default": "代理組",
       "chainMode": "鏈式代理模式"

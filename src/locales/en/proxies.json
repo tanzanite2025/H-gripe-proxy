@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "Rule",
-      "global": "Global",
-      "direct": "Direct"
+      "global": "Global"
     },
     "actions": {
       "toggleChain": "Chain Proxy",
@@ -54,9 +53,7 @@
       "entryNode": "Entry",
       "exitNode": "Exit"
     },
-    "messages": {
-      "directMode": "Direct Mode"
-    },
+    "messages": {},
     "title": {
       "default": "Proxy Groups",
       "chainMode": "Proxy Chain Mode"

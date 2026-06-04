@@ -38,10 +38,8 @@ tray:
   dashboard: Идарә панеле
   ruleMode: Кагыйдә режимы
   globalMode: Глобаль режим
-  directMode: Турыдан-туры режим
-  outboundModes: Чыгыш режимнары
+  outboundModes: Proxy-chain Modes
   rule: Кагыйдә
-  direct: Турыдан-туры
   global: Глобаль
   profiles: Профильләр
   proxies: Проксилар

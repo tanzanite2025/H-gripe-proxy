@@ -349,6 +349,14 @@ fn record_ingress_signal(source: impl Into<String>, reason: ThreatReason) {
     let ingress_countermeasure = crate::feat::get_coordinator().ingress_countermeasure();
     let source = source.into();
     tauri::async_runtime::spawn(async move {
-        ingress_countermeasure.record_signal(source, reason).await;
+        ingress_countermeasure.record_signal(source.clone(), reason).await;
+        let plan = ingress_countermeasure.plan_for_source(source.as_str()).await;
+        log::debug!(
+            "Ingress countermeasure plan for {source}: level={:?}, mode={:?}, surfaces={:?}, delay={:?}",
+            plan.level,
+            plan.mode,
+            plan.fake_surfaces,
+            plan.delay_window
+        );
     });
 }

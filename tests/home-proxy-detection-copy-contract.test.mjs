@@ -25,23 +25,29 @@ test('proxy detection card avoids direct as a visible global-mode label', () => 
 test('proxy detection copy names egress paths instead of another direct mode', () => {
   const zh = JSON.parse(readFileSync(zhHomeLocalePath, 'utf8'))
   const en = JSON.parse(readFileSync(enHomeLocalePath, 'utf8'))
+  const zhProxyDetection = zh.components.proxyDetection
+  const enProxyDetection = en.components.proxyDetection
 
   assert.equal(
-    zh.components.proxyDetection.labels.localEgress,
+    zhProxyDetection.labels.localEgress,
     '本机出口',
   )
   assert.equal(
-    zh.components.proxyDetection.labels.proxyEgress,
+    zhProxyDetection.labels.proxyEgress,
     '代理链路出口',
   )
   assert.equal(
-    en.components.proxyDetection.labels.localEgress,
+    enProxyDetection.labels.localEgress,
     'Local egress',
   )
   assert.equal(
-    en.components.proxyDetection.labels.proxyEgress,
+    enProxyDetection.labels.proxyEgress,
     'Proxy-chain egress',
   )
-  assert.notEqual(zh.components.proxyDetection.labels.localEgress, '直连')
-  assert.notEqual(en.components.proxyDetection.labels.localEgress, 'Direct')
+  assert.equal('direct' in zhProxyDetection.labels, false)
+  assert.equal('proxy' in zhProxyDetection.labels, false)
+  assert.equal('direct' in enProxyDetection.labels, false)
+  assert.equal('proxy' in enProxyDetection.labels, false)
+  assert.doesNotMatch(JSON.stringify(zhProxyDetection), /直连/)
+  assert.doesNotMatch(JSON.stringify(enProxyDetection), /\bDirect\b/)
 })

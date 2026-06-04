@@ -237,7 +237,7 @@
           "collapseNavBar": "Navigationsleiste einklappen",
           "trayIcon": "Tray-Symbol",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "Standard-Tray-Symbol",
           "systemProxyTrayIcon": "Systemproxy-Tray-Symbol",
           "tunTrayIcon": "TUN-Modus-Tray-Symbol",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "Systemproxy ein/ausschalten",
         "toggleTunMode": "TUN-Modus ein/ausschalten",
         "entryLightweightMode": "Leichtgewichtigen Modus betreten",
-        "direct": "Direktverbindungs-Modus",
         "reactivateProfiles": "Abonnement erneut aktivieren"
       }
     },

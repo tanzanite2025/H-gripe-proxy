@@ -51,7 +51,6 @@ export interface TranslationResources {
         }
         clashMode: {
           descriptions: {
-            direct: string
             global: string
             rule: string
           }
@@ -59,7 +58,6 @@ export interface TranslationResources {
             communication: string
           }
           labels: {
-            direct: string
             global: string
             rule: string
           }
@@ -69,7 +67,6 @@ export interface TranslationResources {
             refreshDelay: string
           }
           labels: {
-            directMode: string
             globalMode: string
             group: string
             noActiveNode: string
@@ -141,10 +138,8 @@ export interface TranslationResources {
             unknown: string
           }
           labels: {
-            direct: string
             localEgress: string
             notObserved: string
-            proxy: string
             proxyEgress: string
             unknown: string
           }
@@ -542,11 +537,7 @@ export interface TranslationResources {
           delayCheckReset: string
           proxyCount: string
         }
-        messages: {
-          directMode: string
-        }
         modes: {
-          direct: string
           global: string
           rule: string
         }
@@ -1013,7 +1004,6 @@ export interface TranslationResources {
         }
         hotkey: {
           functions: {
-            direct: string
             entryLightweightMode: string
             global: string
             openOrCloseDashboard: string

@@ -237,7 +237,7 @@
           "collapseNavBar": "طي شريط التنقل",
           "trayIcon": "أيقونة شريط المهام",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "أيقونة شريط مهام عامة",
           "systemProxyTrayIcon": "أيقونة شريط المهام لوكيل النظام",
           "tunTrayIcon": "أيقونة شريط المهام لـ TUN",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "تفعيل/تعطيل وكيل النظام",
         "toggleTunMode": "تفعيل/تعطيل وضع TUN",
         "entryLightweightMode": "Entry Lightweight Mode",
-        "direct": "الوضع المباشر",
         "reactivateProfiles": "إعادة تنشيط الملفات الشخصية"
       }
     },

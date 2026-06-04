@@ -237,7 +237,7 @@
           "collapseNavBar": "내비게이션 바 접기",
           "trayIcon": "트레이 아이콘",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "공용 트레이 아이콘",
           "systemProxyTrayIcon": "시스템 프록시 트레이 아이콘",
           "tunTrayIcon": "TUN 트레이 아이콘",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "시스템 프록시 켜기/끄기",
         "toggleTunMode": "TUN 모드 켜기/끄기",
         "entryLightweightMode": "경량 모드 진입",
-        "direct": "직접 모드",
         "reactivateProfiles": "프로필 재활성화"
       }
     },

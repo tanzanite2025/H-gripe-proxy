@@ -38,10 +38,8 @@ tray:
   dashboard: داشبورد
   ruleMode: حالت قوانین
   globalMode: حالت سراسری
-  directMode: حالت مستقیم
-  outboundModes: حالت‌های خروجی
+  outboundModes: Proxy-chain Modes
   rule: قانون
-  direct: مستقیم
   global: سراسری
   profiles: پروفایل‌ها
   proxies: پروکسی‌ها

@@ -92,7 +92,6 @@
       },
       "labels": {
         "globalMode": "الوضع العالمي",
-        "directMode": "الوضع المباشر",
         "group": "Group",
         "proxy": "Proxy",
         "noActiveNode": "No active proxy node"
@@ -122,13 +121,11 @@
       },
       "labels": {
         "rule": "وضع القواعد",
-        "global": "الوضع العالمي",
-        "direct": "الوضع المباشر"
+        "global": "الوضع العالمي"
       },
       "descriptions": {
         "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy.",
-        "direct": "Bypass the proxy and connect to the internet directly."
+        "global": "Forward all network requests through the selected proxy."
       }
     }
   }

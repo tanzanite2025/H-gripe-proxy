@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "Rule",
-      "global": "Global",
-      "direct": "Direct"
+      "global": "Global"
     },
     "actions": {
       "toggleChain": "Zincir Proxy",
@@ -54,9 +53,7 @@
       "entryNode": "Giriş",
       "exitNode": "Çıkış"
     },
-    "messages": {
-      "directMode": "Doğrudan Mod"
-    },
+    "messages": {},
     "title": {
       "default": "Vekil Grupları",
       "chainMode": "Proxy Chain Mode"

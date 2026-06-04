@@ -38,10 +38,8 @@ tray:
   dashboard: Gösterge Paneli
   ruleMode: Kural Modu
   globalMode: Küresel Mod
-  directMode: Doğrudan Mod
-  outboundModes: Giden Modlar
+  outboundModes: Proxy-chain Modes
   rule: Kural
-  direct: Doğrudan
   global: Küresel
   profiles: Profiller
   proxies: Vekil'ler

@@ -92,7 +92,6 @@
       },
       "labels": {
         "globalMode": "全局模式",
-        "directMode": "直连模式",
         "group": "代理组",
         "proxy": "节点",
         "noActiveNode": "暂无激活的代理节点"
@@ -122,13 +121,11 @@
       },
       "labels": {
         "rule": "规则",
-        "global": "全局",
-        "direct": "直连"
+        "global": "全局"
       },
       "descriptions": {
         "rule": "基于预设规则智能判断流量走向，提供灵活的代理策略",
-        "global": "所有流量均通过代理服务器，适用于需要全局科学上网的场景",
-        "direct": "所有流量不经过代理节点，但经过 Clash 内核转发连接目标服务器，适用于需要通过内核进行分流的特定场景"
+        "global": "所有流量均通过代理服务器，适用于需要全局科学上网的场景"
       }
     },
     "proxyDetection": {
@@ -143,8 +140,6 @@
         "failed": "检测失败"
       },
       "labels": {
-        "direct": "直连",
-        "proxy": "代理",
         "localEgress": "本机出口",
         "proxyEgress": "代理链路出口",
         "unknown": "未知",
@@ -158,11 +153,11 @@
         },
         "sameEgress": {
           "title": "观测到相同出口",
-          "description": "直连路径和本地内核代理路径当前看起来一致。"
+          "description": "本机出口和代理链路出口当前看起来一致。"
         },
         "incomplete": {
           "title": "观测不完整",
-          "description": "直连路径和代理路径没有同时观测到。"
+          "description": "本机出口和代理链路出口没有同时观测到。"
         }
       },
       "assessment": {
@@ -177,9 +172,9 @@
         "low": "低置信度"
       },
       "observationPath": {
-        "directVsCore": "直连 vs 内核",
-        "directOnly": "仅直连",
-        "coreOnly": "仅内核"
+        "directVsCore": "本机出口 vs 代理链路",
+        "directOnly": "仅本机出口",
+        "coreOnly": "仅代理链路出口"
       },
       "core": {
         "running": "内核运行中",
@@ -187,23 +182,23 @@
       },
       "runtimeRisk": {
         "coreNotRunning": "本地内核未运行",
-        "directEgressUnavailable": "直连出口不可用",
+        "directEgressUnavailable": "本机出口不可用",
         "localCoreProxyUnreachable": "内核代理出口不可达",
         "proxyReputationUnavailable": "代理出口信誉不可用"
       },
       "alerts": {
-        "observationIncomplete": "当前只获得了部分出口观测结果。请在直连路径和本地内核代理路径都可用时重试。"
+        "observationIncomplete": "当前只获得了部分出口观测结果。请在本机出口和代理链路出口都可用时重试。"
       },
       "adviceDialog": {
         "title": "检测建议"
       },
       "advice": {
-        "ipChanged": "直连和代理出口 IP 不同，应用流量正在使用不同出口。",
-        "locationChanged": "直连和代理出口位置不同，可结合 IP 信誉继续检查出口质量。",
+        "ipChanged": "本机出口和代理链路出口 IP 不同，应用流量正在使用不同出口。",
+        "locationChanged": "本机出口和代理链路出口位置不同，可结合 IP 信誉继续检查出口质量。",
         "reputation": "代理出口信誉：{{ipType}}，评分 {{score}}，ASN {{asn}}。",
-        "proxyEffective": "代理出口不同于直连出口，代理路径看起来已生效。",
-        "sameEgress": "已比较直连和代理出口，但没有看到明确出口变化；请检查规则匹配和当前节点。",
-        "observationIncomplete": "观测不完整；请在直连和本地内核代理路径都可用时重试。",
+        "proxyEffective": "代理链路出口不同于本机出口，代理链路看起来已生效。",
+        "sameEgress": "已比较本机出口和代理链路出口，但没有看到明确出口变化；请检查规则匹配和当前节点。",
+        "observationIncomplete": "观测不完整；请在本机出口和代理链路出口都可用时重试。",
         "noClearChange": "没有观测到明确的代理出口变化；请检查代理模式、规则链路和当前节点。"
       },
       "ipType": {

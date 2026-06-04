@@ -92,7 +92,6 @@
       },
       "labels": {
         "globalMode": "グローバルモード",
-        "directMode": "直接接続モード",
         "group": "プロキシグループ",
         "proxy": "ノード",
         "noActiveNode": "アクティブなプロキシノードがありません。"
@@ -122,13 +121,11 @@
       },
       "labels": {
         "rule": "ルールモード",
-        "global": "グローバルモード",
-        "direct": "直接接続モード"
+        "global": "グローバルモード"
       },
       "descriptions": {
         "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy.",
-        "direct": "Bypass the proxy and connect to the internet directly."
+        "global": "Forward all network requests through the selected proxy."
       }
     }
   }

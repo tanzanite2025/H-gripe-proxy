@@ -38,10 +38,8 @@ tray:
   dashboard: Übersicht
   ruleMode: Regelmodus
   globalMode: Globaler Modus
-  directMode: Direktmodus
-  outboundModes: Ausgangsmodi
+  outboundModes: Proxy-chain Modes
   rule: Regel
-  direct: Direkt
   global: Global
   profiles: Profile
   proxies: Proxy

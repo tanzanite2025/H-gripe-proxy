@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "Rule",
-      "global": "Global",
-      "direct": "Direct"
+      "global": "Global"
     },
     "actions": {
       "toggleChain": "Proxy Rantai",
@@ -54,9 +53,7 @@
       "entryNode": "Masuk",
       "exitNode": "Keluar"
     },
-    "messages": {
-      "directMode": "Mode Langsung"
-    },
+    "messages": {},
     "title": {
       "default": "Grup Proksi",
       "chainMode": "Proxy Chain Mode"

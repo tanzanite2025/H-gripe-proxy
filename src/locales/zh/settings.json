@@ -237,7 +237,7 @@
           "collapseNavBar": "收起导航栏",
           "trayIcon": "托盘图标",
           "proxyGroupsDisplayMode": "托盘代理组显示模式",
-          "showOutboundModesInline": "将出站模式显示在托盘一级菜单",
+          "showOutboundModesInline": "将代理链路模式显示在托盘一级菜单",
           "commonTrayIcon": "常规托盘图标",
           "systemProxyTrayIcon": "系统代理托盘图标",
           "tunTrayIcon": "TUN 模式托盘图标",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "打开/关闭系统代理",
         "toggleTunMode": "打开/关闭 TUN 模式",
         "entryLightweightMode": "进入轻量模式",
-        "direct": "直连模式",
         "reactivateProfiles": "重新激活订阅"
       }
     },

@@ -237,7 +237,7 @@
           "collapseNavBar": "ナビゲーションバーを折りたたむ",
           "trayIcon": "トレイアイコン",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "通常のトレイアイコン",
           "systemProxyTrayIcon": "システムプロキシトレイアイコン",
           "tunTrayIcon": "TUNモードトレイアイコン",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "システムプロキシを開く/閉じる",
         "toggleTunMode": "TUNモードを開く/閉じる",
         "entryLightweightMode": "軽量モードに入る",
-        "direct": "直接接続モード",
         "reactivateProfiles": "プロファイルを再アクティブ化"
       }
     },

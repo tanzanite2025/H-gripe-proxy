@@ -5,6 +5,7 @@ import test from 'node:test'
 
 const repoRoot = process.cwd()
 const coordinatorPath = join(repoRoot, 'src', 'services', 'coordinator.ts')
+const securityRuntimePath = join(repoRoot, 'src-tauri', 'src', 'core', 'security_runtime.rs')
 
 test('advanced config service exposes ingress countermeasure config contract', () => {
   const service = readFileSync(coordinatorPath, 'utf8')
@@ -63,5 +64,20 @@ test('advanced config service exposes ingress countermeasure config contract', (
     service,
     /function normalizeIngressCountermeasureConfig|function serializeIngressCountermeasureConfig/,
     'ingress countermeasure should not add redundant identity-only boundary helpers',
+  )
+})
+
+test('runtime ingress signals are classified into response plans', () => {
+  const runtime = readFileSync(securityRuntimePath, 'utf8')
+
+  assert.match(
+    runtime,
+    /record_ingress_signal[\s\S]*record_signal\(source\.clone\(\), reason\)\.await[\s\S]*plan_for_source\(source\.as_str\(\)\)\.await/,
+    'ingress signal recording should feed the response-plan path in runtime builds',
+  )
+  assert.match(
+    runtime,
+    /Ingress countermeasure plan/,
+    'runtime should leave an observable debug trace for the computed response plan',
   )
 })

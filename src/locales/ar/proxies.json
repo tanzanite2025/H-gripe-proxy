@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "Rule",
-      "global": "Global",
-      "direct": "Direct"
+      "global": "Global"
     },
     "actions": {
       "toggleChain": "بروكسي السلسلة",
@@ -54,9 +53,7 @@
       "entryNode": "مدخل",
       "exitNode": "مخرج"
     },
-    "messages": {
-      "directMode": "الوضع المباشر"
-    },
+    "messages": {},
     "title": {
       "default": "مجموعات الوكلاء",
       "chainMode": "Proxy Chain Mode"

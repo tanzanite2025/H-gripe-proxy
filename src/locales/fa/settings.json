@@ -237,7 +237,7 @@
           "collapseNavBar": "جمع کردن نوار ناوبری",
           "trayIcon": "آیکون سینی سیستم",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "آیکون مشترک سینی سیستم",
           "systemProxyTrayIcon": "آیکون سینی پراکسی سیستم",
           "tunTrayIcon": "آیکون سینی Tun",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "فعال/غیرفعال کردن پراکسی سیستم",
         "toggleTunMode": "فعال/غیرفعال کردن حالت Tun",
         "entryLightweightMode": "Entry Lightweight Mode",
-        "direct": "حالت مستقیم",
         "reactivateProfiles": "فعال‌سازی مجدد پروفایل‌ها"
       }
     },

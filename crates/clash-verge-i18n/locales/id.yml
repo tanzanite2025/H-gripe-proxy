@@ -38,10 +38,8 @@ tray:
   dashboard: Dasbor
   ruleMode: Mode Aturan
   globalMode: Mode Global
-  directMode: Mode Langsung
-  outboundModes: Mode Keluar
+  outboundModes: Proxy-chain Modes
   rule: Aturan
-  direct: Langsung
   global: Global
   profiles: Profil
   proxies: Proksi

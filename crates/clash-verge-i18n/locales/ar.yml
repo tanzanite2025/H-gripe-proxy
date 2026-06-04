@@ -38,10 +38,8 @@ tray:
   dashboard: لوحة التحكم
   ruleMode: وضع القواعد
   globalMode: الوضع العام
-  directMode: الوضع المباشر
-  outboundModes: أوضاع الخروج
+  outboundModes: Proxy-chain Modes
   rule: قاعدة
-  direct: مباشر
   global: عام
   profiles: الملفات التعريفية
   proxies: وكلاء

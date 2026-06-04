@@ -237,7 +237,7 @@
           "collapseNavBar": "Ciutkan bilah navigasi",
           "trayIcon": "Ikon Tray",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "Ikon Tray Umum",
           "systemProxyTrayIcon": "Ikon Tray Proksi Sistem",
           "tunTrayIcon": "Ikon Tray Tun",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "Aktifkan/Nonaktifkan Proksi Sistem",
         "toggleTunMode": "Aktifkan/Nonaktifkan Mode Tun",
         "entryLightweightMode": "Entry Lightweight Mode",
-        "direct": "Mode Langsung",
         "reactivateProfiles": "Reaktivasi Profil"
       }
     },

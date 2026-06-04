@@ -2,8 +2,7 @@
   "page": {
     "modes": {
       "rule": "Правила",
-      "global": "Глобальный",
-      "direct": "Прямой"
+      "global": "Глобальный"
     },
     "actions": {
       "toggleChain": "Цепочка прокси",
@@ -54,9 +53,7 @@
       "entryNode": "Вход",
       "exitNode": "Выход"
     },
-    "messages": {
-      "directMode": "Прямой режим"
-    },
+    "messages": {},
     "title": {
       "default": "Группы прокси",
       "chainMode": "Режим цепочки прокси"

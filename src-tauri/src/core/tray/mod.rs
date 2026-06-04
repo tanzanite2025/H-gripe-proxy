@@ -576,6 +576,14 @@ fn create_proxy_menu_item(
     Ok((proxies_submenu, inline_proxy_items))
 }
 
+fn normalize_proxy_chain_mode(mode: &str) -> &str {
+    match mode {
+        "global" => "global",
+        "direct" => "rule",
+        _ => "rule",
+    }
+}
+
 async fn create_tray_menu(
     app_handle: &AppHandle,
     mode: Option<&str>,
@@ -585,7 +593,7 @@ async fn create_tray_menu(
     profiles_preview: Vec<IProfilePreview<'_>>,
     is_lightweight_mode: bool,
 ) -> Result<tauri::menu::Menu<Wry>> {
-    let current_proxy_mode = mode.unwrap_or("");
+    let current_proxy_mode = normalize_proxy_chain_mode(mode.unwrap_or(""));
 
     // TODO: should update tray menu again when it was timeout error
     let snapshot_service = RuntimeSnapshotService::global();
@@ -675,21 +683,11 @@ async fn create_tray_menu(
         hotkeys.get("clash_mode_global").map(|s| s.as_str()),
     )?;
 
-    let direct_mode = &CheckMenuItem::with_id(
-        app_handle,
-        MenuIds::DIRECT_MODE,
-        &texts.direct_mode,
-        true,
-        current_proxy_mode == "direct",
-        hotkeys.get("clash_mode_direct").map(|s| s.as_str()),
-    )?;
-
     let outbound_modes = if show_outbound_modes_inline {
         None
     } else {
         let current_mode_text = match current_proxy_mode {
             "global" => clash_verge_i18n::t!("tray.global"),
-            "direct" => clash_verge_i18n::t!("tray.direct"),
             _ => clash_verge_i18n::t!("tray.rule"),
         };
         let outbound_modes_label = format!("{} ({})", texts.outbound_modes, current_mode_text);
@@ -701,7 +699,6 @@ async fn create_tray_menu(
             &[
                 rule_mode as &dyn IsMenuItem<Wry>,
                 global_mode as &dyn IsMenuItem<Wry>,
-                direct_mode as &dyn IsMenuItem<Wry>,
             ],
         )?)
     };
@@ -823,11 +820,7 @@ async fn create_tray_menu(
     let mut menu_items: Vec<&dyn IsMenuItem<Wry>> = vec![open_window, separator];
 
     if show_outbound_modes_inline {
-        menu_items.extend_from_slice(&[
-            rule_mode as &dyn IsMenuItem<Wry>,
-            global_mode as &dyn IsMenuItem<Wry>,
-            direct_mode as &dyn IsMenuItem<Wry>,
-        ]);
+        menu_items.extend_from_slice(&[rule_mode as &dyn IsMenuItem<Wry>, global_mode as &dyn IsMenuItem<Wry>]);
     } else if let Some(ref outbound_modes) = outbound_modes {
         menu_items.push(outbound_modes);
     }
@@ -915,7 +908,7 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
     }
     AsyncHandler::spawn(|| async move {
         match event.id.as_ref() {
-            mode @ (MenuIds::RULE_MODE | MenuIds::GLOBAL_MODE | MenuIds::DIRECT_MODE) => {
+            mode @ (MenuIds::RULE_MODE | MenuIds::GLOBAL_MODE) => {
                 // Removing the the "tray_" prefix and "_mode" suffix
                 if let Some(stripped) = mode.strip_prefix("tray_")
                     && let Some(final_mode) = stripped.strip_suffix("_mode")

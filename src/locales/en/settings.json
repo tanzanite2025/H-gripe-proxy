@@ -237,7 +237,7 @@
           "collapseNavBar": "Collapse Navigation Bar",
           "trayIcon": "Tray Icon",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Outbound Modes Inline",
+          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
           "commonTrayIcon": "Common Tray Icon",
           "systemProxyTrayIcon": "System Proxy Tray Icon",
           "tunTrayIcon": "Tun Tray Icon",
@@ -605,7 +605,6 @@
         "toggleSystemProxy": "Enable/Disable System Proxy",
         "toggleTunMode": "Enable/Disable Tun Mode",
         "entryLightweightMode": "Entry Lightweight Mode",
-        "direct": "Direct Mode",
         "reactivateProfiles": "Reactivate Profiles"
       }
     },

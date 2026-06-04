@@ -92,7 +92,6 @@
       },
       "labels": {
         "globalMode": "Global Mode",
-        "directMode": "Direct Mode",
         "group": "Group",
         "proxy": "Proxy",
         "noActiveNode": "No active proxy node"
@@ -122,13 +121,11 @@
       },
       "labels": {
         "rule": "Rule",
-        "global": "Global",
-        "direct": "Direct"
+        "global": "Global"
       },
       "descriptions": {
         "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy.",
-        "direct": "Bypass the proxy and connect to the internet directly."
+        "global": "Forward all network requests through the selected proxy."
       }
     },
     "proxyDetection": {
@@ -143,8 +140,6 @@
         "failed": "Detection failed"
       },
       "labels": {
-        "direct": "Direct",
-        "proxy": "Proxy",
         "localEgress": "Local egress",
         "proxyEgress": "Proxy-chain egress",
         "unknown": "Unknown",
@@ -158,11 +153,11 @@
         },
         "sameEgress": {
           "title": "Same egress observed",
-          "description": "Direct and local-core proxy paths currently look identical."
+          "description": "Local and proxy-chain egress currently look identical."
         },
         "incomplete": {
           "title": "Observation incomplete",
-          "description": "Direct and proxy paths were not both observed."
+          "description": "Local and proxy-chain egress were not both observed."
         }
       },
       "assessment": {
@@ -177,9 +172,9 @@
         "low": "Low confidence"
       },
       "observationPath": {
-        "directVsCore": "Direct vs core",
-        "directOnly": "Direct only",
-        "coreOnly": "Core only"
+        "directVsCore": "Local vs proxy-chain",
+        "directOnly": "Local egress only",
+        "coreOnly": "Proxy-chain egress only"
       },
       "core": {
         "running": "Core running",
@@ -187,23 +182,23 @@
       },
       "runtimeRisk": {
         "coreNotRunning": "Local core is not running",
-        "directEgressUnavailable": "Direct egress unavailable",
+        "directEgressUnavailable": "Local egress unavailable",
         "localCoreProxyUnreachable": "Core proxy egress unavailable",
         "proxyReputationUnavailable": "Proxy reputation unavailable"
       },
       "alerts": {
-        "observationIncomplete": "Only part of the egress observation is available. Retry when both direct and local-core proxy paths are reachable."
+        "observationIncomplete": "Only part of the egress observation is available. Retry when both local and proxy-chain egress are reachable."
       },
       "adviceDialog": {
         "title": "Detection Advice"
       },
       "advice": {
-        "ipChanged": "Direct and proxy egress IPs differ; app traffic is using a different exit.",
-        "locationChanged": "Direct and proxy egress locations differ; combine this with IP reputation for quality checks.",
+        "ipChanged": "Local and proxy-chain egress IPs differ; app traffic is using a different exit.",
+        "locationChanged": "Local and proxy-chain egress locations differ; combine this with IP reputation for quality checks.",
         "reputation": "Proxy egress reputation: {{ipType}}, score {{score}}, ASN {{asn}}.",
-        "proxyEffective": "Proxy egress differs from direct egress; the proxy path appears effective.",
-        "sameEgress": "Direct and proxy egress were compared but no clear exit change was observed; check rule matching and selected node.",
-        "observationIncomplete": "Observation is incomplete; retry when both direct and local-core proxy paths are available.",
+        "proxyEffective": "Proxy-chain egress differs from local egress; the proxy chain appears effective.",
+        "sameEgress": "Local and proxy-chain egress were compared but no clear exit change was observed; check rule matching and selected node.",
+        "observationIncomplete": "Observation is incomplete; retry when both local and proxy-chain egress are available.",
         "noClearChange": "No clear proxy egress change was observed; check proxy mode, rule path, and current node."
       },
       "ipType": {
