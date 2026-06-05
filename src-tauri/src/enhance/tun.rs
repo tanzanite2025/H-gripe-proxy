@@ -120,10 +120,7 @@ fn ensure_lan_direct_rules_before_match(config: &mut Mapping) {
             .is_none_or(|rule| !LAN_DIRECT_RULES.iter().any(|lan_rule| rule == *lan_rule))
     });
 
-    let insert_at = seq
-        .iter()
-        .position(|rule| is_match_rule(rule))
-        .unwrap_or(seq.len());
+    let insert_at = seq.iter().position(|rule| is_match_rule(rule)).unwrap_or(seq.len());
 
     for rule in LAN_DIRECT_RULES.iter().rev() {
         seq.insert(insert_at, Value::from(*rule));
@@ -176,10 +173,7 @@ rules:
                 .iter()
                 .position(|rule| *rule == expected_rule)
                 .unwrap_or_else(|| panic!("{expected_rule} should be injected"));
-            assert!(
-                index < match_index,
-                "{expected_rule} should be inserted before MATCH"
-            );
+            assert!(index < match_index, "{expected_rule} should be inserted before MATCH");
         }
     }
 }

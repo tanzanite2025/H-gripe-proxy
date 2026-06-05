@@ -703,7 +703,6 @@ export interface TranslationResources {
               copyEnvType: string
               hotkeySetting: string
               language: string
-              layoutSetting: string
               misc: string
               startPage: string
               startupScript: string
@@ -711,51 +710,6 @@ export interface TranslationResources {
               themeSetting: string
             }
             title: string
-          }
-          layout: {
-            fields: {
-              collapseNavBar: string
-              commonTrayIcon: string
-              enableTrayIcon: string
-              enableTraySpeed: string
-              hoverNavigator: string
-              hoverNavigatorDelay: string
-              memoryUsage: string
-              navIcon: string
-              pauseRenderTrafficStatsOnBlur: string
-              preferSystemTitlebar: string
-              proxyGroupIcon: string
-              proxyGroupsDisplayMode: string
-              showOutboundModesInline: string
-              systemProxyTrayIcon: string
-              toastPosition: string
-              trafficGraph: string
-              trayIcon: string
-              tunTrayIcon: string
-            }
-            options: {
-              icon: {
-                colorful: string
-                disable: string
-                monochrome: string
-              }
-              proxyGroupsDisplayMode: {
-                default: string
-                disable: string
-                inline: string
-              }
-              toastPosition: {
-                bottomLeft: string
-                bottomRight: string
-                topLeft: string
-                topRight: string
-              }
-            }
-            title: string
-            tooltips: {
-              hoverNavigator: string
-              hoverNavigatorDelay: string
-            }
           }
           theme: {
             actions: {

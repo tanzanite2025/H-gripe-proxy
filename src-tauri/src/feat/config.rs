@@ -75,13 +75,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let proxy_bypass = &patch.system_proxy_bypass;
     let language = &patch.language;
     let mixed_port = patch.verge_mixed_port;
-    #[cfg(target_os = "macos")]
-    let tray_icon = &patch.tray_icon;
-    #[cfg(not(target_os = "macos"))]
-    let tray_icon: Option<String> = None;
-    let common_tray_icon = patch.common_tray_icon;
-    let sysproxy_tray_icon = patch.sysproxy_tray_icon;
-    let tun_tray_icon = patch.tun_tray_icon;
     #[cfg(not(target_os = "windows"))]
     let redir_enabled = patch.verge_redir_enabled;
     #[cfg(not(target_os = "windows"))]
@@ -94,16 +87,9 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let socks_port = patch.verge_socks_port;
     let http_enabled = patch.verge_http_enabled;
     let http_port = patch.verge_port;
-    #[cfg(target_os = "macos")]
-    let enable_tray_speed = patch.enable_tray_speed;
-    #[cfg(not(target_os = "macos"))]
-    let enable_tray_speed: Option<bool> = None;
-    // let enable_tray_icon = patch.enable_tray_icon;
     let enable_global_hotkey = patch.enable_global_hotkey;
     let home_cards = patch.home_cards.as_ref();
     let enable_external_controller = patch.enable_external_controller;
-    let tray_proxy_groups_display_mode = &patch.tray_proxy_groups_display_mode;
-    let tray_inline_outbound_modes = patch.tray_inline_outbound_modes;
     let enable_proxy_guard = patch.enable_proxy_guard;
     let proxy_guard_duration = patch.proxy_guard_duration;
     let log_level = &patch.app_log_level;
@@ -167,28 +153,14 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     if language.is_some() {
         update_flags.insert(UpdateFlags::LANGUAGE | UpdateFlags::SYSTRAY_MENU | UpdateFlags::SYSTRAY_TOOLTIP);
     }
-    if common_tray_icon.is_some()
-        || sysproxy_tray_icon.is_some()
-        || tun_tray_icon.is_some()
-        || tray_icon.is_some()
-        || enable_tray_speed.is_some()
-    {
-        update_flags.insert(UpdateFlags::SYSTRAY_ICON);
-    }
     if patch.hotkeys.is_some() {
         update_flags.insert(UpdateFlags::HOTKEY | UpdateFlags::SYSTRAY_MENU);
-    }
-    if tray_proxy_groups_display_mode.is_some() {
-        update_flags.insert(UpdateFlags::SYSTRAY_MENU);
     }
     if log_level.is_some() {
         update_flags.insert(UpdateFlags::LOG_LEVEL);
     }
     if log_max_size.is_some() || log_max_count.is_some() {
         update_flags.insert(UpdateFlags::LOG_FILE);
-    }
-    if tray_inline_outbound_modes.is_some() {
-        update_flags.insert(UpdateFlags::SYSTRAY_MENU);
     }
 
     update_flags
@@ -235,10 +207,6 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         tray::Tray::global()
             .update_icon(&Config::verge().await.latest_arc())
             .await?;
-        #[cfg(target_os = "macos")]
-        if patch.enable_tray_speed.is_some() {
-            tray::Tray::global().update_speed_task(patch.enable_tray_speed.unwrap_or(false));
-        }
     }
     if update_flags.contains(UpdateFlags::SYSTRAY_TOOLTIP) {
         tray::Tray::global().update_tooltip().await?;

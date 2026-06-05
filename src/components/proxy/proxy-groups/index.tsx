@@ -74,7 +74,6 @@ export const ProxyGroups = (props: Props) => {
     renderList,
     timeout,
     proxyGroupNames,
-    verge,
     onProxies,
     onHeadState,
     getGroupHeadState,
@@ -274,8 +273,8 @@ export const ProxyGroups = (props: Props) => {
         <ProxyGroupNavigator
           proxyGroupNames={proxyGroupNames}
           onGroupLocation={handleGroupLocationByNameWithScroll}
-          enableHoverJump={verge?.enable_hover_jump_navigator ?? true}
-          hoverDelay={verge?.hover_jump_navigator_delay ?? DEFAULT_HOVER_DELAY}
+          enableHoverJump={true}
+          hoverDelay={DEFAULT_HOVER_DELAY}
         />
       )}
 

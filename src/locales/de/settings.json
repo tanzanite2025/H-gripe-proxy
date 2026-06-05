@@ -161,7 +161,6 @@
           "startPage": "Startseite",
           "startupScript": "Startskript",
           "themeSetting": "Thema-Einstellungen",
-          "layoutSetting": "Layout-Einstellungen",
           "misc": "Sonstige Einstellungen",
           "hotkeySetting": "Tastenkombinationseinstellungen"
         }
@@ -207,51 +206,6 @@
         },
         "dialogs": {
           "editCssTitle": "Edit CSS"
-        }
-      },
-      "layout": {
-        "title": "Layout-Einstellungen",
-        "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
-          "trafficGraph": "Verkehrsdiagramm",
-          "memoryUsage": "Kern-Speichernutzung",
-          "proxyGroupIcon": "Proxy-Gruppen-Symbol",
-          "toastPosition": "Toast-Position",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Navigationsleiste-Symbol",
-          "collapseNavBar": "Navigationsleiste einklappen",
-          "trayIcon": "Tray-Symbol",
-          "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
-          "commonTrayIcon": "Standard-Tray-Symbol",
-          "systemProxyTrayIcon": "Systemproxy-Tray-Symbol",
-          "tunTrayIcon": "TUN-Modus-Tray-Symbol",
-          "enableTrayIcon": "Tray-Symbol aktivieren",
-          "enableTraySpeed": "Tray-Geschwindigkeit aktivieren",
-          "pauseRenderTrafficStatsOnBlur": "Rendering der Verkehrsstatistiken bei Fokusverlust pausieren"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
-        },
-        "options": {
-          "icon": {
-            "monochrome": "Monochromes Symbol",
-            "colorful": "Farbiges Symbol",
-            "disable": "Deaktivieren"
-          },
-          "toastPosition": {
-            "topLeft": "Oben links",
-            "topRight": "Oben rechts",
-            "bottomLeft": "Unten links",
-            "bottomRight": "Unten rechts"
-          },
-          "proxyGroupsDisplayMode": {
-            "default": "Default",
-            "inline": "Inline",
-            "disable": "Disable"
-          }
         }
       }
     }

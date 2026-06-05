@@ -8,7 +8,6 @@ import {
   useState,
 } from 'react'
 
-import { useVerge } from '@/hooks/system'
 import { debugLog } from '@/utils/misc'
 
 import { GraphOverlay } from './components/graph-overlay'
@@ -45,9 +44,7 @@ export const EnhancedCanvasTrafficGraph = memo(
   function EnhancedCanvasTrafficGraph({
     ref,
   }: EnhancedCanvasTrafficGraphProps) {
-    const verge = useVerge()
-    const pauseRenderOnBlur =
-      verge.verge?.pause_render_traffic_stats_on_blur ?? true
+    const pauseRenderOnBlur = true
 
     // 基础状态
     const [timeRange, setTimeRange] = useState<TimeRange>(10)

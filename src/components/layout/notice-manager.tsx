@@ -11,7 +11,7 @@ import {
 } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 
-type NoticePosition = NonNullable<IVergeConfig['notice_position']>
+type NoticePosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 type NoticeItem = ReturnType<typeof getSnapshotNotices>[number]
 type TranslationFn = ReturnType<typeof useTranslation>['t']
 

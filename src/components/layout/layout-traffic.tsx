@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 
 import { LightweightTrafficErrorBoundary } from '@/components/ui/traffic-error-boundary'
 import { useMemoryData, useTrafficData } from '@/hooks/data'
-import { useVerge } from '@/hooks/system'
 import { useVisibility } from '@/hooks/ui'
 import { cn } from '@/utils/cn'
 import parseTraffic from '@/utils/format'
@@ -16,10 +15,9 @@ interface LayoutTrafficProps {
 
 export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
   const { t } = useTranslation()
-  const { verge } = useVerge()
 
   // whether hide traffic graph
-  const trafficGraph = verge?.traffic_graph ?? true
+  const trafficGraph = true
 
   const trafficRef = useRef<TrafficRef>(null)
   const pageVisible = useVisibility()
@@ -42,7 +40,7 @@ export const LayoutTraffic = ({ horizontal = false }: LayoutTrafficProps) => {
   }, [traffic, horizontal])
 
   // 显示内存使用情况的设置
-  const displayMemory = verge?.enable_memory_usage ?? true
+  const displayMemory = true
 
   // 使用parseTraffic统一处理转换，保持与首页一致的显示格式
   const [up, upUnit] = parseTraffic(traffic?.up || 0)

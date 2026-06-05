@@ -6,7 +6,6 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useMatch, useNavigate, useResolvedPath } from 'react-router'
 
 import { ListItem, ListItemButton } from '@/components/tailwind'
-import { useVerge } from '@/hooks/system'
 
 interface SortableProps {
   setNodeRef?: (element: HTMLElement | null) => void
@@ -25,8 +24,7 @@ interface Props {
 }
 export const LayoutItem = (props: Props) => {
   const { to, children, sortable } = props
-  const { verge } = useVerge()
-  const navCollapsed = verge?.collapse_navbar ?? false
+  const navCollapsed = false
   const resolved = useResolvedPath(to)
   const match = useMatch({ path: resolved.pathname, end: true })
   const navigate = useNavigate()

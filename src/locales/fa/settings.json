@@ -161,7 +161,6 @@
           "startPage": "صفحه شروع",
           "startupScript": "اسکریپت راه‌اندازی",
           "themeSetting": "تنظیمات تم",
-          "layoutSetting": "تنظیمات چیدمان",
           "misc": "متفرقه",
           "hotkeySetting": "تنظیمات کلیدهای میانبر"
         }
@@ -207,51 +206,6 @@
         },
         "dialogs": {
           "editCssTitle": "Edit CSS"
-        }
-      },
-      "layout": {
-        "title": "تنظیمات چیدمان",
-        "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
-          "trafficGraph": "نمودار ترافیک",
-          "memoryUsage": "استفاده از حافظه",
-          "proxyGroupIcon": "آیکون گروه پراکسی",
-          "toastPosition": "Toast Position",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "آیکون ناوبری",
-          "collapseNavBar": "جمع کردن نوار ناوبری",
-          "trayIcon": "آیکون سینی سیستم",
-          "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
-          "commonTrayIcon": "آیکون مشترک سینی سیستم",
-          "systemProxyTrayIcon": "آیکون سینی پراکسی سیستم",
-          "tunTrayIcon": "آیکون سینی Tun",
-          "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "فعال کردن سرعت ترای",
-          "pauseRenderTrafficStatsOnBlur": "توقف رندر آمار ترافیک هنگام از دست رفتن فوکوس"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
-        },
-        "options": {
-          "icon": {
-            "monochrome": "تک رنگ",
-            "colorful": "رنگارنگ",
-            "disable": "غیرفعال کردن"
-          },
-          "toastPosition": {
-            "topLeft": "Top Left",
-            "topRight": "Top Right",
-            "bottomLeft": "Bottom Left",
-            "bottomRight": "Bottom Right"
-          },
-          "proxyGroupsDisplayMode": {
-            "default": "Default",
-            "inline": "Inline",
-            "disable": "Disable"
-          }
         }
       }
     }

@@ -4,13 +4,12 @@ use crate::core::service;
 use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::window_manager::WindowManager;
-use crate::{Type, cmd, config::Config, core::clash_mode::ClashMode, feat, logging, utils::dirs::find_target_icons};
+use crate::{Type, cmd, config::Config, core::clash_mode::ClashMode, feat, logging};
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 use tauri_plugin_mihomo::models::Proxies;
-use tokio::fs;
 
 use super::handle;
 use anyhow::Result;
@@ -59,44 +58,25 @@ impl TrayState {
         } else {
             IconKind::Common
         };
-        Self::load_icon(verge, kind).await
+        Self::load_icon(kind).await
     }
 
-    async fn load_icon(verge: &IVerge, kind: IconKind) -> (bool, Vec<u8>) {
-        let (custom_enabled, icon_name) = match kind {
-            IconKind::Common => (verge.common_tray_icon.unwrap_or(false), "common"),
-            IconKind::SysProxy => (verge.sysproxy_tray_icon.unwrap_or(false), "sysproxy"),
-            IconKind::Tun => (verge.tun_tray_icon.unwrap_or(false), "tun"),
-        };
-
-        if custom_enabled
-            && let Ok(Some(path)) = find_target_icons(icon_name)
-            && let Ok(data) = fs::read(path).await
-        {
-            return (true, data);
-        }
-
-        Self::default_icon(verge, kind)
+    async fn load_icon(kind: IconKind) -> (bool, Vec<u8>) {
+        Self::default_icon(kind)
     }
 
-    fn default_icon(verge: &IVerge, kind: IconKind) -> (bool, Vec<u8>) {
+    fn default_icon(kind: IconKind) -> (bool, Vec<u8>) {
         #[cfg(target_os = "macos")]
         {
-            let is_mono = verge.tray_icon.as_deref().unwrap_or("monochrome") == "monochrome";
-            if is_mono {
-                return (
-                    false,
-                    match kind {
-                        IconKind::Common => include_bytes!("../../../icons/tray-icon-mono.ico").to_vec(),
-                        IconKind::SysProxy => include_bytes!("../../../icons/tray-icon-sys-mono-new.ico").to_vec(),
-                        IconKind::Tun => include_bytes!("../../../icons/tray-icon-tun-mono-new.ico").to_vec(),
-                    },
-                );
-            }
+            return (
+                false,
+                match kind {
+                    IconKind::Common => include_bytes!("../../../icons/tray-icon-mono.ico").to_vec(),
+                    IconKind::SysProxy => include_bytes!("../../../icons/tray-icon-sys-mono-new.ico").to_vec(),
+                    IconKind::Tun => include_bytes!("../../../icons/tray-icon-tun-mono-new.ico").to_vec(),
+                },
+            );
         }
-
-        #[cfg(not(target_os = "macos"))]
-        let _ = verge;
 
         (
             false,
@@ -227,8 +207,7 @@ impl Tray {
 
         #[cfg(target_os = "macos")]
         {
-            let is_colorful = verge.tray_icon.as_deref().unwrap_or("monochrome") == "colorful";
-            logging_error!(Type::Tray, tray.set_icon_as_template(!is_colorful));
+            logging_error!(Type::Tray, tray.set_icon_as_template(true));
         }
 
         Ok(())
@@ -306,7 +285,7 @@ impl Tray {
         self.update_menu().await?;
         self.update_icon(&verge).await?;
         #[cfg(target_os = "macos")]
-        self.update_speed_task(verge.enable_tray_speed.unwrap_or(false));
+        self.update_speed_task(false);
         self.update_tooltip().await?;
         Ok(())
     }
@@ -337,8 +316,7 @@ impl Tray {
         let mut builder = TrayIconBuilder::with_id("main").icon(icon).icon_as_template(false);
         #[cfg(target_os = "macos")]
         {
-            let is_monochrome = verge.tray_icon.as_ref().is_none_or(|v| v == "monochrome");
-            builder = builder.icon_as_template(is_monochrome);
+            builder = builder.icon_as_template(true);
         }
 
         #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -362,8 +340,8 @@ impl Tray {
 
     /// 根据配置统一更新托盘速率采集任务状态（macOS）
     #[cfg(target_os = "macos")]
-    pub fn update_speed_task(&self, enable_tray_speed: bool) {
-        self.speed_controller.update_task(enable_tray_speed);
+    pub fn update_speed_task(&self, enabled: bool) {
+        self.speed_controller.update_task(enabled);
     }
 }
 
@@ -603,11 +581,8 @@ async fn create_tray_menu(
         });
 
     let verge_settings = Config::verge().await.latest_arc();
-    let tray_proxy_groups_display_mode = verge_settings
-        .tray_proxy_groups_display_mode
-        .as_deref()
-        .unwrap_or("default");
-    let show_outbound_modes_inline = verge_settings.tray_inline_outbound_modes.unwrap_or(false);
+    let tray_proxy_groups_display_mode = "default";
+    let show_outbound_modes_inline = false;
 
     let version = env!("CARGO_PKG_VERSION");
 
@@ -662,10 +637,7 @@ async fn create_tray_menu(
             MenuIds::OUTBOUND_MODES,
             outbound_modes_label.as_str(),
             true,
-            &[
-                rule_mode as &dyn IsMenuItem<Wry>,
-                global_mode as &dyn IsMenuItem<Wry>,
-            ],
+            &[rule_mode as &dyn IsMenuItem<Wry>, global_mode as &dyn IsMenuItem<Wry>],
         )?)
     };
 

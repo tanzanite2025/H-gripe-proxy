@@ -1129,22 +1129,7 @@ interface IVergeConfig {
   start_page?: string
   clash_core?: string
   theme_mode?: 'light' | 'dark' | 'system'
-  traffic_graph?: boolean
-  enable_memory_usage?: boolean
-  enable_group_icon?: boolean
-  pause_render_traffic_stats_on_blur?: boolean
-  menu_icon?: 'monochrome' | 'colorful' | 'disable'
   menu_order?: string[]
-  notice_position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-  collapse_navbar?: boolean
-  tray_icon?: 'monochrome' | 'colorful'
-  common_tray_icon?: boolean
-  sysproxy_tray_icon?: boolean
-  tun_tray_icon?: boolean
-  enable_tray_speed?: boolean
-  // enable_tray_icon?: boolean;
-  tray_proxy_groups_display_mode?: 'default' | 'inline' | 'disable'
-  tray_inline_outbound_modes?: boolean
   enable_tun_mode?: boolean
   enable_auto_launch?: boolean
   enable_silent_start?: boolean
@@ -1187,8 +1172,6 @@ interface IVergeConfig {
   webdav_username?: string
   webdav_password?: string
   home_cards?: Record<string, boolean>
-  enable_hover_jump_navigator?: boolean
-  hover_jump_navigator_delay?: number
   enable_tor_proxy?: boolean
   tor_socks_host?: string
   tor_socks_port?: number

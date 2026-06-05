@@ -36,48 +36,9 @@ pub struct IVerge {
     /// startup script path
     pub startup_script: Option<String>,
 
-    /// enable traffic graph default is true
-    pub traffic_graph: Option<bool>,
-
-    /// show memory info (only for Clash Meta)
-    pub enable_memory_usage: Option<bool>,
-
-    /// enable group icon
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_group_icon: Option<bool>,
-
-    /// pause render traffic stats on blur
-    pub pause_render_traffic_stats_on_blur: Option<bool>,
-
-    /// common tray icon
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub common_tray_icon: Option<bool>,
-
-    /// tray icon
-    #[cfg(target_os = "macos")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tray_icon: Option<String>,
-
-    /// menu icon
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub menu_icon: Option<String>,
-
     /// menu order
     #[serde(skip_serializing_if = "Option::is_none")]
     pub menu_order: Option<Vec<String>>,
-
-    /// toast / notice position on screen
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notice_position: Option<String>,
-
-    /// collapse navigation bar
-    pub collapse_navbar: Option<bool>,
-
-    /// sysproxy tray icon
-    pub sysproxy_tray_icon: Option<bool>,
-
-    /// tun tray icon
-    pub tun_tray_icon: Option<bool>,
 
     /// clash tun mode
     pub enable_tun_mode: Option<bool>,
@@ -226,22 +187,6 @@ pub struct IVerge {
         default
     )]
     pub webdav_password: Option<String>,
-
-    #[cfg(target_os = "macos")]
-    pub enable_tray_speed: Option<bool>,
-
-    // pub enable_tray_icon: Option<bool>,
-    /// show proxy groups directly on tray root menu
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tray_proxy_groups_display_mode: Option<String>,
-    /// show outbound modes directly on tray root menu
-    pub tray_inline_outbound_modes: Option<bool>,
-
-    /// 启用代理页面自动滚动
-    pub enable_hover_jump_navigator: Option<bool>,
-
-    /// 代理页面自动滚动延迟（毫秒）
-    pub hover_jump_navigator_delay: Option<u64>,
 
     pub enable_tor_proxy: Option<bool>,
 
@@ -394,22 +339,8 @@ impl IVerge {
             #[cfg(target_os = "windows")]
             env_type: Some("powershell".into()),
             start_page: Some("/".into()),
-            traffic_graph: Some(true),
-            enable_memory_usage: Some(true),
-            enable_group_icon: Some(true),
-            pause_render_traffic_stats_on_blur: Some(true),
-            #[cfg(target_os = "macos")]
-            tray_icon: Some("monochrome".into()),
-            menu_icon: Some("monochrome".into()),
-            notice_position: Some("top-right".into()),
-            collapse_navbar: Some(false),
-            common_tray_icon: Some(false),
-            sysproxy_tray_icon: Some(false),
-            tun_tray_icon: Some(false),
             enable_auto_launch: Some(false),
             enable_silent_start: Some(false),
-            enable_hover_jump_navigator: Some(true),
-            hover_jump_navigator_delay: Some(280),
             enable_system_proxy: Some(false),
             proxy_auto_config: Some(false),
             pac_file_content: Some(DEFAULT_PAC.into()),
@@ -441,11 +372,6 @@ impl IVerge {
             webdav_url: None,
             webdav_username: None,
             webdav_password: None,
-            #[cfg(target_os = "macos")]
-            enable_tray_speed: Some(false),
-            // enable_tray_icon: Some(true),
-            tray_proxy_groups_display_mode: Some("default".into()),
-            tray_inline_outbound_modes: Some(false),
             enable_global_hotkey: Some(true),
             enable_dns_settings: Some(false),
             home_cards: None,
@@ -486,25 +412,11 @@ impl IVerge {
         patch!(env_type);
         patch!(start_page);
         patch!(startup_script);
-        patch!(traffic_graph);
-        patch!(enable_memory_usage);
-        patch!(enable_group_icon);
-        patch!(pause_render_traffic_stats_on_blur);
-        #[cfg(target_os = "macos")]
-        patch!(tray_icon);
-        patch!(menu_icon);
         patch!(menu_order);
-        patch!(notice_position);
-        patch!(collapse_navbar);
-        patch!(common_tray_icon);
-        patch!(sysproxy_tray_icon);
-        patch!(tun_tray_icon);
 
         patch!(enable_tun_mode);
         patch!(enable_auto_launch);
         patch!(enable_silent_start);
-        patch!(enable_hover_jump_navigator);
-        patch!(hover_jump_navigator_delay);
         #[cfg(not(target_os = "windows"))]
         patch!(verge_redir_port);
         #[cfg(not(target_os = "windows"))]
@@ -549,11 +461,6 @@ impl IVerge {
         patch!(webdav_url);
         patch!(webdav_username);
         patch!(webdav_password);
-        #[cfg(target_os = "macos")]
-        patch!(enable_tray_speed);
-        // patch!(enable_tray_icon);
-        patch!(tray_proxy_groups_display_mode);
-        patch!(tray_inline_outbound_modes);
         patch!(enable_dns_settings);
         patch!(home_cards);
         patch!(enable_external_controller);

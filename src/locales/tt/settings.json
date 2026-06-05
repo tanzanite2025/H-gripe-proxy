@@ -161,7 +161,6 @@
           "startPage": "Баш бит",
           "startupScript": "Башлану скрипты",
           "themeSetting": "Тема көйләүләре",
-          "layoutSetting": "Расположение көйләүләре",
           "misc": "Өстәмә көйләүләр",
           "hotkeySetting": "Клавиатура төймәләре (hotkey) көйләүләре"
         }
@@ -207,51 +206,6 @@
         },
         "dialogs": {
           "editCssTitle": "Edit CSS"
-        }
-      },
-      "layout": {
-        "title": "Расположение көйләүләре",
-        "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
-          "trafficGraph": "Трафик графигы",
-          "memoryUsage": "Хәтер куллану",
-          "proxyGroupIcon": "Прокси төркеме иконкасы",
-          "toastPosition": "Toast Position",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Навигация иконкасы",
-          "collapseNavBar": "Навигация панелен җыю",
-          "trayIcon": "Трей иконкасы",
-          "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
-          "showOutboundModesInline": "Show Proxy-chain Modes Inline",
-          "commonTrayIcon": "Гомуми трей иконкасы",
-          "systemProxyTrayIcon": "Системалы прокси иконкасы",
-          "tunTrayIcon": "Tun (виртуаль адаптер) иконкасы",
-          "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "Трей скоростьне үстерү",
-          "pauseRenderTrafficStatsOnBlur": "Фокус югалганда трафик статистикасын сызуны туктатып тору"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
-        },
-        "options": {
-          "icon": {
-            "monochrome": "Монохром",
-            "colorful": "Төсле",
-            "disable": "Сүндерү"
-          },
-          "toastPosition": {
-            "topLeft": "Top Left",
-            "topRight": "Top Right",
-            "bottomLeft": "Bottom Left",
-            "bottomRight": "Bottom Right"
-          },
-          "proxyGroupsDisplayMode": {
-            "default": "Default",
-            "inline": "Inline",
-            "disable": "Disable"
-          }
         }
       }
     }

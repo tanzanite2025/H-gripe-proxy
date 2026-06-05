@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next'
 import { Paper } from '@/components/tailwind/Paper'
 import { TrafficErrorBoundary } from '@/components/ui/traffic-error-boundary'
 import { useConnectionData, useMemoryData, useTrafficData } from '@/hooks/data'
-import { useVerge } from '@/hooks/system'
 import { useVisibility } from '@/hooks/ui'
 import { cn } from '@/utils/cn'
 import parseTraffic from '@/utils/format'
@@ -101,12 +100,11 @@ CompactStatCard.displayName = 'CompactStatCard'
 
 export const EnhancedTrafficStats = () => {
   const { t } = useTranslation()
-  const { verge } = useVerge()
   const trafficRef = useRef<EnhancedCanvasTrafficGraphRef>(null)
   const pageVisible = useVisibility()
 
   // 是否显示流量图表
-  const trafficGraph = verge?.traffic_graph ?? true
+  const trafficGraph = true
 
   const {
     response: { data: traffic },

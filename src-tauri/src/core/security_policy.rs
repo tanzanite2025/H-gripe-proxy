@@ -180,14 +180,7 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
 
     for rule in &policy.rules {
         let idx = mihomo
-            .create_rule(
-                &rule.rule_type,
-                &rule.payload,
-                &rule.proxy,
-                Some(&source),
-                None,
-                None,
-            )
+            .create_rule(&rule.rule_type, &rule.payload, &rule.proxy, Some(&source), None, None)
             .await?;
         indices.push(idx);
     }

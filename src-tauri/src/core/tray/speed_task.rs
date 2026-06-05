@@ -36,8 +36,8 @@ impl TraySpeedController {
         Self::default()
     }
 
-    pub fn update_task(&self, enable_tray_speed: bool) {
-        if enable_tray_speed {
+    pub fn update_task(&self, enabled: bool) {
+        if enabled {
             self.start_task();
         } else {
             self.stop_task();
