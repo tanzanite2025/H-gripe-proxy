@@ -101,7 +101,6 @@
           "logLevel": "Nivel de registro",
           "portConfig": "Configuración de puerto",
           "external": "Control externo",
-          "webUI": "Interfaz web",
           "clashCore": "Núcleo de Clash",
           "openUwpTool": "Abrir herramienta UWP",
           "updateGeoData": "Actualizar GeoData",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "Examinar"
         },
-        "trayOptions": {
-          "showMainWindow": "Mostrar ventana principal",
-          "showTrayMenu": "Mostrar menú de la bandeja",
-          "disable": "Deshabilitar"
-        },
         "fields": {
           "language": "Configuración de idioma",
           "themeMode": "Modo de tema",
-          "trayClickEvent": "Evento de clic en el icono de la bandeja",
           "copyEnvType": "Copiar tipo de variable de entorno",
           "startPage": "Página de inicio",
           "startupScript": "Script de inicio",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "Abrir enlace"
-      },
-      "title": "Interfaz web",
-      "messages": {
-        "supportedPlaceholders": "Soporta %host, %port, %secret",
-        "placeholderInstruction": "Utilice %host, %port, %secret para representar el host, el puerto y la clave de acceso."
       }
     },
     "hotkey": {

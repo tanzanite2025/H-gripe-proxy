@@ -28,9 +28,6 @@ pub struct IVerge {
     /// `light` or `dark` or `system`
     pub theme_mode: Option<String>,
 
-    /// tray click event
-    pub tray_event: Option<String>,
-
     /// copy env type
     pub env_type: Option<String>,
 
@@ -123,9 +120,6 @@ pub struct IVerge {
 
     /// theme setting
     pub theme_setting: Option<IVergeTheme>,
-
-    /// web ui list
-    pub web_ui_list: Option<Vec<String>>,
 
     /// clash core path
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -489,7 +483,6 @@ impl IVerge {
 
         patch!(language);
         patch!(theme_mode);
-        patch!(tray_event);
         patch!(env_type);
         patch!(start_page);
         patch!(startup_script);
@@ -535,7 +528,6 @@ impl IVerge {
         patch!(pac_file_content);
         patch!(proxy_host);
         patch!(theme_setting);
-        patch!(web_ui_list);
         patch!(clash_core);
         patch!(hotkeys);
         patch!(enable_global_hotkey);

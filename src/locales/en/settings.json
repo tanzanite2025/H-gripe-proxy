@@ -101,7 +101,6 @@
           "logLevel": "Log Level",
           "portConfig": "Port Config",
           "external": "External",
-          "webUI": "Web UI",
           "clashCore": "Clash Core",
           "openUwpTool": "Open UWP tool",
           "updateGeoData": "Update GeoData",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "Browse"
         },
-        "trayOptions": {
-          "showMainWindow": "Show Main Window",
-          "showTrayMenu": "Show Tray Menu",
-          "disable": "Disable"
-        },
         "fields": {
           "language": "Language",
           "themeMode": "Theme Mode",
-          "trayClickEvent": "Tray Click Event",
           "copyEnvType": "Copy Env Type",
           "startPage": "Start Page",
           "startupScript": "Startup Script",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "Open URL"
-      },
-      "title": "Web UI",
-      "messages": {
-        "supportedPlaceholders": "Support %host, %port, %secret",
-        "placeholderInstruction": "Replace host, port, secret with %host, %port, %secret"
       }
     },
     "hotkey": {

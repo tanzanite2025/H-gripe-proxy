@@ -1,7 +1,6 @@
 use crate::config::{IProfilePreview, IVerge};
 use crate::core::runtime_snapshot::RuntimeSnapshotService;
 use crate::core::service;
-use crate::core::tray::menu_def::TrayAction;
 use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::window_manager::WindowManager;
@@ -148,26 +147,6 @@ impl Tray {
                     "System tray creation failed: {e}, Application will continue running without tray icon",
                 );
             }
-        }
-        Ok(())
-    }
-
-    /// 更新托盘点击行为
-    pub async fn update_click_behavior(&self) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘点击行为更新");
-            return Ok(());
-        }
-
-        let app_handle = handle::Handle::app_handle();
-        let tray_event = { Config::verge().await.latest_arc().tray_event.clone() };
-        let tray_event = TrayAction::from(tray_event.as_deref().unwrap_or("main_window"));
-        let tray = app_handle
-            .tray_by_id("main")
-            .ok_or_else(|| anyhow::anyhow!("Failed to get main tray"))?;
-        match tray_event {
-            TrayAction::TrayMenu => tray.set_show_menu_on_left_click(true)?,
-            _ => tray.set_show_menu_on_left_click(false)?,
         }
         Ok(())
     }
@@ -354,9 +333,6 @@ impl Tray {
         #[cfg(target_os = "linux")]
         let builder = TrayIconBuilder::with_id("main").icon(icon).icon_as_template(false);
 
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let show_menu_on_left_click = verge.tray_event.as_ref().is_some_and(|v| v == "tray_menu");
-
         #[cfg(not(target_os = "linux"))]
         let mut builder = TrayIconBuilder::with_id("main").icon(icon).icon_as_template(false);
         #[cfg(target_os = "macos")]
@@ -367,9 +343,7 @@ impl Tray {
 
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         {
-            if !show_menu_on_left_click {
-                builder = builder.show_menu_on_left_click(false);
-            }
+            builder = builder.show_menu_on_left_click(false);
         }
 
         let tray = builder.build(app_handle)?;
@@ -857,24 +831,7 @@ fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
         }
 
         AsyncHandler::spawn(|| async move {
-            let verge = Config::verge().await.data_arc();
-            let verge_tray_event = verge.tray_event.clone().unwrap_or_else(|| "main_window".into());
-            let verge_tray_action = TrayAction::from(verge_tray_event.as_str());
-            logging!(debug, Type::Tray, "tray event: {verge_tray_action:?}");
-            match verge_tray_action {
-                TrayAction::SystemProxy => {
-                    let _ = feat::toggle_system_proxy().await;
-                }
-                TrayAction::TunMode => {
-                    let _ = feat::toggle_tun_mode(None).await;
-                }
-                TrayAction::MainWindow => {
-                    WindowManager::show_main_window().await;
-                }
-                _ => {
-                    logging!(warn, Type::Tray, "invalid tray event: {}", verge_tray_event);
-                }
-            };
+            WindowManager::show_main_window().await;
         });
     }
 }

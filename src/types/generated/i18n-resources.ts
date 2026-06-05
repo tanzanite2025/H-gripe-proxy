@@ -536,6 +536,7 @@ export interface TranslationResources {
           delayCheckReset: string
           proxyCount: string
         }
+        messages: {}
         modes: {
           global: string
           rule: string
@@ -708,14 +709,8 @@ export interface TranslationResources {
               startupScript: string
               themeMode: string
               themeSetting: string
-              trayClickEvent: string
             }
             title: string
-            trayOptions: {
-              disable: string
-              showMainWindow: string
-              showTrayMenu: string
-            }
           }
           layout: {
             fields: {
@@ -1122,16 +1117,6 @@ export interface TranslationResources {
           }
           title: string
         }
-        webUI: {
-          actions: {
-            openUrl: string
-          }
-          messages: {
-            placeholderInstruction: string
-            supportedPlaceholders: string
-          }
-          title: string
-        }
       }
       page: {
         actions: {
@@ -1185,7 +1170,6 @@ export interface TranslationResources {
               }
               unifiedDelay: string
               updateGeoData: string
-              webUI: string
             }
             options: {
               findProcessMode: {

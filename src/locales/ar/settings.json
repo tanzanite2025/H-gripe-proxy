@@ -101,7 +101,6 @@
           "logLevel": "مستوى السجلات",
           "portConfig": "تكوين المنافذ",
           "external": "خارجي",
-          "webUI": "واجهة الويب",
           "clashCore": "نواة Clash",
           "openUwpTool": "فتح أداة UWP",
           "updateGeoData": "تحديث البيانات الجغرافية",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "استعراض"
         },
-        "trayOptions": {
-          "showMainWindow": "إظهار النافذة الرئيسية",
-          "showTrayMenu": "Show Tray Menu",
-          "disable": "تعطيل"
-        },
         "fields": {
           "language": "اللغة",
           "themeMode": "وضع السمة",
-          "trayClickEvent": "حدث النقر على الأيقونة في شريط المهام",
           "copyEnvType": "نسخ نوع البيئة",
           "startPage": "صفحة البدء",
           "startupScript": "سكريبت بدء التشغيل",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "فتح الرابط"
-      },
-      "title": "واجهة الويب",
-      "messages": {
-        "supportedPlaceholders": "يدعم %host و%port و%secret",
-        "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret"
       }
     },
     "hotkey": {

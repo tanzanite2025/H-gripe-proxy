@@ -1125,12 +1125,6 @@ interface IVergeConfig {
   app_log_max_size?: number // KB
   app_log_max_count?: number
   language?: string
-  tray_event?:
-    | 'main_window'
-    | 'tray_menu'
-    | 'system_proxy'
-    | 'tun_mode'
-    | string
   env_type?: 'bash' | 'cmd' | 'powershell' | 'fish' | string
   startup_script?: string
   start_page?: string
@@ -1176,7 +1170,6 @@ interface IVergeConfig {
   use_default_bypass?: boolean
   proxy_guard_duration?: number
   system_proxy_bypass?: string
-  web_ui_list?: string[]
   hotkeys?: string[]
   auto_close_connection?: boolean
   auto_check_update?: boolean

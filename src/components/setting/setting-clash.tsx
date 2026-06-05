@@ -5,7 +5,7 @@ import { getBaseConfig, patchBaseConfig, updateGeo } from 'tauri-plugin-mihomo-a
 import { DialogRef, Switch } from '@/components/base'
 import { MenuItem, Select } from '@/components/tailwind/Select'
 import { useClash } from '@/hooks/data'
-import { useClashLog, useVerge } from '@/hooks/system'
+import { useClashLog } from '@/hooks/system'
 import { invoke_uwp_tool, getGeoDataUpdateTime } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/misc'
@@ -19,7 +19,6 @@ import { NetworkInterfaceViewer } from './components/network/network-interface'
 import { TunnelsViewer } from './components/network/tunnels-config'
 import { GuardState } from './components/proxy/guard-state'
 import { SettingItem, SettingList } from './components/shared/setting-item'
-import { WebUIViewer } from './components/webui/webui-config'
 
 const isWIN = getSystem() === 'windows'
 
@@ -31,7 +30,6 @@ const SettingClash = ({ onError }: Props) => {
   const { t } = useTranslation()
 
   const { clash, version, mutateClash, patchClash } = useClash()
-  const { verge } = useVerge()
   const [, setClashLog] = useClashLog()
 
   const {
@@ -42,9 +40,6 @@ const SettingClash = ({ onError }: Props) => {
     'find-process-mode': findProcessMode,
   } = clash ?? {}
 
-  const { verge_mixed_port } = verge ?? {}
-
-  const webRef = useRef<DialogRef>(null)
   const portRef = useRef<DialogRef>(null)
   const ctrlRef = useRef<DialogRef>(null)
   const coreRef = useRef<DialogRef>(null)
@@ -125,7 +120,6 @@ const SettingClash = ({ onError }: Props) => {
 
   return (
     <SettingList title={t('settings.sections.clash.title')}>
-      <WebUIViewer ref={webRef} />
       <ClashPortViewer ref={portRef} />
       <ControllerViewer ref={ctrlRef} />
       <ClashCoreViewer ref={coreRef} />
@@ -286,21 +280,6 @@ const SettingClash = ({ onError }: Props) => {
               跨域设置
             </button>
           </>
-        }
-      >
-        <span />
-      </SettingItem>
-
-      <SettingItem
-        label={t('settings.sections.clash.form.fields.webUI')}
-        extra={
-          <button
-            type="button"
-            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
-            onClick={() => webRef.current?.open()}
-          >
-            打开
-          </button>
         }
       >
         <span />

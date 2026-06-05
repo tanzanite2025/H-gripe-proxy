@@ -101,7 +101,6 @@
           "logLevel": "로그 레벨",
           "portConfig": "포트 설정",
           "external": "외부",
-          "webUI": "Web UI",
           "clashCore": "Clash 코어",
           "openUwpTool": "UWP 도구 열기",
           "updateGeoData": "GeoData 업데이트",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "찾아보기"
         },
-        "trayOptions": {
-          "showMainWindow": "메인 창 표시",
-          "showTrayMenu": "트레이 메뉴 표시",
-          "disable": "비활성화"
-        },
         "fields": {
           "language": "언어",
           "themeMode": "테마 모드",
-          "trayClickEvent": "트레이 클릭 이벤트",
           "copyEnvType": "환경 유형 복사",
           "startPage": "시작 페이지",
           "startupScript": "시작 스크립트",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "잘못된 구성",
         "invalidYaml": "잘못된 YAML 형식"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "URL 열기"
-      },
-      "title": "Web UI",
-      "messages": {
-        "supportedPlaceholders": "지원되는 자리표시자: %host, %port, %secret",
-        "placeholderInstruction": "host, port, secret을 %host, %port, %secret로 바꿔 입력하세요"
       }
     },
     "hotkey": {

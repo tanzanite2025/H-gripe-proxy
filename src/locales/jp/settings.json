@@ -101,7 +101,6 @@
           "logLevel": "ログレベル",
           "portConfig": "ポート設定",
           "external": "外部制御",
-          "webUI": "Webインターフェース",
           "clashCore": "Clashコア",
           "openUwpTool": "UWPツールを開く",
           "updateGeoData": "GeoDataを更新",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "参照"
         },
-        "trayOptions": {
-          "showMainWindow": "メインウィンドウを表示",
-          "showTrayMenu": "トレイメニューを表示",
-          "disable": "無効にする"
-        },
         "fields": {
           "language": "言語設定",
           "themeMode": "テーマモード",
-          "trayClickEvent": "トレイアイコンクリックイベント",
           "copyEnvType": "環境変数タイプをコピー",
           "startPage": "起動ページ",
           "startupScript": "起動スクリプト",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "URLを開く"
-      },
-      "title": "Webインターフェース",
-      "messages": {
-        "supportedPlaceholders": "%host, %port, %secretをサポートします。",
-        "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。"
       }
     },
     "hotkey": {

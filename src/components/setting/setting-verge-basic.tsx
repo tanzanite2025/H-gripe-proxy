@@ -68,7 +68,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
   const {
     theme_mode,
     language,
-    tray_event,
     env_type,
     startup_script,
     start_page,
@@ -143,40 +142,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
-
-      {OS !== 'linux' && (
-        <SettingItem
-          label={t('settings.components.verge.basic.fields.trayClickEvent')}
-        >
-          <GuardState
-            value={tray_event ?? 'main_window'}
-            onCatch={onError}
-            onFormat={(e: any) => e.target.value}
-            onChange={(e) => onChangeData({ tray_event: e })}
-            onGuard={(e) => patchVerge({ tray_event: e })}
-          >
-            <Select size="small" className="w-[140px]">
-              <MenuItem value="main_window">
-                {t(
-                  'settings.components.verge.basic.trayOptions.showMainWindow',
-                )}
-              </MenuItem>
-              <MenuItem value="tray_menu">
-                {t('settings.components.verge.basic.trayOptions.showTrayMenu')}
-              </MenuItem>
-              <MenuItem value="system_proxy">
-                {t('settings.sections.system.toggles.systemProxy')}
-              </MenuItem>
-              <MenuItem value="tun_mode">
-                {t('settings.sections.system.toggles.tunMode')}
-              </MenuItem>
-              <MenuItem value="disable">
-                {t('settings.components.verge.basic.trayOptions.disable')}
-              </MenuItem>
-            </Select>
-          </GuardState>
-        </SettingItem>
-      )}
 
       <SettingItem
         label={t('settings.components.verge.basic.fields.copyEnvType')}

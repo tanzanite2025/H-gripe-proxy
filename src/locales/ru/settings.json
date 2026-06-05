@@ -101,7 +101,6 @@
           "logLevel": "Уровень логов",
           "portConfig": "Настройка порта",
           "external": "Внешний контроллер",
-          "webUI": "Веб-интерфейс",
           "clashCore": "Ядро Clash",
           "openUwpTool": "Открыть инструмент UWP",
           "updateGeoData": "Обновить GeoData",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "Просмотреть"
         },
-        "trayOptions": {
-          "showMainWindow": "Показать главное окно",
-          "showTrayMenu": "Показать меню в трее",
-          "disable": "Отключить"
-        },
         "fields": {
           "language": "Язык",
           "themeMode": "Цветовая тема",
-          "trayClickEvent": "Событие при щелчке по иконке в трее",
           "copyEnvType": "Скопировать тип Env",
           "startPage": "Главная страница",
           "startupScript": "Скрипт запуска",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Неверная конфигурация",
         "invalidYaml": "Неверный формат YAML"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "Перейти по адресу"
-      },
-      "title": "Веб-интерфейс",
-      "messages": {
-        "supportedPlaceholders": "Поддерживаются %host, %port, %secret",
-        "placeholderInstruction": "Замените хост, порт и секрет на %host, %port, %secret"
       }
     },
     "hotkey": {

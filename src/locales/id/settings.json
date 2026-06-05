@@ -101,7 +101,6 @@
           "logLevel": "Tingkat Log",
           "portConfig": "Konfigurasi Port",
           "external": "Eksternal",
-          "webUI": "Antarmuka Web",
           "clashCore": "Inti Clash",
           "openUwpTool": "Buka alat UWP",
           "updateGeoData": "Perbarui GeoData",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "Jelajahi"
         },
-        "trayOptions": {
-          "showMainWindow": "Tampilkan Jendela Utama",
-          "showTrayMenu": "Show Tray Menu",
-          "disable": "Nonaktifkan"
-        },
         "fields": {
           "language": "Bahasa",
           "themeMode": "Mode Tema",
-          "trayClickEvent": "Acara Klik Tray",
           "copyEnvType": "Salin Jenis Env",
           "startPage": "Halaman Mulai",
           "startupScript": "Skrip Startup",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "Buka URL"
-      },
-      "title": "Antarmuka Web",
-      "messages": {
-        "supportedPlaceholders": "Dukung %host, %port, %secret",
-        "placeholderInstruction": "Ganti host, port, rahasia dengan %host, %port, %secret"
       }
     },
     "hotkey": {

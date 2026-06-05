@@ -47,24 +47,3 @@ define_menu! {
     more => MORE, "tray_more", "tray.more",
     exit => EXIT, "tray_exit", "tray.exit",
 }
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum TrayAction {
-    SystemProxy,
-    TunMode,
-    MainWindow,
-    TrayMenu,
-    Unknown,
-}
-
-impl From<&str> for TrayAction {
-    fn from(s: &str) -> Self {
-        match s {
-            "system_proxy" => Self::SystemProxy,
-            "tun_mode" => Self::TunMode,
-            "main_window" => Self::MainWindow,
-            "tray_menu" => Self::TrayMenu,
-            _ => Self::Unknown,
-        }
-    }
-}

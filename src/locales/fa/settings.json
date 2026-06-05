@@ -101,7 +101,6 @@
           "logLevel": "سطح لاگ",
           "portConfig": "پیکربندی پورت",
           "external": "خارجی",
-          "webUI": "رابط وب",
           "clashCore": "هسته Clash",
           "openUwpTool": "باز کردن ابزار UWP",
           "updateGeoData": "به‌روزرسانی GeoData",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "مرور کردن"
         },
-        "trayOptions": {
-          "showMainWindow": "نمایش پنجره اصلی",
-          "showTrayMenu": "Show Tray Menu",
-          "disable": "غیرفعال کردن"
-        },
         "fields": {
           "language": "زبان",
           "themeMode": "حالت تم",
-          "trayClickEvent": "رویداد کلیک در سینی سیستم",
           "copyEnvType": "کپی نوع محیط",
           "startPage": "صفحه شروع",
           "startupScript": "اسکریپت راه‌اندازی",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "پیکربندی نامعتبر",
         "invalidYaml": "قالب YAML نامعتبر است"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "باز کردن آدرس اینترنتی"
-      },
-      "title": "رابط وب",
-      "messages": {
-        "supportedPlaceholders": "پشتیبانی از %host، %port و %secret",
-        "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret"
       }
     },
     "hotkey": {

@@ -101,7 +101,6 @@
           "logLevel": "Günlük Seviyesi",
           "portConfig": "Port Yapılandırması",
           "external": "Harici",
-          "webUI": "Web Arayüzü",
           "clashCore": "Clash Çekirdeği",
           "openUwpTool": "UWP Aracını Aç",
           "updateGeoData": "GeoData'yı Güncelle",
@@ -160,15 +159,9 @@
         "actions": {
           "browse": "Gözat"
         },
-        "trayOptions": {
-          "showMainWindow": "Ana Pencereyi Göster",
-          "showTrayMenu": "Tepsi Menüsünü Göster",
-          "disable": "Devre Dışı Bırak"
-        },
         "fields": {
           "language": "Dil",
           "themeMode": "Tema Modu",
-          "trayClickEvent": "Sistem Tepsisi Tıklama Olayı",
           "copyEnvType": "Env Tipini Kopyala",
           "startPage": "Başlangıç Sayfası",
           "startupScript": "Başlangıç Betiği",
@@ -561,16 +554,6 @@
       "errors": {
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format"
-      }
-    },
-    "webUI": {
-      "actions": {
-        "openUrl": "URL Aç"
-      },
-      "title": "Web Arayüzü",
-      "messages": {
-        "supportedPlaceholders": "%host, %port, %secret destekler",
-        "placeholderInstruction": "Ana bilgisayar, port, sırrı %host, %port, %secret ile değiştirin"
       }
     },
     "hotkey": {

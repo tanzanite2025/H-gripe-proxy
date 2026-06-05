@@ -56,7 +56,6 @@ bitflags! {
         const HOTKEY = 1 << 6;
         const SYSTRAY_MENU = 1 << 7;
         const SYSTRAY_TOOLTIP = 1 << 8;
-        const SYSTRAY_CLICK_BEHAVIOR = 1 << 9;
         const LANGUAGE = 1 << 11;
         const LOG_LEVEL = 1 << 12;
         const LOG_FILE = 1 << 13;
@@ -101,7 +100,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let enable_tray_speed: Option<bool> = None;
     // let enable_tray_icon = patch.enable_tray_icon;
     let enable_global_hotkey = patch.enable_global_hotkey;
-    let tray_event = &patch.tray_event;
     let home_cards = patch.home_cards.as_ref();
     let enable_external_controller = patch.enable_external_controller;
     let tray_proxy_groups_display_mode = &patch.tray_proxy_groups_display_mode;
@@ -180,9 +178,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     if patch.hotkeys.is_some() {
         update_flags.insert(UpdateFlags::HOTKEY | UpdateFlags::SYSTRAY_MENU);
     }
-    if tray_event.is_some() {
-        update_flags.insert(UpdateFlags::SYSTRAY_CLICK_BEHAVIOR);
-    }
     if tray_proxy_groups_display_mode.is_some() {
         update_flags.insert(UpdateFlags::SYSTRAY_MENU);
     }
@@ -247,9 +242,6 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     }
     if update_flags.contains(UpdateFlags::SYSTRAY_TOOLTIP) {
         tray::Tray::global().update_tooltip().await?;
-    }
-    if update_flags.contains(UpdateFlags::SYSTRAY_CLICK_BEHAVIOR) {
-        tray::Tray::global().update_click_behavior().await?;
     }
     if update_flags.contains(UpdateFlags::LOG_LEVEL) {
         Logger::global().update_log_level(patch.get_log_level())?;
