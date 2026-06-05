@@ -182,8 +182,7 @@
         "title": "Verge 고급 설정",
         "tooltips": {
           "backupInfo": "설정 파일의 로컬 또는 WebDAV 백업을 지원합니다",
-          "openConfDir": "소프트웨어가 비정상 동작할 경우, 이 폴더의 파일을 백업 후 모두 삭제하고 재시작하세요",
-          "liteMode": "GUI를 닫고 커널만 실행 상태로 유지합니다"
+          "openConfDir": "소프트웨어가 비정상 동작할 경우, 이 폴더의 파일을 백업 후 모두 삭제하고 재시작하세요"
         },
         "actions": {
           "copyVersion": "버전 복사"
@@ -200,7 +199,6 @@
           "openLogsDir": "로그 디렉터리 열기",
           "checkUpdates": "업데이트 확인",
           "openDevTools": "개발자 도구",
-          "liteModeSettings": "경량 모드 설정",
           "exit": "종료",
           "exportDiagnostics": "진단 정보 내보내기",
           "vergeVersion": "Verge 버전"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "안정 버전"
-      }
-    },
-    "liteMode": {
-      "title": "경량 모드 설정",
-      "actions": {
-        "enterNow": "지금 경량 모드로 전환"
-      },
-      "toggles": {
-        "autoEnter": "경량 모드 자동 진입"
-      },
-      "tooltips": {
-        "autoEnter": "창을 닫은 뒤 일정 시간이 지나면 자동으로 경량 모드가 활성화됩니다"
-      },
-      "fields": {
-        "delay": "경량 모드 자동 진입 지연"
-      },
-      "messages": {
-        "autoEnterHint": "창을 닫으면 {{n}}분 후 자동으로 경량 모드가 활성화됩니다"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "대시보드 열기/닫기",
         "toggleSystemProxy": "시스템 프록시 켜기/끄기",
         "toggleTunMode": "TUN 모드 켜기/끄기",
-        "entryLightweightMode": "경량 모드 진입",
         "reactivateProfiles": "프로필 재활성화"
       }
     },

@@ -243,12 +243,6 @@ pub struct IVerge {
     /// show outbound modes directly on tray root menu
     pub tray_inline_outbound_modes: Option<bool>,
 
-    /// 自动进入轻量模式
-    pub enable_auto_light_weight_mode: Option<bool>,
-
-    /// 自动进入轻量模式的延迟（分钟）
-    pub auto_light_weight_minutes: Option<u64>,
-
     /// 启用代理页面自动滚动
     pub enable_hover_jump_navigator: Option<bool>,
 
@@ -459,8 +453,6 @@ impl IVerge {
             tray_proxy_groups_display_mode: Some("default".into()),
             tray_inline_outbound_modes: Some(false),
             enable_global_hotkey: Some(true),
-            enable_auto_light_weight_mode: Some(false),
-            auto_light_weight_minutes: Some(10),
             enable_dns_settings: Some(false),
             home_cards: None,
             enable_tor_proxy: Some(false),
@@ -570,8 +562,6 @@ impl IVerge {
         // patch!(enable_tray_icon);
         patch!(tray_proxy_groups_display_mode);
         patch!(tray_inline_outbound_modes);
-        patch!(enable_auto_light_weight_mode);
-        patch!(auto_light_weight_minutes);
         patch!(enable_dns_settings);
         patch!(home_cards);
         patch!(enable_external_controller);

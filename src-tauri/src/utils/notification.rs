@@ -11,7 +11,6 @@ pub enum NotificationEvent<'a> {
     },
     SystemProxyToggled(bool),
     TunModeToggled(bool),
-    LightweightModeEntered,
     ProfilesReactivated,
     AppQuit,
     #[cfg(target_os = "macos")]
@@ -56,11 +55,6 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
                 "notifications.tunModeToggled.off"
             };
             let body = clash_verge_i18n::t!(key);
-            notify(title, body);
-        }
-        NotificationEvent::LightweightModeEntered => {
-            let title = clash_verge_i18n::t!("notifications.lightweightModeEntered.title");
-            let body = clash_verge_i18n::t!("notifications.lightweightModeEntered.body");
             notify(title, body);
         }
         NotificationEvent::ProfilesReactivated => {

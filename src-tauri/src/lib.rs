@@ -161,8 +161,6 @@ mod app_init {
             cmd::restart_core,
             cmd::get_running_mode,
             cmd::get_auto_launch_status,
-            cmd::entry_lightweight_mode,
-            cmd::exit_lightweight_mode,
             cmd::install_service,
             cmd::uninstall_service,
             cmd::reinstall_service,
@@ -473,8 +471,6 @@ pub fn run() {
         .invoke_handler(app_init::generate_handlers());
 
     mod event_handlers {
-        #[cfg(target_os = "macos")]
-        use crate::module::lightweight;
         use crate::utils::window_manager::WindowManager;
         use crate::{
             config::Config,
@@ -497,11 +493,6 @@ pub fn run() {
 
         #[cfg(target_os = "macos")]
         pub async fn handle_reopen(has_visible_windows: bool) {
-            if lightweight::is_in_lightweight_mode() {
-                lightweight::exit_lightweight_mode().await;
-                return;
-            }
-
             if !has_visible_windows {
                 handle::Handle::global().set_activation_policy_regular();
                 let _ = WindowManager::show_main_window().await;
@@ -609,9 +600,7 @@ pub fn run() {
         }
         #[allow(unused_variables)]
         tauri::RunEvent::ExitRequested { api, code, .. } => {
-            if module::lightweight::is_in_lightweight_mode() && !handle::Handle::global().is_exiting() {
-                api.prevent_exit();
-            } else if code.is_none() {
+            if code.is_none() {
                 api.prevent_exit();
                 if !handle::Handle::global().is_exiting() {
                     AsyncHandler::spawn(|| async {

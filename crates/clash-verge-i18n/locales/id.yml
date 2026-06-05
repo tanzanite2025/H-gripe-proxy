@@ -14,9 +14,6 @@ notifications:
     title: Mode TUN
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: Mode Ringan
-    body: Masuk ke mode ringan.
   profilesReactivated:
     title: Profil
     body: Profil diaktifkan kembali.
@@ -46,7 +43,6 @@ tray:
   systemProxy: Proksi Sistem
   tunMode: Mode TUN
   closeAllConnections: Tutup Semua Koneksi
-  lightweightMode: Mode Ringan
   copyEnv: Salin Variabel Lingkungan
   confDir: Direktori Konfigurasi
   coreDir: Direktori Core

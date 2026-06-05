@@ -14,7 +14,7 @@ use crate::{
         tray::Tray,
     },
     feat,
-    module::{auto_backup::AutoBackupManager, lightweight::auto_lightweight_boot},
+    module::auto_backup::AutoBackupManager,
     process::AsyncHandler,
     utils::{init, server, window_manager::WindowManager},
 };
@@ -74,7 +74,6 @@ pub fn resolve_setup_async() {
             init_tray(),
             init_timer(),
             init_hotkey(),
-            init_auto_lightweight_boot(),
             init_auto_backup(),
             init_silent_updater(),
         );
@@ -127,10 +126,6 @@ pub(super) async fn init_hotkey() {
     // if hotkey is not use by global, skip init it
     let skip_register_hotkeys = !Config::verge().await.latest_arc().enable_global_hotkey.unwrap_or(true);
     logging_error!(Type::Setup, Hotkey::global().init(skip_register_hotkeys).await);
-}
-
-pub(super) async fn init_auto_lightweight_boot() {
-    logging_error!(Type::Setup, auto_lightweight_boot().await);
 }
 
 pub(super) async fn init_auto_backup() {

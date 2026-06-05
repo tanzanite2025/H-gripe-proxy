@@ -182,8 +182,7 @@
         "title": "Verge Gelişmiş Ayarı",
         "tooltips": {
           "backupInfo": "WebDAV yedekleme yapılandırma dosyalarını destekler",
-          "openConfDir": "Yazılım anormal çalışıyorsa, bu klasördeki tüm dosyaları YEDEKLEYİN ve silin, ardından yazılımı yeniden başlatın",
-          "liteMode": "GUI'yi kapatın ve yalnızca çekirdeği çalışır durumda tutun"
+          "openConfDir": "Yazılım anormal çalışıyorsa, bu klasördeki tüm dosyaları YEDEKLEYİN ve silin, ardından yazılımı yeniden başlatın"
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -200,7 +199,6 @@
           "openLogsDir": "Günlük Dizinini Aç",
           "checkUpdates": "Güncellemeleri Kontrol Et",
           "openDevTools": "Geliştirici Araçları",
-          "liteModeSettings": "Hafif Mod Ayarları",
           "exit": "Çıkış",
           "exportDiagnostics": "Tanılama Bilgilerini Dışa Aktar",
           "vergeVersion": "Verge Sürümü"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "Kararlı Sürüm"
-      }
-    },
-    "liteMode": {
-      "title": "Hafif Mod Ayarları",
-      "actions": {
-        "enterNow": "Şimdi Hafif Moda Gir"
-      },
-      "toggles": {
-        "autoEnter": "Otomatik Hafif Moda Gir"
-      },
-      "tooltips": {
-        "autoEnter": "Pencere belirli bir süre kapatıldıktan sonra Hafif Modun otomatik olarak etkinleştirilmesi için etkinleştirin"
-      },
-      "fields": {
-        "delay": "Otomatik Hafif Mod Giriş Gecikmesi"
-      },
-      "messages": {
-        "autoEnterHint": "Pencere kapatıldığında, Hafif Mod {{n}} dakika sonra otomatik olarak etkinleştirilecek"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "Kontrol Panelini Aç/Kapat",
         "toggleSystemProxy": "Sistem Vekil'ini Etkinleştir/Devre Dışı Bırak",
         "toggleTunMode": "Tun Modunu Etkinleştir/Devre Dışı Bırak",
-        "entryLightweightMode": "Hafif Moda Gir",
         "reactivateProfiles": "Profilleri Yeniden Etkinleştir"
       }
     },

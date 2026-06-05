@@ -254,7 +254,6 @@ export interface TranslationResources {
         }
         title: string
         tooltips: {
-          lightweightMode: string
           manual: string
           settings: string
         }
@@ -678,7 +677,6 @@ export interface TranslationResources {
               checkUpdates: string
               exit: string
               exportDiagnostics: string
-              liteModeSettings: string
               openConfDir: string
               openCoreDir: string
               openDevTools: string
@@ -693,7 +691,6 @@ export interface TranslationResources {
             title: string
             tooltips: {
               backupInfo: string
-              liteMode: string
               openConfDir: string
             }
           }
@@ -1004,7 +1001,6 @@ export interface TranslationResources {
         }
         hotkey: {
           functions: {
-            entryLightweightMode: string
             global: string
             openOrCloseDashboard: string
             reactivateProfiles: string
@@ -1015,24 +1011,6 @@ export interface TranslationResources {
           title: string
           toggles: {
             enableGlobal: string
-          }
-        }
-        liteMode: {
-          actions: {
-            enterNow: string
-          }
-          fields: {
-            delay: string
-          }
-          messages: {
-            autoEnterHint: string
-          }
-          title: string
-          toggles: {
-            autoEnter: string
-          }
-          tooltips: {
-            autoEnter: string
           }
         }
         misc: {

@@ -14,9 +14,6 @@ notifications:
     title: 虛擬網路介面卡模式
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: 輕量模式
-    body: 已進入輕量模式。
   profilesReactivated:
     title: 訂閱
     body: 訂閱已啟用。
@@ -46,7 +43,6 @@ tray:
   systemProxy: 系統代理
   tunMode: 虛擬網路介面卡模式
   closeAllConnections: 關閉所有連線
-  lightweightMode: 輕量模式
   copyEnv: 複製環境變數
   confDir: 設定目錄
   coreDir: 核心目錄

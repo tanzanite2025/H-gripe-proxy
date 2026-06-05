@@ -14,9 +14,6 @@ notifications:
     title: Режим TUN
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: Легкий режим
-    body: Включен легкий режим.
   profilesReactivated:
     title: Профили
     body: Профиль повторно активирован.
@@ -46,7 +43,6 @@ tray:
   systemProxy: Системный прокси
   tunMode: Режим TUN
   closeAllConnections: Закрыть все соединения
-  lightweightMode: Легкий режим
   copyEnv: Копировать переменные среды
   confDir: Каталог конфигурации
   coreDir: Каталог ядра

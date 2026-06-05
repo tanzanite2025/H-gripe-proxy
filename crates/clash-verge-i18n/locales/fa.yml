@@ -14,9 +14,6 @@ notifications:
     title: حالت TUN
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: حالت سبک
-    body: به حالت سبک وارد شد.
   profilesReactivated:
     title: پروفایل‌ها
     body: پروفایل دوباره فعال شد.
@@ -46,7 +43,6 @@ tray:
   systemProxy: پروکسی سیستم
   tunMode: حالت TUN
   closeAllConnections: بستن همه اتصال‌ها
-  lightweightMode: حالت سبک
   copyEnv: کپی متغیرهای محیطی
   confDir: پوشه پیکربندی
   coreDir: پوشه هسته

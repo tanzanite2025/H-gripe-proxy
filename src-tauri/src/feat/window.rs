@@ -1,17 +1,11 @@
 use crate::config::Config;
 use crate::core::{CoreManager, handle, sysopt};
-use crate::module::lightweight;
 use crate::utils;
 use crate::utils::window_manager::WindowManager;
 use clash_verge_logging::{Type, logging};
 use tokio::time::{Duration, timeout};
 
 pub async fn open_or_close_dashboard() {
-    if lightweight::is_in_lightweight_mode() {
-        let _ = lightweight::exit_lightweight_mode().await;
-        return;
-    }
-
     let result = WindowManager::toggle_main_window().await;
     logging!(info, Type::Window, "Window toggle result: {result:?}");
 }
@@ -164,18 +158,6 @@ pub async fn clean_async() -> bool {
 
 #[cfg(target_os = "macos")]
 pub async fn hide() {
-    use crate::module::lightweight::add_light_weight_timer;
-
-    let enable_auto_light_weight_mode = Config::verge()
-        .await
-        .data_arc()
-        .enable_auto_light_weight_mode
-        .unwrap_or(false);
-
-    if enable_auto_light_weight_mode {
-        add_light_weight_timer().await;
-    }
-
     if let Some(window) = WindowManager::get_main_window()
         && window.is_visible().unwrap_or(false)
     {

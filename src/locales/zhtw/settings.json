@@ -182,8 +182,7 @@
         "title": "Verge 進階設定",
         "tooltips": {
           "backupInfo": "支援本機或 WebDAV 方式備份配置檔案",
-          "openConfDir": "如果軟體執行異常，!備份!並刪除此資料夾下的所有檔案，重新啟動軟體",
-          "liteMode": "關閉圖形介面，僅保留內核執行"
+          "openConfDir": "如果軟體執行異常，!備份!並刪除此資料夾下的所有檔案，重新啟動軟體"
         },
         "actions": {
           "copyVersion": "複製Verge版本號"
@@ -200,7 +199,6 @@
           "openLogsDir": "日誌目錄",
           "checkUpdates": "檢查更新",
           "openDevTools": "開發人員工具",
-          "liteModeSettings": "輕量模式設定",
           "exit": "離開",
           "exportDiagnostics": "匯出診斷資訊",
           "vergeVersion": "Verge 版本"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "正式版"
-      }
-    },
-    "liteMode": {
-      "title": "輕量模式設定",
-      "actions": {
-        "enterNow": "立即進入輕量模式"
-      },
-      "toggles": {
-        "autoEnter": "自動進入輕量模式"
-      },
-      "tooltips": {
-        "autoEnter": "啟用後，將在視窗關閉一段時間後自動啟用輕量模式"
-      },
-      "fields": {
-        "delay": "自動進入輕量模式延遲"
-      },
-      "messages": {
-        "autoEnterHint": "關閉視窗後，輕量模式將在 {{n}} 分鐘後自動啟用"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "開啟/關閉儀表板",
         "toggleSystemProxy": "開啟/關閉系統代理",
         "toggleTunMode": "開啟/關閉 虛擬網路介面卡模式",
-        "entryLightweightMode": "進入輕量模式",
         "reactivateProfiles": "重新啟用訂閱"
       }
     },

@@ -182,8 +182,7 @@
         "title": "Verge-Erweiterte Einstellungen",
         "tooltips": {
           "backupInfo": "Unterstützt die Sicherung von Konfigurationsdateien über WebDAV",
-          "openConfDir": "Wenn die Software fehlerhaft funktioniert, !sichern Sie! alle Dateien in diesem Verzeichnis, löschen Sie sie und starten Sie die Software neu.",
-          "liteMode": "GUI-Oberfläche schließen, nur den Kern laufen lassen"
+          "openConfDir": "Wenn die Software fehlerhaft funktioniert, !sichern Sie! alle Dateien in diesem Verzeichnis, löschen Sie sie und starten Sie die Software neu."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -200,7 +199,6 @@
           "openLogsDir": "Protokollverzeichnis",
           "checkUpdates": "Auf Updates prüfen",
           "openDevTools": "Entwicklertools öffnen",
-          "liteModeSettings": "Einstellungen für den Leichtgewichtigen Modus",
           "exit": "Beenden",
           "exportDiagnostics": "Diagnoseinformationen exportieren",
           "vergeVersion": "Verge-Version"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "Stabile Version"
-      }
-    },
-    "liteMode": {
-      "title": "Einstellungen für den Leichtgewichtigen Modus",
-      "actions": {
-        "enterNow": "Sofort in den Leichtgewichtigen Modus wechseln"
-      },
-      "toggles": {
-        "autoEnter": "Automatisch in den Leichtgewichtigen Modus wechseln"
-      },
-      "tooltips": {
-        "autoEnter": "Wenn diese Option aktiviert ist, wird der Leichtgewichtige Modus automatisch aktiviert, nachdem das Fenster für eine bestimmte Zeit geschlossen wurde."
-      },
-      "fields": {
-        "delay": "Verzögerung beim automatischen Wechsel in den Leichtgewichtigen Modus"
-      },
-      "messages": {
-        "autoEnterHint": "Nach dem Schließen des Fensters wird der Leichtgewichtige Modus automatisch nach {{n}} Minuten aktiviert."
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "Dashboard öffnen/schließen",
         "toggleSystemProxy": "Systemproxy ein/ausschalten",
         "toggleTunMode": "TUN-Modus ein/ausschalten",
-        "entryLightweightMode": "Leichtgewichtigen Modus betreten",
         "reactivateProfiles": "Abonnement erneut aktivieren"
       }
     },

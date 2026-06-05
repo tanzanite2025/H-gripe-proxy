@@ -16,7 +16,6 @@ import { version } from '@root/package.json'
 
 import { BackupViewer } from './components/backup/backup-main'
 import { ConfigViewer } from './components/misc/config-editor'
-import { LiteModeViewer } from './components/misc/lite-mode'
 import { UpdateViewer } from './components/misc/update-config'
 import { SettingItem, SettingList } from './components/shared/setting-item'
 
@@ -31,7 +30,6 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
   const configRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
-  const liteModeRef = useRef<DialogRef>(null)
 
   const onCheckUpdate = async () => {
     try {
@@ -64,7 +62,6 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
       <ConfigViewer ref={configRef} />
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
-      <LiteModeViewer ref={liteModeRef} />
 
       <SettingItem
         onClick={() => backupRef.current?.open()}
@@ -102,12 +99,6 @@ const SettingVergeTools = ({ onError: _ }: Props) => {
           label={t('settings.components.verge.advanced.fields.openDevTools')}
         />
       )}
-
-      <SettingItem
-        label={t('settings.components.verge.advanced.fields.liteModeSettings')}
-        onClick={() => liteModeRef.current?.open()}
-      />
-
 
       <SettingItem
         label={t('settings.components.verge.advanced.fields.vergeVersion')}

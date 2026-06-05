@@ -14,9 +14,6 @@ notifications:
     title: TUN Modu
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: Hafif Mod
-    body: Hafif moda geçildi.
   profilesReactivated:
     title: Profiller
     body: Profil yeniden etkinleştirildi.
@@ -46,7 +43,6 @@ tray:
   systemProxy: Sistem Vekil'i
   tunMode: TUN Modu
   closeAllConnections: Tüm Bağlantıları Kapat
-  lightweightMode: Hafif Mod
   copyEnv: Ortam Değişkenlerini Kopyala
   confDir: Yapılandırma Dizini
   coreDir: Çekirdek Dizini

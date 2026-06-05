@@ -182,8 +182,7 @@
         "title": "Расширенные настройки Verge",
         "tooltips": {
           "backupInfo": "Поддерживается резервное копирование файлов конфигурации через WebDAV",
-          "openConfDir": "Если программа работает неправильно, сделайте резервную копию и удалите все файлы в этой папке, затем перезапустите приложение",
-          "liteMode": "Режим, в котором работает только ядро Clash, а графический интерфейс закрыт"
+          "openConfDir": "Если программа работает неправильно, сделайте резервную копию и удалите все файлы в этой папке, затем перезапустите приложение"
         },
         "actions": {
           "copyVersion": "Копировать версию"
@@ -200,7 +199,6 @@
           "openLogsDir": "Открыть папку логов",
           "checkUpdates": "Проверить обновления",
           "openDevTools": "Открыть инструменты разработчика",
-          "liteModeSettings": "Настройки режима LightWeight",
           "exit": "Выход",
           "exportDiagnostics": "Экспорт диагностической информации",
           "vergeVersion": "Версия Clash Verge Optimized"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "Официальная версия"
-      }
-    },
-    "liteMode": {
-      "title": "Настройка режима LightWeight",
-      "actions": {
-        "enterNow": "Войти в режим LightWeight"
-      },
-      "toggles": {
-        "autoEnter": "Автоматически входить в режим LightWeight"
-      },
-      "tooltips": {
-        "autoEnter": "Автоматически включать режим LightWeight, если окно закрыто определенное время"
-      },
-      "fields": {
-        "delay": "Задержка включения режима LightWeight"
-      },
-      "messages": {
-        "autoEnterHint": "После закрытия окна режим LightWeight будет автоматически активирован через {{n}} минут"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "Открыть/закрыть панель управления",
         "toggleSystemProxy": "Включить/отключить системный прокси",
         "toggleTunMode": "Включить/отключить режим TUN",
-        "entryLightweightMode": "Войти в режим LightWeight",
         "reactivateProfiles": "Перезапустить профиль"
       }
     },

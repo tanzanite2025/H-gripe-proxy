@@ -182,8 +182,7 @@
         "title": "Pengaturan Lanjutan Verge",
         "tooltips": {
           "backupInfo": "Mendukung file konfigurasi cadangan WebDAV",
-          "openConfDir": "Jika perangkat lunak berjalan tidak normal, CADANGKAN dan hapus semua file di folder ini lalu mulai ulang perangkat lunak",
-          "liteMode": "Tutup GUI dan biarkan hanya kernel yang berjalan"
+          "openConfDir": "Jika perangkat lunak berjalan tidak normal, CADANGKAN dan hapus semua file di folder ini lalu mulai ulang perangkat lunak"
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -200,7 +199,6 @@
           "openLogsDir": "Buka Direktori Log",
           "checkUpdates": "Periksa Pembaruan",
           "openDevTools": "Buka Alat Pengembang",
-          "liteModeSettings": "LightWeight Mode Settings",
           "exit": "Keluar",
           "exportDiagnostics": "Export Diagnostic Info",
           "vergeVersion": "Versi Verge"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "Versi Rilis"
-      }
-    },
-    "liteMode": {
-      "title": "LightWeight Mode Settings",
-      "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
-      },
-      "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
-      },
-      "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
-      },
-      "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
-      },
-      "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{n}} minutes"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "Buka/Tutup Dasbor",
         "toggleSystemProxy": "Aktifkan/Nonaktifkan Proksi Sistem",
         "toggleTunMode": "Aktifkan/Nonaktifkan Mode Tun",
-        "entryLightweightMode": "Entry Lightweight Mode",
         "reactivateProfiles": "Reaktivasi Profil"
       }
     },

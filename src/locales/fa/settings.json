@@ -182,8 +182,7 @@
         "title": "تنظیمات پیشرفته Verge",
         "tooltips": {
           "backupInfo": "از فایل های پیکربندی پشتیبان WebDAV پشتیبانی می کند",
-          "openConfDir": "اگر نرم‌افزار به‌طور غیرعادی اجرا می‌شود، از تمام فایل‌های موجود در این پوشه نسخه پشتیبان تهیه و پاک کنید تا نرم‌افزار را مجدداً راه‌اندازی کنید",
-          "liteMode": "رابط کاربری گرافیکی را ببندید و فقط هسته را در حال اجرا نگه دارید"
+          "openConfDir": "اگر نرم‌افزار به‌طور غیرعادی اجرا می‌شود، از تمام فایل‌های موجود در این پوشه نسخه پشتیبان تهیه و پاک کنید تا نرم‌افزار را مجدداً راه‌اندازی کنید"
         },
         "actions": {
           "copyVersion": "کپی نسخه"
@@ -200,7 +199,6 @@
           "openLogsDir": "باز کردن پوشه لاگ‌ها",
           "checkUpdates": "بررسی برای به‌روزرسانی‌ها",
           "openDevTools": "باز کردن ابزارهای توسعه‌دهنده",
-          "liteModeSettings": "LightWeight Mode Settings",
           "exit": "خروج",
           "exportDiagnostics": "Export Diagnostic Info",
           "vergeVersion": "نسخه Verge"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "نسخه نهایی"
-      }
-    },
-    "liteMode": {
-      "title": "LightWeight Mode Settings",
-      "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
-      },
-      "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
-      },
-      "tooltips": {
-        "autoEnter": "فعال کردن حالت LightWeight به صورت خودکار پس از بسته شدن پنجره برای مدت زمانی خاص"
-      },
-      "fields": {
-        "delay": "تأخیر ورود خودکار به حالت LightWeight"
-      },
-      "messages": {
-        "autoEnterHint": "هنگام بستن پنجره، حالت LightWeight پس از {{n}} دقیقه به طور خودکار فعال می‌شود"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "باز/بستن داشبورد",
         "toggleSystemProxy": "فعال/غیرفعال کردن پراکسی سیستم",
         "toggleTunMode": "فعال/غیرفعال کردن حالت Tun",
-        "entryLightweightMode": "Entry Lightweight Mode",
         "reactivateProfiles": "فعال‌سازی مجدد پروفایل‌ها"
       }
     },

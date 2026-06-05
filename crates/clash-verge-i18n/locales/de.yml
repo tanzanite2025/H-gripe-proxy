@@ -14,9 +14,6 @@ notifications:
     title: TUN-Modus
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: Leichtmodus
-    body: Leichtmodus aktiviert.
   profilesReactivated:
     title: Profile
     body: Profil reaktiviert.
@@ -46,7 +43,6 @@ tray:
   systemProxy: Systemproxy
   tunMode: TUN-Modus
   closeAllConnections: Alle Verbindungen schließen
-  lightweightMode: Leichtmodus
   copyEnv: Umgebungsvariablen kopieren
   confDir: Konfigurationsverzeichnis
   coreDir: Core-Verzeichnis

@@ -182,8 +182,7 @@
         "title": "Verge Advanced Setting",
         "tooltips": {
           "backupInfo": "Support local or WebDAV backup of configuration files",
-          "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software",
-          "liteMode": "Close the GUI and keep only the kernel running"
+          "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software"
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -200,7 +199,6 @@
           "openLogsDir": "Open Logs Dir",
           "checkUpdates": "Check for Updates",
           "openDevTools": "Dev Tools",
-          "liteModeSettings": "LightWeight Mode Settings",
           "exit": "Exit",
           "exportDiagnostics": "Export Diagnostic Info",
           "vergeVersion": "Verge Version"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "Release Version"
-      }
-    },
-    "liteMode": {
-      "title": "LightWeight Mode Settings",
-      "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
-      },
-      "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
-      },
-      "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
-      },
-      "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
-      },
-      "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{n}} minutes"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "Open/Close Dashboard",
         "toggleSystemProxy": "Enable/Disable System Proxy",
         "toggleTunMode": "Enable/Disable Tun Mode",
-        "entryLightweightMode": "Entry Lightweight Mode",
         "reactivateProfiles": "Reactivate Profiles"
       }
     },

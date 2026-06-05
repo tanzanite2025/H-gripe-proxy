@@ -14,9 +14,6 @@ notifications:
     title: TUN モード
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: 軽量モード
-    body: 軽量モードに入りました。
   profilesReactivated:
     title: プロファイル
     body: プロファイルが再有効化されました。
@@ -46,7 +43,6 @@ tray:
   systemProxy: システムプロキシ
   tunMode: TUN モード
   closeAllConnections: すべての接続を閉じる
-  lightweightMode: 軽量モード
   copyEnv: 環境変数をコピー
   confDir: 設定ディレクトリ
   coreDir: コアディレクトリ

@@ -837,14 +837,6 @@ export const isServiceAvailable = async () => {
     return false
   }
 }
-export const entry_lightweight_mode = async () => {
-  return invoke<void>('entry_lightweight_mode')
-}
-
-export const exit_lightweight_mode = async () => {
-  return invoke<void>('exit_lightweight_mode')
-}
-
 export const isAdmin = async () => {
   try {
     return await invoke<boolean>('app_is_admin')

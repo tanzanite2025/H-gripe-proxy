@@ -14,9 +14,6 @@ notifications:
     title: وضع TUN
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: الوضع الخفيف
-    body: تم الدخول إلى الوضع الخفيف.
   profilesReactivated:
     title: الملفات التعريفية
     body: تمت إعادة تفعيل الملف التعريفي.
@@ -46,7 +43,6 @@ tray:
   systemProxy: وكيل النظام
   tunMode: وضع TUN
   closeAllConnections: إغلاق كل الاتصالات
-  lightweightMode: الوضع الخفيف
   copyEnv: نسخ متغيرات البيئة
   confDir: دليل الإعدادات
   coreDir: دليل النواة

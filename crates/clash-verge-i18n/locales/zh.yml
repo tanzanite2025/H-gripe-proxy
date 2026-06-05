@@ -14,9 +14,6 @@ notifications:
     title: TUN 模式
     'on': TUN 模式已开启。
     'off': TUN 模式已关闭。
-  lightweightModeEntered:
-    title: 轻量模式
-    body: 已进入轻量模式。
   profilesReactivated:
     title: 订阅
     body: 订阅已激活。
@@ -46,7 +43,6 @@ tray:
   systemProxy: 系统代理
   tunMode: TUN 模式
   closeAllConnections: 关闭所有连接
-  lightweightMode: 轻量模式
   copyEnv: 复制环境变量
   confDir: 配置目录
   coreDir: 内核目录

@@ -182,8 +182,7 @@
         "title": "الإعدادات الأساسية  Verge",
         "tooltips": {
           "backupInfo": "Support local or WebDAV backup of configuration files",
-          "openConfDir": "إذا عمل البرنامج بشكل غير طبيعي، قم بالنسخ الاحتياطي ثم حذف جميع الملفات في هذا المجلد ثم أعد تشغيل البرنامج",
-          "liteMode": "إيقاف الواجهة الرسومية والإبقاء على تشغيل النواة"
+          "openConfDir": "إذا عمل البرنامج بشكل غير طبيعي، قم بالنسخ الاحتياطي ثم حذف جميع الملفات في هذا المجلد ثم أعد تشغيل البرنامج"
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -200,7 +199,6 @@
           "openLogsDir": "فتح مجلد السجلات",
           "checkUpdates": "التحقق من وجود تحديثات",
           "openDevTools": "أدوات المطور",
-          "liteModeSettings": "LightWeight Mode Settings",
           "exit": "خروج",
           "exportDiagnostics": "Export Diagnostic Info",
           "vergeVersion": "إصدار Verge"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "الإصدار المستقر"
-      }
-    },
-    "liteMode": {
-      "title": "LightWeight Mode Settings",
-      "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
-      },
-      "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
-      },
-      "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
-      },
-      "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
-      },
-      "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{n}} minutes"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "فتح/إغلاق لوحة التحكم",
         "toggleSystemProxy": "تفعيل/تعطيل وكيل النظام",
         "toggleTunMode": "تفعيل/تعطيل وضع TUN",
-        "entryLightweightMode": "Entry Lightweight Mode",
         "reactivateProfiles": "إعادة تنشيط الملفات الشخصية"
       }
     },

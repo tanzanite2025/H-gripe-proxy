@@ -30,7 +30,6 @@ import { BackupViewer } from './components/backup/backup-main'
 import { HotkeyViewer } from './components/hotkey/hotkey-config'
 import { ConfigViewer } from './components/misc/config-editor'
 import { LayoutViewer } from './components/misc/layout-config'
-import { LiteModeViewer } from './components/misc/lite-mode'
 import { MiscViewer } from './components/misc/misc-config'
 import { UpdateViewer } from './components/misc/update-config'
 import { GuardState } from './components/proxy/guard-state'
@@ -80,7 +79,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
   const layoutRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
-  const liteModeRef = useRef<DialogRef>(null)
 
   const canOpenDevTools = import.meta.env.DEV
 
@@ -126,7 +124,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
       <LayoutViewer ref={layoutRef} />
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
-      <LiteModeViewer ref={liteModeRef} />
 
       <SettingItem label={t('settings.components.verge.basic.fields.language')}>
         <GuardState
@@ -332,11 +329,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
           label={t('settings.components.verge.advanced.fields.openDevTools')}
         />
       )}
-
-      <SettingItem
-        label={t('settings.components.verge.advanced.fields.liteModeSettings')}
-        onClick={() => liteModeRef.current?.open()}
-      />
 
       <SettingItem
         label={t('settings.components.verge.advanced.fields.vergeVersion')}

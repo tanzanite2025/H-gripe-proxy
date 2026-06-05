@@ -15,19 +15,21 @@ const HOTKEY_FUNC = [
   'clash_mode_global',
   'toggle_system_proxy',
   'toggle_tun_mode',
-  'entry_lightweight_mode',
   'reactivate_profiles',
 ] as const
 
-const HOTKEY_FUNC_LABELS: Record<(typeof HOTKEY_FUNC)[number], string> = {
+type HotkeyFunction = (typeof HOTKEY_FUNC)[number]
+
+const isHotkeyFunction = (func: string): func is HotkeyFunction =>
+  (HOTKEY_FUNC as readonly string[]).includes(func)
+
+const HOTKEY_FUNC_LABELS: Record<HotkeyFunction, string> = {
   open_or_close_dashboard:
     'settings.modals.hotkey.functions.openOrCloseDashboard',
   clash_mode_rule: 'settings.modals.hotkey.functions.rule',
   clash_mode_global: 'settings.modals.hotkey.functions.global',
   toggle_system_proxy: 'settings.modals.hotkey.functions.toggleSystemProxy',
   toggle_tun_mode: 'settings.modals.hotkey.functions.toggleTunMode',
-  entry_lightweight_mode:
-    'settings.modals.hotkey.functions.entryLightweightMode',
   reactivate_profiles: 'settings.modals.hotkey.functions.reactivateProfiles',
 }
 
@@ -52,6 +54,7 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
         const [func, key] = text.split(',').map((e) => e.trim())
 
         if (!func || !key) return
+        if (!isHotkeyFunction(func)) return
 
         map[func] = key
           .split('+')
@@ -66,6 +69,7 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
 
   const onSave = useLockFn(async () => {
     const hotkeys = Object.entries(hotkeyMap)
+      .filter(([func]) => isHotkeyFunction(func))
       .map(([func, keys]) => {
         if (!func || !keys?.length) return ''
 

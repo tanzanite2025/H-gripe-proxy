@@ -14,9 +14,6 @@ notifications:
     title: TUN 모드
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
-  lightweightModeEntered:
-    title: 경량 모드
-    body: 경량 모드에 진입했습니다.
   profilesReactivated:
     title: 프로필
     body: 프로필이 다시 활성화되었습니다.
@@ -46,7 +43,6 @@ tray:
   systemProxy: 시스템 프록시
   tunMode: TUN 모드
   closeAllConnections: 모든 연결 닫기
-  lightweightMode: 경량 모드
   copyEnv: 환경 변수 복사
   confDir: 구성 디렉터리
   coreDir: 코어 디렉터리

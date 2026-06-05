@@ -22,7 +22,7 @@ import {
   Tooltip,
 } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
-import { entry_lightweight_mode, openWebUrl } from '@/services/cmds'
+import { openWebUrl } from '@/services/cmds'
 
 const LazyProxyDetectionCard = lazy(() =>
   import('@/components/home/proxy-detection-card').then((module) => ({
@@ -362,13 +362,6 @@ const HomePage = () => {
       contentStyle={{ padding: 2 }}
       header={
         <Box className="flex items-center">
-          <Tooltip title={t('home.page.tooltips.lightweightMode')} arrow>
-            <IconButton
-              onClick={async () => await entry_lightweight_mode()}
-              size="small"
-              color="inherit"
-            />
-          </Tooltip>
           <Tooltip title={t('home.page.tooltips.manual')} arrow>
             <IconButton onClick={toGithubDoc} size="small" color="inherit" />
           </Tooltip>

@@ -182,8 +182,7 @@
         "title": "Ajustes avanzados de Verge",
         "tooltips": {
           "backupInfo": "Soporte para la copia de seguridad de archivos de configuración a través de WebDAV",
-          "openConfDir": "Si el software no funciona correctamente, !realice una copia de seguridad! y elimine todos los archivos de esta carpeta, luego reinicie el software.",
-          "liteMode": "Cierra la interfaz gráfica y solo mantiene el núcleo en ejecución"
+          "openConfDir": "Si el software no funciona correctamente, !realice una copia de seguridad! y elimine todos los archivos de esta carpeta, luego reinicie el software."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -200,7 +199,6 @@
           "openLogsDir": "Directorio de registros",
           "checkUpdates": "Comprobar actualizaciones",
           "openDevTools": "Abrir herramientas de desarrollo",
-          "liteModeSettings": "Configuración del modo ligero",
           "exit": "Salir",
           "exportDiagnostics": "Exportar información de diagnóstico",
           "vergeVersion": "Versión de Verge"
@@ -292,24 +290,6 @@
     "clashCore": {
       "variants": {
         "release": "Versión estable"
-      }
-    },
-    "liteMode": {
-      "title": "Configuración del modo ligero",
-      "actions": {
-        "enterNow": "Entrar en modo ligero ahora"
-      },
-      "toggles": {
-        "autoEnter": "Entrar automáticamente en modo ligero"
-      },
-      "tooltips": {
-        "autoEnter": "Si se habilita, se activará automáticamente el modo ligero después de un tiempo de inactividad de la ventana."
-      },
-      "fields": {
-        "delay": "Retraso para entrar automáticamente en modo ligero"
-      },
-      "messages": {
-        "autoEnterHint": "Después de cerrar la ventana, el modo ligero se activará automáticamente después de {{n}} minutos"
       }
     },
     "backup": {
@@ -604,7 +584,6 @@
         "openOrCloseDashboard": "Abrir/cerrar panel",
         "toggleSystemProxy": "Activar/desactivar el proxy del sistema",
         "toggleTunMode": "Activar/desactivar el modo TUN",
-        "entryLightweightMode": "Entrar en modo ligero",
         "reactivateProfiles": "Reactivar suscripciones"
       }
     },

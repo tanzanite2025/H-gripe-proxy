@@ -6,7 +6,6 @@ use crate::{
     config::Config,
     core::{clash_mode::ClashMode, handle},
     feat,
-    module::lightweight::entry_lightweight_mode,
 };
 use anyhow::{Result, bail};
 use arc_swap::ArcSwap;
@@ -32,7 +31,7 @@ pub enum HotkeyFunction {
     StaleClashModeDirect,
     ToggleSystemProxy,
     ToggleTunMode,
-    EntryLightweightMode,
+    StaleEntryLightweightMode,
     ReactivateProfiles,
     Quit,
     #[cfg(target_os = "macos")]
@@ -48,7 +47,7 @@ impl fmt::Display for HotkeyFunction {
             Self::StaleClashModeDirect => "clash_mode_direct",
             Self::ToggleSystemProxy => "toggle_system_proxy",
             Self::ToggleTunMode => "toggle_tun_mode",
-            Self::EntryLightweightMode => "entry_lightweight_mode",
+            Self::StaleEntryLightweightMode => "entry_lightweight_mode",
             Self::ReactivateProfiles => "reactivate_profiles",
             Self::Quit => "quit",
             #[cfg(target_os = "macos")]
@@ -69,7 +68,7 @@ impl FromStr for HotkeyFunction {
             "clash_mode_direct" => Ok(Self::StaleClashModeDirect),
             "toggle_system_proxy" => Ok(Self::ToggleSystemProxy),
             "toggle_tun_mode" => Ok(Self::ToggleTunMode),
-            "entry_lightweight_mode" => Ok(Self::EntryLightweightMode),
+            "entry_lightweight_mode" => Ok(Self::StaleEntryLightweightMode),
             "reactivate_profiles" => Ok(Self::ReactivateProfiles),
             "quit" => Ok(Self::Quit),
             #[cfg(target_os = "macos")]
@@ -159,11 +158,12 @@ impl Hotkey {
                     notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
                 });
             }
-            HotkeyFunction::EntryLightweightMode => {
-                AsyncHandler::spawn(async move || {
-                    entry_lightweight_mode().await;
-                    notify_event(NotificationEvent::LightweightModeEntered).await;
-                });
+            HotkeyFunction::StaleEntryLightweightMode => {
+                logging!(
+                    warn,
+                    Type::Hotkey,
+                    "Ignoring stale entry_lightweight_mode hotkey; lightweight mode is no longer exposed"
+                );
             }
             HotkeyFunction::ReactivateProfiles => {
                 AsyncHandler::spawn(async move || match feat::enhance_profiles().await {

@@ -2,14 +2,10 @@ use crate::config::{IProfilePreview, IVerge};
 use crate::core::runtime_snapshot::RuntimeSnapshotService;
 use crate::core::service;
 use crate::core::tray::menu_def::TrayAction;
-use crate::module::lightweight;
 use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::window_manager::WindowManager;
-use crate::{
-    Type, cmd, config::Config, core::clash_mode::ClashMode, feat, logging, module::lightweight::is_in_lightweight_mode,
-    utils::dirs::find_target_icons,
-};
+use crate::{Type, cmd, config::Config, core::clash_mode::ClashMode, feat, logging, utils::dirs::find_target_icons};
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
@@ -210,8 +206,6 @@ impl Tray {
         let profiles_config = Config::profiles().await;
         let profiles_arc = profiles_config.latest_arc();
         let profiles_preview = profiles_arc.profiles_preview().unwrap_or_default();
-        let is_lightweight_mode = is_in_lightweight_mode();
-
         logging_error!(
             Type::Tray,
             tray.set_menu(Some(
@@ -222,7 +216,6 @@ impl Tray {
                     *tun_mode,
                     tun_mode_available,
                     profiles_preview,
-                    is_lightweight_mode,
                 )
                 .await?,
             ))
@@ -591,7 +584,6 @@ async fn create_tray_menu(
     tun_mode_enabled: bool,
     tun_mode_available: bool,
     profiles_preview: Vec<IProfilePreview<'_>>,
-    is_lightweight_mode: bool,
 ) -> Result<tauri::menu::Menu<Wry>> {
     let current_proxy_mode = normalize_proxy_chain_mode(mode.unwrap_or(""));
 
@@ -746,15 +738,6 @@ async fn create_tray_menu(
         None::<&str>,
     )?;
 
-    let lightweight_mode = &CheckMenuItem::with_id(
-        app_handle,
-        MenuIds::LIGHTWEIGHT_MODE,
-        &texts.lightweight_mode,
-        true,
-        is_lightweight_mode,
-        hotkeys.get("entry_lightweight_mode").map(|s| s.as_str()),
-    )?;
-
     let copy_env = &MenuItem::with_id(app_handle, MenuIds::COPY_ENV, &texts.copy_env, true, None::<&str>)?;
 
     let open_app_dir = &MenuItem::with_id(app_handle, MenuIds::CONF_DIR, &texts.conf_dir, true, None::<&str>)?;
@@ -843,7 +826,6 @@ async fn create_tray_menu(
         system_proxy as &dyn IsMenuItem<Wry>,
         tun_mode as &dyn IsMenuItem<Wry>,
         separator,
-        lightweight_mode as &dyn IsMenuItem<Wry>,
         open_dir as &dyn IsMenuItem<Wry>,
         more as &dyn IsMenuItem<Wry>,
         separator,
@@ -887,9 +869,7 @@ fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
                     let _ = feat::toggle_tun_mode(None).await;
                 }
                 TrayAction::MainWindow => {
-                    if !lightweight::exit_lightweight_mode().await {
-                        WindowManager::show_main_window().await;
-                    };
+                    WindowManager::show_main_window().await;
                 }
                 _ => {
                     logging!(warn, Type::Tray, "invalid tray event: {}", verge_tray_event);
@@ -922,9 +902,7 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
             }
             MenuIds::DASHBOARD => {
                 logging!(info, Type::Tray, "托盘菜单点击: 打开窗口");
-                if !lightweight::exit_lightweight_mode().await {
-                    WindowManager::show_main_window().await;
-                };
+                WindowManager::show_main_window().await;
             }
             MenuIds::SYSTEM_PROXY => {
                 feat::toggle_system_proxy().await;
@@ -955,13 +933,6 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
             }
             MenuIds::RESTART_CLASH => feat::restart_clash_core().await,
             MenuIds::RESTART_APP => feat::restart_app().await,
-            MenuIds::LIGHTWEIGHT_MODE => {
-                if !is_in_lightweight_mode() {
-                    lightweight::entry_lightweight_mode().await;
-                } else {
-                    lightweight::exit_lightweight_mode().await;
-                }
-            }
             MenuIds::EXIT => {
                 feat::quit().await;
             }
