@@ -109,12 +109,8 @@
             "localPort": "پورت شنود محلی",
             "targetAddr": "آدرس هدف",
             "targetPort": "پورت هدف",
-            "proxyGroup": "گروه پراکسی",
-            "proxyNode": "گره پراکسی",
             "protocols": "پروتکل",
             "existing": "تونل‌های موجود",
-            "default": "پیروی از تنظیمات فعلی",
-            "optional": "اختیاری",
             "messages": {
               "incomplete": "لطفاً تمام فیلدهای الزامی تونل را تکمیل کنید",
               "invalidLocalAddr": "آدرس شنود محلی نامعتبر است",

@@ -109,12 +109,8 @@
             "localPort": "Puerto de Escucha Local",
             "targetAddr": "Dirección de destino",
             "targetPort": "Puerto de destino",
-            "proxyGroup": "Grupo de Proxy",
-            "proxyNode": "Nodo Proxy",
             "protocols": "Protocolo",
             "existing": "Túneles Existentes",
-            "default": "Seguir la Configuración Actual",
-            "optional": "Opcional",
             "messages": {
               "incomplete": "Por favor complete todos los campos obligatorios del túnel",
               "invalidLocalAddr": "Dirección de escucha local no válida",

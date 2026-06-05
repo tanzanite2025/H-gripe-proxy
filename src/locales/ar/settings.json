@@ -109,12 +109,8 @@
             "localPort": "منفذ الاستماع المحلي",
             "targetAddr": "عنوان الهدف",
             "targetPort": "منفذ الهدف",
-            "proxyGroup": "مجموعة الوكيل",
-            "proxyNode": "عقدة الوكيل",
             "protocols": "البروتوكول",
             "existing": "الأنفاق الموجودة",
-            "default": "اتباع الإعدادات الحالية",
-            "optional": "اختياري",
             "messages": {
               "incomplete": "يرجى تعبئة جميع حقول النفق المطلوبة",
               "invalidLocalAddr": "عنوان الاستماع المحلي غير صالح",

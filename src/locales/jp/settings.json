@@ -109,12 +109,8 @@
             "localPort": "ローカル待受ポート",
             "targetAddr": "ターゲットアドレス",
             "targetPort": "ターゲットポート",
-            "proxyGroup": "プロキシグループ",
-            "proxyNode": "プロキシノード",
             "protocols": "プロトコル",
             "existing": "既存のトンネル",
-            "default": "現在の設定に従う",
-            "optional": "任意",
             "messages": {
               "incomplete": "必須のトンネル項目をすべて入力してください",
               "invalidLocalAddr": "無効なローカル待受アドレスです",

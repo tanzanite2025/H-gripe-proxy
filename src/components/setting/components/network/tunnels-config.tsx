@@ -1,5 +1,11 @@
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
-import { forwardRef, useImperativeHandle, useMemo, useState, type ChangeEvent } from 'react'
+import {
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+  useState,
+  type ChangeEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
@@ -11,13 +17,12 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  SelectMenuItem,
   Select,
+  SelectMenuItem,
   TextField,
 } from '@/components/tailwind'
 import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { useClash } from '@/hooks/data'
-import { useProxiesData } from '@/providers/app-data-context'
 import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import {
@@ -36,8 +41,24 @@ interface TunnelEntry {
   network: string[]
   address: string
   target: string
-  proxy?: string
 }
+
+const createEmptyValues = () => ({
+  localAddr: '',
+  localPort: '',
+  targetAddr: '',
+  targetPort: '',
+  network: 'tcp+udp',
+})
+
+const sanitizeTunnels = (
+  tunnels: Array<TunnelEntry & { proxy?: string }> = [],
+): TunnelEntry[] =>
+  tunnels.map(({ network, address, target }) => ({
+    network,
+    address,
+    target,
+  }))
 
 export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { t } = useTranslation()
@@ -45,31 +66,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
 
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [values, setValues] = useState({
-    localAddr: '',
-    localPort: '',
-    targetAddr: '',
-    targetPort: '',
-    network: 'tcp+udp',
-    group: '',
-    proxy: '',
-  })
+  const [values, setValues] = useState(createEmptyValues)
   const [draftTunnels, setDraftTunnels] = useState<TunnelEntry[]>([])
 
   useImperativeHandle(ref, () => ({
     open: () => {
-      setValues(() => ({
-        localAddr: '',
-        localPort: '',
-        targetAddr: '',
-        targetPort: '',
-        network: 'tcp+udp',
-        group: '',
-        proxy: '',
-      }))
-      setDraftTunnels(() => clash?.tunnels ?? [])
+      setValues(createEmptyValues)
+      setDraftTunnels(() => sanitizeTunnels(clash?.tunnels ?? []))
       setOpen(true)
-      // 如果没有隧道，则自动展开
       setExpanded((clash?.tunnels ?? []).length === 0)
     },
     close: () => {
@@ -88,31 +92,16 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
         address: tunnel.address,
         target: tunnel.target,
         network: tunnel.network,
-        proxy: tunnel.proxy,
       }
     })
   }, [draftTunnels])
 
-  const { proxies } = useProxiesData()
-
-  const proxyGroups = useMemo<IProxyGroupItem[]>(() => {
-    return proxies?.groups ?? []
-  }, [proxies])
-
-  const groupNames = useMemo<string[]>(
-    () => proxyGroups.map((group) => group.name),
-    [proxyGroups],
-  )
-
-  const proxyOptions = useMemo<IProxyItem[]>(() => {
-    const group = proxyGroups.find((item) => item.name === values.group)
-    return group?.all ?? []
-  }, [proxyGroups, values.group])
-
   const handleSave = async () => {
     try {
-      await patchClash({ tunnels: draftTunnels })
+      const tunnels = sanitizeTunnels(draftTunnels)
+      await patchClash({ tunnels })
       await mutateClash()
+      setDraftTunnels(tunnels)
       showNotice.success('shared.feedback.notifications.common.saveSuccess')
       setOpen(false)
     } catch (err: any) {
@@ -121,10 +110,8 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   }
 
   const handleAdd = async () => {
-    const { localAddr, localPort, targetAddr, targetPort, network, proxy } =
-      values
+    const { localAddr, localPort, targetAddr, targetPort, network } = values
 
-    // 基础非空校验
     if (!localAddr || !localPort || !targetAddr || !targetPort) {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.incomplete',
@@ -132,7 +119,6 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 本地地址校验（host）
     const localHost = normalizeListenHost(localAddr)
     if (!localHost) {
       showNotice.error(
@@ -141,13 +127,13 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 本地端口校验 (port)
     if (!isValidPort(localPort)) {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidLocalPort',
       )
       return
     }
+
     const inUse = await isPortInUse(Number(localPort))
     if (inUse) {
       showNotice.error('settings.modals.clashPort.messages.portInUse', {
@@ -156,7 +142,6 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 目标地址校验 (host)
     const targetHost = normalizeHost(targetAddr)
     if (!targetHost) {
       showNotice.error(
@@ -165,7 +150,6 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 目标端口校验 (port)
     if (!isValidPort(targetPort)) {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidTargetPort',
@@ -173,19 +157,15 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 构造新 entry
     const entry: TunnelEntry = {
       network: network === 'tcp+udp' ? ['tcp', 'udp'] : [network],
       address: formatHostPort(localHost, localPort),
       target: formatHostPort(targetHost, targetPort),
-      ...(proxy ? { proxy } : {}),
     }
 
-    // 写入配置 + 清空输入
     setDraftTunnels((prev) => [...prev, entry])
-
-    setValues((v) => ({
-      ...v,
+    setValues((current) => ({
+      ...current,
       localAddr: '',
       localPort: '',
       targetAddr: '',
@@ -226,15 +206,12 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
             <List component="nav">
               {tunnelEntries.map((item) => (
                 <ListItem
-                  key={`${item.key}`}
+                  key={item.key}
                   className="py-1 px-0 justify-between gap-2"
                 >
                   <ListItemText
-                    primary={`${item.address} → ${item.target}`}
-                    secondary={`${item.network.join(', ')} · ${
-                      item.proxy ??
-                      t('settings.sections.clash.form.fields.tunnels.default')
-                    }`}
+                    primary={`${item.address} -> ${item.target}`}
+                    secondary={item.network.join(', ')}
                   />
                   <IconButton
                     size="small"
@@ -249,22 +226,26 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
             <Divider className="my-8" />
           </>
         )}
+
         <ListItemButton
           className="py-1 px-0 opacity-80"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => setExpanded((current) => !current)}
         >
           <ListItemText
             primary={t(
               'settings.sections.clash.form.fields.tunnels.actions.addNew',
             )}
           />
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {expanded ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
         </ListItemButton>
+
         {expanded && (
           <ListItem className="py-2 px-0">
             <div style={{ width: '100%' }}>
-              {/* 输入框区域 */}
-              {/* 协议 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   className="flex-none w-[120px] mr-2"
@@ -277,8 +258,8 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   className="w-[300px]"
                   value={values.network}
                   onChange={(e: SelectChangeEvent) =>
-                    setValues((v) => ({
-                      ...v,
+                    setValues((current) => ({
+                      ...current,
                       network: e.target.value as string,
                     }))
                   }
@@ -289,7 +270,6 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 </Select>
               </ListItem>
 
-              {/* 本地监听地址 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   className="flex-none w-[120px] mr-2"
@@ -304,12 +284,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   value={values.localAddr}
                   placeholder="127.0.0.1"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setValues((v) => ({ ...v, localAddr: e.target.value }))
+                    setValues((current) => ({
+                      ...current,
+                      localAddr: e.target.value,
+                    }))
                   }
                 />
               </ListItem>
 
-              {/* 本地监听端口 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   className="flex-none w-[120px] mr-2"
@@ -325,12 +307,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   value={values.localPort}
                   placeholder="6553"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setValues((v) => ({ ...v, localPort: e.target.value }))
+                    setValues((current) => ({
+                      ...current,
+                      localPort: e.target.value,
+                    }))
                   }
                 />
               </ListItem>
 
-              {/* 目标服务器地址 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   className="flex-none w-[120px] mr-2"
@@ -345,12 +329,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   value={values.targetAddr}
                   placeholder="8.8.8.8"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setValues((v) => ({ ...v, targetAddr: e.target.value }))
+                    setValues((current) => ({
+                      ...current,
+                      targetAddr: e.target.value,
+                    }))
                   }
                 />
               </ListItem>
 
-              {/* 目标服务器端口 */}
               <ListItem className="py-[6px] px-[2px]">
                 <ListItemText
                   className="flex-none w-[120px] mr-2"
@@ -366,102 +352,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   value={values.targetPort}
                   placeholder="53"
                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setValues((v) => ({ ...v, targetPort: e.target.value }))
-                  }
-                />
-              </ListItem>
-
-              {/* 代理组 */}
-              <ListItem className="py-[6px] px-[2px]">
-                <ListItemText
-                  className="flex-none w-[120px] mr-2"
-                  primary={
-                    <>
-                      {t(
-                        'settings.sections.clash.form.fields.tunnels.proxyGroup',
-                      )}
-                      <span style={{ fontSize: '0.9rem', color: 'gray' }}>
-                        {' '}
-                        (
-                        {t(
-                          'settings.sections.clash.form.fields.tunnels.optional',
-                        )}
-                        )
-                      </span>
-                    </>
-                  }
-                />
-                <Select
-                  size="small"
-                  className="w-[300px]"
-                  value={values.group}
-                  onChange={(e: SelectChangeEvent) => {
-                    const nextGroup = e.target.value as string
-                    const group = proxyGroups.find((g) => g.name === nextGroup)
-                    const firstProxy = group?.all?.[0].name ?? ''
-
-                    setValues((v) => ({
-                      ...v,
-                      group: nextGroup,
-                      proxy: firstProxy, // 组切换时自动选第一条节点
-                    }))
-                  }}
-                >
-                  <SelectMenuItem value="">
-                    {t('settings.sections.clash.form.fields.tunnels.default')}
-                  </SelectMenuItem>
-                  {groupNames.map((name) => (
-                    <SelectMenuItem key={name} value={name}>
-                      {name}
-                    </SelectMenuItem>
-                  ))}
-                </Select>
-              </ListItem>
-
-              {/* 代理节点 */}
-              <ListItem className="py-[6px] px-[2px]">
-                <ListItemText
-                  className="flex-none w-[120px] mr-2"
-                  primary={
-                    <>
-                      {t(
-                        'settings.sections.clash.form.fields.tunnels.proxyNode',
-                      )}
-                      <span style={{ fontSize: '0.9rem', color: 'gray' }}>
-                        {' '}
-                        (
-                        {t(
-                          'settings.sections.clash.form.fields.tunnels.optional',
-                        )}
-                        )
-                      </span>
-                    </>
-                  }
-                />
-                <Select
-                  size="small"
-                  className="w-[300px]"
-                  value={values.proxy}
-                  onChange={(e: SelectChangeEvent) =>
-                    setValues((v) => ({
-                      ...v,
-                      proxy: e.target.value as string,
+                    setValues((current) => ({
+                      ...current,
+                      targetPort: e.target.value,
                     }))
                   }
-                  disabled={!values.group} // 没选组就禁用
-                >
-                  <SelectMenuItem value="">
-                    {t('settings.sections.clash.form.fields.tunnels.default')}
-                  </SelectMenuItem>
-                  {proxyOptions.map((node) => (
-                    <SelectMenuItem key={node.name} value={node.name}>
-                      {node.name}
-                    </SelectMenuItem>
-                  ))}
-                </Select>
+                />
               </ListItem>
 
-              {/* 添加按钮 */}
               <Button
                 variant="contained"
                 size="small"

@@ -109,12 +109,8 @@
             "localPort": "Yerel Dinleme Portu",
             "targetAddr": "Hedef Adresi",
             "targetPort": "Hedef Portu",
-            "proxyGroup": "Proxy Grubu",
-            "proxyNode": "Proxy Düğümü",
             "protocols": "Protokol",
             "existing": "Mevcut Tüneller",
-            "default": "Geçerli Yapılandırmayı İzle",
-            "optional": "İsteğe Bağlı",
             "messages": {
               "incomplete": "Lütfen gerekli tüm tünel alanlarını doldurun",
               "invalidLocalAddr": "Geçersiz yerel dinleme adresi",

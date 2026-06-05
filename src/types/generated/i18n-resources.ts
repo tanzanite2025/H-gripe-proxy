@@ -1141,7 +1141,6 @@ export interface TranslationResources {
                   add: string
                   addNew: string
                 }
-                default: string
                 existing: string
                 localAddr: string
                 localPort: string
@@ -1152,10 +1151,7 @@ export interface TranslationResources {
                   invalidTargetAddr: string
                   invalidTargetPort: string
                 }
-                optional: string
                 protocols: string
-                proxyGroup: string
-                proxyNode: string
                 targetAddr: string
                 targetPort: string
                 title: string

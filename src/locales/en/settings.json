@@ -109,12 +109,8 @@
             "localPort": "Local Listen Port",
             "targetAddr": "Target Address",
             "targetPort": "Target Port",
-            "proxyGroup": "Proxy Group",
-            "proxyNode": "Proxy Node",
             "protocols": "Protocol",
             "existing": "Existing Tunnels",
-            "default": "Follow Current Configuration",
-            "optional": "Optional",
             "messages": {
               "incomplete": "Please fill in all required tunnel fields",
               "invalidLocalAddr": "Invalid local listen address",

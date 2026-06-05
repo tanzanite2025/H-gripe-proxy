@@ -109,12 +109,8 @@
             "localPort": "本地監聽連接埠",
             "targetAddr": "目標地址",
             "targetPort": "目標端口",
-            "proxyGroup": "代理群組",
-            "proxyNode": "代理節點",
             "protocols": "協定",
             "existing": "已設定的通道",
-            "default": "跟隨目前設定",
-            "optional": "可選",
             "messages": {
               "incomplete": "請完整填寫通道資訊",
               "invalidLocalAddr": "無效的本地監聽位址",
