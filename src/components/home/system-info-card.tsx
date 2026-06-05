@@ -173,7 +173,7 @@ export const SystemInfoCard = () => {
     }
 
     if (isAdminMode) {
-      // 判断是否同时处于服务模式
+      // 判断是否由服务托管运行
       if (!isSidecarMode) {
         return t('home.components.systemInfo.badges.adminServiceMode')
       }

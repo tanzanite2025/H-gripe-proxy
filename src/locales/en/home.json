@@ -63,9 +63,9 @@
       },
       "badges": {
         "adminMode": "Administrator Mode",
-        "serviceMode": "Service Mode",
-        "sidecarMode": "User Mode",
-        "adminServiceMode": "Admin + Service Mode"
+        "serviceMode": "Service Runtime",
+        "sidecarMode": "User Runtime",
+        "adminServiceMode": "Admin + Service Runtime"
       }
     },
     "ipInfo": {
