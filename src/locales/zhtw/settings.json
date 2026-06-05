@@ -101,7 +101,6 @@
           "logLevel": "日誌等級",
           "portConfig": "連接埠設定",
           "external": "外部控制",
-          "clashCore": "Clash 內核",
           "openUwpTool": "UWP 工具",
           "updateGeoData": "更新 GeoData",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "連結埠設定已儲存",
         "saveFailed": "連結埠設定儲存失敗"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "正式版"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "已重啟 Clash 內核",
         "versionUpdated": "內核版本已更新",
         "alreadyLatestVersion": "已經是最新內核版本",
-        "changeSuccess": "內核切換成功",
-        "changeFailed": "無法切換內核",
         "geoDataUpdated": "已更新 GeoData"
       },
       "clashService": {

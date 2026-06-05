@@ -613,10 +613,6 @@ export async function getAutoLaunchStatus() {
   }
 }
 
-export async function changeClashCore(clashCore: string) {
-  return invoke<string | null>('change_clash_core', { clashCore })
-}
-
 export async function startCore() {
   return invoke<void>('start_core')
 }

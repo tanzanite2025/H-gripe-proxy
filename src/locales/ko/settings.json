@@ -101,7 +101,6 @@
           "logLevel": "로그 레벨",
           "portConfig": "포트 설정",
           "external": "외부",
-          "clashCore": "Clash 코어",
           "openUwpTool": "UWP 도구 열기",
           "updateGeoData": "GeoData 업데이트",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "포트 설정이 저장되었습니다",
         "saveFailed": "포트 설정 저장에 실패했습니다"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "안정 버전"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "Clash 코어가 재시작되었습니다",
         "versionUpdated": "코어 버전이 업데이트되었습니다",
         "alreadyLatestVersion": "이미 최신 코어 버전을 사용 중입니다",
-        "changeSuccess": "코어 변경 성공",
-        "changeFailed": "코어 변경 실패",
         "geoDataUpdated": "GeoData가 업데이트되었습니다"
       },
       "clashService": {

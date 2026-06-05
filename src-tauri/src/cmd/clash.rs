@@ -35,12 +35,6 @@ pub async fn patch_clash_mode(payload: String) -> CmdResult {
     feat::change_clash_mode(mode).await.stringify_err()
 }
 
-/// 切换Clash核心
-#[tauri::command]
-pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> {
-    feat::change_clash_core(&clash_core).await.stringify_err()
-}
-
 /// 启动核心
 #[tauri::command]
 pub async fn start_core() -> CmdResult {

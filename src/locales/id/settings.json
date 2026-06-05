@@ -101,7 +101,6 @@
           "logLevel": "Tingkat Log",
           "portConfig": "Konfigurasi Port",
           "external": "Eksternal",
-          "clashCore": "Inti Clash",
           "openUwpTool": "Buka alat UWP",
           "updateGeoData": "Perbarui GeoData",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "Versi Rilis"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "Core Clash Dimulai Ulang",
         "versionUpdated": "Versi Core Diperbarui",
         "alreadyLatestVersion": "Sudah menggunakan versi inti terbaru",
-        "changeSuccess": "Inti berhasil diubah",
-        "changeFailed": "Gagal mengubah inti",
         "geoDataUpdated": "GeoData Diperbarui"
       },
       "clashService": {

@@ -101,7 +101,6 @@
           "logLevel": "Protokolliergrad",
           "portConfig": "Port-Konfiguration",
           "external": "Externe Steuerung",
-          "clashCore": "Clash-Kern",
           "openUwpTool": "UWP-Tool öffnen",
           "updateGeoData": "Geo-Daten aktualisieren",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "Stabile Version"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "Clash-Kern wurde neu gestartet",
         "versionUpdated": "Kernversion wurde aktualisiert",
         "alreadyLatestVersion": "Bereits die neueste Kernversion in Verwendung",
-        "changeSuccess": "Kern erfolgreich gewechselt",
-        "changeFailed": "Kernwechsel fehlgeschlagen",
         "geoDataUpdated": "Geo-Daten wurden aktualisiert"
       },
       "clashService": {

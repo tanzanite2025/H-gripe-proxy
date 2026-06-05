@@ -101,7 +101,6 @@
           "logLevel": "Лог дәрәҗәсе",
           "portConfig": "Порт көйләүләре",
           "external": "Тышкы",
-          "clashCore": "Clash ядросы",
           "openUwpTool": "UWP инструментын ачу",
           "updateGeoData": "GeoData яңарту",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "Рәсми версия"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "Clash ядросы яңадан башланды",
         "versionUpdated": "Ядро версиясе яңартылды",
         "alreadyLatestVersion": "Сез инде ядроның соңгы версиясен кулланасыз",
-        "changeSuccess": "Ядро уңышлы алыштырылды",
-        "changeFailed": "Ядро алыштыру уңышсыз булды",
         "geoDataUpdated": "GeoData яңартылды"
       },
       "clashService": {

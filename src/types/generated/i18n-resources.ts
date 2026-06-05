@@ -780,8 +780,6 @@ export interface TranslationResources {
         notifications: {
           clash: {
             alreadyLatestVersion: string
-            changeFailed: string
-            changeSuccess: string
             geoDataUpdated: string
             restartSuccess: string
             versionUpdated: string
@@ -874,11 +872,6 @@ export interface TranslationResources {
           title: string
           webdav: {
             title: string
-          }
-        }
-        clashCore: {
-          variants: {
-            release: string
           }
         }
         clashPort: {
@@ -1136,7 +1129,6 @@ export interface TranslationResources {
           form: {
             fields: {
               allowLan: string
-              clashCore: string
               dnsOverwrite: string
               external: string
               findProcessMode: string

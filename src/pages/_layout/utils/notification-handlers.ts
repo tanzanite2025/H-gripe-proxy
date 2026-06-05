@@ -76,16 +76,6 @@ export const handleNoticeMessage = (
       showNotice.error('shared.feedback.validation.merge.keyError', msg),
     'config_validate::merge_error': () =>
       showNotice.error('shared.feedback.validation.merge.generalError', msg),
-    'config_core::change_success': () =>
-      showNotice.success(
-        'settings.feedback.notifications.clash.changeSuccess',
-        msg,
-      ),
-    'config_core::change_error': () =>
-      showNotice.error(
-        'settings.feedback.notifications.clash.changeFailed',
-        msg,
-      ),
     core_panic_recovered: () => {
       showNotice.error(msg)
       setTimeout(() => {

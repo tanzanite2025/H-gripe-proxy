@@ -1,13 +1,11 @@
 use super::{CoreManager, RunningMode};
-use crate::cmd::StringifyErr as _;
-use crate::config::{Config, IVerge};
+use crate::config::Config;
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
-use smartstring::alias::String;
 use tauri_plugin_clash_verge_sysinfo;
 
 impl CoreManager {
@@ -43,23 +41,6 @@ impl CoreManager {
         logging!(info, Type::Core, "Restarting core");
         self.stop_core().await?;
         self.start_core().await
-    }
-
-    pub async fn change_core(&self, clash_core: &String) -> Result<(), String> {
-        if !IVerge::VALID_CLASH_CORES.contains(&clash_core.as_str()) {
-            return Err(format!("Invalid clash core: {}", clash_core).into());
-        }
-
-        Config::verge().await.edit_draft(|d| {
-            d.clash_core = Some(clash_core.to_owned());
-        });
-        Config::verge().await.apply();
-
-        let verge_data = Config::verge().await.latest_arc();
-        verge_data.save_file().await.map_err(|e| e.to_string())?;
-
-        self.update_config_checked().await.stringify_err()?;
-        Ok(())
     }
 
     async fn prepare_startup(&self) -> Result<()> {

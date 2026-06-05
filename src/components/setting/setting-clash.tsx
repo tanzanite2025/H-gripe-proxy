@@ -10,7 +10,6 @@ import { invoke_uwp_tool, getGeoDataUpdateTime } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/misc'
 
-import { ClashCoreViewer } from './components/clash/clash-core'
 import { ClashPortViewer } from './components/clash/clash-port'
 import { GeoSourceConfig } from './components/clash/geo-source-config'
 import { ControllerViewer } from './components/network/controller'
@@ -29,7 +28,7 @@ interface Props {
 const SettingClash = ({ onError }: Props) => {
   const { t } = useTranslation()
 
-  const { clash, version, mutateClash, patchClash } = useClash()
+  const { clash, mutateClash, patchClash } = useClash()
   const [, setClashLog] = useClashLog()
 
   const {
@@ -42,7 +41,6 @@ const SettingClash = ({ onError }: Props) => {
 
   const portRef = useRef<DialogRef>(null)
   const ctrlRef = useRef<DialogRef>(null)
-  const coreRef = useRef<DialogRef>(null)
   const geoSourceRef = useRef<DialogRef>(null)
   const networkRef = useRef<DialogRef>(null)
   const corsRef = useRef<DialogRef>(null)
@@ -122,7 +120,6 @@ const SettingClash = ({ onError }: Props) => {
     <SettingList title={t('settings.sections.clash.title')}>
       <ClashPortViewer ref={portRef} />
       <ControllerViewer ref={ctrlRef} />
-      <ClashCoreViewer ref={coreRef} />
       <GeoSourceConfig ref={geoSourceRef} />
       <NetworkInterfaceViewer ref={networkRef} />
       <HeaderConfiguration ref={corsRef} />
@@ -283,21 +280,6 @@ const SettingClash = ({ onError }: Props) => {
         }
       >
         <span />
-      </SettingItem>
-
-      <SettingItem
-        label={t('settings.sections.clash.form.fields.clashCore')}
-        extra={
-          <button
-            type="button"
-            className="text-xs px-3 py-0.5 rounded-full border border-border text-text-secondary whitespace-nowrap hover:bg-white/5 cursor-pointer transition-colors"
-            onClick={() => coreRef.current?.open()}
-          >
-            设置
-          </button>
-        }
-      >
-        <div className="py-[7px] pr-1">{version}</div>
       </SettingItem>
 
       {isWIN && (

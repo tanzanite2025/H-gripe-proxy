@@ -101,7 +101,6 @@
           "logLevel": "سطح لاگ",
           "portConfig": "پیکربندی پورت",
           "external": "خارجی",
-          "clashCore": "هسته Clash",
           "openUwpTool": "باز کردن ابزار UWP",
           "updateGeoData": "به‌روزرسانی GeoData",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "نسخه نهایی"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "هسته Clash مجدداً راه‌اندازی شد",
         "versionUpdated": "نسخه هسته به‌روزرسانی شد",
         "alreadyLatestVersion": "در حال حاضر از آخرین نسخه هسته استفاده می‌کنید",
-        "changeSuccess": "هسته با موفقیت تغییر کرد",
-        "changeFailed": "تغییر هسته ناموفق بود",
         "geoDataUpdated": "GeoData به‌روزرسانی شد"
       },
       "clashService": {

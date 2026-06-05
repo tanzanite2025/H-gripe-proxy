@@ -101,7 +101,6 @@
           "logLevel": "Günlük Seviyesi",
           "portConfig": "Port Yapılandırması",
           "external": "Harici",
-          "clashCore": "Clash Çekirdeği",
           "openUwpTool": "UWP Aracını Aç",
           "updateGeoData": "GeoData'yı Güncelle",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "Kararlı Sürüm"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "Clash Çekirdeği Yeniden Başlatıldı",
         "versionUpdated": "Çekirdek Sürümü Güncellendi",
         "alreadyLatestVersion": "Zaten en yeni çekirdek sürümünü kullanıyorsunuz",
-        "changeSuccess": "Çekirdek başarıyla değiştirildi",
-        "changeFailed": "Çekirdek değiştirilemedi",
         "geoDataUpdated": "GeoData Güncellendi"
       },
       "clashService": {

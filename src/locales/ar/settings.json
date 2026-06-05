@@ -101,7 +101,6 @@
           "logLevel": "مستوى السجلات",
           "portConfig": "تكوين المنافذ",
           "external": "خارجي",
-          "clashCore": "نواة Clash",
           "openUwpTool": "فتح أداة UWP",
           "updateGeoData": "تحديث البيانات الجغرافية",
           "tunnels": {
@@ -278,11 +277,6 @@
         "portInUse": "Port {{port}} is already in use",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
-      }
-    },
-    "clashCore": {
-      "variants": {
-        "release": "الإصدار المستقر"
       }
     },
     "backup": {
@@ -589,8 +583,6 @@
         "restartSuccess": "تم إعادة تشغيل نواة Clash",
         "versionUpdated": "تم تحديث إصدار النواة",
         "alreadyLatestVersion": "أنت تستخدم بالفعل أحدث إصدار من النواة",
-        "changeSuccess": "تم تغيير النواة بنجاح",
-        "changeFailed": "فشل تغيير النواة",
         "geoDataUpdated": "تم تحديث البيانات الجغرافية"
       },
       "clashService": {
