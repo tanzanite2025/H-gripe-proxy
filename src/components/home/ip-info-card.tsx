@@ -2,7 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Globe2, ShieldAlert } from 'lucide-react'
 
 import { useIPInfo } from '@/hooks/data'
-import { getCurrentEgressIdentity, getIdentityConsistencyReport } from '@/services/cmds'
+import {
+  getCurrentEgressIdentity,
+  getIdentityConsistencyReport,
+} from '@/services/cmds'
 import {
   getIpTypeText,
   getResidentialStateText,
@@ -21,6 +24,32 @@ const getCountryFlag = (countryCode: string | undefined) => {
   return String.fromCodePoint(...codePoints)
 }
 
+const isIPv4Address = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false
+
+  const parts = value.trim().split('.')
+  return (
+    parts.length === 4 &&
+    parts.every((part) => {
+      if (!/^\d{1,3}$/.test(part)) return false
+      const segmentValue = Number(part)
+      return segmentValue >= 0 && segmentValue <= 255
+    })
+  )
+}
+
+const selectDisplayIp = (...candidates: Array<string | null | undefined>) => {
+  const validCandidates = candidates.filter((candidate): candidate is string =>
+    Boolean(candidate?.trim()),
+  )
+
+  return (
+    validCandidates.find(isIPv4Address) ??
+    validCandidates.find((candidate) => !candidate.includes(':')) ??
+    validCandidates[0]
+  )
+}
+
 const riskColorMap: Record<IpReputation['riskLevel'], string> = {
   Low: 'text-green-500',
   Medium: 'text-yellow-500',
@@ -36,7 +65,9 @@ const consistencyColorMap = {
 } as const
 
 const getRiskColor = (reputation?: IpReputation) =>
-  reputation ? riskColorMap[reputation.riskLevel] ?? 'text-gray-500' : undefined
+  reputation
+    ? (riskColorMap[reputation.riskLevel] ?? 'text-gray-500')
+    : undefined
 
 const formatReputationSummary = ({
   ip,
@@ -121,12 +152,17 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     retry: 1,
   })
   const effectiveReputation = identityReputation ?? reputation
-  const effectiveReputationLoading = currentIdentityLoading || (!identityReputation && reputationLoading)
+  const effectiveReputationLoading =
+    currentIdentityLoading || (!identityReputation && reputationLoading)
   const effectiveReputationError = currentIdentityError && reputationError
 
   const country = ipInfo?.country || 'Unknown'
   const flag = getCountryFlag(ipInfo?.country_code)
-  const displayIp = currentIdentity?.public_egress_ip || currentIdentity?.egress_ip || ip
+  const displayIp = selectDisplayIp(
+    currentIdentity?.public_egress_ip,
+    currentIdentity?.egress_ip,
+    ipInfo?.ip,
+  )
   const location = formatLocation(ipInfo?.city, ipInfo?.region, ipInfo?.country)
   const riskText = formatReputationSummary({
     ip,
@@ -155,10 +191,10 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     currentIdentity?.source === 'mihomoEgressStatus'
       ? '内核出口快照'
       : currentIdentity?.source === 'mihomoConnectionMetadata'
-      ? '内核连接元数据'
-      : currentIdentity?.source === 'publicIpObservation'
-        ? '出口观测'
-        : '出口观测'
+        ? '内核连接元数据'
+        : currentIdentity?.source === 'publicIpObservation'
+          ? '出口观测'
+          : '出口观测'
 
   const cardTitle = [
     `${country} / ${displayIp || 'Unknown'}`,
@@ -174,7 +210,10 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
 
   if (isLoading) {
     return (
-      <div className={cn('the-ip-card', className)} data-tauri-drag-region="true">
+      <div
+        className={cn('the-ip-card', className)}
+        data-tauri-drag-region="true"
+      >
         <Globe2
           className="h-3.5 w-3.5 shrink-0 text-teal-400"
           data-tauri-drag-region="true"
@@ -188,7 +227,10 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
 
   if (error) {
     return (
-      <div className={cn('the-ip-card', className)} data-tauri-drag-region="true">
+      <div
+        className={cn('the-ip-card', className)}
+        data-tauri-drag-region="true"
+      >
         <Globe2
           className="h-3.5 w-3.5 shrink-0 text-red-400"
           data-tauri-drag-region="true"
@@ -206,34 +248,49 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
       data-tauri-drag-region="true"
       title={cardTitle}
     >
-      <span className="the-ip-card__flag" data-tauri-drag-region="true">{flag}</span>
-      <span className="the-ip-card__primary" data-tauri-drag-region="true">{country}</span>
-      <span className="the-ip-card__muted" data-tauri-drag-region="true">IP</span>
-      <span className="the-ip-card__mono" data-tauri-drag-region="true">{displayIp || 'Unknown'}</span>
+      <span className="the-ip-card__flag" data-tauri-drag-region="true">
+        {flag}
+      </span>
+      <span className="the-ip-card__primary" data-tauri-drag-region="true">
+        {country}
+      </span>
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">
+        IP
+      </span>
+      <span className="the-ip-card__mono" data-tauri-drag-region="true">
+        {displayIp || 'Unknown'}
+      </span>
       <span className="the-ip-card__divider" data-tauri-drag-region="true" />
-      <span className="the-ip-card__muted" data-tauri-drag-region="true">位置</span>
-      <span className="the-ip-card__value" data-tauri-drag-region="true">{location}</span>
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">
+        位置
+      </span>
+      <span className="the-ip-card__value" data-tauri-drag-region="true">
+        {location}
+      </span>
       <span className="the-ip-card__divider" data-tauri-drag-region="true" />
       <ShieldAlert
         className="h-3.5 w-3.5 shrink-0 text-text-secondary"
         data-tauri-drag-region="true"
       />
-      <span className="the-ip-card__muted" data-tauri-drag-region="true">出口类型</span>
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">
+        出口类型
+      </span>
       <span
-        className={cn(
-          'the-ip-card__value',
-          getRiskColor(effectiveReputation),
-        )}
+        className={cn('the-ip-card__value', getRiskColor(effectiveReputation))}
         data-tauri-drag-region="true"
       >
         {egressTypeText}
       </span>
       <span className="the-ip-card__divider" data-tauri-drag-region="true" />
-      <span className="the-ip-card__muted" data-tauri-drag-region="true">一致性</span>
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">
+        一致性
+      </span>
       <span
         className={cn(
           'the-ip-card__value',
-          consistencyReport ? consistencyColorMap[consistencyReport.level] : 'text-gray-500',
+          consistencyReport
+            ? consistencyColorMap[consistencyReport.level]
+            : 'text-gray-500',
         )}
         data-tauri-drag-region="true"
       >
