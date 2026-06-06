@@ -16,74 +16,87 @@ interface UseDelayCheckOptions {
   onHeadState: (groupName: string, patch: Partial<HeadState>) => void
 }
 
-/**
- * 管理延迟测试逻辑
- */
 export function useDelayCheck(options: UseDelayCheckOptions) {
   const { renderList, timeout, getGroupHeadState, onProxies, onHeadState } =
     options
 
-  // 创建稳定的回调引用
   const fnRef = useRef<(groupName: string) => Promise<void>>(async () => {})
 
-  // 测试全部延迟
   const handleCheckAll = useLockFn(async (groupName: string) => {
-      debugLog(`[ProxyGroups] 开始测试所有延迟，组: ${groupName}`)
+    debugLog(`[ProxyGroups] Start delay check, group: ${groupName}`)
 
-      const proxies = renderList
-        .filter(
-          (e) => e.group?.name === groupName && (e.type === 2 || e.type === 4),
-        )
-        .flatMap((e) => e.proxyCol || e.proxy!)
-        .filter(Boolean)
+    const proxies = renderList
+      .filter(
+        (e) => e.group?.name === groupName && (e.type === 2 || e.type === 4),
+      )
+      .flatMap((e) => e.proxyCol || e.proxy!)
+      .filter(Boolean)
 
-      debugLog(`[ProxyGroups] 找到代理数量: ${proxies.length}`)
+    debugLog(`[ProxyGroups] Proxy count: ${proxies.length}`)
 
-      const providers = new Set(
-        proxies.map((p) => p!.provider!).filter(Boolean),
+    const providers = new Set(
+      proxies.map((proxy) => proxy!.provider!).filter(Boolean),
+    )
+
+    if (providers.size > 0) {
+      debugLog(`[ProxyGroups] Provider count: ${providers.size}`)
+      Promise.allSettled(
+        [...providers].map((provider) => healthcheckProxyProvider(provider)),
+      ).then(() => {
+        debugLog('[ProxyGroups] Provider health check finished')
+        onProxies()
+      })
+    }
+
+    const names = proxies
+      .filter((proxy) => !proxy!.provider)
+      .map((proxy) => proxy!.name)
+
+    debugLog(`[ProxyGroups] Names to test: ${names.length}`)
+
+    const url = delayManager.getUrl(groupName)
+    debugLog(`[ProxyGroups] Test URL: ${url}, timeout: ${timeout}ms`)
+
+    try {
+      names.forEach((name) => {
+        delayManager.setDelay(name, groupName, -2)
+      })
+
+      const result = await delayGroup(groupName, url, timeout, false)
+      debugLog(
+        `[ProxyGroups] Group delay result count: ${Object.keys(result || {}).length}`,
       )
 
-      if (providers.size) {
-        debugLog(`[ProxyGroups] 发现提供者，数量: ${providers.size}`)
-        Promise.allSettled(
-          [...providers].map((p) => healthcheckProxyProvider(p)),
-        ).then(() => {
-          debugLog(`[ProxyGroups] 提供者健康检查完成`)
-          onProxies()
-        })
-      }
+      names.forEach((name) => {
+        delayManager.setDelay(name, groupName, result?.[name] ?? 0)
+      })
 
-      const names = proxies.filter((p) => !p!.provider).map((p) => p!.name)
-      debugLog(`[ProxyGroups] 过滤后需要测试的代理数量: ${names.length}`)
-
-      const url = delayManager.getUrl(groupName)
-      debugLog(`[ProxyGroups] 测试URL: ${url}, 超时: ${timeout}ms`)
+      debugLog(`[ProxyGroups] Delay check finished, group: ${groupName}`)
+    } catch (error) {
+      console.warn(
+        `[ProxyGroups] Group delay failed, fallback to per-proxy checks, group: ${groupName}`,
+        error,
+      )
 
       try {
-        await Promise.race([
-          delayManager.checkListDelay(names, groupName, timeout),
-          delayGroup(groupName, url, timeout, false).then((result) => {
-            debugLog(
-              `[ProxyGroups] getGroupProxyDelays返回结果数量:`,
-              Object.keys(result || {}).length,
-            )
-          }),
-        ])
-        debugLog(`[ProxyGroups] 延迟测试完成，组: ${groupName}`)
-      } catch (error) {
-        console.error(`[ProxyGroups] 延迟测试出错，组: ${groupName}`, error)
-      } finally {
-        const headState = getGroupHeadState(groupName)
-        if (headState?.sortType === 1) {
-          onHeadState(groupName, { sortType: headState.sortType })
-        }
-        onProxies()
+        await delayManager.checkListDelay(names, groupName, timeout)
+      } catch (fallbackError) {
+        console.error(
+          `[ProxyGroups] Fallback delay check failed, group: ${groupName}`,
+          fallbackError,
+        )
       }
-    })
+    } finally {
+      const headState = getGroupHeadState(groupName)
+      if (headState?.sortType === 1) {
+        onHeadState(groupName, { sortType: headState.sortType })
+      }
+      onProxies()
+    }
+  })
 
   fnRef.current = handleCheckAll
 
-  // 返回稳定的回调引用
   const stableHandleCheckAll = useCallback(
     (groupName: string) => fnRef.current(groupName),
     [],

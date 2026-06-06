@@ -34,6 +34,14 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
             // 分离数据获取和异步调用
             let clash_data = Config::clash().await.data_arc();
             clash_data.save_config().await?;
+            if let Err(err) = handle::Handle::sync_mihomo_controller_state().await {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Failed to sync Mihomo controller state after clash config update: {}",
+                    err
+                );
+            }
             Ok(())
         }
         Err(err) => {
@@ -237,6 +245,14 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
         return Err(err);
     }
     Config::verge().await.apply();
+    if let Err(err) = handle::Handle::sync_mihomo_controller_state().await {
+        logging!(
+            warn,
+            Type::Config,
+            "Failed to sync Mihomo controller state after verge config update: {}",
+            err
+        );
+    }
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
         // 分离数据获取和异步调用

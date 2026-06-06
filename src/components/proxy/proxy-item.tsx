@@ -173,7 +173,7 @@ export const ProxyItem = (props: Props) => {
             </div>
           )}
 
-          {delayValue > 0 && (
+          {delayValue >= 0 && (
             <div
               className={`the-delay py-0.5 px-1.5 text-sm rounded ${
                 !proxy.provider ? 'hover:bg-primary/15 cursor-pointer' : ''
@@ -192,7 +192,7 @@ export const ProxyItem = (props: Props) => {
             </div>
           )}
 
-          {delayValue !== -2 && delayValue <= 0 && selected && (
+          {delayValue !== -2 && delayValue < 0 && selected && (
             <CheckCircle className="the-icon h-4 w-4" />
           )}
         </ListItemIcon>

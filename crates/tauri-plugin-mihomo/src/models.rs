@@ -14,6 +14,7 @@ pub enum Protocol {
     #[default]
     Http,
     LocalSocket,
+    Auto,
 }
 
 impl Display for Protocol {
@@ -26,6 +27,13 @@ impl Display for Protocol {
                     write!(f, "named pipe")
                 } else {
                     write!(f, "unix socket")
+                }
+            }
+            Protocol::Auto => {
+                if cfg!(windows) {
+                    write!(f, "auto (http preferred)")
+                } else {
+                    write!(f, "auto")
                 }
             }
         }

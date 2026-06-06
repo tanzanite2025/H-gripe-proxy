@@ -26,6 +26,12 @@ use crate::{
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActiveTransport {
+    Http,
+    LocalSocket,
+}
+
 pub struct Mihomo {
     pub protocol: Protocol,
     pub external_host: Option<String>,
@@ -63,10 +69,35 @@ impl Mihomo {
     }
 
     #[inline]
+    fn can_use_http(&self) -> bool {
+        self.external_host.is_some()
+    }
+
+    #[inline]
+    fn can_use_local_socket(&self) -> bool {
+        self.socket_path.is_some()
+    }
+
+    #[inline]
+    fn preferred_transport(&self) -> ActiveTransport {
+        match self.protocol {
+            Protocol::Http => ActiveTransport::Http,
+            Protocol::LocalSocket => ActiveTransport::LocalSocket,
+            Protocol::Auto => {
+                if self.can_use_http() {
+                    ActiveTransport::Http
+                } else {
+                    ActiveTransport::LocalSocket
+                }
+            }
+        }
+    }
+
+    #[inline]
     fn get_req_url(&self, suffix_url: &str) -> Result<String> {
         let suffix_url = suffix_url.trim_start_matches("/");
-        match self.protocol {
-            Protocol::Http => {
+        match self.preferred_transport() {
+            ActiveTransport::Http => {
                 if let Some(host) = self.external_host.as_ref() {
                     let port = self.external_port.unwrap_or(9090);
                     Ok(format!("http://{host}:{port}/{suffix_url}"))
@@ -78,7 +109,7 @@ impl Mihomo {
                     )))
                 }
             }
-            Protocol::LocalSocket => Ok(format!("http://localhost/{suffix_url}")),
+            ActiveTransport::LocalSocket => Ok(format!("http://localhost/{suffix_url}")),
         }
     }
 
@@ -87,9 +118,7 @@ impl Mihomo {
         let mut headers = HeaderMap::new();
         headers.insert(HOST, HeaderValue::from_str("localhost")?);
         headers.insert(CONTENT_TYPE, HeaderValue::from_str("application/json")?);
-        if matches!(self.protocol, Protocol::Http)
-            && let Some(secret) = &self.secret
-        {
+        if let Some(secret) = &self.secret {
             let auth_value = HeaderValue::from_str(&format!("Bearer {secret}"))?;
             headers.insert(AUTHORIZATION, auth_value);
         }
@@ -117,13 +146,23 @@ impl Mihomo {
         Ok(req?.timeout(DEFAULT_REQUEST_TIMEOUT))
     }
 
-    async fn send_by_protocol(&self, client: RequestBuilder) -> Result<reqwest::Response> {
+    async fn send_by_protocol_with_transport(
+        &self,
+        client: RequestBuilder,
+    ) -> Result<(reqwest::Response, ActiveTransport)> {
         match self.protocol {
-            Protocol::Http => client.send().await.map_err(Error::Reqwest),
+            Protocol::Http => client
+                .send()
+                .await
+                .map(|response| (response, ActiveTransport::Http))
+                .map_err(Error::Reqwest),
             Protocol::LocalSocket => {
                 if let Some(socket_path) = self.socket_path.as_ref() {
                     log::debug!("send to local socket: {socket_path}");
-                    client.send_by_local_socket(socket_path).await
+                    client
+                        .send_by_local_socket(socket_path)
+                        .await
+                        .map(|response| (response, ActiveTransport::LocalSocket))
                 } else {
                     log::error!("missing socket path parameter");
                     Err(Error::Io(std::io::Error::new(
@@ -132,14 +171,61 @@ impl Mihomo {
                     )))
                 }
             }
+            Protocol::Auto => {
+                if self.can_use_http() {
+                    let http_client = client.try_clone().ok_or_else(|| {
+                        Error::ConnectionFailed("failed to clone request builder for HTTP primary".to_string())
+                    })?;
+
+                    match http_client.send().await {
+                        Ok(response) => return Ok((response, ActiveTransport::Http)),
+                        Err(http_err) => {
+                            log::warn!("HTTP controller request failed, falling back to local socket: {http_err}");
+
+                            if let Some(socket_path) = self.socket_path.as_ref() {
+                                match client.send_by_local_socket(socket_path).await {
+                                    Ok(response) => return Ok((response, ActiveTransport::LocalSocket)),
+                                    Err(local_err) => {
+                                        return Err(Error::ConnectionFailed(format!(
+                                            "HTTP primary failed: {http_err}; local socket fallback failed: {local_err}"
+                                        )));
+                                    }
+                                }
+                            }
+
+                            return Err(Error::Reqwest(http_err));
+                        }
+                    }
+                }
+
+                if let Some(socket_path) = self.socket_path.as_ref() {
+                    log::debug!("send to local socket: {socket_path}");
+                    client
+                        .send_by_local_socket(socket_path)
+                        .await
+                        .map(|response| (response, ActiveTransport::LocalSocket))
+                } else {
+                    log::error!("missing external host and socket path parameters");
+                    Err(Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "missing external host and socket path".to_string(),
+                    )))
+                }
+            }
         }
+    }
+
+    async fn send_by_protocol(&self, client: RequestBuilder) -> Result<reqwest::Response> {
+        self.send_by_protocol_with_transport(client)
+            .await
+            .map(|(response, _)| response)
     }
 
     #[inline]
     fn get_websocket_url(&self, suffix_url: &str) -> Result<String> {
         let suffix_url = suffix_url.trim_start_matches("/");
-        match self.protocol {
-            Protocol::Http => {
+        match self.preferred_transport() {
+            ActiveTransport::Http => {
                 if let Some(host) = self.external_host.as_ref() {
                     let port = self.external_port.unwrap_or(9090);
                     let secret = self.secret.as_deref().unwrap_or_default();
@@ -152,7 +238,7 @@ impl Mihomo {
                     )))
                 }
             }
-            Protocol::LocalSocket => Ok(format!("ws://localhost/{suffix_url}")),
+            ActiveTransport::LocalSocket => Ok(format!("ws://localhost/{suffix_url}")),
         }
     }
 
@@ -274,6 +360,100 @@ impl Mihomo {
                     )))
                 }
             }
+            Protocol::Auto => {
+                if self.can_use_http() {
+                    log::debug!("starting connect to websocket by using http (auto primary)");
+                    let request = url.clone().into_client_request()?;
+
+                    match connect_async(request).await {
+                        Ok((ws_stream, _)) => {
+                            let (writer, mut reader) = ws_stream.split();
+
+                            manager
+                                .0
+                                .write()
+                                .await
+                                .insert(id, WebSocketWriter::TcpStreamWriter(writer));
+
+                            tokio::spawn(async move {
+                                let manager_ = Arc::clone(&manager);
+                                loop {
+                                    let ids: Vec<u32> = manager_.0.read().await.keys().cloned().collect();
+                                    log::trace!(
+                                        "waiting for websocket message, connection_id: {id}, manager_ids: {ids:?}",
+                                    );
+                                    if !ids.contains(&id) {
+                                        log::debug!("connection [{id}] is removed from manager");
+                                        break;
+                                    }
+                                    if let Some(message) = reader.next().await {
+                                        if let Ok(Message::Close(_)) = message {
+                                            log::debug!("connection [{id}] is closed");
+                                            manager_.0.write().await.remove(&id);
+                                        }
+                                        let response = handle_message(message);
+                                        on_message(response);
+                                    }
+                                }
+                            });
+
+                            return Ok(id);
+                        }
+                        Err(err) => {
+                            log::warn!("HTTP websocket connection failed, falling back to local socket: {err}");
+                        }
+                    }
+                }
+
+                if let Some(socket_path) = self.socket_path.as_ref() {
+                    log::debug!("starting connect to websocket by using local socket fallback: {socket_path}");
+                    let stream = crate::ipc::connect_to_socket(socket_path).await?;
+
+                    let request = Request::builder()
+                        .uri(url)
+                        .header(HOST, "clash-verge")
+                        .header(SEC_WEBSOCKET_KEY, utils::generate_websocket_key())
+                        .header(CONNECTION, "Upgrade")
+                        .header(UPGRADE, "websocket")
+                        .header(SEC_WEBSOCKET_VERSION, "13")
+                        .body(())?;
+                    let (ws_stream, _) = client_async(request, stream).await?;
+                    let (writer, mut reader) = ws_stream.split();
+
+                    manager
+                        .0
+                        .write()
+                        .await
+                        .insert(id, WebSocketWriter::SocketStreamWriter(writer));
+
+                    tokio::spawn(async move {
+                        let manager_ = Arc::clone(&manager);
+                        loop {
+                            let ids: Vec<u32> = manager_.0.read().await.keys().cloned().collect();
+                            log::trace!("waiting for websocket message, connection_id: {id}, manager_ids: {ids:?}",);
+                            if !ids.contains(&id) {
+                                log::debug!("connection [{id}] is removed from manager");
+                                break;
+                            }
+                            if let Some(message) = reader.next().await {
+                                if let Ok(Message::Close(_)) = message {
+                                    log::debug!("connection [{id}] closed");
+                                    manager_.0.write().await.remove(&id);
+                                }
+                                let response = handle_message(message);
+                                on_message(response);
+                            }
+                        }
+                    });
+                    Ok(id)
+                } else {
+                    log::error!("missing external host and socket path parameters");
+                    Err(Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "missing external host and socket path".to_string(),
+                    )))
+                }
+            }
         }
     }
 
@@ -375,11 +555,10 @@ impl Mihomo {
         F: Fn(serde_json::Value) + Send + 'static,
     {
         let ws_url = self.get_websocket_url("/logs")?;
-        let ws_url = match self.protocol {
-            // url 后面添加 format=structured 参数的日志格式如下：
-            // {"time":"11:49:58","level":"debug","message":"[DNS] hijack udp:192.168.2.1:53 from 198.18.0.1:42761","fields":[]}
-            Protocol::Http => format!("{ws_url}&level={level}"),
-            Protocol::LocalSocket => format!("{ws_url}?level={level}"),
+        let ws_url = if ws_url.contains('?') {
+            format!("{ws_url}&level={level}")
+        } else {
+            format!("{ws_url}?level={level}")
         };
         let websocket_id = self.connect(ws_url, on_message).await?;
         Ok(websocket_id)
@@ -927,13 +1106,12 @@ impl Mihomo {
             .timeout(Duration::from_secs(60))
             .query(&[("force", force)])
             .json(&body);
-        let response_result = self.send_by_protocol(client).await;
-        if matches!(self.protocol, Protocol::LocalSocket)
+        let (response, transport) = self.send_by_protocol_with_transport(client).await?;
+        if matches!(transport, ActiveTransport::LocalSocket)
             && let Ok(pool) = IpcConnectionPool::global()
         {
             pool.clear_pool();
         }
-        let response = response_result?;
         if !response.status().is_success() {
             let err_msg = response.json::<ErrorResponse>().await.map_or_else(
                 |e| format!("reload base config failed, {}", e),

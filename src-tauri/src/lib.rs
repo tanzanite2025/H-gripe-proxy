@@ -50,6 +50,8 @@ mod app_init {
 
     /// Setup plugins for the Tauri builder
     pub fn setup_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+        let mihomo_protocol = tauri_plugin_mihomo::models::Protocol::LocalSocket;
+
         #[allow(unused_mut)]
         let mut builder = builder
             .plugin(tauri_plugin_clash_verge_sysinfo::init())
@@ -63,7 +65,9 @@ mod app_init {
             .plugin(tauri_plugin_http::init())
             .plugin(
                 tauri_plugin_mihomo::Builder::new()
-                    .protocol(tauri_plugin_mihomo::models::Protocol::LocalSocket)
+                    .protocol(mihomo_protocol)
+                    .external_host("127.0.0.1")
+                    .external_port(9097)
                     .socket_path(crate::config::IClashTemp::guard_external_controller_ipc())
                     .pool_config(
                         tauri_plugin_mihomo::IpcPoolConfigBuilder::new()
@@ -412,6 +416,15 @@ pub fn run() {
                 .expect("failed to set global app handle");
 
             resolve::init_work_dir_and_logger()?;
+
+            if let Err(err) = AsyncHandler::block_on(async { handle::Handle::sync_mihomo_controller_state().await }) {
+                logging!(
+                    warn,
+                    Type::Setup,
+                    "Failed to sync Mihomo controller state during setup: {}",
+                    err
+                );
+            }
 
             logging!(info, Type::Setup, "开始应用初始化...");
             if let Err(e) = app_init::setup_autostart(app) {
