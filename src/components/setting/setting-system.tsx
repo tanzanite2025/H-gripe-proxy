@@ -50,12 +50,12 @@ const SettingSystem = ({ onError }: Props) => {
           }}
           onGuard={async (e) => {
             try {
-              // 閸忓牐袝閸欐叅I閺囧瓨鏌婄粩瀣祮閻鍩岄崣宥夘洯
+              // Update the local state first so the toggle feels responsive.
               onChangeData({ enable_auto_launch: e })
               await patchVerge({ enable_auto_launch: e })
               return Promise.resolve()
             } catch (error) {
-              // 婵″倹鐏夐崙娲晩閿涘本浠径宥呭斧婵濮搁幀?
+              // Revert the optimistic change if the persisted update fails.
               onChangeData({ enable_auto_launch: !e })
               return Promise.reject(error)
             }

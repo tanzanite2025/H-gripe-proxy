@@ -184,7 +184,10 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProfile)
       } catch (error) {
-        console.error('[AppDataProvider] 鐩戝惉 Profile 浜嬩欢澶辫触:', error)
+        console.error(
+          '[AppDataProvider] Failed to listen for profile updates:',
+          error,
+        )
       }
 
       try {
@@ -194,7 +197,10 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenClash)
       } catch (error) {
-        console.warn('[AppDataProvider] 璁剧疆 Clash 浜嬩欢鐩戝惉鍣ㄥけ璐?', error)
+        console.warn(
+          '[AppDataProvider] Failed to listen for Clash refresh events:',
+          error,
+        )
       }
 
       try {
@@ -204,7 +210,10 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProxy)
       } catch (error) {
-        console.warn('[AppDataProvider] 璁剧疆 Tauri 浜嬩欢鐩戝惉鍣ㄥけ璐?', error)
+        console.warn(
+          '[AppDataProvider] Failed to listen for proxy refresh events:',
+          error,
+        )
       }
     }
 
@@ -271,13 +280,13 @@ export const AppDataProvider = ({
       const isPacMode = verge.proxy_auto_config ?? false
 
       if (isPacMode) {
-        // PAC妯″紡锛氭樉绀烘垜浠湡鏈涜缃殑浠ｇ悊鍦板潃
+        // In PAC mode we show the proxy address we expect to configure.
         const proxyHost = verge.proxy_host || '127.0.0.1'
         const proxyPort =
           verge.verge_mixed_port || clashConfig.mixedPort || 7897
         return `${proxyHost}:${proxyPort}`
       } else {
-        // HTTP浠ｇ悊妯″紡锛氫紭鍏堜娇鐢ㄧ郴缁熷湴鍧€锛屼絾濡傛灉鏍煎紡涓嶆纭垯浣跨敤鏈熸湜鍦板潃
+        // In HTTP mode prefer the system address when it looks valid.
         const systemServer = sysproxy?.server
         if (
           systemServer &&
@@ -286,7 +295,7 @@ export const AppDataProvider = ({
         ) {
           return systemServer
         } else {
-          // 绯荤粺鍦板潃鏃犳晥锛岃繑鍥炴湡鏈涚殑浠ｇ悊鍦板潃
+          // Fall back to the expected proxy address when the system value is invalid.
           const proxyHost = verge.proxy_host || '127.0.0.1'
           const proxyPort =
             verge.verge_mixed_port || clashConfig.mixedPort || 7897

@@ -17,6 +17,8 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Mutex;
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::ERROR_PIPE_BUSY;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceStatus {
@@ -423,13 +425,33 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
 /// 检查服务是否正在运行
 pub async fn is_service_available() -> Result<()> {
     if let Err(e) = Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
-        let verge = Config::verge().await;
-        let verge_last = verge.latest_arc();
-        let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
-        if is_enable {
-            logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
+        #[cfg(target_os = "windows")]
+        if e.raw_os_error() == Some(ERROR_PIPE_BUSY.0 as i32) {
+            logging!(
+                debug,
+                Type::Service,
+                "Service IPC path is busy but available, continuing to connect"
+            );
+        } else {
+            let verge = Config::verge().await;
+            let verge_last = verge.latest_arc();
+            let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
+            if is_enable {
+                logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
+            }
+            return Err(e.into());
         }
-        return Err(e.into());
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let verge = Config::verge().await;
+            let verge_last = verge.latest_arc();
+            let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
+            if is_enable {
+                logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
+            }
+            return Err(e.into());
+        }
     }
     clash_verge_service_ipc::connect().await?;
     Ok(())
@@ -460,7 +482,7 @@ async fn wait_for_service_ipc(status: &mut ServiceManager, reason: &str) -> Resu
         .with_max_times(config.max_retries);
 
     let result = (|| async {
-        if Path::new(clash_verge_service_ipc::IPC_PATH).exists() {
+        if is_service_ipc_path_exists() {
             clash_verge_service_ipc::connect().await?;
             Ok(())
         } else {
@@ -478,7 +500,12 @@ async fn wait_for_service_ipc(status: &mut ServiceManager, reason: &str) -> Resu
 }
 
 pub fn is_service_ipc_path_exists() -> bool {
-    Path::new(clash_verge_service_ipc::IPC_PATH).exists()
+    match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
+        Ok(_) => true,
+        #[cfg(target_os = "windows")]
+        Err(err) if err.raw_os_error() == Some(ERROR_PIPE_BUSY.0 as i32) => true,
+        Err(_) => false,
+    }
 }
 
 impl ServiceManager {
