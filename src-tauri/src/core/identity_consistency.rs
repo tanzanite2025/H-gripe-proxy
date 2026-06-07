@@ -105,7 +105,7 @@ pub fn build_identity_consistency_report(input: IdentityConsistencyInput<'_>) ->
         );
     }
 
-    if matches!(identity.source, CurrentEgressIdentitySource::MihomoConnectionMetadata) {
+    if matches!(identity.source, CurrentEgressIdentitySource::Unavailable) {
         push_issue(
             &mut issues,
             &mut score,

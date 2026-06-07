@@ -1,5 +1,5 @@
 import type { ChangeEvent, ReactNode } from 'react'
-import { Control, Controller, UseFormReturn } from 'react-hook-form'
+import { type Control, Controller } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
@@ -11,6 +11,11 @@ import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Select } from '@/components/tailwind/Select'
 import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
+
+import {
+  excludeTypeOptions,
+  proxyStrategyOptions,
+} from '../constants'
 
 interface FieldRowProps {
   label: ReactNode
@@ -28,7 +33,6 @@ const FieldRow = ({ label, children }: FieldRowProps) => (
 
 interface GroupFormProps {
   control: Control<IProxyGroupConfig>
-  formIns: Omit<UseFormReturn<IProxyGroupConfig>, 'control'>
   proxyPolicyList: string[]
   proxyProviderList: string[]
   interfaceNameList: string[]
@@ -66,13 +70,11 @@ export const GroupForm = ({
                 value={field.value}
                 onChange={(e) => field.onChange(e.target.value)}
               >
-                {['select', 'url-test', 'fallback', 'load-balance', 'relay'].map(
-                  (option) => (
-                    <option key={option} value={option}>
-                      {translateStrategy(option)}
-                    </option>
-                  ),
-                )}
+                {proxyStrategyOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {translateStrategy(option)}
+                  </option>
+                ))}
               </Select>
             </FieldRow>
           )}
@@ -377,36 +379,7 @@ export const GroupForm = ({
                   field.onChange(arr.join('|'))
                 }}
               >
-                {[
-                  'Direct',
-                  'Reject',
-                  'RejectDrop',
-                  'Compatible',
-                  'Pass',
-                  'Dns',
-                  'Shadowsocks',
-                  'ShadowsocksR',
-                  'Snell',
-                  'Socks5',
-                  'Http',
-                  'Vmess',
-                  'Vless',
-                  'Trojan',
-                  'Hysteria',
-                  'Hysteria2',
-                  'WireGuard',
-                  'Tuic',
-                  'Mieru',
-                  'Masque',
-                  'AnyTLS',
-                  'Sudoku',
-                  'Relay',
-                  'Selector',
-                  'Fallback',
-                  'URLTest',
-                  'LoadBalance',
-                  'Ssh',
-                ].map((option) => (
+                {excludeTypeOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>

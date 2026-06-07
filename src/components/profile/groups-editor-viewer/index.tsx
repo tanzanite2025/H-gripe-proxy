@@ -31,7 +31,6 @@ export const GroupsEditorViewer = (props: Props) => {
   const { mergeUid, proxiesUid, profileUid, property, open, onClose, onSave } =
     props
   const { t } = useTranslation()
-  const themeMode = 'dark' as const
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [currData, setCurrData] = useState('')
   const [visualization, setVisualization] = useState(true)
@@ -178,7 +177,6 @@ export const GroupsEditorViewer = (props: Props) => {
           <>
             <GroupForm
               control={control}
-              formIns={undefined as any}
               proxyPolicyList={proxyPolicyList}
               proxyProviderList={proxyProviderList}
               interfaceNameList={interfaceNameList}

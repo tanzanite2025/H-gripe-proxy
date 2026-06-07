@@ -1,21 +1,20 @@
 use anyhow::{Result, anyhow};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
 use super::asn_classifier::{self, AsnCategory};
-use super::runtime_diagnostics::geoip::fetch_ip_location;
+use super::ip_intelligence::{IpIntelligenceProvider, IpIntelligenceProviderConfig, build_provider};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpReputationConfig {
     pub enabled: bool,
     pub cache_ttl: u64,
     pub routing_rules: Vec<RiskRoutingRule>,
-    pub use_local_db: bool,
+    #[serde(default)]
+    pub metadata_provider: IpIntelligenceProviderConfig,
 }
 
 impl Default for IpReputationConfig {
@@ -24,7 +23,7 @@ impl Default for IpReputationConfig {
             enabled: true,
             cache_ttl: 3600,
             routing_rules: get_predefined_routing_rules(),
-            use_local_db: true,
+            metadata_provider: IpIntelligenceProviderConfig::default(),
         }
     }
 }
@@ -82,8 +81,8 @@ pub enum RiskLevel {
 #[serde(rename_all = "camelCase")]
 pub enum IpReputationEvidenceKind {
     AsnTable,
+    MetadataProvider,
     OrgKeyword,
-    IpPrefix,
     ReservedIp,
     GeoIp,
     Default,
@@ -136,26 +135,32 @@ pub enum RiskFallbackPolicy {
 pub struct IpReputationManager {
     config: Arc<RwLock<IpReputationConfig>>,
     cache: Arc<RwLock<HashMap<String, IpReputation>>>,
+    metadata_provider: Arc<RwLock<Option<Arc<dyn IpIntelligenceProvider>>>>,
 }
 
 impl IpReputationManager {
-    pub fn new() -> Self {
+    pub fn from_config(config: IpReputationConfig) -> Self {
+        let metadata_provider = build_metadata_provider(&config);
+
         Self {
-            config: Arc::new(RwLock::new(IpReputationConfig::default())),
+            config: Arc::new(RwLock::new(config)),
             cache: Arc::new(RwLock::new(HashMap::new())),
+            metadata_provider: Arc::new(RwLock::new(metadata_provider)),
         }
     }
 
     pub async fn update_config(&self, config: IpReputationConfig) -> Result<()> {
+        let metadata_provider = build_metadata_provider(&config);
         *self.config.write().await = config;
+        *self.metadata_provider.write().await = metadata_provider;
         log::info!("[IpReputation] config updated");
         Ok(())
     }
 
     pub async fn inspect_ip_metadata(&self, ip: &str) -> Result<IpReputation> {
-        let (cache_ttl, use_local_db) = {
+        let cache_ttl = {
             let config = self.config.read().await;
-            (config.cache_ttl, config.use_local_db)
+            config.cache_ttl
         };
 
         let cache = self.cache.read().await;
@@ -169,16 +174,23 @@ impl IpReputationManager {
         }
         drop(cache);
 
-        let reputation = if use_local_db {
-            self.check_ip_local(ip).await?
-        } else {
-            self.check_ip_local(ip).await?
-        };
+        let reputation = self.check_ip_local(ip).await?;
 
         let mut cache = self.cache.write().await;
         cache.insert(ip.to_string(), reputation.clone());
 
         Ok(reputation)
+    }
+
+    pub fn inspect_core_metadata(
+        &self,
+        ip: &str,
+        destination_asn: Option<&str>,
+        asn_org: Option<&str>,
+    ) -> IpReputation {
+        let asn_num = destination_asn.and_then(parse_asn_number);
+
+        self.build_reputation_from_metadata(ip, asn_num, asn_org, None, None, destination_asn, None)
     }
 
     pub async fn check_ip_reputation(&self, ip: &str) -> Result<IpReputation> {
@@ -201,23 +213,45 @@ impl IpReputationManager {
     }
 
     async fn check_ip_local(&self, ip: &str) -> Result<IpReputation> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-            .unwrap_or_default();
+        let provider = self.metadata_provider.read().await.clone();
+        let Some(provider) = provider else {
+            return Ok(self.create_unresolved_metadata_reputation(
+                ip,
+                "ASN metadata provider is unavailable. Add GeoLite2-ASN.mmdb or configure a valid database path.",
+            ));
+        };
 
-        let geo_info = fetch_ip_location(&client, ip).await;
+        match provider.lookup(ip).await {
+            Ok(record) => Ok(self.build_reputation_from_metadata(
+                ip,
+                record.asn,
+                record.asn_organization.as_deref(),
+                record.country_code.as_deref(),
+                None,
+                None,
+                Some(&record.provider_label),
+            )),
+            Err(error) => {
+                log::warn!("[IpReputation] metadata provider lookup failed for {ip}: {error}");
+                Ok(self
+                    .create_unresolved_metadata_reputation(ip, &format!("{} lookup failed: {error}", provider.label())))
+            }
+        }
+    }
 
-        let asn_num = geo_info.asn;
-        let asn_org = geo_info
-            .asn_organization
-            .as_deref()
-            .or(geo_info.isp.as_deref())
-            .or(geo_info.organization.as_deref());
-
+    fn build_reputation_from_metadata(
+        &self,
+        ip: &str,
+        asn_num: Option<u32>,
+        asn_org: Option<&str>,
+        country_code: Option<&str>,
+        city: Option<&str>,
+        asn_text: Option<&str>,
+        provider_label: Option<&str>,
+    ) -> IpReputation {
         let asn_info = asn_classifier::get_asn_info(asn_num, asn_org);
-        let ip_type = self.resolve_ip_type(ip, &asn_info);
-        let evidence = self.build_reputation_evidence(ip, asn_num, asn_org, &asn_info, &ip_type);
+        let ip_type = self.resolve_ip_type(&asn_info);
+        let evidence = self.build_reputation_evidence(asn_num, asn_org, &asn_info, &ip_type, provider_label);
         let confidence = self.calculate_confidence(&ip_type, &evidence);
         let residential_state = self.resolve_residential_state(&ip_type, confidence);
         let fraud_score = self.calculate_fraud_score(&ip_type, &asn_info);
@@ -229,12 +263,14 @@ impl IpReputationManager {
             asn_org.unwrap_or("Unknown").to_string()
         };
 
-        let asn_str = match asn_num {
-            Some(n) => format!("AS{}", n),
-            None => "Unknown".to_string(),
-        };
+        let asn_str = asn_text
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string())
+            .or_else(|| asn_num.map(|n| format!("AS{}", n)))
+            .unwrap_or_else(|| "Unknown".to_string());
 
-        Ok(IpReputation {
+        IpReputation {
             ip: ip.to_string(),
             ip_type,
             asn: asn_str,
@@ -247,42 +283,14 @@ impl IpReputationManager {
             is_proxy: false,
             is_vpn: false,
             is_tor: false,
-            country_code: geo_info
-                .country_code
-                .map(|s| s.into())
-                .unwrap_or_else(|| "Unknown".to_string()),
-            city: geo_info.city.map(|s| s.into()),
+            country_code: country_code.unwrap_or("Unknown").to_string(),
+            city: city.map(str::to_string),
             checked_at: SystemTime::now(),
-        })
-    }
-
-    fn resolve_ip_type(&self, ip: &str, asn_info: &asn_classifier::AsnInfo) -> IpType {
-        let asn_ip_type = IpType::from(asn_info.category);
-        if asn_ip_type == IpType::Unknown {
-            self.detect_ip_type(ip)
-        } else {
-            asn_ip_type
         }
     }
 
-    fn detect_ip_type(&self, ip: &str) -> IpType {
-        let datacenter_prefixes = [
-            "45.76.", "104.238.", "207.246.", "149.28.", // Vultr
-            "13.", "52.", "54.", // AWS
-            "35.", "34.", "104.154.", // GCP
-        ];
-
-        for prefix in datacenter_prefixes {
-            if ip.starts_with(prefix) {
-                return IpType::Datacenter;
-            }
-        }
-
-        if is_private_or_reserved_ip(ip) {
-            return IpType::Unknown;
-        }
-
-        IpType::Unknown
+    fn resolve_ip_type(&self, asn_info: &asn_classifier::AsnInfo) -> IpType {
+        IpType::from(asn_info.category)
     }
 
     fn calculate_fraud_score(&self, ip_type: &IpType, asn_info: &asn_classifier::AsnInfo) -> u8 {
@@ -309,13 +317,23 @@ impl IpReputationManager {
 
     fn build_reputation_evidence(
         &self,
-        ip: &str,
         asn: Option<u32>,
         org_name: Option<&str>,
         asn_info: &asn_classifier::AsnInfo,
         ip_type: &IpType,
+        provider_label: Option<&str>,
     ) -> Vec<IpReputationEvidence> {
         let mut evidence = Vec::new();
+
+        if let Some(provider_label) = provider_label
+            && (asn.is_some() || org_name.is_some())
+        {
+            evidence.push(IpReputationEvidence {
+                kind: IpReputationEvidenceKind::MetadataProvider,
+                label: format!("metadata supplied by {provider_label}"),
+                weight: 35,
+            });
+        }
 
         if let Some(asn_num) = asn {
             if asn_classifier::classify_by_asn(asn_num).is_some() {
@@ -338,26 +356,10 @@ impl IpReputationManager {
             }
         }
 
-        if self.detect_ip_type(ip) != IpType::Unknown && asn_info.category == asn_classifier::AsnCategory::Unknown {
-            evidence.push(IpReputationEvidence {
-                kind: IpReputationEvidenceKind::IpPrefix,
-                label: format!("IP prefix matched known {:?} range", ip_type),
-                weight: 35,
-            });
-        }
-
-        if is_private_or_reserved_ip(ip) {
-            evidence.push(IpReputationEvidence {
-                kind: IpReputationEvidenceKind::ReservedIp,
-                label: "IP is private or reserved; public reputation is inconclusive".to_string(),
-                weight: 10,
-            });
-        }
-
         if evidence.is_empty() {
             evidence.push(IpReputationEvidence {
                 kind: IpReputationEvidenceKind::Default,
-                label: "no ASN, organization, or prefix evidence matched".to_string(),
+                label: "no ASN or organization evidence matched".to_string(),
                 weight: 15,
             });
         }
@@ -411,6 +413,30 @@ impl IpReputationManager {
                 kind: IpReputationEvidenceKind::Default,
                 label: "IP reputation checks are disabled".to_string(),
                 weight: 0,
+            }],
+            residential_state: ResidentialVerificationState::Unknown,
+            is_proxy: false,
+            is_vpn: false,
+            is_tor: false,
+            country_code: "Unknown".to_string(),
+            city: None,
+            checked_at: SystemTime::now(),
+        }
+    }
+
+    fn create_unresolved_metadata_reputation(&self, ip: &str, message: &str) -> IpReputation {
+        IpReputation {
+            ip: ip.to_string(),
+            ip_type: IpType::Unknown,
+            asn: "Unknown".to_string(),
+            asn_org: "Unknown".to_string(),
+            fraud_score: 50,
+            risk_level: RiskLevel::Medium,
+            confidence: 0,
+            evidence: vec![IpReputationEvidence {
+                kind: IpReputationEvidenceKind::Default,
+                label: message.to_string(),
+                weight: 10,
             }],
             residential_state: ResidentialVerificationState::Unknown,
             is_proxy: false,
@@ -536,26 +562,14 @@ fn first_node_name(available_nodes: &[(String, String)]) -> Result<&str> {
         .ok_or_else(|| anyhow!("no available nodes"))
 }
 
-fn is_carrier_grade_nat_ip(octets: [u8; 4]) -> bool {
-    octets[0] == 100 && (100..=127).contains(&octets[1])
-}
+fn parse_asn_number(value: &str) -> Option<u32> {
+    let trimmed = value.trim();
+    let normalized = trimmed
+        .strip_prefix("AS")
+        .or_else(|| trimmed.strip_prefix("as"))
+        .unwrap_or(trimmed);
 
-fn is_private_or_reserved_ip(ip: &str) -> bool {
-    match ip.parse::<IpAddr>() {
-        Ok(IpAddr::V4(addr)) => {
-            addr.is_private()
-                || addr.is_loopback()
-                || addr.is_link_local()
-                || addr.is_unspecified()
-                || addr.is_broadcast()
-                || addr.is_documentation()
-                || is_carrier_grade_nat_ip(addr.octets())
-        }
-        Ok(IpAddr::V6(addr)) => {
-            addr.is_loopback() || addr.is_unspecified() || addr.is_unique_local() || addr.is_unicast_link_local()
-        }
-        Err(_) => true,
-    }
+    normalized.parse::<u32>().ok()
 }
 
 pub fn matches_ip_type(actual: &IpType, required: &IpType) -> bool {
@@ -624,62 +638,45 @@ pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
     ]
 }
 
+fn build_metadata_provider(config: &IpReputationConfig) -> Option<Arc<dyn IpIntelligenceProvider>> {
+    match build_provider(&config.metadata_provider) {
+        Ok(provider) => Some(Arc::from(provider)),
+        Err(error) => {
+            log::warn!(
+                "[IpReputation] failed to initialize metadata provider {:?}: {}",
+                config.metadata_provider.kind,
+                error
+            );
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_ip_type_detection() {
-        let manager = IpReputationManager::new();
-
-        assert_eq!(manager.detect_ip_type("45.76.123.45"), IpType::Datacenter);
-        assert_eq!(manager.detect_ip_type("13.52.100.1"), IpType::Datacenter);
-
-        assert_eq!(manager.detect_ip_type("192.168.1.1"), IpType::Unknown);
-        assert_eq!(manager.detect_ip_type("172.20.1.1"), IpType::Unknown);
-        assert_eq!(manager.detect_ip_type("100.64.1.1"), IpType::Unknown);
-    }
-
-    #[tokio::test]
-    async fn test_unknown_asn_uses_ip_prefix_fallback() {
-        let manager = IpReputationManager::new();
-        let unknown_asn = asn_classifier::AsnInfo {
-            name: "Unknown".to_string(),
-            category: asn_classifier::AsnCategory::Unknown,
-        };
-
-        assert_eq!(
-            manager.resolve_ip_type("45.76.123.45", &unknown_asn),
-            IpType::Datacenter
-        );
-    }
-
-    #[tokio::test]
-    async fn test_known_asn_wins_over_ip_prefix_fallback() {
-        let manager = IpReputationManager::new();
+    async fn test_known_asn_uses_asn_category_directly() {
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
         let mobile_asn = asn_classifier::AsnInfo {
             name: "China Mobile".to_string(),
             category: asn_classifier::AsnCategory::Mobile,
         };
 
-        assert_eq!(manager.resolve_ip_type("45.76.123.45", &mobile_asn), IpType::Mobile);
+        assert_eq!(manager.resolve_ip_type(&mobile_asn), IpType::Mobile);
     }
 
     #[test]
     fn test_residential_reputation_is_observed_not_verified_by_default() {
-        let manager = IpReputationManager::new();
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
         let asn_info = asn_classifier::AsnInfo {
             name: "Comcast Cable".to_string(),
             category: asn_classifier::AsnCategory::Residential,
         };
 
-        let evidence = manager.build_reputation_evidence(
-            "203.0.113.10",
-            Some(7922),
-            Some("Comcast Cable"),
-            &asn_info,
-            &IpType::Residential,
-        );
+        let evidence =
+            manager.build_reputation_evidence(Some(7922), Some("Comcast Cable"), &asn_info, &IpType::Residential, None);
         let confidence = manager.calculate_confidence(&IpType::Residential, &evidence);
 
         assert_eq!(
@@ -695,52 +692,37 @@ mod tests {
     }
 
     #[test]
-    fn test_prefix_fallback_has_lower_confidence_than_asn_table() {
-        let manager = IpReputationManager::new();
+    fn test_unknown_asn_reputation_uses_default_evidence() {
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
         let unknown_asn = asn_classifier::AsnInfo {
             name: "Unknown".to_string(),
             category: asn_classifier::AsnCategory::Unknown,
         };
-        let datacenter_asn = asn_classifier::AsnInfo {
-            name: "Amazon AWS".to_string(),
-            category: asn_classifier::AsnCategory::Datacenter,
-        };
 
-        let prefix_evidence =
-            manager.build_reputation_evidence("45.76.123.45", None, None, &unknown_asn, &IpType::Datacenter);
-        let asn_evidence = manager.build_reputation_evidence(
-            "52.1.1.1",
-            Some(16509),
-            Some("Amazon AWS"),
-            &datacenter_asn,
-            &IpType::Datacenter,
-        );
+        let default_evidence = manager.build_reputation_evidence(None, None, &unknown_asn, &IpType::Unknown, None);
 
+        assert_eq!(manager.resolve_ip_type(&unknown_asn), IpType::Unknown);
         assert!(
-            manager.calculate_confidence(&IpType::Datacenter, &asn_evidence)
-                > manager.calculate_confidence(&IpType::Datacenter, &prefix_evidence)
-        );
-        assert!(
-            prefix_evidence
+            default_evidence
                 .iter()
-                .any(|item| item.kind == IpReputationEvidenceKind::IpPrefix)
+                .any(|item| item.kind == IpReputationEvidenceKind::Default)
         );
     }
 
     #[tokio::test]
     async fn test_unknown_public_ip_without_asn_metadata_stays_unknown() {
-        let manager = IpReputationManager::new();
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
         let unknown_asn = asn_classifier::AsnInfo {
             name: "Unknown".to_string(),
             category: asn_classifier::AsnCategory::Unknown,
         };
 
-        assert_eq!(manager.resolve_ip_type("8.8.8.8", &unknown_asn), IpType::Unknown);
+        assert_eq!(manager.resolve_ip_type(&unknown_asn), IpType::Unknown);
     }
 
     #[tokio::test]
     async fn test_fraud_score_calculation() {
-        let manager = IpReputationManager::new();
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
         let dc_info = asn_classifier::AsnInfo {
             name: "Vultr".to_string(),
             category: asn_classifier::AsnCategory::Datacenter,
@@ -754,13 +736,62 @@ mod tests {
         assert_eq!(manager.calculate_fraud_score(&IpType::Residential, &res_info), 15);
     }
 
-    #[tokio::test]
-    async fn test_check_ip_reputation() {
-        let manager = IpReputationManager::new();
+    #[test]
+    fn test_inspect_core_metadata_uses_single_source_asn_fields() {
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
 
-        let reputation = manager.check_ip_reputation("45.76.123.45").await.unwrap();
+        let reputation = manager.inspect_core_metadata("203.0.113.10", Some("AS16509"), Some("Amazon AWS"));
+
         assert_eq!(reputation.ip_type, IpType::Datacenter);
-        assert_eq!(reputation.fraud_score, 85);
+        assert_eq!(reputation.asn, "AS16509");
+        assert_eq!(reputation.asn_org, "Amazon AWS");
+        assert_eq!(reputation.country_code, "Unknown");
+        assert!(
+            reputation
+                .evidence
+                .iter()
+                .any(|item| item.kind == IpReputationEvidenceKind::AsnTable)
+        );
+    }
+
+    #[test]
+    fn test_inspect_core_metadata_does_not_guess_by_ip_prefix() {
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
+
+        let reputation = manager.inspect_core_metadata("13.52.100.1", None, None);
+
+        assert_eq!(reputation.ip_type, IpType::Unknown);
+        assert!(
+            reputation
+                .evidence
+                .iter()
+                .all(|item| item.kind != IpReputationEvidenceKind::AsnTable)
+        );
+        assert_eq!(reputation.evidence.len(), 1);
+        assert_eq!(reputation.evidence[0].kind, IpReputationEvidenceKind::Default);
+    }
+
+    #[test]
+    fn test_metadata_provider_evidence_is_recorded_when_lookup_returns_asn() {
+        let manager = IpReputationManager::from_config(IpReputationConfig::default());
+        let asn_info = asn_classifier::AsnInfo {
+            name: "Example ISP".to_string(),
+            category: asn_classifier::AsnCategory::Unknown,
+        };
+
+        let evidence = manager.build_reputation_evidence(
+            Some(64500),
+            Some("Example ISP"),
+            &asn_info,
+            &IpType::Unknown,
+            Some("GeoLite2 ASN MMDB"),
+        );
+
+        assert!(
+            evidence
+                .iter()
+                .any(|item| item.kind == IpReputationEvidenceKind::MetadataProvider)
+        );
     }
 
     #[tokio::test]

@@ -328,8 +328,6 @@ const Layout = () => {
 
           {/* 右侧：状态组件、升级按钮及窗口控件 */}
           <div className="layout-header__right" data-tauri-drag-region="true">
-            <IpInfoCard className="layout-header__ip-card" />
-
             <div className="layout-header__controls">
               <div className="the-traffic">
                 <LayoutTraffic horizontal />
@@ -342,6 +340,12 @@ const Layout = () => {
                   <WindowControls ref={windowControlsRef} />
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="layout-header__ip-row" data-tauri-drag-region="true">
+            <div className="layout-header__ip-scroll" data-tauri-drag-region="true">
+              <IpInfoCard className="layout-header__ip-card" />
             </div>
           </div>
         </div>

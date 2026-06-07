@@ -329,6 +329,8 @@ mod app_init {
             cmd::ip_reputation_get_config,
             cmd::ip_reputation_update_config,
             cmd::ip_reputation_check_ip,
+            cmd::ip_reputation_get_registered_metadata_providers,
+            cmd::ip_reputation_probe_metadata_provider,
             cmd::ip_reputation_get_predefined_rules,
             cmd::ip_reputation_select_node_for_domain,
             cmd::ip_reputation_clear_cache,

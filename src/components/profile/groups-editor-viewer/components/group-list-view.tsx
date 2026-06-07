@@ -1,4 +1,9 @@
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core'
+import {
+  DndContext,
+  type DragEndEvent,
+  type SensorDescriptor,
+  closestCenter,
+} from '@dnd-kit/core'
 import { SortableContext } from '@dnd-kit/sortable'
 import { useMemo } from 'react'
 
@@ -11,7 +16,7 @@ interface GroupListViewProps {
   appendSeq: IProxyGroupConfig[]
   deleteSeq: string[]
   match: (name: string) => boolean
-  sensors: any
+  sensors: SensorDescriptor<any>[]
   onPrependDragEnd: (event: DragEndEvent) => void
   onAppendDragEnd: (event: DragEndEvent) => void
   onPrependDelete: (name: string) => void

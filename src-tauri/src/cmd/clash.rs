@@ -102,10 +102,11 @@ pub async fn get_geo_data_update_time() -> CmdResult<GeoDataUpdateTime> {
             .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as u64)
     };
+    let get_first_mtime = |names: &[&str]| -> Option<u64> { names.iter().find_map(|name| get_mtime(name)) };
     Ok(GeoDataUpdateTime {
         mmdb: get_mtime("country.mmdb"),
         geoip: get_mtime("GeoIP.dat"),
-        asn: get_mtime("ASN.mmdb"),
+        asn: get_first_mtime(&["GeoLite2-ASN.mmdb", "ASN.mmdb"]),
         geosite: get_mtime("GeoSite.dat"),
     })
 }

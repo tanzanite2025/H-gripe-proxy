@@ -14,8 +14,7 @@ import {
   buildGroupsYaml,
   normalizeDeleteSeq,
 } from '../utils/group-helpers'
-
-const BUILTIN_PROXY_POLICIES = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
+import { builtinProxyPolicies } from '../constants'
 
 interface UseGroupDataProps {
   mergeUid: string
@@ -144,7 +143,7 @@ export const useGroupData = ({
         (name): name is string => typeof name === 'string' && name.length > 0,
       )
 
-    const computedPolicyList = BUILTIN_PROXY_POLICIES.concat(
+    const computedPolicyList = builtinProxyPolicies.concat(
       prependSeq.map((group: IProxyGroupConfig) => group.name),
       (originGroupsObj?.['proxy-groups'] || [])
         .map((group: IProxyGroupConfig) => group.name)

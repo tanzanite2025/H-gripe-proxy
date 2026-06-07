@@ -3,8 +3,11 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { showNotice } from '@/services/notice-service'
-import type { TranslationKey } from '@/types/generated/i18n-keys'
 
+import {
+  PROXY_POLICY_LABEL_KEYS,
+  PROXY_STRATEGY_LABEL_KEYS,
+} from '../constants'
 import { isGroupNameExists, validateGroupName } from '../utils/group-helpers'
 
 interface UseGroupFormProps {
@@ -14,26 +17,6 @@ interface UseGroupFormProps {
   setAppendSeq: (seq: IProxyGroupConfig[]) => void
   groupList: IProxyGroupConfig[]
 }
-
-const builtinProxyPolicies = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
-
-export const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
-  select: 'proxies.components.enums.strategies.select',
-  'url-test': 'proxies.components.enums.strategies.url-test',
-  fallback: 'proxies.components.enums.strategies.fallback',
-  'load-balance': 'proxies.components.enums.strategies.load-balance',
-  relay: 'proxies.components.enums.strategies.relay',
-}
-
-export const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
-  builtinProxyPolicies.reduce(
-    (acc, policy) => {
-      acc[policy] =
-        `proxies.components.enums.policies.${policy}` as TranslationKey
-      return acc
-    },
-    {} as Record<string, TranslationKey>,
-  )
 
 export const useGroupForm = ({
   prependSeq,
@@ -122,7 +105,6 @@ export const useGroupForm = ({
 
   return {
     control,
-    formIns,
     translateStrategy,
     translatePolicy,
     handlePrepend,

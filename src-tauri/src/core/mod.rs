@@ -13,6 +13,7 @@ pub mod egress_monitor;
 pub mod handle;
 pub mod hotkey;
 pub mod identity_consistency;
+pub mod ip_intelligence;
 pub mod ip_reputation;
 pub mod logger;
 pub mod manager;

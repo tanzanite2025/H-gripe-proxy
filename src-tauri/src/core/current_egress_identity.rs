@@ -4,15 +4,11 @@ use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_mihomo::models::EgressStatus;
 
 use crate::core::ip_reputation::IpReputation;
-use crate::core::runtime_diagnostics::geoip::fetch_public_ip_observation;
-use crate::utils::network::{NetworkManager, ProxyType};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum CurrentEgressIdentitySource {
     MihomoEgressStatus,
-    MihomoConnectionMetadata,
-    PublicIpObservation,
     Unavailable,
 }
 
@@ -38,17 +34,19 @@ pub struct CurrentEgressIdentity {
 }
 
 pub async fn build_current_egress_identity(app_handle: Option<&tauri::AppHandle>) -> Result<CurrentEgressIdentity> {
-    if let Some(app_handle) = app_handle {
-        if let Ok(Some(identity)) = current_identity_from_mihomo_egress_status(app_handle).await {
-            return Ok(identity);
-        }
+    let Some(app_handle) = app_handle else {
+        return Ok(unavailable_identity("Mihomo app handle is unavailable."));
+    };
 
-        if let Ok(Some(identity)) = current_identity_from_mihomo_connections(app_handle).await {
-            return Ok(identity);
-        }
+    match current_identity_from_mihomo_egress_status(app_handle).await {
+        Ok(Some(identity)) => Ok(identity),
+        Ok(None) => Ok(unavailable_identity(
+            "Mihomo has not observed a public egress IP yet. Upgrade the Mihomo core if this persists.",
+        )),
+        Err(error) => Ok(unavailable_identity(&format!(
+            "Failed to query Mihomo egress status: {error}. Upgrade the Mihomo core if this persists."
+        ))),
     }
-
-    current_identity_from_public_ip().await
 }
 
 async fn current_identity_from_mihomo_egress_status(
@@ -63,17 +61,20 @@ async fn current_identity_from_mihomo_egress_status(
     };
 
     if let Some(ip) = identity.egress_ip.as_deref() {
-        identity.reputation = Some(crate::feat::get_ip_reputation_manager().inspect_ip_metadata(ip).await?);
+        identity.reputation = Some(crate::feat::get_ip_reputation_manager().inspect_core_metadata(
+            ip,
+            identity.destination_asn.as_deref(),
+            identity.asn_org.as_deref(),
+        ));
     }
 
     Ok(Some(identity))
 }
 
 fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentEgressIdentity> {
-    let public_egress_ip = status
-        .public_egress_ip
-        .as_deref()
-        .and_then(non_empty_string)
+    let public_egress_ip = status.public_egress_ip.as_deref().and_then(non_empty_string);
+    let egress_ip = public_egress_ip
+        .clone()
         .or_else(|| status.egress_ip.as_deref().and_then(non_empty_string));
     let proxy_endpoint = status.proxy_endpoint.as_deref().and_then(non_empty_string);
     let proxy_name = status.proxy_name.as_deref().and_then(non_empty_string);
@@ -88,14 +89,7 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
     let last_verified_at = status.last_verified_at.as_deref().and_then(non_empty_string);
     let updated_at = status.updated_at.as_deref().and_then(non_empty_string);
 
-    if public_egress_ip.is_none()
-        && proxy_name.is_none()
-        && proxy_chain.is_empty()
-        && destination_asn.is_none()
-        && asn_org.is_none()
-        && rule.is_none()
-        && rule_payload.is_none()
-    {
+    if egress_ip.is_none() {
         return None;
     }
 
@@ -103,7 +97,7 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
         source: CurrentEgressIdentitySource::MihomoEgressStatus,
         proxy_name,
         proxy_chain,
-        egress_ip: public_egress_ip.clone(),
+        egress_ip,
         public_egress_ip,
         proxy_endpoint,
         destination_asn,
@@ -120,62 +114,12 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
     })
 }
 
-async fn current_identity_from_mihomo_connections(
-    app_handle: &tauri::AppHandle,
-) -> Result<Option<CurrentEgressIdentity>> {
-    let mihomo = app_handle.mihomo().read().await;
-    let connections = mihomo.get_connections().await?;
-    drop(mihomo);
-
-    let Some(connection) = connections.connections.as_ref().and_then(|items| items.first()) else {
-        return Ok(None);
-    };
-
-    let proxy_chain = connection.chains.clone();
-    let proxy_name = proxy_chain.first().cloned().or_else(|| {
-        let special = connection.metadata.special_proxy.trim();
-        (!special.is_empty()).then(|| special.to_string())
-    });
-    let destination_asn = non_empty_string(&connection.metadata.destination_ip_asn);
-
-    Ok(Some(CurrentEgressIdentity {
-        source: CurrentEgressIdentitySource::MihomoConnectionMetadata,
-        proxy_name,
-        proxy_chain,
-        egress_ip: None,
-        public_egress_ip: None,
-        proxy_endpoint: None,
-        destination_asn,
-        asn_org: None,
-        rule: None,
-        rule_payload: None,
-        egress_source: None,
-        confidence: None,
-        sample_count: None,
-        last_verified_at: None,
-        updated_at: None,
-        reputation: None,
-        message: "proxy identity derived from Mihomo connection metadata".to_string(),
-    }))
-}
-
-async fn current_identity_from_public_ip() -> Result<CurrentEgressIdentity> {
-    let network_manager = NetworkManager::new();
-    let client = network_manager
-        .create_request(ProxyType::Localhost, Some(8), None, false)
-        .await?;
-    let observation = fetch_public_ip_observation(&client).await?;
-    let egress_ip = observation.ip.map(|ip| ip.to_string());
-    let reputation = match egress_ip.as_deref() {
-        Some(ip) => Some(crate::feat::get_ip_reputation_manager().inspect_ip_metadata(ip).await?),
-        None => None,
-    };
-
-    Ok(CurrentEgressIdentity {
-        source: CurrentEgressIdentitySource::PublicIpObservation,
+fn unavailable_identity(message: &str) -> CurrentEgressIdentity {
+    CurrentEgressIdentity {
+        source: CurrentEgressIdentitySource::Unavailable,
         proxy_name: None,
         proxy_chain: Vec::new(),
-        egress_ip,
+        egress_ip: None,
         public_egress_ip: None,
         proxy_endpoint: None,
         destination_asn: None,
@@ -187,9 +131,9 @@ async fn current_identity_from_public_ip() -> Result<CurrentEgressIdentity> {
         sample_count: None,
         last_verified_at: None,
         updated_at: None,
-        reputation,
-        message: "identity derived from current local-core public IP observation".to_string(),
-    })
+        reputation: None,
+        message: message.to_string(),
+    }
 }
 
 fn non_empty_string(value: impl AsRef<str>) -> Option<String> {
@@ -256,5 +200,30 @@ mod tests {
         assert_eq!(identity.sample_count, Some(1));
         assert_eq!(identity.last_verified_at.as_deref(), Some("2026-06-02T02:00:00Z"));
         assert_eq!(identity.updated_at.as_deref(), Some("2026-06-02T02:00:00Z"));
+    }
+
+    #[test]
+    fn test_current_identity_requires_observed_egress_ip() {
+        let status = EgressStatus {
+            stable: false,
+            change_count: 0,
+            observed_count: Some(0),
+            egress_ip: None,
+            public_egress_ip: None,
+            proxy_endpoint: Some("198.51.100.1:443".to_string()),
+            proxy_name: Some("HK-Node".to_string()),
+            proxy_chain: Some("HK-Node -> DIRECT".to_string()),
+            destination_asn: Some("AS16509".to_string()),
+            asn_org: Some("Amazon AWS".to_string()),
+            rule: Some("MATCH".to_string()),
+            rule_payload: None,
+            egress_source: None,
+            confidence: Some(10),
+            sample_count: Some(0),
+            last_verified_at: None,
+            updated_at: None,
+        };
+
+        assert!(current_identity_from_egress_status(&status).is_none());
     }
 }
