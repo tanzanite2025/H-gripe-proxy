@@ -13,9 +13,21 @@ import { useState } from 'react'
 import { Alert } from '@/components/tailwind/Alert'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
-import { List, ListItem, ListItemIcon, ListItemText } from '@/components/tailwind/List'
-import { ToggleButton, ToggleButtonGroup } from '@/components/tailwind/ToggleButtonGroup'
-import { testDnsLeak, type DnsLeakTestResult, type DnsRuntimeStatus } from '@/services/cmds'
+import {
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+} from '@/components/tailwind/List'
+import {
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@/components/tailwind/ToggleButtonGroup'
+import {
+  testDnsLeak,
+  type DnsLeakTestResult,
+  type DnsRuntimeStatus,
+} from '@/services/cmds'
 import type { DnsLeakProtectionLevel } from '@/services/coordinator'
 import {
   formatDNSLeakSignal,
@@ -332,7 +344,7 @@ export const DnsLeakProtectionCard = ({
             {testResult.runtime_risk_type.length > 0 && (
               <div className="mt-1">
                 <div className="mb-0.5 block text-xs text-gray-600 dark:text-gray-400">
-                  运行态风险:
+                  运行态风险
                 </div>
                 <div className="flex flex-wrap gap-0.5">
                   {testResult.runtime_risk_type.map((type) => (
@@ -351,7 +363,7 @@ export const DnsLeakProtectionCard = ({
             {testResult.dns_servers.length > 0 && (
               <div className="mt-1">
                 <div className="mb-0.5 block text-xs text-gray-600 dark:text-gray-400">
-                  DNS 服务器:
+                  DNS 服务器
                 </div>
                 <List dense className="py-0">
                   {testResult.dns_servers.slice(0, 3).map((server) => (

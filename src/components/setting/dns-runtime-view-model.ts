@@ -165,6 +165,13 @@ const buildAlignment = (aligned: boolean): DnsStatusBadge => ({
 
 const joinDnsList = (servers: string[]) => servers.join(', ') || DEFAULT_EMPTY_LABEL
 
+const formatEnhancedModeLabel = (mode: string | null | undefined) => {
+  if (!mode) return DEFAULT_EMPTY_LABEL
+  if (mode === 'fake-ip') return 'Fake-IP'
+  if (mode === 'redir-host') return 'Redir-Host'
+  return mode
+}
+
 export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
   const { snapshot, derived } = runtimeStatus
   const routingMode = derived.routing_mode
@@ -172,7 +179,9 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
   const leakSecurity = derived.leak_protection_security
   const leakSafe = derived.leak_protection_safe
   const summary = [
-    snapshot.enhanced_mode ? `模式 ${snapshot.enhanced_mode}` : null,
+    snapshot.enhanced_mode
+      ? `模式 ${formatEnhancedModeLabel(snapshot.enhanced_mode)}`
+      : null,
     `nameserver ${snapshot.nameserver_count}`,
     `fallback ${snapshot.fallback_count}`,
   ]
@@ -184,7 +193,7 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
     nameserverCount: snapshot.nameserver_count,
     fallbackCount: snapshot.fallback_count,
     defaultNameserverCount: derived.default_nameserver_count,
-    enhancedModeLabel: snapshot.enhanced_mode ?? DEFAULT_EMPTY_LABEL,
+    enhancedModeLabel: formatEnhancedModeLabel(snapshot.enhanced_mode),
     runtimeDnsPresence: buildPresence(runtimeStatus.runtime_has_dns),
     runtimeHostsPresence: buildPresence(runtimeStatus.runtime_has_hosts),
     runtimeDnsInjectedLabel: runtimeStatus.runtime_has_dns
@@ -197,31 +206,23 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
     ),
     options: {
       ipv6: {
-        label: formatDnsRuntimeBool(snapshot.ipv6, '已开启', '已关闭'),
+        label: formatDnsRuntimeBool(snapshot.ipv6),
         color: getDnsRuntimeBoolColor(snapshot.ipv6),
       },
       preferH3: {
-        label: formatDnsRuntimeBool(derived.prefer_h3, '已开启', '已关闭'),
+        label: formatDnsRuntimeBool(derived.prefer_h3),
         color: getDnsRuntimeBoolColor(derived.prefer_h3),
       },
       useHosts: {
-        label: formatDnsRuntimeBool(snapshot.use_hosts, '已开启', '已关闭'),
+        label: formatDnsRuntimeBool(snapshot.use_hosts),
         color: getDnsRuntimeBoolColor(snapshot.use_hosts),
       },
       useSystemHosts: {
-        label: formatDnsRuntimeBool(
-          snapshot.use_system_hosts,
-          '已开启',
-          '已关闭',
-        ),
+        label: formatDnsRuntimeBool(snapshot.use_system_hosts),
         color: getDnsRuntimeBoolColor(snapshot.use_system_hosts),
       },
       respectRules: {
-        label: formatDnsRuntimeBool(
-          snapshot.respect_rules,
-          '已开启',
-          '已关闭',
-        ),
+        label: formatDnsRuntimeBool(snapshot.respect_rules),
         color: getDnsRuntimeBoolColor(snapshot.respect_rules),
       },
     },

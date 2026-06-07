@@ -33,7 +33,9 @@ export interface DNSLeakResult {
 }
 
 const normalizeStringArray = (value: unknown) =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : []
 
 const normalizeRiskLevel = (
   riskLevel: string | null | undefined,
@@ -133,7 +135,7 @@ export function getDNSLeakRiskDescription(
     case 'warning':
       return {
         title: '注意',
-        description: '存在运行态风险或观测不完整，建议检查 DNS 配置。',
+        description: '存在运行态风险或外部观测不完整，建议检查 DNS 配置。',
         color: 'text-warning',
       }
     case 'danger':

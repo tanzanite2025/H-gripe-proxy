@@ -7,7 +7,10 @@ import {
 
 import { Alert } from '@/components/tailwind/Alert'
 import { Chip } from '@/components/tailwind/Chip'
-import { ToggleButton, ToggleButtonGroup } from '@/components/tailwind/ToggleButtonGroup'
+import {
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@/components/tailwind/ToggleButtonGroup'
 import type { DnsRuntimeStatus } from '@/services/cmds'
 import type { DnsRoutingMode } from '@/services/coordinator'
 
@@ -20,10 +23,11 @@ interface Props {
 }
 
 const MODE_DESCRIPTIONS: Record<DnsRoutingMode, string> = {
-  speed: '全部优先使用国内低延迟 DNS，适合更看重解析速度的场景。',
+  speed: '全部优先使用低延迟 DNS，适合更看重解析速度的场景。',
   privacy: '全部优先使用加密 DNS，隐私更强，但延迟通常更高。',
-  balanced: '国内域名走低延迟 DNS，海外域名走加密 DNS，在速度和隐私之间折中。',
-  custom: '保留给手动接入的自定义 DNS 路由策略。',
+  balanced:
+    '国内域名走低延迟 DNS，海外域名走加密 DNS，在速度和隐私之间折中。',
+  custom: '保留给手动接管的自定义 DNS 路由策略。',
 }
 
 export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
@@ -45,7 +49,7 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
       <h6 className="mb-2 text-lg font-bold">DNS 智能分流</h6>
 
       <Alert severity="info" className="mb-2">
-        智能分流会根据域名类别自动选择更合适的 DNS 路径，在保证解析速度的同时尽量减少无谓绕路。
+        智能分流会根据域名类别自动选择更合适的 DNS 路径，在保证解析速度的同时尽量减少不必要的绕路。
       </Alert>
 
       <div className="mb-3">

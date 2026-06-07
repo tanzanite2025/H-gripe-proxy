@@ -158,7 +158,7 @@ const DNSLeakCardUI = ({
 
       {showDetails && result.runtimeRiskType.length > 0 && (
         <div className="rounded bg-surface-variant p-2 text-xs">
-          <p className="mb-1 font-medium">运行态风险:</p>
+          <p className="mb-1 font-medium">运行态风险</p>
           <div className="space-y-0.5 text-text-secondary">
             {result.runtimeRiskType.map((item) => (
               <p key={item}>{item}</p>
@@ -180,7 +180,7 @@ const DNSLeakCardUI = ({
 
       {showDetails && result.dnsServers.length > 0 && (
         <div className="rounded bg-surface-variant p-2">
-          <p className="mb-2 text-xs font-medium">DNS 服务器:</p>
+          <p className="mb-2 text-xs font-medium">DNS 服务器</p>
           <div className="space-y-1.5">
             {result.dnsServers.map((dns) => (
               <div key={`${dns.ip}-${dns.hostname ?? ''}`} className="text-xs">

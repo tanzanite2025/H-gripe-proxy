@@ -32,10 +32,7 @@ export function RoutingSection({ runtimeView }: RoutingSectionProps) {
           valueTitle={runtimeView.routing.foreignDns}
           valueClassName="max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold"
         />
-        <DnsTextRow
-          label="策略组数量"
-          value={runtimeView.routing.policyCount}
-        />
+        <DnsTextRow label="策略组数量" value={runtimeView.routing.policyCount} />
       </div>
     </div>
   )

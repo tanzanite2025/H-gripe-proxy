@@ -84,7 +84,11 @@ const DOH_FALLBACKS = [
   'https://cloudflare-dns.com/dns-query',
   'https://dns.quad9.net/dns-query',
 ]
-const DOT_FALLBACKS = ['tls://dns.google:853', 'tls://1.1.1.1:853', 'tls://9.9.9.9:853']
+const DOT_FALLBACKS = [
+  'tls://dns.google:853',
+  'tls://1.1.1.1:853',
+  'tls://9.9.9.9:853',
+]
 
 class DnsLeakProtectionService {
   private config: DnsLeakProtectionConfig = {
@@ -173,7 +177,10 @@ class DnsLeakProtectionService {
 
     if (preferDoH) {
       config['nameserver-policy'] = {
-        'geosite:cn': ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
+        'geosite:cn': [
+          'https://dns.alidns.com/dns-query',
+          'https://doh.pub/dns-query',
+        ],
         'geosite:geolocation-!cn': [
           'https://dns.google/dns-query',
           'https://cloudflare-dns.com/dns-query',
@@ -240,7 +247,8 @@ class DnsLeakProtectionService {
         leakType: result.leak_type,
         dnsServers: result.dns_servers.map((server) => ({
           ip: server.ip,
-          location: [server.country, server.city].filter(Boolean).join(' / ') || '未知',
+          location:
+            [server.country, server.city].filter(Boolean).join(' / ') || '未知',
           isp: server.isp || '未知',
         })),
         recommendations: result.recommendations,
@@ -290,7 +298,7 @@ class DnsLeakProtectionService {
           '阻断明文 DNS',
           '阻断系统 DNS',
           '阻断 IPv6 DNS',
-          '优先使用 DoH，保留 DoT 意图配置',
+          '优先使用 DoH，并保留 DoT 意图配置',
           '支持 DNS 泄漏测试',
         ],
         security: 'maximum' as const,

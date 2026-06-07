@@ -69,8 +69,7 @@ export const DnsStatsCard = ({
         </div>
 
         <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-          这里展示的是 Rust 后端确认的当前 DNS
-          运行态统计，不会随着未保存的表单编辑即时变化。
+          这里展示的是 Rust 后端确认的当前 DNS 运行态统计，不会随着未保存的表单编辑即时变化。
         </div>
 
         <RuntimeSummarySection runtimeView={runtimeView} />

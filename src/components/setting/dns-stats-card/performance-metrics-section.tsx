@@ -160,7 +160,7 @@ export function PerformanceMetricsSection() {
             valueClassName="font-mono text-xs"
           />
 
-          {metrics.servers && metrics.servers.length > 0 && (
+          {metrics.servers && metrics.servers.length > 0 ? (
             <div className="mt-1">
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 服务器状态
@@ -184,16 +184,16 @@ export function PerformanceMetricsSection() {
                     </span>
                   </div>
                 ))}
-                {metrics.servers.length > 5 && (
+                {metrics.servers.length > 5 ? (
                   <div className="text-xs text-gray-400">
                     +{metrics.servers.length - 5} 更多
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {metrics.pollution && metrics.pollution.totalChecked > 0 && (
+          {metrics.pollution && metrics.pollution.totalChecked > 0 ? (
             <div className="mt-1">
               <div className="flex items-center justify-between text-sm">
                 <span>污染检测</span>
@@ -209,10 +209,11 @@ export function PerformanceMetricsSection() {
               </div>
               <div className="text-xs text-gray-400">
                 已检查 {metrics.pollution.totalChecked} 次响应
-                {metrics.pollution.pollutionRate > 0 &&
-                  ` / 污染率 ${(metrics.pollution.pollutionRate * 100).toFixed(1)}%`}
+                {metrics.pollution.pollutionRate > 0
+                  ? ` / 污染率 ${(metrics.pollution.pollutionRate * 100).toFixed(1)}%`
+                  : ''}
               </div>
-              {metrics.pollution.recentPolluted.length > 0 && (
+              {metrics.pollution.recentPolluted.length > 0 ? (
                 <div className="mt-0.5 space-y-0.5">
                   {metrics.pollution.recentPolluted.slice(0, 3).map((item, index) => (
                     <div
@@ -229,14 +230,14 @@ export function PerformanceMetricsSection() {
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
 
-          {metrics.trust && metrics.trust.total > 0 && (
+          {metrics.trust && metrics.trust.total > 0 ? (
             <div className="mt-1">
               <div className="flex items-center justify-between text-sm">
-                <span>服务器安全</span>
+                <span>解析链路安全</span>
                 <Chip
                   label={getLeakRiskLabel(metrics.trust.leakRiskScore)}
                   size="small"
@@ -245,14 +246,14 @@ export function PerformanceMetricsSection() {
               </div>
               <div className="text-xs text-gray-400">
                 {metrics.trust.encrypted}/{metrics.trust.total} 已加密
-                {metrics.trust.unencrypted > 0 && (
+                {metrics.trust.unencrypted > 0 ? (
                   <span className="text-red-400">
                     {' '}
                     / {metrics.trust.unencrypted} 明文
                   </span>
-                )}
+                ) : null}
               </div>
-              {metrics.trust.servers.length > 0 && (
+              {metrics.trust.servers.length > 0 ? (
                 <div className="mt-0.5 space-y-0.5">
                   {metrics.trust.servers.slice(0, 4).map((server) => (
                     <div
@@ -278,18 +279,18 @@ export function PerformanceMetricsSection() {
                         >
                           {server.protocol}
                         </span>
-                        {!server.encrypted && (
+                        {!server.encrypted ? (
                           <span className="text-red-400" title="未加密">
                             !
                           </span>
-                        )}
+                        ) : null}
                       </span>
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

@@ -82,11 +82,11 @@ export function DnsAdvancedPanel({
           <div>
             <div className="flex items-center gap-2 text-lg font-bold">
               <Settings2 className="h-4 w-4" />
-              DNS 运行时应用
+              DNS 运行态应用
             </div>
             <div className="mt-1 text-sm text-muted-foreground">
-              控制统一 DNS 配置派生出的 `dns_config.yaml`
-              是否应用到当前 core 运行时。
+              控制统一 DNS 配置派生出的 `dns_config.yaml` 是否应用到当前
+              `core` 运行时。
             </div>
           </div>
 

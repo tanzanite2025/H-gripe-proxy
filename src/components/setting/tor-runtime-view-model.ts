@@ -52,7 +52,7 @@ export function formatTorRuntimeRiskLabel(risk: string) {
     case 'invalid-socks-port':
       return 'SOCKS 端口无效'
     case 'bridges-enabled-without-bridges':
-      return '启用网桥但未配置网桥'
+      return '已启用桥接但未配置 bridge'
     default:
       return risk
   }
@@ -81,11 +81,13 @@ export function buildTorRuntimeViewModel(
           connected: false,
         } satisfies { label: string; color: DnsStatusColor; connected: boolean })
 
+  const enabled = status?.enabled ?? fallbackEnabled
+
   return {
     enabled: {
-      active: status?.enabled ?? fallbackEnabled,
-      label: status?.enabled ?? fallbackEnabled ? '已启用' : '未启用',
-      color: (status?.enabled ?? fallbackEnabled) ? 'success' : 'default',
+      active: enabled,
+      label: enabled ? '已启用' : '未启用',
+      color: enabled ? 'success' : 'default',
     } satisfies { active: boolean; label: string; color: DnsStatusColor },
     connection,
     assessment: status?.assessment
@@ -100,8 +102,7 @@ export function buildTorRuntimeViewModel(
           color: 'info' as const,
         }
       : null,
-    runtimeRiskText: status?.runtime_risk_type
-      .map(formatTorRuntimeRiskLabel)
-      .join('；') || '',
+    runtimeRiskText:
+      status?.runtime_risk_type.map(formatTorRuntimeRiskLabel).join('；') || '',
   }
 }
