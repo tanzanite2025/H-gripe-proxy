@@ -8,6 +8,7 @@ import parseTraffic from '@/utils/format'
 
 import { ProfileBox } from './profile-box'
 import { ProfileCardActions } from './profile-card-actions'
+import { formatExpireDate } from './profile-item/shared'
 
 interface ProfileItemUIProps {
   // Basic info
@@ -203,7 +204,7 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
                 title={
                   showNextUpdate
                     ? t('profiles.components.profileItem.tooltips.showLast')
-                    : `${t('shared.labels.updateTime')}: ${parseExpire(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
+                    : `${t('shared.labels.updateTime')}: ${formatExpireDate(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
                 }
                 onClick={onToggleUpdateTimeDisplay}
               >
@@ -228,7 +229,7 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
         ) : (
           <div className="h-[26px] flex items-center justify-end text-xs">
             <span title={t('shared.labels.updateTime')}>
-              {parseExpire(updated)}
+              {formatExpireDate(updated)}
             </span>
           </div>
         )}
@@ -257,9 +258,4 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
       </ProfileBox>
     </div>
   )
-}
-
-function parseExpire(expire?: number) {
-  if (!expire) return '-'
-  return dayjs(expire * 1000).format('YYYY-MM-DD')
 }
