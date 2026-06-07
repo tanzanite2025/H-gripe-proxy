@@ -1,8 +1,9 @@
-/**
- * DNS 智能分流配置卡片
- */
-
-import { Scale as BalanceIcon, Settings as SettingsIcon, Shield as SecurityIcon, Zap as SpeedIcon } from 'lucide-react'
+import {
+  Scale as BalanceIcon,
+  Settings as SettingsIcon,
+  Shield as SecurityIcon,
+  Zap as SpeedIcon,
+} from 'lucide-react'
 
 import { Alert } from '@/components/tailwind/Alert'
 import { Chip } from '@/components/tailwind/Chip'
@@ -18,24 +19,20 @@ interface Props {
   onChange: (mode: DnsRoutingMode) => void
 }
 
-export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
-  const handleModeChange = (_event: React.MouseEvent<HTMLElement>, value: string | string[]) => {
-    if (typeof value === 'string') {
-      const newMode = value as DnsRoutingMode
-      onChange(newMode)
-    }
-  }
+const MODE_DESCRIPTIONS: Record<DnsRoutingMode, string> = {
+  speed: '全部优先使用国内低延迟 DNS，适合更看重解析速度的场景。',
+  privacy: '全部优先使用加密 DNS，隐私更强，但延迟通常更高。',
+  balanced: '国内域名走低延迟 DNS，海外域名走加密 DNS，在速度和隐私之间折中。',
+  custom: '保留给手动接入的自定义 DNS 路由策略。',
+}
 
-  const getModeDescription = (mode: DnsRoutingMode): string => {
-    switch (mode) {
-      case 'speed':
-        return '全部使用国内 UDP DNS，延迟最低（10-30ms）'
-      case 'privacy':
-        return '全部使用 Cloudflare DoH，隐私保护最强'
-      case 'balanced':
-        return '国内域名用 UDP，国外域名用 DoH，平衡速度和隐私'
-      case 'custom':
-        return '自定义 DNS 配置和规则'
+export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
+  const handleModeChange = (
+    _event: React.MouseEvent<HTMLElement>,
+    value: string | string[],
+  ) => {
+    if (typeof value === 'string') {
+      onChange(value as DnsRoutingMode)
     }
   }
 
@@ -45,12 +42,10 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
 
   return (
     <div>
-      <h6 className="mb-2 text-lg font-bold">
-        DNS 智能分流
-      </h6>
+      <h6 className="mb-2 text-lg font-bold">DNS 智能分流</h6>
 
       <Alert severity="info" className="mb-2">
-        智能分流可根据域名类型自动选择最优 DNS 服务器，提升解析速度并保护隐私
+        智能分流会根据域名类别自动选择更合适的 DNS 路径，在保证解析速度的同时尽量减少无谓绕路。
       </Alert>
 
       <div className="mb-3">
@@ -83,7 +78,7 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
         </ToggleButtonGroup>
 
         <div className="mb-2 text-sm text-gray-600 dark:text-gray-400">
-          {getModeDescription(mode)}
+          {MODE_DESCRIPTIONS[mode]}
         </div>
       </div>
 
@@ -119,7 +114,7 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
 
           <div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              国外域名 DNS
+              海外域名 DNS
             </div>
             <div className="mt-0.5 text-sm">
               {runtimeView?.routing.foreignDnsConfig ?? '未配置'}
@@ -163,6 +158,9 @@ export const DnsRoutingCard = ({ mode, runtimeStatus, onChange }: Props) => {
               <Chip label="延迟: 20-40ms" size="small" color="success" />
               <Chip label="隐私: 中" size="small" color="warning" />
             </>
+          )}
+          {mode === 'custom' && (
+            <Chip label="按自定义策略执行" size="small" color="info" />
           )}
         </div>
       </div>

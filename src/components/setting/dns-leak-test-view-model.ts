@@ -10,7 +10,7 @@ export function formatDnsLeakAssessmentLabel(
 ) {
   switch (assessment) {
     case 'observed-leak':
-      return '已观测泄漏'
+      return '已观察到泄漏'
     case 'runtime-risk':
       return '运行态风险'
     case 'inconclusive':
@@ -104,17 +104,17 @@ export function buildDnsLeakObservationPath(
 ) {
   switch (observationPath) {
     case 'core-proxy':
-      return { label: '通过本地 core', color: 'success' } satisfies {
+      return { label: '通过本地内核代理观测', color: 'success' } satisfies {
         label: string
         color: DnsStatusColor
       }
     case 'core-proxy-fallback-direct':
-      return { label: 'core 回退直连', color: 'warning' } satisfies {
+      return { label: '内核代理失败后直连', color: 'warning' } satisfies {
         label: string
         color: DnsStatusColor
       }
     case 'direct':
-      return { label: '直连检测', color: 'warning' } satisfies {
+      return { label: '直接观测', color: 'warning' } satisfies {
         label: string
         color: DnsStatusColor
       }
@@ -132,13 +132,13 @@ export function formatDnsLeakStatusMessage(result: {
   observationIncomplete?: boolean
 }) {
   if (result.observedLeak) {
-    return '已观测到外部 DNS 泄漏迹象'
+    return '已观察到外部 DNS 泄漏信号'
   }
   if (result.runtimeRiskDetected) {
-    return '当前未观测到外部泄漏，但运行态存在 DNS 风险'
+    return '当前未直接观察到泄漏，但运行态存在 DNS 风险'
   }
   if (result.observationIncomplete) {
-    return '当前外部观测不完整，结果偏保守'
+    return '外部观测不完整，结果偏保守'
   }
   return '当前未发现 DNS 泄漏或运行态风险'
 }
@@ -170,11 +170,11 @@ export function buildDnsLeakTestViewModel(result: DnsLeakTestResult) {
       ) as DnsAlertSeverity,
       message:
         result.assessment === 'observed-leak'
-          ? '检测到 DNS 泄漏！'
+          ? '检测到 DNS 泄漏'
           : result.assessment === 'runtime-risk'
-            ? '当前未观测到明确外部泄漏，但运行态存在 DNS 风险信号'
+            ? '未直接观察到泄漏，但运行态存在风险信号'
             : result.assessment === 'inconclusive'
-              ? '当前外部观测不完整，结果仅供参考'
+              ? '外部观测不完整，结果仅供参考'
               : '未检测到 DNS 泄漏',
     },
   }

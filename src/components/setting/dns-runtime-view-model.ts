@@ -9,9 +9,16 @@ export type DnsStatusColor =
   | 'info'
   | 'success'
 
+type DnsStatusBadge = {
+  label: string
+  color: DnsStatusColor
+}
+
+const DEFAULT_EMPTY_LABEL = '未配置'
+
 export const formatDnsRoutingModeLabel = (
   mode: string | null | undefined,
-  emptyLabel = 'N/A',
+  emptyLabel = DEFAULT_EMPTY_LABEL,
 ) => {
   switch (mode) {
     case 'speed':
@@ -46,7 +53,7 @@ export const getDnsRoutingModeColor = (
 
 export const formatDnsLeakProtectionLabel = (
   level: string | null | undefined,
-  emptyLabel = 'N/A',
+  emptyLabel = DEFAULT_EMPTY_LABEL,
 ) => {
   switch (level) {
     case 'none':
@@ -64,9 +71,28 @@ export const formatDnsLeakProtectionLabel = (
   }
 }
 
+export const getDnsLeakProtectionColor = (
+  level: string | null | undefined,
+): DnsStatusColor => {
+  switch (level) {
+    case 'none':
+      return 'error'
+    case 'basic':
+      return 'warning'
+    case 'strict':
+      return 'info'
+    case 'paranoid':
+      return 'success'
+    case 'custom':
+      return 'default'
+    default:
+      return 'default'
+  }
+}
+
 export const formatDnsLeakSecurityLabel = (
   security: string | null | undefined,
-  emptyLabel = 'N/A',
+  emptyLabel = DEFAULT_EMPTY_LABEL,
 ) => {
   switch (security) {
     case 'low':
@@ -76,7 +102,7 @@ export const formatDnsLeakSecurityLabel = (
     case 'high':
       return '高'
     case 'very-high':
-      return '极高'
+      return '很高'
     case 'maximum':
       return '最高'
     case 'custom':
@@ -106,9 +132,9 @@ export const getDnsLeakSecurityColor = (
 
 export const formatDnsRuntimeBool = (
   value: boolean | null | undefined,
-  enabledLabel = '已启用',
+  enabledLabel = '已开启',
   disabledLabel = '已关闭',
-  emptyLabel = 'N/A',
+  emptyLabel = DEFAULT_EMPTY_LABEL,
 ) => {
   if (value === null || value === undefined) {
     return emptyLabel
@@ -127,19 +153,22 @@ export const getDnsRuntimeBoolColor = (
   return value ? 'success' : 'warning'
 }
 
-const buildPresence = (present: boolean) => ({
+const buildPresence = (present: boolean): DnsStatusBadge => ({
   label: present ? '存在' : '缺失',
   color: present ? 'success' : 'warning',
-}) satisfies { label: string; color: DnsStatusColor }
+})
 
-const buildAlignment = (aligned: boolean) => ({
+const buildAlignment = (aligned: boolean): DnsStatusBadge => ({
   label: aligned ? '已对齐' : '未对齐',
   color: aligned ? 'success' : 'warning',
-}) satisfies { label: string; color: DnsStatusColor }
+})
+
+const joinDnsList = (servers: string[]) => servers.join(', ') || DEFAULT_EMPTY_LABEL
 
 export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
   const { snapshot, derived } = runtimeStatus
   const routingMode = derived.routing_mode
+  const leakLevel = derived.leak_protection_level
   const leakSecurity = derived.leak_protection_security
   const leakSafe = derived.leak_protection_safe
   const summary = [
@@ -155,13 +184,17 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
     nameserverCount: snapshot.nameserver_count,
     fallbackCount: snapshot.fallback_count,
     defaultNameserverCount: derived.default_nameserver_count,
-    enhancedModeLabel: snapshot.enhanced_mode ?? 'N/A',
+    enhancedModeLabel: snapshot.enhanced_mode ?? DEFAULT_EMPTY_LABEL,
     runtimeDnsPresence: buildPresence(runtimeStatus.runtime_has_dns),
     runtimeHostsPresence: buildPresence(runtimeStatus.runtime_has_hosts),
-    runtimeDnsInjectedLabel: runtimeStatus.runtime_has_dns ? 'DNS 已注入' : 'DNS 未注入',
+    runtimeDnsInjectedLabel: runtimeStatus.runtime_has_dns
+      ? '运行态已注入 DNS'
+      : '运行态未注入 DNS',
     runtimeAlignment: buildAlignment(runtimeStatus.runtime_matches_saved),
     runtimeDnsAlignment: buildAlignment(runtimeStatus.runtime_dns_matches_saved),
-    runtimeHostsAlignment: buildAlignment(runtimeStatus.runtime_hosts_matches_saved),
+    runtimeHostsAlignment: buildAlignment(
+      runtimeStatus.runtime_hosts_matches_saved,
+    ),
     options: {
       ipv6: {
         label: formatDnsRuntimeBool(snapshot.ipv6, '已开启', '已关闭'),
@@ -176,11 +209,19 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
         color: getDnsRuntimeBoolColor(snapshot.use_hosts),
       },
       useSystemHosts: {
-        label: formatDnsRuntimeBool(snapshot.use_system_hosts, '已开启', '已关闭'),
+        label: formatDnsRuntimeBool(
+          snapshot.use_system_hosts,
+          '已开启',
+          '已关闭',
+        ),
         color: getDnsRuntimeBoolColor(snapshot.use_system_hosts),
       },
       respectRules: {
-        label: formatDnsRuntimeBool(snapshot.respect_rules, '已开启', '已关闭'),
+        label: formatDnsRuntimeBool(
+          snapshot.respect_rules,
+          '已开启',
+          '已关闭',
+        ),
         color: getDnsRuntimeBoolColor(snapshot.respect_rules),
       },
     },
@@ -190,39 +231,45 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
           ? '存在且有效'
           : '存在但无效'
         : '不存在',
-      color: runtimeStatus.dns_config_valid ? 'success' : 'warning',
-    } satisfies { label: string; color: DnsStatusColor },
+      color:
+        runtimeStatus.dns_config_exists && runtimeStatus.dns_config_valid
+          ? 'success'
+          : 'warning',
+    } satisfies DnsStatusBadge,
     runtimeSource: runtimeStatus.enable_dns_settings
       ? '来自已保存 dns_config.yaml 派生配置'
       : '来自当前基础 runtime 配置',
     runtimeOverride: {
       label: runtimeStatus.enable_dns_settings ? '已启用' : '未启用',
       color: runtimeStatus.enable_dns_settings ? 'success' : 'warning',
-    } satisfies { label: string; color: DnsStatusColor },
+    } satisfies DnsStatusBadge,
     runtimeEffect: {
-      label: runtimeStatus.runtime_has_dns ? '运行态已携带 DNS' : '运行态未携带 DNS',
+      label: runtimeStatus.runtime_has_dns
+        ? '运行态已携带 DNS'
+        : '运行态未携带 DNS',
       color: runtimeStatus.runtime_has_dns ? 'success' : 'warning',
-    } satisfies { label: string; color: DnsStatusColor },
+    } satisfies DnsStatusBadge,
     savedArtifact: {
       label: runtimeStatus.runtime_matches_saved ? '已生效' : '未完全生效',
       color: runtimeStatus.runtime_matches_saved ? 'success' : 'warning',
-    } satisfies { label: string; color: DnsStatusColor },
+    } satisfies DnsStatusBadge,
     routing: {
       mode: routingMode,
       modeLabel: formatDnsRoutingModeLabel(routingMode),
       modeUnknownLabel: formatDnsRoutingModeLabel(routingMode, '未知'),
       modeColor: getDnsRoutingModeColor(routingMode),
-      domesticDns: derived.domestic_dns.join(', ') || 'N/A',
-      foreignDns: derived.foreign_dns.join(', ') || 'N/A',
-      domesticDnsConfig: derived.domestic_dns.join(', ') || '未配置',
-      foreignDnsConfig: derived.foreign_dns.join(', ') || '未配置',
+      domesticDns: joinDnsList(derived.domestic_dns),
+      foreignDns: joinDnsList(derived.foreign_dns),
+      domesticDnsConfig: joinDnsList(derived.domestic_dns),
+      foreignDnsConfig: joinDnsList(derived.foreign_dns),
       policyCount: snapshot.nameserver_policy_count,
       policyCountLabel: `${snapshot.nameserver_policy_count} 个策略组`,
     },
     leak: {
-      level: derived.leak_protection_level,
-      levelLabel: formatDnsLeakProtectionLabel(derived.leak_protection_level),
-      levelUnknownLabel: formatDnsLeakProtectionLabel(derived.leak_protection_level, '未知'),
+      level: leakLevel,
+      levelLabel: formatDnsLeakProtectionLabel(leakLevel),
+      levelUnknownLabel: formatDnsLeakProtectionLabel(leakLevel, '未知'),
+      levelColor: getDnsLeakProtectionColor(leakLevel),
       security: leakSecurity,
       securityLabel: formatDnsLeakSecurityLabel(leakSecurity),
       securityUnknownLabel: formatDnsLeakSecurityLabel(leakSecurity, '未知'),
@@ -232,11 +279,13 @@ export function buildDnsRuntimeViewModel(runtimeStatus: DnsRuntimeStatus) {
       safeColor: leakSafe === null ? 'default' : leakSafe ? 'success' : 'error',
       features: [
         snapshot.enhanced_mode === 'fake-ip' ? '启用 Fake-IP 模式' : null,
-        derived.default_nameserver_plain_count === 0 ? '阻止明文 DNS' : null,
-        snapshot.ipv6 === false ? '阻止 IPv6 DNS' : null,
+        derived.default_nameserver_plain_count === 0 ? '阻断明文 DNS' : null,
+        snapshot.ipv6 === false ? '阻断 IPv6 DNS' : null,
         derived.prefer_h3 ? 'DoH 优先使用 HTTP/3' : null,
         snapshot.respect_rules ? '遵循运行时规则' : null,
       ].filter(Boolean) as string[],
     },
   }
 }
+
+export type DnsRuntimeViewModel = ReturnType<typeof buildDnsRuntimeViewModel>

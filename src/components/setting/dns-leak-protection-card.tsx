@@ -1,8 +1,13 @@
-/**
- * DNS 零泄漏防护配置卡片
- */
-
-import { CheckCircle as CheckIcon, Loader2 as CircularProgress, Shield as ShieldIcon, ShieldAlert as ShieldLowIcon, ShieldCheck as SecurityIcon, ShieldOff as VerifiedIcon, AlertTriangle as WarningIcon } from 'lucide-react'
+import { extractErrorMessage } from 'foxts/extract-error-message'
+import {
+  AlertTriangle as WarningIcon,
+  CheckCircle as CheckIcon,
+  Loader2 as CircularProgress,
+  Shield as ShieldIcon,
+  ShieldAlert as ShieldLowIcon,
+  ShieldCheck as SecurityIcon,
+  ShieldOff as VerifiedIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import { Alert } from '@/components/tailwind/Alert'
@@ -16,9 +21,7 @@ import {
   formatDNSLeakSignal,
   formatDNSRuntimeRisk,
 } from '@/services/dns-leak-detection'
-import {
-  dnsLeakProtectionService,
-} from '@/services/dns-leak-protection'
+import { dnsLeakProtectionService } from '@/services/dns-leak-protection'
 
 import { buildDnsLeakTestViewModel } from './dns-leak-test-view-model'
 import { buildDnsRuntimeViewModel } from './dns-runtime-view-model'
@@ -29,9 +32,14 @@ interface Props {
   onChange: (level: DnsLeakProtectionLevel) => void
 }
 
-export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props) => {
+export const DnsLeakProtectionCard = ({
+  level,
+  runtimeStatus,
+  onChange,
+}: Props) => {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<DnsLeakTestResult | null>(null)
+  const [testError, setTestError] = useState<string | null>(null)
 
   const previewDescription = dnsLeakProtectionService.getLevelDescription(level)
   const runtimeView = runtimeStatus
@@ -45,18 +53,19 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
     value: string | string[],
   ) => {
     if (typeof value === 'string') {
-      const newLevel = value as DnsLeakProtectionLevel
-      onChange(newLevel)
+      onChange(value as DnsLeakProtectionLevel)
     }
   }
 
   const handleTestLeak = async () => {
     setTesting(true)
+    setTestError(null)
     try {
       const result = await testDnsLeak()
       setTestResult(result)
-    } catch (err) {
-      console.error('DNS leak test failed:', err)
+    } catch (error) {
+      setTestResult(null)
+      setTestError(extractErrorMessage(error) || 'DNS 泄漏测试失败')
     } finally {
       setTesting(false)
     }
@@ -80,12 +89,11 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
 
   return (
     <div>
-      <div className="mb-2 text-sm font-semibold">
-        DNS 零泄漏防护
-      </div>
+      <div className="mb-2 text-sm font-semibold">DNS 泄漏防护</div>
 
       <Alert severity="info" className="mb-2 text-xs">
-        DNS 零泄漏防护确保所有 DNS 查询都通过加密通道，防止 ISP 或中间人监控
+        防护策略会尽量让所有 DNS 查询都走受控路径，减少 ISP、系统 DNS
+        或运行态漂移带来的额外泄漏面。
       </Alert>
 
       <div className="mb-2">
@@ -117,8 +125,22 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
           </ToggleButton>
         </ToggleButtonGroup>
 
-        <div className="block text-xs text-gray-600 dark:text-gray-400">
-          {previewDescription.name}
+        <div className="rounded-md bg-surface-variant px-2 py-1.5">
+          <div className="text-xs font-medium">{previewDescription.name}</div>
+          <div className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+            {previewDescription.description}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {previewDescription.features.map((feature) => (
+              <Chip
+                key={feature}
+                size="small"
+                color="default"
+                label={feature}
+                className="text-[0.7rem]"
+              />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -131,7 +153,7 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
 
         <div className="space-y-1.5">
           <div className="flex items-center gap-1">
-            <div className="text-sm">安全级别:</div>
+            <div className="text-sm">安全等级:</div>
             <Chip
               icon={getSecurityIcon(runtimeView?.leak.security || 'unknown')}
               label={runtimeView?.leak.securityUnknownLabel ?? '未知'}
@@ -145,9 +167,19 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
             {runtimeView?.leak.safe === null || !runtimeView ? (
               <Chip label="未知" size="small" color="default" />
             ) : runtimeView.leak.safe ? (
-              <Chip icon={<CheckIcon className="h-3 w-3" />} label="安全" size="small" color="success" />
+              <Chip
+                icon={<CheckIcon className="h-3 w-3" />}
+                label="安全"
+                size="small"
+                color="success"
+              />
             ) : (
-              <Chip icon={<WarningIcon className="h-3 w-3" />} label="不安全" size="small" color="error" />
+              <Chip
+                icon={<WarningIcon className="h-3 w-3" />}
+                label="不安全"
+                size="small"
+                color="error"
+              />
             )}
           </div>
 
@@ -156,7 +188,7 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
             <Chip
               label={runtimeView?.leak.levelUnknownLabel ?? '未知'}
               size="small"
-              color={runtimeView?.leak.securityColor ?? 'default'}
+              color={runtimeView?.leak.levelColor ?? 'default'}
             />
           </div>
         </div>
@@ -166,13 +198,13 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
 
       <div className="mb-2">
         <div className="mb-1.5 block text-xs text-gray-500 dark:text-gray-400">
-          运行态特性
+          运行态特征
         </div>
 
         <List dense className="py-0">
           {(runtimeFeatures.length > 0
             ? runtimeFeatures
-            : ['暂未识别到后端运行态特性']
+            : ['暂未识别到后端运行态特征']
           ).map((feature) => (
             <ListItem key={feature} className="px-0 py-0.5">
               <ListItemIcon className="min-w-[28px]">
@@ -196,10 +228,20 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
           fullWidth
           onClick={handleTestLeak}
           disabled={testing}
-          startIcon={testing ? <CircularProgress className="h-4 w-4 animate-spin" /> : undefined}
+          startIcon={
+            testing ? (
+              <CircularProgress className="h-4 w-4 animate-spin" />
+            ) : undefined
+          }
         >
           {testing ? '测试中...' : '开始测试'}
         </Button>
+
+        {testError && (
+          <Alert severity="warning" className="mt-2 text-xs">
+            {testError}
+          </Alert>
+        )}
 
         {testResult && testView && (
           <div className="mt-2">
@@ -238,10 +280,10 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
               </div>
               <div className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
                 <span>DNS 位置</span>
-                <span>{testResult.dns_location ?? 'Unknown'}</span>
+                <span>{testResult.dns_location ?? '未知'}</span>
               </div>
               <div className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
-                <span>检测方式</span>
+                <span>观测方式</span>
                 <Chip
                   size="small"
                   color={testView.observationPath.color}
@@ -252,7 +294,7 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
 
             {!testResult.location_comparable && (
               <Alert severity="info" className="mt-1 text-xs">
-                当前 DNS 位置与出口位置尚不可直接比较，结论主要依赖现有外部观测与运行态风险信号。
+                当前 DNS 位置与出口位置尚不可直接比较，结论主要依赖现有外部观测和运行态风险信号。
               </Alert>
             )}
 
@@ -275,7 +317,13 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                 </div>
                 <div className="flex flex-wrap gap-0.5">
                   {testResult.observed_leak_type.map((type) => (
-                    <Chip key={type} label={formatDNSLeakSignal(type)} size="small" color="error" className="text-[0.7rem]" />
+                    <Chip
+                      key={type}
+                      label={formatDNSLeakSignal(type)}
+                      size="small"
+                      color="error"
+                      className="text-[0.7rem]"
+                    />
                   ))}
                 </div>
               </div>
@@ -288,7 +336,13 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                 </div>
                 <div className="flex flex-wrap gap-0.5">
                   {testResult.runtime_risk_type.map((type) => (
-                    <Chip key={type} label={formatDNSRuntimeRisk(type)} size="small" color="warning" className="text-[0.7rem]" />
+                    <Chip
+                      key={type}
+                      label={formatDNSRuntimeRisk(type)}
+                      size="small"
+                      color="warning"
+                      className="text-[0.7rem]"
+                    />
                   ))}
                 </div>
               </div>
@@ -309,9 +363,9 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                         primary={
                           <span className="text-sm">
                             {server.ip}
-                            {server.country ? ` · ${server.country}` : ''}
-                            {server.city ? ` · ${server.city}` : ''}
-                            {server.isp ? ` · ${server.isp}` : ''}
+                            {server.country ? ` / ${server.country}` : ''}
+                            {server.city ? ` / ${server.city}` : ''}
+                            {server.isp ? ` / ${server.isp}` : ''}
                           </span>
                         }
                       />
@@ -327,12 +381,16 @@ export const DnsLeakProtectionCard = ({ level, runtimeStatus, onChange }: Props)
                   建议:
                 </div>
                 <List dense className="py-0">
-                  {testResult.recommendations.map((rec) => (
-                    <ListItem key={rec} className="px-0 py-0.5">
+                  {testResult.recommendations.map((recommendation) => (
+                    <ListItem key={recommendation} className="px-0 py-0.5">
                       <ListItemIcon className="min-w-[28px]">
                         <WarningIcon className="h-4 w-4 text-yellow-500" />
                       </ListItemIcon>
-                      <ListItemText primary={<span className="text-sm">{rec}</span>} />
+                      <ListItemText
+                        primary={
+                          <span className="text-sm">{recommendation}</span>
+                        }
+                      />
                     </ListItem>
                   ))}
                 </List>

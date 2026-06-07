@@ -5,7 +5,6 @@ import { debugLog } from '@/utils/misc'
 import { testDnsLeak, type DnsMetrics } from './cmds'
 
 export interface DNSLeakResult {
-  // DNS 服务器信息
   dnsServers: Array<{
     ip: string
     hostname?: string
@@ -13,8 +12,6 @@ export interface DNSLeakResult {
     city?: string
     isp?: string
   }>
-  
-  // 泄漏状态
   isDNSLeaking: boolean
   observedLeak: boolean
   runtimeRiskDetected: boolean
@@ -25,49 +22,44 @@ export interface DNSLeakResult {
   observedLeakType: string[]
   runtimeRiskType: string[]
   dnsMetrics?: DnsMetrics | null
-  
-  // 位置信息
-  dnsLocation?: string  // DNS 服务器所在国家
-  ipLocation: string    // 当前 IP 所在国家
+  dnsLocation?: string
+  ipLocation: string
   locationMatch: boolean
   locationComparable: boolean
-  
-  // 风险等级
   riskLevel: 'safe' | 'warning' | 'danger'
-  
-  // 建议
   recommendations: string[]
-  
-  // 检测时间
   timestamp: number
-  
-  // 错误信息
   error?: string
 }
 
-/**
- * 检测 DNS 泄漏
- * 
- * 原理：
- * 1. 查询特殊域名，获取 DNS 服务器 IP
- * 2. 获取当前 IP 的地理位置
- * 3. 查询 DNS 服务器的地理位置
- * 4. 对比两者是否一致
- * 
- * 如果 DNS 服务器位置与代理位置不一致，说明 DNS 泄漏
- */
+const normalizeStringArray = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+
+const normalizeRiskLevel = (
+  riskLevel: string | null | undefined,
+): DNSLeakResult['riskLevel'] => {
+  switch (riskLevel) {
+    case 'danger':
+      return 'danger'
+    case 'warning':
+      return 'warning'
+    default:
+      return 'safe'
+  }
+}
+
 export async function detectDNSLeak(): Promise<DNSLeakResult> {
   try {
     debugLog('[DNSLeak] 开始 DNS 泄漏检测')
     const result = await testDnsLeak()
-    
-    debugLog('[DNSLeak] 检测结果:', {
+
+    debugLog('[DNSLeak] 检测结果', {
       hasLeak: result.has_leak,
       dnsLocation: result.dns_location,
       ipLocation: result.ip_location,
       riskLevel: result.risk_level,
     })
-    
+
     return {
       dnsServers: result.dns_servers.map((server) => ({
         ip: server.ip,
@@ -82,27 +74,26 @@ export async function detectDNSLeak(): Promise<DNSLeakResult> {
       observationIncomplete: result.observation_incomplete,
       assessment: result.assessment,
       confidence: result.confidence,
-      warnings: result.warnings,
-      observedLeakType: result.observed_leak_type.map(formatDNSLeakSignal),
-      runtimeRiskType: result.runtime_risk_type.map(formatDNSRuntimeRisk),
+      warnings: normalizeStringArray(result.warnings),
+      observedLeakType: normalizeStringArray(result.observed_leak_type).map(
+        formatDNSLeakSignal,
+      ),
+      runtimeRiskType: normalizeStringArray(result.runtime_risk_type).map(
+        formatDNSRuntimeRisk,
+      ),
       dnsMetrics: result.dns_metrics,
-      dnsLocation: result.dns_location ?? 'Unknown',
-      ipLocation: result.ip_location,
+      dnsLocation: result.dns_location ?? '未知',
+      ipLocation: result.ip_location || '未知',
       locationMatch: result.location_match,
       locationComparable: result.location_comparable,
-      riskLevel:
-        result.risk_level === 'danger'
-          ? 'danger'
-          : result.risk_level === 'warning'
-            ? 'warning'
-            : 'safe',
-      recommendations: result.recommendations,
+      riskLevel: normalizeRiskLevel(result.risk_level),
+      recommendations: normalizeStringArray(result.recommendations),
       timestamp: result.timestamp,
       error: result.error ?? undefined,
     }
   } catch (error) {
-    debugLog('[DNSLeak] 检测失败:', error)
-    
+    debugLog('[DNSLeak] 检测失败', error)
+
     return {
       dnsServers: [],
       isDNSLeaking: false,
@@ -111,24 +102,23 @@ export async function detectDNSLeak(): Promise<DNSLeakResult> {
       observationIncomplete: true,
       assessment: 'inconclusive',
       confidence: 'low',
-      warnings: ['DNS 泄漏检测失败，未能获取完整外部观测'],
+      warnings: ['DNS 泄漏检测失败，未能完成外部观测。'],
       observedLeakType: [],
       runtimeRiskType: [],
-      ipLocation: 'Unknown',
-      locationMatch: true,
+      ipLocation: '未知',
+      locationMatch: false,
       locationComparable: false,
-      riskLevel: 'safe',
-      recommendations: ['DNS 泄漏检测失败，请检查网络连接'],
+      riskLevel: 'warning',
+      recommendations: ['请检查网络连接、代理状态和内核运行状态后重试。'],
       timestamp: Date.now(),
       error: extractErrorMessage(error) || 'DNS 泄漏检测失败',
     }
   }
 }
 
-/**
- * 获取 DNS 泄漏风险描述
- */
-export function getDNSLeakRiskDescription(riskLevel: DNSLeakResult['riskLevel']): {
+export function getDNSLeakRiskDescription(
+  riskLevel: DNSLeakResult['riskLevel'],
+): {
   title: string
   description: string
   color: string
@@ -136,20 +126,20 @@ export function getDNSLeakRiskDescription(riskLevel: DNSLeakResult['riskLevel'])
   switch (riskLevel) {
     case 'safe':
       return {
-        title: '✅ 安全',
-        description: 'DNS 未泄漏，您的 DNS 请求是安全的',
+        title: '安全',
+        description: '未观察到 DNS 泄漏，当前解析路径看起来安全。',
         color: 'text-success',
       }
     case 'warning':
       return {
-        title: '⚠️ 警告',
-        description: 'DNS 可能泄漏，建议检查配置',
+        title: '注意',
+        description: '存在运行态风险或观测不完整，建议检查 DNS 配置。',
         color: 'text-warning',
       }
     case 'danger':
       return {
-        title: '🔴 危险',
-        description: 'DNS 严重泄漏，您的真实位置可能暴露',
+        title: '危险',
+        description: '已观察到 DNS 泄漏，真实出口位置可能暴露。',
         color: 'text-error',
       }
   }
@@ -162,11 +152,11 @@ export function formatDNSRuntimeRisk(type: string): string {
     case 'dns-protection-insufficient':
       return '当前 DNS 防护级别不足，建议切换到严格或偏执模式'
     case 'system-hosts-enabled':
-      return '仍启用系统 hosts，可能绕过 Clash DNS 规则'
+      return '仍启用 system hosts，可能绕过 Clash DNS 规则'
     case 'runtime-dns-not-synced':
       return '运行时 DNS 配置尚未同步到当前内核'
     case 'core-dns-unencrypted-server':
-      return '本地内核报告正在使用未加密 DNS server'
+      return '本地内核报告正在使用未加密 DNS 服务器'
     case 'core-dns-high-risk-score':
       return '本地内核 DNS trust risk score 偏高'
     case 'core-dns-polluted-response':
