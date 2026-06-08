@@ -50,7 +50,14 @@ export const useLayoutEvents = (
           'getVersion',
           'getClashConfig',
           'getProxyProviders',
+          'current-egress-identity',
         ])
+      }),
+    )
+
+    register(
+      addListener('verge://refresh-proxy-config', async () => {
+        revalidateKeys(['getProxies', 'current-egress-identity'])
       }),
     )
 

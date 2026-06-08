@@ -67,28 +67,28 @@ const LogItem = ({ value, searchState }: Props) => {
   }
 
   const typeClass = cn(
-    'ml-2 inline-block rounded text-center font-semibold uppercase',
+    'inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]',
     value.type.toLowerCase() === 'error' || value.type.toLowerCase() === 'err'
-      ? 'text-red-500 dark:text-red-400'
+      ? 'bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-400'
       : value.type.toLowerCase() === 'warning' || value.type.toLowerCase() === 'warn'
-        ? 'text-yellow-500 dark:text-yellow-400'
+        ? 'bg-yellow-500/10 text-yellow-500 dark:bg-yellow-500/15 dark:text-yellow-400'
         : value.type.toLowerCase() === 'info' || value.type.toLowerCase() === 'inf'
-          ? 'text-teal-500 dark:text-teal-400'
-          : ''
+          ? 'bg-teal-500/10 text-teal-500 dark:bg-teal-500/15 dark:text-teal-400'
+          : 'bg-white/5 text-text-secondary',
   )
 
   return (
-    <div className="mx-3 select-text border-b border-divider py-2 text-sm leading-tight">
-      <div>
-        <span className="text-gray-600 dark:text-gray-400">
+    <div className="select-text border-b border-divider/70 px-4 py-3 text-sm transition-colors duration-200 hover:bg-white/[0.02]">
+      <div className="grid gap-2 md:grid-cols-[132px_88px_minmax(0,1fr)] md:items-start">
+        <span className="font-mono text-xs text-text-secondary/80">
           {renderHighlightText(value.time || '')}
         </span>
+
         <span className={typeClass}>
           {renderHighlightText(value.type)}
         </span>
-      </div>
-      <div>
-        <span className="break-anywhere text-gray-900 dark:text-gray-100">
+
+        <span className="break-anywhere text-sm leading-6 text-text-primary">
           {renderHighlightText(value.payload)}
         </span>
       </div>

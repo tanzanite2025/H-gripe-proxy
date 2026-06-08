@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { getNextUpdateTime } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
 
+const OVERDUE_GRACE_SECONDS = 5 * 60
+
 interface UseNextUpdateDisplayParams {
   uid: string
   updateInterval?: number
@@ -46,11 +48,22 @@ export function useNextUpdateDisplay({
         if (nextUpdate) {
           const nextUpdateDate = dayjs(nextUpdate * 1000)
           const now = dayjs()
+          const diffSeconds = nextUpdateDate.diff(now, 'second')
 
-          if (nextUpdateDate.isBefore(now)) {
-            setNextUpdateTime(
-              t('profiles.components.profileItem.status.lastUpdateFailed'),
+          if (diffSeconds <= 0) {
+            const overdueSeconds = now.diff(nextUpdateDate, 'second')
+
+            if (overdueSeconds <= OVERDUE_GRACE_SECONDS) {
+              setNextUpdateTime(
+                `${t('profiles.components.profileItem.status.nextUp')} <1m`,
+              )
+              return
+            }
+
+            debugLog(
+              `[ProfileItem] Next update schedule is overdue without explicit failure signal: ${uid}, overdue=${overdueSeconds}s`,
             )
+            setNextUpdateTime(t('profiles.components.profileItem.status.unknown'))
             return
           }
 

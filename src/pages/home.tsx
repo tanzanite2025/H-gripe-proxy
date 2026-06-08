@@ -39,11 +39,6 @@ const LazyWebRTCLeakCard = lazy(() =>
     default: module.WebRTCLeakCard,
   })),
 )
-const LazySpeedTestCard = lazy(() =>
-  import('@/components/home/speed-test-card').then((module) => ({
-    default: module.SpeedTestCard,
-  })),
-)
 const LazySystemInfoCard = lazy(() =>
   import('@/components/home/system-info-card').then((module) => ({
     default: module.SystemInfoCard,
@@ -62,7 +57,6 @@ interface HomeCardsSettings {
   test: boolean
   proxyDetection: boolean
   dnsLeak: boolean
-  speedTest: boolean
   webrtcLeak: boolean
   [key: string]: boolean
 }
@@ -174,19 +168,6 @@ const HomeSettingsDialog = ({
               </span>
             }
           />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={cards.speedTest || false}
-                onChange={() => handleToggle('speedTest')}
-              />
-            }
-            label={
-              <span className="uds-label">
-                网络速度测试
-              </span>
-            }
-          />
         </FormGroup>
       </DialogContent>
       <DialogActions>
@@ -223,7 +204,6 @@ const HomePage = () => {
       test: false,
       proxyDetection: false,
       dnsLeak: false,
-      speedTest: true,
       webrtcLeak: false,
     }),
     [],
@@ -322,13 +302,6 @@ const HomePage = () => {
         >
           <EnhancedTrafficStats />
         </EnhancedCard>,
-        12,
-      ),
-      renderCard(
-        'speedTest',
-        <Suspense fallback={<Skeleton variant="rectangular" height={200} />}>
-          <LazySpeedTestCard />
-        </Suspense>,
         12,
       ),
       renderCard(

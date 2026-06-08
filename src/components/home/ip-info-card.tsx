@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Globe2, ShieldAlert } from 'lucide-react'
 
-import { getCurrentEgressIdentity } from '@/services/cmds/diagnostics'
+import {
+  getCurrentEgressIdentity,
+  type CurrentEgressIdentity,
+} from '@/services/cmds/diagnostics'
 import {
   getIpTypeText,
   getResidentialStateText,
@@ -71,9 +74,32 @@ const formatAsnSummary = (
     .filter((value): value is string => Boolean(value?.trim()))
     .join(' / ') || '未返回'
 
+const formatUnavailableSummary = (identity?: CurrentEgressIdentity) => {
+  const message = identity?.message?.trim()
+
+  if (!message) {
+    return '当前内核未返回出口快照'
+  }
+
+  const normalizedMessage = message.toLowerCase()
+
+  if (normalizedMessage.includes('has not observed a public egress ip yet')) {
+    return 'Mihomo 暂未观测到出口 IP'
+  }
+
+  if (normalizedMessage.includes('failed to query mihomo egress status')) {
+    return '读取 Mihomo 出口快照失败'
+  }
+
+  return message
+}
+
 interface IpInfoCardProps {
   className?: string
 }
+
+const EGRESS_IDENTITY_PENDING_REFRESH_INTERVAL = 5 * 1000
+const EGRESS_IDENTITY_STABLE_REFRESH_INTERVAL = 30 * 1000
 
 export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const {
@@ -85,6 +111,24 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     queryFn: getCurrentEgressIdentity,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    refetchInterval: (query) => {
+      const cachedIdentity = query.state.data as CurrentEgressIdentity | undefined
+      const cachedDisplayIp = selectDisplayIp(
+        cachedIdentity?.public_egress_ip,
+        cachedIdentity?.egress_ip,
+      )
+
+      if (
+        cachedIdentity?.source !== 'mihomoEgressStatus' ||
+        !cachedDisplayIp
+      ) {
+        return EGRESS_IDENTITY_PENDING_REFRESH_INTERVAL
+      }
+
+      return EGRESS_IDENTITY_STABLE_REFRESH_INTERVAL
+    },
     retry: 1,
   })
 
@@ -106,6 +150,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     currentIdentity?.source === 'mihomoEgressStatus'
       ? 'Mihomo 出口快照'
       : '内核未观测'
+  const unavailableSummary = formatUnavailableSummary(currentIdentity)
 
   const cardTitle = [
     `出口 IP: ${displayIp || '未观测'}`,
@@ -169,7 +214,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
         </span>
         <span className="the-ip-card__divider" data-tauri-drag-region="true" />
         <span className="the-ip-card__value" data-tauri-drag-region="true">
-          {currentIdentity?.message || '当前内核未返回出口快照'}
+          {unavailableSummary}
         </span>
       </div>
     )

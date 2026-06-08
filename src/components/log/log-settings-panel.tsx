@@ -18,6 +18,7 @@ import { openLogsDir } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { CORE_LOG_LEVEL_OPTIONS, normalizeCoreLogLevel } from '@/utils/log-level'
+import { cn } from '@/utils/cn'
 
 const APP_LOG_LEVEL_OPTIONS = [
   'trace',
@@ -103,32 +104,57 @@ export function LogSettingsPanel() {
     }
   })
 
+  const appLogLevelDisplay =
+    values.appLogLevel[0].toUpperCase() +
+    values.appLogLevel.slice(1).toLowerCase()
+
   return (
     <Card
       variant="outlined"
-      className="mx-[10px] mb-3 overflow-hidden shadow-none"
+      className={cn('overflow-hidden border-divider shadow-none')}
     >
-      <Box className="flex flex-wrap items-center justify-end gap-2 border-b border-divider px-4 py-3">
-        <Button
-          size="small"
-          variant="outlined"
-          color="inherit"
-          onClick={openLogsDir}
-        >
-          {t('settings.components.verge.advanced.fields.openLogsDir')}
-        </Button>
-        <Button size="small" variant="primary" onClick={onSave}>
-          {t('shared.actions.save')}
-        </Button>
+      <Box className="flex flex-col gap-3 border-b border-divider px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+        <Box className="min-w-0 space-y-2">
+          <Box className="text-sm font-semibold text-text-primary">
+            {t('logs.page.title')}
+          </Box>
+          <Box className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
+            <span>
+              {t('settings.sections.clash.form.fields.logLevel')}:&nbsp;
+              {t(CORE_LOG_LEVEL_LABEL_KEYS[values.coreLogLevel])}
+            </span>
+            <span>
+              {t('settings.modals.misc.fields.appLogLevel')}:&nbsp;
+              {appLogLevelDisplay}
+            </span>
+          </Box>
+        </Box>
+
+        <Box className="flex flex-wrap items-center gap-2">
+          <Button
+            size="small"
+            variant="outlined"
+            color="inherit"
+            onClick={openLogsDir}
+          >
+            {t('settings.components.verge.advanced.fields.openLogsDir')}
+          </Button>
+          <Button size="small" variant="primary" onClick={onSave}>
+            {t('shared.actions.save')}
+          </Button>
+        </Box>
       </Box>
 
-      <Box className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
-        <Box className="flex min-w-0 flex-col gap-1">
-          <Box as="label" className="px-[14px] text-xs text-text-secondary">
-            {t('settings.sections.clash.form.fields.logLevel')}
+      <Box className="grid gap-3 p-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <Box className="rounded-2xl border border-divider bg-black/10 p-4">
+          <Box className="mb-4 text-xs font-semibold uppercase tracking-widest text-text-secondary">
+            {t('settings.sections.clash.title')}
           </Box>
+
           <Select
+            fullWidth
             size="small"
+            label={t('settings.sections.clash.form.fields.logLevel')}
             value={values.coreLogLevel}
             onChange={(event) =>
               setValues((current) => ({
@@ -143,107 +169,115 @@ export function LogSettingsPanel() {
               </SelectMenuItem>
             ))}
           </Select>
+
+          <Box className="mt-3 text-xs leading-5 text-text-secondary">
+            {t('settings.sections.clash.form.tooltips.logLevel')}
+          </Box>
         </Box>
 
-        <Box className="flex min-w-0 flex-col gap-1">
-          <Box as="label" className="px-[14px] text-xs text-text-secondary">
-            {t('settings.modals.misc.fields.appLogLevel')}
+        <Box className="rounded-2xl border border-divider bg-black/10 p-4">
+          <Box className="mb-4 text-xs font-semibold uppercase tracking-widest text-text-secondary">
+            {t('settings.modals.misc.title')}
           </Box>
-          <Select
-            size="small"
-            value={values.appLogLevel}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                appLogLevel: event.target.value as string,
-              }))
-            }
-          >
-            {APP_LOG_LEVEL_OPTIONS.map((option) => (
-              <SelectMenuItem value={option} key={option}>
-                {option[0].toUpperCase() + option.slice(1).toLowerCase()}
+
+          <Box className="grid gap-3 md:grid-cols-2">
+            <Select
+              fullWidth
+              size="small"
+              label={t('settings.modals.misc.fields.appLogLevel')}
+              value={values.appLogLevel}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  appLogLevel: event.target.value as string,
+                }))
+              }
+            >
+              {APP_LOG_LEVEL_OPTIONS.map((option) => (
+                <SelectMenuItem value={option} key={option}>
+                  {option[0].toUpperCase() + option.slice(1).toLowerCase()}
+                </SelectMenuItem>
+              ))}
+            </Select>
+
+            <TextField
+              fullWidth
+              autoComplete="new-password"
+              size="small"
+              type="number"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              label={t('settings.modals.misc.fields.appLogMaxSize')}
+              value={values.appLogMaxSize}
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                setValues((current) => ({
+                  ...current,
+                  appLogMaxSize: parsePositiveInt(event.target.value, 128),
+                }))
+              }
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      {t('shared.units.kilobytes')}
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+
+            <TextField
+              fullWidth
+              autoComplete="new-password"
+              size="small"
+              type="number"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              label={t('settings.modals.misc.fields.appLogMaxCount')}
+              value={values.appLogMaxCount}
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                setValues((current) => ({
+                  ...current,
+                  appLogMaxCount: parsePositiveInt(event.target.value, 1),
+                }))
+              }
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      {t('shared.units.files')}
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+
+            <Select
+              fullWidth
+              size="small"
+              label={t('settings.modals.misc.fields.autoLogClean')}
+              value={values.autoLogClean}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  autoLogClean: Number(event.target.value),
+                }))
+              }
+            >
+              <SelectMenuItem value={0}>
+                {t('settings.modals.misc.options.autoLogClean.never')}
               </SelectMenuItem>
-            ))}
-          </Select>
-        </Box>
-
-        <TextField
-          autoComplete="new-password"
-          size="small"
-          type="number"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
-          label={t('settings.modals.misc.fields.appLogMaxSize')}
-          value={values.appLogMaxSize}
-          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-            setValues((current) => ({
-              ...current,
-              appLogMaxSize: parsePositiveInt(event.target.value, 128),
-            }))
-          }
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  {t('shared.units.kilobytes')}
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-
-        <TextField
-          autoComplete="new-password"
-          size="small"
-          type="number"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
-          label={t('settings.modals.misc.fields.appLogMaxCount')}
-          value={values.appLogMaxCount}
-          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-            setValues((current) => ({
-              ...current,
-              appLogMaxCount: parsePositiveInt(event.target.value, 1),
-            }))
-          }
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  {t('shared.units.files')}
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-
-        <Box className="flex min-w-0 flex-col gap-1">
-          <Box as="label" className="px-[14px] text-xs text-text-secondary">
-            {t('settings.modals.misc.fields.autoLogClean')}
+              {AUTO_LOG_CLEAN_DAY_OPTIONS.map((days, index) => (
+                <SelectMenuItem key={days} value={index + 1}>
+                  {t('settings.modals.misc.options.autoLogClean.retainDays', {
+                    n: days,
+                  })}
+                </SelectMenuItem>
+              ))}
+            </Select>
           </Box>
-          <Select
-            size="small"
-            value={values.autoLogClean}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                autoLogClean: Number(event.target.value),
-              }))
-            }
-          >
-            <SelectMenuItem value={0}>
-              {t('settings.modals.misc.options.autoLogClean.never')}
-            </SelectMenuItem>
-            {AUTO_LOG_CLEAN_DAY_OPTIONS.map((days, index) => (
-              <SelectMenuItem key={days} value={index + 1}>
-                {t('settings.modals.misc.options.autoLogClean.retainDays', {
-                  n: days,
-                })}
-              </SelectMenuItem>
-            ))}
-          </Select>
         </Box>
       </Box>
     </Card>

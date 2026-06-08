@@ -11,7 +11,7 @@
   .layout-header {
     position: relative;
     height: auto;
-    min-height: 138px;
+    min-height: 142px;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -185,7 +185,7 @@
     .layout-header__right {
       order: 1;
       width: 100%;
-      min-height: 36px;
+      min-height: 40px;
       display: flex;
       justify-content: flex-end;
       align-items: center;
@@ -208,6 +208,7 @@
       min-height: 32px;
       display: flex;
       align-items: center;
+      justify-content: center;
       overflow: hidden;
     }
 
@@ -216,6 +217,7 @@
       width: 100%;
       display: flex;
       align-items: center;
+      justify-content: center;
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: none;
@@ -230,6 +232,7 @@
       flex: 0 0 auto;
       width: max-content;
       max-width: none;
+      margin: 0 auto;
     }
 
     .the-ip-card {
@@ -319,13 +322,13 @@
       .the-window-ctrls {
         display: flex;
         align-items: center;
-        height: 36px;
+        height: 40px;
         margin-left: 4px;
         gap: 4px;
 
         button {
           width: 40px;
-          height: 36px;
+          height: 40px;
           border-radius: 8px;
           font-size: 18px;
           transition: all 0.2s;
