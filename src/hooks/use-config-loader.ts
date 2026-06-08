@@ -1,7 +1,7 @@
 ﻿/**
  * 通用配置加载 Hook
  * 
- * 提供统一的配置加载、错误处理、加载状态管�?
+ * 提供统一的配置加载、错误处理、加载状态管理
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -15,14 +15,14 @@ export interface UseConfigLoaderOptions<T> {
   onSuccess?: (data: T) => void
   /** 加载失败回调 */
   onError?: (error: Error) => void
-  /** 是否自动加载（默�?true�?*/
+  /** 是否自动加载（默认 true） */
   autoLoad?: boolean
-  /** 是否显示错误通知（默�?true�?*/
+  /** 是否显示错误通知（默认 true） */
   showErrorNotice?: boolean
 }
 
 export interface UseConfigLoaderResult<T> {
-  /** 加载的数�?*/
+  /** 加载的数据 */
   data: T | null
   /** 是否正在加载 */
   loading: boolean
@@ -44,7 +44,7 @@ export interface UseConfigLoaderResult<T> {
  *   loadFn: getAdvancedConfig,
  * })
  * 
- * // 带回�?
+ * // 带回调
  * const { data, loading } = useConfigLoader({
  *   loadFn: getAdvancedConfig,
  *   onSuccess: (config) => console.log('加载成功', config),
@@ -145,7 +145,7 @@ export function useMultiConfigLoader<T extends Record<string, () => Promise<any>
       setLoading(true)
       setError(null)
 
-      // 并行加载所有配�?
+      // 并行加载所有配置
       const keys = Object.keys(loaders) as Array<keyof T>
       const promises = keys.map((key) => loaders[key]())
       const results = await Promise.all(promises)

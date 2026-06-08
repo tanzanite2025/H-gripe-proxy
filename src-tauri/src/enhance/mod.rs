@@ -54,9 +54,7 @@ type ResultLog = Vec<(String, String)>;
 #[derive(Debug)]
 struct ConfigValues {
     clash_config: Mapping,
-    clash_core: Option<String>,
     enable_tun: bool,
-    enable_builtin: bool,
     socks_enabled: bool,
     http_enabled: bool,
     enable_dns_settings: bool,
@@ -128,17 +126,14 @@ async fn get_config_values() -> ConfigValues {
     let verge_arc = verge.latest_arc();
     let IVerge {
         ref enable_tun_mode,
-        ref enable_builtin_enhanced,
         ref verge_socks_enabled,
         ref verge_http_enabled,
         ref enable_dns_settings,
         ..
     } = *verge_arc;
 
-    let (clash_core, enable_tun, enable_builtin, socks_enabled, http_enabled, enable_dns_settings) = (
-        Some(verge_arc.get_valid_clash_core()),
+    let (enable_tun, socks_enabled, http_enabled, enable_dns_settings) = (
         enable_tun_mode.unwrap_or(false),
-        enable_builtin_enhanced.unwrap_or(true),
         verge_socks_enabled.unwrap_or(false),
         verge_http_enabled.unwrap_or(false),
         enable_dns_settings.unwrap_or(false),
@@ -155,9 +150,7 @@ async fn get_config_values() -> ConfigValues {
 
     ConfigValues {
         clash_config,
-        clash_core,
         enable_tun,
-        enable_builtin,
         socks_enabled,
         http_enabled,
         enable_dns_settings,
@@ -469,31 +462,6 @@ async fn merge_default_config(
     config
 }
 
-async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, enable_builtin: bool) -> Mapping {
-    if enable_builtin {
-        let items: Vec<_> = ChainItem::builtin()
-            .into_iter()
-            .filter(|(s, _)| s.is_support(clash_core.as_ref()))
-            .map(|(_, c)| c)
-            .collect();
-        for item in items {
-            logging!(debug, Type::Core, "run builtin script {}", item.uid);
-            if let ChainType::Script(script) = item.data {
-                match use_script(script, config.clone(), String::from("")).await {
-                    Ok((res_config, _)) => {
-                        config = res_config;
-                    }
-                    Err(err) => {
-                        logging!(error, Type::Core, "builtin script error `{err}`");
-                    }
-                }
-            }
-        }
-    }
-
-    config
-}
-
 async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> Mapping {
     if enable_dns_settings && let Ok(app_dir) = dirs::app_home_dir() {
         let dns_path = app_dir.join(constants::files::DNS_CONFIG);
@@ -561,9 +529,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let cfg_vals = get_config_values().await;
     let ConfigValues {
         clash_config,
-        clash_core,
         enable_tun,
-        enable_builtin,
         socks_enabled,
         http_enabled,
         enable_dns_settings,
@@ -616,9 +582,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     )
     .await;
 
-    // builtin scripts
-    let mut config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
-
+    let mut config = config;
     config = cleanup_proxy_groups(config);
     config = append_standard_region_pools(config);
     config = apply_connection_stability(config);

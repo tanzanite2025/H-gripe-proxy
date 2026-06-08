@@ -315,14 +315,12 @@
         "appLogMaxSize": "Максимальный размер журнала приложения",
         "appLogMaxCount": "Максимальное количество файлов журнала",
         "autoCheckUpdate": "Автоматическая проверка обновлений",
-        "enableBuiltinEnhanced": "Включить встроенные улучшения",
         "proxyLayoutColumns": "Количество столбцов в макете прокси",
         "autoLogClean": "Автоматическая очистка логов",
         "defaultLatencyTest": "URL для теста задержки",
         "defaultLatencyTimeout": "Таймаут задержки по умолчанию"
       },
       "tooltips": {
-        "enableBuiltinEnhanced": "Обработка совместимости для файла конфигурации",
         "defaultLatencyTest": "Используется только для тестирования HTTP-запросов клиента и не влияет на файл конфигурации"
       },
       "options": {

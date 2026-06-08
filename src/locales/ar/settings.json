@@ -315,14 +315,12 @@
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
         "autoCheckUpdate": "فحص التحديث تلقائيًا",
-        "enableBuiltinEnhanced": "تفعيل التحسين المدمج",
         "proxyLayoutColumns": "أعمدة عرض الوكيل",
         "autoLogClean": "تنظيف السجلات تلقائيًا",
         "defaultLatencyTest": "اختبار التأخير الافتراضي",
         "defaultLatencyTimeout": "مهلة التأخير الافتراضية"
       },
       "tooltips": {
-        "enableBuiltinEnhanced": "معالجة توافق ملف التكوين",
         "defaultLatencyTest": "يُستخدم فقط لاختبار طلب HTTP العميل. لن يؤثر على ملف التكوين"
       },
       "options": {

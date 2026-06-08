@@ -265,7 +265,16 @@ func (d *Decoder) decodeSlice(name string, data any, val reflect.Value) error {
 		return nil
 	}
 
-	if dataVal.Kind() != reflect.Slice {
+	if dataVal.Kind() != reflect.Slice && dataVal.Kind() != reflect.Array {
+		if d.option.WeaklyTypedInput {
+			valSlice := reflect.MakeSlice(valType, 1, 1)
+			fieldName := fmt.Sprintf("%s[%d]", name, 0)
+			if err := d.decode(fieldName, data, valSlice.Index(0)); err != nil {
+				return err
+			}
+			val.Set(valSlice)
+			return nil
+		}
 		return fmt.Errorf("'%s' is not a slice", name)
 	}
 

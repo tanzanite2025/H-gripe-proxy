@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, Switch } from '@/components/base'
 import { MenuItem, Select } from '@/components/tailwind/Select'
 import { useClash } from '@/hooks/data'
-import { useClashLog } from '@/hooks/system'
 import { invoke_uwp_tool } from '@/services/cmds'
 import getSystem from '@/utils/misc'
 
@@ -30,12 +29,10 @@ const formatSwitchValue = (_event: unknown, value: boolean) => value
 const SettingClash = ({ onError }: Props) => {
   const { t } = useTranslation()
   const { clash, mutateClash, patchClash } = useClash()
-  const [, setClashLog] = useClashLog()
 
   const {
     ipv6,
     'allow-lan': allowLan,
-    'log-level': logLevel,
     'unified-delay': unifiedDelay,
     'find-process-mode': findProcessMode,
   } = clash ?? {}
@@ -128,39 +125,6 @@ const SettingClash = ({ onError }: Props) => {
               </MenuItem>
               <MenuItem value="off">
                 {t('settings.sections.clash.form.options.findProcessMode.off')}
-              </MenuItem>
-            </Select>
-          </div>
-        </GuardState>
-      </SettingItem>
-
-      <SettingItem label={t('settings.sections.clash.form.fields.logLevel')}>
-        <GuardState
-          value={logLevel === 'warn' ? 'warning' : (logLevel ?? 'info')}
-          onCatch={onError}
-          onFormat={(event: any) => event.target.value}
-          onChange={(value) => onChangeData({ 'log-level': value })}
-          onGuard={(value) => {
-            setClashLog((old) => ({ ...old!, logLevel: value }))
-            return patchClash({ 'log-level': value })
-          }}
-        >
-          <div className="w-[100px]">
-            <Select size="small">
-              <MenuItem value="debug">
-                {t('settings.sections.clash.form.options.logLevel.debug')}
-              </MenuItem>
-              <MenuItem value="info">
-                {t('settings.sections.clash.form.options.logLevel.info')}
-              </MenuItem>
-              <MenuItem value="warning">
-                {t('settings.sections.clash.form.options.logLevel.warning')}
-              </MenuItem>
-              <MenuItem value="error">
-                {t('settings.sections.clash.form.options.logLevel.error')}
-              </MenuItem>
-              <MenuItem value="silent">
-                {t('settings.sections.clash.form.options.logLevel.silent')}
               </MenuItem>
             </Select>
           </div>

@@ -26,15 +26,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   const onSave = useLockFn(async () => {
     try {
       await patchVerge({
-        app_log_level: values.appLogLevel,
-        app_log_max_size: values.appLogMaxSize,
-        app_log_max_count: values.appLogMaxCount,
         auto_check_update: values.autoCheckUpdate,
-        enable_builtin_enhanced: values.enableBuiltinEnhanced,
         proxy_layout_column: values.proxyLayoutColumn,
         default_latency_test: values.defaultLatencyTest,
         default_latency_timeout: values.defaultLatencyTimeout,
-        auto_log_clean: values.autoLogClean as any,
       })
       setOpen(false)
     } catch (error) {

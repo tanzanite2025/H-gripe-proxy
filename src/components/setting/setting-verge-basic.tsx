@@ -18,7 +18,6 @@ import {
   openAppDir,
   openCoreDir,
   openDevTools,
-  openLogsDir,
 } from '@/services/cmds'
 import { supportedLanguages } from '@/services/i18n'
 import { showNotice } from '@/services/notice-service'
@@ -268,11 +267,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
       <SettingItem
         onClick={openCoreDir}
         label={t('settings.components.verge.advanced.fields.openCoreDir')}
-      />
-
-      <SettingItem
-        onClick={openLogsDir}
-        label={t('settings.components.verge.advanced.fields.openLogsDir')}
       />
 
       <SettingItem

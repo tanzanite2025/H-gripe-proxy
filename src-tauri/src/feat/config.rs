@@ -177,8 +177,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
 fn should_close_connections_on_route_change(current: &IVerge, patch: &IVerge) -> bool {
     let will_disable_system_proxy =
         current.enable_system_proxy.unwrap_or(false) && patch.enable_system_proxy == Some(false);
-    let will_disable_tun_mode =
-        current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
+    let will_disable_tun_mode = current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
 
     will_disable_system_proxy || will_disable_tun_mode
 }

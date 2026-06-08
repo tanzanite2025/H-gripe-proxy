@@ -122,6 +122,23 @@ func TestStructure_WeakType(t *testing.T) {
 	assert.Equal(t, goal, s)
 }
 
+func TestStructure_WeakTypeSingleValueToSlice(t *testing.T) {
+	rawMap := map[string]any{
+		"foo": 1,
+		"bar": "one",
+	}
+
+	goal := &BazSlice{
+		Foo: 1,
+		Bar: []string{"one"},
+	}
+
+	s := &BazSlice{}
+	err := weakTypeDecoder.Decode(rawMap, s)
+	assert.Nil(t, err)
+	assert.Equal(t, goal, s)
+}
+
 func TestStructure_Nest(t *testing.T) {
 	rawMap := map[string]any{
 		"foo": 1,

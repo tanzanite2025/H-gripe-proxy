@@ -964,7 +964,6 @@ export interface TranslationResources {
             autoLogClean: string
             defaultLatencyTest: string
             defaultLatencyTimeout: string
-            enableBuiltinEnhanced: string
             proxyLayoutColumns: string
           }
           options: {
@@ -979,7 +978,6 @@ export interface TranslationResources {
           title: string
           tooltips: {
             defaultLatencyTest: string
-            enableBuiltinEnhanced: string
           }
         }
         networkInterface: {

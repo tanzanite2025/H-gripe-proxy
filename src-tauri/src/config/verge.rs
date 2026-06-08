@@ -98,25 +98,16 @@ pub struct IVerge {
     /// 控制首页各个卡片的显示和隐藏
     pub home_cards: Option<serde_json::Value>,
 
-    /// 切换代理时自动关闭连接
-
-    /// 是否自动检查更新
+    /// auto check updates
     pub auto_check_update: Option<bool>,
 
-    /// 默认的延迟测试连接
+    /// default latency test URL
     pub default_latency_test: Option<String>,
 
-    /// 默认的延迟测试超时时间
+    /// default latency timeout in milliseconds
     pub default_latency_timeout: Option<i16>,
 
-    /// 是否自动检测当前节点延迟
-
-    /// 自动检测当前节点延迟的间隔（分钟）
-
-    /// 是否使用内部的脚本支持，默认为真
-    pub enable_builtin_enhanced: Option<bool>,
-
-    /// proxy 页面布局 列数
+    /// proxy layout columns
     pub proxy_layout_column: Option<u8>,
 
     /// 测试站列表
@@ -360,7 +351,6 @@ impl IVerge {
             use_default_bypass: Some(true),
             proxy_guard_duration: Some(30),
             auto_check_update: Some(true),
-            enable_builtin_enhanced: Some(true),
             auto_log_clean: Some(2), // 1: 1天, 2: 7天, 3: 30天, 4: 90天
             enable_auto_backup_schedule: Some(false),
             auto_backup_interval_hours: Some(24),
@@ -443,7 +433,6 @@ impl IVerge {
         patch!(auto_check_update);
         patch!(default_latency_test);
         patch!(default_latency_timeout);
-        patch!(enable_builtin_enhanced);
         patch!(proxy_layout_column);
         patch!(test_list);
         patch!(auto_log_clean);

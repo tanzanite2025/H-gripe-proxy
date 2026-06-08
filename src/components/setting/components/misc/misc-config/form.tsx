@@ -12,8 +12,6 @@ import type { SelectChangeEvent } from '@/components/tailwind/Select'
 
 import { MiscConfigFormRow } from './form-row'
 import {
-  APP_LOG_LEVEL_OPTIONS,
-  AUTO_LOG_CLEAN_DAY_OPTIONS,
   PROXY_LAYOUT_COLUMN_OPTIONS,
 } from './options'
 import type { MiscConfigValues } from './types'
@@ -37,88 +35,6 @@ export function MiscConfigForm({
   return (
     <div className="flex flex-col gap-3">
       <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.appLogLevel')}
-      >
-        <Select
-          size="small"
-          className="w-[120px]"
-          value={values.appLogLevel}
-          onChange={(event: SelectChangeEvent) =>
-            setValues((current) => ({
-              ...current,
-              appLogLevel: event.target.value as string,
-            }))
-          }
-        >
-          {APP_LOG_LEVEL_OPTIONS.map((option) => (
-            <SelectMenuItem value={option} key={option}>
-              {option[0].toUpperCase() + option.slice(1).toLowerCase()}
-            </SelectMenuItem>
-          ))}
-        </Select>
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.appLogMaxSize')}
-      >
-        <TextField
-          autoComplete="new-password"
-          size="small"
-          type="number"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
-          className="w-[140px]"
-          value={values.appLogMaxSize}
-          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-            setValues((current) => ({
-              ...current,
-              appLogMaxSize: parsePositiveInt(event.target.value, 128),
-            }))
-          }
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  {t('shared.units.kilobytes')}
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.appLogMaxCount')}
-      >
-        <TextField
-          autoComplete="new-password"
-          size="small"
-          type="number"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
-          className="w-[140px]"
-          value={values.appLogMaxCount}
-          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-            setValues((current) => ({
-              ...current,
-              appLogMaxCount: parsePositiveInt(event.target.value, 1),
-            }))
-          }
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  {t('shared.units.files')}
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
         label={t('settings.modals.misc.fields.autoCheckUpdate')}
       >
         <Switch
@@ -127,21 +43,6 @@ export function MiscConfigForm({
             setValues((current) => ({
               ...current,
               autoCheckUpdate: checked,
-            }))
-          }
-        />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.enableBuiltinEnhanced')}
-        tooltip={t('settings.modals.misc.tooltips.enableBuiltinEnhanced')}
-      >
-        <Switch
-          checked={values.enableBuiltinEnhanced}
-          onCheckedChange={(checked) =>
-            setValues((current) => ({
-              ...current,
-              enableBuiltinEnhanced: checked,
             }))
           }
         />
@@ -166,33 +67,6 @@ export function MiscConfigForm({
               {option === 6
                 ? t('settings.modals.misc.options.proxyLayoutColumns.auto')
                 : option}
-            </SelectMenuItem>
-          ))}
-        </Select>
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.autoLogClean')}
-      >
-        <Select
-          size="small"
-          className="w-[160px]"
-          value={values.autoLogClean}
-          onChange={(event: SelectChangeEvent) =>
-            setValues((current) => ({
-              ...current,
-              autoLogClean: Number(event.target.value),
-            }))
-          }
-        >
-          <SelectMenuItem value={0}>
-            {t('settings.modals.misc.options.autoLogClean.never')}
-          </SelectMenuItem>
-          {AUTO_LOG_CLEAN_DAY_OPTIONS.map((days, index) => (
-            <SelectMenuItem key={days} value={index + 1}>
-              {t('settings.modals.misc.options.autoLogClean.retainDays', {
-                n: days,
-              })}
             </SelectMenuItem>
           ))}
         </Select>

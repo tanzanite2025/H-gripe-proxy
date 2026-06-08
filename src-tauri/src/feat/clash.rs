@@ -1,9 +1,6 @@
 use crate::{
     config::Config,
-    core::{
-        CoreManager, clash_mode::ClashMode, handle, manager::CLASH_LOGGER,
-        tray,
-    },
+    core::{CoreManager, clash_mode::ClashMode, handle, manager::CLASH_LOGGER, tray},
     feat::clean_async,
     process::AsyncHandler,
     utils::{self, dirs},

@@ -315,14 +315,12 @@
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
         "autoCheckUpdate": "Auto Check Update",
-        "enableBuiltinEnhanced": "Enable Builtin Enhanced",
         "proxyLayoutColumns": "Proxy Layout Columns",
         "autoLogClean": "Auto Log Clean",
         "defaultLatencyTest": "Default Latency Test",
         "defaultLatencyTimeout": "Default Latency Timeout"
       },
       "tooltips": {
-        "enableBuiltinEnhanced": "Compatibility handling for the configuration file",
         "defaultLatencyTest": "Used for HTTP client request testing only and won't make a difference to the configuration file"
       },
       "options": {

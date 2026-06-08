@@ -12,6 +12,7 @@ import {
   type VirtualListHandle,
 } from '@/components/base'
 import LogItem from '@/components/log/log-item'
+import { LogSettingsPanel } from '@/components/log/log-settings-panel'
 import { Box, Button, IconButton, SelectMenuItem } from '@/components/tailwind'
 import { useLogData } from '@/hooks/data'
 import { useClashLog } from '@/hooks/system'
@@ -143,8 +144,10 @@ const LogPage = () => {
         </Box>
       }
     >
+      <LogSettingsPanel />
+
       <Box
-        className="pt-4 mb-2 mx-[10px] h-[39px] flex items-center"
+        className="mb-2 mx-[10px] flex items-center gap-2"
       >
         <BaseStyledSelect
           value={logState}

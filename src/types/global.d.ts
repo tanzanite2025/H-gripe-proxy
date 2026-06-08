@@ -1158,7 +1158,6 @@ interface IVergeConfig {
   auto_check_update?: boolean
   default_latency_test?: string
   default_latency_timeout?: number
-  enable_builtin_enhanced?: boolean
   auto_log_clean?: 0 | 1 | 2 | 3 | 4
   enable_auto_backup_schedule?: boolean
   auto_backup_interval_hours?: number
