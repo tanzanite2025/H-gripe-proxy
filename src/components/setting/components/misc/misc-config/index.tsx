@@ -27,7 +27,6 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     try {
       await patchVerge({
         auto_check_update: values.autoCheckUpdate,
-        proxy_layout_column: values.proxyLayoutColumn,
         default_latency_test: values.defaultLatencyTest,
         default_latency_timeout: values.defaultLatencyTimeout,
       })

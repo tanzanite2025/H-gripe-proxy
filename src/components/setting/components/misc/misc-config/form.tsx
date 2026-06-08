@@ -4,16 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Switch } from '@/components/base'
 import {
   InputAdornment,
-  Select,
-  SelectMenuItem,
   TextField,
 } from '@/components/tailwind'
-import type { SelectChangeEvent } from '@/components/tailwind/Select'
 
 import { MiscConfigFormRow } from './form-row'
-import {
-  PROXY_LAYOUT_COLUMN_OPTIONS,
-} from './options'
 import type { MiscConfigValues } from './types'
 
 interface MiscConfigFormProps {
@@ -46,30 +40,6 @@ export function MiscConfigForm({
             }))
           }
         />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.proxyLayoutColumns')}
-      >
-        <Select
-          size="small"
-          className="w-[160px]"
-          value={values.proxyLayoutColumn}
-          onChange={(event: SelectChangeEvent) =>
-            setValues((current) => ({
-              ...current,
-              proxyLayoutColumn: Number(event.target.value),
-            }))
-          }
-        >
-          {PROXY_LAYOUT_COLUMN_OPTIONS.map((option) => (
-            <SelectMenuItem value={option} key={option}>
-              {option === 6
-                ? t('settings.modals.misc.options.proxyLayoutColumns.auto')
-                : option}
-            </SelectMenuItem>
-          ))}
-        </Select>
       </MiscConfigFormRow>
 
       <MiscConfigFormRow
