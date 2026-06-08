@@ -318,14 +318,11 @@
         "enableBuiltinEnhanced": "Yerleşik Geliştirilmiş Modu Etkinleştir",
         "proxyLayoutColumns": "Vekil Düzeni Sütunları",
         "autoLogClean": "Otomatik Günlük Temizleme",
-        "autoDelayDetection": "Otomatik Gecikme Tespiti",
-        "autoDelayDetectionInterval": "Otomatik Gecikme Tespiti Aralığı",
         "defaultLatencyTest": "Varsayılan Gecikme Testi",
         "defaultLatencyTimeout": "Varsayılan Gecikme Zaman Aşımı"
       },
       "tooltips": {
         "enableBuiltinEnhanced": "Yapılandırma dosyası için uyumluluk işleme",
-        "autoDelayDetection": "Arka planda mevcut düğümün gecikmesini periyodik olarak test eder",
         "defaultLatencyTest": "Yalnızca HTTP istemci isteği testi için kullanılır ve yapılandırma dosyasında bir fark yaratmaz"
       },
       "options": {

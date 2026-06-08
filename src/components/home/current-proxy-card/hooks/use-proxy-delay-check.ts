@@ -1,20 +1,12 @@
 import { useLockFn } from 'ahooks'
-import { useCallback, useEffect, useRef } from 'react'
 import { delayGroup, healthcheckProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
 import { debugLog } from '@/utils/misc'
 
-const _AUTO_CHECK_DEFAULT_INTERVAL_MINUTES = 5
-const AUTO_CHECK_INITIAL_DELAY_MS = 100
-
 interface UseProxyDelayCheckProps {
   currentGroup: string
-  currentProxy: string
-  currentProxyRecord: any
-  autoDelayEnabled: boolean
-  autoDelayIntervalMs: number
   defaultLatencyTimeout: number
   proxyRecords: Record<string, any>
   refreshProxy: () => void
@@ -23,111 +15,12 @@ interface UseProxyDelayCheckProps {
 
 export const useProxyDelayCheck = ({
   currentGroup,
-  currentProxy,
-  currentProxyRecord,
-  autoDelayEnabled,
-  autoDelayIntervalMs,
   defaultLatencyTimeout,
   proxyRecords,
   refreshProxy,
   onDelayCheckComplete,
 }: UseProxyDelayCheckProps) => {
   const { proxies } = useProxiesData()
-  const autoCheckInProgressRef = useRef(false)
-  const latestTimeoutRef = useRef<number>(defaultLatencyTimeout)
-  const latestProxyRecordRef = useRef<any | null>(null)
-
-  useEffect(() => {
-    latestTimeoutRef.current = defaultLatencyTimeout
-  }, [defaultLatencyTimeout])
-
-  useEffect(() => {
-    if (!currentProxy) {
-      latestProxyRecordRef.current = null
-      return
-    }
-    latestProxyRecordRef.current = currentProxyRecord || null
-  }, [currentProxy, currentProxyRecord])
-
-  const checkCurrentProxyDelay = useCallback(async () => {
-    if (autoCheckInProgressRef.current) return
-
-    const groupName = currentGroup
-    const proxyName = currentProxy
-
-    if (!groupName || !proxyName) return
-
-    const proxyRecord = latestProxyRecordRef.current
-    if (!proxyRecord) {
-      debugLog(
-        `[CurrentProxyCard] Skip auto delay check, missing proxy record, group: ${groupName}, proxy: ${proxyName}`,
-      )
-      return
-    }
-
-    autoCheckInProgressRef.current = true
-
-    const timeout = latestTimeoutRef.current || 10000
-
-    try {
-      debugLog(
-        `[CurrentProxyCard] Auto check current proxy delay, group: ${groupName}, proxy: ${proxyName}`,
-      )
-      if (proxyRecord.provider) {
-        await healthcheckProxyProvider(proxyRecord.provider)
-      } else {
-        await delayManager.checkDelay(proxyName, groupName, timeout)
-      }
-    } catch (error) {
-      console.error(
-        `[CurrentProxyCard] Auto delay check failed, group: ${groupName}, proxy: ${proxyName}`,
-        error,
-      )
-    } finally {
-      autoCheckInProgressRef.current = false
-      refreshProxy()
-      onDelayCheckComplete?.()
-    }
-  }, [
-    refreshProxy,
-    currentGroup,
-    currentProxy,
-    onDelayCheckComplete,
-  ])
-
-  useEffect(() => {
-    if (!autoDelayEnabled) return
-    if (!currentGroup || !currentProxy) return
-
-    let disposed = false
-    let intervalTimer: ReturnType<typeof setTimeout> | null = null
-    let initialTimer: ReturnType<typeof setTimeout> | null = null
-
-    const runAndSchedule = async () => {
-      if (disposed) return
-      await checkCurrentProxyDelay()
-      if (disposed) return
-      intervalTimer = setTimeout(runAndSchedule, autoDelayIntervalMs)
-    }
-
-    initialTimer = setTimeout(async () => {
-      await checkCurrentProxyDelay()
-      if (disposed) return
-      intervalTimer = setTimeout(runAndSchedule, autoDelayIntervalMs)
-    }, AUTO_CHECK_INITIAL_DELAY_MS)
-
-    return () => {
-      disposed = true
-      if (initialTimer) clearTimeout(initialTimer)
-      if (intervalTimer) clearTimeout(intervalTimer)
-    }
-  }, [
-    checkCurrentProxyDelay,
-    autoDelayIntervalMs,
-    currentGroup,
-    currentProxy,
-    autoDelayEnabled,
-  ])
 
   const handleCheckAllDelay = useLockFn(async (isGlobalMode: boolean) => {
     const groupName = currentGroup
@@ -215,7 +108,6 @@ export const useProxyDelayCheck = ({
   })
 
   return {
-    checkCurrentProxyDelay,
     handleCheckAllDelay,
   }
 }

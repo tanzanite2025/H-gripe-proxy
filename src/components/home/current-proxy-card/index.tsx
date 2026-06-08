@@ -55,14 +55,7 @@ export const CurrentProxyCard = () => {
   const { current: currentProfile } = useProfiles()
 
   // 配置参数
-  const autoDelayEnabled = verge?.enable_auto_delay_detection ?? false
   const defaultLatencyTimeout = verge?.default_latency_timeout || 10000
-  const autoDelayIntervalMs = useMemo(() => {
-    const rawInterval = verge?.auto_delay_detection_interval_minutes
-    const intervalMinutes =
-      typeof rawInterval === 'number' && rawInterval > 0 ? rawInterval : 5
-    return Math.max(1, Math.round(intervalMinutes)) * 60 * 1000
-  }, [verge?.auto_delay_detection_interval_minutes])
 
   const currentProfileId = currentProfile?.uid || null
 
@@ -95,10 +88,6 @@ export const CurrentProxyCard = () => {
   // 延迟检测
   const { handleCheckAllDelay } = useProxyDelayCheck({
     currentGroup: state.selection.group,
-    currentProxy: state.selection.proxy,
-    currentProxyRecord: state.displayProxy,
-    autoDelayEnabled,
-    autoDelayIntervalMs,
     defaultLatencyTimeout,
     proxyRecords: state.proxyData.records,
     refreshProxy,

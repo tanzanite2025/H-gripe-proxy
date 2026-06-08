@@ -32,9 +32,6 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         auto_check_update: values.autoCheckUpdate,
         enable_builtin_enhanced: values.enableBuiltinEnhanced,
         proxy_layout_column: values.proxyLayoutColumn,
-        enable_auto_delay_detection: values.enableAutoDelayDetection,
-        auto_delay_detection_interval_minutes:
-          values.autoDelayDetectionIntervalMinutes,
         default_latency_test: values.defaultLatencyTest,
         default_latency_timeout: values.defaultLatencyTimeout,
         auto_log_clean: values.autoLogClean as any,

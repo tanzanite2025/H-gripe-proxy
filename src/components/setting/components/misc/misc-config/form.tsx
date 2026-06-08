@@ -199,55 +199,6 @@ export function MiscConfigForm({
       </MiscConfigFormRow>
 
       <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.autoDelayDetection')}
-        tooltip={t('settings.modals.misc.tooltips.autoDelayDetection')}
-      >
-        <Switch
-          checked={values.enableAutoDelayDetection}
-          onCheckedChange={(checked) =>
-            setValues((current) => ({
-              ...current,
-              enableAutoDelayDetection: checked,
-            }))
-          }
-        />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.autoDelayDetectionInterval')}
-      >
-        <TextField
-          autoComplete="new-password"
-          size="small"
-          type="number"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
-          className="w-[160px]"
-          value={values.autoDelayDetectionIntervalMinutes}
-          disabled={!values.enableAutoDelayDetection}
-          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-            setValues((current) => ({
-              ...current,
-              autoDelayDetectionIntervalMinutes: parsePositiveInt(
-                event.target.value,
-                1,
-              ),
-            }))
-          }
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  {t('shared.units.minutes')}
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
         label={t('settings.modals.misc.fields.defaultLatencyTest')}
         tooltip={t('settings.modals.misc.tooltips.defaultLatencyTest')}
       >

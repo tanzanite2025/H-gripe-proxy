@@ -318,14 +318,11 @@
         "enableBuiltinEnhanced": "Включить встроенные улучшения",
         "proxyLayoutColumns": "Количество столбцов в макете прокси",
         "autoLogClean": "Автоматическая очистка логов",
-        "autoDelayDetection": "Автоматическое измерение задержки",
-        "autoDelayDetectionInterval": "Интервал автоматического измерения задержки",
         "defaultLatencyTest": "URL для теста задержки",
         "defaultLatencyTimeout": "Таймаут задержки по умолчанию"
       },
       "tooltips": {
         "enableBuiltinEnhanced": "Обработка совместимости для файла конфигурации",
-        "autoDelayDetection": "Периодически проверяет задержку текущего узла в фоновом режиме",
         "defaultLatencyTest": "Используется только для тестирования HTTP-запросов клиента и не влияет на файл конфигурации"
       },
       "options": {
