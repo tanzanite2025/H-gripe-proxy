@@ -1,6 +1,6 @@
 import { useLockFn } from 'ahooks'
 import { Globe } from 'lucide-react'
-import type { Ref } from 'react'
+import type { ChangeEvent, Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { getBaseConfig, patchBaseConfig } from 'tauri-plugin-mihomo-api'
 
@@ -31,12 +31,12 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
     open: () => {
       setOpen(true)
       getBaseConfig()
-        .then((cfg) => {
+        .then((config) => {
           setUrls({
-            geoIp: cfg.geoxUrl.geoIp || '',
-            mmdb: cfg.geoxUrl.mmdb || '',
-            asn: cfg.geoxUrl.asn || '',
-            geoSite: cfg.geoxUrl.geoSite || '',
+            geoIp: config.geoxUrl.geoIp || '',
+            mmdb: config.geoxUrl.mmdb || '',
+            asn: config.geoxUrl.asn || '',
+            geoSite: config.geoxUrl.geoSite || '',
           })
         })
         .catch(() => {})
@@ -57,14 +57,18 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
       })
       showNotice.success('GeoData 源配置已保存')
       setOpen(false)
-    } catch (err: any) {
-      showNotice.error(err)
+    } catch (error) {
+      showNotice.error(error)
     } finally {
       setSaving(false)
     }
   })
 
   const onClose = () => setOpen(false)
+  const updateField =
+    (key: keyof GeoXUrlState) => (event: ChangeEvent<HTMLInputElement>) => {
+      setUrls((current) => ({ ...current, [key]: event.target.value }))
+    }
 
   return (
     <BaseDialog
@@ -79,10 +83,10 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
       loading={saving}
     >
       <div className="space-y-4 pt-2">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="mb-2 flex items-center gap-2">
           <Globe className="h-4 w-4 text-cyan-500" />
           <span className="text-sm text-text-secondary">
-            留空使用默认源，自定义源需为完整下载链接
+            留空表示使用默认源，自定义源需要填写完整下载链接。
           </span>
         </div>
 
@@ -90,7 +94,7 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
           label="GeoIP 源 (dat 格式)"
           placeholder="https://example.com/GeoIP.dat"
           value={urls.geoIp}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrls({ ...urls, geoIp: e.target.value })}
+          onChange={updateField('geoIp')}
           size="small"
           className="w-full"
         />
@@ -99,7 +103,7 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
           label="MMDB 源 (GeoIP 数据库)"
           placeholder="https://example.com/country.mmdb"
           value={urls.mmdb}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrls({ ...urls, mmdb: e.target.value })}
+          onChange={updateField('mmdb')}
           size="small"
           className="w-full"
         />
@@ -108,7 +112,7 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
           label="ASN 源"
           placeholder="https://example.com/ASN.mmdb"
           value={urls.asn}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrls({ ...urls, asn: e.target.value })}
+          onChange={updateField('asn')}
           size="small"
           className="w-full"
         />
@@ -117,7 +121,7 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
           label="GeoSite 源 (dat 格式)"
           placeholder="https://example.com/GeoSite.dat"
           value={urls.geoSite}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrls({ ...urls, geoSite: e.target.value })}
+          onChange={updateField('geoSite')}
           size="small"
           className="w-full"
         />

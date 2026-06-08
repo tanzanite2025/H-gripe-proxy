@@ -5,6 +5,10 @@ import { memo, useCallback, useRef } from 'react'
 import { cn } from '@/utils/cn'
 
 const ROW_HEIGHT = 40
+const SORT_INDICATORS = {
+  asc: '^',
+  desc: 'v',
+} as const
 
 interface RowComponentProps {
   row: Row<IConnectionsItem>
@@ -43,7 +47,7 @@ const RowComponent = memo(
               key={cell.id}
               className={cn(
                 'box-border px-2 text-[13px] flex items-center whitespace-nowrap overflow-hidden text-ellipsis',
-                meta?.align === 'right' ? 'justify-end' : 'justify-start'
+                meta?.align === 'right' ? 'justify-end' : 'justify-start',
               )}
               style={{
                 flex: `0 0 ${cell.column.getSize()}px`,
@@ -88,15 +92,12 @@ export const ConnectionTableUI = ({
   const tableWidth = table.getTotalSize()
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 relative font-sans">
+    <div className="relative flex min-h-0 flex-1 flex-col font-sans">
       <div
         ref={tableContainerRef}
-        className="flex-1 min-h-0 overflow-auto overscroll-contain rounded border-none scrollbar-thin scrollbar-h-2"
+        className="scrollbar-thin scrollbar-h-2 flex-1 min-h-0 overflow-auto overscroll-contain rounded border-none"
       >
-        <div
-          className="min-w-full"
-          style={{ width: tableWidth }}
-        >
+        <div className="min-w-full" style={{ width: tableWidth }}>
           <div className="sticky top-0 z-[2]">
             {table.getHeaderGroups().map((headerGroup) => (
               <div
@@ -107,14 +108,17 @@ export const ConnectionTableUI = ({
                   if (header.isPlaceholder) {
                     return null
                   }
+
                   const meta = header.column.columnDef.meta as {
                     align?: 'left' | 'right'
                     field: string
                   }
+                  const sortDirection = header.column.getIsSorted()
+
                   return (
                     <div
                       key={header.id}
-                      className="flex items-center relative box-border text-[13px] font-semibold text-text-secondary select-none hover:bg-action-hover"
+                      className="relative box-border flex items-center text-[13px] font-semibold text-text-secondary select-none hover:bg-action-hover"
                       style={{
                         flex: `0 0 ${header.getSize()}px`,
                         minWidth: header.column.columnDef.minSize ?? 80,
@@ -128,23 +132,28 @@ export const ConnectionTableUI = ({
                             : undefined
                         }
                         className={cn(
-                          'flex-1 flex items-center gap-1 px-2 py-2',
-                          meta?.align === 'right' ? 'justify-end' : 'justify-start',
-                          header.column.getCanSort() ? 'cursor-pointer' : 'cursor-default'
+                          'flex flex-1 items-center gap-1 px-2 py-2',
+                          meta?.align === 'right'
+                            ? 'justify-end'
+                            : 'justify-start',
+                          header.column.getCanSort()
+                            ? 'cursor-pointer'
+                            : 'cursor-default',
                         )}
                       >
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext(),
                         )}
-                        {{
-                          asc: '▲',
-                          desc: '▼',
-                        }[header.column.getIsSorted() as string] ?? null}
+                        {sortDirection
+                          ? SORT_INDICATORS[
+                              sortDirection as keyof typeof SORT_INDICATORS
+                            ]
+                          : null}
                       </span>
                       {header.column.getCanResize() && (
                         <div
-                          className="cursor-col-resize absolute right-0 top-0 w-1 h-full translate-x-1/2 hover:bg-action-active"
+                          className="absolute right-0 top-0 h-full w-1 translate-x-1/2 cursor-col-resize hover:bg-action-active"
                           onClick={(event) => event.stopPropagation()}
                           onMouseDown={(event) => {
                             event.stopPropagation()
@@ -162,10 +171,7 @@ export const ConnectionTableUI = ({
               </div>
             ))}
           </div>
-          <div
-            className="relative"
-            style={{ height: totalSize }}
-          >
+          <div className="relative" style={{ height: totalSize }}>
             {virtualRows.map((virtualRow) => {
               const row = rows[virtualRow.index]
               if (!row) return null

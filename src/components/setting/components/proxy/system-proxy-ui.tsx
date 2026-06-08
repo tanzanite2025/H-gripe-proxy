@@ -1,5 +1,5 @@
 import { Edit } from 'lucide-react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, Dispatch, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -20,20 +20,14 @@ import {
   TextField,
 } from '@/components/tailwind'
 
+import { splitBypass } from './system-proxy/helpers'
+import type { SystemProxyFormValue } from './system-proxy/types'
+
 interface SystemProxyUIProps {
   open: boolean
   saving: boolean
   enabled: boolean
-  value: {
-    guard: boolean
-    enable_bypass_check: boolean
-    bypass: string
-    duration: number
-    use_default: boolean
-    pac: boolean
-    pac_content: string
-    proxy_host: string
-  }
+  value: SystemProxyFormValue
   isProxyReallyEnabled: boolean
   getSystemProxyAddress: string
   getCurrentPacUrl: string
@@ -46,18 +40,12 @@ interface SystemProxyUIProps {
   defaultBypass: () => string
   onClose: () => void
   onSave: () => void
-  setValue: React.Dispatch<React.SetStateAction<any>>
+  setValue: Dispatch<SetStateAction<SystemProxyFormValue>>
   openPacEditor: () => void
   setEditorOpen: (open: boolean) => void
   setPacEditorValue: (value: string) => void
   handleSavePac: () => void
 }
-
-const splitBypass = (value?: string) =>
-  (value ?? '')
-    .split(/[,\n;\r]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
 
 export const SystemProxyUI = ({
   open,
@@ -139,7 +127,7 @@ export const SystemProxyUI = ({
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
               value={value.proxy_host}
               onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                setValue((v: any) => ({
+                setValue((v) => ({
                   ...v,
                   proxy_host: e.target.value || '127.0.0.1',
                 }))
@@ -161,7 +149,7 @@ export const SystemProxyUI = ({
           <Switch
             disabled={!enabled}
             checked={value.pac}
-            onCheckedChange={(checked) => setValue((v: any) => ({ ...v, pac: checked }))}
+            onCheckedChange={(checked) => setValue((v) => ({ ...v, pac: checked }))}
           />
         </ListItem>
 
@@ -177,7 +165,7 @@ export const SystemProxyUI = ({
           <Switch
             disabled={!enabled}
             checked={value.guard}
-            onCheckedChange={(checked) => setValue((v: any) => ({ ...v, guard: checked }))}
+            onCheckedChange={(checked) => setValue((v) => ({ ...v, guard: checked }))}
             className="ml-auto"
           />
         </ListItem>
@@ -191,7 +179,7 @@ export const SystemProxyUI = ({
             value={value.duration}
             className="w-[100px]"
             onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              setValue((v: any) => ({
+              setValue((v) => ({
                 ...v,
                 duration: +e.target.value.replace(/\D/, ''),
               }))
@@ -214,14 +202,14 @@ export const SystemProxyUI = ({
               onCheckedChange={(checked) => {
                 if (!checked && !value.bypass) {
                   const nextBypass = defaultBypass()
-                  setValue((v: any) => ({
+                  setValue((v) => ({
                     ...v,
                     use_default: checked,
                     bypass: nextBypass,
                   }))
                   return
                 }
-                setValue((v: any) => ({ ...v, use_default: checked }))
+                setValue((v) => ({ ...v, use_default: checked }))
               }}
             />
           </ListItem>
@@ -236,7 +224,7 @@ export const SystemProxyUI = ({
               disabled={!enabled}
               checked={value.enable_bypass_check}
               onCheckedChange={(checked) =>
-                setValue((v: any) => ({ ...v, enable_bypass_check: checked }))
+                setValue((v) => ({ ...v, enable_bypass_check: checked }))
               }
             />
           </ListItem>
@@ -256,7 +244,7 @@ export const SystemProxyUI = ({
             placeholder="localhost"
             ariaLabel={t('settings.modals.sysproxy.fields.proxyBypass')}
             onChange={(nextValue) => {
-              setValue((v: any) => ({ ...v, bypass: nextValue }))
+              setValue((v) => ({ ...v, bypass: nextValue }))
             }}
             renderHeader={(modeToggle) => (
               <ListItem className="px-0.5 py-1.5">

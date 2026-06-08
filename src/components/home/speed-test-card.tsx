@@ -1,15 +1,11 @@
-/**
- * 网络速度测试卡片组件
- * 测试下载/上传速度、延迟、丢包率
- */
-
+import { AlertCircle, Gauge, Play, Square } from 'lucide-react'
 import {
-  AlertCircle,
-  Gauge,
-  Play,
-  Square,
-} from 'lucide-react'
-import { forwardRef, useCallback, useRef, useState } from 'react'
+  forwardRef,
+  useCallback,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from 'react'
 
 import { Button } from '@/components/tailwind/Button'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
@@ -19,6 +15,7 @@ import {
   getLatencyGrade,
   getPacketLossGrade,
   getSpeedGrade,
+  getSpeedTestPhaseLabel,
   SpeedTestService,
   type SpeedTestProgress,
   type SpeedTestResult,
@@ -26,7 +23,7 @@ import {
 
 import { EnhancedCard } from './enhanced-card'
 
-const SpeedTestCardContainer = forwardRef<HTMLElement, React.PropsWithChildren>(
+const SpeedTestCardContainer = forwardRef<HTMLElement, PropsWithChildren>(
   ({ children }, ref) => {
     return (
       <EnhancedCard
@@ -49,24 +46,32 @@ export const SpeedTestCard = () => {
   const [error, setError] = useState<string | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const serviceRef = useRef<SpeedTestService | null>(null)
+  const cancelledRef = useRef(false)
 
   const handleStart = useCallback(async () => {
+    cancelledRef.current = false
     setIsRunning(true)
     setError(null)
     setResult(null)
     setProgress(null)
 
     try {
-      const service = new SpeedTestService((prog) => {
-        setProgress(prog)
+      const service = new SpeedTestService((nextProgress) => {
+        setProgress(nextProgress)
       })
       serviceRef.current = service
 
-      const testResult = await service.runFullTest()
-      setResult(testResult)
+      const nextResult = await service.runFullTest()
+      if (cancelledRef.current) {
+        return
+      }
+
+      setResult(nextResult)
       setProgress(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '测试失败')
+    } catch (nextError) {
+      if (!cancelledRef.current) {
+        setError(nextError instanceof Error ? nextError.message : '测速失败')
+      }
     } finally {
       setIsRunning(false)
       serviceRef.current = null
@@ -74,12 +79,11 @@ export const SpeedTestCard = () => {
   }, [])
 
   const handleStop = useCallback(() => {
-    if (serviceRef.current) {
-      serviceRef.current.abort()
-      setIsRunning(false)
-      setProgress(null)
-      setError('测试已取消')
-    }
+    cancelledRef.current = true
+    serviceRef.current?.abort()
+    setIsRunning(false)
+    setProgress(null)
+    setError('测试已取消')
   }, [])
 
   return (
@@ -113,12 +117,11 @@ const SpeedTestCardUI = ({
   onStart,
   onStop,
 }: SpeedTestCardUIProps) => {
-  // 错误状态
   if (error && !isRunning) {
     return (
       <div className="flex flex-col items-center justify-center py-6 text-error">
         <AlertCircle className="mb-2 h-10 w-10" />
-        <p className="text-base text-error mb-4">{error}</p>
+        <p className="mb-4 text-base text-error">{error}</p>
         <Button onClick={onStart} startIcon={<Play className="h-4 w-4" />}>
           重新测试
         </Button>
@@ -126,14 +129,12 @@ const SpeedTestCardUI = ({
     )
   }
 
-  // 测试中状态
   if (isRunning && progress) {
     return (
       <div className="flex flex-col gap-3">
-        {/* 当前阶段 */}
         <div className="text-center">
-          <p className="text-lg font-medium mb-1">
-            {getPhaseLabel(progress.phase)}
+          <p className="mb-1 text-lg font-medium">
+            {getSpeedTestPhaseLabel(progress.phase)}
           </p>
           {progress.currentSpeed !== undefined && (
             <p className="text-2xl font-bold text-primary">
@@ -141,25 +142,23 @@ const SpeedTestCardUI = ({
             </p>
           )}
           {progress.message && (
-            <p className="text-xs text-text-secondary mt-1">
+            <p className="mt-1 text-xs text-text-secondary">
               {progress.message}
             </p>
           )}
         </div>
 
-        {/* 进度条 */}
         <div>
           <LinearProgress
             variant="determinate"
             value={progress.progress}
             className="h-2"
           />
-          <p className="text-xs text-text-secondary text-center mt-1">
+          <p className="mt-1 text-center text-xs text-text-secondary">
             {Math.round(progress.progress)}%
           </p>
         </div>
 
-        {/* 停止按钮 */}
         <Button
           onClick={onStop}
           variant="outlined"
@@ -172,7 +171,6 @@ const SpeedTestCardUI = ({
     )
   }
 
-  // 结果显示
   if (result) {
     const downloadGrade = getSpeedGrade(result.download.speed)
     const uploadGrade = getSpeedGrade(result.upload.speed)
@@ -181,82 +179,38 @@ const SpeedTestCardUI = ({
 
     return (
       <div className="flex flex-col gap-3">
-        {/* 下载速度 */}
-        <div className="p-3 bg-surface-variant rounded">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-sm text-text-secondary">下载速度</p>
-            <span className={`text-xs font-medium ${downloadGrade.color}`}>
-              {downloadGrade.label}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold">
-              {formatSpeed(result.download.speed)}
-            </p>
-            <p className="text-xs text-text-secondary">
-              稳定性: {result.download.stability}%
-            </p>
-          </div>
-          <div className="mt-2">
-            <LinearProgress
-              variant="determinate"
-              value={Math.min((result.download.speed / 100) * 100, 100)}
-              className="h-1.5"
-            />
-          </div>
-        </div>
+        <SpeedMetricPanel
+          title="下载速度"
+          value={formatSpeed(result.download.speed)}
+          stability={result.download.stability}
+          gradeColor={downloadGrade.color}
+          gradeLabel={downloadGrade.label}
+          progressValue={Math.min(result.download.speed, 100)}
+        />
+        <SpeedMetricPanel
+          title="上传速度"
+          value={formatSpeed(result.upload.speed)}
+          stability={result.upload.stability}
+          gradeColor={uploadGrade.color}
+          gradeLabel={uploadGrade.label}
+          progressValue={Math.min(result.upload.speed, 100)}
+        />
 
-        {/* 上传速度 */}
-        <div className="p-3 bg-surface-variant rounded">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-sm text-text-secondary">上传速度</p>
-            <span className={`text-xs font-medium ${uploadGrade.color}`}>
-              {uploadGrade.label}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold">
-              {formatSpeed(result.upload.speed)}
-            </p>
-            <p className="text-xs text-text-secondary">
-              稳定性: {result.upload.stability}%
-            </p>
-          </div>
-          <div className="mt-2">
-            <LinearProgress
-              variant="determinate"
-              value={Math.min((result.upload.speed / 100) * 100, 100)}
-              className="h-1.5"
-            />
-          </div>
-        </div>
-
-        {/* 延迟和丢包 */}
         <div className="grid grid-cols-2 gap-2">
-          {/* 延迟 */}
-          <div className="p-2 bg-surface-variant rounded">
-            <p className="text-xs text-text-secondary mb-1">延迟</p>
-            <p className={`text-lg font-bold ${latencyGrade.color}`}>
-              {formatLatency(result.latency.avg)}
-            </p>
-            <p className="text-xs text-text-secondary mt-1">
-              抖动: {formatLatency(result.latency.jitter)}
-            </p>
-          </div>
-
-          {/* 丢包率 */}
-          <div className="p-2 bg-surface-variant rounded">
-            <p className="text-xs text-text-secondary mb-1">丢包率</p>
-            <p className={`text-lg font-bold ${packetLossGrade.color}`}>
-              {result.packetLoss.lossRate.toFixed(2)}%
-            </p>
-            <p className="text-xs text-text-secondary mt-1">
-              {result.packetLoss.received}/{result.packetLoss.sent}
-            </p>
-          </div>
+          <MetricPanel
+            title="延迟"
+            value={formatLatency(result.latency.avg)}
+            detail={`抖动: ${formatLatency(result.latency.jitter)}`}
+            valueColor={latencyGrade.color}
+          />
+          <MetricPanel
+            title="丢包率"
+            value={`${result.packetLoss.lossRate.toFixed(2)}%`}
+            detail={`${result.packetLoss.received}/${result.packetLoss.sent}`}
+            valueColor={packetLossGrade.color}
+          />
         </div>
 
-        {/* 重新测试按钮 */}
         <Button
           onClick={onStart}
           startIcon={<Play className="h-4 w-4" />}
@@ -268,11 +222,10 @@ const SpeedTestCardUI = ({
     )
   }
 
-  // 初始状态
   return (
     <div className="flex flex-col items-center justify-center py-6">
       <Gauge className="mb-2 h-10 w-10 text-primary" />
-      <p className="text-base text-text-secondary mb-4">
+      <p className="mb-4 text-base text-text-secondary">
         点击下方按钮开始测试网络速度
       </p>
       <Button onClick={onStart} startIcon={<Play className="h-4 w-4" />}>
@@ -282,19 +235,62 @@ const SpeedTestCardUI = ({
   )
 }
 
-function getPhaseLabel(phase: SpeedTestProgress['phase']): string {
-  switch (phase) {
-    case 'download':
-      return '下载速度测试'
-    case 'upload':
-      return '上传速度测试'
-    case 'latency':
-      return '延迟测试'
-    case 'packet-loss':
-      return '丢包测试'
-    case 'complete':
-      return '测试完成'
-    default:
-      return '测试中'
-  }
+interface SpeedMetricPanelProps {
+  title: string
+  value: string
+  stability: number
+  gradeColor: string
+  gradeLabel: string
+  progressValue: number
+}
+
+const SpeedMetricPanel = ({
+  title,
+  value,
+  stability,
+  gradeColor,
+  gradeLabel,
+  progressValue,
+}: SpeedMetricPanelProps) => {
+  return (
+    <div className="rounded bg-surface-variant p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm text-text-secondary">{title}</p>
+        <span className={`text-xs font-medium ${gradeColor}`}>{gradeLabel}</span>
+      </div>
+      <div className="flex items-baseline gap-2">
+        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-xs text-text-secondary">稳定性 {stability}%</p>
+      </div>
+      <div className="mt-2">
+        <LinearProgress
+          variant="determinate"
+          value={progressValue}
+          className="h-1.5"
+        />
+      </div>
+    </div>
+  )
+}
+
+interface MetricPanelProps {
+  title: string
+  value: string
+  detail: string
+  valueColor: string
+}
+
+const MetricPanel = ({
+  title,
+  value,
+  detail,
+  valueColor,
+}: MetricPanelProps) => {
+  return (
+    <div className="rounded bg-surface-variant p-2">
+      <p className="mb-1 text-xs text-text-secondary">{title}</p>
+      <p className={`text-lg font-bold ${valueColor}`}>{value}</p>
+      <p className="mt-1 text-xs text-text-secondary">{detail}</p>
+    </div>
+  )
 }
