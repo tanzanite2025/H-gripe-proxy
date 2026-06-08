@@ -63,7 +63,7 @@ export function ProfileCardsSection({
             <Grid container spacing={{ xs: 3, lg: 3 }}>
               <SortableContext items={profileItems.map((item) => item.uid)}>
                 {profileItems.map((item) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={item.file}>
+                  <Grid item xs={12} sm={6} lg={4} key={item.file}>
                     <ProfileItem
                       id={item.uid}
                       selected={currentProfileId === item.uid}

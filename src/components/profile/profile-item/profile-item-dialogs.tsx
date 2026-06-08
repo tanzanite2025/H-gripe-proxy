@@ -134,6 +134,8 @@ export function ProfileItemDialogs({
         <QrViewer
           open={true}
           value={buildProfileQrCodeValue(itemData.url, name)}
+          subject={name}
+          fileName={name}
           onClose={dialogs.closeQr}
         />
       )}

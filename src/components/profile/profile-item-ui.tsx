@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CircularProgress } from '@/components/tailwind/CircularProgress'
@@ -56,6 +57,7 @@ interface ProfileItemUIProps {
   onProxyUpdateClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   onEditProxiesClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   onEditGroupsClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onShareQrCodeClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   canEditProxies: boolean
   canEditGroups: boolean
   onToggleUpdateTimeDisplay: (e: React.MouseEvent) => void
@@ -93,6 +95,7 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
     onProxyUpdateClick,
     onEditProxiesClick,
     onEditGroupsClick,
+    onShareQrCodeClick,
     canEditProxies,
     canEditGroups,
     onToggleUpdateTimeDisplay,
@@ -128,11 +131,11 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
         )}
 
         <div className="relative">
-          <div className="flex justify-start">
+          <div className="flex items-start gap-1">
             {batchMode && (
               <IconButton
                 size="small"
-                className="p-0.5 mr-1 -ml-2"
+                className="-ml-2 mr-1 p-0.5"
                 onClick={(e) => {
                   e.stopPropagation()
                   if (onSelectionChange) {
@@ -162,7 +165,7 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
 
             <div
               ref={dragHandleProps.ref}
-              className={`flex my-auto ${batchMode ? '-ml-1' : ''}`}
+              className={`my-auto flex shrink-0 ${batchMode ? '-ml-1' : ''}`}
               {...dragHandleProps.attributes}
               {...dragHandleProps.listeners}
             >
@@ -176,11 +179,27 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
             </div>
 
             <h2
-              className={`${batchMode ? 'w-[calc(100%-56px)]' : 'w-[calc(100%-36px)]'} text-lg font-semibold leading-[26px] truncate`}
+              className="min-w-0 flex-1 truncate text-lg font-semibold leading-[26px]"
               title={name}
             >
               {name}
             </h2>
+
+            {hasUrl && (
+              <IconButton
+                size="small"
+                color="inherit"
+                className="-mr-1 mt-[-2px] h-7 w-7 shrink-0 text-text-secondary hover:bg-white/10 hover:text-text-primary"
+                title={t('profiles.components.menu.shareQrCode')}
+                aria-label={t('profiles.components.menu.shareQrCode')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onShareQrCodeClick(event)
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+              </IconButton>
+            )}
           </div>
         </div>
 

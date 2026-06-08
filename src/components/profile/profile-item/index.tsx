@@ -418,6 +418,12 @@ export const ProfileItem = ({
           }
           onEditGroups()
         }}
+        onShareQrCodeClick={() => {
+          if (!hasUrl) {
+            return
+          }
+          onShareQrCode()
+        }}
         canEditProxies={!!option?.proxies}
         canEditGroups={!!option?.groups}
         onToggleUpdateTimeDisplay={toggleUpdateTimeDisplay}
