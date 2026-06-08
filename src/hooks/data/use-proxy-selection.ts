@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 
-import { useVerge } from '@/hooks/system'
 import { syncTrayProxySelection } from '@/services/cmds'
 import { closeConnectionsForProxy } from '@/services/connection-runtime'
 import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
@@ -8,16 +7,15 @@ import { debugLog } from '@/utils/misc'
 
 import { useProfiles } from './use-profiles'
 
-// 缓存连接清理
 const cleanupConnections = async (previousProxy: string) => {
   try {
     const cleanupCount = await closeConnectionsForProxy(previousProxy)
 
     if (cleanupCount > 0) {
-      debugLog(`[ProxySelection] 清理了 ${cleanupCount} 个连接`)
+      debugLog(`[ProxySelection] cleaned ${cleanupCount} connections`)
     }
   } catch (error) {
-    console.warn('[ProxySelection] 连接清理失败:', error)
+    console.warn('[ProxySelection] failed to clean connections:', error)
   }
 }
 
@@ -34,28 +32,16 @@ interface ProxyChangeRequest {
   skipConfigSave: boolean
 }
 
-// 代理选择 Hook
 export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   const { current, patchCurrent } = useProfiles()
-  const { verge } = useVerge()
   const pendingRequestRef = useRef<ProxyChangeRequest | null>(null)
   const isProcessingRef = useRef(false)
 
   const { onSuccess, onError, enableConnectionCleanup = true } = options
 
-  // 缓存
-  const config = useMemo(
-    () => ({
-      autoCloseConnection: verge?.auto_close_connection ?? false,
-      enableConnectionCleanup,
-    }),
-    [verge?.auto_close_connection, enableConnectionCleanup],
-  )
-
-  // 切换节点
   const syncTraySelection = useCallback(() => {
     syncTrayProxySelection().catch((error) => {
-      console.error('[ProxySelection] 托盘状态同步失败:', error)
+      console.error('[ProxySelection] failed to sync tray state:', error)
     })
   }, [])
 
@@ -73,7 +59,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
       }
 
       patchCurrent({ selected }).catch((error) => {
-        console.error('[ProxySelection] 保存代理选择失败:', error)
+        console.error('[ProxySelection] failed to persist selection:', error)
       })
     },
     [current, patchCurrent],
@@ -82,7 +68,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   const executeChange = useCallback(
     async (request: ProxyChangeRequest) => {
       const { groupName, proxyName, previousProxy, skipConfigSave } = request
-      debugLog(`[ProxySelection] 代理切换: ${groupName} -> ${proxyName}`)
+      debugLog(`[ProxySelection] change proxy: ${groupName} -> ${proxyName}`)
 
       try {
         await applyProxyRuntimeSelection(groupName, proxyName, {
@@ -92,19 +78,15 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
         syncTraySelection()
         persistSelection(groupName, proxyName, skipConfigSave)
         debugLog(
-          `[ProxySelection] 代理和状态同步完成: ${groupName} -> ${proxyName}`,
+          `[ProxySelection] proxy and state synced: ${groupName} -> ${proxyName}`,
         )
 
-        if (
-          config.enableConnectionCleanup &&
-          config.autoCloseConnection &&
-          previousProxy
-        ) {
+        if (enableConnectionCleanup && previousProxy) {
           setTimeout(() => cleanupConnections(previousProxy), 0)
         }
       } catch (error) {
         console.error(
-          `[ProxySelection] 代理切换失败: ${groupName} -> ${proxyName}`,
+          `[ProxySelection] failed to change proxy: ${groupName} -> ${proxyName}`,
           error,
         )
 
@@ -116,18 +98,24 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
           syncTraySelection()
           persistSelection(groupName, proxyName, skipConfigSave)
           debugLog(
-            `[ProxySelection] 代理切换回退成功: ${groupName} -> ${proxyName}`,
+            `[ProxySelection] retry succeeded: ${groupName} -> ${proxyName}`,
           )
         } catch (fallbackError) {
           console.error(
-            `[ProxySelection] 代理切换回退也失败: ${groupName} -> ${proxyName}`,
+            `[ProxySelection] retry also failed: ${groupName} -> ${proxyName}`,
             fallbackError,
           )
           onError?.(fallbackError)
         }
       }
     },
-    [config, onError, onSuccess, persistSelection, syncTraySelection],
+    [
+      enableConnectionCleanup,
+      onError,
+      onSuccess,
+      persistSelection,
+      syncTraySelection,
+    ],
   )
 
   const flushChangeQueue = useCallback(async () => {

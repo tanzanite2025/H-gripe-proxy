@@ -2,10 +2,8 @@ import { useLockFn } from 'ahooks'
 import { Globe, Route } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { useRuntimeConfig } from '@/hooks/data/use-clash'
-import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
   useClashConfigData,
@@ -36,7 +34,6 @@ const MODE_META: Record<
 
 export const ClashModeCard = () => {
   const { t } = useTranslation()
-  const { verge } = useVerge()
   const { clashConfig } = useClashConfigData()
   const { isCoreDataPending } = useCoreDataStatus()
   const { refreshClashConfig } = useAppRefreshers()
@@ -72,10 +69,6 @@ export const ClashModeCard = () => {
   // 切换模式的处理函数
   const onChangeMode = useLockFn(async (mode: HomeProxyChainMode) => {
     if (mode === displayMode) return
-    if (verge?.auto_close_connection) {
-      closeAllConnections()
-    }
-
     setOptimisticMode(mode)
     queryClient.setQueryData(['getClashConfig'], (old: any) =>
       old ? { ...old, mode } : old,

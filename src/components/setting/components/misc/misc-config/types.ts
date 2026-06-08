@@ -2,7 +2,6 @@ export interface MiscConfigValues {
   appLogLevel: string
   appLogMaxSize: number
   appLogMaxCount: number
-  autoCloseConnection: boolean
   autoCheckUpdate: boolean
   enableBuiltinEnhanced: boolean
   proxyLayoutColumn: number
@@ -19,7 +18,6 @@ export const createMiscConfigValues = (
   appLogLevel: verge?.app_log_level ?? 'warn',
   appLogMaxSize: verge?.app_log_max_size ?? 128,
   appLogMaxCount: verge?.app_log_max_count ?? 8,
-  autoCloseConnection: verge?.auto_close_connection ?? true,
   autoCheckUpdate: verge?.auto_check_update ?? true,
   enableBuiltinEnhanced: verge?.enable_builtin_enhanced ?? true,
   proxyLayoutColumn: verge?.proxy_layout_column || 6,

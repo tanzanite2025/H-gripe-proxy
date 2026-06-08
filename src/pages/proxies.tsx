@@ -2,7 +2,6 @@ import { useLockFn } from 'ahooks'
 import { Network, AlertTriangle } from 'lucide-react'
 import { lazy, useCallback, useEffect, useReducer, useState, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
@@ -11,7 +10,6 @@ import { loadProxyChainRuntimeExitNode } from '@/components/proxy/proxy-chain-ty
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
 import { useRuntimeConfig } from '@/hooks/data/use-clash'
-import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
   useClashConfigData,
@@ -65,8 +63,6 @@ const ProxyPage = () => {
   const updateChainConfigData = useCallback((value: string | null) => {
     dispatchChainConfigData(value)
   }, [])
-  const { verge } = useVerge()
-
   const curMode = resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)
   const displayMode = optimisticMode ?? curMode
   const proxyDisplayMode = displayMode === 'direct' ? DEFAULT_CLASH_MODE : displayMode
@@ -74,9 +70,6 @@ const ProxyPage = () => {
 
   const onChangeMode = useLockFn(async (mode: ProxyChainMode) => {
     // 断开连接
-    if (mode !== curMode && verge?.auto_close_connection) {
-      closeAllConnections()
-    }
     setOptimisticMode(mode)
     queryClient.setQueryData(['getClashConfig'], (old: any) =>
       old ? { ...old, mode } : old,

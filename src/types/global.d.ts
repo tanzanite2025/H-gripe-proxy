@@ -1155,7 +1155,6 @@ interface IVergeConfig {
   proxy_guard_duration?: number
   system_proxy_bypass?: string
   hotkeys?: string[]
-  auto_close_connection?: boolean
   auto_check_update?: boolean
   default_latency_test?: string
   default_latency_timeout?: number

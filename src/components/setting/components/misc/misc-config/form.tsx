@@ -119,21 +119,6 @@ export function MiscConfigForm({
       </MiscConfigFormRow>
 
       <MiscConfigFormRow
-        label={t('settings.modals.misc.fields.autoCloseConnections')}
-        tooltip={t('settings.modals.misc.tooltips.autoCloseConnections')}
-      >
-        <Switch
-          checked={values.autoCloseConnection}
-          onCheckedChange={(checked) =>
-            setValues((current) => ({
-              ...current,
-              autoCloseConnection: checked,
-            }))
-          }
-        />
-      </MiscConfigFormRow>
-
-      <MiscConfigFormRow
         label={t('settings.modals.misc.fields.autoCheckUpdate')}
       >
         <Switch

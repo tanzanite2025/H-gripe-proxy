@@ -174,6 +174,29 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     update_flags
 }
 
+fn should_close_connections_on_route_change(current: &IVerge, patch: &IVerge) -> bool {
+    let will_disable_system_proxy =
+        current.enable_system_proxy.unwrap_or(false) && patch.enable_system_proxy == Some(false);
+    let will_disable_tun_mode =
+        current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
+
+    will_disable_system_proxy || will_disable_tun_mode
+}
+
+async fn maybe_close_connections_after_route_change(current: &IVerge, patch: &IVerge) {
+    if !should_close_connections_on_route_change(current, patch) {
+        return;
+    }
+
+    if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+        logging!(
+            warn,
+            Type::ProxyMode,
+            "Failed to close connections after route change: {err}"
+        );
+    }
+}
+
 #[allow(clippy::cognitive_complexity)]
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
     // Process updates based on flags
@@ -231,7 +254,9 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
 }
 
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
-    Config::verge().await.edit_draft(|d| d.patch_config(patch));
+    let verge = Config::verge().await;
+    let current_verge = verge.latest_arc();
+    verge.edit_draft(|d| d.patch_config(patch));
 
     let update_flags = determine_update_flags(patch);
     logging!(debug, Type::Setup, "Determined update flags: {:?}", update_flags);
@@ -241,10 +266,11 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     };
 
     if let Err(err) = process_flag_result {
-        Config::verge().await.discard();
+        verge.discard();
         return Err(err);
     }
-    Config::verge().await.apply();
+    verge.apply();
+    maybe_close_connections_after_route_change(current_verge.as_ref(), patch).await;
     if let Err(err) = handle::Handle::sync_mihomo_controller_state().await {
         logging!(
             warn,

@@ -30,7 +30,6 @@ mod tests {
         let snapshot = RuntimeSnapshot {
             core_running: true,
             proxies: None,
-            connections: None,
             dns_metrics: None,
         };
 

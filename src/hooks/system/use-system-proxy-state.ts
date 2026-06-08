@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { useRef } from 'react'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
 import { getAutotemProxy } from '@/services/cmds'
@@ -60,9 +59,6 @@ export const useSystemProxyState = () => {
         const target = pendingRef.current
         pendingRef.current = null
         await patchVerge({ enable_system_proxy: target })
-        if (!target && verge?.auto_close_connection) {
-          await closeAllConnections().catch(() => {})
-        }
       }
     } finally {
       busyRef.current = false

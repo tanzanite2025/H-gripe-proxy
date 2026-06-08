@@ -3,13 +3,12 @@ use std::collections::HashMap;
 use crate::core::{CoreManager, handle::Handle, manager::RunningMode};
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use tauri_plugin_mihomo::models::{Connections, DnsMetrics, Proxies};
+use tauri_plugin_mihomo::models::{DnsMetrics, Proxies};
 
 #[derive(Debug, Default)]
 pub struct RuntimeSnapshot {
     pub core_running: bool,
     pub proxies: Option<Proxies>,
-    pub connections: Option<Connections>,
     pub dns_metrics: Option<DnsMetrics>,
 }
 
@@ -97,21 +96,6 @@ impl RuntimeSnapshotService {
 
         Ok(snapshot)
     }
-
-    pub async fn refresh_connections_result(&self) -> Result<RuntimeSnapshot> {
-        let core_running = *CoreManager::global().get_running_mode() != RunningMode::NotRunning;
-        let mut snapshot = RuntimeSnapshot {
-            core_running,
-            ..RuntimeSnapshot::default()
-        };
-
-        if core_running {
-            let mihomo = Handle::mihomo().await;
-            snapshot.connections = Some(mihomo.get_connections().await?);
-        }
-
-        Ok(snapshot)
-    }
 }
 
 #[cfg(test)]
@@ -161,7 +145,6 @@ mod tests {
                     ("GLOBAL".into(), proxy_group("GLOBAL", "node-b")),
                 ]),
             }),
-            connections: None,
             dns_metrics: None,
         };
 
@@ -179,7 +162,6 @@ mod tests {
         let snapshot = RuntimeSnapshot {
             core_running: false,
             proxies: None,
-            connections: None,
             dns_metrics: None,
         };
 

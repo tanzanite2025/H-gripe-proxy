@@ -11,15 +11,6 @@ use tauri_plugin_clipboard_manager::ClipboardExt as _;
 pub async fn toggle_system_proxy() -> bool {
     let verge = Config::verge().await;
     let current = verge.latest_arc().enable_system_proxy.unwrap_or(false);
-    let auto_close_connection = verge.latest_arc().auto_close_connection.unwrap_or(false);
-
-    // 如果当前系统代理即将关闭，且自动关闭连接设置为true，则关闭所有连接
-    if current
-        && auto_close_connection
-        && let Err(err) = handle::Handle::mihomo().await.close_all_connections().await
-    {
-        logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
-    }
 
     let requested = !current;
     let patch_result = super::patch_verge(
@@ -119,7 +110,7 @@ pub async fn copy_clash_env() {
     }
 }
 
-/// 同步运行时稳定出口选择状态（从 Mihomo 回写到管理器）
+/// 鍚屾杩愯鏃剁ǔ瀹氬嚭鍙ｉ€夋嫨鐘舵€侊紙浠?Mihomo 鍥炲啓鍒扮鐞嗗櫒锛?
 pub async fn sync_runtime_stable_egress_selection() -> Result<()> {
     super::coordinator::sync_coordinator_from_advanced_config_async().await?;
 

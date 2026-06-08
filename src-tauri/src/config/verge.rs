@@ -99,7 +99,6 @@ pub struct IVerge {
     pub home_cards: Option<serde_json::Value>,
 
     /// 切换代理时自动关闭连接
-    pub auto_close_connection: Option<bool>,
 
     /// 是否自动检查更新
     pub auto_check_update: Option<bool>,
@@ -362,7 +361,6 @@ impl IVerge {
             enable_bypass_check: Some(true),
             use_default_bypass: Some(true),
             proxy_guard_duration: Some(30),
-            auto_close_connection: Some(true),
             auto_check_update: Some(true),
             enable_builtin_enhanced: Some(true),
             auto_log_clean: Some(2), // 1: 1天, 2: 7天, 3: 30天, 4: 90天
@@ -444,7 +442,6 @@ impl IVerge {
         patch!(hotkeys);
         patch!(enable_global_hotkey);
 
-        patch!(auto_close_connection);
         patch!(auto_check_update);
         patch!(default_latency_test);
         patch!(default_latency_timeout);

@@ -1,7 +1,7 @@
 use crate::{
     config::Config,
     core::{
-        CoreManager, clash_mode::ClashMode, handle, manager::CLASH_LOGGER, runtime_snapshot::RuntimeSnapshotService,
+        CoreManager, clash_mode::ClashMode, handle, manager::CLASH_LOGGER,
         tray,
     },
     feat::clean_async,
@@ -67,20 +67,12 @@ pub async fn restart_app() {
 
 fn after_change_clash_mode() {
     AsyncHandler::spawn(move || async {
-        let mihomo = handle::Handle::mihomo().await;
-        let snapshot_service = RuntimeSnapshotService::global();
-        match snapshot_service.refresh_connections_result().await {
-            Ok(snapshot) => {
-                if let Some(connections_array) = snapshot.connections.and_then(|connections| connections.connections) {
-                    for connection in connections_array {
-                        let _ = mihomo.close_connection(&connection.id).await;
-                    }
-                    drop(mihomo);
-                }
-            }
-            Err(err) => {
-                logging!(error, Type::Core, "Failed to get connections: {err}");
-            }
+        if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+            logging!(
+                error,
+                Type::Core,
+                "Failed to close connections after clash mode change: {err}"
+            );
         }
     });
 }
@@ -108,10 +100,7 @@ pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
             handle::Handle::refresh_clash();
             tray::Tray::global().update_menu_and_icon().await;
 
-            let is_auto_close_connection = Config::verge().await.data_arc().auto_close_connection.unwrap_or(false);
-            if is_auto_close_connection {
-                after_change_clash_mode();
-            }
+            after_change_clash_mode();
             Ok(())
         }
         Err(err) => {
