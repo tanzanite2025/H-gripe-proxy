@@ -266,7 +266,7 @@ interface IClashInfo {
 
 interface IProfileItem {
   uid: string
-  type?: 'local' | 'remote' | 'merge' | 'script'
+  type?: 'local' | 'remote' | 'merge' | 'script' | 'rules' | 'proxies' | 'groups'
   name?: string
   desc?: string
   file?: string
@@ -304,6 +304,12 @@ interface IProfileOption {
 interface IProfilesConfig {
   current?: string
   items?: IProfileItem[]
+}
+
+interface IProfilesView extends IProfilesConfig {
+  currentPrimaryUid?: string
+  primaryItems?: IProfileItem[]
+  auxiliaryItems?: IProfileItem[]
 }
 
 interface IVergeTestItem {

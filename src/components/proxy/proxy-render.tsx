@@ -1,13 +1,10 @@
-import { ChevronDown, ChevronUp, Inbox } from 'lucide-react'
+import { ChevronDown, ChevronUp, Inbox, SlidersHorizontal } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Chip,
-  ListItemText,
-  Tooltip,
-} from '@/components/tailwind'
+import { Chip, IconButton, ListItemText, Tooltip } from '@/components/tailwind'
 import { useIconCache } from '@/hooks/system'
+import { categorizeProxyGroup } from '@/services/proxy-display'
 import { cn } from '@/utils/cn'
 
 import { ProxyHead } from './proxy-head'
@@ -19,14 +16,22 @@ import type { IRenderItem } from './use-render-list'
 interface RenderProps {
   item: IRenderItem
   indent: boolean
-  isChainMode?: boolean
-  onLocation: (group: IRenderItem['group']) => void
+  onLocation: (group: NonNullable<IRenderItem['group']>) => void
   onCheckAll: (groupName: string) => void
   onHeadState: (groupName: string, patch: Partial<HeadState>) => void
   onChangeProxy: (
-    group: IRenderItem['group'],
-    proxy: IRenderItem['proxy'] & { name: string },
+    group: NonNullable<IRenderItem['group']>,
+    proxy: NonNullable<IRenderItem['proxy']> & { name: string },
   ) => void
+  onConfigureStrategyGroup: (
+    group: NonNullable<IRenderItem['group']>,
+  ) => void
+}
+
+const SECTION_TONE_CLASS: Record<string, string> = {
+  runtime: 'border-teal-500/20 bg-teal-500/5 text-teal-500',
+  manual: 'border-sky-500/20 bg-sky-500/5 text-sky-400',
+  strategy: 'border-amber-500/20 bg-amber-500/5 text-amber-400',
 }
 
 export const ProxyRender = (props: RenderProps) => {
@@ -38,21 +43,21 @@ export const ProxyRender = (props: RenderProps) => {
     onCheckAll,
     onHeadState,
     onChangeProxy,
-    isChainMode: _ = false,
+    onConfigureStrategyGroup,
   } = props
   const { type, group, headState, proxy, proxyCol } = item
-  const enable_group_icon = true
+  const enableGroupIcon = true
   const isDark = true
-  const itembackgroundcolor = isDark ? '#282A36' : '#ffffff'
+  const itemBackgroundColor = isDark ? '#282A36' : '#ffffff'
   const iconCachePath = useIconCache({
-    icon: group.icon,
-    cacheKey: group.name.replaceAll(' ', ''),
-    enabled: enable_group_icon,
+    icon: group?.icon,
+    cacheKey: group?.name?.replaceAll(' ', '') || 'proxy-group',
+    enabled: enableGroupIcon,
   })
 
   const showType = headState?.showType
   const proxyColItemsMemo = useMemo(() => {
-    if (type !== 4 || !proxyCol) {
+    if (type !== 4 || !proxyCol || !group) {
       return null
     }
 
@@ -68,14 +73,65 @@ export const ProxyRender = (props: RenderProps) => {
     ))
   }, [type, proxyCol, item.key, group, showType, onChangeProxy])
 
-  if (type === 0) {
+  if (type === 5) {
+    const toneClass =
+      SECTION_TONE_CLASS[item.sectionKind || 'manual'] ??
+      SECTION_TONE_CLASS.manual
+    const isRuntime = item.sectionKind === 'runtime'
+
+    return (
+      <div
+        className={cn(
+          'mx-2 mt-2 rounded-xl border px-3 py-2',
+          isRuntime ? 'mb-3' : 'mb-1',
+          toneClass,
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold tracking-[0.18em]">
+            {item.sectionTitle}
+          </span>
+          {item.runtimeObserved === false && (
+            <span className="rounded-full border border-gray-500/30 px-2 py-0.5 text-[10px] text-gray-400">
+              未观测
+            </span>
+          )}
+        </div>
+        {item.runtimePath?.length ? (
+          <div className="mt-1 break-all text-sm font-semibold text-white/90">
+            {item.runtimePath.join(' -> ')}
+          </div>
+        ) : null}
+        {item.sectionDescription && (
+          <div
+            className={cn(
+              'mt-1 text-xs',
+              isRuntime ? 'text-gray-300' : 'text-gray-400',
+            )}
+          >
+            {item.sectionDescription}
+          </div>
+        )}
+        {item.runtimeDescription && (
+          <div className="mt-1 text-xs text-gray-400">
+            {item.runtimeDescription}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (type === 0 && group) {
+    const canConfigureStrategyGroup =
+      categorizeProxyGroup(group) === 'strategy'
+
     return (
       <div
         role="button"
         tabIndex={0}
-        className="mx-2 my-2 flex h-full items-center rounded-lg px-3 py-1.5 cursor-pointer transition-colors hover:bg-action-hover active:bg-action-selected"
+        className="mx-2 my-2 flex h-full cursor-pointer items-center rounded-lg px-3 py-1.5 transition-colors hover:bg-action-hover active:bg-action-selected"
         style={{
-          background: itembackgroundcolor,
+          background: itemBackgroundColor,
         }}
         onClick={() => onHeadState(group.name, { open: !headState?.open })}
         onKeyDown={(event) => {
@@ -85,7 +141,7 @@ export const ProxyRender = (props: RenderProps) => {
           }
         }}
       >
-        {enable_group_icon &&
+        {enableGroupIcon &&
           group.icon &&
           group.icon.trim().startsWith('http') && (
             <img
@@ -94,7 +150,7 @@ export const ProxyRender = (props: RenderProps) => {
               style={{ marginRight: '12px', borderRadius: '6px' }}
             />
           )}
-        {enable_group_icon &&
+        {enableGroupIcon &&
           group.icon &&
           group.icon.trim().startsWith('data') && (
             <img
@@ -103,7 +159,7 @@ export const ProxyRender = (props: RenderProps) => {
               style={{ marginRight: '12px', borderRadius: '6px' }}
             />
           )}
-        {enable_group_icon &&
+        {enableGroupIcon &&
           group.icon &&
           group.icon.trim().startsWith('<svg') && (
             <img
@@ -113,9 +169,32 @@ export const ProxyRender = (props: RenderProps) => {
           )}
         <ListItemText
           primary={
-            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-base font-bold leading-6">
-              {group.name}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base font-bold leading-6">
+                {group.name}
+              </span>
+              {canConfigureStrategyGroup && (
+                <Tooltip title="配置策略池成员" arrow>
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      className="h-7 w-7"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        onConfigureStrategyGroup(group)
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation()
+                      }}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+            </div>
           }
           secondary={
             <div className="flex items-center overflow-hidden pt-0.5">
@@ -124,7 +203,7 @@ export const ProxyRender = (props: RenderProps) => {
                   {group.type}
                 </span>
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-gray-500">
-                  {group.now}
+                  {item.pathText || group.now}
                 </span>
               </span>
             </div>
@@ -134,7 +213,7 @@ export const ProxyRender = (props: RenderProps) => {
           <Tooltip title={t('proxies.page.labels.proxyCount')} arrow>
             <Chip
               size="small"
-              label={`${group.all.length}`}
+              label={`${item.memberCount ?? group.all.length}`}
               className="mr-2 bg-teal-500/10 text-teal-500"
             />
           </Tooltip>
@@ -148,29 +227,29 @@ export const ProxyRender = (props: RenderProps) => {
     )
   }
 
-  if (type === 1) {
+  if (type === 1 && group) {
     return (
       <ProxyHead
-        className={cn('pl-4 pr-6 mb-2', indent ? 'mt-2' : 'mt-1')}
+        className={cn('mb-2 pl-4 pr-6', indent ? 'mt-2' : 'mt-1')}
         url={group.testUrl}
         groupName={group.name}
         headState={headState!}
         onLocation={() => onLocation(group)}
         onCheckDelay={() => onCheckAll(group.name)}
-        onHeadState={(p) => onHeadState(group.name, p)}
+        onHeadState={(patch) => onHeadState(group.name, patch)}
       />
     )
   }
 
-  if (type === 2) {
+  if (type === 2 && group && proxy) {
     return (
       <ProxyItem
         group={group}
-        proxy={proxy!}
-        selected={group.now === proxy?.name}
+        proxy={proxy}
+        selected={group.now === proxy.name}
         showType={headState?.showType}
         sx={{ py: 0, pl: 2 }}
-        onClick={() => onChangeProxy(group, proxy!)}
+        onClick={() => onChangeProxy(group, proxy)}
       />
     )
   }
@@ -189,7 +268,7 @@ export const ProxyRender = (props: RenderProps) => {
       <div
         className="grid h-16 gap-2 px-4 py-1"
         style={{
-          gridTemplateColumns: `repeat(${item.col! || 2}, 1fr)`,
+          gridTemplateColumns: `repeat(${item.col || 2}, 1fr)`,
         }}
       >
         {proxyColItemsMemo}

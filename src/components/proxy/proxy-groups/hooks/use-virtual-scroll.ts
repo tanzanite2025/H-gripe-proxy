@@ -20,7 +20,7 @@ export function useVirtualScroll(options: UseVirtualScrollOptions) {
   const stickyGroupIndexes = useMemo(
     () =>
       renderList.flatMap((item, index) =>
-        item.type === 0 && !item.group.hidden ? [index] : [],
+        item.type === 0 && !item.group?.hidden ? [index] : [],
       ),
     [renderList],
   )

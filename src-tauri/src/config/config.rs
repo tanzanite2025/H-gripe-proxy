@@ -18,6 +18,8 @@ use clash_verge_draft::Draft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
+#[cfg(feature = "verge-dev")]
+use std::path::Path;
 use std::path::PathBuf;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 use tokio::sync::OnceCell;
@@ -86,6 +88,9 @@ impl Config {
 
     /// 初始化订阅
     pub async fn init_config() -> Result<()> {
+        #[cfg(feature = "verge-dev")]
+        Self::bootstrap_dev_profiles_from_release().await?;
+
         Self::ensure_default_profile_items().await?;
 
         let verge = Self::verge().await.latest_arc();
@@ -137,6 +142,105 @@ impl Config {
             let script_item = &mut PrfItem::from_script(Some("Script".into()))?;
             profiles_append_item_safe(script_item).await?;
         }
+        Ok(())
+    }
+
+    #[cfg(feature = "verge-dev")]
+    async fn bootstrap_dev_profiles_from_release() -> Result<()> {
+        use tokio::fs;
+
+        let dev_profiles_path = dirs::profiles_path()?;
+        let current_dev_profiles = match help::read_yaml::<IProfiles>(&dev_profiles_path).await {
+            Ok(profiles) => profiles,
+            Err(_) => IProfiles::default(),
+        };
+
+        if current_dev_profiles.has_primary_profiles() {
+            return Ok(());
+        }
+
+        let release_home = match dirs::release_app_home_dir() {
+            Ok(path) => path,
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Skipped dev profile bootstrap because release app directory is unavailable: {err}"
+                );
+                return Ok(());
+            }
+        };
+
+        let release_profiles_path = release_home.join(dirs::PROFILE_YAML);
+        if !release_profiles_path.exists() {
+            return Ok(());
+        }
+
+        let release_profiles = match help::read_yaml::<IProfiles>(&release_profiles_path).await {
+            Ok(profiles) => profiles,
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Skipped dev profile bootstrap because release profiles could not be read: {err}"
+                );
+                return Ok(());
+            }
+        };
+
+        if !release_profiles.has_primary_profiles() {
+            return Ok(());
+        }
+
+        let dev_home = dirs::app_home_dir()?;
+        let dev_profiles_dir = dirs::app_profiles_dir()?;
+        let release_profiles_dir = release_home.join("profiles");
+
+        fs::create_dir_all(&dev_home).await?;
+        fs::create_dir_all(&dev_profiles_dir).await?;
+
+        Self::copy_directory_contents(&release_profiles_dir, &dev_profiles_dir).await?;
+        fs::copy(&release_profiles_path, &dev_profiles_path)
+            .await
+            .map(|_| ())
+            .map_err(anyhow::Error::from)?;
+
+        logging!(
+            info,
+            Type::Config,
+            "Bootstrapped dev profiles from release app data after detecting an empty dev subscription list"
+        );
+
+        Ok(())
+    }
+
+    #[cfg(feature = "verge-dev")]
+    async fn copy_directory_contents(source: &Path, target: &Path) -> Result<()> {
+        use tokio::fs;
+
+        if !source.exists() {
+            return Ok(());
+        }
+
+        fs::create_dir_all(target).await?;
+
+        let mut entries = fs::read_dir(source).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+
+            let Some(file_name) = path.file_name() else {
+                continue;
+            };
+
+            fs::copy(&path, target.join(file_name))
+                .await
+                .map(|_| ())
+                .map_err(anyhow::Error::from)?;
+        }
+
         Ok(())
     }
 

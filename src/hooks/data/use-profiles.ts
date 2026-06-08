@@ -5,6 +5,10 @@ import {
   patchProfile,
   patchProfilesConfig,
 } from '@/services/cmds'
+import {
+  isAuxiliarySelectionName,
+  pickPreferredProxyNameFromGroup,
+} from '@/services/proxy-display'
 import { calcuProxies } from '@/services/proxy-runtime'
 import { applyProxyRuntimeSelection } from '@/services/proxy-runtime-selection'
 import { queryClient } from '@/services/query-client'
@@ -21,7 +25,7 @@ export const useProfiles = () => {
     queryFn: async () => {
       const data = await getProfiles()
       debugLog(
-        '[useProfiles] 配置数据更新成功，配置数量:',
+        '[useProfiles] profile data refreshed',
         data?.items?.length || 0,
       )
       return data
@@ -47,6 +51,7 @@ export const useProfiles = () => {
       if (signal?.aborted) {
         throw new DOMException('Operation was aborted', 'AbortError')
       }
+
       const success = await patchProfilesConfig(value)
 
       if (signal?.aborted) {
@@ -77,140 +82,147 @@ export const useProfiles = () => {
     }
   }
 
-  // 根据selected的节点选择
   const activateSelected = async (profileOverride?: IProfilesConfig) => {
     try {
-      debugLog('[ActivateSelected] 开始处理代理选择')
+      debugLog('[ActivateSelected] start restoring proxy selections')
 
       const proxiesData = await calcuProxies()
       const profileData = profileOverride ?? profiles
 
       if (!profileData || !proxiesData || !profileData.items) {
-        debugLog('[ActivateSelected] 代理或配置数据不可用，跳过处理')
+        debugLog('[ActivateSelected] profiles or proxies unavailable, skip')
         return
       }
 
       const current = profileData.items?.find(
-        (e) => e && e.uid === profileData.current,
+        (item) => item && item.uid === profileData.current,
       )
 
       if (!current) {
-        debugLog('[ActivateSelected] 未找到当前profile配置')
+        debugLog('[ActivateSelected] current profile not found')
         return
       }
 
-      // 检查是否有saved的代理选择
       const { selected = [] } = current
       if (selected.length === 0) {
-        debugLog('[ActivateSelected] 当前profile无保存的代理选择，跳过')
+        debugLog('[ActivateSelected] no saved proxy selection for current profile')
         return
       }
 
       debugLog(
-        `[ActivateSelected] 当前profile有 ${selected.length} 个代理选择配置`,
+        `[ActivateSelected] restore ${selected.length} saved proxy selections`,
       )
 
       type SelectedEntry = { name?: string; now?: string }
       const selectedMap = Object.fromEntries(
         (selected as SelectedEntry[])
           .filter(
-            (each): each is SelectedEntry & { name: string; now: string } =>
-              each.name != null && each.now != null,
+            (entry): entry is SelectedEntry & { name: string; now: string } =>
+              entry.name != null && entry.now != null,
           )
-          .map((each) => [each.name, each.now]),
+          .map((entry) => [entry.name, entry.now]),
       )
 
       let hasChange = false
       const newSelected: typeof selected = []
-      const { global, groups } = proxiesData
-      const selectableTypes = new Set([
-        'Selector',
-        'URLTest',
-        'Fallback',
-        'LoadBalance',
-      ])
+      const { global, groups, records } = proxiesData
+      const selectableTypes = new Set(['Selector', 'URLTest', 'LoadBalance'])
 
-      // 处理所有代理组
       for (const group of [global, ...groups]) {
-        if (!group) {
-          continue
-        }
+        if (!group) continue
 
         const { type, name, now } = group
         const savedProxy = selectedMap[name]
         const availableProxies = Array.isArray(group.all) ? group.all : []
 
-        if (!selectableTypes.has(type)) {
-          if (savedProxy != null || now != null) {
-            const preferredProxy = now ? now : savedProxy
-            newSelected.push({ name, now: preferredProxy })
+        if (type === 'Fallback') {
+          if (savedProxy != null) {
+            hasChange = true
           }
           continue
         }
 
-        if (savedProxy == null) {
+        if (!selectableTypes.has(type)) {
+          if (savedProxy != null || now != null) {
+            newSelected.push({ name, now: now || savedProxy })
+          }
+          continue
+        }
+
+        const desiredProxy = pickPreferredProxyNameFromGroup(
+          group,
+          records,
+          savedProxy ?? now,
+        )
+        const effectiveDesiredProxy =
+          desiredProxy || savedProxy || now || ''
+
+        if (!effectiveDesiredProxy) {
+          continue
+        }
+
+        const existsInGroup = availableProxies.some((proxy) => {
+          if (typeof proxy === 'string') {
+            return proxy === effectiveDesiredProxy
+          }
+
+          return proxy?.name === effectiveDesiredProxy
+        })
+
+        if (!existsInGroup) {
+          console.warn(
+            `[ActivateSelected] saved proxy ${effectiveDesiredProxy} missing in group ${name}`,
+          )
+          hasChange = true
           if (now != null) {
             newSelected.push({ name, now })
           }
           continue
         }
 
-        const existsInGroup = availableProxies.some((proxy) => {
-          if (typeof proxy === 'string') {
-            return proxy === savedProxy
-          }
-
-          return proxy?.name === savedProxy
-        })
-
-        if (!existsInGroup) {
-          console.warn(
-            `[ActivateSelected] 保存的代理 ${savedProxy} 不存在于代理组 ${name}`,
-          )
-          hasChange = true
-          newSelected.push({ name, now: now ?? savedProxy })
-          continue
-        }
-
-        if (savedProxy !== now) {
+        if (
+          savedProxy !== effectiveDesiredProxy ||
+          now !== effectiveDesiredProxy ||
+          isAuxiliarySelectionName(now, records)
+        ) {
           debugLog(
-            `[ActivateSelected] 需要切换代理组 ${name}: ${now} -> ${savedProxy}`,
+            `[ActivateSelected] switch group ${name}: ${now} -> ${effectiveDesiredProxy}`,
           )
           hasChange = true
+
           try {
-            await applyProxyRuntimeSelection(name, savedProxy)
+            await applyProxyRuntimeSelection(name, effectiveDesiredProxy)
           } catch (error: unknown) {
             console.warn(
-              `[ActivateSelected] 切换代理组 ${name} 失败:`,
+              `[ActivateSelected] failed to switch group ${name}:`,
               error instanceof Error ? error.message : String(error),
             )
           }
         }
 
-        newSelected.push({ name, now: savedProxy })
+        newSelected.push({ name, now: effectiveDesiredProxy })
       }
 
       if (!hasChange) {
-        debugLog('[ActivateSelected] 所有代理选择已经是目标状态，无需更新')
+        debugLog('[ActivateSelected] proxy selections already sanitized')
         return
       }
 
-      debugLog(`[ActivateSelected] 完成代理切换，保存新的选择配置`)
+      debugLog('[ActivateSelected] persist sanitized proxy selections')
 
       try {
         await patchProfile(current.uid, { selected: newSelected })
-        debugLog('[ActivateSelected] 代理选择配置保存成功')
-
+        debugLog('[ActivateSelected] sanitized selections saved')
         queryClient.setQueryData(['getProxies'], await calcuProxies())
       } catch (error: unknown) {
         console.error(
-          '[ActivateSelected] 保存代理选择配置失败:',
+          '[ActivateSelected] failed to save proxy selections:',
           error instanceof Error ? error.message : String(error),
         )
       }
     } catch (error: unknown) {
       console.error(
-        '[ActivateSelected] 处理代理选择失败:',
+        '[ActivateSelected] failed to restore proxy selections:',
         error instanceof Error ? error.message : String(error),
       )
     }
@@ -218,14 +230,17 @@ export const useProfiles = () => {
 
   return {
     profiles,
-    current: profiles?.items?.find((p) => p && p.uid === profiles.current),
+    current: (profiles?.primaryItems ?? profiles?.items)?.find(
+      (profile) =>
+        profile &&
+        profile.uid === (profiles?.currentPrimaryUid ?? profiles?.current),
+    ),
     activateSelected,
     patchProfiles,
     patchCurrent,
     mutateProfiles,
-    // 新增故障检测状态
     isLoading: isValidating,
     error,
-    isStale: !profiles && !error && !isValidating, // 检测是否处于异常状态
+    isStale: !profiles && !error && !isValidating,
   }
 }

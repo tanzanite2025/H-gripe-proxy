@@ -7,6 +7,7 @@ import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { clearProxyChainRuntimeConfig } from '@/components/proxy/proxy-chain-runtime'
 import { loadProxyChainRuntimeExitNode } from '@/components/proxy/proxy-chain-types'
+import { ProxyDelaySettings } from '@/components/proxy/proxy-delay-settings'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { Box, Button, ButtonGroup, Grid, Skeleton } from '@/components/tailwind'
 import { useRuntimeConfig } from '@/hooks/data/use-clash'
@@ -180,39 +181,44 @@ const ProxyPage = () => {
     >
       <Grid container spacing={3} style={{ height: '100%' }} columns={12}>
         <Grid item xs={12} lg={6} xl={6} style={{ height: '100%', overflow: 'hidden' }}>
-          <Box className="flex items-center gap-1 mb-2 pl-3">
-            <ProviderButton />
+          <Box className="flex h-full min-h-0 flex-col overflow-hidden">
+            <Box className="mb-2 flex items-center gap-1 pl-3">
+              <ProviderButton />
 
-            <ButtonGroup className="uds-toolbar" size="small">
-              {PROXY_CHAIN_MODES.map((mode) => (
-                <Button
-                  key={mode}
-                  variant={mode === proxyDisplayMode ? 'primary' : 'outlined'}
-                  onClick={() => onChangeMode(mode)}
-                >
-                  {PROXY_CHAIN_MODE_LABELS[mode]}
-                </Button>
-              ))}
-            </ButtonGroup>
+              <ButtonGroup className="uds-toolbar" size="small">
+                {PROXY_CHAIN_MODES.map((mode) => (
+                  <Button
+                    key={mode}
+                    variant={mode === proxyDisplayMode ? 'primary' : 'outlined'}
+                    onClick={() => onChangeMode(mode)}
+                  >
+                    {PROXY_CHAIN_MODE_LABELS[mode]}
+                  </Button>
+                ))}
+              </ButtonGroup>
 
-            <Button
-              size="small"
-              variant={isChainMode ? 'primary' : 'outlined'}
-              onClick={onToggleChainMode}
-              className="ml-1"
-              startIcon={<Network className="h-5 w-5" />}
-            >
-              {t('proxies.page.actions.toggleChain')}
-            </Button>
+              <Button
+                size="small"
+                variant={isChainMode ? 'primary' : 'outlined'}
+                onClick={onToggleChainMode}
+                className="ml-1"
+                startIcon={<Network className="h-5 w-5" />}
+              >
+                {t('proxies.page.actions.toggleChain')}
+              </Button>
+            </Box>
+
+            <ProxyDelaySettings />
+
+            <Box className="min-h-0 flex-1 overflow-hidden">
+              <ProxyGroups
+                mode={proxyDisplayMode ?? DEFAULT_CLASH_MODE}
+                isChainMode={isChainMode}
+                chainConfigData={chainConfigData}
+                onCloseChainMode={onToggleChainMode}
+              />
+            </Box>
           </Box>
-          <div style={{ height: 'calc(100% - 36px)', overflow: 'hidden' }}>
-            <ProxyGroups
-              mode={proxyDisplayMode ?? DEFAULT_CLASH_MODE}
-              isChainMode={isChainMode}
-              chainConfigData={chainConfigData}
-              onCloseChainMode={onToggleChainMode}
-            />
-          </div>
         </Grid>
         <Grid item xs={12} lg={6} xl={6} style={{ height: '100%', overflow: 'hidden' }}>
           <div className="h-full flex flex-col gap-4 overflow-y-auto pr-2 pb-4">

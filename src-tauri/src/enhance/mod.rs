@@ -12,7 +12,6 @@ mod tun;
 mod blackhole_breaker;
 mod connection_stability;
 mod proxy_cleanup;
-mod region_pools;
 mod stable_egress;
 mod timezone_spoof;
 
@@ -24,7 +23,6 @@ use self::{
     merge::use_merge,
     obfuscation::apply_obfuscation_config,
     proxy_cleanup::cleanup_proxy_groups,
-    region_pools::append_standard_region_pools,
     script::use_script,
     seq::{SeqMap, use_seq},
     sniffer::apply_sniffer_config,
@@ -44,12 +42,15 @@ use crate::{
 };
 use anyhow::{Context as _, Result};
 use clash_verge_logging::{Type, logging};
-use serde_yaml_ng::{Mapping, Value};
+use serde_yaml_ng::{Mapping, Sequence, Value};
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tokio::fs;
 
 type ResultLog = Vec<(String, String)>;
+
+const SOFTWARE_STRATEGY_POOL_NAME: &str = "策略池";
+const LEGACY_BLOCKED_GROUP_NAMES: [&str; 2] = ["自动选择", "故障转移"];
 
 #[derive(Debug)]
 struct ConfigValues {
@@ -75,6 +76,218 @@ struct ProfileItems {
     global_merge: ChainItem,
     global_script: ChainItem,
     profile_name: String,
+}
+
+fn normalize_group_type(value: &str) -> std::string::String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn is_manual_group_mapping(group: &Mapping) -> bool {
+    group
+        .get("type")
+        .and_then(Value::as_str)
+        .map(normalize_group_type)
+        .is_some_and(|value| value == "select" || value == "selector")
+}
+
+fn is_strategy_group_mapping(group: &Mapping) -> bool {
+    group
+        .get("type")
+        .and_then(Value::as_str)
+        .map(normalize_group_type)
+        .is_some_and(|value| {
+            value == "url-test" || value == "urltest" || value == "load-balance" || value == "loadbalance"
+        })
+}
+
+fn is_auxiliary_group_mapping(group: &Mapping) -> bool {
+    group
+        .get("type")
+        .and_then(Value::as_str)
+        .map(normalize_group_type)
+        .is_some_and(|value| value == "fallback")
+}
+
+fn is_software_blocked_group_name(name: &str) -> bool {
+    LEGACY_BLOCKED_GROUP_NAMES.contains(&name)
+}
+
+fn collect_proxy_names(config: &Mapping) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut seen = HashSet::new();
+
+    if let Some(Value::Sequence(proxies)) = config.get("proxies") {
+        for proxy in proxies {
+            let Some(name) = (match proxy {
+                Value::Mapping(map) => map.get("name").and_then(Value::as_str),
+                Value::String(name) => Some(name.as_str()),
+                _ => None,
+            }) else {
+                continue;
+            };
+
+            let trimmed = name.trim();
+            if trimmed.is_empty() || !seen.insert(trimmed.to_owned()) {
+                continue;
+            }
+
+            names.push(trimmed.to_owned().into());
+        }
+    }
+
+    names
+}
+
+fn preferred_root_group_name(config: &Mapping, profile_name: &String) -> String {
+    if let Some(Value::Sequence(groups)) = config.get("proxy-groups") {
+        for group in groups {
+            let Some(map) = group.as_mapping() else {
+                continue;
+            };
+
+            if !is_manual_group_mapping(map) {
+                continue;
+            }
+
+            if let Some(name) = map.get("name").and_then(Value::as_str) {
+                let trimmed = name.trim();
+                if !trimmed.is_empty() {
+                    return trimmed.to_owned().into();
+                }
+            }
+        }
+    }
+
+    let trimmed = profile_name.trim();
+    if trimmed.is_empty() {
+        "订阅组".into()
+    } else {
+        trimmed.to_owned().into()
+    }
+}
+
+fn remove_proxy_groups(mut config: Mapping) -> Mapping {
+    config.remove("proxy-groups");
+    config
+}
+
+fn build_group_value(
+    name: &str,
+    group_type: &str,
+    proxies: &[String],
+    url: Option<&str>,
+    interval: Option<i64>,
+) -> Value {
+    let mut group = Mapping::new();
+    let proxy_values = proxies
+        .iter()
+        .map(|proxy| Value::String(proxy.to_string()))
+        .collect::<Sequence>();
+
+    group.insert("name".into(), name.into());
+    group.insert("type".into(), group_type.into());
+    group.insert("proxies".into(), Value::Sequence(proxy_values));
+
+    if let Some(url) = url {
+        group.insert("url".into(), url.into());
+    }
+
+    if let Some(interval) = interval {
+        group.insert("interval".into(), interval.into());
+    }
+
+    Value::Mapping(group)
+}
+
+fn normalize_software_owned_proxy_groups(mut config: Mapping, root_group_name: &String) -> Mapping {
+    let proxy_names = collect_proxy_names(&config);
+
+    if proxy_names.is_empty() {
+        config.insert("proxy-groups".into(), Value::Sequence(Sequence::new()));
+        return config;
+    }
+
+    let existing_groups = config
+        .get("proxy-groups")
+        .and_then(Value::as_sequence)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut manual_groups = Vec::new();
+    let mut strategy_groups = Vec::new();
+
+    for group in existing_groups {
+        let Some(group_map) = group.as_mapping() else {
+            continue;
+        };
+
+        let name = group_map.get("name").and_then(Value::as_str).unwrap_or("").trim();
+        if name.is_empty() || is_software_blocked_group_name(name) {
+            continue;
+        }
+
+        if is_auxiliary_group_mapping(group_map) {
+            continue;
+        }
+
+        if is_strategy_group_mapping(group_map) {
+            strategy_groups.push(Value::Mapping(group_map.clone()));
+            continue;
+        }
+
+        if is_manual_group_mapping(group_map) {
+            if name == root_group_name.as_str() {
+                continue;
+            }
+            manual_groups.push(Value::Mapping(group_map.clone()));
+        }
+    }
+
+    if strategy_groups.is_empty() {
+        strategy_groups.push(build_group_value(
+            SOFTWARE_STRATEGY_POOL_NAME,
+            "url-test",
+            &proxy_names,
+            Some("http://www.gstatic.com/generate_204"),
+            Some(86400),
+        ));
+    }
+
+    let mut root_proxies = Vec::new();
+    let mut seen = HashSet::new();
+
+    for group in &strategy_groups {
+        if let Some(name) = group
+            .as_mapping()
+            .and_then(|map| map.get("name"))
+            .and_then(Value::as_str)
+        {
+            let trimmed = name.trim();
+            if !trimmed.is_empty() && seen.insert(trimmed.to_owned()) {
+                root_proxies.push(trimmed.to_owned().into());
+            }
+        }
+    }
+
+    for proxy_name in &proxy_names {
+        if seen.insert(proxy_name.to_string()) {
+            root_proxies.push(proxy_name.clone());
+        }
+    }
+
+    let mut normalized_groups = Sequence::new();
+    normalized_groups.push(build_group_value(
+        root_group_name.as_str(),
+        "select",
+        &root_proxies,
+        None,
+        None,
+    ));
+    normalized_groups.extend(manual_groups);
+    normalized_groups.extend(strategy_groups);
+
+    config.insert("proxy-groups".into(), Value::Sequence(normalized_groups));
+    config
 }
 
 impl Default for ProfileItems {
@@ -359,10 +572,7 @@ async fn process_profile_items(
     if let ChainType::Proxies(proxies) = proxies_item.data {
         config = use_seq(proxies, config.to_owned(), "proxies");
     }
-
-    if let ChainType::Groups(groups) = groups_item.data {
-        config = use_seq(groups, config.to_owned(), "proxy-groups");
-    }
+    config = remove_proxy_groups(config);
 
     if let ChainType::Merge(merge) = merge_item.data {
         exists_keys.extend(use_keys(&merge));
@@ -380,6 +590,12 @@ async fn process_profile_items(
             Err(err) => logs.push(("exception".into(), err.to_string().into())),
         }
         result_map.insert(script_item.uid, logs);
+    }
+
+    config = remove_proxy_groups(config);
+
+    if let ChainType::Groups(groups) = groups_item.data {
+        config = use_seq(groups, config.to_owned(), "proxy-groups");
     }
 
     (config, exists_keys, result_map)
@@ -441,11 +657,15 @@ async fn merge_default_config(
             }
             // 处理 external-controller 键的开关逻辑
             if key.as_str() == Some("external-controller") {
-                let enable_external_controller = Config::verge()
-                    .await
-                    .latest_arc()
-                    .enable_external_controller
-                    .unwrap_or(false);
+                let verge = Config::verge().await;
+                let verge_arc = verge.latest_arc();
+                let mut enable_external_controller = verge_arc.enable_external_controller.unwrap_or(false);
+                #[cfg(target_os = "windows")]
+                {
+                    enable_external_controller |= verge_arc.enable_tun_mode.unwrap_or(false);
+                }
+                drop(verge_arc);
+                drop(verge);
 
                 if enable_external_controller {
                     config.insert(key, value);
@@ -550,6 +770,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let global_merge = profile.global_merge;
     let global_script = profile.global_script;
     let profile_name = profile.profile_name;
+    let root_group_name = preferred_root_group_name(&config, &profile_name);
 
     // process globals
     let (config, exists_keys, result_map) =
@@ -568,6 +789,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         &profile_name,
     )
     .await;
+    let config = normalize_software_owned_proxy_groups(config, &root_group_name);
 
     // merge default clash config
     let config = merge_default_config(
@@ -584,7 +806,6 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     let mut config = config;
     config = cleanup_proxy_groups(config);
-    config = append_standard_region_pools(config);
     config = apply_connection_stability(config);
     config = apply_multiplex(config);
 

@@ -402,12 +402,16 @@ impl DnsAdvancedConfig {
             }
         };
 
-        let mut nameserver = Vec::<String>::new();
-        for server in cn_servers.iter().chain(foreign_servers.iter()) {
-            if !nameserver.iter().any(|existing| existing == server) {
-                nameserver.push((*server).to_string());
-            }
-        }
+        let nameserver = match effective_mode {
+            DnsRoutingMode::Privacy => foreign_servers
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect::<Vec<String>>(),
+            _ => cn_servers
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect::<Vec<String>>(),
+        };
 
         let fallback = if force_doh {
             foreign_doh
@@ -1214,5 +1218,38 @@ mod tests {
 
         assert!(proxy_servers.contains(&"https://dns.google/dns-query"));
         assert!(!proxy_servers.contains(&"https://dns.alidns.com/dns-query"));
+    }
+
+    #[test]
+    fn test_balanced_dns_prefers_domestic_nameserver_and_keeps_foreign_fallback() {
+        let config = DnsAdvancedConfig {
+            routing_mode: DnsRoutingMode::Balanced,
+            leak_protection_level: DnsLeakProtectionLevel::Basic,
+            ..DnsAdvancedConfig::default()
+        };
+        let mapping = config.to_dns_config_mapping();
+        let dns = mapping.get("dns").and_then(|value| value.as_mapping()).unwrap();
+
+        let nameserver = dns
+            .get("nameserver")
+            .and_then(|value| value.as_sequence())
+            .unwrap()
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+        let fallback = dns
+            .get("fallback")
+            .and_then(|value| value.as_sequence())
+            .unwrap()
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            nameserver,
+            vec!["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+        );
+        assert!(fallback.contains(&"https://dns.google/dns-query"));
+        assert!(fallback.contains(&"https://cloudflare-dns.com/dns-query"));
     }
 }

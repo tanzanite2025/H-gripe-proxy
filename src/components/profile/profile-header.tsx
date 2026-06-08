@@ -1,4 +1,15 @@
-import { Check, CheckSquare, Clipboard, FileText, Flame, MinusSquare, RefreshCw, Square, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  CheckSquare,
+  Clipboard,
+  FileText,
+  Flame,
+  MinusSquare,
+  RefreshCw,
+  Square,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { type FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,7 +33,6 @@ export interface ProfileHeaderProps {
   onDeleteSelectedProfiles: () => void
   onOpenMerge: () => void
   onOpenScript: () => void
-  // import bar
   url: string
   setUrl: (url: string) => void
   disabled: boolean
@@ -80,6 +90,7 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
             <Square className="h-5 w-5" />
           )}
         </IconButton>
+
         <IconButton
           size="small"
           color="error"
@@ -89,12 +100,14 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
         >
           <Trash2 className="h-5 w-5" />
         </IconButton>
+
         <Button size="small" variant="outlined" onClick={toggleBatchMode}>
           {t('profiles.page.batch.actions.done')}
         </Button>
+
         <Box className="flex-1 text-right text-gray-500 dark:text-gray-400">
-          {t('profiles.page.batch.summary.selected')}{' '}
-          {selectedCount} {t('profiles.page.batch.summary.items')}
+          {t('profiles.page.batch.summary.selected')} {selectedCount}{' '}
+          {t('profiles.page.batch.summary.items')}
         </Box>
       </Box>
     )
@@ -102,12 +115,11 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
 
   return (
     <Box className="flex items-center gap-2 pr-1">
-      {/* 图标按钮 */}
       <IconButton
         size="small"
         color="inherit"
-        title={t('profiles.page.actions.viewRuntimeConfig')}
-        onClick={onOpenConfig}
+        title={t('profiles.page.batch.title')}
+        onClick={toggleBatchMode}
       >
         <Check className="h-5 w-5" />
       </IconButton>
@@ -115,8 +127,8 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
       <IconButton
         size="small"
         color="inherit"
-        title={t('profiles.page.actions.reactivate')}
-        onClick={onReactivate}
+        title={t('profiles.page.actions.updateAll')}
+        onClick={onUpdateAll}
       >
         <RefreshCw className="h-5 w-5" />
       </IconButton>
@@ -139,7 +151,6 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
         <Flame className="h-5 w-5" />
       </IconButton>
 
-      {/* 故障检测 */}
       {(error || isStale) && (
         <IconButton
           size="small"
@@ -152,13 +163,14 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
         </IconButton>
       )}
 
-      {/* 输入框 */}
-      <Box className="flex-1 min-w-0">
+      <Box className="min-w-0 flex-1">
         <BaseStyledTextField
           size="small"
           value={url}
           variant="outlined"
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+            setUrl(event.target.value)
+          }
           onKeyDown={(event: React.KeyboardEvent) => {
             if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
             if (!url || disabled || loading) return
@@ -193,39 +205,39 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
         />
       </Box>
 
-      {/* Merge & Script */}
       <Button
         variant="primary"
         size="small"
-        className="rounded-[6px] shrink-0"
+        className="shrink-0 rounded-[6px]"
         onClick={onOpenMerge}
       >
         {t('profiles.components.more.global.merge')}
       </Button>
+
       <Button
         variant="primary"
         size="small"
-        className="rounded-[6px] shrink-0"
+        className="shrink-0 rounded-[6px]"
         onClick={onOpenScript}
       >
         {t('profiles.components.more.global.script')}
       </Button>
 
-      {/* 导入 & 新建 */}
       <Button
         disabled={!url || disabled}
         loading={loading}
         variant="primary"
         size="small"
-        className="rounded-[6px] shrink-0"
+        className="shrink-0 rounded-[6px]"
         onClick={onImport}
       >
         {t('profiles.page.actions.import')}
       </Button>
+
       <Button
         variant="primary"
         size="small"
-        className="rounded-[6px] shrink-0"
+        className="shrink-0 rounded-[6px]"
         onClick={onCreate}
       >
         {t('shared.actions.new')}

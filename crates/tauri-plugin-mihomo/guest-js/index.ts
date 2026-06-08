@@ -1,4 +1,4 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
 import {
   BaseConfig,
   BufferPoolStats,
@@ -29,6 +29,60 @@ import {
 
 export * from "./bindings";
 export type MihomoGroupDelay = Record<string, number>;
+
+let pendingMihomoRecovery: Promise<void> | null = null;
+
+function formatInvokeError(error: unknown): string {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function isMihomoIpcUnavailableError(error: unknown): boolean {
+  const message = formatInvokeError(error).toLowerCase();
+
+  return [
+    "failed to connect to named pipe",
+    "failed to connect to socket",
+    "cannot find the file specified",
+    "system cannot find the file specified",
+    "no such file or directory",
+    "os error 2",
+    "系统找不到指定的文件",
+  ].some((marker) => message.includes(marker));
+}
+
+async function ensureMihomoReadyForInvoke(): Promise<void> {
+  if (!pendingMihomoRecovery) {
+    pendingMihomoRecovery = tauriInvoke<void>("ensure_mihomo_core_ready").finally(() => {
+      pendingMihomoRecovery = null;
+    });
+  }
+
+  return pendingMihomoRecovery;
+}
+
+async function invoke<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await tauriInvoke<T>(command, args);
+  } catch (error) {
+    if (!command.startsWith("plugin:mihomo|") || !isMihomoIpcUnavailableError(error)) {
+      throw error;
+    }
+
+    await ensureMihomoReadyForInvoke();
+    return await tauriInvoke<T>(command, args);
+  }
+}
 
 // ======================= functions =======================
 

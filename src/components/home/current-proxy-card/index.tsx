@@ -38,10 +38,10 @@ import { useCurrentProxyData } from './hooks/use-current-proxy-data'
 import { useProxyDelayCheck } from './hooks/use-proxy-delay-check'
 import { convertDelayColor, getSignalIcon } from './utils/proxy-helpers'
 
-/**
- * 当前代理卡片组件
- * 显示当前选中的代理信息，支持切换代理组和代理节点
- */
+const getProxyOptionPrefix = (kind: string) => {
+  return kind === 'strategy' ? '[Strategy]' : ''
+}
+
 export const CurrentProxyCard = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -54,19 +54,15 @@ export const CurrentProxyCard = () => {
   const { verge } = useVerge()
   const { current: currentProfile } = useProfiles()
 
-  // 配置参数
   const defaultLatencyTimeout = verge?.default_latency_timeout || 10000
-
   const currentProfileId = currentProfile?.uid || null
 
-  // 判断模式
   const mode =
     resolveClashMode(clashConfig?.mode, runtimeConfig?.mode) ??
     DEFAULT_CLASH_MODE
   const proxyChainMode = mode === 'direct' ? DEFAULT_CLASH_MODE : mode
   const isGlobalMode = proxyChainMode === 'global'
 
-  // 数据管理
   const {
     state,
     sortType,
@@ -85,7 +81,6 @@ export const CurrentProxyCard = () => {
     refreshProxy,
   })
 
-  // 延迟检测
   const { handleCheckAllDelay } = useProxyDelayCheck({
     currentGroup: state.selection.group,
     defaultLatencyTimeout,
@@ -98,15 +93,15 @@ export const CurrentProxyCard = () => {
     },
   })
 
-  // 导航到代理页面
   const goToProxies = useCallback(() => {
     navigate('/proxies')
   }, [navigate])
 
-  // 获取要显示的代理节点
-  const currentProxy = useMemo(() => {
-    return state.displayProxy
-  }, [state.displayProxy])
+  const currentProxy = useMemo(() => state.displayProxy, [state.displayProxy])
+  const currentPathText = useMemo(
+    () => (state.resolvedPath.length > 0 ? state.resolvedPath.join(' -> ') : ''),
+    [state.resolvedPath],
+  )
 
   const handleGroupSelectChange = useCallback(
     (event: { target: { value: string } }) => {
@@ -115,19 +110,16 @@ export const CurrentProxyCard = () => {
     [handleGroupChange],
   )
 
-  // 获取当前节点的延迟
   const currentDelay =
     currentProxy && state.selection.group
       ? delayManager.getDelayFix(currentProxy, state.selection.group)
       : -1
 
-  // 信号图标
   const signalInfo =
     currentProxy && state.selection.group
       ? getSignalIcon(currentDelay)
-      : { icon: <SignalNone />, text: '未初始化', color: 'text.secondary' }
+      : { icon: <SignalNone />, text: '鏈垵濮嬪寲', color: 'text.secondary' }
 
-  // 获取排序图标
   const getSortIcon = (): React.ReactElement => {
     switch (sortType) {
       case 1:
@@ -139,7 +131,6 @@ export const CurrentProxyCard = () => {
     }
   }
 
-  // 获取排序提示文本
   const getSortTooltip = (): string => {
     switch (sortType) {
       case 0:
@@ -161,11 +152,15 @@ export const CurrentProxyCard = () => {
           title={
             currentProxy
               ? `${signalInfo.text}: ${delayManager.formatDelay(currentDelay)}`
-              : '无代理节点'
+              : '鏃犱唬鐞嗚妭鐐?'
           }
         >
           <div style={{ color: signalInfo.color }}>
-            {currentProxy ? signalInfo.icon : <SignalNone className="h-5 w-5 text-gray-400" />}
+            {currentProxy ? (
+              signalInfo.icon
+            ) : (
+              <SignalNone className="h-5 w-5 text-gray-400" />
+            )}
           </div>
         </Tooltip>
       }
@@ -210,83 +205,94 @@ export const CurrentProxyCard = () => {
       {isCoreDataPending ? (
         <div className="py-2" />
       ) : (
-        <div className="flex items-center gap-4 px-3 pt-1.5 pb-3">
-          {/* 1. 节点信息 */}
-          <div className="flex-1 min-w-0 h-9">
-            <ProxyInfoDisplay
-              proxy={currentProxy}
-              delay={currentDelay}
-              isGlobalMode={isGlobalMode}
-            />
-          </div>
-
-          {/* 2. 代理组 */}
-          {currentProxy && (
-            <div className="flex-1 min-w-0">
-              <Select
-                value={state.selection.group}
-                onChange={handleGroupSelectChange}
-                disabled={isGlobalMode}
-                size="small"
-                className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
-              >
-                {state.proxyData.groups.map((group) => (
-                  <MenuItem key={group.name} value={group.name}>
-                    {group.name}
-                  </MenuItem>
-                ))}
-              </Select>
+        <div className="px-3 pt-1.5 pb-3">
+          {currentPathText && (
+            <div className="mb-3 rounded-2xl border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-gray-300">
+              <span className="mr-2 font-semibold text-sky-400">褰撳墠閾捐矾</span>
+              <span className="break-all">{currentPathText}</span>
             </div>
           )}
 
-          {/* 3. 代理节点 */}
-          {currentProxy && (
-            <div className="flex-1 min-w-0">
-              <Select
-                value={state.selection.proxy}
-                onChange={handleProxyChange}
-                size="small"
-                renderValue={(selected: SelectPrimitiveValue) => <div className="truncate">{String(selected)}</div>}
-                className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
-                MenuProps={{
-                  slotProps: {
-                    paper: {
-                      style: {
-                        maxHeight: 500,
+          <div className="flex items-center gap-4">
+            <div className="h-9 min-w-0 flex-1">
+              <ProxyInfoDisplay
+                proxy={currentProxy}
+                delay={currentDelay}
+                isGlobalMode={isGlobalMode}
+              />
+            </div>
+
+            {currentProxy && (
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={state.selection.group}
+                  onChange={handleGroupSelectChange}
+                  disabled={isGlobalMode}
+                  size="small"
+                  className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
+                >
+                  {state.proxyData.groups.map((group) => (
+                    <MenuItem key={group.name} value={group.name}>
+                      {group.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            {currentProxy && (
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={state.selection.proxy}
+                  onChange={handleProxyChange}
+                  size="small"
+                  renderValue={(selected: SelectPrimitiveValue) => (
+                    <div className="truncate">{String(selected)}</div>
+                  )}
+                  className="h-[38px] rounded-2xl border border-solid border-gray-200 bg-gray-50/20 dark:border-gray-700 dark:bg-gray-800/20 [&_select]:border-0 [&_select]:bg-transparent"
+                  MenuProps={{
+                    slotProps: {
+                      paper: {
+                        style: {
+                          maxHeight: 500,
+                        },
                       },
                     },
-                  },
-                }}
-              >
-                {proxyOptions.map((proxy) => {
-                      const delayValue =
-                        state.proxyData.records[proxy.name] && state.selection.group
-                          ? delayManager.getDelayFix(
-                              state.proxyData.records[proxy.name],
-                              state.selection.group,
-                            )
-                          : -1
-                      return (
-                        <MenuItem
-                          key={proxy.name}
-                          value={proxy.name}
-                          className="flex w-full items-center justify-between pr-1"
-                        >
-                          <div className="mr-1 flex-1 truncate">
-                            {proxy.name}
-                          </div>
-                          <Chip
-                            size="small"
-                            label={delayManager.formatDelay(delayValue)}
-                            color={convertDelayColor(delayValue)}
-                            className="h-[22px] min-w-[60px] shrink-0"
-                          />
-                        </MenuItem>
-                      )
-                    })}
-              </Select>
-            </div>
-          )}
+                  }}
+                >
+                  {proxyOptions.map((proxy) => {
+                    const delayValue =
+                      state.proxyData.records[proxy.name] && state.selection.group
+                        ? delayManager.getDelayFix(
+                            state.proxyData.records[proxy.name],
+                            state.selection.group,
+                          )
+                        : -1
+
+                    const prefix = getProxyOptionPrefix(proxy.kind)
+                    return (
+                      <MenuItem
+                        key={proxy.name}
+                        value={proxy.name}
+                        className="flex w-full items-center justify-between pr-1"
+                      >
+                        <div className="mr-1 flex-1 truncate">
+                          {prefix ? `${prefix} ` : ''}
+                          {proxy.name}
+                        </div>
+                        <Chip
+                          size="small"
+                          label={delayManager.formatDelay(delayValue)}
+                          color={convertDelayColor(delayValue)}
+                          className="h-[22px] min-w-[60px] shrink-0"
+                        />
+                      </MenuItem>
+                    )
+                  })}
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </EnhancedCard>

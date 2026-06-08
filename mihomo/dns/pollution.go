@@ -92,6 +92,10 @@ func (d *PollutionDetector) IsPolluted(ip netip.Addr) (bool, string) {
 		}
 	}
 
+	if !ip.Is4() {
+		return false, ""
+	}
+
 	// Heuristic: single-digit first octet with non-standard patterns
 	// (many pollution responses use unusual IPs)
 	b := ip.As4()

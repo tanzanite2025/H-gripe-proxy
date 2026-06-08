@@ -163,6 +163,7 @@ mod app_init {
             cmd::start_core,
             cmd::stop_core,
             cmd::restart_core,
+            cmd::ensure_mihomo_core_ready,
             cmd::get_running_mode,
             cmd::get_auto_launch_status,
             cmd::install_service,

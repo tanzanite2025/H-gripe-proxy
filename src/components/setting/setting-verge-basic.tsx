@@ -3,7 +3,7 @@ import { Copy as ContentCopyRounded } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DialogRef, TooltipIcon } from '@/components/base'
+import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { Box } from '@/components/tailwind/Box'
 import { Button } from '@/components/tailwind/Button'
 import { MenuItem, Select } from '@/components/tailwind/Select'
@@ -28,7 +28,6 @@ import { version } from '@root/package.json'
 import { BackupViewer } from './components/backup/backup-main'
 import { HotkeyViewer } from './components/hotkey/hotkey-config'
 import { ConfigViewer } from './components/misc/config-editor'
-import { MiscViewer } from './components/misc/misc-config'
 import { UpdateViewer } from './components/misc/update-config'
 import { GuardState } from './components/proxy/guard-state'
 import { SettingItem, SettingList } from './components/shared/setting-item'
@@ -72,7 +71,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
   } = verge ?? {}
   const configRef = useRef<DialogRef>(null)
   const hotkeyRef = useRef<DialogRef>(null)
-  const miscRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
 
@@ -116,7 +114,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
     <SettingList title={t('settings.components.verge.basic.title')}>
       <ConfigViewer ref={configRef} />
       <HotkeyViewer ref={hotkeyRef} />
-      <MiscViewer ref={miscRef} />
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
 
@@ -185,6 +182,22 @@ const SettingVergeBasic = ({ onError }: Props) => {
       </SettingItem>
 
       <SettingItem
+        label={t('settings.modals.misc.fields.autoCheckUpdate')}
+      >
+        <GuardState
+          value={verge?.auto_check_update ?? true}
+          valueProps="checked"
+          onChangeProps="onCheckedChange"
+          onCatch={onError}
+          onFormat={(checked: boolean) => checked}
+          onChange={(checked) => onChangeData({ auto_check_update: checked })}
+          onGuard={(checked) => patchVerge({ auto_check_update: checked })}
+        >
+          <Switch />
+        </GuardState>
+      </SettingItem>
+
+      <SettingItem
         label={t('settings.components.verge.basic.fields.startupScript')}
       >
         <Box className="flex items-center gap-2">
@@ -238,11 +251,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
           )}
         </Box>
       </SettingItem>
-
-      <SettingItem
-        onClick={() => miscRef.current?.open()}
-        label={t('settings.components.verge.basic.fields.misc')}
-      />
 
       <SettingItem
         onClick={() => hotkeyRef.current?.open()}

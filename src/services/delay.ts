@@ -6,6 +6,16 @@ import { getDelayTestConfig } from './adaptive-config'
 import { networkMonitor } from './network-monitor'
 
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
+const DEFAULT_DELAY_TEST_URL = 'https://cp.cloudflare.com/generate_204'
+
+function normalizeDelayTestUrl(url?: string) {
+  const trimmed = url?.trim()
+  if (!trimmed) return DEFAULT_DELAY_TEST_URL
+  if (trimmed.startsWith('http://') && trimmed.includes('/generate_204')) {
+    return `https://${trimmed.slice('http://'.length)}`
+  }
+  return trimmed
+}
 
 export interface DelayUpdate {
   delay: number
@@ -106,16 +116,16 @@ class DelayManager {
 
   setUrl(group: string, url: string) {
     debugLog(`[DelayManager] 设置测试URL，组: ${group}, URL: ${url}`)
-    this.urlMap.set(group, url)
+    this.urlMap.set(group, normalizeDelayTestUrl(url))
   }
 
   getUrl(group: string) {
-    const url = this.urlMap.get(group)
+    const url = normalizeDelayTestUrl(this.urlMap.get(group))
     debugLog(
       `[DelayManager] 获取测试URL，组: ${group}, URL: ${url || '未设置'}`,
     )
     // 如果未设置URL，返回默认URL
-    return url || 'http://cp.cloudflare.com/generate_204'
+    return url
   }
 
   setListener(

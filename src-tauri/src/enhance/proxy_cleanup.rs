@@ -62,6 +62,7 @@ pub fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
             if let Some(group_map) = group.as_mapping_mut() {
+                normalize_group_healthcheck_url(group_map);
                 let mut has_valid_provider = false;
 
                 if let Some(Value::Sequence(uses)) = group_map.get_mut("use") {
@@ -85,7 +86,52 @@ pub fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
         }
     }
 
+    normalize_provider_healthcheck_urls(&mut config);
+
     config
+}
+
+fn normalize_group_healthcheck_url(group_map: &mut Mapping) {
+    let Some(url) = group_map.get("url").and_then(Value::as_str) else {
+        return;
+    };
+
+    if let Some(normalized) = normalize_generate_204_url(url) {
+        group_map.insert("url".into(), Value::from(normalized.as_str()));
+    }
+}
+
+fn normalize_provider_healthcheck_urls(config: &mut Mapping) {
+    let Some(Value::Mapping(providers)) = config.get_mut("proxy-providers") else {
+        return;
+    };
+
+    for (_, provider) in providers.iter_mut() {
+        let Some(provider_map) = provider.as_mapping_mut() else {
+            continue;
+        };
+        let Some(Value::Mapping(health_check)) = provider_map.get_mut("health-check") else {
+            continue;
+        };
+        let Some(url) = health_check.get("url").and_then(Value::as_str) else {
+            continue;
+        };
+
+        if let Some(normalized) = normalize_generate_204_url(url) {
+            health_check.insert("url".into(), Value::from(normalized.as_str()));
+        }
+    }
+}
+
+fn normalize_generate_204_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    let rest = trimmed.strip_prefix("http://")?;
+
+    if !rest.contains("/generate_204") {
+        return None;
+    }
+
+    Some(format!("https://{rest}").into())
 }
 
 #[cfg(test)]
@@ -238,5 +284,66 @@ proxy-groups:
             .expect("proxies should be a sequence");
         assert_eq!(proxies.len(), 1);
         assert_eq!(proxies[0].as_str(), Some("DIRECT"));
+    }
+
+    #[test]
+    fn upgrade_plain_http_generate_204_group_urls() {
+        let yaml = r#"
+proxy-groups:
+  - name: "auto"
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    proxies:
+      - "DIRECT"
+"#;
+        let config = parse_yaml(yaml);
+        let config = cleanup_proxy_groups(config);
+
+        let groups = config
+            .get("proxy-groups")
+            .and_then(Value::as_sequence)
+            .cloned()
+            .expect("proxy-groups should be a sequence");
+        let auto_group = groups[0].as_mapping().expect("group should be a mapping");
+
+        assert_eq!(
+            auto_group.get("url").and_then(Value::as_str),
+            Some("https://www.gstatic.com/generate_204")
+        );
+    }
+
+    #[test]
+    fn upgrade_plain_http_generate_204_provider_healthcheck_urls() {
+        let yaml = r#"
+proxy-providers:
+  providerA:
+    type: http
+    url: https://example.com/sub
+    path: ./providerA.yaml
+    health-check:
+      enable: true
+      url: http://cp.cloudflare.com/generate_204
+proxy-groups: []
+"#;
+        let config = parse_yaml(yaml);
+        let config = cleanup_proxy_groups(config);
+
+        let providers = config
+            .get("proxy-providers")
+            .and_then(Value::as_mapping)
+            .expect("proxy-providers should be a mapping");
+        let provider = providers
+            .get("providerA")
+            .and_then(Value::as_mapping)
+            .expect("providerA should exist");
+        let health_check = provider
+            .get("health-check")
+            .and_then(Value::as_mapping)
+            .expect("health-check should exist");
+
+        assert_eq!(
+            health_check.get("url").and_then(Value::as_str),
+            Some("https://cp.cloudflare.com/generate_204")
+        );
     }
 }

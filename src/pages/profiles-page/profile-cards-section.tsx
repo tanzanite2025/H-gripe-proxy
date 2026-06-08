@@ -10,6 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 
+import { BaseEmpty } from '@/components/base'
 import { ProfileItem } from '@/components/profile/profile-item'
 import { Box, Grid } from '@/components/tailwind'
 
@@ -51,6 +52,16 @@ export function ProfileCardsSection({
     }),
   )
 
+  if (profileItems.length === 0) {
+    return (
+      <Box className="flex-[3_0_0] min-h-0 px-[10px] pb-6 pt-4">
+        <Box className="h-full rounded-2xl border border-dashed border-white/10 bg-white/5">
+          <BaseEmpty />
+        </Box>
+      </Box>
+    )
+  }
+
   return (
     <Box className="flex-[3_0_0] overflow-y-auto min-h-0">
       <DndContext
@@ -63,7 +74,7 @@ export function ProfileCardsSection({
             <Grid container spacing={{ xs: 3, lg: 3 }}>
               <SortableContext items={profileItems.map((item) => item.uid)}>
                 {profileItems.map((item) => (
-                  <Grid item xs={12} sm={6} lg={4} key={item.file}>
+                  <Grid item xs={12} sm={6} lg={4} key={item.uid}>
                     <ProfileItem
                       id={item.uid}
                       selected={currentProfileId === item.uid}

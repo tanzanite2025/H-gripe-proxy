@@ -50,9 +50,13 @@ impl CoreManager {
         #[cfg(target_os = "windows")]
         self.enforce_tun_fail_closed_if_needed().await?;
 
+        #[cfg(target_os = "windows")]
+        let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
         let value = SERVICE_MANAGER.lock().await.current();
         let mode = match value {
-            ServiceStatus::Ready => RunningMode::Service,
+            #[cfg(target_os = "windows")]
+            ServiceStatus::Ready if tun_enabled => RunningMode::Service,
+            ServiceStatus::Ready => RunningMode::Sidecar,
             _ => RunningMode::Sidecar,
         };
 

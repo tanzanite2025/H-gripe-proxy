@@ -3,7 +3,7 @@ use super::StringifyErr as _;
 use crate::cmd::validate::{ValidationNoticeTarget, handle_validation_notice};
 use crate::{
     config::{
-        Config, IProfiles, PrfItem, PrfOption,
+        Config, IProfiles, PrfItem, PrfOption, ProfilesView,
         profiles::{
             profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
             profiles_reorder_safe, profiles_save_file_safe,
@@ -14,7 +14,6 @@ use crate::{
     feat,
     utils::{dirs, help},
 };
-use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
 use std::path::Path;
@@ -29,11 +28,11 @@ fn profile_import_error(err: &anyhow::Error) -> std::string::String {
 }
 
 #[tauri::command]
-pub async fn get_profiles() -> CmdResult<SharedDraft<IProfiles>> {
+pub async fn get_profiles() -> CmdResult<ProfilesView> {
     logging!(debug, Type::Cmd, "获取配置文件列表");
     let draft = Config::profiles().await;
     let data = draft.data_arc();
-    Ok(data)
+    Ok(data.to_view())
 }
 
 /// 增强配置文件

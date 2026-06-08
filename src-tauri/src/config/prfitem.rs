@@ -63,6 +63,43 @@ pub struct PrfItem {
     pub file_data: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileItemKind {
+    PrimaryRemote,
+    PrimaryLocal,
+    AuxiliaryMerge,
+    AuxiliaryScript,
+    AuxiliaryRules,
+    AuxiliaryProxies,
+    AuxiliaryGroups,
+    Unknown,
+}
+
+impl ProfileItemKind {
+    pub const fn is_primary(self) -> bool {
+        matches!(self, Self::PrimaryRemote | Self::PrimaryLocal)
+    }
+
+    pub const fn is_auxiliary(self) -> bool {
+        matches!(
+            self,
+            Self::AuxiliaryMerge
+                | Self::AuxiliaryScript
+                | Self::AuxiliaryRules
+                | Self::AuxiliaryProxies
+                | Self::AuxiliaryGroups
+        )
+    }
+
+    pub const fn is_remote_primary(self) -> bool {
+        matches!(self, Self::PrimaryRemote)
+    }
+
+    pub const fn is_local_primary(self) -> bool {
+        matches!(self, Self::PrimaryLocal)
+    }
+}
+
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct PrfSelected {
     pub name: Option<String>,
@@ -152,6 +189,48 @@ impl PrfOption {
 }
 
 impl PrfItem {
+    fn infer_kind_from_uid(&self) -> ProfileItemKind {
+        match self.uid.as_deref().and_then(|uid| uid.chars().next()) {
+            Some('R') if self.url.is_some() => ProfileItemKind::PrimaryRemote,
+            Some('L') if self.url.is_none() => ProfileItemKind::PrimaryLocal,
+            Some('m') => ProfileItemKind::AuxiliaryMerge,
+            Some('s') => ProfileItemKind::AuxiliaryScript,
+            Some('r') => ProfileItemKind::AuxiliaryRules,
+            Some('p') => ProfileItemKind::AuxiliaryProxies,
+            Some('g') => ProfileItemKind::AuxiliaryGroups,
+            _ => ProfileItemKind::Unknown,
+        }
+    }
+
+    pub fn kind(&self) -> ProfileItemKind {
+        match self.itype.as_deref() {
+            Some("remote") => ProfileItemKind::PrimaryRemote,
+            Some("local") => ProfileItemKind::PrimaryLocal,
+            Some("merge") => ProfileItemKind::AuxiliaryMerge,
+            Some("script") => ProfileItemKind::AuxiliaryScript,
+            Some("rules") => ProfileItemKind::AuxiliaryRules,
+            Some("proxies") => ProfileItemKind::AuxiliaryProxies,
+            Some("groups") => ProfileItemKind::AuxiliaryGroups,
+            _ => self.infer_kind_from_uid(),
+        }
+    }
+
+    pub fn is_primary_profile(&self) -> bool {
+        self.kind().is_primary()
+    }
+
+    pub fn is_remote_primary_profile(&self) -> bool {
+        self.kind().is_remote_primary()
+    }
+
+    pub fn is_local_primary_profile(&self) -> bool {
+        self.kind().is_local_primary()
+    }
+
+    pub fn is_auxiliary_profile(&self) -> bool {
+        self.kind().is_auxiliary()
+    }
+
     /// From partial item
     /// must contain `itype`
     pub async fn from(item: &Self, file_data: Option<String>) -> Result<Self> {

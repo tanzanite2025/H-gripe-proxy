@@ -18,7 +18,6 @@ interface ProfileItemUIProps {
   from?: string
   hasUrl: boolean
   hasExtra: boolean
-  hasHome: boolean
 
   // State
   selected: boolean

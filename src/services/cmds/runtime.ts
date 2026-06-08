@@ -3,6 +3,17 @@ import dayjs from 'dayjs'
 
 import type { ClashMode } from '@/services/clash-mode'
 
+const DEFAULT_DELAY_TEST_URL = 'https://cp.cloudflare.com/generate_204'
+
+function normalizeDelayTestUrl(url?: string) {
+  const trimmed = url?.trim()
+  if (!trimmed) return DEFAULT_DELAY_TEST_URL
+  if (trimmed.startsWith('http://') && trimmed.includes('/generate_204')) {
+    return `https://${trimmed.slice('http://'.length)}`
+  }
+  return trimmed
+}
+
 export async function getClashInfo() {
   return invoke<IClashInfo | null>('get_clash_info')
 }
@@ -96,7 +107,7 @@ export async function cmdGetProxyDelay(
   timeout: number,
   url?: string,
 ) {
-  const testUrl = url || 'http://cp.cloudflare.com/generate_204'
+  const testUrl = normalizeDelayTestUrl(url)
 
   try {
     const result = await invoke<{ delay: number }>(

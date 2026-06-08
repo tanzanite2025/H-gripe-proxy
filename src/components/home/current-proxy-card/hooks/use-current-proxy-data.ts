@@ -3,6 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SelectChangeEvent } from '@/components/tailwind/Select'
 import { useProxySelection } from '@/hooks/data'
 import delayManager from '@/services/delay'
+import {
+  buildProxyDisplayOptionsFromNames,
+  categorizeProxyGroup,
+  getPreferredProxyGroupName,
+  isAuxiliarySelectionName,
+  pickPreferredProxyNameFromNames,
+  resolveProxyPath,
+} from '@/services/proxy-display'
 
 import { categorizeDelay, normalizePolicyName } from '../utils/proxy-helpers'
 
@@ -12,26 +20,25 @@ import {
   useProxyStorage,
 } from './use-proxy-storage'
 
-// 代理组选项接口
 type ProxyGroupOption = {
   name: string
   now: string
   all: string[]
   type?: string
+  displayKind: 'manual' | 'strategy'
 }
 
-// 代理节点选项接口
 interface ProxyOption {
   name: string
+  kind: 'manual' | 'strategy'
 }
 
-// 排序类型: 默认 | 按延迟 | 按字母
 export type ProxySortType = 0 | 1 | 2
 
-// 代理状态接口
 export type ProxyState = {
   proxyData: {
     groups: ProxyGroupOption[]
+    groupMap: Record<string, ProxyGroupOption>
     records: Record<string, any>
   }
   selection: {
@@ -39,6 +46,7 @@ export type ProxyState = {
     proxy: string
   }
   displayProxy: any
+  resolvedPath: string[]
 }
 
 interface UseCurrentProxyDataProps {
@@ -51,10 +59,46 @@ interface UseCurrentProxyDataProps {
   refreshProxy: () => void
 }
 
-/**
- * 当前代理数据管理 Hook
- * 处理代理数据、选择状态、排序等
- */
+const KIND_WEIGHT: Record<ProxyOption['kind'], number> = {
+  manual: 0,
+  strategy: 1,
+}
+
+const resolveLeafProxy = (records: Record<string, any>, name: string) => {
+  const resolved = resolveProxyPath(records, name)
+  const leafName = resolved.leafName || name
+  return {
+    displayProxy: records?.[leafName] || records?.[name] || null,
+    resolvedPath: resolved.path,
+  }
+}
+
+const pickVisibleProxyName = (
+  names: string[],
+  records: Record<string, any>,
+  ...candidates: Array<string | null | undefined>
+) => {
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizePolicyName(candidate)
+    if (!normalizedCandidate) continue
+
+    const pickedCandidate = pickPreferredProxyNameFromNames({
+      names,
+      records,
+      candidateName: normalizedCandidate,
+    })
+
+    if (pickedCandidate === normalizedCandidate) {
+      return pickedCandidate
+    }
+  }
+
+  return pickPreferredProxyNameFromNames({
+    names,
+    records,
+  })
+}
+
 export const useCurrentProxyData = ({
   proxies,
   rules,
@@ -67,28 +111,26 @@ export const useCurrentProxyData = ({
   const { readProfileScopedItem, writeProfileScopedItem } =
     useProxyStorage(currentProfileId)
 
-  // 统一代理选择器
-  const { handleSelectChange } = useProxySelection({
+  const { changeProxy, handleSelectChange } = useProxySelection({
     onSuccess: () => {
       refreshProxy()
     },
     onError: (error) => {
-      console.error('代理切换失败', error)
+      console.error('Proxy switch failed', error)
       refreshProxy()
     },
   })
 
-  // 排序类型状态
   const [sortType, setSortType] = useState<ProxySortType>(() => {
     const savedSortType = localStorage.getItem('clash-verge-proxy-sort-type')
     return savedSortType ? (Number(savedSortType) as ProxySortType) : 0
   })
   const [delaySortRefresh, setDelaySortRefresh] = useState(0)
 
-  // 代理状态
   const [state, setState] = useState<ProxyState>({
     proxyData: {
       groups: [],
+      groupMap: {},
       records: {},
     },
     selection: {
@@ -96,9 +138,9 @@ export const useCurrentProxyData = ({
       proxy: '',
     },
     displayProxy: null,
+    resolvedPath: [],
   })
 
-  // 防抖状态更新
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const debouncedSetState = useCallback(
@@ -106,6 +148,7 @@ export const useCurrentProxyData = ({
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
+
       timeoutRef.current = setTimeout(() => {
         setState(updateFn)
       }, 300)
@@ -119,54 +162,15 @@ export const useCurrentProxyData = ({
     }
   }, [])
 
-  // 获取匹配策略名称
-  const matchPolicyName = useMemo(() => {
-    if (!Array.isArray(rules)) return ''
-    for (let index = rules.length - 1; index >= 0; index -= 1) {
-      const rule = rules[index]
-      if (!rule) continue
-
-      if (
-        typeof rule?.type === 'string' &&
-        rule.type.toUpperCase() === 'MATCH'
-      ) {
-        const policy = normalizePolicyName(rule.proxy)
-        if (policy) {
-          return policy
-        }
-      }
-    }
-    return ''
-  }, [rules])
-
-  // 初始化选择的组
   useEffect(() => {
     if (!proxies) return
 
-    const getPrimaryGroupName = () => {
-      if (!proxies?.groups?.length) return ''
+    const preferredGroupName = getPreferredProxyGroupName({
+      proxies,
+      rules,
+      isGlobalMode,
+    })
 
-      const primaryKeywords = [
-        'auto',
-        'select',
-        'proxy',
-        '节点选择',
-        '自动选择',
-      ]
-      const primaryGroup =
-        proxies.groups.find((group: { name: string }) =>
-          primaryKeywords.some((keyword) =>
-            group.name.toLowerCase().includes(keyword.toLowerCase()),
-          ),
-        ) ||
-        proxies.groups.filter((g: { name: string }) => g.name !== 'GLOBAL')[0]
-
-      return primaryGroup?.name || ''
-    }
-
-    const primaryGroupName = getPrimaryGroupName()
-
-    // 根据模式确定初始组
     if (isGlobalMode) {
       setState((prev) => ({
         ...prev,
@@ -175,32 +179,34 @@ export const useCurrentProxyData = ({
           group: 'GLOBAL',
         },
       }))
-    } else {
-      const savedGroup = readProfileScopedItem(STORAGE_KEY_GROUP)
-      setState((prev) => ({
-        ...prev,
-        selection: {
-          ...prev.selection,
-          group: savedGroup || primaryGroupName || '',
-        },
-      }))
+      return
     }
-  }, [isGlobalMode, proxies, readProfileScopedItem])
 
-  // 监听代理数据变化，更新状态
+    const savedGroup = readProfileScopedItem(STORAGE_KEY_GROUP)
+    setState((prev) => ({
+      ...prev,
+      selection: {
+        ...prev.selection,
+        group: savedGroup || preferredGroupName || '',
+      },
+    }))
+  }, [isGlobalMode, proxies, readProfileScopedItem, rules])
+
   useEffect(() => {
     if (!proxies) return
+
+    const savedProxy = readProfileScopedItem(STORAGE_KEY_PROXY)
 
     setState((prev) => {
       const groupsMap = new Map<string, ProxyGroupOption>()
 
-      const registerGroup = (group: any, fallbackName?: string) => {
-        if (!group && !fallbackName) return
+      const registerGroup = (group: any, aliasName?: string) => {
+        if (!group && !aliasName) return
 
         const rawName =
           typeof group?.name === 'string' && group.name.length > 0
             ? group.name
-            : fallbackName
+            : aliasName
         const name = normalizePolicyName(rawName)
         if (!name || groupsMap.has(name)) return
 
@@ -209,6 +215,7 @@ export const useCurrentProxyData = ({
             ? (group.all as Array<string | { name?: string }>)
             : []
         ) as Array<string | { name?: string }>
+
         const allNames = rawAll
           .map((item) =>
             typeof item === 'string'
@@ -220,66 +227,108 @@ export const useCurrentProxyData = ({
         const uniqueAll = Array.from(new Set(allNames))
         if (uniqueAll.length === 0) return
 
+        const displayKind = categorizeProxyGroup(group)
+        if (displayKind === 'auxiliary') return
+
         groupsMap.set(name, {
           name,
           now: normalizePolicyName(group?.now),
           all: uniqueAll,
           type: group?.type,
+          displayKind,
         })
       }
 
-      if (matchPolicyName) {
-        const matchGroup =
+      const preferredGroupName = getPreferredProxyGroupName({
+        proxies,
+        rules,
+        isGlobalMode,
+      })
+
+      if (preferredGroupName) {
+        const preferredGroup =
           proxies.groups?.find(
-            (g: { name: string }) => g.name === matchPolicyName,
+            (group: { name?: string }) => group?.name === preferredGroupName,
           ) ||
-          (proxies.global?.name === matchPolicyName ? proxies.global : null) ||
-          proxies.records?.[matchPolicyName]
-        registerGroup(matchGroup, matchPolicyName)
+          (proxies.global?.name === preferredGroupName ? proxies.global : null) ||
+          proxies.records?.[preferredGroupName]
+
+        registerGroup(preferredGroup, preferredGroupName)
       }
 
-      ;(proxies.groups || [])
-        .filter((g: { type?: string }) => g?.type === 'Selector')
-        .forEach((selectorGroup: any) => registerGroup(selectorGroup))
+      ;(proxies.groups || []).forEach((group: any) => registerGroup(group))
 
-      const filteredGroups = Array.from(groupsMap.values())
+      const allGroups = Array.from(groupsMap.values())
+      const groupMap = Object.fromEntries(
+        allGroups.map((group) => [group.name, group]),
+      )
 
+      const manualGroups = allGroups.filter(
+        (group) => group.displayKind === 'manual',
+      )
+      const strategyGroups = allGroups.filter(
+        (group) => group.displayKind === 'strategy',
+      )
+      const visibleGroups = manualGroups.concat(strategyGroups)
+
+      let newGroup = prev.selection.group
       let newProxy = ''
       let newDisplayProxy = null
-      let newGroup = prev.selection.group
+      let resolvedPath: string[] = []
 
       if (isGlobalMode && proxies.global) {
         newGroup = 'GLOBAL'
-        newProxy = proxies.global.now || ''
-        newDisplayProxy = proxies.records?.[newProxy] || null
-      } else {
-        const currentGroup = filteredGroups.find(
-          (g: { name: string }) => g.name === prev.selection.group,
+        const globalNames = (proxies.global.all || [])
+          .map((item: any) =>
+            typeof item === 'string'
+              ? normalizePolicyName(item)
+              : normalizePolicyName(item?.name),
+          )
+          .filter((name: string) => Boolean(name))
+        newProxy = pickVisibleProxyName(
+          globalNames,
+          proxies.records || {},
+          proxies.global.now,
+          prev.selection.proxy,
+          savedProxy,
         )
+        const resolved = resolveLeafProxy(proxies.records || {}, newProxy)
+        newDisplayProxy = resolved.displayProxy
+        resolvedPath = resolved.resolvedPath
+      } else {
+        const activeGroup =
+          groupMap[newGroup] ||
+          groupMap[preferredGroupName] ||
+          visibleGroups[0] ||
+          allGroups[0]
 
-        if (!currentGroup && filteredGroups.length > 0) {
-          const firstGroup = filteredGroups[0]
-          if (firstGroup) {
-            newGroup = firstGroup.name
-            newProxy = firstGroup.now || firstGroup.all[0] || ''
-            newDisplayProxy = proxies.records?.[newProxy] || null
+        if (activeGroup) {
+          newGroup = activeGroup.name
+          newProxy = pickVisibleProxyName(
+            activeGroup.all,
+            proxies.records || {},
+            activeGroup.now,
+            prev.selection.proxy,
+            savedProxy,
+          )
+          const resolved = resolveLeafProxy(proxies.records || {}, newProxy)
+          newDisplayProxy = resolved.displayProxy
+          resolvedPath = [
+            activeGroup.name,
+            ...resolved.resolvedPath.filter((name) => name !== activeGroup.name),
+          ]
 
-            if (!isGlobalMode) {
-              writeProfileScopedItem(STORAGE_KEY_GROUP, newGroup)
-              if (newProxy) {
-                writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
-              }
-            }
+          writeProfileScopedItem(STORAGE_KEY_GROUP, newGroup)
+          if (newProxy) {
+            writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
           }
-        } else if (currentGroup) {
-          newProxy = currentGroup.now || currentGroup.all[0] || ''
-          newDisplayProxy = proxies.records?.[newProxy] || null
         }
       }
 
       return {
         proxyData: {
-          groups: filteredGroups,
+          groups: visibleGroups,
+          groupMap,
           records: proxies.records || {},
         },
         selection: {
@@ -287,108 +336,206 @@ export const useCurrentProxyData = ({
           proxy: newProxy,
         },
         displayProxy: newDisplayProxy,
+        resolvedPath,
       }
     })
   }, [
-    proxies,
     isGlobalMode,
+    proxies,
+    readProfileScopedItem,
+    rules,
     writeProfileScopedItem,
-    matchPolicyName,
   ])
 
-  // 处理代理组变更
+  const correctionAttemptRef = useRef('')
+
+  useEffect(() => {
+    if (!proxies?.records || !state.selection.group) {
+      correctionAttemptRef.current = ''
+      return
+    }
+
+    const currentGroup = isGlobalMode
+      ? proxies.global
+      : state.proxyData.groupMap[state.selection.group]
+
+    const currentNow = normalizePolicyName(currentGroup?.now)
+    if (
+      !currentNow ||
+      !isAuxiliarySelectionName(currentNow, state.proxyData.records)
+    ) {
+      correctionAttemptRef.current = ''
+      return
+    }
+
+    const groupNames = (
+      Array.isArray(currentGroup?.all)
+        ? currentGroup.all.map((item: any) =>
+            typeof item === 'string'
+              ? normalizePolicyName(item)
+              : normalizePolicyName(item?.name),
+          )
+        : []
+    ).filter((name: string) => Boolean(name))
+
+    const targetProxy = pickVisibleProxyName(
+      groupNames,
+      state.proxyData.records,
+      state.selection.proxy,
+      currentNow,
+    )
+
+    if (!targetProxy || targetProxy === currentNow) {
+      correctionAttemptRef.current = ''
+      return
+    }
+
+    const signature = `${state.selection.group}:${currentNow}->${targetProxy}`
+    if (correctionAttemptRef.current === signature) {
+      return
+    }
+
+    correctionAttemptRef.current = signature
+    changeProxy(state.selection.group, targetProxy, currentNow, isGlobalMode)
+  }, [
+    changeProxy,
+    isGlobalMode,
+    proxies?.global,
+    proxies?.records,
+    state.proxyData.groupMap,
+    state.proxyData.records,
+    state.selection.group,
+    state.selection.proxy,
+  ])
+
   const handleGroupChange = useCallback(
     (value: string | number) => {
       if (isGlobalMode) return
 
       const newGroup = String(value)
-
       writeProfileScopedItem(STORAGE_KEY_GROUP, newGroup)
 
       setState((prev) => {
-        const group = prev.proxyData.groups.find(
-          (g: { name: string }) => g.name === newGroup,
-        )
-        if (group) {
+        const group = prev.proxyData.groupMap[newGroup]
+        if (!group) {
           return {
             ...prev,
             selection: {
+              ...prev.selection,
               group: newGroup,
-              proxy: group.now,
             },
-            displayProxy: prev.proxyData.records[group.now] || null,
           }
         }
+
+        const newProxy = pickVisibleProxyName(
+          group.all,
+          prev.proxyData.records,
+          group.now,
+          prev.selection.proxy,
+        )
+        const resolved = resolveLeafProxy(prev.proxyData.records, newProxy)
+
         return {
           ...prev,
           selection: {
-            ...prev.selection,
             group: newGroup,
+            proxy: newProxy,
           },
+          displayProxy: resolved.displayProxy,
+          resolvedPath: [
+            newGroup,
+            ...resolved.resolvedPath.filter((name) => name !== newGroup),
+          ],
         }
       })
     },
     [isGlobalMode, writeProfileScopedItem],
   )
 
-  // 处理代理节点变更
   const handleProxyChange = useCallback(
     (event: SelectChangeEvent<string>) => {
-      const newProxy = event.target.value
+      const requestedProxy = event.target.value
       const currentGroup = state.selection.group
       const previousProxy = state.selection.proxy
+      const currentGroupData = currentGroup
+        ? state.proxyData.groupMap[currentGroup]
+        : null
+      const newProxy = currentGroupData
+        ? pickVisibleProxyName(
+            currentGroupData.all,
+            state.proxyData.records,
+            requestedProxy,
+            previousProxy,
+          )
+        : requestedProxy
 
-      debouncedSetState((prev: ProxyState) => ({
-        ...prev,
-        selection: {
-          ...prev.selection,
-          proxy: newProxy,
-        },
-        displayProxy: prev.proxyData.records[newProxy] || null,
-      }))
+      debouncedSetState((prev: ProxyState) => {
+        const resolved = resolveLeafProxy(prev.proxyData.records, newProxy)
+
+        return {
+          ...prev,
+          selection: {
+            ...prev.selection,
+            proxy: newProxy,
+          },
+          displayProxy: resolved.displayProxy,
+          resolvedPath: currentGroup
+            ? [
+                currentGroup,
+                ...resolved.resolvedPath.filter((name) => name !== currentGroup),
+              ]
+            : resolved.resolvedPath,
+        }
+      })
 
       if (!isGlobalMode) {
         writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
       }
 
       const skipConfigSave = isGlobalMode
-      handleSelectChange(currentGroup, previousProxy, skipConfigSave)(event)
+      handleSelectChange(currentGroup, previousProxy, skipConfigSave)({
+        target: { value: newProxy },
+      })
     },
     [
-      isGlobalMode,
-      state.selection,
       debouncedSetState,
       handleSelectChange,
+      isGlobalMode,
+      state.proxyData.groupMap,
+      state.proxyData.records,
+      state.selection.group,
+      state.selection.proxy,
       writeProfileScopedItem,
     ],
   )
 
-  // 排序类型变更
   const handleSortTypeChange = useCallback(() => {
     const newSortType = ((sortType + 1) % 3) as ProxySortType
     setSortType(newSortType)
     localStorage.setItem('clash-verge-proxy-sort-type', newSortType.toString())
   }, [sortType])
 
-  // 计算要显示的代理选项
   const proxyOptions = useMemo(() => {
-    const sortWithLatency = (proxiesToSort: ProxyOption[]) => {
-      if (!proxiesToSort || sortType === 0) return proxiesToSort
-
-      if (!state.proxyData.records || !state.selection.group) {
-        return proxiesToSort
+    const sortWithLatency = (options: ProxyOption[]) => {
+      if (!options || sortType === 0) {
+        return [...options].sort(
+          (a, b) => KIND_WEIGHT[a.kind] - KIND_WEIGHT[b.kind],
+        )
       }
 
-      const list = [...proxiesToSort]
+      const list = [...options]
 
       if (sortType === 1) {
-        const refreshTick = delaySortRefresh
         const effectiveTimeout =
           typeof defaultLatencyTimeout === 'number' && defaultLatencyTimeout > 0
             ? defaultLatencyTimeout
             : 10000
+        const refreshTick = delaySortRefresh
 
         list.sort((a, b) => {
+          const kindDiff = KIND_WEIGHT[a.kind] - KIND_WEIGHT[b.kind]
+          if (kindDiff !== 0) return kindDiff
+
           const recordA = state.proxyData.records[a.name]
           const recordB = state.proxyData.records[b.name]
 
@@ -409,45 +556,59 @@ export const useCurrentProxyData = ({
           if (av !== bv) return av - bv
           return refreshTick >= 0 ? a.name.localeCompare(b.name) : 0
         })
-      } else {
-        list.sort((a, b) => a.name.localeCompare(b.name))
+
+        return list
       }
+
+      list.sort((a, b) => {
+        const kindDiff = KIND_WEIGHT[a.kind] - KIND_WEIGHT[b.kind]
+        if (kindDiff !== 0) return kindDiff
+        return a.name.localeCompare(b.name)
+      })
 
       return list
     }
 
     if (isGlobalMode && proxies?.global) {
-      const options = proxies.global.all
-        .filter((p: any) => {
-          const name = typeof p === 'string' ? p : p.name
-          return name !== 'DIRECT' && name !== 'REJECT'
-        })
-        .map((p: any) => ({
-          name: typeof p === 'string' ? p : p.name,
-        }))
+      const options = buildProxyDisplayOptionsFromNames({
+        names: (proxies.global.all || [])
+          .map((item: any) => (typeof item === 'string' ? item : item?.name))
+          .filter((name: string) => name && name !== 'DIRECT' && name !== 'REJECT'),
+        records: state.proxyData.records,
+      }).filter(
+        (option): option is ProxyOption =>
+          option.kind === 'manual' || option.kind === 'strategy',
+      )
 
       return sortWithLatency(options)
     }
 
-    // 规则模式
-    const group = state.selection.group
-      ? state.proxyData.groups.find((g) => g.name === state.selection.group)
+    const currentGroup = state.selection.group
+      ? state.proxyData.groupMap[state.selection.group]
       : null
 
-    if (group) {
-      const options = group.all.map((name) => ({ name }))
+    if (currentGroup) {
+      const options = buildProxyDisplayOptionsFromNames({
+        names: currentGroup.all,
+        records: state.proxyData.records,
+      }).filter(
+        (option): option is ProxyOption =>
+          option.kind === 'manual' || option.kind === 'strategy',
+      )
+
       return sortWithLatency(options)
     }
 
     return []
   }, [
+    defaultLatencyTimeout,
+    delaySortRefresh,
     isGlobalMode,
     proxies,
-    state.proxyData,
-    state.selection.group,
     sortType,
-    delaySortRefresh,
-    defaultLatencyTimeout,
+    state.proxyData.groupMap,
+    state.proxyData.records,
+    state.selection.group,
   ])
 
   return {

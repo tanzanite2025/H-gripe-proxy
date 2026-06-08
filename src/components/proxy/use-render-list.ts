@@ -1,130 +1,82 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
 
+import { useProfiles } from '@/hooks/data'
 import { useRuntimeConfig } from '@/hooks/data/use-clash'
 import { useVerge } from '@/hooks/system'
-import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
+import {
+  useAppRefreshers,
+  useProxiesData,
+} from '@/providers/app-data-context'
+import { readProfileFile } from '@/services/cmds'
 import delayManager from '@/services/delay'
 import { debugLog } from '@/utils/misc'
 
-import { filterSort } from './use-filter-sort'
+import { parseGroupsYaml } from '../profile/groups-editor-viewer/utils/group-helpers'
 import {
-  DEFAULT_STATE,
+  calculateColumns,
+  type ProxyItem,
+} from './render-list-shared'
+import {
   useHeadStateNew,
-  type HeadState,
 } from './use-head-state'
+import { useProxyRenderItems } from './use-proxy-render-items'
+import { useRuntimeSummaryItem } from './use-runtime-summary-item'
 import { useWindowWidth } from './use-window-width'
 
-// 定义代理项接口
-interface IProxyItem {
-  name: string
-  type: string
-  udp: boolean
-  xudp: boolean
-  tfo: boolean
-  mptcp: boolean
-  smux: boolean
-  history: {
-    time: string
-    delay: number
-  }[]
-  provider?: string
-  testUrl?: string
-  [key: string]: any // 添加索引签名以适应其他可能的属性
-}
+export type { IRenderItem } from './render-list-shared'
 
-// 代理组类型
-type ProxyGroup = {
-  name: string
-  type: string
-  udp: boolean
-  xudp: boolean
-  tfo: boolean
-  mptcp: boolean
-  smux: boolean
-  history: {
-    time: string
-    delay: number
-  }[]
-  now: string
-  all: IProxyItem[]
-  hidden?: boolean
-  icon?: string
-  testUrl?: string
-  provider?: string
-}
+const normalizeNames = (names: Array<string | null | undefined>) =>
+  Array.from(
+    new Set(
+      names
+        .map((name) => name?.trim() || '')
+        .filter((name) => name.length > 0),
+    ),
+  )
 
-export interface IRenderItem {
-  // 组 | head | item | empty | item col
-  type: 0 | 1 | 2 | 3 | 4
-  key: string
-  group: ProxyGroup
-  proxy?: IProxyItem
-  col?: number
-  proxyCol?: IProxyItem[]
-  headState?: HeadState
-  // 新增支持图标和其他元数据
-  icon?: string
-  provider?: string
-  testUrl?: string
-}
-
-type GroupCache = {
-  now: string
-  all: IProxyItem[]
-  headState: HeadState
-  col: number
-  latencyTimeout: number | undefined
-  items: IRenderItem[]
-}
-
-// 优化列布局计算
-const calculateColumns = (width: number, configCol: number): number => {
-  if (configCol > 0 && configCol < 6) return configCol
-
-  // 针对左右分栏（50%宽度）布局调整列数，默认最多2列
-  if (width > 1920) return 3
-  if (width > 1450) return 2
-  if (width > 1024) return 2
-  if (width > 900) return 2
-  if (width >= 600) return 2
-  return 1
-}
-
-// 优化分组逻辑
-const groupProxies = <T = any>(list: T[], size: number): T[][] => {
-  return list.reduce((acc, item) => {
-    const lastGroup = acc[acc.length - 1]
-    if (!lastGroup || lastGroup.length >= size) {
-      acc.push([item])
-    } else {
-      lastGroup.push(item)
-    }
-    return acc
-  }, [] as T[][])
-}
-
-export const useRenderList = (
-  mode: string,
-  isChainMode?: boolean,
-) => {
-  // 使用全局数据提供者
+export const useRenderList = (mode: string, isChainMode?: boolean) => {
   const { proxies: proxiesData } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
   const { verge } = useVerge()
+  const { current } = useProfiles()
   const { width } = useWindowWidth()
   const [headStates, setHeadState] = useHeadStateNew()
   const latencyTimeout = verge?.default_latency_timeout
 
-  // 获取运行时配置用于链式代理模式
   const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
+  const runtimeSummaryItem = useRuntimeSummaryItem(mode)
+  const groupsOverridePath = current?.option?.groups?.trim() || ''
+  const { data: strategyGroupOverrides = {} } = useQuery({
+    queryKey: ['proxy-strategy-group-overrides', groupsOverridePath],
+    enabled: !!groupsOverridePath,
+    staleTime: 3_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const groupsData = await readProfileFile(groupsOverridePath)
+      const sequence = parseGroupsYaml(groupsData)
+      const overrides: Record<string, string[]> = {}
 
-  // 计算列数
+      ;([...sequence.prepend, ...sequence.append] as IProxyGroupConfig[]).forEach(
+        (group) => {
+          const name = group?.name?.trim()
+          if (!name) return
+
+          overrides[name] = Array.isArray(group.proxies)
+            ? normalizeNames(group.proxies)
+            : []
+        },
+      )
+
+      return overrides
+    },
+  })
+
   const col = useMemo(
     () => calculateColumns(width, verge?.proxy_layout_column || 6),
     [width, verge?.proxy_layout_column],
   )
 
-  // 确保代理数据加载
   useEffect(() => {
     if (!proxiesData) return
     const { groups, proxies } = proxiesData
@@ -138,18 +90,16 @@ export const useRenderList = (
     }
   }, [proxiesData, mode, refreshProxy])
 
-  // 链式代理模式节点自动计算延迟
   useEffect(() => {
     if (!isChainMode || !runtimeConfig) return
 
-    const allProxies: IProxyItem[] = Object.values(
+    const allProxies: ProxyItem[] = Object.values(
       (runtimeConfig as any).proxies || {},
     )
     if (allProxies.length === 0) return
 
-    // 设置组监听器，当有延迟更新时自动刷新
     const groupListener = () => {
-      debugLog('[ChainMode] 延迟更新，刷新UI')
+      debugLog('[ChainMode] delay updated, refreshing proxy view')
       refreshProxy()
     }
 
@@ -160,160 +110,35 @@ export const useRenderList = (
         const timeout = verge?.default_latency_timeout || 10000
         const proxyNames = allProxies.map((proxy) => proxy.name)
 
-        debugLog(`[ChainMode] 开始计算 ${proxyNames.length} 个节点的延迟`)
-
-        // 使用 delayManager 计算延迟，每个节点计算完成后会自动触发监听器刷新界面
+        debugLog(
+          `[ChainMode] calculating delay for ${proxyNames.length} proxies`,
+        )
         delayManager.checkListDelay(proxyNames, 'chain-mode', timeout)
       } catch (error) {
         console.error('Failed to calculate delays for chain mode:', error)
       }
     }
 
-    // 延迟执行避免阻塞
     const handle = setTimeout(calculateDelays, 100)
 
     return () => {
       clearTimeout(handle)
-      // 清理组监听器
       delayManager.removeGroupListener('chain-mode')
     }
   }, [isChainMode, runtimeConfig, verge?.default_latency_timeout, refreshProxy])
 
-  const groupCacheRef = useRef<Map<string, GroupCache>>(new Map())
-  const prevListRef = useRef<IRenderItem[]>([])
-
-  // 处理渲染列表
-  const renderList: IRenderItem[] = useMemo(() => {
-    if (!proxiesData) return []
-
-    // 链式代理模式也使用正常的组渲染逻辑，不再单独处理
-    // 点击节点的行为由 ProxyGroups 的 handleChangeProxy 根据 isChainMode 控制
-
-    // 正常模式的渲染逻辑
-    const useRule = mode === 'rule' || mode === 'script'
-    const renderGroups =
-      useRule && proxiesData.groups.length
-        ? proxiesData.groups
-        : [proxiesData.global!]
-
-    const cache = groupCacheRef.current
-    let anyChanged = false
-
-    const retList = renderGroups.flatMap((group: ProxyGroup) => {
-      const headState = headStates[group.name] || DEFAULT_STATE
-      const cached = cache.get(group.name)
-
-      if (
-        cached &&
-        cached.now === group.now &&
-        cached.all === group.all &&
-        cached.headState === headState &&
-        cached.col === col &&
-        cached.latencyTimeout === latencyTimeout
-      ) {
-        return cached.items
-      }
-
-      anyChanged = true
-      const ret: IRenderItem[] = [
-        {
-          type: 0,
-          key: group.name,
-          group,
-          headState,
-          icon: group.icon,
-          testUrl: group.testUrl,
-        },
-      ]
-
-      if (headState?.open || !useRule) {
-        const proxies = filterSort(
-          group.all,
-          group.name,
-          headState.filterText,
-          headState.sortType,
-          latencyTimeout,
-          {
-            matchCase: headState.filterMatchCase,
-            matchWholeWord: headState.filterMatchWholeWord,
-            useRegularExpression: headState.filterUseRegularExpression,
-          },
-        )
-
-        ret.push({
-          type: 1,
-          key: `head-${group.name}`,
-          group,
-          headState,
-        })
-
-        if (!proxies.length) {
-          ret.push({
-            type: 3,
-            key: `empty-${group.name}`,
-            group,
-            headState,
-          })
-        } else if (col > 1) {
-          ret.push(
-            ...groupProxies(proxies, col).map((proxyCol, colIndex) => ({
-              type: 4 as const,
-              key: `col-${group.name}-${proxyCol[0].name}-${colIndex}`,
-              group,
-              headState,
-              col,
-              proxyCol,
-              provider: proxyCol[0].provider,
-            })),
-          )
-        } else {
-          ret.push(
-            ...proxies.map((proxy) => ({
-              type: 2 as const,
-              key: `${group.name}-${proxy!.name}`,
-              group,
-              proxy,
-              headState,
-              provider: proxy.provider,
-            })),
-          )
-        }
-      }
-
-      cache.set(group.name, {
-        now: group.now,
-        all: group.all,
-        headState,
-        col,
-        latencyTimeout,
-        items: ret,
-      })
-      return ret
-    })
-
-    const filtered = !useRule
-      ? retList.slice(1)
-      : retList.filter((item: IRenderItem) => !item.group.hidden)
-
-    if (!anyChanged && prevListRef.current.length === filtered.length) {
-      return prevListRef.current
-    }
-    prevListRef.current = filtered
-    return filtered
-  }, [
-    headStates,
-    proxiesData,
+  const renderList = useProxyRenderItems({
     mode,
+    headStates,
     col,
     latencyTimeout,
-  ])
+    runtimeSummaryItem,
+    strategyGroupOverrides,
+  })
 
   return {
     renderList,
     onProxies: refreshProxy,
     onHeadState: setHeadState,
-    currentColumns: col,
   }
 }
-
-// 优化建议：如有大数据量，建议用虚拟滚动（已在 ProxyGroups 组件中实现），此处无需额外处理。

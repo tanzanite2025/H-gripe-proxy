@@ -5,7 +5,6 @@ export const builtinProxyPolicies = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
 export const proxyStrategyOptions = [
   'select',
   'url-test',
-  'fallback',
   'load-balance',
   'relay',
 ] as const
@@ -44,7 +43,6 @@ export const excludeTypeOptions = [
 export const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
   select: 'proxies.components.enums.strategies.select',
   'url-test': 'proxies.components.enums.strategies.url-test',
-  fallback: 'proxies.components.enums.strategies.fallback',
   'load-balance': 'proxies.components.enums.strategies.load-balance',
   relay: 'proxies.components.enums.strategies.relay',
 }

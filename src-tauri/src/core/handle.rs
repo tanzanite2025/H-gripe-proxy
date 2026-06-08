@@ -47,11 +47,15 @@ impl Handle {
     pub async fn sync_mihomo_controller_state() -> Result<()> {
         let client_info = Config::clash().await.latest_arc().get_client_info();
         #[cfg(target_os = "windows")]
-        let external_controller_enabled = Config::verge()
-            .await
-            .latest_arc()
-            .enable_external_controller
-            .unwrap_or(false);
+        let http_controller_enabled = {
+            let verge = Config::verge().await;
+            let verge_arc = verge.latest_arc();
+            let mut enabled = verge_arc.enable_external_controller.unwrap_or(false);
+            enabled |= verge_arc.enable_tun_mode.unwrap_or(false);
+            drop(verge_arc);
+            drop(verge);
+            enabled
+        };
         let controller = client_info
             .server
             .parse::<SocketAddr>()
@@ -65,14 +69,8 @@ impl Handle {
 
         #[cfg(target_os = "windows")]
         {
-            let desired_protocol = if external_controller_enabled {
-                Protocol::Auto
-            } else {
-                Protocol::LocalSocket
-            };
-
-            if mihomo.protocol != desired_protocol {
-                mihomo.update_protocol(desired_protocol);
+            if !matches!(mihomo.protocol, Protocol::LocalSocket) {
+                mihomo.update_protocol(Protocol::LocalSocket);
             }
         }
 
@@ -83,7 +81,7 @@ impl Handle {
 
         #[cfg(target_os = "windows")]
         {
-            if external_controller_enabled {
+            if http_controller_enabled {
                 if mihomo.external_host.as_deref() != Some(host.as_str()) {
                     mihomo.update_external_host(Some(host.clone()));
                 }

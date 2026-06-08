@@ -19,6 +19,14 @@ struct ProfileUpdateSnapshot {
     file_data: Option<String>,
 }
 
+async fn fetch_profile_update_item(url: &str, option: Option<&PrfOption>) -> Result<PrfItem> {
+    if option.is_some_and(|current| current.self_proxy.unwrap_or(false)) {
+        crate::feat::ensure_mihomo_core_ready().await?;
+    }
+
+    PrfItem::from_url(url, None, None, option).await
+}
+
 /// Toggle proxy profile — directly calls the same logic as patch_profiles_config_by_profile_index
 pub async fn toggle_proxy_profile(profile_index: String) {
     logging_error!(
@@ -350,7 +358,7 @@ async fn perform_profile_update(
 
     let mut last_err;
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
+    match fetch_profile_update_item(url, merged_opt.as_ref()).await {
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 更新订阅配置成功");
             profiles_draft_update_item_safe(uid, &mut item).await?;
@@ -386,7 +394,7 @@ async fn perform_profile_update(
     merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(true);
     merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(false);
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
+    match fetch_profile_update_item(url, merged_opt.as_ref()).await {
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 使用 Clash代理 更新订阅配置成功");
             profiles_draft_update_item_safe(uid, &mut item).await?;
@@ -408,7 +416,7 @@ async fn perform_profile_update(
     merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(false);
     merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(true);
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
+    match fetch_profile_update_item(url, merged_opt.as_ref()).await {
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 使用 系统代理 更新订阅配置成功");
             profiles_draft_update_item_safe(uid, &mut item).await?;

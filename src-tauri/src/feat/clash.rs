@@ -12,7 +12,10 @@ use once_cell::sync::Lazy;
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::sync::Arc;
+use std::time::Duration;
+use tauri_plugin_mihomo::Error as MihomoError;
 use tokio::fs;
+use tokio::sync::Mutex;
 
 #[allow(clippy::expect_used)]
 static TLS_CONFIG: Lazy<Arc<rustls::ClientConfig>> = Lazy::new(|| {
@@ -24,6 +27,53 @@ static TLS_CONFIG: Lazy<Arc<rustls::ClientConfig>> = Lazy::new(|| {
         .with_no_client_auth();
     Arc::new(config)
 });
+
+static MIHOMO_RECOVERY_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+async fn probe_mihomo_ipc() -> Result<(), MihomoError> {
+    handle::Handle::mihomo().await.get_version().await.map(|_| ())
+}
+
+pub async fn ensure_mihomo_core_ready() -> anyhow::Result<()> {
+    let _guard = MIHOMO_RECOVERY_LOCK.lock().await;
+
+    handle::Handle::sync_mihomo_controller_state().await?;
+
+    match probe_mihomo_ipc().await {
+        Ok(()) => return Ok(()),
+        Err(err) if !CoreManager::is_mihomo_ipc_unavailable(&err) => {
+            return Err(anyhow::anyhow!("Mihomo IPC probe failed: {err}"));
+        }
+        Err(err) => {
+            let running_mode = CoreManager::global().get_running_mode();
+            logging!(
+                warn,
+                Type::Core,
+                "Mihomo IPC is unavailable while checking readiness (mode: {}). Attempting recovery: {}",
+                running_mode,
+                err
+            );
+
+            match &*running_mode {
+                crate::core::manager::RunningMode::NotRunning => {
+                    CoreManager::global().start_core().await?;
+                }
+                crate::core::manager::RunningMode::Sidecar | crate::core::manager::RunningMode::Service => {
+                    CoreManager::global().restart_core().await?;
+                }
+            }
+        }
+    }
+
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    handle::Handle::sync_mihomo_controller_state().await?;
+    probe_mihomo_ipc()
+        .await
+        .map_err(|err| anyhow::anyhow!("Mihomo IPC is still unavailable after recovery: {err}"))?;
+    handle::Handle::refresh_clash();
+
+    Ok(())
+}
 
 /// Restart the Clash core
 pub async fn restart_clash_core() {

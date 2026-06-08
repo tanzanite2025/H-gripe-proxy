@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
@@ -10,6 +10,7 @@ import {
   DEFAULT_HOVER_DELAY,
   ProxyGroupNavigator,
 } from '../proxy-group-navigator'
+import { StrategyPoolEditorDialog } from '../strategy-pool-editor-dialog'
 
 import { ChainRuleHeader } from './components/chain-rule-header'
 import { GroupSelectMenu } from './components/group-select-menu'
@@ -44,6 +45,8 @@ export const ProxyGroups = (props: Props) => {
   const displayMode = mode === 'direct' ? 'rule' : mode
   const { t } = useTranslation()
   const { pathname } = useLocation()
+  const [editingStrategyGroup, setEditingStrategyGroup] =
+    useState<IProxyGroupItem | null>(null)
 
   const parentRef = useRef<HTMLDivElement>(null)
   const scrollTopRef = useRef(0)
@@ -83,7 +86,6 @@ export const ProxyGroups = (props: Props) => {
   } = useProxyGroups({
     mode: displayMode,
     isChainMode,
-    activeSelectedGroup,
   })
 
   // 虚拟滚动
@@ -143,7 +145,7 @@ export const ProxyGroups = (props: Props) => {
         return
       }
 
-      if (!['Selector', 'URLTest', 'Fallback'].includes(group.type)) return
+      if (!['Selector', 'URLTest', 'LoadBalance'].includes(group.type)) return
 
       handleProxyGroupChange(group, proxy)
     },
@@ -166,6 +168,10 @@ export const ProxyGroups = (props: Props) => {
     [handleGroupLocationByName, scrollToIndex],
   )
 
+  const handleConfigureStrategyGroup = useCallback((group: IProxyGroupItem) => {
+    setEditingStrategyGroup(group)
+  }, [])
+
   // 渲染代理列表
   const renderProxyList = useCallback(
     (height: string) => {
@@ -178,12 +184,12 @@ export const ProxyGroups = (props: Props) => {
           renderList={renderList}
           activeStickyIndex={activeStickyIndex}
           indent={displayMode === 'rule' || displayMode === 'script'}
-          isChainMode={isChainMode}
           measureElement={measureElement}
           onLocation={handleLocationWithScroll}
           onCheckAll={handleCheckAll}
           onHeadState={onHeadState}
           onChangeProxy={handleChangeProxy}
+          onConfigureStrategyGroup={handleConfigureStrategyGroup}
         />
       )
     },
@@ -191,8 +197,8 @@ export const ProxyGroups = (props: Props) => {
       activeStickyIndex,
       handleChangeProxy,
       handleCheckAll,
+      handleConfigureStrategyGroup,
       handleLocationWithScroll,
-      isChainMode,
       measureElement,
       displayMode,
       onHeadState,
@@ -259,6 +265,12 @@ export const ProxyGroups = (props: Props) => {
           selectedGroup={activeSelectedGroup}
           onClose={onCloseChainMode ?? (() => {})}
         />
+        <StrategyPoolEditorDialog
+          open={Boolean(editingStrategyGroup)}
+          group={editingStrategyGroup}
+          onClose={() => setEditingStrategyGroup(null)}
+          onSaved={onProxies}
+        />
       </>
     )
   }
@@ -280,6 +292,12 @@ export const ProxyGroups = (props: Props) => {
 
       {renderProxyList('calc(100% - 14px)')}
       <ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
+      <StrategyPoolEditorDialog
+        open={Boolean(editingStrategyGroup)}
+        group={editingStrategyGroup}
+        onClose={() => setEditingStrategyGroup(null)}
+        onSaved={onProxies}
+      />
     </div>
   )
 }

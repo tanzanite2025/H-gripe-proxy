@@ -21,10 +21,14 @@ export async function calcuProxyProviders() {
 }
 
 export async function calcuProxies(): Promise<CalculatedProxies> {
-  const [proxyResponse, providerResponse] = await Promise.all([
-    getProxies(),
-    calcuProxyProviders(),
-  ])
+  const proxyResponse = await getProxies()
+  const providerResponse = await calcuProxyProviders().catch((error) => {
+    console.warn(
+      '[calcuProxies] proxy providers unavailable, continue without provider metadata:',
+      error,
+    )
+    return {}
+  })
 
   const proxyRecord = proxyResponse.proxies as unknown as Record<
     string,

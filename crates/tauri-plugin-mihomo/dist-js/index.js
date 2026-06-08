@@ -1,5 +1,47 @@
-import { invoke, Channel } from '@tauri-apps/api/core';
+import { Channel, invoke as invoke$1 } from '@tauri-apps/api/core';
 
+let pendingMihomoRecovery = null;
+function formatInvokeError(error) {
+    if (typeof error === "string") {
+        return error;
+    }
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return String(error);
+}
+function isMihomoIpcUnavailableError(error) {
+    const message = formatInvokeError(error).toLowerCase();
+    return [
+        "failed to connect to named pipe",
+        "failed to connect to socket",
+        "cannot find the file specified",
+        "system cannot find the file specified",
+        "no such file or directory",
+        "os error 2",
+        "系统找不到指定的文件",
+    ].some((marker) => message.includes(marker));
+}
+async function ensureMihomoReadyForInvoke() {
+    if (!pendingMihomoRecovery) {
+        pendingMihomoRecovery = invoke$1("ensure_mihomo_core_ready").finally(() => {
+            pendingMihomoRecovery = null;
+        });
+    }
+    return pendingMihomoRecovery;
+}
+async function invoke(command, args) {
+    try {
+        return await invoke$1(command, args);
+    }
+    catch (error) {
+        if (!command.startsWith("plugin:mihomo|") || !isMihomoIpcUnavailableError(error)) {
+            throw error;
+        }
+        await ensureMihomoReadyForInvoke();
+        return await invoke$1(command, args);
+    }
+}
 // ======================= functions =======================
 /**
  * 更新控制器地址

@@ -28,6 +28,10 @@ pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized.dev";
 pub static LEGACY_BACKUP_DIR: &str = "clash-verge-rev-backup-dev";
 #[cfg(feature = "verge-dev")]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup-dev";
+#[cfg(feature = "verge-dev")]
+pub static RELEASE_LEGACY_APP_ID: &str = "io.github.clash-verge-rev.clash-verge-rev";
+#[cfg(feature = "verge-dev")]
+pub static RELEASE_APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized";
 
 pub static PORTABLE_FLAG: OnceCell<bool> = OnceCell::new();
 
@@ -67,6 +71,15 @@ pub fn init_portable_flag() -> Result<()> {
 
 /// get the verge app home dir
 pub fn app_home_dir() -> Result<PathBuf> {
+    app_home_dir_with_ids(APP_ID, LEGACY_APP_ID)
+}
+
+#[cfg(feature = "verge-dev")]
+pub fn release_app_home_dir() -> Result<PathBuf> {
+    app_home_dir_with_ids(RELEASE_APP_ID, RELEASE_LEGACY_APP_ID)
+}
+
+fn app_home_dir_with_ids(app_id: &str, legacy_app_id: &str) -> Result<PathBuf> {
     use tauri::utils::platform::current_exe;
 
     let flag = PORTABLE_FLAG.get().unwrap_or(&false);
@@ -77,8 +90,8 @@ pub fn app_home_dir() -> Result<PathBuf> {
             .parent()
             .ok_or_else(|| anyhow::anyhow!("failed to get the portable app dir"))?;
         let config_dir = PathBuf::from(app_dir).join(".config");
-        let app_dir = config_dir.join(APP_ID);
-        let legacy_app_dir = config_dir.join(LEGACY_APP_ID);
+        let app_dir = config_dir.join(app_id);
+        let legacy_app_dir = config_dir.join(legacy_app_id);
         if let Err(e) = migrate_dir_if_needed(&legacy_app_dir, &app_dir, "app home directory") {
             logging!(warn, Type::File, "Failed to migrate legacy app home directory: {e}");
         }
@@ -90,8 +103,8 @@ pub fn app_home_dir() -> Result<PathBuf> {
 
     match app_handle.path().data_dir() {
         Ok(dir) => {
-            let app_dir = dir.join(APP_ID);
-            let legacy_app_dir = dir.join(LEGACY_APP_ID);
+            let app_dir = dir.join(app_id);
+            let legacy_app_dir = dir.join(legacy_app_id);
             if let Err(e) = migrate_dir_if_needed(&legacy_app_dir, &app_dir, "app home directory") {
                 logging!(warn, Type::File, "Failed to migrate legacy app home directory: {e}");
             }

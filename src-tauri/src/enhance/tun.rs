@@ -46,7 +46,6 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         append!(tun_val, "auto-detect-interface", true);
         append!(tun_val, "dns-hijack", tun_const::DNS_HIJACK);
 
-        // 读取DNS配置
         let dns_key = Value::from("dns");
         let dns_val = config.get(&dns_key);
         let mut dns_val = dns_val.map_or_else(Mapping::new, |val| {
@@ -55,18 +54,22 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         let ipv6_key = Value::from("ipv6");
         let ipv6_val = config.get(&ipv6_key).and_then(|v| v.as_bool()).unwrap_or(false);
 
-        // 检查现有的 enhanced-mode 设置
         let current_mode = dns_val
             .get(Value::from("enhanced-mode"))
             .and_then(|v| v.as_str())
             .unwrap_or("fake-ip");
+        let has_enhanced_mode = dns_val.contains_key(Value::from("enhanced-mode"));
 
-        // 只有当 enhanced-mode 是 fake-ip 或未设置时才修改 DNS 配置
-        if current_mode == "fake-ip" || !dns_val.contains_key(Value::from("enhanced-mode")) {
+        #[cfg(target_os = "windows")]
+        let force_fake_ip = true;
+        #[cfg(not(target_os = "windows"))]
+        let force_fake_ip = false;
+
+        if force_fake_ip || current_mode == "fake-ip" || !has_enhanced_mode {
             revise!(dns_val, "enable", true);
             revise!(dns_val, "ipv6", ipv6_val);
 
-            if !dns_val.contains_key(Value::from("enhanced-mode")) {
+            if force_fake_ip || !has_enhanced_mode {
                 revise!(dns_val, "enhanced-mode", "fake-ip");
             }
 
@@ -83,18 +86,18 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
             }
         }
 
-        // 当TUN启用时，将修改后的DNS配置写回
+        #[cfg(target_os = "windows")]
+        normalize_windows_tun_dns(&mut dns_val);
+
         revise!(config, "dns", dns_val);
         ensure_lan_direct_rules_before_match(&mut config);
     } else {
-        // TUN未启用时，仅恢复系统DNS，不修改配置文件中的DNS设置
         #[cfg(target_os = "macos")]
         AsyncHandler::spawn(move || async move {
             crate::utils::resolve::dns::restore_public_dns().await;
         });
     }
 
-    // 更新TUN配置
     revise!(tun_val, "enable", enable);
     revise!(config, "tun", tun_val);
 
@@ -120,7 +123,7 @@ fn ensure_lan_direct_rules_before_match(config: &mut Mapping) {
             .is_none_or(|rule| !LAN_DIRECT_RULES.iter().any(|lan_rule| rule == *lan_rule))
     });
 
-    let insert_at = seq.iter().position(|rule| is_match_rule(rule)).unwrap_or(seq.len());
+    let insert_at = seq.iter().position(is_match_rule).unwrap_or(seq.len());
 
     for rule in LAN_DIRECT_RULES.iter().rev() {
         seq.insert(insert_at, Value::from(*rule));
@@ -131,6 +134,56 @@ fn is_match_rule(rule: &Value) -> bool {
     rule.as_str()
         .map(|rule| rule.trim_start().starts_with("MATCH,"))
         .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_tun_dns(dns: &mut Mapping) {
+    let respect_rules = dns.get("respect-rules").and_then(Value::as_bool).unwrap_or(false);
+
+    if !respect_rules {
+        return;
+    }
+
+    if let Some(domestic_nameservers) = nested_sequence(dns, "nameserver-policy", "geosite:cn")
+        .filter(|values| !values.is_empty())
+        .or_else(|| Some(default_domestic_nameservers()))
+    {
+        dns.insert("nameserver".into(), Value::Sequence(domestic_nameservers));
+    }
+
+    if !has_non_empty_sequence(dns, "fallback")
+        && let Some(foreign_nameservers) =
+            nested_sequence(dns, "nameserver-policy", "geosite:geolocation-!cn").filter(|values| !values.is_empty())
+    {
+        dns.insert("fallback".into(), Value::Sequence(foreign_nameservers));
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn nested_sequence(mapping: &Mapping, key: &str, nested_key: &str) -> Option<Vec<Value>> {
+    mapping
+        .get(key)
+        .and_then(Value::as_mapping)
+        .and_then(|mapping| mapping.get(nested_key))
+        .and_then(Value::as_sequence)
+        .map(|values| values.to_vec())
+}
+
+#[cfg(target_os = "windows")]
+fn has_non_empty_sequence(mapping: &Mapping, key: &str) -> bool {
+    mapping
+        .get(key)
+        .and_then(Value::as_sequence)
+        .map(|values| !values.is_empty())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn default_domestic_nameservers() -> Vec<Value> {
+    ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+        .into_iter()
+        .map(Value::from)
+        .collect()
 }
 
 #[cfg(test)]
@@ -175,5 +228,49 @@ rules:
                 .unwrap_or_else(|| panic!("{expected_rule} should be injected"));
             assert!(index < match_index, "{expected_rule} should be inserted before MATCH");
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn tun_enabled_on_windows_forces_fake_ip_and_prefers_domestic_nameserver() {
+        let config = parse_yaml(
+            r#"
+ipv6: true
+dns:
+  enable: true
+  respect-rules: true
+  enhanced-mode: redir-host
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://dns.google/dns-query
+  nameserver-policy:
+    geosite:cn:
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+    geosite:geolocation-!cn:
+      - https://dns.google/dns-query
+"#,
+        );
+
+        let config = use_tun(config, true);
+        let dns = config
+            .get("dns")
+            .and_then(Value::as_mapping)
+            .expect("dns should be a mapping");
+
+        assert_eq!(dns.get("enhanced-mode").and_then(Value::as_str), Some("fake-ip"));
+        assert_eq!(dns.get("fake-ip-range").and_then(Value::as_str), Some("198.18.0.1/16"));
+
+        let nameserver = dns
+            .get("nameserver")
+            .and_then(Value::as_sequence)
+            .expect("nameserver should be a sequence")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            nameserver,
+            vec!["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+        );
     }
 }

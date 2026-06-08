@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export async function getProfiles() {
-  return invoke<IProfilesConfig>('get_profiles')
+  return invoke<IProfilesView>('get_profiles')
 }
 
 export async function enhanceProfiles() {

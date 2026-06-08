@@ -53,6 +53,12 @@ pub async fn restart_core() -> CmdResult {
     feat::restart_core().await.stringify_err()
 }
 
+/// Ensure Mihomo core and IPC are ready for frontend/runtime operations
+#[tauri::command]
+pub async fn ensure_mihomo_core_ready() -> CmdResult {
+    feat::ensure_mihomo_core_ready().await.stringify_err()
+}
+
 /// 测试URL延迟
 #[tauri::command]
 pub async fn test_delay(url: String) -> CmdResult<u32> {

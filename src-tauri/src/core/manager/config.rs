@@ -253,7 +253,7 @@ impl CoreManager {
         handle::Handle::mihomo().await.reload_config(true, path).await
     }
 
-    fn is_mihomo_ipc_unavailable(err: &MihomoError) -> bool {
+    pub(crate) fn is_mihomo_ipc_unavailable(err: &MihomoError) -> bool {
         match err {
             MihomoError::Io(err) => err.kind() == std::io::ErrorKind::NotFound,
             MihomoError::ConnectionFailed(message) => {

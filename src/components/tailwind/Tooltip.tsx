@@ -9,9 +9,15 @@ export interface TooltipProps {
   children: ReactNode
 }
 
-export const Tooltip = ({ content, title, placement = 'top', arrow = false, children }: TooltipProps) => {
+export const Tooltip = ({
+  content,
+  title,
+  placement = 'top',
+  arrow = false,
+  children,
+}: TooltipProps) => {
   const [isVisible, setIsVisible] = useState(false)
-  
+
   // Support both content and title props for MUI compatibility
   const tooltipText = title || content
 
@@ -52,7 +58,7 @@ export const Tooltip = ({ content, title, placement = 'top', arrow = false, chil
             className={`absolute z-50 ${placementClasses[placement]}`}
             role="tooltip"
           >
-            <div className="rounded-lg bg-card shadow-dialog px-3 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-lg">
+            <div className="w-max whitespace-nowrap rounded-lg bg-card px-3 py-2 text-xs font-semibold text-white shadow-dialog shadow-lg">
               {tooltipText}
             </div>
             {arrow && (

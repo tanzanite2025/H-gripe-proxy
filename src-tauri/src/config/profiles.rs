@@ -21,6 +21,16 @@ pub struct IProfiles {
     pub items: Option<Vec<PrfItem>>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfilesView {
+    pub current: Option<String>,
+    pub current_primary_uid: Option<String>,
+    pub items: Vec<PrfItem>,
+    pub primary_items: Vec<PrfItem>,
+    pub auxiliary_items: Vec<PrfItem>,
+}
+
 pub struct IProfilePreview<'a> {
     pub uid: &'a String,
     pub name: &'a String,
@@ -44,6 +54,64 @@ macro_rules! patch {
 }
 
 impl IProfiles {
+    pub fn current_primary_uid(&self) -> Option<String> {
+        if let Some(current) = &self.current
+            && let Ok(item) = self.get_item(current)
+            && item.is_primary_profile()
+        {
+            return Some(current.clone());
+        }
+
+        self.items.as_ref().and_then(|items| {
+            items
+                .iter()
+                .find(|item| item.is_primary_profile())
+                .and_then(|item| item.uid.clone())
+        })
+    }
+
+    pub fn primary_items(&self) -> Vec<PrfItem> {
+        self.items
+            .as_ref()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| item.is_primary_profile())
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn auxiliary_items(&self) -> Vec<PrfItem> {
+        self.items
+            .as_ref()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| item.is_auxiliary_profile())
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn to_view(&self) -> ProfilesView {
+        ProfilesView {
+            current: self.current.clone(),
+            current_primary_uid: self.current_primary_uid(),
+            items: self.items.clone().unwrap_or_default(),
+            primary_items: self.primary_items(),
+            auxiliary_items: self.auxiliary_items(),
+        }
+    }
+
+    pub fn has_primary_profiles(&self) -> bool {
+        self.items.as_ref().is_some_and(|items| {
+            items.iter().any(PrfItem::is_primary_profile)
+        })
+    }
+
     // Helper to find and remove an item by uid from the items vec, returning its file name (if any).
     fn take_item_file_by_uid(items: &mut Vec<PrfItem>, target_uid: Option<&str>) -> Option<String> {
         let index = items.iter().position(|item| item.uid.as_deref() == target_uid)?;
@@ -90,7 +158,10 @@ impl IProfiles {
             && let Some(items) = self.items.as_ref()
         {
             let some_uid = Some(current);
-            if items.iter().any(|e| e.uid.as_ref() == some_uid) {
+            if items
+                .iter()
+                .any(|item| item.uid.as_ref() == some_uid && item.is_primary_profile())
+            {
                 self.current = some_uid.cloned();
             }
         }
@@ -149,7 +220,7 @@ impl IProfiles {
                 .with_context(|| format!("failed to write to file \"{file}\""))?;
         }
 
-        if self.current.is_none() && (item.itype == Some("remote".into()) || item.itype == Some("local".into())) {
+        if self.current.is_none() && item.is_primary_profile() {
             self.current = uid.to_owned();
         }
 
@@ -295,7 +366,7 @@ impl IProfiles {
         if current == *uid {
             self.current = None;
             for item in items.iter() {
-                if item.itype == Some("remote".into()) || item.itype == Some("local".into()) {
+                if item.is_primary_profile() {
                     self.current = item.uid.clone();
                     break;
                 }
@@ -309,7 +380,9 @@ impl IProfiles {
 
     /// 获取current指向的订阅内容
     pub async fn current_mapping(&self) -> Result<Mapping> {
-        match (self.current.as_ref(), self.items.as_ref()) {
+        let current_uid = self.current_primary_uid();
+
+        match (current_uid.as_ref(), self.items.as_ref()) {
             (Some(current), Some(items)) => {
                 if let Some(item) = items.iter().find(|e| e.uid.as_ref() == Some(current)) {
                     let file_path = match item.file.as_ref() {
@@ -453,9 +526,7 @@ impl IProfiles {
                 }
 
                 // 对于主 profile 类型（remote/local），还需要收集其关联的扩展文件
-                if let Some(itype) = &item.itype
-                    && (itype == "remote" || itype == "local")
-                    && let Some(option) = &item.option
+                if item.is_primary_profile() && let Some(option) = &item.option
                 {
                     // 收集关联的扩展文件
                     if let Some(merge_uid) = &option.merge
