@@ -55,6 +55,18 @@ impl NetworkManager {
         Self
     }
 
+    pub fn system_proxy_url() -> Result<Option<std::string::String>> {
+        match Sysproxy::get_system_proxy() {
+            Ok(proxy) if proxy.enable => Ok(Some(format!("http://{}:{}", proxy.host, proxy.port))),
+            Ok(_) => Ok(None),
+            Err(err) => Err(anyhow::anyhow!("Failed to inspect system proxy settings: {err}")),
+        }
+    }
+
+    pub fn has_system_proxy() -> Result<bool> {
+        Ok(Self::system_proxy_url()?.is_some())
+    }
+
     fn build_client(
         &self,
         proxy_url: Option<std::string::String>,
@@ -199,11 +211,7 @@ impl NetworkManager {
                 Some(format!("http://127.0.0.1:{port}"))
             }
             ProxyType::System => {
-                if let Ok(p @ Sysproxy { enable: true, .. }) = Sysproxy::get_system_proxy() {
-                    Some(format!("http://{}:{}", p.host, p.port))
-                } else {
-                    None
-                }
+                Some(Self::system_proxy_url()?.ok_or_else(|| anyhow::anyhow!("System proxy is not enabled"))?)
             }
         };
 

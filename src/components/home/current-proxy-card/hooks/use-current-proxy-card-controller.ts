@@ -44,8 +44,7 @@ export function useCurrentProxyCardController() {
   const mode =
     resolveClashMode(clashConfig?.mode, runtimeConfig?.mode) ??
     DEFAULT_CLASH_MODE
-  const proxyChainMode = mode === 'direct' ? DEFAULT_CLASH_MODE : mode
-  const isGlobalMode = proxyChainMode === 'global'
+  const isGlobalMode = mode === 'global'
 
   const {
     state,

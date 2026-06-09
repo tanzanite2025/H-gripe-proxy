@@ -22,14 +22,11 @@ test('home clash mode card only exposes proxy-chain rule and global modes', () =
 
   assert.match(source, /const HOME_PROXY_CHAIN_MODES = \['rule', 'global'\] as const/)
   assert.match(source, /type HomeProxyChainMode = \(typeof HOME_PROXY_CHAIN_MODES\)\[number\]/)
-  assert.match(source, /label: '应用规则'/)
-  assert.match(source, /label: '不应用规则'/)
-  assert.match(source, /HOME_PROXY_CHAIN_MODES\.map\(\(mode\)/)
-  assert.match(source, /const displayMode =[\s\S]*?optimisticMode \?\? \(currentModeKey === 'direct' \? 'rule' : currentModeKey\)/)
-  assert.doesNotMatch(source, /CLASH_MODES/)
+  assert.match(source, /const currentModeKey = resolveClashMode\(clashConfig\?\.mode, runtimeConfig\?\.mode\)/)
+  assert.match(source, /const displayMode = optimisticMode \?\? currentModeKey/)
+  assert.doesNotMatch(source, /currentModeKey === 'direct'/)
   assert.doesNotMatch(source, /direct:\s*\{/)
   assert.doesNotMatch(source, /labels\.direct/)
-  assert.doesNotMatch(source, /<Send\b/)
 })
 
 test('home mode locale does not keep stale direct page copy', () => {

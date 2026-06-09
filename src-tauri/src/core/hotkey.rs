@@ -28,7 +28,6 @@ pub enum HotkeyFunction {
     OpenOrCloseDashboard,
     ClashModeRule,
     ClashModeGlobal,
-    StaleClashModeDirect,
     ToggleSystemProxy,
     ToggleTunMode,
     StaleEntryLightweightMode,
@@ -44,7 +43,6 @@ impl fmt::Display for HotkeyFunction {
             Self::OpenOrCloseDashboard => "open_or_close_dashboard",
             Self::ClashModeRule => "clash_mode_rule",
             Self::ClashModeGlobal => "clash_mode_global",
-            Self::StaleClashModeDirect => "clash_mode_direct",
             Self::ToggleSystemProxy => "toggle_system_proxy",
             Self::ToggleTunMode => "toggle_tun_mode",
             Self::StaleEntryLightweightMode => "entry_lightweight_mode",
@@ -65,7 +63,6 @@ impl FromStr for HotkeyFunction {
             "open_or_close_dashboard" => Ok(Self::OpenOrCloseDashboard),
             "clash_mode_rule" => Ok(Self::ClashModeRule),
             "clash_mode_global" => Ok(Self::ClashModeGlobal),
-            "clash_mode_direct" => Ok(Self::StaleClashModeDirect),
             "toggle_system_proxy" => Ok(Self::ToggleSystemProxy),
             "toggle_tun_mode" => Ok(Self::ToggleTunMode),
             "entry_lightweight_mode" => Ok(Self::StaleEntryLightweightMode),
@@ -138,13 +135,6 @@ impl Hotkey {
                     logging_error!(Type::Core, feat::change_clash_mode(ClashMode::Global).await);
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
                 });
-            }
-            HotkeyFunction::StaleClashModeDirect => {
-                logging!(
-                    warn,
-                    Type::Hotkey,
-                    "Ignoring stale clash_mode_direct hotkey; use the global outbound switch instead"
-                );
             }
             HotkeyFunction::ToggleSystemProxy => {
                 AsyncHandler::spawn(async move || {

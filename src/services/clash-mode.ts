@@ -1,4 +1,4 @@
-export const CLASH_MODES = ['rule', 'global', 'direct'] as const
+export const CLASH_MODES = ['rule', 'global'] as const
 
 export type ClashMode = (typeof CLASH_MODES)[number]
 

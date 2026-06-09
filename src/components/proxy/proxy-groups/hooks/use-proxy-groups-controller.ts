@@ -9,7 +9,7 @@ import { useProxyGroupsListView } from './use-proxy-groups-list-view'
 
 export function useProxyGroupsController(props: ProxyGroupsProps) {
   const { mode, isChainMode = false, chainConfigData, onCloseChainMode } = props
-  const displayMode = mode === 'direct' ? 'rule' : mode
+  const displayMode = mode
 
   const chainMode = useChainMode({
     isChainMode,

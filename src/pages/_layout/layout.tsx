@@ -22,7 +22,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router'
 import AppIcon from '@/assets/image/icon_dark.svg?react'
 import { BaseErrorBoundary } from '@/components/base'
 import { IpInfoCard } from '@/components/home/ip-info-card'
-import { GlobalOutboundSwitch } from '@/components/layout/global-outbound-switch'
 import { LayoutItem } from '@/components/layout/layout-item'
 import { LayoutTraffic } from '@/components/layout/layout-traffic'
 import { NoticeManager } from '@/components/layout/notice-manager'
@@ -263,9 +262,6 @@ const Layout = () => {
         {/* 顶部贯穿式页眉与导航控制台 */}
         <div className="layout-header">
           <div className="layout-header__drag-zone" data-tauri-drag-region="true" />
-          <div className="layout-header__center">
-            <GlobalOutboundSwitch />
-          </div>
 
           {/* 左侧 Logo */}
           <div className="the-logo">

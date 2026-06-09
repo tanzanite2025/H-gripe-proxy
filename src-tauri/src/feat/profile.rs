@@ -1,7 +1,10 @@
 use crate::{
     config::{Config, IProfiles, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
     core::{CoreManager, handle, tray, validate::ValidationOutcome},
-    utils::help::{mask_err, mask_url},
+    utils::{
+        help::{mask_err, mask_url},
+        network::NetworkManager,
+    },
 };
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
@@ -25,6 +28,16 @@ async fn fetch_profile_update_item(url: &str, option: Option<&PrfOption>) -> Res
     }
 
     PrfItem::from_url(url, None, None, option).await
+}
+
+fn log_profile_update_fetch_error(stage: &str, err: &anyhow::Error) {
+    logging!(
+        debug,
+        Type::Config,
+        "[Subscription Update] {} detailed error chain: {}",
+        stage,
+        mask_err(&format!("{err:#}"))
+    );
 }
 
 /// Toggle proxy profile — directly calls the same logic as patch_profiles_config_by_profile_index
@@ -376,6 +389,7 @@ async fn perform_profile_update(
                     "，尝试使用Clash代理更新"
                 }
             );
+            log_profile_update_fetch_error("direct update", &err);
 
             if strict_direct_update {
                 if is_mannual_trigger {
@@ -409,8 +423,42 @@ async fn perform_profile_update(
                 "Warning: [订阅更新] Clash代理更新失败: {}，尝试使用系统代理更新",
                 mask_err(&err.to_string())
             );
+            log_profile_update_fetch_error("clash proxy update", &err);
             last_err = err;
         }
+    }
+
+    let system_proxy_available = match NetworkManager::has_system_proxy() {
+        Ok(available) => available,
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Config,
+                "Warning: [Subscription Update] failed to inspect system proxy settings, skip system proxy retry: {}",
+                mask_err(&err.to_string())
+            );
+            log_profile_update_fetch_error("inspect system proxy", &err);
+            if is_mannual_trigger {
+                handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
+            }
+            bail!(
+                "failed to update profile after direct and clash proxy attempts; system proxy retry skipped because proxy settings could not be inspected: {last_err}"
+            );
+        }
+    };
+
+    if !system_proxy_available {
+        logging!(
+            info,
+            Type::Config,
+            "[Subscription Update] System proxy retry skipped because no system proxy is enabled"
+        );
+        if is_mannual_trigger {
+            handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
+        }
+        bail!(
+            "failed to update profile after direct and clash proxy attempts; system proxy retry skipped because no system proxy is enabled: {last_err}"
+        );
     }
 
     merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(false);
@@ -431,6 +479,7 @@ async fn perform_profile_update(
                 "Warning: [订阅更新] 系统代理更新失败: {}，所有重试均已失败",
                 mask_err(&err.to_string())
             );
+            log_profile_update_fetch_error("system proxy update", &err);
             last_err = err;
         }
     }

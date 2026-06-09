@@ -16,6 +16,8 @@ use tokio::fs;
 use reqwest_dav::re_exports::url::form_urlencoded;
 use tauri::Url;
 
+pub const AUXILIARY_RULES_NAME: &str = "china rules";
+
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct PrfItem {
     pub uid: Option<String>,
@@ -563,11 +565,12 @@ impl PrfItem {
     /// ## Rules type (enhance)
     pub fn from_rules() -> Result<Self> {
         let uid = help::get_uid("r").into();
-        let file = format!("{uid}.yaml").into(); // yaml ext
+        let file = format!("china-rules-{uid}.yaml").into(); // yaml ext
 
         Ok(Self {
             uid: Some(uid),
             itype: Some("rules".into()),
+            name: Some(AUXILIARY_RULES_NAME.into()),
             file: Some(file),
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(tmpl::ITEM_RULES.into()),
@@ -689,4 +692,19 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
     }
 
     Ok(url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_rules_uses_china_rules_file_prefix() {
+        let item = PrfItem::from_rules().expect("rules item should be created");
+        let uid = item.uid.as_deref().expect("rules item should have uid");
+        let expected = format!("china-rules-{uid}.yaml");
+
+        assert_eq!(item.file.as_deref(), Some(expected.as_str()));
+        assert_eq!(item.name.as_deref(), Some(AUXILIARY_RULES_NAME));
+    }
 }

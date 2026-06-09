@@ -36,7 +36,7 @@ use self::{
 pub(crate) use self::stable_egress::{apply_stable_egress_policy, apply_stable_egress_policy_with_advanced};
 use crate::utils::dirs;
 use crate::{
-    config::{Config, IVerge},
+    config::{AUXILIARY_RULES_NAME, Config, IVerge},
     constants,
     utils::tmpl,
 };
@@ -405,7 +405,10 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         .current_script()
         .cloned()
         .unwrap_or_else(|| "Script".into());
-    let rules_uid = current_item.current_rules().cloned().unwrap_or_else(|| "Rules".into());
+    let rules_uid = current_item
+        .current_rules()
+        .cloned()
+        .unwrap_or_else(|| AUXILIARY_RULES_NAME.into());
     let proxies_uid = current_item
         .current_proxies()
         .cloned()

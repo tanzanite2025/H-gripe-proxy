@@ -4,13 +4,16 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 const repoRoot = process.cwd()
-const currentProxyCardPath = join(
+const clashModeServicePath = join(repoRoot, 'src', 'services', 'clash-mode.ts')
+const backendClashModePath = join(repoRoot, 'src-tauri', 'src', 'core', 'clash_mode.rs')
+const currentProxyControllerPath = join(
   repoRoot,
   'src',
   'components',
   'home',
   'current-proxy-card',
-  'index.tsx',
+  'hooks',
+  'use-current-proxy-card-controller.ts',
 )
 const currentProxyDataPath = join(
   repoRoot,
@@ -49,14 +52,14 @@ const proxyDelayCheckPath = join(
   'use-proxy-delay-check.ts',
 )
 
-test('current proxy card treats direct as a global outbound intent, not a card mode', () => {
-  const source = readFileSync(currentProxyCardPath, 'utf8')
+test('current proxy card only derives global-vs-rule state from the public clash mode', () => {
+  const source = readFileSync(currentProxyControllerPath, 'utf8')
 
-  assert.match(source, /const proxyChainMode = mode === 'direct' \? DEFAULT_CLASH_MODE : mode/)
-  assert.match(source, /const isGlobalMode = proxyChainMode === 'global'/)
+  assert.match(source, /const mode =[\s\S]*?DEFAULT_CLASH_MODE/)
+  assert.match(source, /const isGlobalMode = mode === 'global'/)
+  assert.doesNotMatch(source, /proxyChainMode/)
+  assert.doesNotMatch(source, /mode === 'direct'/)
   assert.doesNotMatch(source, /const isDirectMode/)
-  assert.doesNotMatch(source, /disabled=\{isDirectMode/)
-  assert.doesNotMatch(source, /isDirectMode/)
 })
 
 test('current proxy data does not synthesize DIRECT as a homepage proxy selection', () => {
@@ -68,7 +71,7 @@ test('current proxy data does not synthesize DIRECT as a homepage proxy selectio
   assert.doesNotMatch(source, /\{ name: 'DIRECT' \}/)
 })
 
-test('current proxy display and delay checks no longer expose direct mode UI branches', () => {
+test('current proxy display and delay checks do not expose direct-mode UI branches', () => {
   const displaySource = readFileSync(proxyInfoDisplayPath, 'utf8')
   const delaySource = readFileSync(proxyDelayCheckPath, 'utf8')
 
@@ -77,6 +80,15 @@ test('current proxy display and delay checks no longer expose direct mode UI bra
   assert.doesNotMatch(delaySource, /isDirectMode/)
 })
 
-test('stale current-proxy selector component is not kept as a second direct-mode branch', () => {
+test('stale current-proxy selector component is not kept as a second mode branch', () => {
   assert.equal(existsSync(staleProxySelectorsPath), false)
+})
+
+test('clash mode direct is removed instead of being aliased anywhere', () => {
+  const serviceSource = readFileSync(clashModeServicePath, 'utf8')
+  const backendModeSource = readFileSync(backendClashModePath, 'utf8')
+
+  assert.doesNotMatch(serviceSource, /LEGACY_CLASH_MODE_ALIASES/)
+  assert.doesNotMatch(serviceSource, /direct:\s*DEFAULT_CLASH_MODE/)
+  assert.doesNotMatch(backendModeSource, /"direct" => Ok\(Self::Rule\)/)
 })

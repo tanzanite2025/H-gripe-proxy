@@ -88,7 +88,7 @@
         "NOT": "邏輯非 (NOT)",
         "MATCH": "匹配所有請求 (MATCH)"
       },
-      "title": "編輯規則"
+      "title": "編輯china rules"
     }
   }
 }

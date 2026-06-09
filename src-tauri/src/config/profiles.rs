@@ -73,13 +73,7 @@ impl IProfiles {
     pub fn primary_items(&self) -> Vec<PrfItem> {
         self.items
             .as_ref()
-            .map(|items| {
-                items
-                    .iter()
-                    .filter(|item| item.is_primary_profile())
-                    .cloned()
-                    .collect()
-            })
+            .map(|items| items.iter().filter(|item| item.is_primary_profile()).cloned().collect())
             .unwrap_or_default()
     }
 
@@ -107,9 +101,9 @@ impl IProfiles {
     }
 
     pub fn has_primary_profiles(&self) -> bool {
-        self.items.as_ref().is_some_and(|items| {
-            items.iter().any(PrfItem::is_primary_profile)
-        })
+        self.items
+            .as_ref()
+            .is_some_and(|items| items.iter().any(PrfItem::is_primary_profile))
     }
 
     // Helper to find and remove an item by uid from the items vec, returning its file name (if any).
@@ -526,7 +520,8 @@ impl IProfiles {
                 }
 
                 // 对于主 profile 类型（remote/local），还需要收集其关联的扩展文件
-                if item.is_primary_profile() && let Some(option) = &item.option
+                if item.is_primary_profile()
+                    && let Some(option) = &item.option
                 {
                     // 收集关联的扩展文件
                     if let Some(merge_uid) = &option.merge
@@ -577,15 +572,16 @@ impl IProfiles {
         // L12345678.yaml (local)
         // m12345678.yaml (merge)
         // s12345678.js (script)
-        // r12345678.yaml (rules)
+        // china-rules-r12345678.yaml (rules)
         // p12345678.yaml (proxies)
         // g12345678.yaml (groups)
 
         let patterns = [
-            r"^[RL][a-zA-Z0-9]+\.yaml$",  // Remote/Local profiles
-            r"^m[a-zA-Z0-9]+\.yaml$",     // Merge files
-            r"^s[a-zA-Z0-9]+\.js$",       // Script files
-            r"^[rpg][a-zA-Z0-9]+\.yaml$", // Rules/Proxies/Groups files
+            r"^[RL][a-zA-Z0-9]+\.yaml$",         // Remote/Local profiles
+            r"^m[a-zA-Z0-9]+\.yaml$",            // Merge files
+            r"^s[a-zA-Z0-9]+\.js$",              // Script files
+            r"^china-rules-[a-zA-Z0-9]+\.yaml$", // Rules files
+            r"^[pg][a-zA-Z0-9]+\.yaml$",         // Proxies/Groups files
         ];
 
         patterns.iter().any(|pattern| {
@@ -662,4 +658,17 @@ pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem)
             Ok((profiles, ()))
         })
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profile_file_detection_accepts_china_rules_prefix_only() {
+        assert!(IProfiles::is_profile_file("china-rules-rAbC123.yaml"));
+        assert!(!IProfiles::is_profile_file("rAbC123.yaml"));
+        assert!(IProfiles::is_profile_file("pAbC123.yaml"));
+        assert!(IProfiles::is_profile_file("gAbC123.yaml"));
+    }
 }

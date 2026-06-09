@@ -1,5 +1,5 @@
 use crate::{
-    config::{Config, IProfiles, PrfItem},
+    config::{AUXILIARY_RULES_NAME, Config, IProfiles, PrfItem},
     core::{
         CoreManager, handle,
         validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome},
@@ -27,7 +27,7 @@ pub fn profile_affects_runtime(profiles: &IProfiles, index: &str) -> bool {
     [
         item.current_merge().map_or("Merge", String::as_str),
         item.current_script().map_or("Script", String::as_str),
-        item.current_rules().map_or("Rules", String::as_str),
+        item.current_rules().map_or(AUXILIARY_RULES_NAME, String::as_str),
         item.current_proxies().map_or("Proxies", String::as_str),
         item.current_groups().map_or("Groups", String::as_str),
     ]
@@ -45,37 +45,52 @@ fn find_runtime_dependency_issue(profiles: &IProfiles) -> Result<Option<String>>
     let dependency_uids = [
         ("主订阅", current_uid.as_str()),
         ("合并配置", current_item.current_merge().map_or("Merge", String::as_str)),
-        ("脚本配置", current_item.current_script().map_or("Script", String::as_str)),
-        ("规则配置", current_item.current_rules().map_or("Rules", String::as_str)),
-        ("节点覆盖", current_item.current_proxies().map_or("Proxies", String::as_str)),
-        ("分组覆盖", current_item.current_groups().map_or("Groups", String::as_str)),
+        (
+            "脚本配置",
+            current_item.current_script().map_or("Script", String::as_str),
+        ),
+        (
+            "china rules",
+            current_item
+                .current_rules()
+                .map_or(AUXILIARY_RULES_NAME, String::as_str),
+        ),
+        (
+            "节点覆盖",
+            current_item.current_proxies().map_or("Proxies", String::as_str),
+        ),
+        (
+            "分组覆盖",
+            current_item.current_groups().map_or("Groups", String::as_str),
+        ),
     ];
 
     for (label, uid) in dependency_uids {
         let item = match profiles.get_item(uid) {
             Ok(item) => item,
             Err(_) => {
-                return Ok(Some(format!(
-                    "当前运行配置关联项缺失：{label} {uid} 不存在。请先恢复或刷新当前订阅，再保存。"
-                )
-                .into()));
+                return Ok(Some(
+                    format!("当前运行配置关联项缺失：{label} {uid} 不存在。请先恢复或刷新当前订阅，再保存。").into(),
+                ));
             }
         };
 
         let Some(file) = item.file.as_ref() else {
-            return Ok(Some(format!(
-                "当前运行配置关联项缺失：{label} {uid} 没有 file 字段。请先恢复或刷新当前订阅，再保存。"
-            )
-            .into()));
+            return Ok(Some(
+                format!("当前运行配置关联项缺失：{label} {uid} 没有 file 字段。请先恢复或刷新当前订阅，再保存。")
+                    .into(),
+            ));
         };
 
         let path = profiles_dir.join(file.as_str());
         if !path.is_file() {
-            return Ok(Some(format!(
-                "当前运行配置关联文件缺失：{label} {uid} -> {}。请先恢复或刷新当前订阅，再保存。",
-                path.display()
-            )
-            .into()));
+            return Ok(Some(
+                format!(
+                    "当前运行配置关联文件缺失：{label} {uid} -> {}。请先恢复或刷新当前订阅，再保存。",
+                    path.display()
+                )
+                .into(),
+            ));
         }
     }
 
@@ -124,10 +139,7 @@ pub async fn save_profile_file(index: &str, file_data: Option<String>) -> Result
 
     if let Some(message) = runtime_issue {
         handle::Handle::notice_message("config_validate::error", message.clone());
-        return Ok(ValidationOutcome::invalid(
-            ValidationErrorKind::FileMissing,
-            message,
-        ));
+        return Ok(ValidationOutcome::invalid(ValidationErrorKind::FileMissing, message));
     }
 
     fs::write(&file_path, &file_data).await?;

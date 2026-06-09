@@ -20,8 +20,14 @@ use tokio_util::time::{DelayQueue, delay_queue::Key};
 
 enum TimerCommand {
     Apply(HashMap<String, u64>),
-    RunNow(String),
+    RunNow { uid: String, reason: RunNowReason },
     TaskFinished(String),
+}
+
+#[derive(Clone, Copy)]
+enum RunNowReason {
+    Scheduled,
+    StartupOverdue,
 }
 
 struct TaskState {
@@ -50,6 +56,9 @@ pub struct Timer {
 singleton!(Timer, TIMER_INSTANCE);
 
 impl Timer {
+    const RESOLVE_DONE_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+    const STARTUP_OVERDUE_WARMUP_DELAY: Duration = Duration::from_secs(20);
+
     fn new() -> Self {
         let (command_tx, command_rx) = mpsc::unbounded_channel();
         Self {
@@ -110,8 +119,16 @@ impl Timer {
                     && let Some(updated) = item.updated
                     && cur_timestamp - (updated as i64) >= (interval as i64) * 60
                 {
-                    logging!(info, Type::Timer, "Running overdue timer task immediately: uid={}", uid);
-                    let _ = self.command_tx.send(TimerCommand::RunNow(uid.clone()));
+                    logging!(
+                        info,
+                        Type::Timer,
+                        "Queueing overdue timer task after startup warmup: uid={}",
+                        uid
+                    );
+                    let _ = self.command_tx.send(TimerCommand::RunNow {
+                        uid: uid.clone(),
+                        reason: RunNowReason::StartupOverdue,
+                    });
                 }
             }
         }
@@ -180,8 +197,8 @@ impl Timer {
                         Some(TimerCommand::Apply(new_map)) => {
                             Self::apply_timer_map(&mut queue, &mut tasks, new_map);
                         }
-                        Some(TimerCommand::RunNow(uid)) => {
-                            Self::run_task_now(&mut queue, &mut tasks, uid, command_tx.clone());
+                        Some(TimerCommand::RunNow { uid, reason }) => {
+                            Self::run_task_now(&mut queue, &mut tasks, uid, reason, command_tx.clone());
                         }
                         Some(TimerCommand::TaskFinished(uid)) => {
                             Self::finish_task(&mut queue, &mut tasks, uid);
@@ -273,13 +290,14 @@ impl Timer {
             return;
         }
 
-        Self::spawn_update_task(uid, command_tx);
+        Self::spawn_update_task(uid, command_tx, RunNowReason::Scheduled);
     }
 
     fn run_task_now(
         queue: &mut DelayQueue<String>,
         tasks: &mut HashMap<String, TaskState>,
         uid: String,
+        reason: RunNowReason,
         command_tx: mpsc::UnboundedSender<TimerCommand>,
     ) {
         let Some(state) = tasks.get_mut(&uid) else {
@@ -293,7 +311,7 @@ impl Timer {
         if let Some(key) = state.key.take() {
             queue.remove(&key);
         }
-        Self::spawn_update_task(uid, command_tx);
+        Self::spawn_update_task(uid, command_tx, reason);
     }
 
     fn mark_task_running(state: &mut TaskState, uid: &str, immediate: bool) -> bool {
@@ -325,10 +343,22 @@ impl Timer {
         state.key = Some(key);
     }
 
-    fn spawn_update_task(uid: String, command_tx: mpsc::UnboundedSender<TimerCommand>) {
+    fn spawn_update_task(uid: String, command_tx: mpsc::UnboundedSender<TimerCommand>, reason: RunNowReason) {
         logging!(info, Type::Timer, "Starting timer task: uid={}", uid);
         AsyncHandler::spawn(move || async move {
-            Self::wait_until_resolve_done(Duration::from_millis(5000)).await;
+            Self::wait_until_resolve_done(Self::RESOLVE_DONE_WAIT_TIMEOUT).await;
+
+            if matches!(reason, RunNowReason::StartupOverdue) {
+                logging!(
+                    info,
+                    Type::Timer,
+                    "Delaying overdue timer task for startup warmup: uid={}, delay={}s",
+                    uid,
+                    Self::STARTUP_OVERDUE_WARMUP_DELAY.as_secs()
+                );
+                sleep(Self::STARTUP_OVERDUE_WARMUP_DELAY).await;
+            }
+
             Self::async_task(&uid).await;
             let _ = command_tx.send(TimerCommand::TaskFinished(uid));
         });

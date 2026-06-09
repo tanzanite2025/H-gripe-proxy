@@ -124,7 +124,7 @@ fn after_change_clash_mode() {
     });
 }
 
-/// Change Clash mode (rule/global/direct)
+/// Change Clash mode (rule/global)
 pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
     let mode = mode.as_str();
     let mut mapping = Mapping::new();

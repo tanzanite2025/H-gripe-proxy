@@ -23,14 +23,13 @@ test('hotkey settings do not expose a global direct shortcut entry', () => {
   assert.doesNotMatch(source, /functions\.direct/)
 })
 
-test('backend hotkey handling ignores stale direct shortcut configs', () => {
-  const source = readFileSync(backendHotkeyPath, 'utf8')
+test('legacy direct hotkey is removed instead of being handled at runtime', () => {
+  const hotkeySource = readFileSync(backendHotkeyPath, 'utf8')
 
-  assert.match(source, /StaleClashModeDirect/)
-  assert.match(source, /"clash_mode_direct" => Ok\(Self::StaleClashModeDirect\)/)
-  assert.match(source, /HotkeyFunction::StaleClashModeDirect => \{/)
-  assert.doesNotMatch(source, /change_clash_mode\(ClashMode::Direct\)/)
-  assert.doesNotMatch(source, /\bClashModeDirect\b/)
+  assert.doesNotMatch(hotkeySource, /clash_mode_direct/)
+  assert.doesNotMatch(hotkeySource, /sanitize_hotkeys/)
+  assert.doesNotMatch(hotkeySource, /StaleClashModeDirect/)
+  assert.doesNotMatch(hotkeySource, /change_clash_mode\(ClashMode::Direct\)/)
 })
 
 test('hotkey locale does not keep direct function copy', () => {

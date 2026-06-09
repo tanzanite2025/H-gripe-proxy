@@ -521,14 +521,6 @@ fn create_proxy_menu_item(
     Ok((proxies_submenu, inline_proxy_items))
 }
 
-fn normalize_proxy_chain_mode(mode: &str) -> &str {
-    match mode {
-        "global" => "global",
-        "direct" => "rule",
-        _ => "rule",
-    }
-}
-
 async fn create_tray_menu(
     app_handle: &AppHandle,
     mode: Option<&str>,
@@ -537,7 +529,10 @@ async fn create_tray_menu(
     tun_mode_available: bool,
     profiles_preview: Vec<IProfilePreview<'_>>,
 ) -> Result<tauri::menu::Menu<Wry>> {
-    let current_proxy_mode = normalize_proxy_chain_mode(mode.unwrap_or(""));
+    let current_proxy_mode = match mode.and_then(|value| value.parse::<ClashMode>().ok()) {
+        Some(ClashMode::Global) => "global",
+        _ => "rule",
+    };
 
     // TODO: should update tray menu again when it was timeout error
     let snapshot_service = RuntimeSnapshotService::global();

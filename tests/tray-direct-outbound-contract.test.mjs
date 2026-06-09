@@ -31,19 +31,16 @@ test('tray outbound mode menu only exposes proxy-chain modes', () => {
   assert.doesNotMatch(trayMod, /hotkeys\.get\("clash_mode_direct"\)/)
 })
 
-test('tray direct runtime state is displayed as proxy-chain rule state', () => {
+test('tray resolves visible proxy-chain mode from the public clash-mode parser', () => {
   const trayMod = readFileSync(trayModPath, 'utf8')
 
   assert.match(
     trayMod,
-    /let current_proxy_mode = normalize_proxy_chain_mode\(mode\.unwrap_or\(""\)\)/,
+    /let current_proxy_mode = match mode\.and_then\(\|value\| value\.parse::<ClashMode>\(\)\.ok\(\)\) \{/,
   )
-  assert.match(trayMod, /fn normalize_proxy_chain_mode\(mode: &str\) -> &str/)
-  assert.match(trayMod, /"direct" => "rule"/)
-  assert.doesNotMatch(
-    trayMod,
-    /"direct" => clash_verge_i18n::t!\("tray\.direct"\)/,
-  )
+  assert.match(trayMod, /Some\(ClashMode::Global\) => "global"/)
+  assert.doesNotMatch(trayMod, /normalize_proxy_chain_mode/)
+  assert.doesNotMatch(trayMod, /"direct" => "rule"/)
 })
 
 test('tray locale resources do not keep direct outbound mode copy', () => {

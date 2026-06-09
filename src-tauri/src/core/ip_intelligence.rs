@@ -607,7 +607,10 @@ mod tests {
             options: HashMap::new(),
         };
 
-        let error = build_provider(&config).unwrap_err();
+        let error = match build_provider(&config) {
+            Ok(_) => panic!("ipinfo provider without token should fail"),
+            Err(error) => error,
+        };
 
         assert!(error.to_string().contains("access token"));
     }

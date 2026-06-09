@@ -42,10 +42,8 @@ export const ClashModeCard = () => {
     HomeProxyChainMode | undefined
   >()
 
-  // 直连是顶部全局出口；首页卡片只展示代理链路内部的规则状态。
   const currentModeKey = resolveClashMode(clashConfig?.mode, runtimeConfig?.mode)
-  const displayMode =
-    optimisticMode ?? (currentModeKey === 'direct' ? 'rule' : currentModeKey)
+  const displayMode = optimisticMode ?? currentModeKey
 
   const modeDescription = useMemo(() => {
     if (displayMode) {
@@ -57,7 +55,6 @@ export const ClashModeCard = () => {
     return t('home.components.clashMode.errors.communication')
   }, [displayMode, isCoreDataPending, t])
 
-  // 模式图标映射
   const modeIcons = useMemo(
     () => ({
       rule: <Route className="h-4 w-4" />,
@@ -66,7 +63,6 @@ export const ClashModeCard = () => {
     [],
   )
 
-  // 切换模式的处理函数
   const onChangeMode = useLockFn(async (mode: HomeProxyChainMode) => {
     if (mode === displayMode) return
     setOptimisticMode(mode)
@@ -91,9 +87,8 @@ export const ClashModeCard = () => {
   })
 
   return (
-    <div className="flex flex-col w-full mt-1">
-      {/* 模式选择按钮组 - 工业滑块选择器 */}
-      <div className="flex items-center justify-between p-1 h-10 bg-action-hover/[0.02] border border-solid border-divider rounded-3xl w-full">
+    <div className="mt-1 flex w-full flex-col">
+      <div className="flex h-10 w-full items-center justify-between rounded-3xl border border-solid border-divider bg-action-hover/[0.02] p-1">
         {HOME_PROXY_CHAIN_MODES.map((mode) => {
           const isActive = mode === displayMode
           return (
@@ -101,17 +96,17 @@ export const ClashModeCard = () => {
               key={mode}
               onClick={() => onChangeMode(mode)}
               className={cn(
+                'flex-1 max-w-[160px]',
                 'cursor-pointer px-3 h-8 flex items-center justify-center gap-2',
                 'rounded-[20px] border-none transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
-                'flex-1 max-w-[160px]',
                 isActive
                   ? 'bg-primary text-primary-contrast shadow-[0_2px_8px_-2px_rgba(var(--color-primary-rgb),0.3)]'
                   : 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-action-hover/5 hover:scale-[1.02]',
-                'active:scale-[0.98]'
+                'active:scale-[0.98]',
               )}
             >
               {modeIcons[mode]}
-              <span className="text-[11px] capitalize tracking-[0.02em] font-semibold">
+              <span className="text-[11px] font-semibold capitalize tracking-[0.02em]">
                 {MODE_META[mode].label}
               </span>
             </div>
@@ -119,12 +114,11 @@ export const ClashModeCard = () => {
         })}
       </div>
 
-      {/* 说明文本区域 - 微型 Badge 元数据排版 */}
-      <div className="w-full mt-3 flex items-center gap-3 px-1">
-        <div className="inline-flex items-center h-[18px] px-3 rounded-full bg-primary/8 text-primary text-[8px] font-sans font-semibold uppercase tracking-[0.1em] flex-shrink-0">
+      <div className="mt-3 flex w-full items-center gap-3 px-1">
+        <div className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-primary/8 px-3 font-sans text-[8px] font-semibold uppercase tracking-[0.1em] text-primary">
           {displayMode || 'INFO'}
         </div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-text-secondary opacity-60 break-words leading-tight">
+        <p className="break-words text-[9px] font-semibold uppercase leading-tight tracking-[0.15em] text-text-secondary opacity-60">
           {modeDescription}
         </p>
       </div>

@@ -30,7 +30,7 @@ function main(config, profileName) {
 ";
 
 /// enhanced profile
-pub const ITEM_RULES: &str = "# Profile Enhancement Rules Template for Clash Verge
+pub const ITEM_RULES: &str = "# Profile Enhancement china rules Template for Clash Verge
 
 prepend: []
 
