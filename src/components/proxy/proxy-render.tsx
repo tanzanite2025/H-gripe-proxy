@@ -45,6 +45,7 @@ export const ProxyRender = (props: RenderProps) => {
     onChangeProxy,
     onConfigureStrategyGroup,
   } = props
+
   const { type, group, headState, proxy, proxyCol } = item
   const enableGroupIcon = true
   const isDark = true
@@ -56,6 +57,11 @@ export const ProxyRender = (props: RenderProps) => {
   })
 
   const showType = headState?.showType
+  const isStrategyGroup = group
+    ? categorizeProxyGroup(group) === 'strategy'
+    : false
+  const allowMemberSelection = !isStrategyGroup
+
   const proxyColItemsMemo = useMemo(() => {
     if (type !== 4 || !proxyCol || !group) {
       return null
@@ -68,10 +74,23 @@ export const ProxyRender = (props: RenderProps) => {
         proxy={proxyItem!}
         selected={group.now === proxyItem?.name}
         showType={showType}
-        onClick={() => onChangeProxy(group, proxyItem!)}
+        clickable={allowMemberSelection}
+        onClick={
+          allowMemberSelection
+            ? () => onChangeProxy(group, proxyItem!)
+            : undefined
+        }
       />
     ))
-  }, [type, proxyCol, item.key, group, showType, onChangeProxy])
+  }, [
+    allowMemberSelection,
+    type,
+    proxyCol,
+    item.key,
+    group,
+    showType,
+    onChangeProxy,
+  ])
 
   if (type === 5) {
     const toneClass =
@@ -122,8 +141,7 @@ export const ProxyRender = (props: RenderProps) => {
   }
 
   if (type === 0 && group) {
-    const canConfigureStrategyGroup =
-      categorizeProxyGroup(group) === 'strategy'
+    const canConfigureStrategyGroup = isStrategyGroup
 
     return (
       <div
@@ -249,7 +267,10 @@ export const ProxyRender = (props: RenderProps) => {
         selected={group.now === proxy.name}
         showType={headState?.showType}
         sx={{ py: 0, pl: 2 }}
-        onClick={() => onChangeProxy(group, proxy)}
+        clickable={allowMemberSelection}
+        onClick={
+          allowMemberSelection ? () => onChangeProxy(group, proxy) : undefined
+        }
       />
     )
   }

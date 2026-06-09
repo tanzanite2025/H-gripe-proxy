@@ -1,6 +1,8 @@
 // Clash Verge Rev - Top Tabbed Layout Style (TANZANITE-GO 风格)
 
 .layout {
+  --layout-header-safe-height: 142px;
+
   width: 100%;
   height: 100vh;
   display: flex;
@@ -11,7 +13,7 @@
   .layout-header {
     position: relative;
     height: auto;
-    min-height: 142px;
+    min-height: var(--layout-header-safe-height);
     display: flex;
     flex-direction: column;
     align-items: stretch;

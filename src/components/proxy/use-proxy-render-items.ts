@@ -11,6 +11,7 @@ import {
 import {
   buildDisplayPath,
   buildProxyItems,
+  GLOBAL_SELECTOR_SECTION_COPY,
   GROUP_SECTION_COPY,
   MANUAL_PAGE_SECTION_COPY,
   type GroupCache,
@@ -61,6 +62,14 @@ const toStrategyMemberItems = ({
     } as ProxyItem
   })
 
+const buildStrategyPathText = (group: ProxyGroup, memberCount: number) => {
+  if (memberCount <= 0) {
+    return '自动策略 · 未配置成员'
+  }
+
+  return `自动策略 · 当前 ${group.now || '未观测'} · 手动成员 ${memberCount} 个`
+}
+
 export const useProxyRenderItems = ({
   mode,
   headStates,
@@ -76,14 +85,19 @@ export const useProxyRenderItems = ({
     if (!proxiesData) return []
 
     const useRule = mode === 'rule' || mode === 'script'
+    const topLevelGroups = getDisplayableTopLevelGroups({
+      groups: proxiesData.groups,
+      global: proxiesData.global,
+    })
+    const strategyGroups = topLevelGroups.filter(
+      (group) => categorizeProxyGroup(group) === 'strategy',
+    )
     const renderGroups = useRule
-      ? getDisplayableTopLevelGroups({
-          groups: proxiesData.groups,
-          global: proxiesData.global,
-        })
-      : [proxiesData.global!]
+      ? topLevelGroups
+      : [proxiesData.global!, ...strategyGroups]
 
     const cache = groupCacheRef.current
+
     const buildGroupItems = (group: ProxyGroup): IRenderItem[] => {
       const headState = headStates[group.name] || DEFAULT_STATE
       const groupKind = categorizeProxyGroup(group)
@@ -118,9 +132,7 @@ export const useProxyRenderItems = ({
             groupKind === 'strategy' ? strategyMembers.length : undefined,
           pathText:
             groupKind === 'strategy'
-              ? strategyMembers.length > 0
-                ? `手动成员 ${strategyMembers.length} 个`
-                : '未配置成员'
+              ? buildStrategyPathText(group, strategyMembers.length)
               : pathDisplay.join(' -> ') ||
                 buildDisplayPath([group.now], proxiesData.records)[0] ||
                 group.now,
@@ -136,21 +148,40 @@ export const useProxyRenderItems = ({
         })
 
         const split = splitProxyGroupTargets(group)
-        const manualTargets =
+        const strategyMemberTargets =
           groupKind === 'strategy'
             ? toStrategyMemberItems({
                 group,
                 names: strategyMembers,
                 records: proxiesData.records,
               })
-            : split.manual
+            : []
+
+        const canExposeStrategyTargets =
+          groupKind !== 'strategy' && split.strategy.length > 0
+
         const sections = (
-          [
-            {
-              kind: 'manual' as const,
-              proxies: manualTargets,
-            },
-          ]
+          groupKind === 'strategy'
+            ? [
+                {
+                  kind: 'manual' as const,
+                  proxies: strategyMemberTargets,
+                },
+              ]
+            : [
+                {
+                  kind: 'manual' as const,
+                  proxies: split.manual,
+                },
+                ...(canExposeStrategyTargets
+                  ? [
+                      {
+                        kind: 'strategy' as const,
+                        proxies: split.strategy as ProxyItem[],
+                      },
+                    ]
+                  : []),
+              ]
         )
           .map((section) => ({
             ...section,
@@ -170,7 +201,7 @@ export const useProxyRenderItems = ({
           .filter((section) => section.proxies.length > 0)
 
         const shouldShowSectionHeaders =
-          false
+          groupKind !== 'strategy' && sections.length > 1
 
         if (!sections.length) {
           items.push({
@@ -182,14 +213,15 @@ export const useProxyRenderItems = ({
         } else {
           sections.forEach((section) => {
             if (shouldShowSectionHeaders) {
+              const sectionCopy = GLOBAL_SELECTOR_SECTION_COPY[section.kind]
+
               items.push({
                 type: 5,
                 key: `section-${group.name}-${section.kind}`,
                 group,
                 sectionKind: section.kind,
-                sectionTitle: GROUP_SECTION_COPY[section.kind].title,
-                sectionDescription:
-                  GROUP_SECTION_COPY[section.kind].description,
+                sectionTitle: sectionCopy.title,
+                sectionDescription: sectionCopy.description,
               })
             }
 
@@ -226,27 +258,27 @@ export const useProxyRenderItems = ({
     const withPageSections =
       useRule && renderGroups.length > 1
         ? (() => {
-          const next: IRenderItem[] = []
-          let insertedManual = false
+            const next: IRenderItem[] = []
+            let insertedManual = false
 
-          retList.forEach((item) => {
-            if (!insertedManual && item.type === 0) {
-              next.push({
-                type: 5,
-                key: 'page-section-manual',
-                group: item.group,
-                sectionKind: 'manual',
-                sectionTitle: MANUAL_PAGE_SECTION_COPY.title,
-                sectionDescription: MANUAL_PAGE_SECTION_COPY.description,
-              })
-              insertedManual = true
-            }
+            retList.forEach((item) => {
+              if (!insertedManual && item.type === 0) {
+                next.push({
+                  type: 5,
+                  key: 'page-section-manual',
+                  group: item.group,
+                  sectionKind: 'manual',
+                  sectionTitle: MANUAL_PAGE_SECTION_COPY.title,
+                  sectionDescription: MANUAL_PAGE_SECTION_COPY.description,
+                })
+                insertedManual = true
+              }
 
-            next.push(item)
-          })
+              next.push(item)
+            })
 
-          return next
-        })()
+            return next
+          })()
         : retList
 
     return !useRule

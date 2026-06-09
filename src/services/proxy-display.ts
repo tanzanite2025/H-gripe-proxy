@@ -24,10 +24,18 @@ export interface ProxyPathAnalysis {
 
 const STRATEGY_GROUP_TYPES = new Set(['urltest', 'loadbalance'])
 const AUXILIARY_GROUP_TYPES = new Set(['fallback'])
+const HIDDEN_PROXY_NAMES = new Set(['COMPATIBLE'])
+const BUILTIN_POLICY_NAMES = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS'])
 
 const normalizeType = (type?: string) => type?.trim().toLowerCase() || ''
 
 const normalizeName = (value?: string | null) => value?.trim() || ''
+
+export const isHiddenProxyName = (name?: string | null) =>
+  HIDDEN_PROXY_NAMES.has(normalizeName(name).toUpperCase())
+
+export const isBuiltinPolicyName = (name?: string | null) =>
+  BUILTIN_POLICY_NAMES.has(normalizeName(name).toUpperCase())
 
 const collectProxyNames = (
   group?: { all?: Array<string | { name?: string }> } | null,
@@ -39,7 +47,12 @@ const collectProxyNames = (
             ? normalizeName(item)
             : normalizeName(item?.name),
         )
-        .filter((name) => name.length > 0)
+        .filter(
+          (name) =>
+            name.length > 0 &&
+            !isHiddenProxyName(name) &&
+            !isBuiltinPolicyName(name),
+        )
     : []
 
 export const isProxyGroupItem = (
@@ -81,6 +94,10 @@ export const splitProxyGroupTargets = (
   }
 
   group.all.forEach((proxy) => {
+    if (isHiddenProxyName(proxy.name) || isBuiltinPolicyName(proxy.name)) {
+      return
+    }
+
     const kind = categorizeProxyTarget(proxy)
     split[kind].push(proxy)
   })
@@ -179,6 +196,10 @@ export const buildProxyDisplayOptionsFromNames = ({
   const strategy: ProxyDisplayOption[] = []
 
   names.forEach((name) => {
+    if (isHiddenProxyName(name) || isBuiltinPolicyName(name)) {
+      return
+    }
+
     const option: ProxyDisplayOption = {
       name,
       kind: categorizeProxyTarget(records?.[name]),

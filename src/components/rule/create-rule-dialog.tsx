@@ -42,11 +42,15 @@ export const CreateRuleDialog = (props: Props) => {
   const { refreshRules } = useAppRefreshers()
   const [ruleType, setRuleType] = useState('DOMAIN')
   const [payload, setPayload] = useState('')
-  const [proxy, setProxy] = useState('DIRECT')
+  const [proxy, setProxy] = useState('')
 
   const handleCreate = useLockFn(async () => {
     if (!payload.trim()) {
       showNotice.error('Payload is required')
+      return
+    }
+    if (!proxy.trim()) {
+      showNotice.error('Proxy is required')
       return
     }
     try {

@@ -1,7 +1,5 @@
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 
-export const builtinProxyPolicies = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
-
 export const proxyStrategyOptions = [
   'select',
   'url-test',
@@ -46,13 +44,3 @@ export const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
   'load-balance': 'proxies.components.enums.strategies.load-balance',
   relay: 'proxies.components.enums.strategies.relay',
 }
-
-export const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
-  builtinProxyPolicies.reduce(
-    (acc, policy) => {
-      acc[policy] =
-        `proxies.components.enums.policies.${policy}` as TranslationKey
-      return acc
-    },
-    {} as Record<string, TranslationKey>,
-  )

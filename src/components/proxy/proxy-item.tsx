@@ -25,14 +25,21 @@ interface Props {
   selected: boolean
   showType?: boolean
   sx?: any
+  clickable?: boolean
   onClick?: (name: string) => void
 }
 
 export const ProxyItem = (props: Props) => {
-  const { group, proxy, selected, showType = true, onClick } = props
+  const {
+    group,
+    proxy,
+    selected,
+    showType = true,
+    clickable = true,
+    onClick,
+  } = props
   const isDark = true
 
-  // -1/<=0 为不显示，-2 为 loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -44,13 +51,13 @@ export const ProxyItem = (props: Props) => {
   return (
     <ListItem className="py-0 pl-2">
       <div
-        role="button"
-        tabIndex={0}
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : -1}
         className={`rounded mb-2 h-10 group ${
           selected
             ? 'border-l-[3px] ml-[-3px] w-[calc(100%+3px)]'
             : ''
-        }`}
+        } ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
           backgroundColor: bgcolor,
           ...(selected
@@ -62,13 +69,17 @@ export const ProxyItem = (props: Props) => {
               }
             : {}),
         }}
-        onClick={() => onClick?.(proxy.name)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onClick?.(proxy.name)
-          }
-        }}
+        onClick={clickable ? () => onClick?.(proxy.name) : undefined}
+        onKeyDown={
+          clickable
+            ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onClick?.(proxy.name)
+                }
+              }
+            : undefined
+        }
       >
         <ListItemText
           title={proxy.name}

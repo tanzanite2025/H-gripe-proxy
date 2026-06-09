@@ -37,7 +37,6 @@ interface GroupFormProps {
   proxyProviderList: string[]
   interfaceNameList: string[]
   translateStrategy: (value: string) => string
-  translatePolicy: (value: string) => string
   onPrepend: () => void
   onAppend: () => void
 }
@@ -48,7 +47,6 @@ export const GroupForm = ({
   proxyProviderList,
   interfaceNameList,
   translateStrategy,
-  translatePolicy,
   onPrepend,
   onAppend,
 }: GroupFormProps) => {
@@ -134,7 +132,7 @@ export const GroupForm = ({
               >
                 {proxyPolicyList.map((option) => (
                   <option key={option} value={option}>
-                    {translatePolicy(option)}
+                    {option}
                   </option>
                 ))}
               </Select>

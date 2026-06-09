@@ -17,11 +17,12 @@ import { DialogContent } from '@/components/tailwind/DialogContent'
 import { DialogTitle } from '@/components/tailwind/DialogTitle'
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { isBuiltinPolicyName } from '@/services/proxy-display'
 import type { MonacoEditorInstance } from '@/types/monaco'
 
 import { RuleFormPanel } from './components/rule-form-panel'
 import { RuleSequenceList } from './components/rule-sequence-list'
-import { builtinProxyPolicies, rules, type RuleDefinition } from './constants'
+import { rules, type RuleDefinition } from './constants'
 
 interface Props {
   groupsUid: string
@@ -35,6 +36,38 @@ interface Props {
 
 const toArray = <T,>(value: unknown): T[] => {
   return Array.isArray(value) ? (value as T[]) : []
+}
+
+const extractRuleTarget = (rule: string) => {
+  const parts = rule
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length < 2) return ''
+
+  const last = parts[parts.length - 1]?.toLowerCase()
+  if (last === 'no-resolve') {
+    return parts[parts.length - 2] || ''
+  }
+
+  return parts[parts.length - 1] || ''
+}
+
+const ensureNoBuiltinPoliciesInRules = (rules: string[]) => {
+  const matched = rules
+    .map((rule) => ({
+      target: extractRuleTarget(rule),
+    }))
+    .filter(({ target }) => isBuiltinPolicyName(target))
+
+  if (matched.length > 0) {
+    throw new Error(
+      `规则覆盖里含有内核保留动作 ${matched
+        .map(({ target }) => target)
+        .join(', ')}，产品层不允许保存。`,
+    )
+  }
 }
 
 const isDeletedGroup = (
@@ -65,7 +98,7 @@ export const RulesEditorViewer = ({
   const [ruleType, setRuleType] = useState<RuleDefinition>(rules[0])
   const [ruleContent, setRuleContent] = useState('')
   const [noResolve, setNoResolve] = useState(false)
-  const [proxyPolicy, setProxyPolicy] = useState(builtinProxyPolicies[0])
+  const [proxyPolicy, setProxyPolicy] = useState('')
   const [proxyPolicyList, setProxyPolicyList] = useState<string[]>([])
   const [ruleList, setRuleList] = useState<string[]>([])
   const [ruleSetList, setRuleSetList] = useState<string[]>([])
@@ -176,8 +209,13 @@ export const RulesEditorViewer = ({
       globalMergeConfig?.['sub-rules'] ?? {},
     )
 
-    setProxyPolicyList(
-      builtinProxyPolicies.concat(mergedGroups.map((group) => group.name)),
+    const nextProxyPolicyList = Array.from(
+      new Set(mergedGroups.map((group) => group.name).filter(Boolean)),
+    )
+
+    setProxyPolicyList(nextProxyPolicyList)
+    setProxyPolicy((prev) =>
+      nextProxyPolicyList.includes(prev) ? prev : nextProxyPolicyList[0] || '',
     )
     setRuleSetList(Object.keys(mergedRuleProviders))
     setSubRuleList(Object.keys(mergedSubRules))
@@ -204,6 +242,10 @@ export const RulesEditorViewer = ({
       )
     }
 
+    if (!proxyPolicy) {
+      throw new Error('请先选择一个可用的策略组。')
+    }
+
     if (ruleType.validator && !ruleType.validator(ruleContent)) {
       throw new Error(t('rules.modals.editor.form.validation.invalidRule'))
     }
@@ -219,7 +261,7 @@ export const RulesEditorViewer = ({
       const raw = validateRule()
       if (prependSeq.includes(raw)) return
       setPrependSeq([raw, ...prependSeq])
-    } catch (error: any) {
+    } catch (error: unknown) {
       showNotice.error(error)
     }
   }
@@ -229,22 +271,32 @@ export const RulesEditorViewer = ({
       const raw = validateRule()
       if (appendSeq.includes(raw)) return
       setAppendSeq([...appendSeq, raw])
-    } catch (error: any) {
+    } catch (error: unknown) {
       showNotice.error(error)
     }
   }
 
   const handleSave = useLockFn(async () => {
     try {
+      if (visualization) {
+        ensureNoBuiltinPoliciesInRules(prependSeq)
+        ensureNoBuiltinPoliciesInRules(appendSeq)
+      } else {
+        const parsed = yaml.load(currData) as ISeqProfileConfig | null
+        ensureNoBuiltinPoliciesInRules(parsed?.prepend || [])
+        ensureNoBuiltinPoliciesInRules(parsed?.append || [])
+      }
+
       if (!(await saveProfileFile(property, currData))) {
         await fetchContent()
         onClose()
         return
       }
+
       showNotice.success('shared.feedback.notifications.saved')
       onSave?.(prevData, currData)
       onClose()
-    } catch (error: any) {
+    } catch (error: unknown) {
       showNotice.error(error)
     }
   })

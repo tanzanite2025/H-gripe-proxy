@@ -2,7 +2,7 @@ use crate::{
     config::{Config, IProfiles, PrfItem},
     core::{
         CoreManager, handle,
-        validate::{CoreConfigValidator, ValidationOutcome},
+        validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome},
     },
     module::auto_backup::{AutoBackupManager, AutoBackupTrigger},
     utils::dirs,
@@ -34,6 +34,54 @@ pub fn profile_affects_runtime(profiles: &IProfiles, index: &str) -> bool {
     .contains(&index)
 }
 
+fn find_runtime_dependency_issue(profiles: &IProfiles) -> Result<Option<String>> {
+    let Some(current_uid) = profiles.current_primary_uid() else {
+        return Ok(None);
+    };
+
+    let current_item = profiles.get_item(&current_uid)?;
+    let profiles_dir = dirs::app_profiles_dir()?;
+
+    let dependency_uids = [
+        ("主订阅", current_uid.as_str()),
+        ("合并配置", current_item.current_merge().map_or("Merge", String::as_str)),
+        ("脚本配置", current_item.current_script().map_or("Script", String::as_str)),
+        ("规则配置", current_item.current_rules().map_or("Rules", String::as_str)),
+        ("节点覆盖", current_item.current_proxies().map_or("Proxies", String::as_str)),
+        ("分组覆盖", current_item.current_groups().map_or("Groups", String::as_str)),
+    ];
+
+    for (label, uid) in dependency_uids {
+        let item = match profiles.get_item(uid) {
+            Ok(item) => item,
+            Err(_) => {
+                return Ok(Some(format!(
+                    "当前运行配置关联项缺失：{label} {uid} 不存在。请先恢复或刷新当前订阅，再保存。"
+                )
+                .into()));
+            }
+        };
+
+        let Some(file) = item.file.as_ref() else {
+            return Ok(Some(format!(
+                "当前运行配置关联项缺失：{label} {uid} 没有 file 字段。请先恢复或刷新当前订阅，再保存。"
+            )
+            .into()));
+        };
+
+        let path = profiles_dir.join(file.as_str());
+        if !path.is_file() {
+            return Ok(Some(format!(
+                "当前运行配置关联文件缺失：{label} {uid} -> {}。请先恢复或刷新当前订阅，再保存。",
+                path.display()
+            )
+            .into()));
+        }
+    }
+
+    Ok(None)
+}
+
 /// 保存配置文件（核心业务逻辑）
 pub async fn save_profile_file(index: &str, file_data: Option<String>) -> Result<ValidationOutcome> {
     let file_data = match file_data {
@@ -47,7 +95,7 @@ pub async fn save_profile_file(index: &str, file_data: Option<String>) -> Result
         _ => None,
     };
 
-    let (rel_path, is_merge_file, is_script_file, affects_runtime) = {
+    let (rel_path, is_merge_file, is_script_file, affects_runtime, runtime_issue) = {
         let profiles = Config::profiles().await;
         let profiles_guard = profiles.latest_arc();
         let item = profiles_guard.get_item(index)?;
@@ -55,7 +103,12 @@ pub async fn save_profile_file(index: &str, file_data: Option<String>) -> Result
         let path = item.file.clone().ok_or_else(|| anyhow::anyhow!("file field is null"))?;
         let is_script = item.itype.as_ref().is_some_and(|t| t == "script") || path.ends_with(".js");
         let affects_runtime = profile_affects_runtime(&profiles_guard, index);
-        (path, is_merge, is_script, affects_runtime)
+        let runtime_issue = if affects_runtime {
+            find_runtime_dependency_issue(&profiles_guard)?
+        } else {
+            None
+        };
+        (path, is_merge, is_script, affects_runtime, runtime_issue)
     };
 
     let original_content = PrfItem {
@@ -68,6 +121,14 @@ pub async fn save_profile_file(index: &str, file_data: Option<String>) -> Result
     let profiles_dir = dirs::app_profiles_dir()?;
     let file_path = profiles_dir.join(rel_path.as_str());
     let file_path_str = file_path.to_string_lossy().to_string();
+
+    if let Some(message) = runtime_issue {
+        handle::Handle::notice_message("config_validate::error", message.clone());
+        return Ok(ValidationOutcome::invalid(
+            ValidationErrorKind::FileMissing,
+            message,
+        ));
+    }
 
     fs::write(&file_path, &file_data).await?;
 

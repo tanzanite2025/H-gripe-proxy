@@ -44,7 +44,21 @@ export const GROUP_SECTION_COPY: Record<
   },
   strategy: {
     title: '策略池',
-    description: '这里只显示你手动定义进池的成员，不再额外自动展开。',
+    description: '这里只显示你手动加入策略池的成员，不再在池内手动点选单节点。',
+  },
+}
+
+export const GLOBAL_SELECTOR_SECTION_COPY: Record<
+  VisibleSectionKind,
+  { title: string; description?: string }
+> = {
+  manual: {
+    title: '单选节点',
+    description: '这里是可以直接选中的单一出口节点。',
+  },
+  strategy: {
+    title: '策略池',
+    description: '选择这里的策略池后，由池内策略自动决定当前出口节点。',
   },
 }
 

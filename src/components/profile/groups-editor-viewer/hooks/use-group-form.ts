@@ -4,10 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { showNotice } from '@/services/notice-service'
 
-import {
-  PROXY_POLICY_LABEL_KEYS,
-  PROXY_STRATEGY_LABEL_KEYS,
-} from '../constants'
+import { PROXY_STRATEGY_LABEL_KEYS } from '../constants'
 import { isGroupNameExists, validateGroupName } from '../utils/group-helpers'
 
 interface UseGroupFormProps {
@@ -42,14 +39,6 @@ export const useGroupForm = ({
     (value: string) =>
       PROXY_STRATEGY_LABEL_KEYS[value]
         ? t(PROXY_STRATEGY_LABEL_KEYS[value])
-        : value,
-    [t],
-  )
-
-  const translatePolicy = useCallback(
-    (value: string) =>
-      PROXY_POLICY_LABEL_KEYS[value]
-        ? t(PROXY_POLICY_LABEL_KEYS[value])
         : value,
     [t],
   )
@@ -106,7 +95,6 @@ export const useGroupForm = ({
   return {
     control,
     translateStrategy,
-    translatePolicy,
     handlePrepend,
     handleAppend,
   }

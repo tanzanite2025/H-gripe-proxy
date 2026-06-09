@@ -4,17 +4,19 @@ import { showNotice } from '@/services/notice-service'
 type NavigateFunction = (path: string, options?: any) => void
 type TranslateFunction = (key: string) => string
 
+const CORE_PANIC_NOTICE_WINDOW_MS = 8000
+
+let lastCorePanicNoticeAt = 0
+let pendingCoreRestartTimer: ReturnType<typeof setTimeout> | null = null
+
 export const handleNoticeMessage = (
   status: string,
   msg: string,
-  t: TranslateFunction,
+  _t: TranslateFunction,
   navigate: NavigateFunction,
 ) => {
   const handlers: Record<string, () => void> = {
     'import_sub_url::ok': () => {
-      // 空 msg 传入，我们不希望导致 后端-前端-后端 死循环，这里只做提醒。
-      // 未来细分事件通知时，可以考虑传入订阅 ID 或其他标识符
-      // navigate("/profile", { state: { current: msg } });
       navigate('/profile')
       showNotice.success(
         'shared.feedback.notifications.importSubscriptionSuccess',
@@ -77,10 +79,21 @@ export const handleNoticeMessage = (
     'config_validate::merge_error': () =>
       showNotice.error('shared.feedback.validation.merge.generalError', msg),
     core_panic_recovered: () => {
-      showNotice.error(msg)
-      setTimeout(() => {
+      const now = Date.now()
+
+      if (now - lastCorePanicNoticeAt >= CORE_PANIC_NOTICE_WINDOW_MS) {
+        lastCorePanicNoticeAt = now
+        showNotice.error(msg)
+      }
+
+      if (pendingCoreRestartTimer) {
+        return
+      }
+
+      pendingCoreRestartTimer = setTimeout(() => {
+        pendingCoreRestartTimer = null
         restartCore().catch((err) => {
-          console.error('自愈重启内核失败:', err)
+          console.error('自动重启内核失败:', err)
         })
       }, 2000)
     },

@@ -22,16 +22,21 @@ interface Props {
   proxy: IProxyItem
   selected: boolean
   showType?: boolean
+  clickable?: boolean
   onClick?: (name: string) => void
 }
 
-// 多列布局
 export const ProxyItemMini = (props: Props) => {
-  const { group, proxy, selected, showType = true, onClick } = props
+  const {
+    group,
+    proxy,
+    selected,
+    showType = true,
+    clickable = true,
+    onClick,
+  } = props
 
   const { t } = useTranslation()
-
-  // -1/<=0 为不显示，-2 为 loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -40,13 +45,16 @@ export const ProxyItemMini = (props: Props) => {
   return (
     <ListItemButton
       selected={selected}
-      onClick={() => onClick?.(proxy.name)}
+      disabled={!clickable}
+      onClick={clickable ? () => onClick?.(proxy.name) : undefined}
       className={cn(
         'h-14 rounded-xl pl-3 pr-2 justify-between items-center relative',
         'bg-white dark:bg-[#24252f]',
         'group',
         selected &&
           'w-[calc(100%+3px)] -ml-[3px] border-l-[3px] border-primary bg-primary/15 dark:bg-primary/35',
+        !clickable &&
+          'hover:bg-white dark:hover:bg-[#24252f] active:bg-white dark:active:bg-[#24252f]',
       )}
     >
       <div
@@ -139,7 +147,6 @@ export const ProxyItemMini = (props: Props) => {
           </div>
         )}
         {!proxy.provider && delayValue !== -2 && (
-          // provider 的节点不支持检测
           <div
             className="the-check hidden group-hover:block p-0.5 px-1 text-sm rounded hover:bg-primary/15"
             onClick={(e) => {
@@ -153,7 +160,6 @@ export const ProxyItemMini = (props: Props) => {
         )}
 
         {delayValue >= 0 && (
-          // 显示延迟
           <div
             className={cn(
               'the-delay p-0.5 px-1 text-sm rounded',
@@ -174,12 +180,10 @@ export const ProxyItemMini = (props: Props) => {
           delayValue !== -2 &&
           delayValue < 0 &&
           selected && (
-            // 展示已选择的 icon
             <CheckCircle2 className="the-icon mr-1 block h-4 w-4" />
           )}
       </div>
       {group.fixed && group.fixed === proxy.name && (
-        // 展示 fixed 状态
         <span
           className={cn(
             'absolute text-xs -top-1 -right-1',

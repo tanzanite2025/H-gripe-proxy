@@ -9,12 +9,12 @@ import {
   getNetworkInterfaces,
   readProfileFile,
 } from '@/services/cmds'
+import { isBuiltinPolicyName } from '@/services/proxy-display'
 
 import {
   buildGroupsYaml,
   normalizeDeleteSeq,
 } from '../utils/group-helpers'
-import { builtinProxyPolicies } from '../constants'
 
 interface UseGroupDataProps {
   mergeUid: string
@@ -140,17 +140,20 @@ export const useGroupData = ({
         typeof proxy === 'string' ? proxy : (proxy?.name as string | undefined),
       )
       .filter(
-        (name): name is string => typeof name === 'string' && name.length > 0,
+        (name): name is string =>
+          typeof name === 'string' &&
+          name.length > 0 &&
+          !isBuiltinPolicyName(name),
       )
 
-    const computedPolicyList = builtinProxyPolicies.concat(
+    const computedPolicyList = [
       prependSeq.map((group: IProxyGroupConfig) => group.name),
       (originGroupsObj?.['proxy-groups'] || [])
         .map((group: IProxyGroupConfig) => group.name)
         .filter((name) => !deleteSeq.includes(name)),
       appendSeq.map((group: IProxyGroupConfig) => group.name),
       proxyNames,
-    )
+    ].flat()
 
     setProxyPolicyList(Array.from(new Set(computedPolicyList)))
   }, [appendSeq, deleteSeq, prependSeq, profileUid, proxiesUid])

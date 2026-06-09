@@ -145,7 +145,7 @@ export const ProxyGroups = (props: Props) => {
         return
       }
 
-      if (!['Selector', 'URLTest', 'LoadBalance'].includes(group.type)) return
+      if (group.type !== 'Selector') return
 
       handleProxyGroupChange(group, proxy)
     },

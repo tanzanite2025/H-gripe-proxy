@@ -1,12 +1,16 @@
 import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
+import { isBuiltinPolicyName, isHiddenProxyName } from './proxy-display'
+
 export interface CalculatedProxies {
   global: IProxyGroupItem
-  direct: IProxyItem
   groups: IProxyGroupItem[]
   records: Record<string, IProxyItem>
   proxies: IProxyItem[]
 }
+
+const isDisplayableProxyName = (name?: string | null) =>
+  !isHiddenProxyName(name) && !isBuiltinPolicyName(name)
 
 export async function calcuProxyProviders() {
   const providers = await getProxyProviders()
@@ -59,12 +63,10 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
     return fallbackProxy(name)
   }
 
-  const { GLOBAL: global, DIRECT: direct, REJECT: reject } = proxyRecord
+  const { GLOBAL: global } = proxyRecord
   const rawProxies = Object.values(proxyRecord).filter(
     (proxy): proxy is IProxyItem => Boolean(proxy),
   )
-  const directItem = direct ?? fallbackProxy('DIRECT', 'Direct')
-  const rejectItem = reject ?? fallbackProxy('REJECT', 'Reject')
 
   let groups: IProxyGroupItem[] = Object.values(proxyRecord).reduce<
     IProxyGroupItem[]
@@ -72,7 +74,9 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
     if (each?.name !== 'GLOBAL' && each?.all) {
       acc.push({
         ...each,
-        all: each.all!.map((item) => generateItem(item)),
+        all: each.all!
+          .map((item) => generateItem(item))
+          .filter((item) => isDisplayableProxyName(item.name)),
       })
     }
 
@@ -86,7 +90,9 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
       if (proxyRecord[name]?.all) {
         acc.push({
           ...proxyRecord[name],
-          all: proxyRecord[name].all!.map((item) => generateItem(item)),
+          all: proxyRecord[name].all!
+            .map((item) => generateItem(item))
+            .filter((item) => isDisplayableProxyName(item.name)),
         })
       }
       return acc
@@ -98,34 +104,34 @@ export async function calcuProxies(): Promise<CalculatedProxies> {
       .concat(globalGroups)
   }
 
-  const proxies = [directItem, rejectItem].concat(
-    rawProxies.filter(
-      (proxy) =>
-        !proxy?.all?.length && proxy?.name !== 'DIRECT' && proxy?.name !== 'REJECT',
-    ),
+  const proxies = rawProxies.filter(
+    (proxy) =>
+      !proxy?.all?.length &&
+      isDisplayableProxyName(proxy?.name),
   )
 
-  const fallbackGlobalNames = proxies
-    .map((proxy) => proxy.name)
-    .filter((name) => name !== 'REJECT')
-  const globalAllNames = global?.all?.length ? global.all : fallbackGlobalNames
+  const fallbackGlobalNames = proxies.map((proxy) => proxy.name)
+  const globalAllNames =
+    global?.all?.filter((name) => isDisplayableProxyName(name))?.length
+      ? global.all.filter((name) => isDisplayableProxyName(name))
+      : fallbackGlobalNames
   const runtimeGlobal = {
     ...fallbackProxy('GLOBAL', 'Selector'),
     ...global,
-    now: global?.now || globalAllNames[0] || 'DIRECT',
+    now:
+      (global?.now && isDisplayableProxyName(global.now) ? global.now : '') ||
+      globalAllNames[0] ||
+      '',
     all: globalAllNames.map((item) => generateItem(item)),
   }
 
   const records = {
     ...proxyRecord,
-    DIRECT: proxyRecord.DIRECT ?? directItem,
-    REJECT: proxyRecord.REJECT ?? rejectItem,
     GLOBAL: proxyRecord.GLOBAL ?? runtimeGlobal,
   }
 
   return {
     global: runtimeGlobal as IProxyGroupItem,
-    direct: directItem as IProxyItem,
     groups,
     records: records as Record<string, IProxyItem>,
     proxies,

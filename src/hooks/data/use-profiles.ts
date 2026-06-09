@@ -126,7 +126,8 @@ export const useProfiles = () => {
       let hasChange = false
       const newSelected: typeof selected = []
       const { global, groups, records } = proxiesData
-      const selectableTypes = new Set(['Selector', 'URLTest', 'LoadBalance'])
+      const manuallySelectableTypes = new Set(['Selector'])
+      const autoManagedTypes = new Set(['URLTest', 'LoadBalance', 'Fallback'])
 
       for (const group of [global, ...groups]) {
         if (!group) continue
@@ -135,14 +136,14 @@ export const useProfiles = () => {
         const savedProxy = selectedMap[name]
         const availableProxies = Array.isArray(group.all) ? group.all : []
 
-        if (type === 'Fallback') {
+        if (autoManagedTypes.has(type)) {
           if (savedProxy != null) {
             hasChange = true
           }
           continue
         }
 
-        if (!selectableTypes.has(type)) {
+        if (!manuallySelectableTypes.has(type)) {
           if (savedProxy != null || now != null) {
             newSelected.push({ name, now: now || savedProxy })
           }

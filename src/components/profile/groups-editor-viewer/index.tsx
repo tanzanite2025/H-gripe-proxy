@@ -4,9 +4,15 @@ import { useTranslation } from 'react-i18next'
 
 import { MonacoEditor } from '@/components/base'
 import { Button } from '@/components/tailwind/Button'
-import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+} from '@/components/tailwind/Dialog'
 import { saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { isBuiltinPolicyName } from '@/services/proxy-display'
 import type { MonacoEditorInstance } from '@/types/monaco'
 
 import { GroupForm } from './components/group-form'
@@ -15,7 +21,26 @@ import { GroupSearch } from './components/group-search'
 import { useGroupData } from './hooks/use-group-data'
 import { useGroupDragDrop } from './hooks/use-group-drag-drop'
 import { useGroupForm } from './hooks/use-group-form'
-import { buildGroupsYaml } from './utils/group-helpers'
+import { buildGroupsYaml, parseGroupsYaml } from './utils/group-helpers'
+
+const ensureNoBuiltinPoliciesInGroups = (
+  prependSeq: IProxyGroupConfig[],
+  appendSeq: IProxyGroupConfig[],
+) => {
+  const groups = [...prependSeq, ...appendSeq]
+
+  for (const group of groups) {
+    const policies = (group.proxies || [])
+      .map((name) => name?.trim() || '')
+      .filter((name) => name.length > 0 && isBuiltinPolicyName(name))
+
+    if (policies.length > 0) {
+      throw new Error(
+        `分组 ${group.name} 含有内核保留动作 ${policies.join(', ')}，产品层不允许保存。`,
+      )
+    }
+  }
+}
 
 interface Props {
   proxiesUid: string
@@ -36,7 +61,6 @@ export const GroupsEditorViewer = (props: Props) => {
   const [visualization, setVisualization] = useState(true)
   const [match, setMatch] = useState(() => (_: string) => true)
 
-  // Data management
   const {
     prevData,
     setPrevData,
@@ -62,7 +86,6 @@ export const GroupsEditorViewer = (props: Props) => {
     setCurrData,
   })
 
-  // Drag and drop
   const { sensors, onPrependDragEnd, onAppendDragEnd } = useGroupDragDrop({
     prependSeq,
     appendSeq,
@@ -70,22 +93,15 @@ export const GroupsEditorViewer = (props: Props) => {
     setAppendSeq,
   })
 
-  // Form management
-  const {
-    control,
-    translateStrategy,
-    translatePolicy,
-    handlePrepend,
-    handleAppend,
-  } = useGroupForm({
-    prependSeq,
-    setPrependSeq,
-    appendSeq,
-    setAppendSeq,
-    groupList,
-  })
+  const { control, translateStrategy, handlePrepend, handleAppend } =
+    useGroupForm({
+      prependSeq,
+      setPrependSeq,
+      appendSeq,
+      setAppendSeq,
+      groupList,
+    })
 
-  // Cleanup editor on unmount
   useEffect(() => {
     return () => {
       editorRef.current?.dispose()
@@ -93,7 +109,6 @@ export const GroupsEditorViewer = (props: Props) => {
     }
   }, [])
 
-  // Delete handlers
   const handlePrependDelete = useCallback(
     (name: string) => {
       setPrependSeq(prependSeq.filter((v) => v.name !== name))
@@ -119,12 +134,21 @@ export const GroupsEditorViewer = (props: Props) => {
     [deleteSeq, setDeleteSeq],
   )
 
-  // Save handler
   const handleSave = useLockFn(async () => {
     try {
       const nextData = visualization
         ? buildGroupsYaml(prependSeq, appendSeq, deleteSeq)
         : currData
+
+      if (visualization) {
+        ensureNoBuiltinPoliciesInGroups(prependSeq, appendSeq)
+      } else {
+        const parsed = parseGroupsYaml(nextData)
+        ensureNoBuiltinPoliciesInGroups(
+          parsed.prepend as IProxyGroupConfig[],
+          parsed.append as IProxyGroupConfig[],
+        )
+      }
 
       if (visualization) {
         setCurrData(nextData)
@@ -135,6 +159,7 @@ export const GroupsEditorViewer = (props: Props) => {
         onClose()
         return
       }
+
       showNotice.success('shared.feedback.notifications.saved')
       setPrevData(nextData)
       onSave?.(prevData, nextData)
@@ -181,13 +206,12 @@ export const GroupsEditorViewer = (props: Props) => {
               proxyProviderList={proxyProviderList}
               interfaceNameList={interfaceNameList}
               translateStrategy={translateStrategy}
-              translatePolicy={translatePolicy}
               onPrepend={handlePrepend}
               onAppend={handleAppend}
             />
 
             <div className="w-1/2 px-2.5">
-              <GroupSearch onSearch={(match) => setMatch(() => match)} />
+              <GroupSearch onSearch={(nextMatch) => setMatch(() => nextMatch)} />
               <GroupListView
                 prependSeq={prependSeq}
                 groupList={groupList}
@@ -208,7 +232,7 @@ export const GroupsEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={currData}
-            theme='vs-dark'
+            theme="vs-dark"
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}

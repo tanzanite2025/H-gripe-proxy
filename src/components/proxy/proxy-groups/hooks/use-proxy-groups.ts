@@ -5,6 +5,7 @@ import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
 import {
   getDisplayableTopLevelGroups,
+  isHiddenProxyName,
   isAuxiliarySelectionName,
   pickPreferredProxyNameFromGroup,
 } from '@/services/proxy-display'
@@ -62,10 +63,15 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
 
     const corrections = groups
       .map((group) => {
+        if (group.type !== 'Selector') {
+          return null
+        }
+
         const currentName = group.now?.trim() || ''
         if (
           !currentName ||
-          !isAuxiliarySelectionName(currentName, proxiesData.records)
+          (!isAuxiliarySelectionName(currentName, proxiesData.records) &&
+            !isHiddenProxyName(currentName))
         ) {
           return null
         }

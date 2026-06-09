@@ -62,6 +62,7 @@ export const Dialog = ({
     lg: 'max-w-[1200px]',
     xl: 'max-w-[1536px]',
   }
+  const dialogSafeTop = 'calc(var(--layout-header-safe-height, 142px) + 16px)'
 
   const paperClassName = slotProps?.paper?.className
   const paperStyle = slotProps?.paper?.style
@@ -75,14 +76,17 @@ export const Dialog = ({
       />
 
       {/* 对话框容器 - 顶部偏移补偿TAB栏高度 */}
-      <div className="fixed inset-0 flex items-center justify-center p-4" style={{ paddingTop: 'calc(72px + 1rem)' }}>
+      <div
+        className="fixed inset-x-0 bottom-0 flex items-center justify-center p-4"
+        style={{ top: dialogSafeTop }}
+      >
         <DialogPanel
           transition
           style={paperStyle}
           className={cn(
             fullWidth ? 'w-full' : 'w-auto',
             maxWidthClasses[maxWidth],
-            'flex flex-col max-h-[80vh] rounded-dialog bg-card shadow-dialog p-6 transition duration-300 data-[closed]:opacity-0 data-[closed]:scale-95 data-[enter]:opacity-100 data-[enter]:scale-100 data-[leave]:opacity-0 data-[leave]:scale-95',
+            'flex max-h-full flex-col rounded-dialog bg-card p-6 shadow-dialog transition duration-300 data-[closed]:scale-95 data-[closed]:opacity-0 data-[enter]:scale-100 data-[enter]:opacity-100 data-[leave]:scale-95 data-[leave]:opacity-0',
             className,
             paperClassName,
           )}

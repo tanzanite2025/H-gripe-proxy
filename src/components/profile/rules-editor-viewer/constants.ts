@@ -1,4 +1,3 @@
-import type { TranslationKey } from '@/types/generated/i18n-keys'
 import getSystem from '@/utils/misc'
 import { isValidIpCidr } from '@/utils/network'
 
@@ -125,20 +124,3 @@ export const RULE_TYPE_LABEL_KEYS: Record<string, string> = Object.fromEntries(
     `rules.modals.editor.ruleTypes.${rule.name}`,
   ]),
 )
-
-export const builtinProxyPolicies = [
-  'DIRECT',
-  'REJECT',
-  'REJECT-DROP',
-  'PASS',
-]
-
-export const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
-  builtinProxyPolicies.reduce(
-    (acc, policy) => {
-      acc[policy] =
-        `proxies.components.enums.policies.${policy}` as TranslationKey
-      return acc
-    },
-    {} as Record<string, TranslationKey>,
-  )

@@ -11,7 +11,6 @@ import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { TextField } from '@/components/tailwind/TextField'
 
 import {
-  PROXY_POLICY_LABEL_KEYS,
   RULE_TYPE_LABEL_KEYS,
   rules,
   type RuleDefinition,
@@ -141,7 +140,7 @@ export function RuleFormPanel({
         >
           {proxyPolicyList.map((option) => (
             <option key={option} value={option}>
-              {t(PROXY_POLICY_LABEL_KEYS[option] ?? option)}
+              {option}
             </option>
           ))}
         </Select>

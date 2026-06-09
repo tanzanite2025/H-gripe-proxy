@@ -1,6 +1,6 @@
 use super::{CoreManager, RunningMode};
 use crate::{
-    config::{Config, ConfigType, runtime::IRuntime},
+    config::{Config, runtime::IRuntime},
     constants::timing,
     core::{
         handle,
@@ -11,7 +11,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
-use std::{collections::HashSet, path::PathBuf, time::Instant};
+use std::{collections::HashSet, time::Instant};
 use tauri_plugin_mihomo::Error as MihomoError;
 
 impl CoreManager {
@@ -126,8 +126,7 @@ impl CoreManager {
     pub async fn apply_generate_config(&self) -> Result<ValidationOutcome> {
         match CoreConfigValidator::global().validate_config_outcome().await {
             Ok(outcome) if outcome.is_valid() => {
-                let run_path = Config::generate_file(ConfigType::Run).await?;
-                self.apply_config(run_path).await?;
+                self.apply_config().await?;
                 Ok(ValidationOutcome::Valid)
             }
             Ok(outcome) => {
@@ -161,10 +160,7 @@ impl CoreManager {
                         }
                     }
                 } else {
-                    let run_path = Config::generate_file(ConfigType::Run).await?;
-                    let path = dirs::path_to_str(&run_path)?;
-
-                    match self.reload_config(path).await {
+                    match self.reload_active_config().await {
                         Ok(_) => {
                             Config::runtime().await.apply();
                             logging!(
@@ -219,9 +215,8 @@ impl CoreManager {
         }
     }
 
-    async fn apply_config(&self, path: PathBuf) -> Result<()> {
-        let path = dirs::path_to_str(&path)?;
-        match self.reload_config(path).await {
+    async fn apply_config(&self) -> Result<()> {
+        match self.reload_active_config().await {
             Ok(_) => {
                 Config::runtime().await.apply();
                 logging!(info, Type::Core, "Configuration applied");
@@ -247,6 +242,13 @@ impl CoreManager {
                 }
             }
         }
+    }
+
+    async fn reload_active_config(&self) -> Result<(), MihomoError> {
+        // The core already started with the generated runtime config path.
+        // Reloading with an empty path asks Mihomo to reload the current file
+        // and avoids Windows SAFE_PATHS mismatches between app variants.
+        self.reload_config("").await
     }
 
     async fn reload_config(&self, path: &str) -> Result<(), MihomoError> {

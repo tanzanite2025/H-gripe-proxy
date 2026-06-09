@@ -6,6 +6,7 @@ use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
+use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
 
 impl CoreManager {
@@ -40,6 +41,10 @@ impl CoreManager {
     pub async fn restart_core(&self) -> Result<()> {
         logging!(info, Type::Core, "Restarting core");
         self.stop_core().await?;
+
+        #[cfg(target_os = "windows")]
+        tokio::time::sleep(Duration::from_millis(350)).await;
+
         self.start_core().await
     }
 

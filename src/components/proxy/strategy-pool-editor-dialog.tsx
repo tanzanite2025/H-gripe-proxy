@@ -25,6 +25,8 @@ import {
 import { showNotice } from '@/services/notice-service'
 import {
   categorizeProxyGroup,
+  isBuiltinPolicyName,
+  isHiddenProxyName,
   isProxyGroupItem,
 } from '@/services/proxy-display'
 import { cn } from '@/utils/cn'
@@ -39,6 +41,24 @@ type EditableStrategyGroupState = {
   originExists: boolean
 }
 
+type GroupSequence = {
+  prepend: IProxyGroupConfig[]
+  append: IProxyGroupConfig[]
+  delete: string[]
+}
+
+type StrategyGroupLoadWarning =
+  | 'profileNotReady'
+  | 'profileReadFailed'
+  | 'groupsReadFailed'
+
+type EditableStrategyGroupLoadResult = {
+  sequence: GroupSequence
+  state: EditableStrategyGroupState
+  selectedNames: string[]
+  warnings: StrategyGroupLoadWarning[]
+}
+
 type CandidateOption = {
   name: string
   type: string
@@ -46,19 +66,18 @@ type CandidateOption = {
   isGroup: boolean
 }
 
-const BUILTIN_PROXY_NAMES = new Set([
-  'DIRECT',
-  'REJECT',
-  'REJECT-DROP',
-  'PASS',
-])
-
 const RUNTIME_GROUP_TYPE_MAP: Record<string, IProxyGroupConfig['type']> = {
   Selector: 'select',
   URLTest: 'url-test',
   LoadBalance: 'load-balance',
   Fallback: 'fallback',
   Relay: 'relay',
+}
+
+const EMPTY_GROUP_SEQUENCE: GroupSequence = {
+  prepend: [],
+  append: [],
+  delete: [],
 }
 
 const normalizeNames = (names: Array<string | null | undefined>) =>
@@ -104,39 +123,74 @@ const buildFallbackGroupConfig = (
 
 const loadEditableStrategyGroup = async (
   group: IProxyGroupItem,
-  profileUid: string,
-  property: string,
-) => {
-  const [profileData, groupsData] = await Promise.all([
-    readProfileFile(profileUid),
-    readProfileFile(property),
-  ])
+  profileUid?: string,
+  property?: string,
+): Promise<EditableStrategyGroupLoadResult> => {
+  const warnings: StrategyGroupLoadWarning[] = []
+  let originGroup: IProxyGroupConfig | undefined
+  let sequence: GroupSequence = EMPTY_GROUP_SEQUENCE
 
-  const profileObject = yaml.load(profileData) as
-    | { 'proxy-groups'?: IProxyGroupConfig[] }
-    | null
-  const sequence = parseGroupsYaml(groupsData)
-  const originGroups = profileObject?.['proxy-groups'] || []
-  const originGroup = originGroups.find((item) => item?.name === group.name)
+  if (profileUid) {
+    try {
+      const profileData = await readProfileFile(profileUid)
+      const profileObject = yaml.load(profileData) as
+        | { 'proxy-groups'?: IProxyGroupConfig[] }
+        | null
+      const originGroups = profileObject?.['proxy-groups'] || []
+      originGroup = originGroups.find((item) => item?.name === group.name)
+    } catch {
+      warnings.push('profileReadFailed')
+    }
+  }
+
+  if (property) {
+    try {
+      const groupsData = await readProfileFile(property)
+      sequence = parseGroupsYaml(groupsData)
+    } catch {
+      warnings.push('groupsReadFailed')
+    }
+  } else {
+    warnings.push('profileNotReady')
+  }
+
   const overrideGroup =
     findLastGroupByName(sequence.append, group.name) ||
     findLastGroupByName(sequence.prepend, group.name)
   const baseGroup = cloneGroupConfig(
     overrideGroup || originGroup || buildFallbackGroupConfig(group),
   )
-
   const selectedNames = normalizeNames(
     Array.isArray(overrideGroup?.proxies) ? overrideGroup.proxies : [],
-  )
+  ).filter((name) => !isHiddenProxyName(name) && !isBuiltinPolicyName(name))
 
   return {
     sequence,
     state: {
       baseGroup,
       originExists: Boolean(originGroup),
-    } satisfies EditableStrategyGroupState,
+    },
     selectedNames,
+    warnings,
   }
+}
+
+const resolveLoadWarningMessage = (
+  warnings: StrategyGroupLoadWarning[],
+): string => {
+  if (warnings.includes('profileNotReady')) {
+    return '当前策略池覆盖配置还没准备好，先展示全部节点；配置加载完成后即可保存。'
+  }
+
+  if (warnings.includes('groupsReadFailed')) {
+    return '策略池已有配置暂时没读到，先展示全部节点；保存后会按当前勾选重建。'
+  }
+
+  if (warnings.includes('profileReadFailed')) {
+    return '原始分组配置暂时没读到，先展示全部节点；保存时会按当前勾选写入策略池。'
+  }
+
+  return ''
 }
 
 interface Props {
@@ -160,8 +214,10 @@ export function StrategyPoolEditorDialog({
   const [saving, setSaving] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [selectedNames, setSelectedNames] = useState<string[]>([])
-  const [editableState, setEditableState] =
-    useState<EditableStrategyGroupState | null>(null)
+  const [loadWarning, setLoadWarning] = useState('')
+
+  const groupsProperty = current?.option?.groups?.trim() || ''
+  const profileUid = current?.uid?.trim() || ''
 
   useEffect(() => {
     if (!open || !group) {
@@ -169,34 +225,50 @@ export function StrategyPoolEditorDialog({
       setSaving(false)
       setSearchText('')
       setSelectedNames([])
-      setEditableState(null)
-      return
-    }
-
-    const property = current?.option?.groups?.trim() || ''
-    const profileUid = current?.uid?.trim() || ''
-
-    if (!property || !profileUid) {
-      setEditableState(null)
-      setSelectedNames([])
+      setLoadWarning('')
       return
     }
 
     let cancelled = false
-    setLoading(true)
-    setSearchText('')
 
-    void loadEditableStrategyGroup(group, profileUid, property)
-      .then((result) => {
+    setLoading(true)
+    setSaving(false)
+    setSearchText('')
+    setSelectedNames([])
+    setLoadWarning(
+      resolveLoadWarningMessage(groupsProperty ? [] : ['profileNotReady']),
+    )
+
+    void (async () => {
+      let result = await loadEditableStrategyGroup(
+        group,
+        profileUid,
+        groupsProperty,
+      )
+
+      if (
+        groupsProperty &&
+        result.warnings.includes('groupsReadFailed') &&
+        (await enhanceProfiles())
+      ) {
+        result = await loadEditableStrategyGroup(
+          group,
+          profileUid,
+          groupsProperty,
+        )
+      }
+
+      if (cancelled) return
+
+      setSelectedNames(result.selectedNames)
+      setLoadWarning(resolveLoadWarningMessage(result.warnings))
+    })()
+      .catch(() => {
         if (cancelled) return
-        setEditableState(result.state)
-        setSelectedNames(result.selectedNames)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        setEditableState(null)
         setSelectedNames([])
-        showNotice.error(error)
+        setLoadWarning(
+          '策略池配置暂时读取失败，先展示全部节点；配置恢复后可以继续保存。',
+        )
       })
       .finally(() => {
         if (!cancelled) {
@@ -207,7 +279,7 @@ export function StrategyPoolEditorDialog({
     return () => {
       cancelled = true
     }
-  }, [current?.option?.groups, current?.uid, group, open])
+  }, [group, groupsProperty, open, profileUid])
 
   const candidateOptions = useMemo(() => {
     const records = (proxiesData?.records || {}) as Record<string, IProxyItem>
@@ -218,7 +290,8 @@ export function StrategyPoolEditorDialog({
 
     ;(Object.values(records) as IProxyItem[]).forEach((record) => {
       if (!record?.name) return
-      if (BUILTIN_PROXY_NAMES.has(record.name)) return
+      if (isBuiltinPolicyName(record.name)) return
+      if (isHiddenProxyName(record.name)) return
       if (categorizeProxyGroup(record) === 'auxiliary') return
       if (isProxyGroupItem(record)) return
 
@@ -231,6 +304,7 @@ export function StrategyPoolEditorDialog({
     })
 
     selectedNames.forEach((name) => {
+      if (isHiddenProxyName(name) || isBuiltinPolicyName(name)) return
       if (options.has(name)) return
 
       const record = records[name]
@@ -294,28 +368,27 @@ export function StrategyPoolEditorDialog({
   const handleSave = useLockFn(async () => {
     if (!group) return
 
-    const property = current?.option?.groups?.trim() || ''
-    const profileUid = current?.uid?.trim() || ''
-
-    if (!property || !profileUid) {
-      showNotice.error('当前配置缺少 groups 覆盖文件，无法保存策略池成员。')
+    if (!groupsProperty) {
+      showNotice.error(
+        '当前策略池覆盖配置还没准备好，暂时无法保存，请稍后再试。',
+      )
       return
     }
 
     if (selectedNames.length === 0) {
-      showNotice.error('策略池至少保留一个成员。')
+      showNotice.error('策略池至少要保留一个成员。')
       return
     }
 
     setSaving(true)
 
     try {
-      const { sequence, state } = await loadEditableStrategyGroup(
+      const result = await loadEditableStrategyGroup(
         group,
         profileUid,
-        property,
+        groupsProperty,
       )
-      const nextGroup = cloneGroupConfig(state.baseGroup)
+      const nextGroup = cloneGroupConfig(result.state.baseGroup)
 
       nextGroup.proxies = [...selectedNames]
       delete nextGroup.use
@@ -326,17 +399,17 @@ export function StrategyPoolEditorDialog({
       delete nextGroup['exclude-filter']
       delete nextGroup['exclude-type']
 
-      const nextPrepend = (sequence.prepend as IProxyGroupConfig[]).filter(
+      const nextPrepend = result.sequence.prepend.filter(
         (item) => item?.name !== group.name,
       )
-      const nextAppend = (sequence.append as IProxyGroupConfig[]).filter(
+      const nextAppend = result.sequence.append.filter(
         (item) => item?.name !== group.name,
       )
-      const nextDelete = (sequence.delete as string[]).filter(
+      const nextDelete = result.sequence.delete.filter(
         (name) => name !== group.name,
       )
 
-      if (state.originExists) {
+      if (result.state.originExists) {
         nextDelete.push(group.name)
       }
 
@@ -346,12 +419,8 @@ export function StrategyPoolEditorDialog({
         normalizeNames(nextDelete),
       )
 
-      if (!(await saveProfileFile(property, nextYaml))) {
+      if (!(await saveProfileFile(groupsProperty, nextYaml))) {
         throw new Error('策略池成员保存失败。')
-      }
-
-      if (!(await enhanceProfiles())) {
-        throw new Error('策略池成员已写入，但当前配置增强失败。')
       }
 
       await Promise.all([mutateProfiles(), onSaved?.()])
@@ -369,7 +438,11 @@ export function StrategyPoolEditorDialog({
   }
 
   const selectedNameSet = new Set(selectedNames)
-  const canSave = !loading && !saving && selectedNames.length > 0
+  const canSave =
+    !loading &&
+    !saving &&
+    selectedNames.length > 0 &&
+    Boolean(groupsProperty)
 
   return (
     <Dialog
@@ -378,7 +451,7 @@ export function StrategyPoolEditorDialog({
       showCloseButton
       maxWidth="md"
       fullWidth
-      slotProps={{ paper: { className: 'max-h-[88vh]' } }}
+      slotProps={{ paper: { className: 'max-h-full' } }}
     >
       <DialogTitle className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -414,76 +487,88 @@ export function StrategyPoolEditorDialog({
           onSearch={(_, state) => setSearchText(state.text)}
         />
 
+        {loadWarning ? (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            {loadWarning}
+          </div>
+        ) : null}
+
         <div className="rounded-2xl border border-white/8 bg-white/5 p-2">
           {loading ? (
-            <div className="px-4 py-10 text-center text-sm text-text-secondary">
-              正在读取当前策略池配置...
+            <div className="px-4 pb-2 pt-1 text-xs text-text-secondary">
+              正在读取当前策略池已保存成员...
             </div>
-          ) : !editableState ? (
-            <div className="px-4 py-10 text-center text-sm text-red-400">
-              读取策略池配置失败，请确认当前配置已加载完成。
-            </div>
-          ) : candidateOptions.length === 0 ? (
+          ) : null}
+
+          {candidateOptions.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-text-secondary">
               没有匹配到可加入的节点。
             </div>
           ) : (
-            <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
-              {candidateOptions.map((option) => {
-                const checked = selectedNameSet.has(option.name)
+            <div className="max-h-[50vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-3 items-start gap-2.5">
+                {candidateOptions.map((option) => {
+                  const checked = selectedNameSet.has(option.name)
 
-                return (
-                  <ListItemButton
-                    key={option.name}
-                    selected={checked}
-                    className={cn(
-                      'rounded-xl border border-white/8 px-3 py-2.5',
-                      checked
-                        ? 'bg-primary/10'
-                        : 'bg-black/10 hover:bg-white/8',
-                    )}
-                    onClick={() => toggleSelected(option.name)}
-                  >
-                    <div
-                      className="mr-3"
-                      onClick={(event) => event.stopPropagation()}
+                  return (
+                    <ListItemButton
+                      key={option.name}
+                      selected={checked}
+                      className={cn(
+                        'self-start items-start rounded-xl border border-white/8 px-3 py-2',
+                        checked
+                          ? 'bg-primary/10'
+                          : 'bg-black/10 hover:bg-white/8',
+                      )}
+                      onClick={() => toggleSelected(option.name)}
                     >
-                      <Checkbox
-                        checked={checked}
-                        onChange={(_, nextChecked) =>
-                          toggleSelected(option.name, nextChecked)
+                      <div
+                        className="mr-2 mt-0.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onChange={(_, nextChecked) =>
+                            toggleSelected(option.name, nextChecked)
+                          }
+                        />
+                      </div>
+
+                      <ListItemText
+                        title={option.name}
+                        slotProps={{
+                          secondary: {
+                            className:
+                              'mt-0.5 text-[11px] uppercase tracking-wide text-text-secondary',
+                          },
+                        }}
+                        primary={
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-sm font-semibold text-text-primary">
+                              {option.name}
+                            </span>
+                            {option.provider ? (
+                              <span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-text-secondary">
+                                {option.provider}
+                              </span>
+                            ) : null}
+                            {option.isGroup ? (
+                              <span className="rounded border border-amber-500/30 px-1.5 py-0.5 text-[10px] text-amber-300">
+                                组
+                              </span>
+                            ) : null}
+                          </div>
+                        }
+                        secondary={
+                          <span className="text-[11px] uppercase tracking-wide text-text-secondary">
+                            {option.type}
+                          </span>
                         }
                       />
-                    </div>
-
-                    <ListItemText
-                      title={option.name}
-                      primary={
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm font-semibold text-text-primary">
-                            {option.name}
-                          </span>
-                          {option.provider ? (
-                            <span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-text-secondary">
-                              {option.provider}
-                            </span>
-                          ) : null}
-                          {option.isGroup ? (
-                            <span className="rounded border border-amber-500/30 px-1.5 py-0.5 text-[10px] text-amber-300">
-                              组
-                            </span>
-                          ) : null}
-                        </div>
-                      }
-                      secondary={
-                        <span className="text-[11px] uppercase tracking-wide text-text-secondary">
-                          {option.type}
-                        </span>
-                      }
-                    />
-                  </ListItemButton>
-                )
-              })}
+                    </ListItemButton>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
