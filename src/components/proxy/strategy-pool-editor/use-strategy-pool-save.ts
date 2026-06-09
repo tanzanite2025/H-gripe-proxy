@@ -5,12 +5,12 @@ import { useProfiles } from '@/hooks/data'
 import { saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
+import type { StrategyPoolGroupRef } from '../strategy-pools/types'
 import { buildStrategyGroupYaml, cloneGroupConfig } from './group-config'
 import { loadEditableStrategyGroup } from './strategy-group-loader'
 
 interface UseStrategyPoolSaveOptions {
-  group: IProxyGroupItem | null
-  profileUid: string
+  group: StrategyPoolGroupRef | null
   groupsProperty: string
   selectedNames: string[]
   onClose: () => void
@@ -19,7 +19,6 @@ interface UseStrategyPoolSaveOptions {
 
 export function useStrategyPoolSave({
   group,
-  profileUid,
   groupsProperty,
   selectedNames,
   onClose,
@@ -46,11 +45,7 @@ export function useStrategyPoolSave({
     setSaving(true)
 
     try {
-      const result = await loadEditableStrategyGroup(
-        group,
-        profileUid,
-        groupsProperty,
-      )
+      const result = await loadEditableStrategyGroup(group, groupsProperty)
       const nextGroup = cloneGroupConfig(result.state.baseGroup)
 
       nextGroup.proxies = [...selectedNames]
@@ -66,7 +61,6 @@ export function useStrategyPoolSave({
         group.name,
         result.sequence,
         nextGroup,
-        result.state.originExists,
       )
 
       if (!(await saveProfileFile(groupsProperty, nextYaml))) {

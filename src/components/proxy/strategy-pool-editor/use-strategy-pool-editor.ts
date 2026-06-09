@@ -3,8 +3,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { useProfiles } from '@/hooks/data'
 import { useProxiesData } from '@/providers/app-data-context'
 
-import type { UseStrategyPoolEditorOptions } from './types'
 import { buildCandidateOptions } from './build-candidate-options'
+import type { UseStrategyPoolEditorOptions } from './types'
 import { useStrategyPoolLoadState } from './use-strategy-pool-load-state'
 import { useStrategyPoolSave } from './use-strategy-pool-save'
 
@@ -16,7 +16,6 @@ export function useStrategyPoolEditor(options: UseStrategyPoolEditorOptions) {
   const [searchText, setSearchText] = useState('')
 
   const groupsProperty = current?.option?.groups?.trim() || ''
-  const profileUid = current?.uid?.trim() || ''
   const handleResetState = useCallback(() => {
     setSearchText('')
   }, [])
@@ -29,14 +28,12 @@ export function useStrategyPoolEditor(options: UseStrategyPoolEditorOptions) {
   } = useStrategyPoolLoadState({
     open,
     group,
-    profileUid,
     groupsProperty,
     onResetState: handleResetState,
   })
 
   const { saving, handleSave } = useStrategyPoolSave({
     group,
-    profileUid,
     groupsProperty,
     selectedNames,
     onClose,
@@ -71,7 +68,6 @@ export function useStrategyPoolEditor(options: UseStrategyPoolEditorOptions) {
       !saving &&
       selectedNames.length > 0 &&
       Boolean(groupsProperty),
-    groupsProperty,
     handleSave,
     loadWarning,
     loading,

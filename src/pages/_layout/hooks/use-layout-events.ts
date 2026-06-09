@@ -5,6 +5,14 @@ import { useEffect } from 'react'
 import { useListen } from '@/hooks/system'
 import { queryClient } from '@/services/query-client'
 
+const getSafeCurrentWebviewWindow = () => {
+  try {
+    return getCurrentWebviewWindow()
+  } catch {
+    return null
+  }
+}
+
 export const useLayoutEvents = (
   handleNotice: (payload: [string, string]) => void,
 ) => {
@@ -80,19 +88,21 @@ export const useLayoutEvents = (
       ),
     )
 
-    const appWindow = getCurrentWebviewWindow()
-    register(
-      (async () => {
-        const [hideUnlisten, showUnlisten] = await Promise.all([
-          listen('verge://hide-window', () => appWindow.hide()),
-          listen('verge://show-window', () => appWindow.show()),
-        ])
-        return () => {
-          hideUnlisten()
-          showUnlisten()
-        }
-      })(),
-    )
+    const appWindow = getSafeCurrentWebviewWindow()
+    if (appWindow) {
+      register(
+        (async () => {
+          const [hideUnlisten, showUnlisten] = await Promise.all([
+            listen('verge://hide-window', () => appWindow.hide()),
+            listen('verge://show-window', () => appWindow.show()),
+          ])
+          return () => {
+            hideUnlisten()
+            showUnlisten()
+          }
+        })(),
+      )
+    }
 
     return () => {
       disposed = true

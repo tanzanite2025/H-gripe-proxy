@@ -7,6 +7,7 @@ import { Box, Grid } from '@/components/tailwind'
 
 import { ProxyPageModeCard } from './proxies-page/proxy-page-mode-card'
 import { ProxyPageSideCards } from './proxies-page/proxy-page-side-cards'
+import { ProxyPageStrategyPools } from './proxies-page/proxy-page-strategy-pools'
 import { ProxyPageTitle } from './proxies-page/proxy-page-title'
 import { ProxyPageToolbar } from './proxies-page/proxy-page-toolbar'
 import { useProxiesPageController } from './proxies-page/use-proxies-page-controller'
@@ -51,6 +52,8 @@ const ProxyPage = () => {
               mode={proxyDisplayMode}
               onChangeMode={onChangeMode}
             />
+
+            <ProxyPageStrategyPools />
 
             <Box className="min-h-0 flex-1 overflow-hidden">
               <ProxyGroups

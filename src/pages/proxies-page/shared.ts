@@ -6,16 +6,16 @@ export type ProxyChainMode = (typeof PROXY_CHAIN_MODES)[number]
 
 export const PROXY_CHAIN_MODE_LABELS: Record<ProxyChainMode, string> = {
   rule: '应用规则',
-  global: '统一出口',
+  global: '单选节点',
 }
 
-export const PROXY_MODE_SECTION_TITLE = '出口模式'
+export const PROXY_MODE_SECTION_TITLE = '主模式'
 
 const PROXY_MODE_DESCRIPTIONS: Record<ProxyChainMode, string> = {
   rule:
-    '先按 Mihomo 规则命中分组，再落到你在下方选中的出口。选中策略池时，规则命中后仍由该池自动挑选成员。',
+    '按 Mihomo 规则命中对应链路，核心目标是不断链；下面的节点选择只作为规则命中后的出口承接。',
   global:
-    '忽略规则，所有流量统一走你在下方选中的出口。这里的出口可以是单节点，也可以是策略池。',
+    '忽略规则，固定使用你手动选定的单一出口；不会因为延迟或策略自动漂移到别的节点。',
 }
 
 export const getProxyModeDescription = (mode: ClashMode | ProxyChainMode) =>

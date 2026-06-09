@@ -14,8 +14,6 @@ export const useRenderList = (mode: string, isChainMode?: boolean) => {
     col: runtimeContext.col,
     latencyTimeout: runtimeContext.latencyTimeout,
     runtimeSummaryItem: runtimeContext.runtimeSummaryItem,
-    strategyGroupOverrides: runtimeContext.strategyGroupOverrides,
-    managedStrategyGroupNames: runtimeContext.managedStrategyGroupNames,
   })
 
   return {

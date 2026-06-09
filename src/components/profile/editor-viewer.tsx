@@ -18,7 +18,15 @@ import { showNotice } from '@/services/notice-service'
 import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
 import debounce from '@/utils/misc/debounce'
 
-const appWindow = getCurrentWebviewWindow()
+const getSafeAppWindow = () => {
+  try {
+    return getCurrentWebviewWindow()
+  } catch {
+    return null
+  }
+}
+
+const appWindow = getSafeAppWindow()
 
 export type EditorLanguage = 'yaml' | 'javascript' | 'css'
 
@@ -69,6 +77,11 @@ export const EditorViewer = ({
   }, [value])
 
   const syncMaximizedState = useCallback(async () => {
+    if (!appWindow) {
+      setIsMaximized(false)
+      return
+    }
+
     try {
       setIsMaximized(await appWindow.isMaximized())
     } catch {
@@ -133,6 +146,8 @@ export const EditorViewer = ({
   })
 
   const handleToggleMaximize = useLockFn(async () => {
+    if (!appWindow) return
+
     try {
       await appWindow.toggleMaximize()
       await syncMaximizedState()
@@ -153,6 +168,7 @@ export const EditorViewer = ({
   }, [loading, open, syncEditorValue])
 
   useEffect(() => {
+    if (!appWindow) return
     if (!open) return
 
     const onResized = debounce(() => {

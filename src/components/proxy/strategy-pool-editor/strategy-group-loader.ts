@@ -1,13 +1,11 @@
-import yaml from 'js-yaml'
-
 import { readProfileFile } from '@/services/cmds'
-import { isBuiltinPolicyName, isHiddenProxyName } from '@/services/proxy-display'
 
+import { filterStrategyPoolMemberNames } from '../strategy-pools/strategy-pool-rules'
+import type { StrategyPoolGroupRef } from '../strategy-pools/types'
 import { parseGroupsYaml } from '../../profile/groups-editor-viewer/utils/group-helpers'
 import {
   buildFallbackGroupConfig,
   cloneGroupConfig,
-  normalizeNames,
 } from './group-config'
 import type {
   EditableStrategyGroupLoadResult,
@@ -36,26 +34,11 @@ const findLastGroupByName = (
 }
 
 export const loadEditableStrategyGroup = async (
-  group: IProxyGroupItem,
-  profileUid?: string,
+  group: StrategyPoolGroupRef,
   property?: string,
 ): Promise<EditableStrategyGroupLoadResult> => {
   const warnings: StrategyGroupLoadWarning[] = []
-  let originGroup: IProxyGroupConfig | undefined
   let sequence: GroupSequence = EMPTY_GROUP_SEQUENCE
-
-  if (profileUid) {
-    try {
-      const profileData = await readProfileFile(profileUid)
-      const profileObject = yaml.load(profileData) as
-        | { 'proxy-groups'?: IProxyGroupConfig[] }
-        | null
-      const originGroups = profileObject?.['proxy-groups'] || []
-      originGroup = originGroups.find((item) => item?.name === group.name)
-    } catch {
-      warnings.push('profileReadFailed')
-    }
-  }
 
   if (property) {
     try {
@@ -65,24 +48,21 @@ export const loadEditableStrategyGroup = async (
       warnings.push('groupsReadFailed')
     }
   } else {
-    warnings.push('profileNotReady')
+    warnings.push('configNotReady')
   }
 
   const overrideGroup =
     findLastGroupByName(sequence.append, group.name) ||
     findLastGroupByName(sequence.prepend, group.name)
   const baseGroup = cloneGroupConfig(
-    overrideGroup || originGroup || buildFallbackGroupConfig(group),
+    overrideGroup || buildFallbackGroupConfig(group),
   )
-  const selectedNames = normalizeNames(
-    Array.isArray(overrideGroup?.proxies) ? overrideGroup.proxies : [],
-  ).filter((name) => !isHiddenProxyName(name) && !isBuiltinPolicyName(name))
+  const selectedNames = filterStrategyPoolMemberNames(overrideGroup?.proxies)
 
   return {
     sequence,
     state: {
       baseGroup,
-      originExists: Boolean(originGroup),
     },
     selectedNames,
     warnings,

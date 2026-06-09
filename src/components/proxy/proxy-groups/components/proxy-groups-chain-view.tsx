@@ -4,7 +4,6 @@ import { Alert, Snackbar } from '@/components/tailwind'
 
 import { ScrollTopButton } from '../../../layout/scroll-top-button'
 import { ProxyChainDrawer } from '../../proxy-chain-drawer'
-import { StrategyPoolEditorDialog } from '../../strategy-pool-editor-dialog'
 import type { ProxyGroupsController } from '../hooks/use-proxy-groups-controller'
 
 import { ChainRuleHeader } from './chain-rule-header'
@@ -78,13 +77,6 @@ export function ProxyGroupsChainView({
         mode={controller.displayMode}
         selectedGroup={controller.activeSelectedGroup}
         onClose={controller.handleCloseChainMode}
-      />
-
-      <StrategyPoolEditorDialog
-        open={Boolean(controller.editingStrategyGroup)}
-        group={controller.editingStrategyGroup}
-        onClose={controller.closeStrategyGroupEditor}
-        onSaved={controller.onProxies}
       />
     </>
   )

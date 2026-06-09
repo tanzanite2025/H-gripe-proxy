@@ -6,19 +6,16 @@ import {
   ListItemText,
   Tooltip,
 } from '@/components/tailwind'
-import { categorizeProxyGroup } from '@/services/proxy-display'
 
 import type { HeadState } from '../use-head-state'
 import type { IRenderItem } from '../render-list/types'
 import { ProxyGroupIcon } from './proxy-group-icon'
-import { ProxyStrategyActions } from './proxy-strategy-actions'
 
 interface ProxyGroupCardProps {
   group: IProxyGroupItem
   headState?: HeadState
   item: IRenderItem
   onHeadState: (groupName: string, patch: Partial<HeadState>) => void
-  onConfigureStrategyGroup: (group: IProxyGroupItem) => void
 }
 
 const ITEM_BACKGROUND_COLOR = '#282A36'
@@ -28,18 +25,10 @@ export function ProxyGroupCard({
   headState,
   item,
   onHeadState,
-  onConfigureStrategyGroup,
 }: ProxyGroupCardProps) {
   const { t } = useTranslation()
-  const isStrategyGroup = categorizeProxyGroup(group) === 'strategy'
-  const canConfigureStrategyGroup = isStrategyGroup
 
   const handleCardActivate = () => {
-    if (canConfigureStrategyGroup) {
-      onConfigureStrategyGroup(group)
-      return
-    }
-
     onHeadState(group.name, { open: !headState?.open })
   }
 
@@ -65,12 +54,6 @@ export function ProxyGroupCard({
             <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base font-bold leading-6">
               {group.name}
             </span>
-            {canConfigureStrategyGroup && (
-              <ProxyStrategyActions
-                group={group}
-                onConfigureStrategyGroup={onConfigureStrategyGroup}
-              />
-            )}
           </div>
         }
         secondary={
@@ -95,12 +78,11 @@ export function ProxyGroupCard({
             className="mr-2 bg-teal-500/10 text-teal-500"
           />
         </Tooltip>
-        {!canConfigureStrategyGroup &&
-          (headState?.open ? (
-            <ChevronUp className="h-5 w-5" />
-          ) : (
-            <ChevronDown className="h-5 w-5" />
-          ))}
+        {headState?.open ? (
+          <ChevronUp className="h-5 w-5" />
+        ) : (
+          <ChevronDown className="h-5 w-5" />
+        )}
       </div>
     </div>
   )

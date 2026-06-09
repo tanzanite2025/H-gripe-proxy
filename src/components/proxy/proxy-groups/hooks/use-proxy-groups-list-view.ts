@@ -12,7 +12,6 @@ interface UseProxyGroupsListViewOptions {
   displayMode: string
   handleChangeProxy: (group: IProxyGroupItem, proxy: IProxyItem) => void
   handleCheckAll: (groupName: string) => void
-  handleConfigureStrategyGroup: (group: IProxyGroupItem) => void
   handleGroupLocationByName: (
     groupName: string,
     scrollToIndex: (index: number, options?: any) => void,
@@ -31,7 +30,6 @@ export function useProxyGroupsListView({
   displayMode,
   handleChangeProxy,
   handleCheckAll,
-  handleConfigureStrategyGroup,
   handleGroupLocationByName,
   handleLocation,
   isChainMode,
@@ -78,13 +76,11 @@ export function useProxyGroupsListView({
       onCheckAll: handleCheckAll,
       onHeadState,
       onChangeProxy: handleChangeProxy,
-      onConfigureStrategyGroup: handleConfigureStrategyGroup,
     }),
     [
       displayMode,
       handleChangeProxy,
       handleCheckAll,
-      handleConfigureStrategyGroup,
       handleLocationWithScroll,
       onHeadState,
       renderList,

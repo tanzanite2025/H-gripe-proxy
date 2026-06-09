@@ -10,12 +10,10 @@ export interface ProxyRenderListBuilderOptions {
   col: number
   headStates: Record<string, HeadState>
   latencyTimeout: number | undefined
-  managedStrategyGroupNames: string[]
   mode: string
   proxiesData?: CalculatedProxies
   rules?: any[]
   runtimeSummaryItem: IRenderItem | null
-  strategyGroupOverrides: Record<string, string[]>
 }
 
 const buildBaseItems = (
@@ -39,12 +37,10 @@ export const buildProxyRenderList = ({
   col,
   headStates,
   latencyTimeout,
-  managedStrategyGroupNames,
   mode,
   proxiesData,
   rules,
   runtimeSummaryItem,
-  strategyGroupOverrides,
 }: ProxyRenderListBuilderOptions): IRenderItem[] => {
   if (!proxiesData) {
     return []
@@ -64,11 +60,8 @@ export const buildProxyRenderList = ({
   const sections = buildGlobalSelectorSections({
     headState,
     latencyTimeout,
-    managedStrategyGroupNames,
     proxies: (proxiesData.proxies || []) as IProxyItem[],
-    records: proxiesData.records,
     selectionGroup,
-    strategyGroupOverrides,
   })
 
   if (!sections.length) {

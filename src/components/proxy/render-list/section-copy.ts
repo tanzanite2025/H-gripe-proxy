@@ -12,22 +12,14 @@ export const GROUP_SECTION_COPY: Record<VisibleSectionKind, SectionCopy> = {
   strategy: {
     title: '策略池',
     description:
-      '这里只显示你手动加入策略池的成员，池内节点由策略自动切换，不在池内单独点选节点。',
+      '这里只显示你手动加入策略池的成员，池内节点由策略自行切换，不在这里做单节点直选。',
   },
 }
 
-export const GLOBAL_SELECTOR_SECTION_COPY: Record<
-  VisibleSectionKind,
-  SectionCopy
-> = {
+export const GLOBAL_SELECTOR_SECTION_COPY: Record<'manual', SectionCopy> = {
   manual: {
-    title: '出口选择',
-    description: '这里显示所有已提取的真实节点，直接选择后即可作为当前出口。',
-  },
-  strategy: {
-    title: '策略池',
-    description:
-      '这里仅显示软件维护的策略池。先选中策略池，再由池内策略在你手动添加的成员之间自动选择出口。',
+    title: '节点列表',
+    description: '这里只显示已经解析出来的真实节点，选中后即可作为当前出口使用。',
   },
 }
 

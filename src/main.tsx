@@ -11,16 +11,9 @@ import { RouterProvider } from 'react-router'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 import { BaseErrorBoundary } from './components/base'
-import { router } from './pages/_core/router'
-import { AppDataProvider } from './providers/app-data-provider'
-import { WindowProvider } from './providers/window'
 import { FALLBACK_LANGUAGE, initializeLanguage } from './services/i18n'
 import { preloadLanguage } from './services/preload'
 import { queryClient } from './services/query-client'
-import {
-  LoadingCacheProvider,
-  UpdateStateProvider,
-} from './services/states'
 import { disableWebViewShortcuts } from './utils/misc/disable-webview-shortcuts'
 
 if (!window.ResizeObserver) {
@@ -36,7 +29,31 @@ if (!container) {
 
 disableWebViewShortcuts()
 
-const initializeApp = () => {
+const isWebSandboxPath =
+  typeof window !== 'undefined' &&
+  /^\/web-test(?:\/|$)/.test(window.location.pathname)
+
+const getSafeCurrentWebviewWindow = () => {
+  try {
+    return getCurrentWebviewWindow()
+  } catch {
+    return null
+  }
+}
+
+const renderMainApp = async () => {
+  const [
+    { router },
+    { AppDataProvider },
+    { WindowProvider },
+    { LoadingCacheProvider, UpdateStateProvider },
+  ] = await Promise.all([
+    import('./pages/_core/router'),
+    import('./providers/app-data-provider'),
+    import('./providers/window'),
+    import('./services/states'),
+  ])
+
   const contexts = [
     <LoadingCacheProvider key="loading" />,
     <UpdateStateProvider key="update" />,
@@ -60,26 +77,58 @@ const initializeApp = () => {
   )
 }
 
+const renderWebSandbox = async () => {
+  const { default: WebTestPage } = await import('./pages/web-test')
+
+  const root = createRoot(container)
+  root.render(
+    <React.StrictMode>
+      <BaseErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <WebTestPage />
+        </QueryClientProvider>
+      </BaseErrorBoundary>
+    </React.StrictMode>,
+  )
+}
+
+const initializeApp = async () => {
+  if (isWebSandboxPath) {
+    await renderWebSandbox()
+    return
+  }
+
+  await renderMainApp()
+}
+
 const bootstrap = async () => {
-  const initialLanguage = await preloadLanguage()
+  const initialLanguage = isWebSandboxPath
+    ? await preloadLanguage(null)
+    : await preloadLanguage()
+
   await initializeLanguage(initialLanguage)
-  // Lock Tauri window to dark theme
-  getCurrentWebviewWindow().setTheme('dark').catch(() => {})
-  initializeApp()
+
+  if (!isWebSandboxPath) {
+    getSafeCurrentWebviewWindow()?.setTheme('dark').catch(() => {})
+  }
+
+  await initializeApp()
 }
 
 bootstrap().catch((error) => {
   console.error('[main.tsx] App bootstrap failed:', error)
   initializeLanguage(FALLBACK_LANGUAGE)
     .catch((fallbackError) => {
-      console.error('[main.tsx] Fallback language initialization failed:', fallbackError)
+      console.error(
+        '[main.tsx] Fallback language initialization failed:',
+        fallbackError,
+      )
     })
     .finally(() => {
-      initializeApp()
+      void initializeApp()
     })
 })
 
-// Error handling
 window.addEventListener('error', (event) => {
   console.error('[main.tsx] Global error:', event.error)
 })
@@ -88,8 +137,6 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[main.tsx] Unhandled promise rejection:', event.reason)
 })
 
-// Page close/refresh events
 window.addEventListener('beforeunload', () => {
-  // Clean up all WebSocket instances to prevent memory leaks
   MihomoWebSocket.cleanupAll()
 })

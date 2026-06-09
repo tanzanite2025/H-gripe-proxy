@@ -27,9 +27,6 @@ export interface ProxyVirtualListProps {
     group: NonNullable<IRenderItem['group']>,
     proxy: NonNullable<IRenderItem['proxy']> & { name: string },
   ) => void
-  onConfigureStrategyGroup: (
-    group: NonNullable<IRenderItem['group']>,
-  ) => void
 }
 
 export function ProxyVirtualList({
@@ -45,7 +42,6 @@ export function ProxyVirtualList({
   onCheckAll,
   onHeadState,
   onChangeProxy,
-  onConfigureStrategyGroup,
 }: ProxyVirtualListProps) {
   return (
     <div ref={parentRef} style={{ height, overflow: 'auto' }}>
@@ -80,7 +76,6 @@ export function ProxyVirtualList({
               onCheckAll={onCheckAll}
               onHeadState={onHeadState}
               onChangeProxy={onChangeProxy}
-              onConfigureStrategyGroup={onConfigureStrategyGroup}
             />
           </div>
         ))}

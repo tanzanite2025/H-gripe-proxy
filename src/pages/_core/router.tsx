@@ -11,7 +11,6 @@ import ProxiesPage from '../proxies'
 // import RulesPage from '../rules'
 import SecurityPage from '../security'
 import SettingsPage from '../settings'
-import WebTestPage from '../web-test'
 
 export const navItems = [
   {
@@ -61,12 +60,6 @@ export const navItems = [
     path: '/security',
     icon: [],
     Component: SecurityPage,
-  },
-  {
-    label: 'layout.components.navigation.tabs.webTest',
-    path: '/web-test',
-    icon: [],
-    Component: WebTestPage,
   },
   {
     label: 'layout.components.navigation.tabs.settings',

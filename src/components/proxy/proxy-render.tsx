@@ -20,9 +20,6 @@ interface RenderProps {
     group: NonNullable<IRenderItem['group']>,
     proxy: NonNullable<IRenderItem['proxy']> & { name: string },
   ) => void
-  onConfigureStrategyGroup: (
-    group: NonNullable<IRenderItem['group']>,
-  ) => void
 }
 
 export const ProxyRender = ({
@@ -32,7 +29,6 @@ export const ProxyRender = ({
   onCheckAll,
   onHeadState,
   onChangeProxy,
-  onConfigureStrategyGroup,
 }: RenderProps) => {
   const { type, group, headState, proxy, proxyCol } = item
   const showType = headState?.showType
@@ -51,7 +47,6 @@ export const ProxyRender = ({
         headState={headState}
         item={item}
         onHeadState={onHeadState}
-        onConfigureStrategyGroup={onConfigureStrategyGroup}
       />
     )
   }
@@ -78,7 +73,6 @@ export const ProxyRender = ({
         showType={showType}
         clickable={allowMemberSelection}
         onChangeProxy={onChangeProxy}
-        onConfigureStrategyGroup={onConfigureStrategyGroup}
       />
     )
   }
@@ -96,7 +90,6 @@ export const ProxyRender = ({
         showType={showType}
         clickable={allowMemberSelection}
         onChangeProxy={onChangeProxy}
-        onConfigureStrategyGroup={onConfigureStrategyGroup}
       />
     )
   }

@@ -23,7 +23,7 @@ export function StrategyPoolCandidateGrid({
   if (loading) {
     return (
       <div className="px-4 pb-2 pt-1 text-xs text-text-secondary">
-        正在读取当前策略池已保存成员...
+        正在读取当前策略池已保存的成员...
       </div>
     )
   }
@@ -48,9 +48,7 @@ export function StrategyPoolCandidateGrid({
               selected={checked}
               className={cn(
                 'self-start items-start rounded-xl border border-white/8 px-3 py-2',
-                checked
-                  ? 'bg-primary/10'
-                  : 'bg-black/10 hover:bg-white/8',
+                checked ? 'bg-primary/10' : 'bg-black/10 hover:bg-white/8',
               )}
               onClick={() => onToggleSelected(option.name)}
             >

@@ -3,7 +3,6 @@ import {
   DEFAULT_HOVER_DELAY,
   ProxyGroupNavigator,
 } from '../../proxy-group-navigator'
-import { StrategyPoolEditorDialog } from '../../strategy-pool-editor-dialog'
 import type { ProxyGroupsController } from '../hooks/use-proxy-groups-controller'
 
 import { ProxyVirtualList } from './proxy-virtual-list'
@@ -30,12 +29,6 @@ export function ProxyGroupsDefaultView({
       <ScrollTopButton
         show={controller.showScrollTop}
         onClick={controller.scrollToTop}
-      />
-      <StrategyPoolEditorDialog
-        open={Boolean(controller.editingStrategyGroup)}
-        group={controller.editingStrategyGroup}
-        onClose={controller.closeStrategyGroupEditor}
-        onSaved={controller.onProxies}
       />
     </div>
   )

@@ -13,9 +13,6 @@ interface ProxyRenderProxyGridProps {
     group: NonNullable<IRenderItem['group']>,
     proxy: NonNullable<IRenderItem['proxy']> & { name: string },
   ) => void
-  onConfigureStrategyGroup: (
-    group: NonNullable<IRenderItem['group']>,
-  ) => void
 }
 
 export const ProxyRenderProxyGrid = ({
@@ -25,7 +22,6 @@ export const ProxyRenderProxyGrid = ({
   showType,
   clickable,
   onChangeProxy,
-  onConfigureStrategyGroup,
 }: ProxyRenderProxyGridProps) => {
   const proxyItems = useMemo(() => {
     return proxyCol.map((proxy) => (
@@ -37,18 +33,9 @@ export const ProxyRenderProxyGrid = ({
         showType={showType}
         clickable={clickable}
         onChangeProxy={onChangeProxy}
-        onConfigureStrategyGroup={onConfigureStrategyGroup}
       />
     ))
-  }, [
-    clickable,
-    group,
-    item.key,
-    onChangeProxy,
-    onConfigureStrategyGroup,
-    proxyCol,
-    showType,
-  ])
+  }, [clickable, group, item.key, onChangeProxy, proxyCol, showType])
 
   return (
     <div

@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 
 import { enhanceProfiles } from '@/services/cmds'
 
+import type { StrategyPoolGroupRef } from '../strategy-pools/types'
 import { resolveLoadWarningMessage } from './load-warning-message'
 import { loadEditableStrategyGroup } from './strategy-group-loader'
 
 interface UseStrategyPoolLoadStateOptions {
   open: boolean
-  group: IProxyGroupItem | null
-  profileUid: string
+  group: StrategyPoolGroupRef | null
   groupsProperty: string
   onResetState: () => void
 }
@@ -16,7 +16,6 @@ interface UseStrategyPoolLoadStateOptions {
 export function useStrategyPoolLoadState({
   open,
   group,
-  profileUid,
   groupsProperty,
   onResetState,
 }: UseStrategyPoolLoadStateOptions) {
@@ -38,27 +37,19 @@ export function useStrategyPoolLoadState({
     setLoading(true)
     setSelectedNames([])
     setLoadWarning(
-      resolveLoadWarningMessage(groupsProperty ? [] : ['profileNotReady']),
+      resolveLoadWarningMessage(groupsProperty ? [] : ['configNotReady']),
     )
     onResetState()
 
     void (async () => {
-      let result = await loadEditableStrategyGroup(
-        group,
-        profileUid,
-        groupsProperty,
-      )
+      let result = await loadEditableStrategyGroup(group, groupsProperty)
 
       if (
         groupsProperty &&
         result.warnings.includes('groupsReadFailed') &&
         (await enhanceProfiles())
       ) {
-        result = await loadEditableStrategyGroup(
-          group,
-          profileUid,
-          groupsProperty,
-        )
+        result = await loadEditableStrategyGroup(group, groupsProperty)
       }
 
       if (cancelled) return
@@ -82,7 +73,7 @@ export function useStrategyPoolLoadState({
     return () => {
       cancelled = true
     }
-  }, [group, groupsProperty, onResetState, open, profileUid])
+  }, [group, groupsProperty, onResetState, open])
 
   return {
     loading,

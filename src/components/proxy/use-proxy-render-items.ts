@@ -17,10 +17,8 @@ export const useProxyRenderItems = ({
   col,
   headStates,
   latencyTimeout,
-  managedStrategyGroupNames,
   mode,
   runtimeSummaryItem,
-  strategyGroupOverrides,
 }: ProxyRenderListBuilderOptions): IRenderItem[] => {
   const { proxies: proxiesData } = useProxiesData()
   const { rules } = useRulesData()
@@ -31,23 +29,19 @@ export const useProxyRenderItems = ({
         col,
         headStates,
         latencyTimeout,
-        managedStrategyGroupNames,
         mode,
         proxiesData,
         rules,
         runtimeSummaryItem,
-        strategyGroupOverrides,
       }),
     [
       col,
       headStates,
       latencyTimeout,
-      managedStrategyGroupNames,
       mode,
       proxiesData,
       rules,
       runtimeSummaryItem,
-      strategyGroupOverrides,
     ],
   )
 }

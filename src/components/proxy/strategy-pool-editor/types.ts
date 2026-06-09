@@ -1,6 +1,7 @@
+import type { StrategyPoolGroupRef } from '../strategy-pools/types'
+
 export type EditableStrategyGroupState = {
   baseGroup: IProxyGroupConfig
-  originExists: boolean
 }
 
 export type GroupSequence = {
@@ -9,10 +10,7 @@ export type GroupSequence = {
   delete: string[]
 }
 
-export type StrategyGroupLoadWarning =
-  | 'profileNotReady'
-  | 'profileReadFailed'
-  | 'groupsReadFailed'
+export type StrategyGroupLoadWarning = 'configNotReady' | 'groupsReadFailed'
 
 export type EditableStrategyGroupLoadResult = {
   sequence: GroupSequence
@@ -30,7 +28,7 @@ export type CandidateOption = {
 
 export interface UseStrategyPoolEditorOptions {
   open: boolean
-  group: IProxyGroupItem | null
+  group: StrategyPoolGroupRef | null
   onClose: () => void
   onSaved?: () => Promise<void> | void
 }

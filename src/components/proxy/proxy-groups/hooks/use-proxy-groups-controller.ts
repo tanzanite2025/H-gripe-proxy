@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 
 import type { ProxyGroupsProps } from '../types'
 
@@ -10,8 +10,6 @@ import { useProxyGroupsListView } from './use-proxy-groups-list-view'
 export function useProxyGroupsController(props: ProxyGroupsProps) {
   const { mode, isChainMode = false, chainConfigData, onCloseChainMode } = props
   const displayMode = mode === 'direct' ? 'rule' : mode
-  const [editingStrategyGroup, setEditingStrategyGroup] =
-    useState<IProxyGroupItem | null>(null)
 
   const chainMode = useChainMode({
     isChainMode,
@@ -44,14 +42,6 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
     [chainMode, isChainMode, proxyGroups],
   )
 
-  const handleConfigureStrategyGroup = useCallback((group: IProxyGroupItem) => {
-    setEditingStrategyGroup(group)
-  }, [])
-
-  const closeStrategyGroupEditor = useCallback(() => {
-    setEditingStrategyGroup(null)
-  }, [])
-
   const handleCloseChainMode = useCallback(() => {
     onCloseChainMode?.()
   }, [onCloseChainMode])
@@ -61,7 +51,6 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
     displayMode,
     handleChangeProxy,
     handleCheckAll,
-    handleConfigureStrategyGroup,
     handleGroupLocationByName: proxyGroups.handleGroupLocationByName,
     handleLocation: proxyGroups.handleLocation,
     isChainMode,
@@ -71,14 +60,12 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
 
   return {
     chainConfigData,
-    closeStrategyGroupEditor,
     createProxyListProps: listView.createProxyListProps,
     currentGroup: chainMode.currentGroup,
     availableGroups: chainMode.availableGroups,
     activeSelectedGroup: chainMode.activeSelectedGroup,
     displayMode,
     duplicateWarning: chainMode.duplicateWarning,
-    editingStrategyGroup,
     handleCloseChainMode,
     handleCloseDuplicateWarning: chainMode.handleCloseDuplicateWarning,
     handleGroupLocationByNameWithScroll:
