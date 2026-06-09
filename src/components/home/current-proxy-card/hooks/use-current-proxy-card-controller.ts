@@ -67,6 +67,7 @@ export function useCurrentProxyCardController() {
   const { handleCheckAllDelay } = useProxyDelayCheck({
     currentGroup: state.selection.group,
     defaultLatencyTimeout,
+    proxies,
     proxyRecords: state.proxyData.records,
     refreshProxy,
     onDelayCheckComplete: () => {
