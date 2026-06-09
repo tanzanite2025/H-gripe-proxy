@@ -2,7 +2,13 @@ import { ChevronDown, ChevronUp, Inbox, SlidersHorizontal } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Chip, IconButton, ListItemText, Tooltip } from '@/components/tailwind'
+import {
+  Button,
+  Chip,
+  IconButton,
+  ListItemText,
+  Tooltip,
+} from '@/components/tailwind'
 import { useIconCache } from '@/hooks/system'
 import { categorizeProxyGroup } from '@/services/proxy-display'
 import { cn } from '@/utils/cn'
@@ -10,7 +16,7 @@ import { cn } from '@/utils/cn'
 import { ProxyHead } from './proxy-head'
 import { ProxyItem } from './proxy-item'
 import { ProxyItemMini } from './proxy-item-mini'
-import { HeadState } from './use-head-state'
+import { type HeadState } from './use-head-state'
 import type { IRenderItem } from './use-render-list'
 
 interface RenderProps {
@@ -80,6 +86,11 @@ export const ProxyRender = (props: RenderProps) => {
             ? () => onChangeProxy(group, proxyItem!)
             : undefined
         }
+        onConfigure={
+          categorizeProxyGroup(proxyItem) === 'strategy'
+            ? (strategyGroup) => onConfigureStrategyGroup(strategyGroup)
+            : undefined
+        }
       />
     ))
   }, [
@@ -90,6 +101,7 @@ export const ProxyRender = (props: RenderProps) => {
     group,
     showType,
     onChangeProxy,
+    onConfigureStrategyGroup,
   ])
 
   if (type === 5) {
@@ -142,6 +154,14 @@ export const ProxyRender = (props: RenderProps) => {
 
   if (type === 0 && group) {
     const canConfigureStrategyGroup = isStrategyGroup
+    const handleCardActivate = () => {
+      if (canConfigureStrategyGroup) {
+        onConfigureStrategyGroup(group)
+        return
+      }
+
+      onHeadState(group.name, { open: !headState?.open })
+    }
 
     return (
       <div
@@ -151,11 +171,11 @@ export const ProxyRender = (props: RenderProps) => {
         style={{
           background: itemBackgroundColor,
         }}
-        onClick={() => onHeadState(group.name, { open: !headState?.open })}
+        onClick={handleCardActivate}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
-            onHeadState(group.name, { open: !headState?.open })
+            handleCardActivate()
           }
         }}
       >
@@ -192,8 +212,8 @@ export const ProxyRender = (props: RenderProps) => {
                 {group.name}
               </span>
               {canConfigureStrategyGroup && (
-                <Tooltip title="配置策略池成员" arrow>
-                  <span>
+                <div className="flex items-center gap-2">
+                  <Tooltip title="配置策略池成员" arrow>
                     <IconButton
                       size="small"
                       color="primary"
@@ -209,8 +229,25 @@ export const ProxyRender = (props: RenderProps) => {
                     >
                       <SlidersHorizontal className="h-4 w-4" />
                     </IconButton>
-                  </span>
-                </Tooltip>
+                  </Tooltip>
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    size="small"
+                    color="warning"
+                    className="px-2 py-1 text-[10px]"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      onConfigureStrategyGroup(group)
+                    }}
+                    onKeyDown={(event) => {
+                      event.stopPropagation()
+                    }}
+                  >
+                    配置成员
+                  </Button>
+                </div>
               )}
             </div>
           }
@@ -235,11 +272,12 @@ export const ProxyRender = (props: RenderProps) => {
               className="mr-2 bg-teal-500/10 text-teal-500"
             />
           </Tooltip>
-          {headState?.open ? (
-            <ChevronUp className="h-5 w-5" />
-          ) : (
-            <ChevronDown className="h-5 w-5" />
-          )}
+          {!canConfigureStrategyGroup &&
+            (headState?.open ? (
+              <ChevronUp className="h-5 w-5" />
+            ) : (
+              <ChevronDown className="h-5 w-5" />
+            ))}
         </div>
       </div>
     )
@@ -271,6 +309,11 @@ export const ProxyRender = (props: RenderProps) => {
         onClick={
           allowMemberSelection ? () => onChangeProxy(group, proxy) : undefined
         }
+        onConfigure={
+          categorizeProxyGroup(proxy) === 'strategy'
+            ? (strategyGroup) => onConfigureStrategyGroup(strategyGroup)
+            : undefined
+        }
       />
     )
   }
@@ -287,9 +330,9 @@ export const ProxyRender = (props: RenderProps) => {
   if (type === 4) {
     return (
       <div
-        className="grid h-16 gap-2 px-4 py-1"
+        className="grid gap-2 px-4 py-1"
         style={{
-          gridTemplateColumns: `repeat(${item.col || 2}, 1fr)`,
+          gridTemplateColumns: `repeat(${item.col || 2}, minmax(0, 1fr))`,
         }}
       >
         {proxyColItemsMemo}

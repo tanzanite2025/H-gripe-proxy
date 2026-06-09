@@ -105,16 +105,6 @@ export function useProfileItemActions({
     dialogs.openProxies()
   }, [closeMenu, dialogs])
 
-  const handleEditGroups = useCallback(() => {
-    closeMenu()
-    dialogs.openGroups()
-  }, [closeMenu, dialogs])
-
-  const handleEditMerge = useCallback(() => {
-    closeMenu()
-    dialogs.openMerge()
-  }, [closeMenu, dialogs])
-
   const handleEditScript = useCallback(() => {
     closeMenu()
     dialogs.openScript()
@@ -177,11 +167,6 @@ export function useProfileItemActions({
         disabled: !option?.rules,
       },
       {
-        label: profileItemMenuLabels.extendConfig,
-        handler: handleEditMerge,
-        disabled: !option?.merge,
-      },
-      {
         label: profileItemMenuLabels.extendScript,
         handler: handleEditScript,
         disabled: !option?.script,
@@ -226,7 +211,6 @@ export function useProfileItemActions({
     handleDeleteRequest,
     handleEditFile,
     handleEditInfo,
-    handleEditMerge,
     handleEditRules,
     handleEditScript,
     handleOpenFileOnDisk,
@@ -234,7 +218,6 @@ export function useProfileItemActions({
     handleShareQrCode,
     hasHome,
     hasUrl,
-    option?.merge,
     option?.rules,
     option?.script,
   ])
@@ -247,7 +230,6 @@ export function useProfileItemActions({
     openMenu,
     handleShareQrCode,
     handleEditProxies,
-    handleEditGroups,
     handleForceSelect,
     handleDirectUpdate: () => {
       void handleUpdate('direct')

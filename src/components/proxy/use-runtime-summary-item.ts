@@ -72,7 +72,7 @@ export const useRuntimeSummaryItem = (mode: string): IRenderItem | null => {
           ? currentIdentity?.proxy_name
             ? `最终节点: ${currentIdentity.proxy_name}`
             : '已观测到实际链路。'
-          : '仅供当前页面参考，不代表某一条正在连接的业务流。',
+          : '这里只做当前页面参考，不代表某一条正在连接中的具体业务流。',
     } satisfies IRenderItem
   }, [currentIdentity, mode, proxiesData, rules])
 }

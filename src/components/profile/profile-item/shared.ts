@@ -32,8 +32,6 @@ export const profileItemMenuLabels = {
   editFile: 'profiles.components.menu.editFile',
   editRules: 'profiles.components.menu.editRules',
   editProxies: 'profiles.components.menu.editProxies',
-  editGroups: 'profiles.components.menu.editGroups',
-  extendConfig: 'profiles.components.menu.extendConfig',
   extendScript: 'profiles.components.menu.extendScript',
   openFile: 'profiles.components.menu.openFile',
   update: 'profiles.components.menu.update',

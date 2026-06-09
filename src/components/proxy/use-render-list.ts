@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import yaml from 'js-yaml'
 import { useEffect, useMemo } from 'react'
 
 import { useProfiles } from '@/hooks/data'
@@ -35,6 +36,14 @@ const normalizeNames = (names: Array<string | null | undefined>) =>
     ),
   )
 
+const MANAGED_STRATEGY_GROUP_TYPES = new Set(['url-test', 'load-balance'])
+
+const isManagedStrategyGroupConfig = (group?: IProxyGroupConfig | null) => {
+  const name = group?.name?.trim() || ''
+  const type = group?.type?.trim().toLowerCase() || ''
+  return Boolean(name) && MANAGED_STRATEGY_GROUP_TYPES.has(type)
+}
+
 export const useRenderList = (mode: string, isChainMode?: boolean) => {
   const { proxies: proxiesData } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
@@ -47,6 +56,7 @@ export const useRenderList = (mode: string, isChainMode?: boolean) => {
   const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
   const runtimeSummaryItem = useRuntimeSummaryItem(mode)
   const groupsOverridePath = current?.option?.groups?.trim() || ''
+  const profileUid = current?.uid?.trim() || ''
   const { data: strategyGroupOverrides = {} } = useQuery({
     queryKey: ['proxy-strategy-group-overrides', groupsOverridePath],
     enabled: !!groupsOverridePath,
@@ -69,6 +79,49 @@ export const useRenderList = (mode: string, isChainMode?: boolean) => {
       )
 
       return overrides
+    },
+  })
+  const { data: managedStrategyGroupNames = [] } = useQuery({
+    queryKey: [
+      'proxy-managed-strategy-groups',
+      profileUid,
+      groupsOverridePath,
+    ],
+    enabled: !!profileUid || !!groupsOverridePath,
+    staleTime: 3_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const names = new Set<string>()
+
+      if (profileUid) {
+        try {
+          const profileData = await readProfileFile(profileUid)
+          const profileObject = yaml.load(profileData) as
+            | { 'proxy-groups'?: IProxyGroupConfig[] }
+            | null
+
+          ;(profileObject?.['proxy-groups'] || []).forEach((group) => {
+            if (!isManagedStrategyGroupConfig(group)) return
+            names.add(group.name.trim())
+          })
+        } catch {}
+      }
+
+      if (groupsOverridePath) {
+        try {
+          const groupsData = await readProfileFile(groupsOverridePath)
+          const sequence = parseGroupsYaml(groupsData)
+
+          ;([...sequence.prepend, ...sequence.append] as IProxyGroupConfig[]).forEach(
+            (group) => {
+              if (!isManagedStrategyGroupConfig(group)) return
+              names.add(group.name.trim())
+            },
+          )
+        } catch {}
+      }
+
+      return Array.from(names)
     },
   })
 
@@ -134,6 +187,7 @@ export const useRenderList = (mode: string, isChainMode?: boolean) => {
     latencyTimeout,
     runtimeSummaryItem,
     strategyGroupOverrides,
+    managedStrategyGroupNames,
   })
 
   return {

@@ -32,6 +32,7 @@ export type GroupCache = {
   latencyTimeout: number | undefined
   pathSignature: string
   strategyMembersSignature?: string
+  managedStrategySignature?: string
   items: IRenderItem[]
 }
 
@@ -40,11 +41,12 @@ export const GROUP_SECTION_COPY: Record<
   { title: string; description?: string }
 > = {
   manual: {
-    title: '手动节点',
+    title: '单选节点',
   },
   strategy: {
     title: '策略池',
-    description: '这里只显示你手动加入策略池的成员，不再在池内手动点选单节点。',
+    description:
+      '这里只显示你手动加入策略池的成员，池内节点由策略自动切换，不在池内单独点选节点。',
   },
 }
 
@@ -54,17 +56,18 @@ export const GLOBAL_SELECTOR_SECTION_COPY: Record<
 > = {
   manual: {
     title: '单选节点',
-    description: '这里是可以直接选中的单一出口节点。',
+    description: '这里显示所有已提取的真实节点，直接点选即可切换出口。',
   },
   strategy: {
     title: '策略池',
-    description: '选择这里的策略池后，由池内策略自动决定当前出口节点。',
+    description:
+      '这里仅显示软件维护的策略池。先选中策略池，再由池内策略在你手动添加的成员之间自动选择出口。',
   },
 }
 
 export const MANUAL_PAGE_SECTION_COPY = {
   title: '节点组',
-  description: '这里只显示你可以直接决定出口的主组。',
+  description: '这里只显示可以直接决定出口的主组。',
 }
 
 export const calculateColumns = (width: number, configCol: number): number => {

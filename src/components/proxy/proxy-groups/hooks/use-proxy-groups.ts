@@ -4,7 +4,6 @@ import { useProxySelection } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
 import {
-  getDisplayableTopLevelGroups,
   isHiddenProxyName,
   isAuxiliarySelectionName,
   pickPreferredProxyNameFromGroup,
@@ -126,12 +125,10 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
   }, [changeProxy, proxiesData])
 
   const proxyGroupNames = useMemo(() => {
-    if (!proxiesData) return []
-    return getDisplayableTopLevelGroups({
-      groups: proxiesData.groups,
-      global: proxiesData.global,
-    }).map((group) => group.name)
-  }, [proxiesData])
+    return renderList
+      .filter((item) => item.type === 0 && item.group?.name)
+      .map((item) => item.group!.name)
+  }, [renderList])
 
   const handleLocation = useCallback(
     (

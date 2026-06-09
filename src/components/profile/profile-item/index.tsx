@@ -120,13 +120,6 @@ export const ProfileItem = ({
 
           actions.handleEditProxies()
         }}
-        onEditGroupsClick={() => {
-          if (!state.option?.groups) {
-            return
-          }
-
-          actions.handleEditGroups()
-        }}
         onShareQrCodeClick={() => {
           if (!state.hasUrl) {
             return
@@ -135,7 +128,6 @@ export const ProfileItem = ({
           actions.handleShareQrCode()
         }}
         canEditProxies={!!state.option?.proxies}
-        canEditGroups={!!state.option?.groups}
         onToggleUpdateTimeDisplay={state.toggleUpdateTimeDisplay}
         onSelectionChange={onSelectionChange}
       />

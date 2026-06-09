@@ -31,7 +31,6 @@ export interface ProfileHeaderProps {
   onReactivate: () => void
   onEmergencyRefresh: () => void
   onDeleteSelectedProfiles: () => void
-  onOpenMerge: () => void
   onOpenScript: () => void
   url: string
   setUrl: (url: string) => void
@@ -57,7 +56,6 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
   onReactivate,
   onEmergencyRefresh,
   onDeleteSelectedProfiles,
-  onOpenMerge,
   onOpenScript,
   url,
   setUrl,
@@ -204,15 +202,6 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
           }}
         />
       </Box>
-
-      <Button
-        variant="primary"
-        size="small"
-        className="shrink-0 rounded-[6px]"
-        onClick={onOpenMerge}
-      >
-        {t('profiles.components.more.global.merge')}
-      </Button>
 
       <Button
         variant="primary"

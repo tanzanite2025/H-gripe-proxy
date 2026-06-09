@@ -1,14 +1,15 @@
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, SlidersHorizontal } from 'lucide-react'
 
 import { BaseLoading } from '@/components/base'
-import {
-  ListItem,
-  ListItemIcon,
-} from '@/components/tailwind/List'
+import { ListItem, ListItemIcon } from '@/components/tailwind/List'
 import { ListItemText } from '@/components/tailwind/ListItemText'
 import { Tooltip } from '@/components/tailwind/Tooltip'
 import { useProxyDelayState } from '@/hooks/network'
 import delayManager from '@/services/delay'
+import {
+  categorizeProxyGroup,
+  isProxyGroupItem,
+} from '@/services/proxy-display'
 
 import {
   getMieruMultiplexShortText,
@@ -27,6 +28,7 @@ interface Props {
   sx?: any
   clickable?: boolean
   onClick?: (name: string) => void
+  onConfigure?: (group: IProxyGroupItem) => void
 }
 
 export const ProxyItem = (props: Props) => {
@@ -37,6 +39,7 @@ export const ProxyItem = (props: Props) => {
     showType = true,
     clickable = true,
     onClick,
+    onConfigure,
   } = props
   const isDark = true
 
@@ -44,6 +47,10 @@ export const ProxyItem = (props: Props) => {
     proxy,
     group.name,
   )
+  const isConfigurableStrategy =
+    Boolean(onConfigure) &&
+    isProxyGroupItem(proxy) &&
+    categorizeProxyGroup(proxy) === 'strategy'
 
   const bgcolor = isDark ? '#24252f' : '#ffffff'
   const selectColor = isDark ? '#90caf9' : '#1976d2'
@@ -53,9 +60,9 @@ export const ProxyItem = (props: Props) => {
       <div
         role={clickable ? 'button' : undefined}
         tabIndex={clickable ? 0 : -1}
-        className={`rounded mb-2 h-10 group ${
+        className={`mb-2 h-10 rounded group ${
           selected
-            ? 'border-l-[3px] ml-[-3px] w-[calc(100%+3px)]'
+            ? 'ml-[-3px] w-[calc(100%+3px)] border-l-[3px]'
             : ''
         } ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
@@ -85,43 +92,43 @@ export const ProxyItem = (props: Props) => {
           title={proxy.name}
           secondary={
             <>
-              <div className="inline-block mr-2 text-sm text-current">
+              <div className="mr-2 inline-block text-sm text-current">
                 {proxy.name}
                 {showType && proxy.now && ` - ${proxy.now}`}
               </div>
               {showType && !!proxy.provider && (
-                <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                   {proxy.provider}
                 </span>
               )}
               {showType && (
-                <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                   {proxy.type}
                 </span>
               )}
               {showType && proxy.udp && (
-                <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                   UDP
                 </span>
               )}
               {showType && proxy.xudp && (
-                <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                   XUDP
                 </span>
               )}
               {showType && proxy.tfo && (
-                <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                   TFO
                 </span>
               )}
               {showType && proxy.mptcp && (
-                <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                   MPTCP
                 </span>
               )}
               {showType && proxy.smux && (
                 <Tooltip title={getSmuxTooltip(proxy)} arrow placement="top">
-                  <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                  <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                     {getSmuxShortText(proxy)}
                   </span>
                 </Tooltip>
@@ -135,7 +142,7 @@ export const ProxyItem = (props: Props) => {
                     arrow
                     placement="top"
                   >
-                    <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                    <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                       {getMieruMultiplexShortText((proxy as any).multiplexing)}
                     </span>
                   </Tooltip>
@@ -151,7 +158,7 @@ export const ProxyItem = (props: Props) => {
                     arrow
                     placement="top"
                   >
-                    <span className="inline-block border border-gray-400/40 text-gray-400/50 rounded text-[10px] mr-1 px-0.5 leading-5">
+                    <span className="mr-1 inline-block rounded border border-gray-400/40 px-0.5 text-[10px] leading-5 text-gray-400/50">
                       {getSudokuMultiplexShortText(
                         (proxy as any).httpmask.multiplex,
                       )}
@@ -165,15 +172,29 @@ export const ProxyItem = (props: Props) => {
         <ListItemIcon
           className={`justify-end text-primary ${isPreset ? 'hidden' : ''}`}
         >
+          {isConfigurableStrategy && (
+            <Tooltip title="配置策略池成员" arrow placement="top">
+              <div
+                className="mr-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded text-amber-400 hover:bg-amber-500/10"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onConfigure?.(proxy)
+                }}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </div>
+            </Tooltip>
+          )}
           {delayValue === -2 && (
-            <div className="py-0.5 px-1.5 text-sm rounded">
+            <div className="rounded px-1.5 py-0.5 text-sm">
               <BaseLoading />
             </div>
           )}
 
           {!proxy.provider && delayValue !== -2 && (
             <div
-              className="the-check hidden group-hover:block py-0.5 px-1.5 text-sm rounded hover:bg-primary/15 cursor-pointer"
+              className="the-check hidden cursor-pointer rounded px-1.5 py-0.5 text-sm hover:bg-primary/15 group-hover:block"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -186,8 +207,8 @@ export const ProxyItem = (props: Props) => {
 
           {delayValue >= 0 && (
             <div
-              className={`the-delay py-0.5 px-1.5 text-sm rounded ${
-                !proxy.provider ? 'hover:bg-primary/15 cursor-pointer' : ''
+              className={`the-delay rounded px-1.5 py-0.5 text-sm ${
+                !proxy.provider ? 'cursor-pointer hover:bg-primary/15' : ''
               }`}
               style={{
                 color: delayManager.formatDelayColor(delayValue, timeout),

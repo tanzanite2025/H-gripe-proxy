@@ -32,7 +32,6 @@ const ProfilePage = () => {
   const location = useLocation()
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
 
-  const [mergeOpen, setMergeOpen] = useState(false)
   const [scriptOpen, setScriptOpen] = useState(false)
 
   const { current } = location.state || {}
@@ -155,7 +154,6 @@ const ProfilePage = () => {
             onReactivate={() => onEnhance(true)}
             onEmergencyRefresh={onEmergencyRefresh}
             onDeleteSelectedProfiles={deleteSelectedProfiles}
-            onOpenMerge={() => setMergeOpen(true)}
             onOpenScript={() => setScriptOpen(true)}
             url={url}
             setUrl={setUrl}
@@ -202,16 +200,6 @@ const ProfilePage = () => {
       />
       <ConfigViewer ref={configRef} />
 
-      <ProfileMore
-        id="Merge"
-        open={mergeOpen}
-        onClose={() => setMergeOpen(false)}
-        onSave={async (prev, curr) => {
-          if (prev !== curr) {
-            await onEnhance(false)
-          }
-        }}
-      />
       <ProfileMore
         id="Script"
         open={scriptOpen}

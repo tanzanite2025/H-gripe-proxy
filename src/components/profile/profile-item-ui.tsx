@@ -55,10 +55,8 @@ interface ProfileItemUIProps {
   onDirectUpdateClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   onProxyUpdateClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   onEditProxiesClick: (e: React.MouseEvent<HTMLButtonElement>) => void
-  onEditGroupsClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   onShareQrCodeClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   canEditProxies: boolean
-  canEditGroups: boolean
   onToggleUpdateTimeDisplay: (e: React.MouseEvent) => void
   onSelectionChange?: () => void
 }
@@ -93,10 +91,8 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
     onDirectUpdateClick,
     onProxyUpdateClick,
     onEditProxiesClick,
-    onEditGroupsClick,
     onShareQrCodeClick,
     canEditProxies,
-    canEditGroups,
     onToggleUpdateTimeDisplay,
     onSelectionChange,
   } = props
@@ -265,12 +261,10 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
             activating={activating}
             loading={loading}
             canEditProxies={canEditProxies}
-            canEditGroups={canEditGroups}
             onUseClick={onUseClick}
             onDirectUpdateClick={onDirectUpdateClick}
             onProxyUpdateClick={onProxyUpdateClick}
             onEditProxiesClick={onEditProxiesClick}
-            onEditGroupsClick={onEditGroupsClick}
           />
         )}
       </ProfileBox>

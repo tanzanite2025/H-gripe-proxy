@@ -9,12 +9,10 @@ interface ProfileCardActionsProps {
   activating: boolean
   loading: boolean
   canEditProxies: boolean
-  canEditGroups: boolean
   onUseClick: MouseEventHandler<HTMLButtonElement>
   onDirectUpdateClick: MouseEventHandler<HTMLButtonElement>
   onProxyUpdateClick: MouseEventHandler<HTMLButtonElement>
   onEditProxiesClick: MouseEventHandler<HTMLButtonElement>
-  onEditGroupsClick: MouseEventHandler<HTMLButtonElement>
 }
 
 const actionButtonClass =
@@ -26,12 +24,10 @@ export const ProfileCardActions = ({
   activating,
   loading,
   canEditProxies,
-  canEditGroups,
   onUseClick,
   onDirectUpdateClick,
   onProxyUpdateClick,
   onEditProxiesClick,
-  onEditGroupsClick,
 }: ProfileCardActionsProps) => {
   const { t } = useTranslation()
   const updatesDisabled = activating || loading
@@ -93,17 +89,6 @@ export const ProfileCardActions = ({
         onClick={handleAction(onEditProxiesClick)}
       >
         {t('profiles.components.menu.editProxies')}
-      </button>
-      <button
-        type="button"
-        className={cn(
-          actionButtonClass,
-          'border-border bg-white/5 text-text-secondary hover:bg-white/10 hover:text-text-primary',
-        )}
-        disabled={!canEditGroups}
-        onClick={handleAction(onEditGroupsClick)}
-      >
-        {t('profiles.components.menu.editGroups')}
       </button>
     </div>
   )

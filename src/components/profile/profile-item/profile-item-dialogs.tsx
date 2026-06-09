@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
-import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { ProxiesEditorViewer } from '@/components/profile/proxies-editor-viewer'
 import { QrViewer } from '@/components/profile/qr-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
@@ -68,32 +67,6 @@ export function ProfileItemDialogs({
           open={true}
           onSave={onSave}
           onClose={dialogs.closeProxies}
-        />
-      )}
-
-      {dialogs.groupsOpen && (
-        <GroupsEditorViewer
-          mergeUid={option?.merge ?? ''}
-          proxiesUid={option?.proxies ?? ''}
-          profileUid={itemData.uid}
-          property={option?.groups ?? ''}
-          open={true}
-          onSave={onSave}
-          onClose={dialogs.closeGroups}
-        />
-      )}
-
-      {dialogs.mergeOpen && (
-        <EditorViewer
-          open={true}
-          value={dialogs.mergeDocument.value}
-          language="yaml"
-          path={`merge:${option?.merge ?? ''}.yaml`}
-          loading={dialogs.mergeDocument.loading}
-          dirty={dialogs.mergeDocument.dirty}
-          onChange={dialogs.mergeDocument.setValue}
-          onSave={dialogs.handleSaveMergeDocument}
-          onClose={dialogs.closeMerge}
         />
       )}
 
