@@ -1,6 +1,11 @@
 import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
 import { Button } from '@/components/tailwind/Button'
-import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+} from '@/components/tailwind/Dialog'
 import type { ResidentialProxyPool } from '@/services/coordinator'
 
 interface ResidentialPoolDialogProps {

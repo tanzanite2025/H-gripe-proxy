@@ -4,7 +4,7 @@ import type { ResidentialProxy, ResidentialProxyPool } from '@/services/coordina
 
 import type { ProxyChainItem } from '../proxy-chain-types'
 
-interface ResidentialExitSectionProps {
+export interface ResidentialExitSectionProps {
   proxyChain: ProxyChainItem[]
   residentialPool?: ResidentialProxyPool
   enabledResidentialProxies: ResidentialProxy[]
@@ -21,7 +21,9 @@ export const ResidentialExitSection = ({
     <div className="mt-2 px-2">
       <div className="mb-2 flex items-center gap-1">
         <Building2 className="h-3.5 w-3.5 text-secondary" />
-        <span className="text-xs font-medium text-text-secondary">住宅代理出口</span>
+        <span className="text-xs font-medium text-text-secondary">
+          住宅代理出口
+        </span>
       </div>
 
       {enabledResidentialProxies.length > 0 ? (

@@ -1,10 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { Globe2, ShieldAlert } from 'lucide-react'
 
-import {
-  getCurrentEgressIdentity,
-  type CurrentEgressIdentity,
-} from '@/services/cmds/diagnostics'
+import { useCurrentEgressIdentity } from '@/hooks/data'
+import type { CurrentEgressIdentity } from '@/services/cmds/diagnostics'
 import {
   getIpTypeText,
   getResidentialStateText,
@@ -106,9 +103,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     data: currentIdentity,
     error,
     isLoading,
-  } = useQuery({
-    queryKey: ['current-egress-identity'],
-    queryFn: getCurrentEgressIdentity,
+  } = useCurrentEgressIdentity({
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

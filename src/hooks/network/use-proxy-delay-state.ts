@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import { useVerge } from '@/hooks/system'
 import { resolveDisplayDelayUpdate } from '@/services/delay-display'
+import { resolveVergeDelayTimeout } from '@/services/delay-config'
 import delayManager, { type DelayUpdate } from '@/services/delay'
 
 const PRESET_PROXY_NAMES = [
@@ -32,7 +33,7 @@ export function useProxyDelayState(
   const isPreset = PRESET_PROXY_NAMES.includes(proxy.name)
   const [delayState, setDelayState] = useReducer(identity, INITIAL_DELAY)
   const { verge } = useVerge()
-  const timeout = verge?.default_latency_timeout || 10000
+  const timeout = resolveVergeDelayTimeout(verge)
   const latestProxyRef = useRef(proxy)
 
   useEffect(() => {

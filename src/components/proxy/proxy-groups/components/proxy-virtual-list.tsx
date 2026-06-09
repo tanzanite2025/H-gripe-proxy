@@ -11,7 +11,7 @@ type VirtualListItem = {
   end: number
 }
 
-interface ProxyVirtualListProps {
+export interface ProxyVirtualListProps {
   parentRef: RefObject<HTMLDivElement | null>
   height: string
   totalSize: number
@@ -32,9 +32,6 @@ interface ProxyVirtualListProps {
   ) => void
 }
 
-/**
- * 代理虚拟列表组件 - 使用虚拟滚动优化性能
- */
 export function ProxyVirtualList({
   parentRef,
   height,

@@ -2,6 +2,7 @@ import { useLockFn } from 'ahooks'
 import { delayGroup, healthcheckProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { useProxiesData } from '@/providers/app-data-context'
+import { resolveDelayTimeout } from '@/services/delay-config'
 import delayManager from '@/services/delay'
 import { debugLog } from '@/utils/misc'
 
@@ -28,7 +29,7 @@ export const useProxyDelayCheck = ({
 
     debugLog(`[CurrentProxyCard] Start delay check, group: ${groupName}`)
 
-    const timeout = defaultLatencyTimeout || 10000
+    const timeout = resolveDelayTimeout(defaultLatencyTimeout)
     const proxyNames: string[] = []
     const providers: Set<string> = new Set()
 

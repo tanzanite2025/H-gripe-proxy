@@ -4,22 +4,20 @@ import { Chip } from '@/components/tailwind/Chip'
 import delayManager from '@/services/delay'
 import { cn } from '@/utils/cn'
 
-import { convertDelayColor } from '../utils/proxy-helpers'
+import { convertDelayColor } from '../utils/delay-visuals'
 
 interface ProxyInfoDisplayProps {
   proxy: any
   delay: number
   isGlobalMode: boolean
+  timeout: number
 }
 
-/**
- * 代理信息展示组件
- * 显示当前代理的详细信息和延迟
- */
 export const ProxyInfoDisplay = ({
   proxy,
   delay,
   isGlobalMode,
+  timeout,
 }: ProxyInfoDisplayProps) => {
   const { t } = useTranslation()
 
@@ -45,7 +43,6 @@ export const ProxyInfoDisplay = ({
           {proxy.type}
         </div>
 
-        {/* 模式标签 */}
         {isGlobalMode && (
           <Chip
             size="small"
@@ -54,7 +51,7 @@ export const ProxyInfoDisplay = ({
             className="mr-0.5"
           />
         )}
-        {/* 节点特性 */}
+
         {proxy.udp && (
           <Chip size="small" label="UDP" variant="outlined" className="mr-0.5" />
         )}
@@ -72,11 +69,10 @@ export const ProxyInfoDisplay = ({
         )}
       </div>
 
-      {/* 显示延迟 */}
       <Chip
         size="small"
-        label={delayManager.formatDelay(delay)}
-        color={convertDelayColor(delay)}
+        label={delayManager.formatDelay(delay, timeout)}
+        color={convertDelayColor(delay, timeout)}
       />
     </div>
   )

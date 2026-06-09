@@ -5,6 +5,8 @@
 
 import { fetch } from '@tauri-apps/plugin-http'
 
+import { DEFAULT_DELAY_TEST_URL } from './delay-config'
+
 export type NetworkQuality = 'good' | 'poor' | 'offline'
 
 export interface NetworkStatus {
@@ -68,7 +70,7 @@ class NetworkMonitor {
         controller.abort()
       }, this.QUALITY_CHECK_TIMEOUT)
 
-      await fetch('https://cp.cloudflare.com/generate_204', {
+      await fetch(DEFAULT_DELAY_TEST_URL, {
         method: 'HEAD',
         signal: controller.signal,
       })

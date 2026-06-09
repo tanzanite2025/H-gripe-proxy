@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { useProxySelection } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
-import {
-  isHiddenProxyName,
-  isAuxiliarySelectionName,
-  pickPreferredProxyNameFromGroup,
-} from '@/services/proxy-display'
+import { resolveVergeDelayTimeout } from '@/services/delay-config'
 
 import { useRenderList } from '../../use-render-list'
+import {
+  findProxyGroupHeaderIndex,
+  findProxyGroupScrollTarget,
+  getGroupHeadStateFromRenderList,
+  getProxyGroupNamesFromRenderList,
+} from './proxy-group-render-list'
+import { useAuxiliarySelectionCorrection } from './use-auxiliary-selection-correction'
 
 interface UseProxyGroupsOptions {
   mode: string
@@ -28,12 +31,8 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
   )
 
   const getGroupHeadState = useCallback(
-    (groupName: string) => {
-      const headItem = renderList.find(
-        (item) => item.type === 1 && item.group?.name === groupName,
-      )
-      return headItem?.headState
-    },
+    (groupName: string) =>
+      getGroupHeadStateFromRenderList(renderList, groupName),
     [renderList],
   )
 
@@ -47,87 +46,12 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
     },
   })
 
-  const timeout = verge?.default_latency_timeout || 10000
-  const correctionSignatureRef = useRef('')
+  useAuxiliarySelectionCorrection(proxiesData, changeProxy)
 
-  useEffect(() => {
-    if (!proxiesData?.records) {
-      correctionSignatureRef.current = ''
-      return
-    }
-
-    const groups = [proxiesData.global, ...(proxiesData.groups || [])].filter(
-      Boolean,
-    ) as IProxyGroupItem[]
-
-    const corrections = groups
-      .map((group) => {
-        if (group.type !== 'Selector') {
-          return null
-        }
-
-        const currentName = group.now?.trim() || ''
-        if (
-          !currentName ||
-          (!isAuxiliarySelectionName(currentName, proxiesData.records) &&
-            !isHiddenProxyName(currentName))
-        ) {
-          return null
-        }
-
-        const targetName = pickPreferredProxyNameFromGroup(
-          group,
-          proxiesData.records,
-          group.now,
-        )
-
-        if (!targetName || targetName === currentName) {
-          return null
-        }
-
-        return {
-          groupName: group.name,
-          previousProxy: currentName,
-          proxyName: targetName,
-        }
-      })
-      .filter(
-        (
-          correction,
-        ): correction is {
-          groupName: string
-          previousProxy: string
-          proxyName: string
-        } => Boolean(correction),
-      )
-
-    if (corrections.length === 0) {
-      correctionSignatureRef.current = ''
-      return
-    }
-
-    const signature = corrections
-      .map(
-        ({ groupName, previousProxy, proxyName }) =>
-          `${groupName}:${previousProxy}->${proxyName}`,
-      )
-      .join('|')
-
-    if (correctionSignatureRef.current === signature) {
-      return
-    }
-
-    correctionSignatureRef.current = signature
-
-    corrections.forEach(({ groupName, previousProxy, proxyName }) => {
-      changeProxy(groupName, proxyName, previousProxy)
-    })
-  }, [changeProxy, proxiesData])
+  const timeout = resolveVergeDelayTimeout(verge)
 
   const proxyGroupNames = useMemo(() => {
-    return renderList
-      .filter((item) => item.type === 0 && item.group?.name)
-      .map((item) => item.group!.name)
+    return getProxyGroupNamesFromRenderList(renderList)
   }, [renderList])
 
   const handleLocation = useCallback(
@@ -136,36 +60,21 @@ export function useProxyGroups(options: UseProxyGroupsOptions) {
       scrollToIndex: (index: number, options?: any) => void,
     ) => {
       if (!group) return
-      const { name, now } = group
 
-      const index = renderList.findIndex(
-        (item) =>
-          item.group?.name === name &&
-          ((item.type === 2 && item.proxy?.name === now) ||
-            (item.type === 4 && item.proxyCol?.some((proxy) => proxy.name === now))),
-      )
+      const target = findProxyGroupScrollTarget(renderList, group)
+      if (!target) return
 
-      if (index >= 0) {
-        scrollToIndex(index, { align: 'center', behavior: 'smooth' })
-        return
-      }
-
-      const groupIndex = renderList.findIndex(
-        (item) => item.type === 0 && item.group?.name === name,
-      )
-
-      if (groupIndex >= 0) {
-        scrollToIndex(groupIndex, { align: 'start', behavior: 'smooth' })
-      }
+      scrollToIndex(target.index, {
+        align: target.align,
+        behavior: 'smooth',
+      })
     },
     [renderList],
   )
 
   const handleGroupLocationByName = useCallback(
     (groupName: string, scrollToIndex: (index: number, options?: any) => void) => {
-      const index = renderList.findIndex(
-        (item) => item.type === 0 && item.group?.name === groupName,
-      )
+      const index = findProxyGroupHeaderIndex(renderList, groupName)
 
       if (index >= 0) {
         scrollToIndex(index, { align: 'start', behavior: 'smooth' })

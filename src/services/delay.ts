@@ -3,19 +3,13 @@ import { delayProxyByName, ProxyDelay } from 'tauri-plugin-mihomo-api'
 import { debugLog } from '@/utils/misc'
 
 import { getDelayTestConfig } from './adaptive-config'
+import {
+  DEFAULT_DELAY_TIMEOUT,
+  normalizeDelayTestUrl,
+} from './delay-config'
 import { networkMonitor } from './network-monitor'
 
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
-const DEFAULT_DELAY_TEST_URL = 'https://cp.cloudflare.com/generate_204'
-
-function normalizeDelayTestUrl(url?: string) {
-  const trimmed = url?.trim()
-  if (!trimmed) return DEFAULT_DELAY_TEST_URL
-  if (trimmed.startsWith('http://') && trimmed.includes('/generate_204')) {
-    return `https://${trimmed.slice('http://'.length)}`
-  }
-  return trimmed
-}
 
 export interface DelayUpdate {
   delay: number
@@ -417,7 +411,7 @@ class DelayManager {
     return this.abortControllers.has(group)
   }
 
-  formatDelay(delay: number, timeout = 10000) {
+  formatDelay(delay: number, timeout = DEFAULT_DELAY_TIMEOUT) {
     if (delay === -1) return '-'
     if (delay === -2) return 'testing'
     if (delay === 0 || (delay >= timeout && delay <= 1e5)) return 'Timeout'
@@ -425,10 +419,10 @@ class DelayManager {
     return `${delay}`
   }
 
-  formatDelayColor(delay: number, timeout = 10000) {
+  formatDelayColor(delay: number, timeout = DEFAULT_DELAY_TIMEOUT) {
     if (delay < 0) return ''
     if (delay === 0 || delay >= timeout) return 'error.main'
-    if (delay >= 10000) return 'error.main'
+    if (delay >= DEFAULT_DELAY_TIMEOUT) return 'error.main'
     if (delay >= 400) return 'warning.main'
     if (delay >= 250) return 'primary.main'
     return 'success.main'
