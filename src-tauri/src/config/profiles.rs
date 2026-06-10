@@ -90,6 +90,26 @@ impl IProfiles {
             .unwrap_or_default()
     }
 
+    fn prune_legacy_auxiliary_rules_items(&mut self) -> bool {
+        let Some(items) = self.items.as_mut() else {
+            return false;
+        };
+
+        let original_len = items.len();
+        items.retain(|item| {
+            let is_legacy_rules_type = item.itype.as_deref() == Some("rules");
+            let has_legacy_rules_uid = item.uid.as_deref().is_some_and(|uid| uid.starts_with('r'));
+            let has_legacy_rules_file = item
+                .file
+                .as_deref()
+                .is_some_and(|file| file.starts_with("china-rules-") && file.ends_with(".yaml"));
+
+            !(is_legacy_rules_type || has_legacy_rules_uid || has_legacy_rules_file)
+        });
+
+        items.len() != original_len
+    }
+
     pub fn to_view(&self) -> ProfilesView {
         ProfilesView {
             current: self.current.clone(),
@@ -129,6 +149,23 @@ impl IProfiles {
                         item.uid = Some(help::get_uid("d").into());
                     }
                 }
+
+                if profiles.prune_legacy_auxiliary_rules_items() {
+                    logging!(
+                        info,
+                        Type::Config,
+                        "Removed legacy auxiliary china rules items from profiles config"
+                    );
+                    if let Err(err) = profiles.save_file().await {
+                        logging!(
+                            warn,
+                            Type::Config,
+                            "Failed to persist legacy auxiliary china rules cleanup: {}",
+                            err
+                        );
+                    }
+                }
+
                 profiles
             }
             Err(err) => {
@@ -335,7 +372,6 @@ impl IProfiles {
                 [
                     op.merge.clone(),
                     op.script.clone(),
-                    op.rules.clone(),
                     op.proxies.clone(),
                     op.groups.clone(),
                 ]
@@ -538,13 +574,6 @@ impl IProfiles {
                         active_files.insert(file);
                     }
 
-                    if let Some(rules_uid) = &option.rules
-                        && let Ok(rules_item) = self.get_item(rules_uid)
-                        && let Some(file) = &rules_item.file
-                    {
-                        active_files.insert(file);
-                    }
-
                     if let Some(proxies_uid) = &option.proxies
                         && let Ok(proxies_item) = self.get_item(proxies_uid)
                         && let Some(file) = &proxies_item.file
@@ -572,7 +601,7 @@ impl IProfiles {
         // L12345678.yaml (local)
         // m12345678.yaml (merge)
         // s12345678.js (script)
-        // china-rules-r12345678.yaml (rules)
+        // china-rules-legacy12345678.yaml (legacy cleanup only)
         // p12345678.yaml (proxies)
         // g12345678.yaml (groups)
 
@@ -580,7 +609,7 @@ impl IProfiles {
             r"^[RL][a-zA-Z0-9]+\.yaml$",         // Remote/Local profiles
             r"^m[a-zA-Z0-9]+\.yaml$",            // Merge files
             r"^s[a-zA-Z0-9]+\.js$",              // Script files
-            r"^china-rules-[a-zA-Z0-9]+\.yaml$", // Rules files
+            r"^china-rules-[a-zA-Z0-9]+\.yaml$", // Legacy cleanup files
             r"^[pg][a-zA-Z0-9]+\.yaml$",         // Proxies/Groups files
         ];
 
@@ -665,8 +694,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn profile_file_detection_accepts_china_rules_prefix_only() {
-        assert!(IProfiles::is_profile_file("china-rules-rAbC123.yaml"));
+    fn profile_file_detection_keeps_legacy_china_rules_cleanup() {
+        assert!(IProfiles::is_profile_file("china-rules-legacy123.yaml"));
         assert!(!IProfiles::is_profile_file("rAbC123.yaml"));
         assert!(IProfiles::is_profile_file("pAbC123.yaml"));
         assert!(IProfiles::is_profile_file("gAbC123.yaml"));

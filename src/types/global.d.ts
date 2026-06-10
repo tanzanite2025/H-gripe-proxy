@@ -26,7 +26,7 @@ type ValidationOutcome =
  */
 interface IConfigData {
   port: number
-  mode: import('@/services/clash-mode').ClashMode
+  mode: 'rule' | 'global'
   ipv6: boolean
   'socket-port': number
   'allow-lan': boolean
@@ -296,7 +296,6 @@ interface IProfileOption {
   allow_auto_update?: boolean
   merge?: string
   script?: string
-  rules?: string
   proxies?: string
   groups?: string
 }

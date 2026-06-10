@@ -3,16 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { useProfiles } from '@/hooks/data'
-import { useRuntimeConfig } from '@/hooks/data/use-clash'
 import { useVerge } from '@/hooks/system'
 import {
   useAppRefreshers,
-  useClashConfigData,
   useCoreDataStatus,
   useProxiesData,
-  useRulesData,
 } from '@/providers/app-data-context'
-import { DEFAULT_CLASH_MODE, resolveClashMode } from '@/services/clash-mode'
 import { resolveVergeDelayTimeout } from '@/services/delay-config'
 import delayManager from '@/services/delay'
 
@@ -30,9 +26,6 @@ export function useCurrentProxyCardController() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { proxies } = useProxiesData()
-  const { clashConfig } = useClashConfigData()
-  const { data: runtimeConfig } = useRuntimeConfig()
-  const { rules } = useRulesData()
   const { refreshProxy } = useAppRefreshers()
   const { isCoreDataPending } = useCoreDataStatus()
   const { verge } = useVerge()
@@ -40,11 +33,6 @@ export function useCurrentProxyCardController() {
 
   const defaultLatencyTimeout = resolveVergeDelayTimeout(verge)
   const currentProfileId = currentProfile?.uid || null
-
-  const mode =
-    resolveClashMode(clashConfig?.mode, runtimeConfig?.mode) ??
-    DEFAULT_CLASH_MODE
-  const isGlobalMode = mode === 'global'
 
   const {
     state,
@@ -56,9 +44,7 @@ export function useCurrentProxyCardController() {
     triggerDelaySortRefresh,
   } = useCurrentProxyData({
     proxies,
-    rules,
     currentProfileId,
-    isGlobalMode,
     defaultLatencyTimeout,
     refreshProxy,
   })
@@ -66,7 +52,7 @@ export function useCurrentProxyCardController() {
   const { handleCheckAllDelay } = useProxyDelayCheck({
     currentGroup: state.selection.group,
     defaultLatencyTimeout,
-    proxies,
+    groupMap: state.proxyData.groupMap,
     proxyRecords: state.proxyData.records,
     refreshProxy,
     onDelayCheckComplete: () => {
@@ -110,9 +96,8 @@ export function useCurrentProxyCardController() {
     currentProxy,
     defaultLatencyTimeout,
     isCoreDataPending,
-    isGlobalMode,
     noActiveNodeLabel,
-    onCheckAllDelay: () => handleCheckAllDelay(isGlobalMode),
+    onCheckAllDelay: handleCheckAllDelay,
     onGroupSelectChange,
     onOpenProxies,
     onProxyChange: handleProxyChange,

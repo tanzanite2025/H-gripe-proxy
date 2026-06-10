@@ -1,9 +1,5 @@
 {
   "page": {
-    "modes": {
-      "rule": "Rule",
-      "global": "Global"
-    },
     "actions": {
       "toggleChain": "Chain Proxy",
       "connect": "Connect",
@@ -53,7 +49,6 @@
       "entryNode": "Entry",
       "exitNode": "Exit"
     },
-    "messages": {},
     "title": {
       "default": "Proxy Groups",
       "chainMode": "Proxy Chain Mode"

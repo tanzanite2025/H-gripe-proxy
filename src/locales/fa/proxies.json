@@ -1,9 +1,5 @@
 {
   "page": {
-    "modes": {
-      "rule": "Rule",
-      "global": "Global"
-    },
     "actions": {
       "toggleChain": "پراکسی زنجیره‌ای",
       "connect": "Connect",
@@ -53,7 +49,6 @@
       "entryNode": "ورودی",
       "exitNode": "خروجی"
     },
-    "messages": {},
     "title": {
       "default": "گروه‌های پراکسی",
       "chainMode": "Proxy Chain Mode"

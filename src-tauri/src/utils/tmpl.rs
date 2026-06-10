@@ -29,14 +29,11 @@ function main(config, profileName) {
 }
 ";
 
-/// enhanced profile
-pub const ITEM_RULES: &str = "# Profile Enhancement china rules Template for Clash Verge
+pub const CHINA_RULES_TEMPLATE: &str = "# Built-in china rules for Clash Verge
 
-prepend: []
-
-append: []
-
-delete: []
+rules:
+  - GEOSITE,CN,DIRECT
+  - GEOIP,CN,DIRECT,no-resolve
 ";
 
 /// enhanced profile

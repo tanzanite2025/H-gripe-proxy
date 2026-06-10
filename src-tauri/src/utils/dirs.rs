@@ -38,6 +38,7 @@ pub static PORTABLE_FLAG: OnceCell<bool> = OnceCell::new();
 pub static CLASH_CONFIG: &str = "config.yaml";
 pub static VERGE_CONFIG: &str = "verge.yaml";
 pub static PROFILE_YAML: &str = "profiles.yaml";
+pub static CHINA_RULES_CONFIG: &str = "china-rules.yaml";
 
 fn migrate_dir_if_needed(from: &Path, to: &Path, label: &str) -> Result<()> {
     if to.exists() || !from.exists() {
@@ -196,6 +197,10 @@ pub fn verge_path() -> Result<PathBuf> {
 
 pub fn profiles_path() -> Result<PathBuf> {
     Ok(app_home_dir()?.join(PROFILE_YAML))
+}
+
+pub fn china_rules_path() -> Result<PathBuf> {
+    Ok(app_home_dir()?.join(CHINA_RULES_CONFIG))
 }
 
 #[cfg(target_os = "macos")]

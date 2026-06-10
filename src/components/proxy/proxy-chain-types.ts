@@ -29,13 +29,9 @@ export const proxyChainExitNode = (
 ): ProxyChainItem | null => chain[chain.length - 1] ?? null
 
 export const proxyChainTargetGroup = (
-  mode: string | undefined,
   selectedGroup: string | null | undefined,
   fallbackGroup?: string | null,
-): string | null => {
-  if (mode === 'global') return 'GLOBAL'
-  return selectedGroup || fallbackGroup || null
-}
+): string | null => selectedGroup || fallbackGroup || null
 
 export const loadProxyChainRuntimeGroup = (): string | null =>
   localStorage.getItem(PROXY_CHAIN_STORAGE_KEYS.group)
@@ -45,11 +41,10 @@ export const loadProxyChainRuntimeExitNode = (): string | null =>
 
 export const buildProxyChainRuntimeIntent = (
   chain: ProxyChainItem[],
-  mode: string | undefined,
   selectedGroup: string | null | undefined,
 ): ProxyChainRuntimeIntent | null => {
   const exitNode = proxyChainExitNode(chain)
-  const targetGroup = proxyChainTargetGroup(mode, selectedGroup)
+  const targetGroup = proxyChainTargetGroup(selectedGroup)
 
   if (!exitNode || !targetGroup || chain.length < 2) {
     return null
@@ -65,15 +60,10 @@ export const buildProxyChainRuntimeIntent = (
 export const isProxyChainConnected = (
   proxies: any,
   chain: ProxyChainItem[],
-  mode: string | undefined,
   selectedGroup: string | null | undefined,
 ): boolean => {
   const exitNode = proxyChainExitNode(chain)
   if (!proxies || !exitNode || chain.length < 2) return false
-
-  if (mode === 'global') {
-    return proxies.global?.now === exitNode.name
-  }
 
   if (!selectedGroup || !Array.isArray(proxies.groups)) {
     return false

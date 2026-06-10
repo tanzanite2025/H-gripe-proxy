@@ -7,21 +7,13 @@ import {
 import type { ProxyGroup } from './types'
 
 interface ResolveSelectionGroupOptions {
-  mode: string
   proxiesData: CalculatedProxies
-  rules?: any[]
 }
 
 export const resolveSelectionGroup = ({
-  mode,
   proxiesData,
-  rules,
 }: ResolveSelectionGroupOptions): ProxyGroup | null => {
-  const selectionGroupName = getPreferredProxyGroupName({
-    proxies: proxiesData,
-    rules,
-    isGlobalMode: mode === 'global',
-  })
+  const selectionGroupName = getPreferredProxyGroupName({ proxies: proxiesData })
   const selectionGroupRecord =
     selectionGroupName === 'GLOBAL'
       ? proxiesData.global

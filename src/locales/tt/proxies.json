@@ -1,9 +1,5 @@
 {
   "page": {
-    "modes": {
-      "rule": "Rule",
-      "global": "Global"
-    },
     "actions": {
       "toggleChain": "Чылбыр прокси",
       "connect": "Connect",
@@ -53,7 +49,6 @@
       "entryNode": "Кереш",
       "exitNode": "Чыгыш"
     },
-    "messages": {},
     "title": {
       "default": "Прокси төркемнәре",
       "chainMode": "Proxy Chain Mode"

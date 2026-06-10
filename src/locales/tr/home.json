@@ -6,15 +6,13 @@
     },
     "cards": {
       "trafficStats": "Trafik İstatistikleri",
-      "networkSettings": "Ağ Ayarları",
-      "proxyMode": "Vekil Modu"
+      "networkSettings": "Ağ Ayarları"
     },
     "settings": {
       "cards": {
         "profile": "Profil Kartı",
         "currentProxy": "Geçerli Vekil Kartı",
         "network": "Ağ Ayarları Kartı",
-        "proxyMode": "Vekil Modu Kartı",
         "traffic": "Trafik İstatistikleri Kartı",
         "tests": "Web Sitesi Testleri Kartı",
         "ip": "IP Bilgi Kartı",
@@ -90,7 +88,6 @@
         "refreshDelay": "Gecikme kontrolü"
       },
       "labels": {
-        "globalMode": "Küresel Mod",
         "group": "Grup",
         "proxy": "Vekil",
         "noActiveNode": "Aktif vekil düğümü yok"
@@ -112,19 +109,6 @@
       },
       "patterns": {
         "minutes": "{{time}} Minutes"
-      }
-    },
-    "clashMode": {
-      "errors": {
-        "communication": "Core communication error"
-      },
-      "labels": {
-        "rule": "Kural Modu",
-        "global": "Küresel Mod"
-      },
-      "descriptions": {
-        "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy."
       }
     },
     "proxyDetection": {

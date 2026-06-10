@@ -23,9 +23,7 @@ import {
 
 export const useCurrentProxyData = ({
   proxies,
-  rules,
   currentProfileId,
-  isGlobalMode,
   defaultLatencyTimeout,
   refreshProxy,
 }: UseCurrentProxyDataProps) => {
@@ -80,10 +78,8 @@ export const useCurrentProxyData = ({
 
     setState((prev) => {
       const next = buildProxyState({
-        isGlobalMode,
         prevState: prev,
         proxies,
-        rules,
         savedGroup,
         savedProxy,
       })
@@ -97,13 +93,12 @@ export const useCurrentProxyData = ({
 
       return next.state
     })
-  }, [isGlobalMode, proxies, readProfileScopedItem, rules, writeProfileScopedItem])
+  }, [proxies, readProfileScopedItem, writeProfileScopedItem])
 
   const correctionAttemptRef = useRef('')
 
   useEffect(() => {
     const correction = resolveAuxiliarySelectionCorrection({
-      isGlobalMode,
       proxies,
       state,
     })
@@ -122,14 +117,12 @@ export const useCurrentProxyData = ({
       state.selection.group,
       correction.targetProxy,
       correction.currentNow,
-      isGlobalMode,
+      false,
     )
-  }, [changeProxy, isGlobalMode, proxies, state])
+  }, [changeProxy, proxies, state])
 
   const handleGroupChange = useCallback(
     (value: string | number) => {
-      if (isGlobalMode) return
-
       const newGroup = String(value)
       writeProfileScopedItem(STORAGE_KEY_GROUP, newGroup)
 
@@ -168,7 +161,7 @@ export const useCurrentProxyData = ({
         }
       })
     },
-    [isGlobalMode, writeProfileScopedItem],
+    [writeProfileScopedItem],
   )
 
   const handleProxyChange = useCallback(
@@ -206,18 +199,15 @@ export const useCurrentProxyData = ({
         }
       })
 
-      if (!isGlobalMode) {
-        writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
-      }
+      writeProfileScopedItem(STORAGE_KEY_PROXY, newProxy)
 
-      handleSelectChange(currentGroup, previousProxy, isGlobalMode)({
+      handleSelectChange(currentGroup, previousProxy, false)({
         target: { value: newProxy },
       })
     },
     [
       debouncedSetState,
       handleSelectChange,
-      isGlobalMode,
       state.proxyData.groupMap,
       state.proxyData.records,
       state.selection.group,
@@ -238,8 +228,6 @@ export const useCurrentProxyData = ({
         defaultLatencyTimeout,
         delaySortRefresh,
         groupMap: state.proxyData.groupMap,
-        isGlobalMode,
-        proxies,
         records: state.proxyData.records,
         selectionGroup: state.selection.group,
         sortType,
@@ -247,8 +235,6 @@ export const useCurrentProxyData = ({
     [
       defaultLatencyTimeout,
       delaySortRefresh,
-      isGlobalMode,
-      proxies,
       sortType,
       state.proxyData.groupMap,
       state.proxyData.records,

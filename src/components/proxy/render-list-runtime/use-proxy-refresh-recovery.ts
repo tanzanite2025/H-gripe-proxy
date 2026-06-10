@@ -1,13 +1,11 @@
 import { useEffect } from 'react'
 
 interface UseProxyRefreshRecoveryOptions {
-  mode: string
   onProxies: () => void
   proxiesData: any
 }
 
 export function useProxyRefreshRecovery({
-  mode,
   onProxies,
   proxiesData,
 }: UseProxyRefreshRecoveryOptions) {
@@ -17,12 +15,9 @@ export function useProxyRefreshRecovery({
     const groups = proxiesData.groups || []
     const proxies = proxiesData.proxies || []
 
-    if (
-      (mode === 'rule' && groups.length === 0) ||
-      (mode === 'global' && proxies.length < 2)
-    ) {
+    if (groups.length === 0 || proxies.length === 0) {
       const handle = setTimeout(() => onProxies(), 500)
       return () => clearTimeout(handle)
     }
-  }, [mode, onProxies, proxiesData])
+  }, [onProxies, proxiesData])
 }

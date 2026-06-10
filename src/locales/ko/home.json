@@ -6,15 +6,13 @@
     },
     "cards": {
       "trafficStats": "트래픽 통계",
-      "networkSettings": "네트워크 설정",
-      "proxyMode": "프록시 모드"
+      "networkSettings": "네트워크 설정"
     },
     "settings": {
       "cards": {
         "profile": "프로필 카드",
         "currentProxy": "현재 프록시 카드",
         "network": "네트워크 설정 카드",
-        "proxyMode": "프록시 모드 카드",
         "traffic": "트래픽 통계 카드",
         "tests": "웹사이트 테스트 카드",
         "ip": "IP 정보 카드",
@@ -90,7 +88,6 @@
         "refreshDelay": "지연 확인"
       },
       "labels": {
-        "globalMode": "전역 모드",
         "group": "그룹",
         "proxy": "프록시",
         "noActiveNode": "활성 프록시 노드 없음"
@@ -112,19 +109,6 @@
       },
       "patterns": {
         "minutes": "{{time}}분"
-      }
-    },
-    "clashMode": {
-      "errors": {
-        "communication": "코어 통신 오류"
-      },
-      "labels": {
-        "rule": "규칙",
-        "global": "전역"
-      },
-      "descriptions": {
-        "rule": "규칙 세트에 따라 자동으로 프록시를 선택합니다.",
-        "global": "모든 네트워크 요청을 선택한 프록시를 통해 전달합니다."
       }
     },
     "proxyDetection": {

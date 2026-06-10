@@ -1,9 +1,5 @@
 {
   "page": {
-    "modes": {
-      "rule": "Rule",
-      "global": "Global"
-    },
     "actions": {
       "toggleChain": "チェーンプロキシ",
       "connect": "Connect",
@@ -53,7 +49,6 @@
       "entryNode": "入口",
       "exitNode": "出口"
     },
-    "messages": {},
     "title": {
       "default": "プロキシグループ",
       "chainMode": "Proxy Chain Mode"

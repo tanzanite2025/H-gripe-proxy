@@ -30,7 +30,6 @@ export const profileItemMenuLabels = {
   shareQrCode: 'profiles.components.menu.shareQrCode',
   editInfo: 'profiles.components.menu.editInfo',
   editFile: 'profiles.components.menu.editFile',
-  editRules: 'profiles.components.menu.editRules',
   editProxies: 'profiles.components.menu.editProxies',
   extendScript: 'profiles.components.menu.extendScript',
   openFile: 'profiles.components.menu.openFile',

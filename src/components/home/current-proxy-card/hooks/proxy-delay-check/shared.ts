@@ -6,7 +6,7 @@ export interface DelayCheckTargets {
 }
 
 export interface BuildDelayCheckTargetsOptions {
-  isGlobalMode: boolean
-  proxies: CurrentProxySource | undefined
+  currentGroup: string
+  groupMap: Record<string, { all: string[] } | undefined>
   proxyRecords: Record<string, any>
 }

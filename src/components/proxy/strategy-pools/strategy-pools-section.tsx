@@ -7,7 +7,7 @@ import type { ManagedStrategyPool, StrategyPoolGroupRef } from './types'
 
 const SECTION_TITLE = '策略池'
 const SECTION_DESCRIPTION =
-  '策略池独立于上面的主模式。你手动把节点加入池内，后续再给应用内启动或专用链路使用。'
+  '策略池独立于上面的单节点出口区。你手动把节点加入池内，后续再给应用内启动或专用链路使用。'
 const EMPTY_TEXT =
   '当前还没有软件自管的策略池。这里只显示你自己创建和维护的策略池，不再读取订阅自带分组。'
 const CONFIG_NOT_READY_TEXT =

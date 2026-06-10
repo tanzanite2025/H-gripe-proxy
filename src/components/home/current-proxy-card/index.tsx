@@ -15,7 +15,6 @@ export const CurrentProxyCard = () => {
     defaultLatencyTimeout,
     groups,
     isCoreDataPending,
-    isGlobalMode,
     noActiveNodeLabel,
     onCheckAllDelay,
     onGroupSelectChange,
@@ -72,7 +71,6 @@ export const CurrentProxyCard = () => {
               <ProxyInfoDisplay
                 proxy={currentProxy}
                 delay={currentDelay}
-                isGlobalMode={isGlobalMode}
                 timeout={defaultLatencyTimeout}
               />
             </div>
@@ -81,7 +79,6 @@ export const CurrentProxyCard = () => {
               <CurrentProxySelectors
                 defaultLatencyTimeout={defaultLatencyTimeout}
                 groups={groups}
-                isGlobalMode={isGlobalMode}
                 onGroupChange={onGroupSelectChange}
                 onProxyChange={onProxyChange}
                 proxyOptions={proxyOptions}

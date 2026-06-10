@@ -49,25 +49,11 @@ export interface TranslationResources {
           }
           title: string
         }
-        clashMode: {
-          descriptions: {
-            global: string
-            rule: string
-          }
-          errors: {
-            communication: string
-          }
-          labels: {
-            global: string
-            rule: string
-          }
-        }
         currentProxy: {
           actions: {
             refreshDelay: string
           }
           labels: {
-            globalMode: string
             group: string
             noActiveNode: string
             proxy: string
@@ -235,7 +221,6 @@ export interface TranslationResources {
       page: {
         cards: {
           networkSettings: string
-          proxyMode: string
           trafficStats: string
         }
         settings: {
@@ -245,7 +230,6 @@ export interface TranslationResources {
             ip: string
             network: string
             profile: string
-            proxyMode: string
             systemInfo: string
             tests: string
             traffic: string
@@ -311,7 +295,6 @@ export interface TranslationResources {
           editGroups: string
           editInfo: string
           editProxies: string
-          editRules: string
           extendConfig: string
           extendScript: string
           home: string
@@ -535,11 +518,6 @@ export interface TranslationResources {
         labels: {
           delayCheckReset: string
           proxyCount: string
-        }
-        messages: {}
-        modes: {
-          global: string
-          rule: string
         }
         placeholders: {
           delayCheckUrl: string

@@ -4,7 +4,6 @@ import { BaseDialog } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { ProxiesEditorViewer } from '@/components/profile/proxies-editor-viewer'
 import { QrViewer } from '@/components/profile/qr-viewer'
-import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { Typography } from '@/components/tailwind/Typography'
 
 import {
@@ -45,18 +44,6 @@ export function ProfileItemDialogs({
           onChange={dialogs.profileDocument.setValue}
           onSave={dialogs.handleSaveProfileDocument}
           onClose={dialogs.closeFile}
-        />
-      )}
-
-      {dialogs.rulesOpen && (
-        <RulesEditorViewer
-          groupsUid={option?.groups ?? ''}
-          mergeUid={option?.merge ?? ''}
-          profileUid={itemData.uid}
-          property={option?.rules ?? ''}
-          open={true}
-          onSave={onSave}
-          onClose={dialogs.closeRules}
         />
       )}
 

@@ -5,14 +5,12 @@ import { CURRENT_PROXY_SELECT_CLASSNAME } from './current-proxy-select-styles'
 
 interface CurrentProxyGroupSelectProps {
   groups: ProxyGroupOption[]
-  isGlobalMode: boolean
   onChange: (event: { target: { value: string } }) => void
   selectedGroup: string
 }
 
 export function CurrentProxyGroupSelect({
   groups,
-  isGlobalMode,
   onChange,
   selectedGroup,
 }: CurrentProxyGroupSelectProps) {
@@ -21,7 +19,6 @@ export function CurrentProxyGroupSelect({
       <Select
         value={selectedGroup}
         onChange={onChange}
-        disabled={isGlobalMode}
         size="small"
         className={CURRENT_PROXY_SELECT_CLASSNAME}
       >

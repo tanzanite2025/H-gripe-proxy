@@ -8,11 +8,10 @@ import { usePersistedProxyChain } from './use-persisted-proxy-chain'
 
 interface UseChainModeOptions {
   isChainMode: boolean
-  mode: string
 }
 
 export function useChainMode(options: UseChainModeOptions) {
-  const { isChainMode, mode } = options
+  const { isChainMode } = options
   const { t } = useTranslation()
   const { proxies: proxiesData } = useProxiesData()
 
@@ -21,15 +20,14 @@ export function useChainMode(options: UseChainModeOptions) {
   })
 
   const handleSelectRuleGroup = useCallback(() => {
-    if (isChainMode && mode === 'rule') {
+    if (isChainMode) {
       chainState.resetProxyChain()
     }
-  }, [chainState, isChainMode, mode])
+  }, [chainState, isChainMode])
 
   const groupSelection = useChainGroupSelection({
     groups: proxiesData?.groups,
     isChainMode,
-    mode,
     onSelectGroup: handleSelectRuleGroup,
   })
 

@@ -95,11 +95,6 @@ export function useProfileItemActions({
     dialogs.openFile()
   }, [closeMenu, dialogs])
 
-  const handleEditRules = useCallback(() => {
-    closeMenu()
-    dialogs.openRules()
-  }, [closeMenu, dialogs])
-
   const handleEditProxies = useCallback(() => {
     closeMenu()
     dialogs.openProxies()
@@ -162,11 +157,6 @@ export function useProfileItemActions({
         disabled: false,
       },
       {
-        label: profileItemMenuLabels.editRules,
-        handler: handleEditRules,
-        disabled: !option?.rules,
-      },
-      {
         label: profileItemMenuLabels.extendScript,
         handler: handleEditScript,
         disabled: !option?.script,
@@ -211,14 +201,12 @@ export function useProfileItemActions({
     handleDeleteRequest,
     handleEditFile,
     handleEditInfo,
-    handleEditRules,
     handleEditScript,
     handleOpenFileOnDisk,
     handleOpenHome,
     handleShareQrCode,
     hasHome,
     hasUrl,
-    option?.rules,
     option?.script,
   ])
 

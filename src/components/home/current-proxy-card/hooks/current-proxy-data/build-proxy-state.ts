@@ -21,10 +21,8 @@ interface BuildVisibleGroupsResult {
 }
 
 interface BuildProxyStateOptions {
-  isGlobalMode: boolean
   prevState: ProxyState
   proxies: CurrentProxySource
-  rules: any[]
   savedGroup: string | null
   savedProxy: string | null
 }
@@ -66,16 +64,9 @@ function registerGroup(
 
 function buildVisibleGroups(
   proxies: CurrentProxySource,
-  rules: any[],
-  isGlobalMode: boolean,
 ): BuildVisibleGroupsResult {
   const groupsMap = new Map<string, ProxyGroupOption>()
-  const preferredGroupName =
-    getPreferredProxyGroupName({
-      proxies,
-      rules,
-      isGlobalMode,
-    }) || ''
+  const preferredGroupName = getPreferredProxyGroupName({ proxies }) || ''
 
   if (preferredGroupName) {
     const preferredGroup =
@@ -108,43 +99,14 @@ function buildVisibleGroups(
 }
 
 export function buildProxyState({
-  isGlobalMode,
   prevState,
   proxies,
-  rules,
   savedGroup,
   savedProxy,
 }: BuildProxyStateOptions): BuildProxyStateResult {
   const records = proxies.records || {}
   const { allGroups, groupMap, preferredGroupName, visibleGroups } =
-    buildVisibleGroups(proxies, rules, isGlobalMode)
-
-  if (isGlobalMode && proxies.global) {
-    const selectedProxy = pickVisibleProxyName(
-      extractProxyNames(proxies.global.all),
-      records,
-      proxies.global.now,
-      prevState.selection.proxy,
-      savedProxy,
-    )
-    const snapshot = buildSelectionSnapshot(records, null, selectedProxy)
-
-    return {
-      state: {
-        proxyData: {
-          groups: visibleGroups,
-          groupMap,
-          records,
-        },
-        selection: {
-          group: 'GLOBAL',
-          proxy: selectedProxy,
-        },
-        displayProxy: snapshot.displayProxy,
-        resolvedPath: snapshot.resolvedPath,
-      },
-    }
-  }
+    buildVisibleGroups(proxies)
 
   const activeGroup =
     groupMap[prevState.selection.group] ||

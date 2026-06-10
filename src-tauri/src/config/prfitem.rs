@@ -16,8 +16,6 @@ use tokio::fs;
 use reqwest_dav::re_exports::url::form_urlencoded;
 use tauri::Url;
 
-pub const AUXILIARY_RULES_NAME: &str = "china rules";
-
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct PrfItem {
     pub uid: Option<String>,
@@ -71,7 +69,6 @@ pub enum ProfileItemKind {
     PrimaryLocal,
     AuxiliaryMerge,
     AuxiliaryScript,
-    AuxiliaryRules,
     AuxiliaryProxies,
     AuxiliaryGroups,
     Unknown,
@@ -85,11 +82,7 @@ impl ProfileItemKind {
     pub const fn is_auxiliary(self) -> bool {
         matches!(
             self,
-            Self::AuxiliaryMerge
-                | Self::AuxiliaryScript
-                | Self::AuxiliaryRules
-                | Self::AuxiliaryProxies
-                | Self::AuxiliaryGroups
+            Self::AuxiliaryMerge | Self::AuxiliaryScript | Self::AuxiliaryProxies | Self::AuxiliaryGroups
         )
     }
 
@@ -156,8 +149,6 @@ pub struct PrfOption {
 
     pub script: Option<String>,
 
-    pub rules: Option<String>,
-
     pub proxies: Option<String>,
 
     pub groups: Option<String>,
@@ -177,7 +168,6 @@ impl PrfOption {
                 result.update_interval = b_ref.update_interval.or(result.update_interval);
                 result.merge = b_ref.merge.clone().or(result.merge);
                 result.script = b_ref.script.clone().or(result.script);
-                result.rules = b_ref.rules.clone().or(result.rules);
                 result.proxies = b_ref.proxies.clone().or(result.proxies);
                 result.groups = b_ref.groups.clone().or(result.groups);
                 result.timeout_seconds = b_ref.timeout_seconds.or(result.timeout_seconds);
@@ -197,7 +187,6 @@ impl PrfItem {
             Some('L') if self.url.is_none() => ProfileItemKind::PrimaryLocal,
             Some('m') => ProfileItemKind::AuxiliaryMerge,
             Some('s') => ProfileItemKind::AuxiliaryScript,
-            Some('r') => ProfileItemKind::AuxiliaryRules,
             Some('p') => ProfileItemKind::AuxiliaryProxies,
             Some('g') => ProfileItemKind::AuxiliaryGroups,
             _ => ProfileItemKind::Unknown,
@@ -210,7 +199,6 @@ impl PrfItem {
             Some("local") => ProfileItemKind::PrimaryLocal,
             Some("merge") => ProfileItemKind::AuxiliaryMerge,
             Some("script") => ProfileItemKind::AuxiliaryScript,
-            Some("rules") => ProfileItemKind::AuxiliaryRules,
             Some("proxies") => ProfileItemKind::AuxiliaryProxies,
             Some("groups") => ProfileItemKind::AuxiliaryGroups,
             _ => self.infer_kind_from_uid(),
@@ -279,7 +267,6 @@ impl PrfItem {
         let update_interval = opt_ref.and_then(|o| o.update_interval);
         let mut merge = opt_ref.and_then(|o| o.merge.clone());
         let mut script = opt_ref.and_then(|o| o.script.clone());
-        let mut rules = opt_ref.and_then(|o| o.rules.clone());
         let mut proxies = opt_ref.and_then(|o| o.proxies.clone());
         let mut groups = opt_ref.and_then(|o| o.groups.clone());
 
@@ -292,11 +279,6 @@ impl PrfItem {
             let script_item = &mut Self::from_script(None)?;
             profiles::profiles_append_item_safe(script_item).await?;
             script = script_item.uid.clone();
-        }
-        if rules.is_none() {
-            let rules_item = &mut Self::from_rules()?;
-            profiles::profiles_append_item_safe(rules_item).await?;
-            rules = rules_item.uid.clone();
         }
         if proxies.is_none() {
             let proxies_item = &mut Self::from_proxies()?;
@@ -321,7 +303,6 @@ impl PrfItem {
                 update_interval,
                 merge,
                 script,
-                rules,
                 proxies,
                 groups,
                 ..PrfOption::default()
@@ -349,7 +330,6 @@ impl PrfItem {
         let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
         let mut merge = option.and_then(|o| o.merge.clone());
         let mut script = option.and_then(|o| o.script.clone());
-        let mut rules = option.and_then(|o| o.rules.clone());
         let mut proxies = option.and_then(|o| o.proxies.clone());
         let mut groups = option.and_then(|o| o.groups.clone());
 
@@ -482,11 +462,6 @@ impl PrfItem {
             profiles::profiles_append_item_safe(script_item).await?;
             script = script_item.uid.clone();
         }
-        if rules.is_none() {
-            let rules_item = &mut Self::from_rules()?;
-            profiles::profiles_append_item_safe(rules_item).await?;
-            rules = rules_item.uid.clone();
-        }
         if proxies.is_none() {
             let proxies_item = &mut Self::from_proxies()?;
             profiles::profiles_append_item_safe(proxies_item).await?;
@@ -511,7 +486,6 @@ impl PrfItem {
                 update_interval,
                 merge,
                 script,
-                rules,
                 proxies,
                 groups,
                 allow_auto_update,
@@ -558,22 +532,6 @@ impl PrfItem {
             file: Some(file),
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(tmpl::ITEM_SCRIPT.into()),
-            ..Default::default()
-        })
-    }
-
-    /// ## Rules type (enhance)
-    pub fn from_rules() -> Result<Self> {
-        let uid = help::get_uid("r").into();
-        let file = format!("china-rules-{uid}.yaml").into(); // yaml ext
-
-        Ok(Self {
-            uid: Some(uid),
-            itype: Some("rules".into()),
-            name: Some(AUXILIARY_RULES_NAME.into()),
-            file: Some(file),
-            updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(tmpl::ITEM_RULES.into()),
             ..Default::default()
         })
     }
@@ -643,11 +601,6 @@ impl PrfItem {
         self.option.as_ref().and_then(|o| o.script.as_ref())
     }
 
-    /// 获取current指向的订阅的rules
-    pub fn current_rules(&self) -> Option<&String> {
-        self.option.as_ref().and_then(|o| o.rules.as_ref())
-    }
-
     /// 获取current指向的订阅的proxies
     pub fn current_proxies(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.proxies.as_ref())
@@ -692,19 +645,4 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
     }
 
     Ok(url)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn from_rules_uses_china_rules_file_prefix() {
-        let item = PrfItem::from_rules().expect("rules item should be created");
-        let uid = item.uid.as_deref().expect("rules item should have uid");
-        let expected = format!("china-rules-{uid}.yaml");
-
-        assert_eq!(item.file.as_deref(), Some(expected.as_str()));
-        assert_eq!(item.name.as_deref(), Some(AUXILIARY_RULES_NAME));
-    }
 }

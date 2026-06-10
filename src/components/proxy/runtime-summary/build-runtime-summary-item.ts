@@ -7,14 +7,12 @@ import {
 } from '@/services/proxy-display'
 import type { CalculatedProxies } from '@/services/proxy-runtime'
 
-import { buildDisplayPath } from '../render-list/utils'
 import type { IRenderItem } from '../render-list/types'
+import { buildDisplayPath } from '../render-list/utils'
 
 interface BuildRuntimeSummaryItemOptions {
   currentIdentity?: CurrentEgressIdentity | null
-  mode: string
   proxiesData?: CalculatedProxies
-  rules?: any[]
 }
 
 const buildRuntimeSectionDescription = ({
@@ -52,14 +50,12 @@ const buildRuntimeDetailDescription = ({
       : '已观测到实际链路。'
   }
 
-  return '这里只做当前页面参考，不代表某一条正在连接中的具体业务流。'
+  return '这里仅做当前页面参考，不代表某一条正在连接中的具体业务流。'
 }
 
 export const buildRuntimeSummaryItem = ({
   currentIdentity,
-  mode,
   proxiesData,
-  rules,
 }: BuildRuntimeSummaryItemOptions): IRenderItem | null => {
   if (!proxiesData) {
     return null
@@ -69,11 +65,7 @@ export const buildRuntimeSummaryItem = ({
     getIdentityProxyChain(currentIdentity),
     proxiesData.records,
   )
-  const fallbackRootGroup = getPreferredProxyGroupName({
-    proxies: proxiesData,
-    rules,
-    isGlobalMode: mode === 'global',
-  })
+  const fallbackRootGroup = getPreferredProxyGroupName({ proxies: proxiesData })
   const fallbackPath = resolveProxyPath(proxiesData.records, fallbackRootGroup)
   const activePath = identityPath.path.length ? identityPath : fallbackPath
   const activePathDisplay = buildDisplayPath(activePath.path, proxiesData.records)

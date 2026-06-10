@@ -5,8 +5,6 @@ import { buildProxyDisplayOptionsFromNames } from '@/services/proxy-display'
 import { categorizeDelay } from '../../utils/proxy-selection'
 import {
   KIND_WEIGHT,
-  extractProxyNames,
-  type CurrentProxySource,
   type ProxyOption,
   type ProxySortType,
 } from './shared'
@@ -15,8 +13,6 @@ interface BuildCurrentProxyOptionsOptions {
   defaultLatencyTimeout: number
   delaySortRefresh: number
   groupMap: Record<string, { all: string[] }>
-  isGlobalMode: boolean
-  proxies: CurrentProxySource
   records: Record<string, any>
   selectionGroup: string
   sortType: ProxySortType
@@ -84,17 +80,11 @@ export function buildCurrentProxyOptions({
   defaultLatencyTimeout,
   delaySortRefresh,
   groupMap,
-  isGlobalMode,
-  proxies,
   records,
   selectionGroup,
   sortType,
 }: BuildCurrentProxyOptionsOptions) {
-  const names = isGlobalMode
-    ? extractProxyNames(proxies.global?.all).filter(
-        (name) => name !== 'DIRECT' && name !== 'REJECT',
-      )
-    : groupMap[selectionGroup]?.all || []
+  const names = groupMap[selectionGroup]?.all || []
 
   if (!names.length) {
     return []

@@ -5,7 +5,7 @@ use crate::{
     process::AsyncHandler,
     utils::{
         dirs::{self, PathBufExec as _},
-        help,
+        help, tmpl,
     },
 };
 use anyhow::Result;
@@ -367,6 +367,15 @@ async fn initialize_config_files() -> Result<()> {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create profiles config: {}", e))?;
         logging!(info, Type::Setup, "Created profiles config at {:?}", path);
+    }
+
+    if let Ok(path) = dirs::china_rules_path()
+        && !path.exists()
+    {
+        fs::write(&path, tmpl::CHINA_RULES_TEMPLATE)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create china rules config: {}", e))?;
+        logging!(info, Type::Setup, "Created china rules config at {:?}", path);
     }
 
     // 验证并修正verge配置

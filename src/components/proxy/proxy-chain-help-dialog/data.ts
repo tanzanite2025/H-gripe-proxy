@@ -61,7 +61,7 @@ export const SETUP_STEPS: SetupStepData[] = [
   {
     step: '2',
     title: '选择作用范围',
-    description: '在规则模式下先确认要作用的代理组。',
+    description: '先确认这条代理链要作用到哪个目标分组。',
   },
   {
     step: '3',

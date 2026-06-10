@@ -8,16 +8,13 @@ import { useProxyGroups } from './use-proxy-groups'
 import { useProxyGroupsListView } from './use-proxy-groups-list-view'
 
 export function useProxyGroupsController(props: ProxyGroupsProps) {
-  const { mode, isChainMode = false, chainConfigData, onCloseChainMode } = props
-  const displayMode = mode
+  const { isChainMode = false, chainConfigData, onCloseChainMode } = props
 
   const chainMode = useChainMode({
     isChainMode,
-    mode: displayMode,
   })
 
   const proxyGroups = useProxyGroups({
-    mode: displayMode,
     isChainMode,
   })
 
@@ -48,7 +45,6 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
 
   const listView = useProxyGroupsListView({
     activeSelectedGroup: chainMode.activeSelectedGroup,
-    displayMode,
     handleChangeProxy,
     handleCheckAll,
     handleGroupLocationByName: proxyGroups.handleGroupLocationByName,
@@ -64,7 +60,6 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
     currentGroup: chainMode.currentGroup,
     availableGroups: chainMode.availableGroups,
     activeSelectedGroup: chainMode.activeSelectedGroup,
-    displayMode,
     duplicateWarning: chainMode.duplicateWarning,
     handleCloseChainMode,
     handleCloseDuplicateWarning: chainMode.handleCloseDuplicateWarning,
@@ -74,7 +69,6 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
     handleGroupMenuOpen: chainMode.handleGroupMenuOpen,
     handleGroupSelect: chainMode.handleGroupSelect,
     isChainMode,
-    isRuleMode: displayMode === 'rule',
     onProxies: proxyGroups.onProxies,
     proxyChain: chainMode.proxyChain,
     proxyGroupNames: proxyGroups.proxyGroupNames,
@@ -82,6 +76,7 @@ export function useProxyGroupsController(props: ProxyGroupsProps) {
     ruleMenuAnchor: chainMode.ruleMenuAnchor,
     scrollToTop: listView.scrollToTop,
     setProxyChain: chainMode.setProxyChain,
+    showChainGroupSelector: chainMode.availableGroups.length > 0,
     showScrollTop: listView.showScrollTop,
   }
 }

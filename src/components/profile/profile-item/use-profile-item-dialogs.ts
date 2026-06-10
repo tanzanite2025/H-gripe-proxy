@@ -12,7 +12,6 @@ interface UseProfileItemDialogsParams {
 
 export interface ProfileItemDialogsController {
   fileOpen: boolean
-  rulesOpen: boolean
   proxiesOpen: boolean
   scriptOpen: boolean
   confirmOpen: boolean
@@ -21,8 +20,6 @@ export interface ProfileItemDialogsController {
   scriptDocument: ReturnType<typeof useEditorDocument>
   openFile: () => void
   closeFile: () => void
-  openRules: () => void
-  closeRules: () => void
   openProxies: () => void
   closeProxies: () => void
   openScript: () => void
@@ -41,7 +38,6 @@ export function useProfileItemDialogs({
   onSave,
 }: UseProfileItemDialogsParams): ProfileItemDialogsController {
   const [fileOpen, setFileOpen] = useState(false)
-  const [rulesOpen, setRulesOpen] = useState(false)
   const [proxiesOpen, setProxiesOpen] = useState(false)
   const [scriptOpen, setScriptOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -64,8 +60,6 @@ export function useProfileItemDialogs({
 
   const openFile = useCallback(() => setFileOpen(true), [])
   const closeFile = useCallback(() => setFileOpen(false), [])
-  const openRules = useCallback(() => setRulesOpen(true), [])
-  const closeRules = useCallback(() => setRulesOpen(false), [])
   const openProxies = useCallback(() => setProxiesOpen(true), [])
   const closeProxies = useCallback(() => setProxiesOpen(false), [])
   const openScript = useCallback(() => setScriptOpen(true), [])
@@ -100,7 +94,6 @@ export function useProfileItemDialogs({
 
   return {
     fileOpen,
-    rulesOpen,
     proxiesOpen,
     scriptOpen,
     confirmOpen,
@@ -109,8 +102,6 @@ export function useProfileItemDialogs({
     scriptDocument,
     openFile,
     closeFile,
-    openRules,
-    closeRules,
     openProxies,
     closeProxies,
     openScript,

@@ -6,15 +6,13 @@
     },
     "cards": {
       "trafficStats": "流量统计",
-      "networkSettings": "网络设置",
-      "proxyMode": "代理模式"
+      "networkSettings": "网络设置"
     },
     "settings": {
       "cards": {
         "profile": "订阅卡",
         "currentProxy": "当前代理卡",
         "network": "网络设置卡",
-        "proxyMode": "代理模式卡",
         "traffic": "流量统计卡",
         "tests": "网站测试卡",
         "ip": "IP 信息卡",
@@ -90,7 +88,6 @@
         "refreshDelay": "延迟测试"
       },
       "labels": {
-        "globalMode": "全局模式",
         "group": "代理组",
         "proxy": "节点",
         "noActiveNode": "暂无激活的代理节点"
@@ -112,19 +109,6 @@
       },
       "patterns": {
         "minutes": "{{time}} 分钟"
-      }
-    },
-    "clashMode": {
-      "errors": {
-        "communication": "内核通信错误"
-      },
-      "labels": {
-        "rule": "规则",
-        "global": "全局"
-      },
-      "descriptions": {
-        "rule": "基于预设规则智能判断流量走向，提供灵活的代理策略",
-        "global": "所有流量均通过代理服务器，适用于需要全局科学上网的场景"
       }
     },
     "proxyDetection": {

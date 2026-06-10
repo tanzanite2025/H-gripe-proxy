@@ -4,7 +4,6 @@ import { useLocation } from 'react-router'
 import { throttle } from '../utils/helpers'
 
 interface UseScrollPositionOptions {
-  mode: string
   isChainMode: boolean
   activeSelectedGroup: string | null
   renderListLength: number
@@ -14,13 +13,12 @@ const SCROLL_POSITION_STORAGE_KEY = 'proxy-scroll-positions'
 const SCROLL_TOP_VISIBILITY_THRESHOLD = 100
 
 const buildScrollPositionKey = (
-  mode: string,
   isChainMode: boolean,
   activeSelectedGroup: string | null,
 ) =>
   isChainMode
-    ? `${mode}:chain:${activeSelectedGroup ?? 'all'}`
-    : `${mode}:normal`
+    ? `chain:${activeSelectedGroup ?? 'all'}`
+    : 'default'
 
 const loadStoredScrollPositions = () => {
   try {
@@ -46,7 +44,7 @@ const saveStoredScrollPositions = (positions: Record<string, number>) => {
 }
 
 export function useScrollPosition(options: UseScrollPositionOptions) {
-  const { mode, isChainMode, activeSelectedGroup, renderListLength } = options
+  const { isChainMode, activeSelectedGroup, renderListLength } = options
   const { pathname } = useLocation()
 
   const parentRef = useRef<HTMLDivElement>(null)
@@ -57,8 +55,8 @@ export function useScrollPosition(options: UseScrollPositionOptions) {
   const [showScrollTop, setShowScrollTop] = useState(false)
 
   const scrollPositionKey = useMemo(
-    () => buildScrollPositionKey(mode, isChainMode, activeSelectedGroup),
-    [activeSelectedGroup, isChainMode, mode],
+    () => buildScrollPositionKey(isChainMode, activeSelectedGroup),
+    [activeSelectedGroup, isChainMode],
   )
 
   const saveScrollPosition = useCallback(

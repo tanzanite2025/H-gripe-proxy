@@ -23,7 +23,6 @@ export interface RenderListRuntimeContext {
 }
 
 export const useRenderListRuntime = (
-  mode: string,
   isChainMode?: boolean,
 ): RenderListRuntimeContext => {
   const { proxies: proxiesData } = useProxiesData()
@@ -33,7 +32,7 @@ export const useRenderListRuntime = (
   const latencyTimeout = resolveVergeDelayTimeout(verge)
 
   const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
-  const runtimeSummaryItem = useRuntimeSummaryItem(mode)
+  const runtimeSummaryItem = useRuntimeSummaryItem()
 
   const col = useMemo(
     () => calculateColumns(width, verge?.proxy_layout_column || 6),
@@ -41,7 +40,6 @@ export const useRenderListRuntime = (
   )
 
   useProxyRefreshRecovery({
-    mode,
     onProxies: refreshProxy,
     proxiesData,
   })

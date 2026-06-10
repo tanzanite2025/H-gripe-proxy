@@ -1,5 +1,3 @@
-import { useTranslation } from 'react-i18next'
-
 import { Alert, Snackbar } from '@/components/tailwind'
 
 import { ScrollTopButton } from '../../../layout/scroll-top-button'
@@ -17,17 +15,15 @@ interface ProxyGroupsChainViewProps {
 export function ProxyGroupsChainView({
   controller,
 }: ProxyGroupsChainViewProps) {
-  const { t } = useTranslation()
-  const proxyGroups = controller.proxiesData?.groups || []
-  const showRuleHeader = controller.isRuleMode && proxyGroups.length > 0
+  const showRuleHeader = controller.showChainGroupSelector
 
   return (
     <>
       <div className="h-full">
         {showRuleHeader && (
           <ChainRuleHeader
-            title={t('proxies.page.rules.title')}
-            selectLabel={t('proxies.page.rules.select')}
+            title="目标分组"
+            selectLabel="选择分组"
             currentGroup={controller.currentGroup}
             canSelectGroup={controller.availableGroups.length > 0}
             onMenuOpen={controller.handleGroupMenuOpen}
@@ -74,7 +70,6 @@ export function ProxyGroupsChainView({
         proxyChain={controller.proxyChain}
         onUpdateChain={controller.setProxyChain}
         chainConfigData={controller.chainConfigData}
-        mode={controller.displayMode}
         selectedGroup={controller.activeSelectedGroup}
         onClose={controller.handleCloseChainMode}
       />

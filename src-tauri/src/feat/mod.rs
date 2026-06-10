@@ -1,6 +1,7 @@
 mod anti_probe;
 mod backup;
 mod blackhole_breaker;
+mod china_rules;
 mod clash;
 mod config;
 mod coordinator;
@@ -25,6 +26,7 @@ mod xdp;
 pub use anti_probe::*;
 pub use backup::*;
 pub use blackhole_breaker::*;
+pub use china_rules::*;
 pub use clash::*;
 pub use config::*;
 pub use coordinator::*;

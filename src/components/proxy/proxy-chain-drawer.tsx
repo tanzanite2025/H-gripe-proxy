@@ -8,7 +8,6 @@ interface ProxyChainDrawerProps {
   proxyChain: ProxyChainItem[]
   onUpdateChain: (chain: ProxyChainItem[]) => void
   chainConfigData?: string | null
-  mode?: string
   selectedGroup?: string | null
   onClose: () => void
 }
@@ -18,7 +17,6 @@ export const ProxyChainDrawer = ({
   proxyChain,
   onUpdateChain,
   chainConfigData,
-  mode,
   selectedGroup,
   onClose,
 }: ProxyChainDrawerProps) => {
@@ -58,7 +56,6 @@ export const ProxyChainDrawer = ({
               proxyChain={proxyChain}
               onUpdateChain={onUpdateChain}
               chainConfigData={chainConfigData}
-              mode={mode}
               selectedGroup={selectedGroup}
               onClose={onClose}
               bare

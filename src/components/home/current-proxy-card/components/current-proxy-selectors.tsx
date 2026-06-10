@@ -10,7 +10,6 @@ import { CurrentProxyProxySelect } from './current-proxy-proxy-select'
 interface CurrentProxySelectorsProps {
   defaultLatencyTimeout: number
   groups: ProxyGroupOption[]
-  isGlobalMode: boolean
   onGroupChange: (event: { target: { value: string } }) => void
   onProxyChange: (event: SelectChangeEvent<string>) => void
   proxyOptions: ProxyOption[]
@@ -22,7 +21,6 @@ interface CurrentProxySelectorsProps {
 export function CurrentProxySelectors({
   defaultLatencyTimeout,
   groups,
-  isGlobalMode,
   onGroupChange,
   onProxyChange,
   proxyOptions,
@@ -34,7 +32,6 @@ export function CurrentProxySelectors({
     <>
       <CurrentProxyGroupSelect
         groups={groups}
-        isGlobalMode={isGlobalMode}
         onChange={onGroupChange}
         selectedGroup={selectedGroup}
       />

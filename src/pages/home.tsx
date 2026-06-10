@@ -50,7 +50,6 @@ interface HomeCardsSettings {
   profile: boolean
   proxy: boolean
   network: boolean
-  mode: boolean
   traffic: boolean
   info: boolean
   systeminfo: boolean
@@ -60,6 +59,21 @@ interface HomeCardsSettings {
   webrtcLeak: boolean
   [key: string]: boolean
 }
+
+const normalizeHomeCards = (
+  cards?: Partial<HomeCardsSettings> | null,
+): HomeCardsSettings => ({
+  info: false,
+  profile: cards?.profile ?? true,
+  proxy: cards?.proxy ?? true,
+  network: cards?.network ?? true,
+  traffic: cards?.traffic ?? true,
+  systeminfo: cards?.systeminfo ?? true,
+  test: cards?.test ?? false,
+  proxyDetection: cards?.proxyDetection ?? false,
+  dnsLeak: cards?.dnsLeak ?? false,
+  webrtcLeak: cards?.webrtcLeak ?? false,
+})
 
 // 首页设置对话框组件接口
 interface HomeSettingsDialogProps {
@@ -94,8 +108,9 @@ const HomeSettingsDialog = ({
   }
 
   const handleSave = async () => {
-    await patchVerge({ home_cards: cards })
-    onSave(cards)
+    const normalizedCards = normalizeHomeCards(cards)
+    await patchVerge({ home_cards: normalizedCards })
+    onSave(normalizedCards)
     onClose()
   }
 
@@ -193,24 +208,12 @@ const HomePage = () => {
 
   // 卡片显示状态
   const defaultCards = useMemo<HomeCardsSettings>(
-    () => ({
-      info: false,
-      profile: true,
-      proxy: true,
-      network: true,
-      mode: true,
-      traffic: true,
-      systeminfo: true,
-      test: false,
-      proxyDetection: false,
-      dnsLeak: false,
-      webrtcLeak: false,
-    }),
+    () => normalizeHomeCards(),
     [],
   )
 
   const vergeHomeCards = useMemo<HomeCardsSettings | null>(
-    () => (verge?.home_cards as HomeCardsSettings | undefined) ?? null,
+    () => normalizeHomeCards(verge?.home_cards as HomeCardsSettings | undefined),
     [verge],
   )
 

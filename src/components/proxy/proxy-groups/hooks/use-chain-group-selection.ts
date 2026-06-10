@@ -9,14 +9,12 @@ import {
 interface UseChainGroupSelectionOptions {
   groups: IProxyGroupItem[] | undefined
   isChainMode: boolean
-  mode: string
   onSelectGroup?: () => void
 }
 
 export function useChainGroupSelection({
   groups,
   isChainMode,
-  mode,
   onSelectGroup,
 }: UseChainGroupSelectionOptions) {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
@@ -28,8 +26,8 @@ export function useChainGroupSelection({
   )
 
   const defaultRuleGroup = useMemo(
-    () => getDefaultChainModeGroup(availableGroups, isChainMode, mode),
-    [availableGroups, isChainMode, mode],
+    () => getDefaultChainModeGroup(availableGroups, isChainMode),
+    [availableGroups, isChainMode],
   )
 
   const activeSelectedGroup = useMemo(

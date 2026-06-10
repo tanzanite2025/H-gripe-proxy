@@ -19,7 +19,6 @@ export const useProxyChainController = ({
   onUpdateChain,
   chainConfigData,
   onMarkUnsavedChanges,
-  mode,
   selectedGroup,
   bare = false,
   onClose,
@@ -55,8 +54,8 @@ export const useProxyChainController = ({
   )
 
   const isConnected = useMemo(
-    () => isProxyChainConnected(proxies, proxyChain, mode, selectedGroup),
-    [proxies, proxyChain, mode, selectedGroup],
+    () => isProxyChainConnected(proxies, proxyChain, selectedGroup),
+    [proxies, proxyChain, selectedGroup],
   )
 
   const { sensors, handleDragEnd, handleRemoveProxy } = useProxyChainDnd({
@@ -69,7 +68,6 @@ export const useProxyChainController = ({
     useProxyChainConnection({
       isConnected,
       proxyChain,
-      mode,
       selectedGroup,
       onUpdateChain,
       refreshProxy,
@@ -84,7 +82,6 @@ export const useProxyChainController = ({
     isConnected,
     isConnecting,
     localResidentialPool,
-    mode,
     onAddResidentialExit: addResidentialExit,
     onChangeResidentialPool: setLocalResidentialPool,
     onClearChain: handleClearChain,

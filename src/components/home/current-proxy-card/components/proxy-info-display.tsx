@@ -9,14 +9,12 @@ import { convertDelayColor } from '../utils/delay-visuals'
 interface ProxyInfoDisplayProps {
   proxy: any
   delay: number
-  isGlobalMode: boolean
   timeout: number
 }
 
 export const ProxyInfoDisplay = ({
   proxy,
   delay,
-  isGlobalMode,
   timeout,
 }: ProxyInfoDisplayProps) => {
   const { t } = useTranslation()
@@ -42,15 +40,6 @@ export const ProxyInfoDisplay = ({
         <div className="mr-1 text-xs text-gray-500 dark:text-gray-400">
           {proxy.type}
         </div>
-
-        {isGlobalMode && (
-          <Chip
-            size="small"
-            label={t('home.components.currentProxy.labels.globalMode')}
-            color="primary"
-            className="mr-0.5"
-          />
-        )}
 
         {proxy.udp && (
           <Chip size="small" label="UDP" variant="outlined" className="mr-0.5" />

@@ -12,9 +12,8 @@ export const getAvailableChainModeGroups = (
 export const getDefaultChainModeGroup = (
   availableGroups: IProxyGroupItem[],
   isChainMode: boolean,
-  mode: string,
 ) => {
-  if (isChainMode && mode === 'rule' && availableGroups.length > 0) {
+  if (isChainMode && availableGroups.length > 0) {
     return availableGroups[0].name
   }
 

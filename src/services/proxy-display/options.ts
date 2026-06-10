@@ -125,59 +125,23 @@ export const pickPreferredProxyNameFromGroup = (
     candidateName: candidateName ?? group?.now,
   })
 
-export const findMatchPolicyName = (rules?: any[]): string => {
-  if (!Array.isArray(rules)) return ''
-
-  for (let index = rules.length - 1; index >= 0; index -= 1) {
-    const rule = rules[index]
-    if (!rule) continue
-
-    if (
-      typeof rule?.type === 'string' &&
-      rule.type.toUpperCase() === 'MATCH' &&
-      typeof rule?.proxy === 'string'
-    ) {
-      return normalizeName(rule.proxy)
-    }
-  }
-
-  return ''
-}
-
 export const getPreferredProxyGroupName = ({
   proxies,
-  rules,
-  isGlobalMode,
 }: {
   proxies: any
-  rules?: any[]
-  isGlobalMode?: boolean
 }): string => {
-  if (isGlobalMode) return 'GLOBAL'
   if (!proxies) return ''
-
-  const matchPolicyName = findMatchPolicyName(rules)
-  if (matchPolicyName) {
-    const matchGroup =
-      proxies.groups?.find((group: { name?: string }) => group?.name === matchPolicyName) ||
-      (proxies.global?.name === matchPolicyName ? proxies.global : null) ||
-      proxies.records?.[matchPolicyName]
-
-    if (matchGroup && categorizeProxyGroup(matchGroup) !== 'auxiliary') {
-      return matchPolicyName
-    }
-  }
 
   const manualGroup = (proxies.groups || []).find(
     (group: IProxyGroupItem) => categorizeProxyGroup(group) === 'manual',
   )
-  if (manualGroup?.name) {
-    return manualGroup.name
-  }
-
   const strategyGroup = (proxies.groups || []).find(
     (group: IProxyGroupItem) => categorizeProxyGroup(group) === 'strategy',
   )
-  return normalizeName(strategyGroup?.name)
-}
 
+  return (
+    normalizeName(manualGroup?.name) ||
+    normalizeName(strategyGroup?.name) ||
+    normalizeName(proxies.global?.name)
+  )
+}

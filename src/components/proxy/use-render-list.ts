@@ -4,12 +4,11 @@ import { useRenderListRuntime } from './use-render-list-runtime'
 
 export type { IRenderItem } from './render-list/types'
 
-export const useRenderList = (mode: string, isChainMode?: boolean) => {
+export const useRenderList = (isChainMode?: boolean) => {
   const [headStates, setHeadState] = useHeadStateNew()
-  const runtimeContext = useRenderListRuntime(mode, isChainMode)
+  const runtimeContext = useRenderListRuntime(isChainMode)
 
   const renderList = useProxyRenderItems({
-    mode,
     headStates,
     col: runtimeContext.col,
     latencyTimeout: runtimeContext.latencyTimeout,

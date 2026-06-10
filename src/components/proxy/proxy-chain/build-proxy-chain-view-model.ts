@@ -11,7 +11,6 @@ interface BuildProxyChainViewModelOptions {
   isConnected: ProxyChainToolbarProps['isConnected']
   isConnecting: ProxyChainToolbarProps['isConnecting']
   localResidentialPool: ProxyChainDialogsProps['localResidentialPool']
-  mode?: string
   onAddResidentialExit: ResidentialExitSectionProps['onAddResidentialExit']
   onChangeResidentialPool: ProxyChainDialogsProps['onChangeResidentialPool']
   onClearChain: ProxyChainToolbarProps['onClearChain']
@@ -39,7 +38,6 @@ export const buildProxyChainViewModel = ({
   isConnected,
   isConnecting,
   localResidentialPool,
-  mode,
   onAddResidentialExit,
   onChangeResidentialPool,
   onClearChain,
@@ -58,9 +56,7 @@ export const buildProxyChainViewModel = ({
   selectedGroup,
   sensors,
 }: BuildProxyChainViewModelOptions) => {
-  const selectedGroupMissing = mode !== 'global' && !selectedGroup
-  const isConnectDisabled =
-    isConnecting || proxyChain.length < 2 || selectedGroupMissing
+  const isConnectDisabled = isConnecting || proxyChain.length < 2 || !selectedGroup
 
   return {
     bare,

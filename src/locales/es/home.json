@@ -6,15 +6,13 @@
     },
     "cards": {
       "trafficStats": "Estadísticas de tráfico",
-      "networkSettings": "Configuración de red",
-      "proxyMode": "Modo de proxy"
+      "networkSettings": "Configuración de red"
     },
     "settings": {
       "cards": {
         "profile": "Tarjeta de suscripción",
         "currentProxy": "Tarjeta de proxy actual",
         "network": "Tarjeta de configuración de red",
-        "proxyMode": "Tarjeta de modo de proxy",
         "traffic": "Tarjeta de estadísticas de tráfico",
         "tests": "Tarjeta de pruebas de sitios web",
         "ip": "Tarjeta de información de IP",
@@ -90,7 +88,6 @@
         "refreshDelay": "Prueba de latencia"
       },
       "labels": {
-        "globalMode": "Global Mode",
         "group": "Grupo de proxy",
         "proxy": "Nodo",
         "noActiveNode": "No hay nodos de proxy activos"
@@ -112,19 +109,6 @@
       },
       "patterns": {
         "minutes": "{{time}} Minutes"
-      }
-    },
-    "clashMode": {
-      "errors": {
-        "communication": "Core communication error"
-      },
-      "labels": {
-        "rule": "Modo de reglas",
-        "global": "Modo global"
-      },
-      "descriptions": {
-        "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy."
       }
     },
     "proxyDetection": {

@@ -6,15 +6,13 @@
     },
     "cards": {
       "trafficStats": "トラフィック統計",
-      "networkSettings": "ネットワーク設定",
-      "proxyMode": "プロキシモード"
+      "networkSettings": "ネットワーク設定"
     },
     "settings": {
       "cards": {
         "profile": "プロファイルカード",
         "currentProxy": "現在のプロキシカード",
         "network": "ネットワーク設定カード",
-        "proxyMode": "プロキシモードカード",
         "traffic": "トラフィック統計カード",
         "tests": "ウェブサイトテストカード",
         "ip": "IP情報カード",
@@ -90,7 +88,6 @@
         "refreshDelay": "遅延テスト"
       },
       "labels": {
-        "globalMode": "グローバルモード",
         "group": "プロキシグループ",
         "proxy": "ノード",
         "noActiveNode": "アクティブなプロキシノードがありません。"
@@ -112,19 +109,6 @@
       },
       "patterns": {
         "minutes": "{{time}} Minutes"
-      }
-    },
-    "clashMode": {
-      "errors": {
-        "communication": "Core communication error"
-      },
-      "labels": {
-        "rule": "ルールモード",
-        "global": "グローバルモード"
-      },
-      "descriptions": {
-        "rule": "Automatically choose proxies according to the rule set.",
-        "global": "Forward all network requests through the selected proxy."
       }
     },
     "proxyDetection": {

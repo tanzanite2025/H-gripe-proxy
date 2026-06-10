@@ -15,20 +15,16 @@ import {
 import { useAuxiliarySelectionCorrection } from './use-auxiliary-selection-correction'
 
 interface UseProxyGroupsOptions {
-  mode: string
   isChainMode: boolean
 }
 
 export function useProxyGroups(options: UseProxyGroupsOptions) {
-  const { mode, isChainMode } = options
+  const { isChainMode } = options
 
   const { verge } = useVerge()
   const { proxies: proxiesData } = useProxiesData()
 
-  const { renderList, onProxies, onHeadState } = useRenderList(
-    mode,
-    isChainMode,
-  )
+  const { renderList, onProxies, onHeadState } = useRenderList(isChainMode)
 
   const getGroupHeadState = useCallback(
     (groupName: string) =>

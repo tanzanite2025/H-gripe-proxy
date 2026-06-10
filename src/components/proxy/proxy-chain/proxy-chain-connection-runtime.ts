@@ -22,7 +22,6 @@ import {
 
 interface ProxyChainRuntimeOptions {
   proxyChain: ProxyChainItem[]
-  mode?: string
   selectedGroup?: string | null
   refreshProxy: () => Promise<any>
 }
@@ -41,7 +40,6 @@ export const clearProxyChainSelection = (
 
 export const disconnectProxyChain = async ({
   proxyChain,
-  mode,
   selectedGroup,
   refreshProxy,
   onUpdateChain,
@@ -49,7 +47,6 @@ export const disconnectProxyChain = async ({
   await clearProxyChainRuntimeConfig()
 
   const targetGroup = proxyChainTargetGroup(
-    mode,
     selectedGroup,
     loadProxyChainRuntimeGroup(),
   )
@@ -76,11 +73,10 @@ export const disconnectProxyChain = async ({
 
 export const connectProxyChain = async ({
   proxyChain,
-  mode,
   selectedGroup,
   refreshProxy,
 }: ProxyChainRuntimeOptions) => {
-  const intent = buildProxyChainRuntimeIntent(proxyChain, mode, selectedGroup)
+  const intent = buildProxyChainRuntimeIntent(proxyChain, selectedGroup)
   if (!intent) {
     throw new Error('invalid proxy chain intent')
   }

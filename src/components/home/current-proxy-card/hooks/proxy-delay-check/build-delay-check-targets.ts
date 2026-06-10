@@ -6,11 +6,12 @@ import type {
 } from './shared'
 
 export function buildDelayCheckTargets({
-  isGlobalMode,
-  proxies,
+  currentGroup,
+  groupMap,
   proxyRecords,
 }: BuildDelayCheckTargetsOptions): DelayCheckTargets {
-  if (!isGlobalMode || !proxies?.global) {
+  const targetGroup = groupMap[currentGroup]
+  if (!targetGroup) {
     return {
       providerNames: [],
       proxyNames: [],
@@ -19,11 +20,11 @@ export function buildDelayCheckTargets({
 
   const providerNames = new Set<string>()
   const proxyNames: string[] = []
-  const globalNames = extractProxyNames(proxies.global.all).filter(
+  const groupNames = extractProxyNames(targetGroup.all).filter(
     (name) => name !== 'DIRECT' && name !== 'REJECT',
   )
 
-  globalNames.forEach((name) => {
+  groupNames.forEach((name) => {
     const proxy = proxyRecords[name]
     if (proxy?.provider) {
       providerNames.add(proxy.provider)

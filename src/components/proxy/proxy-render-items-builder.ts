@@ -10,9 +10,7 @@ export interface ProxyRenderListBuilderOptions {
   col: number
   headStates: Record<string, HeadState>
   latencyTimeout: number | undefined
-  mode: string
   proxiesData?: CalculatedProxies
-  rules?: any[]
   runtimeSummaryItem: IRenderItem | null
 }
 
@@ -37,20 +35,14 @@ export const buildProxyRenderList = ({
   col,
   headStates,
   latencyTimeout,
-  mode,
   proxiesData,
-  rules,
   runtimeSummaryItem,
 }: ProxyRenderListBuilderOptions): IRenderItem[] => {
   if (!proxiesData) {
     return []
   }
 
-  const selectionGroup = resolveSelectionGroup({
-    mode,
-    proxiesData,
-    rules,
-  })
+  const selectionGroup = resolveSelectionGroup({ proxiesData })
   if (!selectionGroup) {
     return runtimeSummaryItem ? [runtimeSummaryItem] : []
   }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
 import { BasePage, DialogRef } from '@/components/base'
+import { ChinaRulesEditor } from '@/components/profile/china-rules-editor'
 import { ProfileHeader } from '@/components/profile/profile-header'
 import { ProfileMore } from '@/components/profile/profile-more'
 import { ProfileRulesPanel } from '@/components/profile/profile-rules-panel'
@@ -32,6 +33,7 @@ const ProfilePage = () => {
   const location = useLocation()
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
 
+  const [chinaRulesOpen, setChinaRulesOpen] = useState(false)
   const [scriptOpen, setScriptOpen] = useState(false)
 
   const { current } = location.state || {}
@@ -154,6 +156,7 @@ const ProfilePage = () => {
             onReactivate={() => onEnhance(true)}
             onEmergencyRefresh={onEmergencyRefresh}
             onDeleteSelectedProfiles={deleteSelectedProfiles}
+            onOpenChinaRules={() => setChinaRulesOpen(true)}
             onOpenScript={() => setScriptOpen(true)}
             url={url}
             setUrl={setUrl}
@@ -199,6 +202,10 @@ const ProfilePage = () => {
         }}
       />
       <ConfigViewer ref={configRef} />
+      <ChinaRulesEditor
+        open={chinaRulesOpen}
+        onClose={() => setChinaRulesOpen(false)}
+      />
 
       <ProfileMore
         id="Script"

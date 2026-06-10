@@ -5,7 +5,6 @@ import { ProxyDelaySettings } from '@/components/proxy/proxy-delay-settings'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { Box, Grid } from '@/components/tailwind'
 
-import { ProxyPageModeCard } from './proxies-page/proxy-page-mode-card'
 import { ProxyPageSideCards } from './proxies-page/proxy-page-side-cards'
 import { ProxyPageStrategyPools } from './proxies-page/proxy-page-strategy-pools'
 import { ProxyPageTitle } from './proxies-page/proxy-page-title'
@@ -17,8 +16,6 @@ const ProxyPage = () => {
   const {
     isChainMode,
     chainConfigData,
-    proxyDisplayMode,
-    onChangeMode,
     onToggleChainMode,
   } = useProxiesPageController()
 
@@ -48,16 +45,10 @@ const ProxyPage = () => {
 
             <ProxyDelaySettings />
 
-            <ProxyPageModeCard
-              mode={proxyDisplayMode}
-              onChangeMode={onChangeMode}
-            />
-
             <ProxyPageStrategyPools />
 
             <Box className="min-h-0 flex-1 overflow-hidden">
               <ProxyGroups
-                mode={proxyDisplayMode}
                 isChainMode={isChainMode}
                 chainConfigData={chainConfigData}
                 onCloseChainMode={onToggleChainMode}

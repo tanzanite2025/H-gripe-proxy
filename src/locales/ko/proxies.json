@@ -1,9 +1,5 @@
 {
   "page": {
-    "modes": {
-      "rule": "규칙",
-      "global": "전역"
-    },
     "actions": {
       "toggleChain": "체인 프록시",
       "connect": "연결",
@@ -53,7 +49,6 @@
       "entryNode": "입구",
       "exitNode": "출구"
     },
-    "messages": {},
     "title": {
       "default": "프록시 그룹",
       "chainMode": "프록시 체인 모드"

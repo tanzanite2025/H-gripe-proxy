@@ -5,7 +5,6 @@ export interface ProxyChainProps {
   onUpdateChain: (chain: ProxyChainItem[]) => void
   chainConfigData?: string | null
   onMarkUnsavedChanges?: () => void
-  mode?: string
   selectedGroup?: string | null
   bare?: boolean
   onClose?: () => void

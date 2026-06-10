@@ -11,7 +11,6 @@ import {
 interface UseProxyChainConnectionOptions {
   isConnected: boolean
   proxyChain: ProxyChainItem[]
-  mode?: string
   selectedGroup?: string | null
   onUpdateChain: (chain: ProxyChainItem[]) => void
   refreshProxy: () => Promise<any>
@@ -24,7 +23,6 @@ interface UseProxyChainConnectionOptions {
 export const useProxyChainConnection = ({
   isConnected,
   proxyChain,
-  mode,
   selectedGroup,
   onUpdateChain,
   refreshProxy,
@@ -51,7 +49,6 @@ export const useProxyChainConnection = ({
         await runConnectionTask(() =>
           disconnectProxyChain({
             proxyChain,
-            mode,
             selectedGroup,
             refreshProxy,
             onUpdateChain,
@@ -73,7 +70,6 @@ export const useProxyChainConnection = ({
       await runConnectionTask(() =>
         connectProxyChain({
           proxyChain,
-          mode,
           selectedGroup,
           refreshProxy,
         }),
@@ -87,7 +83,6 @@ export const useProxyChainConnection = ({
     copy.disconnectFailedMessage,
     copy.minimumNodesMessage,
     isConnected,
-    mode,
     onUpdateChain,
     proxyChain,
     refreshProxy,

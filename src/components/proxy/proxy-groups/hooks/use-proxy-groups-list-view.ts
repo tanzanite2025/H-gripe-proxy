@@ -9,7 +9,6 @@ import { useVirtualScroll } from './use-virtual-scroll'
 
 interface UseProxyGroupsListViewOptions {
   activeSelectedGroup: string | null
-  displayMode: string
   handleChangeProxy: (group: IProxyGroupItem, proxy: IProxyItem) => void
   handleCheckAll: (groupName: string) => void
   handleGroupLocationByName: (
@@ -27,7 +26,6 @@ interface UseProxyGroupsListViewOptions {
 
 export function useProxyGroupsListView({
   activeSelectedGroup,
-  displayMode,
   handleChangeProxy,
   handleCheckAll,
   handleGroupLocationByName,
@@ -37,7 +35,6 @@ export function useProxyGroupsListView({
   renderList,
 }: UseProxyGroupsListViewOptions) {
   const scrollPosition = useScrollPosition({
-    mode: displayMode,
     isChainMode,
     activeSelectedGroup,
     renderListLength: renderList.length,
@@ -70,7 +67,7 @@ export function useProxyGroupsListView({
       virtualItems: virtualScroll.virtualItems,
       renderList,
       activeStickyIndex: virtualScroll.activeStickyIndex,
-      indent: displayMode === 'rule' || displayMode === 'script',
+      indent: false,
       measureElement: virtualScroll.measureElement,
       onLocation: handleLocationWithScroll,
       onCheckAll: handleCheckAll,
@@ -78,7 +75,6 @@ export function useProxyGroupsListView({
       onChangeProxy: handleChangeProxy,
     }),
     [
-      displayMode,
       handleChangeProxy,
       handleCheckAll,
       handleLocationWithScroll,

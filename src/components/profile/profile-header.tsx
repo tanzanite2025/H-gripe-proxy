@@ -31,6 +31,7 @@ export interface ProfileHeaderProps {
   onReactivate: () => void
   onEmergencyRefresh: () => void
   onDeleteSelectedProfiles: () => void
+  onOpenChinaRules: () => void
   onOpenScript: () => void
   url: string
   setUrl: (url: string) => void
@@ -56,6 +57,7 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
   onReactivate,
   onEmergencyRefresh,
   onDeleteSelectedProfiles,
+  onOpenChinaRules,
   onOpenScript,
   url,
   setUrl,
@@ -202,6 +204,15 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({
           }}
         />
       </Box>
+
+      <Button
+        variant="primary"
+        size="small"
+        className="shrink-0 rounded-[6px]"
+        onClick={onOpenChinaRules}
+      >
+        china rules
+      </Button>
 
       <Button
         variant="primary"

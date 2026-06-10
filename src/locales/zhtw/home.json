@@ -6,15 +6,13 @@
     },
     "cards": {
       "trafficStats": "流量統計",
-      "networkSettings": "網路設定",
-      "proxyMode": "代理模式"
+      "networkSettings": "網路設定"
     },
     "settings": {
       "cards": {
         "profile": "訂閱卡",
         "currentProxy": "目前代理卡",
         "network": "網路設定卡",
-        "proxyMode": "代理模式卡",
         "traffic": "流量統計卡",
         "tests": "網站測試卡",
         "ip": "IP資訊卡",
@@ -90,7 +88,6 @@
         "refreshDelay": "延遲測試"
       },
       "labels": {
-        "globalMode": "全域模式",
         "group": "代理組",
         "proxy": "節點",
         "noActiveNode": "暫無作用中的代理節點"
@@ -112,19 +109,6 @@
       },
       "patterns": {
         "minutes": "{{time}} 分"
-      }
-    },
-    "clashMode": {
-      "errors": {
-        "communication": "內核通信錯誤"
-      },
-      "labels": {
-        "rule": "規則",
-        "global": "全域"
-      },
-      "descriptions": {
-        "rule": "依照規則自動選擇代理。",
-        "global": "將所有網路請求轉送至所選代理。"
       }
     },
     "proxyDetection": {

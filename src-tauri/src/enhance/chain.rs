@@ -17,7 +17,6 @@ pub struct ChainItem {
 pub enum ChainType {
     Merge(Mapping),
     Script(String),
-    Rules(SeqMap),
     Proxies(SeqMap),
     Groups(SeqMap),
 }
@@ -47,13 +46,6 @@ impl AsyncChainItemFrom for Option<ChainItem> {
                 uid,
                 data: ChainType::Merge(help::read_mapping(&path).await.ok()?),
             }),
-            "rules" => {
-                let seq_map = help::read_seq_map(&path).await.ok()?;
-                Some(ChainItem {
-                    uid,
-                    data: ChainType::Rules(seq_map),
-                })
-            }
             "proxies" => {
                 let seq_map = help::read_seq_map(&path).await.ok()?;
                 Some(ChainItem {

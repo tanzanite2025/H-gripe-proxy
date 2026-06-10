@@ -9,7 +9,6 @@ import {
 } from './shared'
 
 interface ResolveAuxiliarySelectionCorrectionOptions {
-  isGlobalMode: boolean
   proxies: CurrentProxySource
   state: ProxyState
 }
@@ -21,7 +20,6 @@ interface AuxiliarySelectionCorrection {
 }
 
 export function resolveAuxiliarySelectionCorrection({
-  isGlobalMode,
   proxies,
   state,
 }: ResolveAuxiliarySelectionCorrectionOptions):
@@ -31,9 +29,7 @@ export function resolveAuxiliarySelectionCorrection({
     return null
   }
 
-  const currentGroup = isGlobalMode
-    ? proxies.global
-    : state.proxyData.groupMap[state.selection.group]
+  const currentGroup = state.proxyData.groupMap[state.selection.group]
 
   const currentNow = normalizePolicyName(currentGroup?.now)
   if (!currentNow || !isAuxiliarySelectionName(currentNow, state.proxyData.records)) {

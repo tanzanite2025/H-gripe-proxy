@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import dayjs from 'dayjs'
 
-import type { ClashMode } from '@/services/clash-mode'
 import { normalizeDelayTestUrl } from '@/services/delay-config'
 
 export async function getClashInfo() {
@@ -51,10 +50,6 @@ export async function updateProxyChainConfigInRuntime(
 
 export async function patchClashConfig(payload: Partial<IConfigData>) {
   return invoke<void>('patch_clash_config', { payload })
-}
-
-export async function patchClashMode(payload: ClashMode) {
-  return invoke<void>('patch_clash_mode', { payload })
 }
 
 export async function syncTrayProxySelection() {

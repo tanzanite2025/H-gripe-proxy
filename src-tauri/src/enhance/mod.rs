@@ -10,6 +10,7 @@ mod traffic_obfuscation;
 mod tun;
 
 mod blackhole_breaker;
+mod china_rules;
 mod connection_stability;
 mod proxy_cleanup;
 mod stable_egress;
@@ -18,6 +19,7 @@ mod timezone_spoof;
 use self::{
     blackhole_breaker::apply_blackhole_breaker_config,
     chain::{AsyncChainItemFrom as _, ChainItem, ChainType},
+    china_rules::apply_global_china_rules,
     connection_stability::{apply_connection_stability, apply_multiplex},
     field::{use_keys, use_lowercase, use_sort},
     merge::use_merge,
@@ -36,7 +38,7 @@ use self::{
 pub(crate) use self::stable_egress::{apply_stable_egress_policy, apply_stable_egress_policy_with_advanced};
 use crate::utils::dirs;
 use crate::{
-    config::{AUXILIARY_RULES_NAME, Config, IVerge},
+    config::{Config, IVerge},
     constants,
     utils::tmpl,
 };
@@ -49,7 +51,6 @@ use tokio::fs;
 
 type ResultLog = Vec<(String, String)>;
 
-const SOFTWARE_STRATEGY_POOL_NAME: &str = "策略池";
 const LEGACY_BLOCKED_GROUP_NAMES: [&str; 2] = ["自动选择", "故障转移"];
 
 #[derive(Debug)]
@@ -70,7 +71,6 @@ struct ProfileItems {
     config: Mapping,
     merge_item: ChainItem,
     script_item: ChainItem,
-    rules_item: ChainItem,
     proxies_item: ChainItem,
     groups_item: ChainItem,
     global_merge: ChainItem,
@@ -138,29 +138,10 @@ fn collect_proxy_names(config: &Mapping) -> Vec<String> {
     names
 }
 
-fn preferred_root_group_name(config: &Mapping, profile_name: &String) -> String {
-    if let Some(Value::Sequence(groups)) = config.get("proxy-groups") {
-        for group in groups {
-            let Some(map) = group.as_mapping() else {
-                continue;
-            };
-
-            if !is_manual_group_mapping(map) {
-                continue;
-            }
-
-            if let Some(name) = map.get("name").and_then(Value::as_str) {
-                let trimmed = name.trim();
-                if !trimmed.is_empty() {
-                    return trimmed.to_owned().into();
-                }
-            }
-        }
-    }
-
+fn normalized_root_group_name(profile_name: &String) -> String {
     let trimmed = profile_name.trim();
     if trimmed.is_empty() {
-        "订阅组".into()
+        "Subscription".into()
     } else {
         trimmed.to_owned().into()
     }
@@ -199,7 +180,47 @@ fn build_group_value(
     Value::Mapping(group)
 }
 
-fn normalize_software_owned_proxy_groups(mut config: Mapping, root_group_name: &String) -> Mapping {
+fn normalize_runtime_proxies(mut config: Mapping) -> Mapping {
+    let Some(proxies) = config.get("proxies").and_then(Value::as_sequence) else {
+        return config;
+    };
+
+    let mut normalized = Sequence::new();
+    let mut seen = HashSet::new();
+
+    for proxy in proxies {
+        match proxy {
+            Value::Mapping(map) => {
+                let Some(name) = map.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+
+                let trimmed = name.trim();
+                if trimmed.is_empty() || !seen.insert(trimmed.to_owned()) {
+                    continue;
+                }
+
+                let mut normalized_map = map.clone();
+                normalized_map.insert("name".into(), Value::String(trimmed.to_owned().into()));
+                normalized.push(Value::Mapping(normalized_map));
+            }
+            Value::String(name) => {
+                let trimmed = name.trim();
+                if trimmed.is_empty() || !seen.insert(trimmed.to_owned()) {
+                    continue;
+                }
+
+                normalized.push(Value::String(trimmed.to_owned().into()));
+            }
+            _ => {}
+        }
+    }
+
+    config.insert("proxies".into(), Value::Sequence(normalized));
+    config
+}
+
+fn rebuild_software_owned_proxy_groups(mut config: Mapping, root_group_name: &String) -> Mapping {
     let proxy_names = collect_proxy_names(&config);
 
     if proxy_names.is_empty() {
@@ -243,16 +264,6 @@ fn normalize_software_owned_proxy_groups(mut config: Mapping, root_group_name: &
         }
     }
 
-    if strategy_groups.is_empty() {
-        strategy_groups.push(build_group_value(
-            SOFTWARE_STRATEGY_POOL_NAME,
-            "url-test",
-            &proxy_names,
-            Some("http://www.gstatic.com/generate_204"),
-            Some(86400),
-        ));
-    }
-
     let mut root_proxies = Vec::new();
     let mut seen = HashSet::new();
 
@@ -290,6 +301,11 @@ fn normalize_software_owned_proxy_groups(mut config: Mapping, root_group_name: &
     config
 }
 
+fn normalize_subscription_runtime(config: Mapping, root_group_name: &String) -> Mapping {
+    let config = normalize_runtime_proxies(config);
+    rebuild_software_owned_proxy_groups(config, root_group_name)
+}
+
 impl Default for ProfileItems {
     fn default() -> Self {
         Self {
@@ -302,10 +318,6 @@ impl Default for ProfileItems {
             script_item: ChainItem {
                 uid: "".into(),
                 data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
-            },
-            rules_item: ChainItem {
-                uid: "".into(),
-                data: ChainType::Rules(SeqMap::default()),
             },
             proxies_item: ChainItem {
                 uid: "".into(),
@@ -405,10 +417,6 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         .current_script()
         .cloned()
         .unwrap_or_else(|| "Script".into());
-    let rules_uid = current_item
-        .current_rules()
-        .cloned()
-        .unwrap_or_else(|| AUXILIARY_RULES_NAME.into());
     let proxies_uid = current_item
         .current_proxies()
         .cloned()
@@ -444,19 +452,6 @@ async fn collect_profile_items() -> Result<ProfileItems> {
     .unwrap_or_else(|| ChainItem {
         uid: "".into(),
         data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
-    });
-
-    let rules_item = {
-        let item = profiles_arc.get_item(&rules_uid).ok().cloned();
-        if let Some(item) = item {
-            <Option<ChainItem>>::from_async(&item).await
-        } else {
-            None
-        }
-    }
-    .unwrap_or_else(|| ChainItem {
-        uid: "".into(),
-        data: ChainType::Rules(SeqMap::default()),
     });
 
     let proxies_item = {
@@ -517,7 +512,6 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         config: current,
         merge_item,
         script_item,
-        rules_item,
         proxies_item,
         groups_item,
         global_merge,
@@ -561,21 +555,17 @@ async fn process_profile_items(
     mut config: Mapping,
     mut exists_keys: Vec<String>,
     mut result_map: HashMap<String, ResultLog>,
-    rules_item: ChainItem,
     proxies_item: ChainItem,
     groups_item: ChainItem,
     merge_item: ChainItem,
     script_item: ChainItem,
     profile_name: &String,
 ) -> (Mapping, Vec<String>, HashMap<String, ResultLog>) {
-    if let ChainType::Rules(rules) = rules_item.data {
-        config = use_seq(rules, config.to_owned(), "rules");
-    }
+    config = remove_proxy_groups(config);
 
     if let ChainType::Proxies(proxies) = proxies_item.data {
         config = use_seq(proxies, config.to_owned(), "proxies");
     }
-    config = remove_proxy_groups(config);
 
     if let ChainType::Merge(merge) = merge_item.data {
         exists_keys.extend(use_keys(&merge));
@@ -767,13 +757,12 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = profile.config;
     let merge_item = profile.merge_item;
     let script_item = profile.script_item;
-    let rules_item = profile.rules_item;
     let proxies_item = profile.proxies_item;
     let groups_item = profile.groups_item;
     let global_merge = profile.global_merge;
     let global_script = profile.global_script;
     let profile_name = profile.profile_name;
-    let root_group_name = preferred_root_group_name(&config, &profile_name);
+    let root_group_name = normalized_root_group_name(&profile_name);
 
     // process globals
     let (config, exists_keys, result_map) =
@@ -784,7 +773,6 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         config,
         exists_keys,
         result_map,
-        rules_item,
         proxies_item,
         groups_item,
         merge_item,
@@ -792,7 +780,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         &profile_name,
     )
     .await;
-    let config = normalize_software_owned_proxy_groups(config, &root_group_name);
+    let config = normalize_subscription_runtime(config, &root_group_name);
 
     // merge default clash config
     let config = merge_default_config(
@@ -824,6 +812,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     // dns settings
     config = apply_dns_settings(config, enable_dns_settings).await;
     config = apply_stable_egress_policy(config);
+    config = apply_global_china_rules(config).await;
     config = use_sort(config);
 
     let mut exists_keys_set = HashSet::new();
@@ -840,6 +829,112 @@ mod tests {
     }
 
     use super::apply_stable_egress_policy_with_advanced;
+    use serde_yaml_ng::Value;
+
+    #[test]
+    fn normalize_subscription_runtime_deduplicates_proxies_without_default_strategy_pool() {
+        let config = parse_yaml(
+            r#"
+proxies:
+  - name: " node-a "
+    type: ss
+  - name: "node-a"
+    type: vmess
+  - name: ""
+    type: ss
+"#,
+        );
+
+        let root_group_name = "My Profile".to_string().into();
+        let config = super::normalize_subscription_runtime(config, &root_group_name);
+
+        let proxies = config
+            .get("proxies")
+            .and_then(Value::as_sequence)
+            .expect("proxies should be a sequence");
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(
+            proxies[0]
+                .as_mapping()
+                .and_then(|map| map.get("name"))
+                .and_then(Value::as_str),
+            Some("node-a")
+        );
+
+        let groups = config
+            .get("proxy-groups")
+            .and_then(Value::as_sequence)
+            .expect("proxy-groups should be a sequence");
+        assert_eq!(groups.len(), 1);
+        assert_eq!(
+            groups[0]
+                .as_mapping()
+                .and_then(|map| map.get("name"))
+                .and_then(Value::as_str),
+            Some("My Profile")
+        );
+    }
+
+    #[test]
+    fn rebuild_software_owned_proxy_groups_keeps_only_supported_group_kinds() {
+        let config = parse_yaml(
+            r#"
+proxies:
+  - name: "node-a"
+    type: ss
+  - name: "node-b"
+    type: ss
+proxy-groups:
+  - name: "Main"
+    type: select
+    proxies:
+      - "node-a"
+  - name: "Manual"
+    type: select
+    proxies:
+      - "node-b"
+  - name: "Pool"
+    type: url-test
+    proxies:
+      - "node-a"
+      - "node-b"
+  - name: "自动选择"
+    type: url-test
+    proxies:
+      - "node-a"
+  - name: "故障转移"
+    type: fallback
+    proxies:
+      - "node-b"
+"#,
+        );
+
+        let root_group_name = "Main".to_string().into();
+        let config = super::rebuild_software_owned_proxy_groups(config, &root_group_name);
+
+        let groups = config
+            .get("proxy-groups")
+            .and_then(Value::as_sequence)
+            .expect("proxy-groups should be a sequence");
+        let group_names = groups
+            .iter()
+            .filter_map(|group| group.as_mapping())
+            .filter_map(|group| group.get("name"))
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+
+        assert_eq!(group_names, vec!["Main", "Manual", "Pool"]);
+
+        let root_group = groups[0].as_mapping().expect("root group should be a mapping");
+        let root_proxies = root_group
+            .get("proxies")
+            .and_then(Value::as_sequence)
+            .expect("root proxies should be a sequence")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(root_proxies, vec!["Pool", "node-a", "node-b"]);
+    }
 
     #[test]
     fn append_stable_egress_groups_for_high_risk_domains() {

@@ -44,9 +44,7 @@ export type ProxyState = {
 
 export interface UseCurrentProxyDataProps {
   proxies: CurrentProxySource
-  rules: any[]
   currentProfileId: string | null
-  isGlobalMode: boolean
   defaultLatencyTimeout: number
   refreshProxy: () => void
 }

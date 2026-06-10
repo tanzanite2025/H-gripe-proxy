@@ -1,17 +1,13 @@
 import { useMemo } from 'react'
 
 import { useCurrentEgressIdentity } from '@/hooks/data'
-import {
-  useProxiesData,
-  useRulesData,
-} from '@/providers/app-data-context'
+import { useProxiesData } from '@/providers/app-data-context'
 
 import { buildRuntimeSummaryItem } from './runtime-summary/build-runtime-summary-item'
 import type { IRenderItem } from './render-list/types'
 
-export const useRuntimeSummaryItem = (mode: string): IRenderItem | null => {
+export const useRuntimeSummaryItem = (): IRenderItem | null => {
   const { proxies: proxiesData } = useProxiesData()
-  const { rules } = useRulesData()
   const { data: currentIdentity } = useCurrentEgressIdentity({
     staleTime: 5_000,
     refetchOnWindowFocus: false,
@@ -24,10 +20,8 @@ export const useRuntimeSummaryItem = (mode: string): IRenderItem | null => {
     () =>
       buildRuntimeSummaryItem({
         currentIdentity,
-        mode,
         proxiesData,
-        rules,
       }),
-    [currentIdentity, mode, proxiesData, rules],
+    [currentIdentity, proxiesData],
   )
 }
