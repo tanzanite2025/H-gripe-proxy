@@ -366,9 +366,7 @@ async fn perform_profile_update(
         .get_name_by_uid(uid)
         .cloned()
         .unwrap_or_else(|| String::from("UnKnown Profile"));
-    let strict_direct_update =
-        option.is_some_and(|option| option.with_proxy == Some(false) && option.self_proxy == Some(false));
-
+    let strict_direct_update = false;
     let mut last_err;
 
     match fetch_profile_update_item(url, merged_opt.as_ref()).await {
@@ -390,16 +388,6 @@ async fn perform_profile_update(
                 }
             );
             log_profile_update_fetch_error("direct update", &err);
-
-            if strict_direct_update {
-                if is_mannual_trigger {
-                    handle::Handle::notice_message("update_failed", format!("{profile_name} - {err}"));
-                }
-                bail!(
-                    "failed to update profile with direct connection: {}",
-                    mask_err(&err.to_string())
-                );
-            }
 
             last_err = err;
         }

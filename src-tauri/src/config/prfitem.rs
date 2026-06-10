@@ -440,16 +440,40 @@ impl PrfItem {
         let name = name
             .map(|s| s.to_owned())
             .unwrap_or_else(|| filename.map(|s| s.into()).unwrap_or_else(|| "Remote File".into()));
+        let content_type = response_content_type(header);
         let data = resp.text_with_charset()?;
 
         // process the charset "UTF-8 with BOM"
         let data = data.trim_start_matches('\u{feff}');
+        if data.trim().is_empty() {
+            bail!(
+                "subscription server returned an empty response body (status {status_code}, content-type {content_type})"
+            );
+        }
 
         // check the data whether the valid yaml format
-        let yaml = serde_yaml_ng::from_str::<Mapping>(data).context("the remote profile data is invalid yaml")?;
+        let yaml = match serde_yaml_ng::from_str::<Mapping>(data) {
+            Ok(yaml) => yaml,
+            Err(err) => {
+                let preview = payload_preview(data, 160);
+                if looks_like_html_payload(data) {
+                    bail!(
+                        "subscription server returned HTML instead of Clash YAML (status {status_code}, content-type {content_type}, preview: {preview})"
+                    );
+                }
+
+                return Err(err).context(format!(
+                    "the remote profile data is invalid yaml (status {status_code}, content-type {content_type}, preview: {preview})"
+                ));
+            }
+        };
 
         if !yaml.contains_key("proxies") && !yaml.contains_key("proxy-providers") {
-            bail!("profile does not contain `proxies` or `proxy-providers`");
+            let top_level_keys = yaml_top_level_keys(&yaml);
+            let preview = payload_preview(data, 160);
+            bail!(
+                "subscription YAML is missing `proxies` and `proxy-providers` (status {status_code}, content-type {content_type}, top-level keys: {top_level_keys}, preview: {preview})"
+            );
         }
 
         if merge.is_none() {
@@ -618,6 +642,53 @@ const fn default_allow_auto_update() -> Option<bool> {
     Some(true)
 }
 
+fn response_content_type(headers: &reqwest::header::HeaderMap) -> std::string::String {
+    headers
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn payload_preview(data: &str, max_chars: usize) -> std::string::String {
+    let first_line = data
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or_default();
+
+    let preview = first_line.chars().take(max_chars).collect::<std::string::String>();
+    if preview.is_empty() {
+        "<empty>".to_string()
+    } else {
+        preview
+    }
+}
+
+fn looks_like_html_payload(data: &str) -> bool {
+    let normalized = data.trim_start().chars().take(256).collect::<std::string::String>();
+    let normalized = normalized.to_ascii_lowercase();
+
+    normalized.starts_with("<!doctype html")
+        || normalized.starts_with("<html")
+        || normalized.contains("<head")
+        || normalized.contains("<body")
+        || normalized.contains("<script")
+}
+
+fn yaml_top_level_keys(mapping: &Mapping) -> std::string::String {
+    let keys = mapping
+        .keys()
+        .filter_map(|key| key.as_str().map(str::to_owned))
+        .collect::<Vec<_>>();
+
+    if keys.is_empty() {
+        "<none>".to_string()
+    } else {
+        keys.join(", ")
+    }
+}
+
 /// Fix URLs where query parameters are incorrectly appended to the path segment
 ///
 /// Incorrect Example: https://example.com/path&param1=value1
@@ -645,4 +716,22 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
     }
 
     Ok(url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn html_payload_detection_recognizes_basic_html() {
+        assert!(looks_like_html_payload("<html><body>blocked</body></html>"));
+        assert!(looks_like_html_payload("   <!DOCTYPE html><html></html>"));
+        assert!(!looks_like_html_payload("proxies:\n  - name: test"));
+    }
+
+    #[test]
+    fn payload_preview_uses_first_non_empty_line() {
+        assert_eq!(payload_preview("\n\n  proxies:\n  - a", 16), "proxies:");
+        assert_eq!(payload_preview("   \n", 16), "<empty>");
+    }
 }
