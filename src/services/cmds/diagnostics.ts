@@ -196,6 +196,7 @@ export async function testProxyDetection() {
 
 export type CurrentEgressIdentitySource =
   | 'mihomoEgressStatus'
+  | 'mihomoProxyProbe'
   | 'unavailable'
 
 export interface CurrentEgressIdentity {

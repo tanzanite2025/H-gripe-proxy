@@ -1,7 +1,10 @@
 import { Globe2, ShieldAlert } from 'lucide-react'
 
 import { useCurrentEgressIdentity } from '@/hooks/data'
-import type { CurrentEgressIdentity } from '@/services/cmds/diagnostics'
+import type {
+  CurrentEgressIdentity,
+  CurrentEgressIdentitySource,
+} from '@/services/cmds/diagnostics'
 import {
   getIpTypeText,
   getResidentialStateText,
@@ -35,6 +38,14 @@ const selectDisplayIp = (...candidates: Array<string | null | undefined>) => {
     validCandidates[0]
   )
 }
+
+const OBSERVED_SOURCES = new Set<CurrentEgressIdentitySource>([
+  'mihomoEgressStatus',
+  'mihomoProxyProbe',
+])
+
+const isObservedSource = (source?: CurrentEgressIdentitySource | null) =>
+  Boolean(source && OBSERVED_SOURCES.has(source))
 
 const riskColorMap: Record<IpReputation['riskLevel'], string> = {
   Low: 'text-green-500',
@@ -80,6 +91,13 @@ const formatUnavailableSummary = (identity?: CurrentEgressIdentity) => {
 
   const normalizedMessage = message.toLowerCase()
 
+  if (
+    normalizedMessage.includes('has not observed a public egress ip yet') &&
+    normalizedMessage.includes('proxy probe also did not produce')
+  ) {
+    return 'Mihomo 暂未观测到出口 IP，主动探测也没有拿到结果'
+  }
+
   if (normalizedMessage.includes('has not observed a public egress ip yet')) {
     return 'Mihomo 暂未观测到出口 IP'
   }
@@ -89,6 +107,17 @@ const formatUnavailableSummary = (identity?: CurrentEgressIdentity) => {
   }
 
   return message
+}
+
+const formatIdentitySourceText = (source?: CurrentEgressIdentitySource | null) => {
+  switch (source) {
+    case 'mihomoEgressStatus':
+      return 'Mihomo 出口快照'
+    case 'mihomoProxyProbe':
+      return 'Mihomo 主动探测'
+    default:
+      return '内核未观测'
+  }
 }
 
 interface IpInfoCardProps {
@@ -115,10 +144,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
         cachedIdentity?.egress_ip,
       )
 
-      if (
-        cachedIdentity?.source !== 'mihomoEgressStatus' ||
-        !cachedDisplayIp
-      ) {
+      if (!isObservedSource(cachedIdentity?.source) || !cachedDisplayIp) {
         return EGRESS_IDENTITY_PENDING_REFRESH_INTERVAL
       }
 
@@ -141,10 +167,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const residentialStateText = reputation
     ? getResidentialStateText(reputation.residentialState)
     : '未确认'
-  const identitySourceText =
-    currentIdentity?.source === 'mihomoEgressStatus'
-      ? 'Mihomo 出口快照'
-      : '内核未观测'
+  const identitySourceText = formatIdentitySourceText(currentIdentity?.source)
   const unavailableSummary = formatUnavailableSummary(currentIdentity)
 
   const cardTitle = [
@@ -193,7 +216,7 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     )
   }
 
-  if (currentIdentity?.source !== 'mihomoEgressStatus' || !displayIp) {
+  if (!isObservedSource(currentIdentity?.source) || !displayIp) {
     return (
       <div
         className={cn('the-ip-card', className)}

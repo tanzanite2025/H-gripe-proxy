@@ -21,6 +21,16 @@ interface StrategyPoolsSectionProps {
   onEdit: (group: StrategyPoolGroupRef) => void
 }
 
+const formatManagedCountLabel = (count: number) => `已管理 ${count}`
+
+const formatCurrentProxyText = (pool: ManagedStrategyPool) =>
+  `当前出口: ${pool.currentProxyName || '内核未载入'}`
+
+const formatMemberCountText = (pool: ManagedStrategyPool) =>
+  pool.memberCount > 0
+    ? `已手动添加 ${pool.memberCount} 个节点`
+    : '还没有手动添加节点'
+
 export function StrategyPoolsSection({
   className,
   configReady,
@@ -36,21 +46,21 @@ export function StrategyPoolsSection({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-text-primary">
             {SECTION_TITLE}
           </div>
-          <div className="mt-0.5 text-xs text-text-secondary">
+          <div className="mt-0.5 text-xs leading-5 text-text-secondary">
             {SECTION_DESCRIPTION}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Chip
             size="small"
             variant="outlined"
             color="primary"
-            label={`已管理 ${pools.length}`}
+            label={formatManagedCountLabel(pools.length)}
           />
           <Button
             type="button"
@@ -66,7 +76,7 @@ export function StrategyPoolsSection({
       </div>
 
       {!configReady ? (
-        <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+        <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
           {CONFIG_NOT_READY_TEXT}
         </div>
       ) : null}
@@ -78,22 +88,12 @@ export function StrategyPoolsSection({
               key={pool.groupRef.name}
               className="rounded-2xl border border-white/10 bg-black/15 p-3"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-text-primary">
-                    {pool.groupRef.name}
-                  </div>
-                  <div className="mt-1 text-xs text-text-secondary">
-                    当前出口：{pool.currentProxyName}
-                  </div>
-                  <div className="mt-1 text-xs text-text-secondary">
-                    {pool.memberCount > 0
-                      ? `已手动添加 ${pool.memberCount} 个节点`
-                      : '还没有手动添加节点'}
-                  </div>
+              <div className="min-w-0">
+                <div className="break-words text-sm leading-5 font-semibold text-text-primary">
+                  {pool.groupRef.name}
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Chip
                     size="small"
                     variant="outlined"
@@ -117,11 +117,16 @@ export function StrategyPoolsSection({
                   </Button>
                 </div>
               </div>
+
+              <div className="mt-3 space-y-1 text-xs leading-5 text-text-secondary">
+                <div className="break-words">{formatCurrentProxyText(pool)}</div>
+                <div>{formatMemberCountText(pool)}</div>
+              </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="mt-3 rounded-2xl border border-dashed border-white/10 px-3 py-4 text-sm text-text-secondary">
+        <div className="mt-3 rounded-2xl border border-dashed border-white/10 px-3 py-4 text-sm leading-6 text-text-secondary">
           {EMPTY_TEXT}
         </div>
       )}

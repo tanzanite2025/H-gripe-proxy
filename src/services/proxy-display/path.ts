@@ -11,7 +11,11 @@ import type { ProxyPathAnalysis } from './types'
 export const getIdentityProxyChain = (
   identity?: CurrentEgressIdentity | null,
 ): string[] => {
-  if (!identity || identity.source !== 'mihomoEgressStatus') {
+  if (
+    !identity ||
+    (identity.source !== 'mihomoEgressStatus' &&
+      identity.source !== 'mihomoProxyProbe')
+  ) {
     return []
   }
 
@@ -121,4 +125,3 @@ export const resolveProxyPath = (
     cycleDetected,
   }
 }
-

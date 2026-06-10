@@ -177,6 +177,7 @@ pub async fn apply_global_china_rules(mut config: Mapping) -> Mapping {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tmpl;
 
     #[test]
     fn merge_china_rules_inserts_before_terminal_rule() {
@@ -206,5 +207,29 @@ mod tests {
     #[test]
     fn parse_china_rules_rejects_non_rules_top_level_keys() {
         assert!(parse_china_rules_text("proxies:\n  - a").is_err());
+    }
+
+    #[test]
+    fn china_rules_template_stays_domestic_only() {
+        let mapping = parse_china_rules_text(tmpl::CHINA_RULES_TEMPLATE).unwrap();
+        let rules = mapping
+            .get("rules")
+            .and_then(Value::as_sequence)
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+
+        assert!(rules.contains(&"DOMAIN-SUFFIX,bilibili.com,DIRECT"));
+        assert!(rules.contains(&"DOMAIN-SUFFIX,unionpay.com,DIRECT"));
+        assert!(rules.contains(&"GEOSITE,CN,DIRECT"));
+        assert!(rules.contains(&"GEOIP,CN,DIRECT,no-resolve"));
+
+        for forbidden in ["google", "openai", "youtube", "telegram", "github"] {
+            assert!(
+                !tmpl::CHINA_RULES_TEMPLATE.to_ascii_lowercase().contains(forbidden),
+                "china rules template must not contain overseas routing target: {forbidden}"
+            );
+        }
     }
 }

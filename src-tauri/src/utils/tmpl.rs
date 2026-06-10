@@ -30,8 +30,27 @@ function main(config, profileName) {
 ";
 
 pub const CHINA_RULES_TEMPLATE: &str = "# Built-in china rules for Clash Verge
+#
+# Keep this file focused on China direct-routing only.
+# Do not put Google / OpenAI / overseas-service routing here.
 
 rules:
+  # Explicit mainland services that should remain direct.
+  - DOMAIN-SUFFIX,bilibili.com,DIRECT
+  - DOMAIN-SUFFIX,bilivideo.com,DIRECT
+  - DOMAIN-SUFFIX,biliapi.com,DIRECT
+  - DOMAIN-SUFFIX,hdslb.com,DIRECT
+  - DOMAIN-SUFFIX,12306.cn,DIRECT
+  - DOMAIN-SUFFIX,unionpay.com,DIRECT
+  - DOMAIN-SUFFIX,95516.com,DIRECT
+  - DOMAIN-SUFFIX,icbc.com.cn,DIRECT
+  - DOMAIN-SUFFIX,ccb.com,DIRECT
+  - DOMAIN-SUFFIX,abchina.com,DIRECT
+  - DOMAIN-SUFFIX,boc.cn,DIRECT
+  - DOMAIN-SUFFIX,cmbchina.com,DIRECT
+  - DOMAIN-SUFFIX,psbc.com,DIRECT
+
+  # Broad mainland direct-routing guardrails.
   - GEOSITE,CN,DIRECT
   - GEOIP,CN,DIRECT,no-resolve
 ";

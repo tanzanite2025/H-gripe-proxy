@@ -8,7 +8,7 @@ use tokio::time::Instant;
 
 use super::config::EgressIpProbeResult;
 
-/// 通过 Mihomo 代理探测出口 IP
+/// 通过 Mihomo 本地 mixed-port 主动探测出口 IP
 pub async fn probe_egress_ip() -> Result<EgressIpProbeResult> {
     let client = build_proxied_client().await?;
 
@@ -33,21 +33,14 @@ async fn fetch_exit_ip_geo(client: &reqwest::Client) -> Result<(String, Option<S
     ))
 }
 
-/// 构建走 Mihomo 代理的 HTTP 客户端
 async fn build_proxied_client() -> Result<reqwest::Client> {
     use crate::config::Config;
 
-    let verge = Config::verge().await.latest_arc();
-    let proxy_enabled = verge.enable_system_proxy.unwrap_or(false) || verge.enable_tun_mode.unwrap_or(false);
-
-    if !proxy_enabled {
-        return Err(anyhow!("代理未启用，无法探测出口 IP"));
-    }
-
-    let mixed_port = verge.verge_mixed_port.unwrap_or_else(|| {
-        // fallback: 从 clash 配置读取
-        7897
-    });
+    let verge_port = Config::verge().await.data_arc().verge_mixed_port;
+    let mixed_port = match verge_port {
+        Some(port) if port > 0 => port,
+        _ => Config::clash().await.data_arc().get_mixed_port(),
+    };
 
     let proxy_url = format!("http://127.0.0.1:{mixed_port}");
 
