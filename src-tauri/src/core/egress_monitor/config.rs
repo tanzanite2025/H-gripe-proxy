@@ -87,6 +87,8 @@ pub struct EgressIpProbeResult {
     pub ip: String,
     /// IP 归属国家代码
     pub country_code: Option<String>,
+    pub city: Option<String>,
+    pub timezone: Option<String>,
     /// 探测时间戳 (ms)
     pub probed_at_ms: u64,
     /// 探测耗时 (ms)

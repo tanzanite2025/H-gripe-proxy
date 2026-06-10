@@ -3,7 +3,12 @@ use serde::{Deserialize, Serialize};
 use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_mihomo::models::EgressStatus;
 
-use crate::core::{CoreManager, ip_reputation::IpReputation, manager::RunningMode};
+use crate::core::{
+    CoreManager,
+    ip_reputation::IpReputation,
+    manager::RunningMode,
+    timezone_spoof::remember_observed_egress_region,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +25,8 @@ pub struct CurrentEgressIdentity {
     pub proxy_chain: Vec<String>,
     pub egress_ip: Option<String>,
     pub public_egress_ip: Option<String>,
+    pub country_code: Option<String>,
+    pub timezone: Option<String>,
     pub proxy_endpoint: Option<String>,
     pub destination_asn: Option<String>,
     pub asn_org: Option<String>,
@@ -34,9 +41,7 @@ pub struct CurrentEgressIdentity {
     pub message: String,
 }
 
-pub async fn build_current_egress_identity(
-    app_handle: Option<&tauri::AppHandle>,
-) -> Result<CurrentEgressIdentity> {
+pub async fn build_current_egress_identity(app_handle: Option<&tauri::AppHandle>) -> Result<CurrentEgressIdentity> {
     let Some(app_handle) = app_handle else {
         return Ok(unavailable_identity("Mihomo app handle is unavailable."));
     };
@@ -66,13 +71,14 @@ async fn current_identity_from_mihomo_egress_status(
     drop(mihomo);
 
     if let Some(mut identity) = current_identity_from_egress_status(&status) {
-        attach_reputation(&mut identity);
+        attach_reputation(&mut identity, None).await;
         return Ok(Some(identity));
     }
 
     match current_identity_from_mihomo_proxy_probe(&status).await {
         Ok(Some(mut identity)) => {
-            attach_reputation(&mut identity);
+            let observed_country_code = identity.country_code.clone();
+            attach_reputation(&mut identity, observed_country_code.as_deref()).await;
             Ok(Some(identity))
         }
         Ok(None) => Ok(None),
@@ -89,15 +95,15 @@ fn current_identity_from_egress_status(status: &EgressStatus) -> Option<CurrentE
     Some(identity)
 }
 
-async fn current_identity_from_mihomo_proxy_probe(
-    status: &EgressStatus,
-) -> Result<Option<CurrentEgressIdentity>> {
+async fn current_identity_from_mihomo_proxy_probe(status: &EgressStatus) -> Result<Option<CurrentEgressIdentity>> {
     let probe = crate::core::egress_monitor::probe::probe_egress_ip().await?;
     let mut identity = build_identity_from_egress_status(status);
 
     identity.source = CurrentEgressIdentitySource::MihomoProxyProbe;
     identity.egress_ip = Some(probe.ip.clone());
     identity.public_egress_ip = Some(probe.ip);
+    identity.country_code = None;
+    identity.timezone = None;
 
     if identity.egress_source.is_none() {
         identity.egress_source = Some("mihomoProxyProbe".to_string());
@@ -111,8 +117,7 @@ async fn current_identity_from_mihomo_proxy_probe(
         identity.sample_count = Some(1);
     }
 
-    identity.message =
-        "identity derived from Mihomo proxy egress probe with Mihomo status metadata".to_string();
+    identity.message = "identity derived from Mihomo proxy egress probe with Mihomo status metadata".to_string();
 
     Ok(Some(identity))
 }
@@ -124,11 +129,7 @@ fn build_identity_from_egress_status(status: &EgressStatus) -> CurrentEgressIden
         .or_else(|| status.egress_ip.as_deref().and_then(non_empty_string));
     let proxy_endpoint = status.proxy_endpoint.as_deref().and_then(non_empty_string);
     let proxy_name = status.proxy_name.as_deref().and_then(non_empty_string);
-    let proxy_chain = status
-        .proxy_chain
-        .as_deref()
-        .map(split_proxy_chain)
-        .unwrap_or_default();
+    let proxy_chain = status.proxy_chain.as_deref().map(split_proxy_chain).unwrap_or_default();
     let destination_asn = status.destination_asn.as_deref().and_then(non_empty_string);
     let asn_org = status.asn_org.as_deref().and_then(non_empty_string);
     let rule = status.rule.as_deref().and_then(non_empty_string);
@@ -136,10 +137,7 @@ fn build_identity_from_egress_status(status: &EgressStatus) -> CurrentEgressIden
     let egress_source = status.egress_source.as_deref().and_then(non_empty_string);
     let confidence = status.confidence;
     let sample_count = status.sample_count;
-    let last_verified_at = status
-        .last_verified_at
-        .as_deref()
-        .and_then(non_empty_string);
+    let last_verified_at = status.last_verified_at.as_deref().and_then(non_empty_string);
     let updated_at = status.updated_at.as_deref().and_then(non_empty_string);
 
     CurrentEgressIdentity {
@@ -148,6 +146,8 @@ fn build_identity_from_egress_status(status: &EgressStatus) -> CurrentEgressIden
         proxy_chain,
         egress_ip,
         public_egress_ip,
+        country_code: None,
+        timezone: None,
         proxy_endpoint,
         destination_asn,
         asn_org,
@@ -163,16 +163,31 @@ fn build_identity_from_egress_status(status: &EgressStatus) -> CurrentEgressIden
     }
 }
 
-fn attach_reputation(identity: &mut CurrentEgressIdentity) {
-    if let Some(ip) = identity.egress_ip.as_deref() {
-        identity.reputation = Some(
-            crate::feat::get_ip_reputation_manager().inspect_core_metadata(
-                ip,
-                identity.destination_asn.as_deref(),
-                identity.asn_org.as_deref(),
-            ),
-        );
-    }
+async fn attach_reputation(identity: &mut CurrentEgressIdentity, _observed_country_code: Option<&str>) {
+    let Some(ip) = identity.egress_ip.as_deref() else {
+        return;
+    };
+
+    let ip_reputation_manager = crate::feat::get_ip_reputation_manager();
+    let Ok(reputation) = ip_reputation_manager.inspect_ip_metadata(ip).await else {
+        identity.destination_asn = None;
+        identity.asn_org = None;
+        identity.country_code = None;
+        identity.timezone = None;
+        identity.reputation = None;
+        return;
+    };
+
+    identity.destination_asn = normalize_metadata_text(Some(reputation.asn.as_str()));
+    identity.asn_org = normalize_metadata_text(Some(reputation.asn_org.as_str()));
+    identity.country_code = normalize_country_code(Some(reputation.country_code.as_str()));
+    identity.timezone = normalize_timezone(reputation.timezone.as_deref());
+    remember_observed_egress_region(
+        identity.country_code.as_deref(),
+        identity.timezone.as_deref(),
+        "currentEgressIdentity",
+    );
+    identity.reputation = Some(reputation);
 }
 
 fn unavailable_identity(message: &str) -> CurrentEgressIdentity {
@@ -182,6 +197,8 @@ fn unavailable_identity(message: &str) -> CurrentEgressIdentity {
         proxy_chain: Vec::new(),
         egress_ip: None,
         public_egress_ip: None,
+        country_code: None,
+        timezone: None,
         proxy_endpoint: None,
         destination_asn: None,
         asn_org: None,
@@ -205,6 +222,27 @@ fn non_empty_string(value: impl AsRef<str>) -> Option<String> {
 
 fn split_proxy_chain(value: &str) -> Vec<String> {
     value.split("->").filter_map(non_empty_string).collect()
+}
+
+fn normalize_country_code(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("unknown"))
+        .map(str::to_ascii_uppercase)
+}
+
+fn normalize_timezone(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("unknown"))
+        .map(str::to_string)
+}
+
+fn normalize_metadata_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("unknown"))
+        .map(str::to_string)
 }
 
 #[cfg(test)]
@@ -243,10 +281,7 @@ mod tests {
 
         let identity = current_identity_from_egress_status(&status).unwrap();
 
-        assert_eq!(
-            identity.source,
-            CurrentEgressIdentitySource::MihomoEgressStatus
-        );
+        assert_eq!(identity.source, CurrentEgressIdentitySource::MihomoEgressStatus);
         assert_eq!(identity.egress_ip.as_deref(), Some("203.0.113.10"));
         assert_eq!(identity.public_egress_ip.as_deref(), Some("203.0.113.10"));
         assert_eq!(identity.proxy_endpoint.as_deref(), Some("198.51.100.1:443"));
@@ -256,19 +291,15 @@ mod tests {
             vec!["HK-Residential".to_string(), "DIRECT".to_string()]
         );
         assert_eq!(identity.destination_asn.as_deref(), Some("AS7922"));
-        assert_eq!(
-            identity.asn_org.as_deref(),
-            Some("Comcast Cable Communications, LLC")
-        );
+        assert_eq!(identity.asn_org.as_deref(), Some("Comcast Cable Communications, LLC"));
         assert_eq!(identity.rule.as_deref(), Some("MATCH"));
         assert_eq!(identity.rule_payload, None);
         assert_eq!(identity.egress_source.as_deref(), Some("publicProbe"));
+        assert_eq!(identity.country_code, None);
+        assert_eq!(identity.timezone, None);
         assert_eq!(identity.confidence, Some(90));
         assert_eq!(identity.sample_count, Some(1));
-        assert_eq!(
-            identity.last_verified_at.as_deref(),
-            Some("2026-06-02T02:00:00Z")
-        );
+        assert_eq!(identity.last_verified_at.as_deref(), Some("2026-06-02T02:00:00Z"));
         assert_eq!(identity.updated_at.as_deref(), Some("2026-06-02T02:00:00Z"));
     }
 
@@ -297,12 +328,11 @@ mod tests {
         let identity = build_identity_from_egress_status(&status);
 
         assert_eq!(identity.proxy_name.as_deref(), Some("HK-Node"));
-        assert_eq!(
-            identity.proxy_chain,
-            vec!["HK-Node".to_string(), "DIRECT".to_string()]
-        );
+        assert_eq!(identity.proxy_chain, vec!["HK-Node".to_string(), "DIRECT".to_string()]);
         assert_eq!(identity.rule.as_deref(), Some("MATCH"));
         assert_eq!(identity.egress_ip, None);
+        assert_eq!(identity.country_code, None);
+        assert_eq!(identity.timezone, None);
     }
 
     #[test]
@@ -328,5 +358,28 @@ mod tests {
         };
 
         assert!(current_identity_from_egress_status(&status).is_none());
+    }
+
+    #[test]
+    fn test_normalize_country_code_filters_unknown_values() {
+        assert_eq!(normalize_country_code(Some(" us ")), Some("US".to_string()));
+        assert_eq!(normalize_country_code(Some("Unknown")), None);
+        assert_eq!(normalize_country_code(Some("  ")), None);
+    }
+
+    #[test]
+    fn test_normalize_timezone_only_accepts_exact_values() {
+        assert_eq!(
+            normalize_timezone(Some("America/Los_Angeles")),
+            Some("America/Los_Angeles".to_string())
+        );
+        assert_eq!(normalize_timezone(Some("unknown")), None);
+        assert_eq!(normalize_timezone(Some("  ")), None);
+    }
+
+    #[test]
+    fn test_normalize_metadata_text_filters_unknown_values() {
+        assert_eq!(normalize_metadata_text(Some(" AS7922 ")), Some("AS7922".to_string()));
+        assert_eq!(normalize_metadata_text(Some("unknown")), None);
     }
 }

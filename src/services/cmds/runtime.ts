@@ -15,6 +15,7 @@ export interface GeoDataUpdateTime {
   mmdb: number | null
   geoip: number | null
   asn: number | null
+  city: number | null
   geosite: number | null
 }
 

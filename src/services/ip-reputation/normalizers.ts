@@ -1,8 +1,7 @@
 import type {
+  IpMetadataProviderAvailability,
   IpMetadataProviderConfig,
-  IpMetadataProviderField,
   IpMetadataProviderHealthReport,
-  IpMetadataProviderRegistration,
   IpReputation,
   IpReputationConfig,
   IpReputationEvidence,
@@ -16,10 +15,6 @@ type RiskLevel = IpReputation['riskLevel']
 type IpReputationEvidenceKind = IpReputationEvidence['kind']
 type ResidentialVerificationState = IpReputation['residentialState']
 type FallbackPolicy = RiskRoutingRule['fallbackPolicy']
-type MetadataProviderKind = IpMetadataProviderConfig['kind']
-type MetadataProviderTransport = IpMetadataProviderRegistration['transport']
-type MetadataProviderAvailability = IpMetadataProviderRegistration['availability']
-type MetadataProviderFieldKind = IpMetadataProviderField['kind']
 
 const IP_TYPES: IpType[] = [
   'Datacenter',
@@ -44,25 +39,10 @@ const RESIDENTIAL_STATES: ResidentialVerificationState[] = [
   'unknown',
 ]
 const FALLBACK_POLICIES: FallbackPolicy[] = ['Block', 'Warn', 'Allow']
-const METADATA_PROVIDER_KINDS: MetadataProviderKind[] = [
-  'geoLite2AsnMmdb',
-  'ipinfoHttpApi',
-]
-const METADATA_PROVIDER_TRANSPORTS: MetadataProviderTransport[] = [
-  'localMmdb',
-  'remoteHttpApi',
-  'custom',
-]
-const METADATA_PROVIDER_AVAILABILITIES: MetadataProviderAvailability[] = [
+const METADATA_PROVIDER_AVAILABILITIES: IpMetadataProviderAvailability[] = [
   'ready',
   'experimental',
   'placeholder',
-]
-const METADATA_PROVIDER_FIELD_KINDS: MetadataProviderFieldKind[] = [
-  'databasePath',
-  'apiEndpoint',
-  'accessToken',
-  'options',
 ]
 const IP_TYPE_ALIASES: Record<string, IpType> = {
   datacenter: 'Datacenter',
@@ -104,6 +84,83 @@ const normalizeIpType = (value: unknown): IpType => {
   return 'Unknown'
 }
 
+const normalizeCheckedAt = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) return parsed
+    return asNumber(value, Date.now())
+  }
+  const record = asRecord(value)
+  const secs =
+    record.secs_since_epoch ?? record.secsSinceEpoch ?? record.secs ?? record.seconds
+  const nanos = record.nanos_since_epoch ?? record.nanosSinceEpoch ?? record.nanos
+  if (secs !== undefined) {
+    return asNumber(secs, 0) * 1000 + Math.floor(asNumber(nanos, 0) / 1_000_000)
+  }
+  return Date.now()
+}
+
+const normalizeResidentialState = (value: unknown): ResidentialVerificationState =>
+  normalizeEnum(value, RESIDENTIAL_STATES, 'unknown')
+
+const normalizeEvidenceKind = (value: unknown): IpReputationEvidenceKind =>
+  normalizeEnum(value, EVIDENCE_KINDS, 'default')
+
+export const normalizeMetadataProviderConfig = (
+  value: unknown,
+): IpMetadataProviderConfig => {
+  const raw = asRecord(value)
+  const options = raw.options
+
+  return {
+    kind: 'geoLite2AsnMmdb',
+    options:
+      options && typeof options === 'object'
+        ? Object.fromEntries(
+            Object.entries(options as RawRecord).map(([key, item]) => [
+              key,
+              String(item),
+            ]),
+          )
+        : {},
+  }
+}
+
+export const normalizeMetadataProviderHealthReport = (
+  value: unknown,
+): IpMetadataProviderHealthReport => {
+  const raw = asRecord(value)
+
+  return {
+    providerKind: 'geoLite2AsnMmdb',
+    providerLabel: asString(
+      raw.providerLabel ?? raw.provider_label,
+      'GeoLite2 Local MMDB',
+    ),
+    availability: normalizeEnum(
+      raw.availability,
+      METADATA_PROVIDER_AVAILABILITIES,
+      'placeholder',
+    ),
+    targetIp: asString(raw.targetIp ?? raw.target_ip),
+    healthy: asBoolean(raw.healthy, false),
+    message: asString(raw.message),
+    latencyMs:
+      raw.latencyMs === undefined && raw.latency_ms === undefined
+        ? undefined
+        : asNumber(raw.latencyMs ?? raw.latency_ms, 0),
+    asn: asString(raw.asn) || undefined,
+    asnOrg: asString(raw.asnOrg ?? raw.asn_org) || undefined,
+    countryCode: asString(raw.countryCode ?? raw.country_code) || undefined,
+    countryName: asString(raw.countryName ?? raw.country_name) || undefined,
+    region: asString(raw.region) || undefined,
+    city: asString(raw.city) || undefined,
+    timezone: asString(raw.timezone) || undefined,
+    checkedAt: normalizeCheckedAt(raw.checkedAt ?? raw.checked_at),
+  }
+}
+
 export function normalizeResidentialProxyVerification(
   value: unknown,
 ): ResidentialProxyVerification {
@@ -128,109 +185,6 @@ export function normalizeResidentialProxyVerification(
   }
 }
 
-const normalizeResidentialState = (value: unknown): ResidentialVerificationState =>
-  normalizeEnum(value, RESIDENTIAL_STATES, 'unknown')
-
-const normalizeEvidenceKind = (value: unknown): IpReputationEvidenceKind =>
-  normalizeEnum(value, EVIDENCE_KINDS, 'default')
-
-export const normalizeMetadataProviderConfig = (
-  value: unknown,
-): IpMetadataProviderConfig => {
-  const raw = asRecord(value)
-  const options = raw.options
-
-  return {
-    kind: normalizeEnum(raw.kind, METADATA_PROVIDER_KINDS, 'geoLite2AsnMmdb'),
-    databasePath: asString(raw.databasePath ?? raw.database_path) || undefined,
-    apiEndpoint: asString(raw.apiEndpoint ?? raw.api_endpoint) || undefined,
-    accessToken: asString(raw.accessToken ?? raw.access_token) || undefined,
-    options:
-      options && typeof options === 'object'
-        ? Object.fromEntries(
-            Object.entries(options as RawRecord).map(([key, item]) => [
-              key,
-              String(item),
-            ]),
-          )
-        : {},
-  }
-}
-
-const normalizeMetadataProviderField = (value: unknown): IpMetadataProviderField => {
-  const raw = asRecord(value)
-
-  return {
-    kind: normalizeEnum(raw.kind, METADATA_PROVIDER_FIELD_KINDS, 'options'),
-    label: asString(raw.label),
-    required: asBoolean(raw.required, false),
-    description: asString(raw.description),
-  }
-}
-
-export const normalizeMetadataProviderRegistration = (
-  value: unknown,
-): IpMetadataProviderRegistration => {
-  const raw = asRecord(value)
-  const fields = raw.fields
-  const defaultDatabaseCandidates =
-    raw.defaultDatabaseCandidates ?? raw.default_database_candidates
-
-  return {
-    kind: normalizeEnum(raw.kind, METADATA_PROVIDER_KINDS, 'geoLite2AsnMmdb'),
-    label: asString(raw.label),
-    transport: normalizeEnum(
-      raw.transport,
-      METADATA_PROVIDER_TRANSPORTS,
-      'custom',
-    ),
-    availability: normalizeEnum(
-      raw.availability,
-      METADATA_PROVIDER_AVAILABILITIES,
-      'placeholder',
-    ),
-    description: asString(raw.description),
-    fields: Array.isArray(fields) ? fields.map(normalizeMetadataProviderField) : [],
-    defaultDatabaseCandidates: Array.isArray(defaultDatabaseCandidates)
-      ? defaultDatabaseCandidates.map((item) => String(item))
-      : [],
-  }
-}
-
-export const normalizeMetadataProviderHealthReport = (
-  value: unknown,
-): IpMetadataProviderHealthReport => {
-  const raw = asRecord(value)
-
-  return {
-    providerKind: normalizeEnum(
-      raw.providerKind ?? raw.provider_kind,
-      METADATA_PROVIDER_KINDS,
-      'geoLite2AsnMmdb',
-    ),
-    providerLabel: asString(
-      raw.providerLabel ?? raw.provider_label,
-      'Unknown Provider',
-    ),
-    availability: normalizeEnum(
-      raw.availability,
-      METADATA_PROVIDER_AVAILABILITIES,
-      'placeholder',
-    ),
-    targetIp: asString(raw.targetIp ?? raw.target_ip),
-    healthy: asBoolean(raw.healthy, false),
-    message: asString(raw.message),
-    latencyMs:
-      raw.latencyMs === undefined && raw.latency_ms === undefined
-        ? undefined
-        : asNumber(raw.latencyMs ?? raw.latency_ms, 0),
-    asn: asString(raw.asn) || undefined,
-    asnOrg: asString(raw.asnOrg ?? raw.asn_org) || undefined,
-    countryCode: asString(raw.countryCode ?? raw.country_code) || undefined,
-    checkedAt: normalizeCheckedAt(raw.checkedAt ?? raw.checked_at),
-  }
-}
-
 function normalizeIpReputationEvidence(value: unknown): IpReputationEvidence {
   const raw = asRecord(value)
 
@@ -239,26 +193,6 @@ function normalizeIpReputationEvidence(value: unknown): IpReputationEvidence {
     label: asString(raw.label),
     weight: asNumber(raw.weight, 0),
   }
-}
-
-const toTauriIpType = (value?: Exclude<IpType, 'Unknown'>): string | null =>
-  value ? value.charAt(0).toLowerCase() + value.slice(1) : null
-
-const normalizeCheckedAt = (value: unknown): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value)
-    if (Number.isFinite(parsed)) return parsed
-    return asNumber(value, Date.now())
-  }
-  const record = asRecord(value)
-  const secs =
-    record.secs_since_epoch ?? record.secsSinceEpoch ?? record.secs ?? record.seconds
-  const nanos = record.nanos_since_epoch ?? record.nanosSinceEpoch ?? record.nanos
-  if (secs !== undefined) {
-    return asNumber(secs, 0) * 1000 + Math.floor(asNumber(nanos, 0) / 1_000_000)
-  }
-  return Date.now()
 }
 
 export function normalizeIpReputation(value: unknown): IpReputation {
@@ -287,6 +221,7 @@ export function normalizeIpReputation(value: unknown): IpReputation {
     isTor: asBoolean(raw.isTor ?? raw.is_tor),
     countryCode: asString(raw.countryCode ?? raw.country_code, 'Unknown'),
     city: asString(raw.city) || undefined,
+    timezone: asString(raw.timezone) || undefined,
     checkedAt: normalizeCheckedAt(raw.checkedAt ?? raw.checked_at),
   }
 }
@@ -333,6 +268,9 @@ export function normalizeIpReputationConfig(value: unknown): IpReputationConfig 
   }
 }
 
+const toTauriIpType = (value?: Exclude<IpType, 'Unknown'>): string | null =>
+  value ? value.charAt(0).toLowerCase() + value.slice(1) : null
+
 function serializeRiskRoutingRule(rule: RiskRoutingRule): RawRecord {
   return {
     domain_patterns: rule.domainPatterns,
@@ -351,9 +289,6 @@ export function serializeIpReputationConfig(config: IpReputationConfig): RawReco
     routing_rules: config.routingRules.map(serializeRiskRoutingRule),
     metadata_provider: {
       kind: config.metadataProvider.kind,
-      database_path: config.metadataProvider.databasePath ?? null,
-      api_endpoint: config.metadataProvider.apiEndpoint ?? null,
-      access_token: config.metadataProvider.accessToken ?? null,
       options: config.metadataProvider.options,
     },
   }

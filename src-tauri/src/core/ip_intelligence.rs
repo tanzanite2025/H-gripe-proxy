@@ -1,23 +1,31 @@
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::path::PathBuf;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Instant, SystemTime};
 
 use crate::utils::dirs;
 
-const ASN_DATABASE_CANDIDATES: [&str; 2] = ["GeoLite2-ASN.mmdb", "ASN.mmdb"];
-const IPINFO_LITE_API_ENDPOINT: &str = "https://api.ipinfo.io/lite";
+const ASN_DATABASE_CANDIDATES: [&str; 1] = ["GeoLite2-ASN.mmdb"];
+const CITY_DATABASE_CANDIDATES: [&str; 1] = ["GeoLite2-City.mmdb"];
 const DEFAULT_PROVIDER_PROBE_IP: &str = "1.1.1.1";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum IpIntelligenceProviderKind {
     GeoLite2AsnMmdb,
-    IpinfoHttpApi,
+}
+
+impl<'de> Deserialize<'de> for IpIntelligenceProviderKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let _value = String::deserialize(deserializer)?;
+        Ok(Self::GeoLite2AsnMmdb)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -76,6 +84,10 @@ pub struct IpIntelligenceProviderHealthReport {
     pub asn: Option<String>,
     pub asn_org: Option<String>,
     pub country_code: Option<String>,
+    pub country_name: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+    pub timezone: Option<String>,
     pub checked_at: SystemTime,
 }
 
@@ -109,6 +121,10 @@ pub struct IpIntelligenceRecord {
     pub asn: Option<u32>,
     pub asn_organization: Option<String>,
     pub country_code: Option<String>,
+    pub country_name: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+    pub timezone: Option<String>,
     pub provider_label: String,
 }
 
@@ -125,31 +141,16 @@ trait IpIntelligenceProviderFactory: Send + Sync {
 }
 
 pub fn build_provider(config: &IpIntelligenceProviderConfig) -> Result<Box<dyn IpIntelligenceProvider>> {
-    find_provider_factory(&config.kind)?
+    find_provider_factory(&IpIntelligenceProviderKind::GeoLite2AsnMmdb)?
         .create(config)
-        .with_context(|| format!("failed to build provider {:?}", config.kind))
-}
-
-pub fn get_provider_registrations() -> Vec<IpIntelligenceProviderRegistration> {
-    provider_factories()
-        .iter()
-        .map(|factory| factory.registration())
-        .collect()
+        .with_context(|| "failed to build local GeoLite2 MMDB provider".to_string())
 }
 
 pub async fn probe_provider(
     config: &IpIntelligenceProviderConfig,
     target_ip: Option<&str>,
 ) -> IpIntelligenceProviderHealthReport {
-    let registration = get_provider_registration(&config.kind).unwrap_or(IpIntelligenceProviderRegistration {
-        kind: config.kind.clone(),
-        label: format!("{:?}", config.kind),
-        transport: IpIntelligenceProviderTransport::Custom,
-        availability: IpIntelligenceProviderAvailability::Placeholder,
-        description: "provider registration is unavailable".to_string(),
-        fields: Vec::new(),
-        default_database_candidates: Vec::new(),
-    });
+    let registration = GEOLITE2_ASN_MMDB_PROVIDER_FACTORY.registration();
     let target_ip = target_ip
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -171,6 +172,10 @@ pub async fn probe_provider(
                 asn: None,
                 asn_org: None,
                 country_code: None,
+                country_name: None,
+                region: None,
+                city: None,
+                timezone: None,
                 checked_at,
             };
         }
@@ -189,6 +194,10 @@ pub async fn probe_provider(
             asn: record.asn.map(|asn| format!("AS{asn}")),
             asn_org: record.asn_organization,
             country_code: record.country_code,
+            country_name: record.country_name,
+            region: record.region,
+            city: record.city,
+            timezone: record.timezone,
             checked_at,
         },
         Err(error) => IpIntelligenceProviderHealthReport {
@@ -202,35 +211,13 @@ pub async fn probe_provider(
             asn: None,
             asn_org: None,
             country_code: None,
+            country_name: None,
+            region: None,
+            city: None,
+            timezone: None,
             checked_at,
         },
     }
-}
-
-pub fn resolve_database_path(config: &IpIntelligenceProviderConfig) -> Option<PathBuf> {
-    if let Some(path) = config.database_path.as_deref() {
-        let configured_path = PathBuf::from(path);
-        if configured_path.exists() {
-            return Some(configured_path);
-        }
-
-        if configured_path.is_relative()
-            && let Ok(app_home) = dirs::app_home_dir()
-        {
-            let app_home_path = app_home.join(&configured_path);
-            if app_home_path.exists() {
-                return Some(app_home_path);
-            }
-        }
-    }
-
-    for filename in ASN_DATABASE_CANDIDATES {
-        if let Some(path) = resolve_from_standard_dirs(filename) {
-            return Some(path);
-        }
-    }
-
-    None
 }
 
 fn resolve_from_standard_dirs(filename: &str) -> Option<PathBuf> {
@@ -259,34 +246,28 @@ fn standard_database_dirs() -> Vec<PathBuf> {
 }
 
 struct GeoLite2AsnMmdbProvider {
-    database_path: PathBuf,
+    asn_database_path: PathBuf,
+    city_database_path: PathBuf,
 }
 
 struct GeoLite2AsnMmdbProviderFactory;
 
-struct IpinfoHttpApiProvider {
-    client: Client,
-    api_endpoint: String,
-    access_token: String,
-}
-
-struct IpinfoHttpApiProviderFactory;
-
 impl GeoLite2AsnMmdbProvider {
-    fn new(config: &IpIntelligenceProviderConfig) -> Result<Self> {
-        let database_path = resolve_database_path(config).ok_or_else(|| {
-            anyhow!(
-                "unable to locate GeoLite2 ASN database; looked for {}",
-                ASN_DATABASE_CANDIDATES.join(", ")
-            )
-        })?;
-
-        Ok(Self { database_path })
+    fn new(_config: &IpIntelligenceProviderConfig) -> Result<Self> {
+        Ok(Self {
+            asn_database_path: resolve_required_database_path(&ASN_DATABASE_CANDIDATES)?,
+            city_database_path: resolve_required_database_path(&CITY_DATABASE_CANDIDATES)?,
+        })
     }
 
-    fn reader(&self) -> Result<maxminddb::Reader<Vec<u8>>> {
-        maxminddb::Reader::open_readfile(&self.database_path)
-            .with_context(|| format!("failed to open ASN database at {}", self.database_path.display()))
+    fn asn_reader(&self) -> Result<maxminddb::Reader<Vec<u8>>> {
+        maxminddb::Reader::open_readfile(&self.asn_database_path)
+            .with_context(|| format!("failed to open ASN database at {}", self.asn_database_path.display()))
+    }
+
+    fn city_reader(&self) -> Result<maxminddb::Reader<Vec<u8>>> {
+        maxminddb::Reader::open_readfile(&self.city_database_path)
+            .with_context(|| format!("failed to open city database at {}", self.city_database_path.display()))
     }
 }
 
@@ -298,21 +279,16 @@ impl IpIntelligenceProviderFactory for GeoLite2AsnMmdbProviderFactory {
     fn registration(&self) -> IpIntelligenceProviderRegistration {
         IpIntelligenceProviderRegistration {
             kind: self.kind(),
-            label: "GeoLite2 ASN MMDB".to_string(),
+            label: "GeoLite2 Local MMDB".to_string(),
             transport: IpIntelligenceProviderTransport::LocalMmdb,
             availability: IpIntelligenceProviderAvailability::Ready,
-            description: "Read ASN and organization data from a local MaxMind-compatible ASN database."
-                .to_string(),
-            fields: vec![IpIntelligenceProviderConfigField {
-                kind: IpIntelligenceProviderConfigFieldKind::DatabasePath,
-                label: "Database Path".to_string(),
-                required: false,
-                description:
-                    "Optional override path. If omitted, the app searches GeoLite2-ASN.mmdb and ASN.mmdb in the standard app directories."
-                        .to_string(),
-            }],
+            description:
+                "Read ASN, country, city, and timezone data only from bundled GeoLite2-ASN.mmdb and GeoLite2-City.mmdb."
+                    .to_string(),
+            fields: Vec::new(),
             default_database_candidates: ASN_DATABASE_CANDIDATES
                 .iter()
+                .chain(CITY_DATABASE_CANDIDATES.iter())
                 .map(|item| item.to_string())
                 .collect(),
         }
@@ -326,175 +302,77 @@ impl IpIntelligenceProviderFactory for GeoLite2AsnMmdbProviderFactory {
 #[async_trait]
 impl IpIntelligenceProvider for GeoLite2AsnMmdbProvider {
     fn label(&self) -> &'static str {
-        "GeoLite2 ASN MMDB"
+        "GeoLite2 Local MMDB"
     }
 
     async fn lookup(&self, ip: &str) -> Result<IpIntelligenceRecord> {
         let ip_addr: IpAddr = ip.parse().with_context(|| format!("invalid IP address: {ip}"))?;
-        let reader = self.reader()?;
-        let lookup = reader
+        let asn_reader = self.asn_reader()?;
+        let asn_lookup = asn_reader
             .lookup(ip_addr)
             .with_context(|| format!("failed to query ASN database for {ip}"))?;
-        let result = lookup
+        let asn_record = asn_lookup
             .decode::<maxminddb::geoip2::Asn<'_>>()
             .with_context(|| format!("failed to decode ASN database record for {ip}"))?;
+        let asn = asn_record.as_ref().and_then(|item| item.autonomous_system_number);
+        let asn_organization = asn_record
+            .as_ref()
+            .and_then(|item| item.autonomous_system_organization)
+            .map(str::to_string);
+
+        let city_reader = self.city_reader()?;
+        let city_lookup = city_reader
+            .lookup(ip_addr)
+            .with_context(|| format!("failed to query city database for {ip}"))?;
+        let city_record = city_lookup
+            .decode::<maxminddb::geoip2::City<'_>>()
+            .with_context(|| format!("failed to decode city database record for {ip}"))?;
+        let (country_code, country_name, region, city, timezone) = city_record
+            .map(|city_record| {
+                let country_code = city_record
+                    .country
+                    .iso_code
+                    .or(city_record.registered_country.iso_code)
+                    .map(str::to_ascii_uppercase);
+                let country_name = city_record
+                    .country
+                    .names
+                    .english
+                    .or(city_record.country.names.simplified_chinese)
+                    .map(str::to_string);
+                let region = city_record
+                    .subdivisions
+                    .first()
+                    .and_then(|subdivision| subdivision.names.english.or(subdivision.names.simplified_chinese))
+                    .map(str::to_string);
+                let city = city_record
+                    .city
+                    .names
+                    .english
+                    .or(city_record.city.names.simplified_chinese)
+                    .map(str::to_string);
+                let timezone = city_record.location.time_zone.map(str::to_string);
+                (country_code, country_name, region, city, timezone)
+            })
+            .unwrap_or((None, None, None, None, None));
 
         Ok(IpIntelligenceRecord {
-            asn: result.as_ref().and_then(|item| item.autonomous_system_number),
-            asn_organization: result
-                .as_ref()
-                .and_then(|item| item.autonomous_system_organization)
-                .map(str::to_string),
-            country_code: None,
-            provider_label: self.label().to_string(),
-        })
-    }
-}
-
-impl IpinfoHttpApiProvider {
-    fn new(config: &IpIntelligenceProviderConfig) -> Result<Self> {
-        let access_token = config
-            .access_token
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string)
-            .ok_or_else(|| anyhow!("IPinfo HTTP API requires a non-empty access token"))?;
-
-        let api_endpoint = config
-            .api_endpoint
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(IPINFO_LITE_API_ENDPOINT)
-            .trim_end_matches('/')
-            .to_string();
-
-        let timeout_seconds = config
-            .options
-            .get("timeoutSeconds")
-            .and_then(|value| value.parse::<u64>().ok())
-            .filter(|value| *value > 0)
-            .unwrap_or(10);
-
-        let client = Client::builder()
-            .timeout(Duration::from_secs(timeout_seconds))
-            .build()
-            .with_context(|| "failed to build IPinfo HTTP client".to_string())?;
-
-        Ok(Self {
-            client,
-            api_endpoint,
-            access_token,
-        })
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct IpinfoLiteLookupResponse {
-    asn: Option<String>,
-    as_name: Option<String>,
-    country_code: Option<String>,
-}
-
-impl IpIntelligenceProviderFactory for IpinfoHttpApiProviderFactory {
-    fn kind(&self) -> IpIntelligenceProviderKind {
-        IpIntelligenceProviderKind::IpinfoHttpApi
-    }
-
-    fn registration(&self) -> IpIntelligenceProviderRegistration {
-        IpIntelligenceProviderRegistration {
-            kind: self.kind(),
-            label: "IPinfo HTTP API".to_string(),
-            transport: IpIntelligenceProviderTransport::RemoteHttpApi,
-            availability: IpIntelligenceProviderAvailability::Experimental,
-            description:
-                "Fetch ASN and country metadata from the IPinfo Lite HTTPS API. Implemented for opt-in use, but not selected by default."
-                    .to_string(),
-            fields: vec![
-                IpIntelligenceProviderConfigField {
-                    kind: IpIntelligenceProviderConfigFieldKind::ApiEndpoint,
-                    label: "API Endpoint".to_string(),
-                    required: false,
-                    description:
-                        "Optional override for the IPinfo endpoint. Leave empty to use the built-in Lite endpoint."
-                            .to_string(),
-                },
-                IpIntelligenceProviderConfigField {
-                    kind: IpIntelligenceProviderConfigFieldKind::AccessToken,
-                    label: "Access Token".to_string(),
-                    required: true,
-                    description: "IPinfo API token for authenticated lookup requests.".to_string(),
-                },
-                IpIntelligenceProviderConfigField {
-                    kind: IpIntelligenceProviderConfigFieldKind::Options,
-                    label: "Extra Options".to_string(),
-                    required: false,
-                    description:
-                        "Optional request tuning fields. The current adapter recognizes timeoutSeconds if provided."
-                            .to_string(),
-                },
-            ],
-            default_database_candidates: Vec::new(),
-        }
-    }
-
-    fn create(&self, config: &IpIntelligenceProviderConfig) -> Result<Box<dyn IpIntelligenceProvider>> {
-        Ok(Box::new(IpinfoHttpApiProvider::new(config)?))
-    }
-}
-
-#[async_trait]
-impl IpIntelligenceProvider for IpinfoHttpApiProvider {
-    fn label(&self) -> &'static str {
-        "IPinfo HTTP API"
-    }
-
-    async fn lookup(&self, ip: &str) -> Result<IpIntelligenceRecord> {
-        let _: IpAddr = ip.parse().with_context(|| format!("invalid IP address: {ip}"))?;
-        let url = format!("{}/{}", self.api_endpoint, ip);
-        let response = self
-            .client
-            .get(&url)
-            .bearer_auth(&self.access_token)
-            .send()
-            .await
-            .with_context(|| format!("failed to request IPinfo metadata for {ip}"))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            let detail = body.trim();
-            return Err(anyhow!(
-                "IPinfo lookup failed with status {}{}",
-                status,
-                if detail.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {detail}")
-                }
-            ));
-        }
-
-        let payload = response
-            .json::<IpinfoLiteLookupResponse>()
-            .await
-            .with_context(|| format!("failed to decode IPinfo response for {ip}"))?;
-
-        Ok(IpIntelligenceRecord {
-            asn: payload.asn.as_deref().and_then(parse_asn_text),
-            asn_organization: payload.as_name,
-            country_code: payload.country_code,
+            asn,
+            asn_organization,
+            country_code,
+            country_name,
+            region,
+            city,
+            timezone,
             provider_label: self.label().to_string(),
         })
     }
 }
 
 static GEOLITE2_ASN_MMDB_PROVIDER_FACTORY: GeoLite2AsnMmdbProviderFactory = GeoLite2AsnMmdbProviderFactory;
-static IPINFO_HTTP_API_PROVIDER_FACTORY: IpinfoHttpApiProviderFactory = IpinfoHttpApiProviderFactory;
 
-fn provider_factories() -> [&'static dyn IpIntelligenceProviderFactory; 2] {
-    [&GEOLITE2_ASN_MMDB_PROVIDER_FACTORY, &IPINFO_HTTP_API_PROVIDER_FACTORY]
+fn provider_factories() -> [&'static dyn IpIntelligenceProviderFactory; 1] {
+    [&GEOLITE2_ASN_MMDB_PROVIDER_FACTORY]
 }
 
 fn find_provider_factory(kind: &IpIntelligenceProviderKind) -> Result<&'static dyn IpIntelligenceProviderFactory> {
@@ -504,21 +382,19 @@ fn find_provider_factory(kind: &IpIntelligenceProviderKind) -> Result<&'static d
         .ok_or_else(|| anyhow!("provider {:?} is not registered", kind))
 }
 
-fn get_provider_registration(kind: &IpIntelligenceProviderKind) -> Option<IpIntelligenceProviderRegistration> {
-    provider_factories()
-        .into_iter()
-        .find(|factory| factory.kind() == *kind)
-        .map(|factory| factory.registration())
+fn resolve_first_existing_database_path(candidates: &[&str]) -> Option<PathBuf> {
+    candidates
+        .iter()
+        .find_map(|filename| resolve_from_standard_dirs(filename))
 }
 
-fn parse_asn_text(value: &str) -> Option<u32> {
-    let trimmed = value.trim();
-    let normalized = trimmed
-        .strip_prefix("AS")
-        .or_else(|| trimmed.strip_prefix("as"))
-        .unwrap_or(trimmed);
-
-    normalized.parse::<u32>().ok()
+fn resolve_required_database_path(candidates: &[&str]) -> Result<PathBuf> {
+    resolve_first_existing_database_path(candidates).ok_or_else(|| {
+        anyhow!(
+            "unable to locate required local MMDB database; looked for [{}] in app home/resources",
+            candidates.join(", "),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -552,74 +428,25 @@ mod tests {
 
     #[test]
     fn test_provider_registry_exposes_registered_providers() {
-        let registrations = get_provider_registrations();
+        let registrations = vec![GEOLITE2_ASN_MMDB_PROVIDER_FACTORY.registration()];
 
-        assert_eq!(registrations.len(), 2);
+        assert_eq!(registrations.len(), 1);
         assert_eq!(registrations[0].kind, IpIntelligenceProviderKind::GeoLite2AsnMmdb);
         assert_eq!(registrations[0].transport, IpIntelligenceProviderTransport::LocalMmdb);
         assert_eq!(registrations[0].availability, IpIntelligenceProviderAvailability::Ready);
-        assert!(
-            registrations[0]
-                .fields
-                .iter()
-                .any(|field| field.kind == IpIntelligenceProviderConfigFieldKind::DatabasePath)
-        );
-
-        assert_eq!(registrations[1].kind, IpIntelligenceProviderKind::IpinfoHttpApi);
-        assert_eq!(
-            registrations[1].transport,
-            IpIntelligenceProviderTransport::RemoteHttpApi
-        );
-        assert_eq!(
-            registrations[1].availability,
-            IpIntelligenceProviderAvailability::Experimental
-        );
-        assert!(
-            registrations[1]
-                .fields
-                .iter()
-                .any(|field| field.kind == IpIntelligenceProviderConfigFieldKind::AccessToken)
-        );
+        assert!(registrations[0].fields.is_empty());
     }
 
     #[test]
-    fn test_ipinfo_provider_can_be_built_when_token_is_present() {
-        let config = IpIntelligenceProviderConfig {
-            kind: IpIntelligenceProviderKind::IpinfoHttpApi,
-            database_path: None,
-            api_endpoint: Some("https://api.ipinfo.io/lite".to_string()),
-            access_token: Some("token-placeholder".to_string()),
-            options: HashMap::new(),
-        };
-
-        let provider = build_provider(&config).unwrap();
-
-        assert_eq!(provider.label(), "IPinfo HTTP API");
+    fn test_default_candidates_only_use_bundled_geolite_files() {
+        assert_eq!(ASN_DATABASE_CANDIDATES, ["GeoLite2-ASN.mmdb"]);
+        assert_eq!(CITY_DATABASE_CANDIDATES, ["GeoLite2-City.mmdb"]);
     }
 
     #[test]
-    fn test_ipinfo_provider_requires_access_token() {
-        let config = IpIntelligenceProviderConfig {
-            kind: IpIntelligenceProviderKind::IpinfoHttpApi,
-            database_path: None,
-            api_endpoint: Some("https://api.ipinfo.io/lite".to_string()),
-            access_token: None,
-            options: HashMap::new(),
-        };
+    fn test_legacy_provider_kind_deserializes_to_local_geolite2() {
+        let parsed: IpIntelligenceProviderKind = serde_json::from_str(r#""ipinfoHttpApi""#).unwrap();
 
-        let error = match build_provider(&config) {
-            Ok(_) => panic!("ipinfo provider without token should fail"),
-            Err(error) => error,
-        };
-
-        assert!(error.to_string().contains("access token"));
-    }
-
-    #[test]
-    fn test_parse_asn_text() {
-        assert_eq!(parse_asn_text("AS15169"), Some(15169));
-        assert_eq!(parse_asn_text("15169"), Some(15169));
-        assert_eq!(parse_asn_text(" as7922 "), Some(7922));
-        assert_eq!(parse_asn_text("invalid"), None);
+        assert_eq!(parsed, IpIntelligenceProviderKind::GeoLite2AsnMmdb);
     }
 }

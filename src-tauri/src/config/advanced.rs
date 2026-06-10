@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::path::PathBuf;
 
-use super::ConfigFile;
+use super::{
+    ConfigFile, DOMESTIC_DOH_NAMESERVERS, DOMESTIC_PLAIN_NAMESERVERS, ENCRYPTED_BOOTSTRAP_NAMESERVERS,
+    FOREIGN_DOH_NAMESERVERS, FOREIGN_PLAIN_NAMESERVERS, value_sequence,
+};
 use crate::anti_probe::AntiProbeConfig;
 use crate::core::blackhole_breaker::BlackholeBreakerConfig;
 use crate::core::egress_identity::EgressIdentityConfig;
@@ -359,25 +362,16 @@ impl DnsAdvancedConfig {
             self.leak_protection_level,
             DnsLeakProtectionLevel::Basic | DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
         );
-        let block_plain_dns = matches!(
-            self.leak_protection_level,
-            DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
-        );
         let block_ipv6_dns = matches!(self.leak_protection_level, DnsLeakProtectionLevel::Paranoid);
         let block_system_hosts = matches!(
             self.leak_protection_level,
             DnsLeakProtectionLevel::Strict | DnsLeakProtectionLevel::Paranoid
         );
 
-        let domestic_plain = vec!["223.5.5.5", "119.29.29.29"];
-        let domestic_doh = vec!["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"];
-        let foreign_plain = vec!["1.1.1.1", "8.8.8.8", "9.9.9.9"];
-        let foreign_doh = vec![
-            "https://dns.google/dns-query",
-            "https://cloudflare-dns.com/dns-query",
-            "https://dns.quad9.net/dns-query",
-        ];
-        let encrypted_ip_bootstrap = vec!["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"];
+        let domestic_plain = DOMESTIC_PLAIN_NAMESERVERS.to_vec();
+        let domestic_doh = DOMESTIC_DOH_NAMESERVERS.to_vec();
+        let foreign_plain = FOREIGN_PLAIN_NAMESERVERS.to_vec();
+        let foreign_doh = FOREIGN_DOH_NAMESERVERS.to_vec();
 
         let effective_mode = match self.routing_mode {
             DnsRoutingMode::Custom => DnsRoutingMode::Balanced,
@@ -469,15 +463,15 @@ impl DnsAdvancedConfig {
             );
         }
 
-        let proxy_server_nameserver: Vec<Value> = if block_plain_dns {
-            foreign_doh.iter().map(|item| Value::from(*item)).collect()
+        let proxy_server_nameserver: Vec<Value> = if force_doh {
+            value_sequence(DOMESTIC_DOH_NAMESERVERS)
         } else {
-            domestic_plain.into_iter().map(Value::from).collect()
+            value_sequence(DOMESTIC_PLAIN_NAMESERVERS)
         };
         dns_mapping.insert(
             "default-nameserver".into(),
-            Value::Sequence(if block_plain_dns {
-                encrypted_ip_bootstrap.into_iter().map(Value::from).collect()
+            Value::Sequence(if force_doh {
+                value_sequence(ENCRYPTED_BOOTSTRAP_NAMESERVERS)
             } else {
                 proxy_server_nameserver.clone()
             }),
@@ -1192,15 +1186,12 @@ mod tests {
             .unwrap();
         assert!(!bootstrap.is_empty());
         let bootstrap = bootstrap.iter().filter_map(|value| value.as_str()).collect::<Vec<_>>();
-        assert_eq!(
-            bootstrap,
-            vec!["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"]
-        );
+        assert_eq!(bootstrap, ENCRYPTED_BOOTSTRAP_NAMESERVERS.to_vec());
         assert_eq!(dns.get("prefer-h3").and_then(|value| value.as_bool()), Some(false));
     }
 
     #[test]
-    fn test_paranoid_dns_uses_foreign_bootstrap_for_proxy_servers() {
+    fn test_paranoid_dns_uses_domestic_proxy_server_nameserver() {
         let config = DnsAdvancedConfig {
             leak_protection_level: DnsLeakProtectionLevel::Paranoid,
             ..DnsAdvancedConfig::default()
@@ -1216,8 +1207,7 @@ mod tests {
             .filter_map(|value| value.as_str())
             .collect::<Vec<_>>();
 
-        assert!(proxy_servers.contains(&"https://dns.google/dns-query"));
-        assert!(!proxy_servers.contains(&"https://dns.alidns.com/dns-query"));
+        assert_eq!(proxy_servers, DOMESTIC_DOH_NAMESERVERS.to_vec());
     }
 
     #[test]
@@ -1245,11 +1235,7 @@ mod tests {
             .filter_map(|value| value.as_str())
             .collect::<Vec<_>>();
 
-        assert_eq!(
-            nameserver,
-            vec!["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
-        );
-        assert!(fallback.contains(&"https://dns.google/dns-query"));
-        assert!(fallback.contains(&"https://cloudflare-dns.com/dns-query"));
+        assert_eq!(nameserver, DOMESTIC_DOH_NAMESERVERS.to_vec());
+        assert_eq!(fallback, FOREIGN_DOH_NAMESERVERS.to_vec());
     }
 }

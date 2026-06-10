@@ -352,6 +352,7 @@ mod tests {
             is_tor: false,
             country_code: "US".to_string(),
             city: Some("Seattle".to_string()),
+            timezone: Some("America/Los_Angeles".to_string()),
             checked_at: SystemTime::UNIX_EPOCH,
         };
 

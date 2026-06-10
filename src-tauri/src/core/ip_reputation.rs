@@ -6,7 +6,9 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
 use super::asn_classifier::{self, AsnCategory};
-use super::ip_intelligence::{IpIntelligenceProvider, IpIntelligenceProviderConfig, build_provider};
+use super::ip_intelligence::{
+    IpIntelligenceProvider, IpIntelligenceProviderConfig, IpIntelligenceRecord, build_provider,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpReputationConfig {
@@ -44,6 +46,7 @@ pub struct IpReputation {
     pub is_tor: bool,
     pub country_code: String,
     pub city: Option<String>,
+    pub timezone: Option<String>,
     pub checked_at: SystemTime,
 }
 
@@ -138,8 +141,18 @@ pub struct IpReputationManager {
     metadata_provider: Arc<RwLock<Option<Arc<dyn IpIntelligenceProvider>>>>,
 }
 
+fn sanitize_metadata_provider_config() -> IpIntelligenceProviderConfig {
+    IpIntelligenceProviderConfig::default()
+}
+
+fn sanitize_ip_reputation_config(mut config: IpReputationConfig) -> IpReputationConfig {
+    config.metadata_provider = sanitize_metadata_provider_config();
+    config
+}
+
 impl IpReputationManager {
     pub fn from_config(config: IpReputationConfig) -> Self {
+        let config = sanitize_ip_reputation_config(config);
         let metadata_provider = build_metadata_provider(&config);
 
         Self {
@@ -150,6 +163,7 @@ impl IpReputationManager {
     }
 
     pub async fn update_config(&self, config: IpReputationConfig) -> Result<()> {
+        let config = sanitize_ip_reputation_config(config);
         let metadata_provider = build_metadata_provider(&config);
         *self.config.write().await = config;
         *self.metadata_provider.write().await = metadata_provider;
@@ -182,15 +196,15 @@ impl IpReputationManager {
         Ok(reputation)
     }
 
-    pub fn inspect_core_metadata(
-        &self,
-        ip: &str,
-        destination_asn: Option<&str>,
-        asn_org: Option<&str>,
-    ) -> IpReputation {
-        let asn_num = destination_asn.and_then(parse_asn_number);
+    pub async fn lookup_ip_metadata_record(&self, ip: &str) -> Result<IpIntelligenceRecord> {
+        let provider = self.metadata_provider.read().await.clone();
+        let Some(provider) = provider else {
+            return Err(anyhow!(
+                "Local IP metadata provider is unavailable. Add GeoLite2-ASN.mmdb and GeoLite2-City.mmdb to the app resources."
+            ));
+        };
 
-        self.build_reputation_from_metadata(ip, asn_num, asn_org, None, None, destination_asn, None)
+        provider.lookup(ip).await
     }
 
     pub async fn check_ip_reputation(&self, ip: &str) -> Result<IpReputation> {
@@ -217,7 +231,7 @@ impl IpReputationManager {
         let Some(provider) = provider else {
             return Ok(self.create_unresolved_metadata_reputation(
                 ip,
-                "ASN metadata provider is unavailable. Add GeoLite2-ASN.mmdb or configure a valid database path.",
+                "Local IP metadata provider is unavailable. Add GeoLite2-ASN.mmdb and GeoLite2-City.mmdb to the app resources.",
             ));
         };
 
@@ -227,7 +241,8 @@ impl IpReputationManager {
                 record.asn,
                 record.asn_organization.as_deref(),
                 record.country_code.as_deref(),
-                None,
+                record.city.as_deref(),
+                record.timezone.as_deref(),
                 None,
                 Some(&record.provider_label),
             )),
@@ -246,6 +261,7 @@ impl IpReputationManager {
         asn_org: Option<&str>,
         country_code: Option<&str>,
         city: Option<&str>,
+        timezone: Option<&str>,
         asn_text: Option<&str>,
         provider_label: Option<&str>,
     ) -> IpReputation {
@@ -285,6 +301,7 @@ impl IpReputationManager {
             is_tor: false,
             country_code: country_code.unwrap_or("Unknown").to_string(),
             city: city.map(str::to_string),
+            timezone: timezone.map(str::to_string),
             checked_at: SystemTime::now(),
         }
     }
@@ -420,6 +437,7 @@ impl IpReputationManager {
             is_tor: false,
             country_code: "Unknown".to_string(),
             city: None,
+            timezone: None,
             checked_at: SystemTime::now(),
         }
     }
@@ -444,6 +462,7 @@ impl IpReputationManager {
             is_tor: false,
             country_code: "Unknown".to_string(),
             city: None,
+            timezone: None,
             checked_at: SystemTime::now(),
         }
     }
@@ -562,16 +581,6 @@ fn first_node_name(available_nodes: &[(String, String)]) -> Result<&str> {
         .ok_or_else(|| anyhow!("no available nodes"))
 }
 
-fn parse_asn_number(value: &str) -> Option<u32> {
-    let trimmed = value.trim();
-    let normalized = trimmed
-        .strip_prefix("AS")
-        .or_else(|| trimmed.strip_prefix("as"))
-        .unwrap_or(trimmed);
-
-    normalized.parse::<u32>().ok()
-}
-
 pub fn matches_ip_type(actual: &IpType, required: &IpType) -> bool {
     match (actual, required) {
         (IpType::Residential, IpType::Residential) => true,
@@ -639,13 +648,15 @@ pub fn get_predefined_routing_rules() -> Vec<RiskRoutingRule> {
 }
 
 fn build_metadata_provider(config: &IpReputationConfig) -> Option<Arc<dyn IpIntelligenceProvider>> {
-    match build_provider(&config.metadata_provider) {
+    let local_metadata_provider = sanitize_metadata_provider_config();
+
+    match build_provider(&local_metadata_provider) {
         Ok(provider) => Some(Arc::from(provider)),
         Err(error) => {
             log::warn!(
-                "[IpReputation] failed to initialize metadata provider {:?}: {}",
+                "[IpReputation] failed to initialize local GeoLite2 metadata provider (configured kind {:?} ignored): {}",
                 config.metadata_provider.kind,
-                error
+                error,
             );
             None
         }
@@ -734,41 +745,6 @@ mod tests {
 
         assert_eq!(manager.calculate_fraud_score(&IpType::Datacenter, &dc_info), 85);
         assert_eq!(manager.calculate_fraud_score(&IpType::Residential, &res_info), 15);
-    }
-
-    #[test]
-    fn test_inspect_core_metadata_uses_single_source_asn_fields() {
-        let manager = IpReputationManager::from_config(IpReputationConfig::default());
-
-        let reputation = manager.inspect_core_metadata("203.0.113.10", Some("AS16509"), Some("Amazon AWS"));
-
-        assert_eq!(reputation.ip_type, IpType::Datacenter);
-        assert_eq!(reputation.asn, "AS16509");
-        assert_eq!(reputation.asn_org, "Amazon AWS");
-        assert_eq!(reputation.country_code, "Unknown");
-        assert!(
-            reputation
-                .evidence
-                .iter()
-                .any(|item| item.kind == IpReputationEvidenceKind::AsnTable)
-        );
-    }
-
-    #[test]
-    fn test_inspect_core_metadata_does_not_guess_by_ip_prefix() {
-        let manager = IpReputationManager::from_config(IpReputationConfig::default());
-
-        let reputation = manager.inspect_core_metadata("13.52.100.1", None, None);
-
-        assert_eq!(reputation.ip_type, IpType::Unknown);
-        assert!(
-            reputation
-                .evidence
-                .iter()
-                .all(|item| item.kind != IpReputationEvidenceKind::AsnTable)
-        );
-        assert_eq!(reputation.evidence.len(), 1);
-        assert_eq!(reputation.evidence[0].kind, IpReputationEvidenceKind::Default);
     }
 
     #[test]

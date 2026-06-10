@@ -1,28 +1,11 @@
-import { getName, getVersion } from '@tauri-apps/api/app'
-import { fetch } from '@tauri-apps/plugin-http'
-import { asyncRetry } from 'foxts/async-retry'
-import { extractErrorMessage } from 'foxts/extract-error-message'
-import { once } from 'foxts/once'
-
 import { debugLog } from '@/utils/misc'
 
-import { getIpCheckConfig } from './adaptive-config'
-import { getCurrentPublicIpInfo } from './cmds'
+import { getCurrentEgressIdentity } from './cmds'
 import { getCachedIpInfo, setCachedIpInfo, clearIpCache } from './ip-cache'
 import { networkMonitor } from './network-monitor'
 import { deduplicator } from './request-deduplicator'
 
-const getUserAgentPromise = once(async () => {
-  try {
-    const [name, version] = await Promise.all([getName(), getVersion()])
-    return `${name}/${version}`
-  } catch (error) {
-    console.debug('Failed to build User-Agent, fallback to default', error)
-    return 'clash-verge-optimized'
-  }
-})
-// Get current IP and geolocation information （refactored IP detection with service-specific mappings）
-interface IpInfo {
+export interface IpInfo {
   ip: string
   country_code: string
   country: string
@@ -36,410 +19,62 @@ interface IpInfo {
   timezone: string
 }
 
-// IP检测服务配置
-interface ServiceConfig {
-  url: string
-  mapping: (data: any) => IpInfo
-  timeout?: number // 保留timeout字段（如有需要）
+const hasUsableIp = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0
+
+const parseAsnNumber = (value?: string | null): number => {
+  if (!value) return 0
+  const normalized = value.trim().toUpperCase().replace(/^AS/, '')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
-const isIPv4Address = (value: unknown): value is string => {
-  if (typeof value !== 'string') return false
-
-  const parts = value.trim().split('.')
-  return (
-    parts.length === 4 &&
-    parts.every((part) => {
-      if (!/^\d{1,3}$/.test(part)) return false
-      const segmentValue = Number(part)
-      return segmentValue >= 0 && segmentValue <= 255
-    })
+const selectDisplayIp = (...candidates: Array<string | null | undefined>) => {
+  const validCandidates = candidates.filter((candidate): candidate is string =>
+    hasUsableIp(candidate),
   )
+
+  return validCandidates.find((candidate) => !candidate.includes(':')) ?? validCandidates[0] ?? ''
 }
 
-const pickPreferredIpInfo = <T extends IpInfo>(
-  candidates: Array<T | null | undefined>,
-): T | null => {
-  const validCandidates = candidates.filter((candidate): candidate is T =>
-    Boolean(candidate?.ip?.trim()),
-  )
-
-  return (
-    validCandidates.find((candidate) => isIPv4Address(candidate.ip)) ??
-    validCandidates.find((candidate) => !candidate.ip.includes(':')) ??
-    validCandidates[0] ??
-    null
-  )
-}
-
-const mapPlainIpInfo = (ip: string): IpInfo => ({
-  ip,
-  country_code: '',
-  country: '',
-  region: '',
-  city: '',
-  organization: '',
-  asn: 0,
-  asn_organization: '',
-  longitude: 0,
-  latitude: 0,
-  timezone: '',
-})
-
-// 可用的IP检测服务列表及字段映射
-// 包含国内和国际服务，随机打乱顺序以实现负载均衡和故障转移
 const mapBackendIpInfo = (
-  data: Awaited<ReturnType<typeof getCurrentPublicIpInfo>>,
+  data: Awaited<ReturnType<typeof getCurrentEgressIdentity>>,
 ): IpInfo & { lastFetchTs: number } => ({
-  ip: data.ip,
-  country_code: data.country_code || '',
-  country: data.country || '',
-  region: data.region || '',
-  city: data.city || '',
-  organization: data.organization || '',
-  asn: data.asn || 0,
-  asn_organization: data.asn_organization || data.organization || '',
+  ip: selectDisplayIp(data.public_egress_ip, data.egress_ip),
+  country_code: data.country_code || data.reputation?.countryCode || '',
+  country: data.country_code || data.reputation?.countryCode || '',
+  region: '',
+  city: data.reputation?.city || '',
+  organization: data.asn_org || data.reputation?.asnOrg || '',
+  asn: parseAsnNumber(data.destination_asn || data.reputation?.asn),
+  asn_organization: data.asn_org || data.reputation?.asnOrg || '',
   longitude: 0,
   latitude: 0,
-  timezone: '',
+  timezone: data.timezone || data.reputation?.timezone || '',
   lastFetchTs: Date.now(),
 })
 
-const IP_CHECK_SERVICES: ServiceConfig[] = [
-  // 国内服务 - 优先级高，国内用户访问快
-  {
-    url: 'https://myip.ipip.net/json',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.country_code || '',
-      country: data.data?.country || data.country || '',
-      region: data.data?.province || data.region || '',
-      city: data.data?.city || data.city || '',
-      organization: data.data?.isp || data.isp || '',
-      asn: data.data?.asn || data.asn || 0,
-      asn_organization: data.data?.isp || data.isp || '',
-      longitude: data.data?.longitude || 0,
-      latitude: data.data?.latitude || 0,
-      timezone: data.data?.timezone || data.timezone || '',
-    }),
-  },
-  {
-    url: 'https://api.vore.top/api/IPdata',
-    mapping: (data) => ({
-      ip: data.ip || data.ipip || '',
-      country_code: data.adcode?.country || data.country_code || '',
-      country: data.ipip_country || data.country || '',
-      region: data.ipip_province || data.province || data.region || '',
-      city: data.ipip_city || data.city || '',
-      organization: data.isp || data.org || '',
-      asn: data.asn || 0,
-      asn_organization: data.isp || data.org || '',
-      longitude: Number(data.ipip_longitude || data.longitude) || 0,
-      latitude: Number(data.ipip_latitude || data.latitude) || 0,
-      timezone: data.timezone || '',
-    }),
-  },
-  {
-    url: 'https://api.ip.sb/geoip',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.country_code || '',
-      country: data.country || '',
-      region: data.region || '',
-      city: data.city || '',
-      organization: data.organization || data.isp || '',
-      asn: data.asn || 0,
-      asn_organization: data.asn_organization || '',
-      longitude: data.longitude || 0,
-      latitude: data.latitude || 0,
-      timezone: data.timezone || '',
-    }),
-  },
-  // 国际服务 - 备用，全球覆盖好
-  {
-    url: 'https://ipapi.co/json',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.country_code || '',
-      country: data.country_name || '',
-      region: data.region || '',
-      city: data.city || '',
-      organization: data.org || '',
-      asn: data.asn ? parseInt(data.asn.replace('AS', '')) : 0,
-      asn_organization: data.org || '',
-      longitude: data.longitude || 0,
-      latitude: data.latitude || 0,
-      timezone: data.timezone || '',
-    }),
-  },
-  {
-    url: 'https://api.ipapi.is/',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.location?.country_code || '',
-      country: data.location?.country || '',
-      region: data.location?.state || '',
-      city: data.location?.city || '',
-      organization: data.asn?.org || data.company?.name || '',
-      asn: data.asn?.asn || 0,
-      asn_organization: data.asn?.org || '',
-      longitude: data.location?.longitude || 0,
-      latitude: data.location?.latitude || 0,
-      timezone: data.location?.timezone || '',
-    }),
-  },
-  {
-    url: 'https://ipwho.is/',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.country_code || '',
-      country: data.country || '',
-      region: data.region || '',
-      city: data.city || '',
-      organization: data.connection?.org || data.connection?.isp || '',
-      asn: data.connection?.asn || 0,
-      asn_organization: data.connection?.isp || '',
-      longitude: data.longitude || 0,
-      latitude: data.latitude || 0,
-      timezone: data.timezone?.id || '',
-    }),
-  },
-  {
-    url: 'https://ip.api.skk.moe/cf-geoip',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.country || '',
-      country: data.country || '',
-      region: data.region || '',
-      city: data.city || '',
-      organization: data.asOrg || '',
-      asn: data.asn || 0,
-      asn_organization: data.asOrg || '',
-      longitude: data.longitude || 0,
-      latitude: data.latitude || 0,
-      timezone: data.timezone || '',
-    }),
-  },
-  {
-    url: 'https://get.geojs.io/v1/ip/geo.json',
-    mapping: (data) => ({
-      ip: data.ip || '',
-      country_code: data.country_code || '',
-      country: data.country || '',
-      region: data.region || '',
-      city: data.city || '',
-      organization: data.organization_name || '',
-      asn: data.asn || 0,
-      asn_organization: data.organization_name || '',
-      longitude: Number(data.longitude) || 0,
-      latitude: Number(data.latitude) || 0,
-      timezone: data.timezone || '',
-    }),
-  },
-]
-
-const plainIpSources: ServiceConfig[] = [
-  {
-    url: 'https://api.ipify.org?format=json',
-    mapping: (data) => mapPlainIpInfo(data.ip || ''),
-  },
-  {
-    url: 'https://api4.ipify.org?format=json',
-    mapping: (data) => mapPlainIpInfo(data.ip || ''),
-  },
-]
-
-const fetchPlainIpv4IpInfo = async (
-  userAgent: string,
-  timeout: number,
-): Promise<(IpInfo & { lastFetchTs: number }) | null> => {
-  for (const service of plainIpSources) {
-    try {
-      const response = await fetch(service.url, {
-        method: 'GET',
-        connectTimeout: timeout,
-        headers: {
-          'User-Agent': userAgent,
-        },
-      })
-
-      if (!response.ok) continue
-
-      const data = await response.json()
-      const ipInfo = Object.assign(service.mapping(data), {
-        lastFetchTs: Date.now(),
-      })
-
-      if (isIPv4Address(ipInfo.ip)) {
-        return ipInfo
-      }
-    } catch (error) {
-      debugLog(`IPv4 IP检测服务失败: ${service.url}`, error)
-    }
-  }
-
-  return null
-}
-
-// 获取当前IP和地理位置信息
-export const getIpInfo = async (): Promise<
-  IpInfo & { lastFetchTs: number }
-> => {
-  // 使用请求去重
-  return deduplicator.dedupe('ip-info', async () => {
-    // 先尝试从缓存获取
+export const getIpInfo = async (): Promise<IpInfo & { lastFetchTs: number }> =>
+  deduplicator.dedupe('ip-info', async () => {
     const cached = getCachedIpInfo()
-    if (cached && isIPv4Address(cached.ip)) {
-      console.debug('[IpInfo] 使用缓存的IP信息')
+    if (cached && hasUsableIp(cached.ip)) {
+      debugLog('[IpInfo] using cached backend observation')
       return cached
     }
-    if (cached) {
-      console.debug('[IpInfo] 缓存为IPv6，刷新以优先获取IPv4显示')
-    }
 
-    // 检查网络状态
     if (!networkMonitor.isOnline()) {
-      throw new Error('网络已断开，无法获取IP信息')
+      throw new Error('网络已断开，无法获取出口 IP 信息')
     }
 
-    // 根据网络质量获取配置
-    const config = getIpCheckConfig()
-    if (config.timeout === 0) {
-      throw new Error('离线状态，无法获取IP信息')
+    const identity = await getCurrentEgressIdentity()
+    const ipInfo = mapBackendIpInfo(identity)
+    if (!hasUsableIp(ipInfo.ip)) {
+      throw new Error(identity.message || '内核未返回有效的出口 IP 信息')
     }
 
-    try {
-      const ipInfo = mapBackendIpInfo(await getCurrentPublicIpInfo())
-      const ipv4Info = isIPv4Address(ipInfo.ip) ? ipInfo : null
-      const preferredIpInfo = pickPreferredIpInfo([ipInfo, ipv4Info])
-      if (!preferredIpInfo) {
-        throw new Error('后端本地核心代理观测未返回有效IP')
-      }
-      console.debug('[IpInfo] 使用后端本地核心代理观测获取IP信息')
-      setCachedIpInfo(preferredIpInfo)
-      return preferredIpInfo
-    } catch (error) {
-      debugLog('[IpInfo] 后端本地核心代理观测失败，回退到前端直连IP服务', error)
-    }
-
-    const shuffledServices = IP_CHECK_SERVICES.toSorted(
-      () => Math.random() - 0.5,
-    )
-    let lastError: unknown | null = null
-    const userAgent = await getUserAgentPromise()
-    console.debug(
-      `[IpInfo] 开始IP检测，共 ${IP_CHECK_SERVICES.length} 个服务源（${shuffledServices
-        .slice(0, 3)
-        .map((s) => new URL(s.url).hostname)
-        .join(', ')}...）`,
-    )
-    console.debug('User-Agent for IP detection:', userAgent)
-
-    // 全局15秒超时：无论多少个服务+重试，总时间不超过15秒
-    const globalController = new AbortController()
-    const globalTimeoutId = setTimeout(() => {
-      globalController.abort()
-    }, 15000)
-
-    for (const service of shuffledServices) {
-      debugLog(`尝试IP检测服务: ${service.url}`)
-
-      const timeoutController = new AbortController()
-      const timeoutId = setTimeout(() => {
-        timeoutController.abort()
-      }, service.timeout || config.timeout)
-
-      // 任一超时触发都中止请求
-      const onGlobalAbort = () => timeoutController.abort()
-      globalController.signal.addEventListener('abort', onGlobalAbort)
-
-      try {
-        return await asyncRetry(
-          async (bail) => {
-            if (globalController.signal.aborted) {
-              return bail(new Error('全局IP检测超时(15秒)'))
-            }
-            console.debug('Fetching IP information:', service.url)
-
-            const response = await fetch(service.url, {
-              method: 'GET',
-              signal: timeoutController.signal,
-              connectTimeout: service.timeout || config.timeout,
-              headers: {
-                'User-Agent': userAgent,
-              },
-            })
-
-            if (!response.ok) {
-              return bail(
-                new Error(
-                  `IP 检测服务出错，状态码: ${response.status} from ${service.url}`,
-                ),
-              )
-            }
-
-            let data: any
-            try {
-              data = await response.json()
-            } catch {
-              return bail(new Error(`无法解析 JSON 响应 from ${service.url}`))
-            }
-
-            if (data && data.ip) {
-              debugLog(`IP检测成功，使用服务: ${service.url}`)
-              const mappedIpInfo = service.mapping(data)
-              const ipv4Info = mappedIpInfo.ip.includes(':')
-                ? await fetchPlainIpv4IpInfo(
-                    userAgent,
-                    service.timeout || config.timeout,
-                  )
-                : null
-              const ipInfo = pickPreferredIpInfo([
-                Object.assign(service.mapping(data), {
-                  // use last fetch success timestamp
-                  lastFetchTs: Date.now(),
-                }),
-                ipv4Info,
-              ])
-              if (!ipInfo) {
-                return bail(new Error(`无效的IP字段 from ${service.url}`))
-              }
-              // 保存到缓存
-              setCachedIpInfo(ipInfo)
-              return ipInfo
-            } else {
-              return bail(new Error(`无效的响应格式 from ${service.url}`))
-            }
-          },
-          {
-            retries: config.retries,
-            minTimeout: config.minTimeout,
-            maxTimeout: config.maxTimeout,
-            randomize: true,
-          },
-        )
-      } catch (error) {
-        debugLog(`IP检测服务失败: ${service.url}`, error)
-        lastError = error
-      } finally {
-        clearTimeout(timeoutId)
-        globalController.signal.removeEventListener('abort', onGlobalAbort)
-      }
-    }
-
-    clearTimeout(globalTimeoutId)
-
-    if (lastError) {
-      throw new Error(
-        `所有IP检测服务都失败: ${extractErrorMessage(lastError) || '未知错误'}`,
-      )
-    } else {
-      throw new Error('没有可用的IP检测服务')
-    }
+    debugLog('[IpInfo] using current egress identity only')
+    setCachedIpInfo(ipInfo)
+    return ipInfo
   })
-}
 
-/**
- * 清除 IP 信息缓存
- */
 export const clearIpInfoCache = clearIpCache

@@ -365,6 +365,8 @@ export interface EgressMonitorConfig {
 export interface EgressIpProbeResult {
   ip: string
   countryCode: string | null
+  city: string | null
+  timezone: string | null
   probedAtMs: number
   latencyMs: number
 }

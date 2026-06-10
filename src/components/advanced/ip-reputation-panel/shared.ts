@@ -4,13 +4,6 @@ import type {
   IdentityConsistencyReport,
   IdentityConsistencySnapshot,
 } from '@/services/cmds/diagnostics'
-import type {
-  IpMetadataProviderConfig,
-  IpMetadataProviderRegistration,
-} from '@/services/ip-reputation/model'
-
-export const DEFAULT_METADATA_PROVIDER_KIND: IpMetadataProviderConfig['kind'] =
-  'geoLite2AsnMmdb'
 
 export const consistencyLevelText: Record<IdentityConsistencyLevel, string> = {
   good: '良好',
@@ -68,43 +61,6 @@ export const snapshotSummary = (snapshot: IdentityConsistencySnapshot) => {
 }
 
 export const driftValue = (value: string | null) => value || '未观测'
-
-export const formatMetadataProviderAvailability = (
-  availability: IpMetadataProviderRegistration['availability'],
-) => {
-  switch (availability) {
-    case 'ready':
-      return 'Ready'
-    case 'experimental':
-      return 'Experimental'
-    case 'placeholder':
-      return 'Placeholder'
-    default:
-      return availability
-  }
-}
-
-export const serializeMetadataOptions = (options: Record<string, string>) =>
-  Object.entries(options)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n')
-
-export const parseMetadataOptions = (value: string) =>
-  value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .reduce<Record<string, string>>((acc, line) => {
-      const separatorIndex = line.indexOf('=')
-      if (separatorIndex === -1) return acc
-
-      const key = line.slice(0, separatorIndex).trim()
-      const parsedValue = line.slice(separatorIndex + 1).trim()
-      if (!key) return acc
-
-      acc[key] = parsedValue
-      return acc
-    }, {})
 
 export const getFraudScoreColor = (score: number) => {
   if (score <= 30) return 'text-green-600'

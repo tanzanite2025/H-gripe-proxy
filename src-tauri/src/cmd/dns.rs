@@ -1,7 +1,8 @@
 use crate::cmd::{CmdResult, StringifyErr};
 use crate::core::dns_runtime::{
-    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, dns_health_check as build_dns_health_check,
-    dns_query as build_dns_query,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsServerProviderHealthReport,
+    DnsServerProviderKind, DnsServerProviderRegistration, dns_health_check as build_dns_health_check,
+    dns_query as build_dns_query, list_dns_server_provider_registrations, probe_dns_server_provider,
 };
 use log::error;
 
@@ -72,4 +73,18 @@ pub async fn dns_batch_health_check(
     }
 
     Ok(results)
+}
+
+#[tauri::command]
+pub async fn dns_get_provider_registrations() -> CmdResult<Vec<DnsServerProviderRegistration>> {
+    Ok(list_dns_server_provider_registrations())
+}
+
+#[tauri::command]
+pub async fn dns_probe_provider(
+    kind: DnsServerProviderKind,
+    protocol: Option<DnsProtocol>,
+    test_domain: Option<String>,
+) -> CmdResult<DnsServerProviderHealthReport> {
+    Ok(probe_dns_server_provider(kind, protocol, test_domain.as_deref()).await)
 }

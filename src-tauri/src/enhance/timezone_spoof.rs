@@ -1,13 +1,9 @@
-/**
- * 时区/NTP 伪装 enhance 集成
- *
- * 在 enhance 管线中，根据配置注入 Mihomo ntp: 配置段
- * 选择与出口节点区域匹配的 NTP 服务器
- */
 use serde_yaml_ng::{Mapping, Value};
 
 use crate::config::advanced::AdvancedConfig;
-use crate::core::timezone_spoof::{NtpStrategy, select_ntp_server};
+use crate::core::timezone_spoof::{NtpStrategy, get_fresh_observed_egress_region, select_ntp_server};
+
+const OBSERVED_EGRESS_REGION_MAX_AGE_MS: u64 = 3 * 60 * 1000;
 
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {
@@ -16,28 +12,21 @@ macro_rules! revise {
     };
 }
 
-/// Load advanced config from coordinator (same pattern as other enhance modules)
 fn load_advanced_config() -> AdvancedConfig {
     crate::feat::get_coordinator().get_advanced_config()
 }
 
-/// Apply timezone/NTP spoofing config to Mihomo YAML
-///
-/// Injects the `ntp:` section based on TimezoneSpoofConfig.
-/// When Auto mode is used, selects NTP server matching the egress region.
 pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {
     let advanced = load_advanced_config();
     let cfg = &advanced.timezone_spoof;
 
     if !cfg.enabled {
-        // 确保关闭 NTP
         revise!(config, "ntp", build_ntp_disabled());
         return config;
     }
 
     let ntp_section = match &cfg.ntp_strategy {
         NtpStrategy::Disabled => {
-            // 仅伪装 HTTP 头，不启用 NTP
             revise!(config, "ntp", build_ntp_disabled());
             return config;
         }
@@ -54,14 +43,7 @@ pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {
             )
         }
         NtpStrategy::Auto => {
-            // 尝试从出口身份推断区域
-            let country_code = detect_egress_country_code();
-            let server = select_ntp_server(&country_code);
-            log::info!(
-                "[TimezoneSpoof] Auto 模式: 检测到出口区域={}, 选择 NTP 服务器={}",
-                country_code,
-                server
-            );
+            let server = detect_egress_ntp_server();
             build_ntp_enabled(
                 &server,
                 cfg.ntp_interval_min,
@@ -75,7 +57,6 @@ pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {
     config
 }
 
-/// 构建 NTP 启用的 YAML 映射
 fn build_ntp_enabled(server: &str, interval_min: u32, write_to_system: bool, dialer_proxy: Option<&str>) -> Value {
     let mut ntp = Mapping::new();
     revise!(ntp, "enable", true);
@@ -89,38 +70,25 @@ fn build_ntp_enabled(server: &str, interval_min: u32, write_to_system: bool, dia
     Value::Mapping(ntp)
 }
 
-/// 构建 NTP 禁用的 YAML 映射
 fn build_ntp_disabled() -> Value {
     let mut ntp = Mapping::new();
     revise!(ntp, "enable", false);
     Value::Mapping(ntp)
 }
 
-/// 尝试检测出口节点的国家代码
-///
-/// 优先从出口身份管理器获取，回退到 IP 信誉检测
-fn detect_egress_country_code() -> String {
-    // 尝试从出口身份管理器获取当前活跃出口的国家代码
-    // 这里使用 IP 信誉检测的缓存作为回退
-    // 由于 enhance 在同步上下文中运行，使用阻塞调用
+fn detect_egress_ntp_server() -> String {
+    let Some(observed_region) = get_fresh_observed_egress_region(OBSERVED_EGRESS_REGION_MAX_AGE_MS) else {
+        log::warn!("[TimezoneSpoof] Auto mode has no fresh observed egress region, fallback to global NTP pool");
+        return "pool.ntp.org".to_string();
+    };
 
-    // 方案1: 从出口身份配置中的 profile 推断
-    // 方案2: 从 IP 信誉缓存推断
-    // 方案3: 默认 US
-
-    // 简化实现：从出口身份配置获取默认区域
-    let advanced = load_advanced_config();
-    if let Some(profile) = advanced.egress_identity.profiles.first() {
-        // profile 中的 region 字段（如果存在）
-        // 目前 EgressIdentityProfile 没有 country_code 字段
-        // 使用 profile 的 dns_mode 和描述推断
-        let _ = profile; // 避免未使用警告
-    }
-
-    // 回退：从 IP 信誉缓存获取
-    // 由于 enhance 是同步的，无法直接 await 异步操作
-    // 使用一个简单的启发式：如果配置了 IP 信誉规则，取第一个规则的国家代码
-
-    // 最终回退
-    "US".to_string()
+    let server = select_ntp_server(&observed_region.country_code);
+    log::info!(
+        "[TimezoneSpoof] Auto mode uses observed egress region {} / {} from {}, selected NTP server {}",
+        observed_region.country_code,
+        observed_region.timezone,
+        observed_region.source,
+        server
+    );
+    server
 }

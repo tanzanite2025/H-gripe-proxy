@@ -1,3 +1,9 @@
+export type IpMetadataProviderKind = 'geoLite2AsnMmdb'
+export type IpMetadataProviderAvailability =
+  | 'ready'
+  | 'experimental'
+  | 'placeholder'
+
 export interface IpReputationConfig {
   enabled: boolean
   cacheTtl: number
@@ -6,34 +12,14 @@ export interface IpReputationConfig {
 }
 
 export interface IpMetadataProviderConfig {
-  kind: 'geoLite2AsnMmdb' | 'ipinfoHttpApi'
-  databasePath?: string
-  apiEndpoint?: string
-  accessToken?: string
+  kind: IpMetadataProviderKind
   options: Record<string, string>
 }
 
-export interface IpMetadataProviderField {
-  kind: 'databasePath' | 'apiEndpoint' | 'accessToken' | 'options'
-  label: string
-  required: boolean
-  description: string
-}
-
-export interface IpMetadataProviderRegistration {
-  kind: 'geoLite2AsnMmdb' | 'ipinfoHttpApi'
-  label: string
-  transport: 'localMmdb' | 'remoteHttpApi' | 'custom'
-  availability: 'ready' | 'experimental' | 'placeholder'
-  description: string
-  fields: IpMetadataProviderField[]
-  defaultDatabaseCandidates: string[]
-}
-
 export interface IpMetadataProviderHealthReport {
-  providerKind: 'geoLite2AsnMmdb' | 'ipinfoHttpApi'
+  providerKind: IpMetadataProviderKind
   providerLabel: string
-  availability: 'ready' | 'experimental' | 'placeholder'
+  availability: IpMetadataProviderAvailability
   targetIp: string
   healthy: boolean
   message: string
@@ -41,6 +27,10 @@ export interface IpMetadataProviderHealthReport {
   asn?: string
   asnOrg?: string
   countryCode?: string
+  countryName?: string
+  region?: string
+  city?: string
+  timezone?: string
   checkedAt: number
 }
 
@@ -63,6 +53,7 @@ export interface IpReputation {
   isTor: boolean
   countryCode: string
   city?: string
+  timezone?: string
   checkedAt: number
 }
 

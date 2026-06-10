@@ -141,6 +141,30 @@ pnpm build
 target/release/bundle/nsis/
 ```
 
+### 本地 IP 元数据数据库
+
+为了让顶部出口信息、共享缓存、时区伪装和诊断页统一使用单一本地事实源，当前版本约定本地 MMDB 文件按下面方式接入：
+
+- `GeoLite2-City.mmdb` 或 `City.mmdb`
+  作用：提供 `country / region / city / timezone`
+- `GeoLite2-ASN.mmdb` 或 `ASN.mmdb`
+  作用：提供 `ASN / organization`
+- `Country.mmdb`、`country.mmdb` 或 `GeoLite2-Country.mmdb`
+  作用：在没有 City 库时补充国家信息
+
+放置规则：
+
+- 开发和打包时放入 `src-tauri/resources/`
+- 已安装版本可直接放入应用数据目录
+  Windows: `%APPDATA%/io.github.tanzanite2025.clash-verge-optimized/`
+
+程序启动时会把 `resources/` 中较新的数据库复制到应用数据目录，所以正式打包时只要把这些文件带进 `src-tauri/resources/`，运行态就会自动接管。
+
+注意：
+
+- 只有 `City.mmdb` 链路到位后，timezone 才能来自本地精确库
+- 如果只有 `Country.mmdb`，程序仍可运行，但 timezone 只能退回国家级推断，不属于精确城市级结果
+
 ---
 
 ## 项目结构 / Project Structure

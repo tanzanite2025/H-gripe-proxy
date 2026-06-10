@@ -111,15 +111,3 @@ pub struct ProxyDetectionResult {
     pub error: Option<String>,
     pub timestamp: u64,
 }
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct CurrentPublicIpInfo {
-    pub ip: String,
-    pub country_code: Option<String>,
-    pub country: Option<String>,
-    pub region: Option<String>,
-    pub city: Option<String>,
-    pub organization: Option<String>,
-    pub asn: Option<u32>,
-    pub asn_organization: Option<String>,
-}

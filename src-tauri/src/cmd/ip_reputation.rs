@@ -1,8 +1,6 @@
 use super::{CmdResult, StringifyErr};
 use crate::config::ResidentialProxy;
-use crate::core::ip_intelligence::{
-    IpIntelligenceProviderConfig, IpIntelligenceProviderHealthReport, IpIntelligenceProviderRegistration,
-};
+use crate::core::ip_intelligence::{IpIntelligenceProviderConfig, IpIntelligenceProviderHealthReport};
 use crate::core::ip_reputation::*;
 use crate::core::residential_verification::ResidentialProxyVerification;
 
@@ -19,11 +17,6 @@ pub async fn ip_reputation_update_config(config: IpReputationConfig) -> CmdResul
 #[tauri::command]
 pub async fn ip_reputation_check_ip(ip: String) -> CmdResult<IpReputation> {
     crate::feat::ip_reputation_check_ip(&ip).await.stringify_err()
-}
-
-#[tauri::command]
-pub async fn ip_reputation_get_registered_metadata_providers() -> CmdResult<Vec<IpIntelligenceProviderRegistration>> {
-    Ok(crate::feat::ip_reputation_get_registered_metadata_providers())
 }
 
 #[tauri::command]

@@ -15,6 +15,7 @@ use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use crate::core::handle;
+use crate::core::timezone_spoof::remember_observed_egress_region;
 use crate::process::AsyncHandler;
 
 pub mod config;
@@ -204,6 +205,11 @@ impl EgressMonitor {
 
                         *last_known_ip.write() = Some(probe.ip.clone());
                         *last_known_country.write() = probe.country_code.clone();
+                        remember_observed_egress_region(
+                            probe.country_code.as_deref(),
+                            probe.timezone.as_deref(),
+                            "egressMonitor",
+                        );
                     }
                     Ok(Err(err)) => {
                         {
@@ -263,8 +269,14 @@ impl EgressMonitor {
 
         // 更新 last_known
         let prev_ip = self.last_known_ip.read().clone();
+        let prev_country = self.last_known_country.read().clone();
         *self.last_known_ip.write() = Some(probe.ip.clone());
         *self.last_known_country.write() = probe.country_code.clone();
+        remember_observed_egress_region(
+            probe.country_code.as_deref(),
+            probe.timezone.as_deref(),
+            "egressMonitor",
+        );
 
         // 检查是否有变化
         if let Some(ref prev) = prev_ip {
@@ -274,7 +286,7 @@ impl EgressMonitor {
                 let change_event = EgressIpChangeEvent {
                     previous_ip: prev.clone(),
                     current_ip: probe.ip.clone(),
-                    previous_country: self.last_known_country.read().clone(),
+                    previous_country: prev_country,
                     current_country: probe.country_code.clone(),
                     timestamp_ms: probe::now_ms(),
                     auto_rebind_applied: false,
@@ -286,6 +298,8 @@ impl EgressMonitor {
         let result = EgressIpProbeResult {
             ip: probe.ip.clone(),
             country_code: probe.country_code.clone(),
+            city: probe.city.clone(),
+            timezone: probe.timezone.clone(),
             probed_at_ms: probe.probed_at_ms,
             latency_ms,
         };

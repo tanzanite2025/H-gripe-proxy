@@ -6,18 +6,12 @@ use tauri_plugin_mihomo::MihomoExt as _;
 
 use crate::config::{ResidentialProxy, ResidentialProxyType};
 use crate::core::ip_reputation::{IpReputation, ResidentialVerificationState};
-use crate::core::runtime_diagnostics::geoip::{GeoIpInfo, fetch_public_ip_observation};
+use crate::core::runtime_diagnostics::geoip::{
+    GeoIpInfo, PUBLIC_IP_PROBE_HOSTS, fetch_public_ip_observation,
+};
 
 const RESIDENTIAL_VERIFY_GROUP: &str = "VERGE-RES-VERIFY";
 const RESIDENTIAL_VERIFY_RULE_SOURCE: &str = "residential-verification";
-const RESIDENTIAL_VERIFY_PROBE_HOSTS: [&str; 6] = [
-    "api.ip.sb",
-    "ipapi.co",
-    "ipwho.is",
-    "api.ipify.org",
-    "ifconfig.me",
-    "icanhazip.com",
-];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -128,7 +122,7 @@ impl<'a> MihomoProbeRuleGuard<'a> {
         let mihomo = app_handle.mihomo().read().await;
         let mut rule_indexes = Vec::new();
 
-        for host in RESIDENTIAL_VERIFY_PROBE_HOSTS {
+        for host in PUBLIC_IP_PROBE_HOSTS {
             let index = mihomo
                 .create_rule(
                     "DOMAIN",
@@ -367,6 +361,7 @@ mod tests {
             is_tor: false,
             country_code: "US".to_string(),
             city: None,
+            timezone: Some("America/New_York".to_string()),
             checked_at: SystemTime::UNIX_EPOCH,
         }
     }

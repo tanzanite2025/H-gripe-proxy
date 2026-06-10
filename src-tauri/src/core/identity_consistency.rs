@@ -402,6 +402,8 @@ mod tests {
             proxy_chain: vec!["proxy-a".to_string()],
             egress_ip: Some("198.51.100.20".to_string()),
             public_egress_ip: Some("198.51.100.20".to_string()),
+            country_code: Some("US".to_string()),
+            timezone: Some("America/New_York".to_string()),
             proxy_endpoint: Some("203.0.113.10:443".to_string()),
             destination_asn: None,
             asn_org: None,
@@ -433,6 +435,7 @@ mod tests {
             is_tor: false,
             country_code: "US".to_string(),
             city: Some("Philadelphia".to_string()),
+            timezone: Some("America/New_York".to_string()),
             checked_at: SystemTime::UNIX_EPOCH,
         }
     }

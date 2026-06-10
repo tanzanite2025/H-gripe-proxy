@@ -24,15 +24,7 @@
       "identifier": "http:default",
       "allow": [
         { "url": "https://cp.cloudflare.com/*" },
-        { "url": "https://speed.cloudflare.com/*" },
-        { "url": "https://myip.ipip.net/*" },
-        { "url": "https://api.vore.top/*" },
-        { "url": "https://api.ip.sb/*" },
-        { "url": "https://ipapi.co/*" },
-        { "url": "https://api.ipapi.is/*" },
-        { "url": "https://ipwho.is/*" },
-        { "url": "https://ip.api.skk.moe/*" },
-        { "url": "https://get.geojs.io/*" }
+        { "url": "https://speed.cloudflare.com/*" }
       ]
     },
     "mihomo:default"

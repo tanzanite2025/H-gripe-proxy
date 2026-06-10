@@ -5,13 +5,21 @@ import type {
   CurrentEgressIdentity,
   CurrentEgressIdentitySource,
 } from '@/services/cmds/diagnostics'
+import type { IpReputation } from '@/services/ip-reputation/model'
 import {
   getIpTypeText,
   getResidentialStateText,
   getRiskLevelText,
 } from '@/services/ip-reputation/presentation'
-import type { IpReputation } from '@/services/ip-reputation/model'
 import { cn } from '@/utils/cn'
+
+const OBSERVED_SOURCES = new Set<CurrentEgressIdentitySource>([
+  'mihomoEgressStatus',
+  'mihomoProxyProbe',
+])
+
+const EGRESS_IDENTITY_PENDING_REFRESH_INTERVAL = 5 * 1000
+const EGRESS_IDENTITY_STABLE_REFRESH_INTERVAL = 30 * 1000
 
 const isIPv4Address = (value: unknown): value is string => {
   if (typeof value !== 'string') return false
@@ -39,11 +47,6 @@ const selectDisplayIp = (...candidates: Array<string | null | undefined>) => {
   )
 }
 
-const OBSERVED_SOURCES = new Set<CurrentEgressIdentitySource>([
-  'mihomoEgressStatus',
-  'mihomoProxyProbe',
-])
-
 const isObservedSource = (source?: CurrentEgressIdentitySource | null) =>
   Boolean(source && OBSERVED_SOURCES.has(source))
 
@@ -70,9 +73,16 @@ const formatReputationSummary = (reputation?: IpReputation) => {
 
 const formatEgressTypeSummary = (reputation?: IpReputation) => {
   if (!reputation) return '未识别'
-
   return `${getIpTypeText(reputation.ipType)} / ${reputation.confidence}`
 }
+
+const formatResidentialSummary = (reputation?: IpReputation) => {
+  if (!reputation) return '未确认'
+  return getResidentialStateText(reputation.residentialState)
+}
+
+const formatTimezoneSummary = (timezone?: string | null) =>
+  timezone?.trim() || '未识别'
 
 const formatAsnSummary = (
   destinationAsn?: string | null,
@@ -109,7 +119,9 @@ const formatUnavailableSummary = (identity?: CurrentEgressIdentity) => {
   return message
 }
 
-const formatIdentitySourceText = (source?: CurrentEgressIdentitySource | null) => {
+const formatIdentitySourceText = (
+  source?: CurrentEgressIdentitySource | null,
+) => {
   switch (source) {
     case 'mihomoEgressStatus':
       return 'Mihomo 出口快照'
@@ -123,9 +135,6 @@ const formatIdentitySourceText = (source?: CurrentEgressIdentitySource | null) =
 interface IpInfoCardProps {
   className?: string
 }
-
-const EGRESS_IDENTITY_PENDING_REFRESH_INTERVAL = 5 * 1000
-const EGRESS_IDENTITY_STABLE_REFRESH_INTERVAL = 30 * 1000
 
 export const IpInfoCard = ({ className }: IpInfoCardProps) => {
   const {
@@ -162,11 +171,10 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     currentIdentity?.destination_asn,
     currentIdentity?.asn_org,
   )
-  const riskText = formatReputationSummary(reputation)
   const egressTypeText = formatEgressTypeSummary(reputation)
-  const residentialStateText = reputation
-    ? getResidentialStateText(reputation.residentialState)
-    : '未确认'
+  const residentialStateText = formatResidentialSummary(reputation)
+  const timezoneText = formatTimezoneSummary(currentIdentity?.timezone)
+  const riskText = formatReputationSummary(reputation)
   const identitySourceText = formatIdentitySourceText(currentIdentity?.source)
   const unavailableSummary = formatUnavailableSummary(currentIdentity)
 
@@ -174,9 +182,11 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
     `出口 IP: ${displayIp || '未观测'}`,
     `来源: ${identitySourceText}`,
     `节点: ${currentIdentity?.proxy_name || '当前出口'}`,
+    `国家/地区: ${currentIdentity?.country_code || '--'}`,
     `ASN: ${asnText}`,
     `出口类型: ${egressTypeText}`,
     `住宅状态: ${residentialStateText}`,
+    `时区: ${timezoneText}`,
     `风险: ${riskText}`,
     `规则: ${currentIdentity?.rule || '--'}`,
     `说明: ${currentIdentity?.message || '--'}`,
@@ -263,13 +273,24 @@ export const IpInfoCard = ({ className }: IpInfoCardProps) => {
         data-tauri-drag-region="true"
       />
       <span className="the-ip-card__muted" data-tauri-drag-region="true">
-        出口类型
+        类型
       </span>
-      <span
-        className={cn('the-ip-card__value', getRiskColor(reputation))}
-        data-tauri-drag-region="true"
-      >
+      <span className="the-ip-card__value" data-tauri-drag-region="true">
         {egressTypeText}
+      </span>
+      <span className="the-ip-card__divider" data-tauri-drag-region="true" />
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">
+        住宅
+      </span>
+      <span className="the-ip-card__value" data-tauri-drag-region="true">
+        {residentialStateText}
+      </span>
+      <span className="the-ip-card__divider" data-tauri-drag-region="true" />
+      <span className="the-ip-card__muted" data-tauri-drag-region="true">
+        时区
+      </span>
+      <span className="the-ip-card__value" data-tauri-drag-region="true">
+        {timezoneText}
       </span>
       <span className="the-ip-card__divider" data-tauri-drag-region="true" />
       <span className="the-ip-card__muted" data-tauri-drag-region="true">

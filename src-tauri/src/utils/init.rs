@@ -1,6 +1,9 @@
 // #[cfg(not(feature = "tracing"))]
 use crate::{
-    config::{Config, IClashTemp, IProfiles, IVerge},
+    config::{
+        Config, DOMESTIC_DOH_NAMESERVERS, ENCRYPTED_BOOTSTRAP_NAMESERVERS, FOREIGN_DOH_NAMESERVERS, IClashTemp,
+        IProfiles, IVerge, value_sequence,
+    },
     constants, logging,
     process::AsyncHandler,
     utils::{
@@ -244,34 +247,32 @@ async fn init_dns_config() -> Result<()> {
         ),
         (
             "default-nameserver".into(),
-            Value::Sequence(vec![
-                Value::String("system".into()),
-                Value::String("223.6.6.6".into()),
-                Value::String("8.8.8.8".into()),
-                Value::String("2400:3200::1".into()),
-                Value::String("2001:4860:4860::8888".into()),
-            ]),
+            Value::Sequence(value_sequence(ENCRYPTED_BOOTSTRAP_NAMESERVERS)),
         ),
         (
             "nameserver".into(),
-            Value::Sequence(vec![
-                Value::String("8.8.8.8".into()),
-                Value::String("https://doh.pub/dns-query".into()),
-                Value::String("https://dns.alidns.com/dns-query".into()),
-            ]),
+            Value::Sequence(value_sequence(DOMESTIC_DOH_NAMESERVERS)),
         ),
-        ("fallback".into(), Value::Sequence(vec![])),
+        (
+            "fallback".into(),
+            Value::Sequence(value_sequence(FOREIGN_DOH_NAMESERVERS)),
+        ),
         (
             "nameserver-policy".into(),
-            Value::Mapping(serde_yaml_ng::Mapping::new()),
+            Value::Mapping(serde_yaml_ng::Mapping::from_iter([
+                (
+                    "geosite:cn".into(),
+                    Value::Sequence(value_sequence(DOMESTIC_DOH_NAMESERVERS)),
+                ),
+                (
+                    "geosite:geolocation-!cn".into(),
+                    Value::Sequence(value_sequence(FOREIGN_DOH_NAMESERVERS)),
+                ),
+            ])),
         ),
         (
             "proxy-server-nameserver".into(),
-            Value::Sequence(vec![
-                Value::String("https://doh.pub/dns-query".into()),
-                Value::String("https://dns.alidns.com/dns-query".into()),
-                Value::String("tls://223.5.5.5".into()),
-            ]),
+            Value::Sequence(value_sequence(DOMESTIC_DOH_NAMESERVERS)),
         ),
         ("direct-nameserver".into(), Value::Sequence(vec![])),
         ("direct-nameserver-follow-policy".into(), Value::Bool(false)),
@@ -425,7 +426,25 @@ pub async fn init_resources() -> Result<()> {
         std::mem::drop(fs::create_dir_all(&res_dir).await);
     }
 
-    let file_list = ["Country.mmdb", "geoip.dat", "geosite.dat"];
+    let legacy_file_list = [
+        "Country.mmdb",
+        "country.mmdb",
+        "GeoLite2-Country.mmdb",
+        "ASN.mmdb",
+        "City.mmdb",
+    ];
+    let file_list = ["GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "geoip.dat", "geosite.dat"];
+
+    for file in legacy_file_list {
+        let legacy_path = app_dir.join(file);
+        if legacy_path.exists() {
+            if let Err(error) = fs::remove_file(&legacy_path).await {
+                logging!(warn, Type::Setup, "failed to remove legacy resource '{}': {}", file, error);
+            } else {
+                logging!(info, Type::Setup, "removed legacy resource '{}'", file);
+            }
+        }
+    }
 
     // copy the resource file
     // if the source file is newer than the destination file, copy it over

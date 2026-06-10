@@ -15,11 +15,16 @@ import { Chip } from '@/components/tailwind/Chip'
 import { Tab, Tabs } from '@/components/tailwind'
 import type { DnsRuntimeStatus } from '@/services/cmds'
 import type { AdvancedDnsConfig } from '@/services/coordinator'
+import { showNotice } from '@/services/notice-service'
 
+import { ProviderCatalogTab } from './provider-catalog-tab'
+
+const PROVIDER_CATALOG_UNLOCK_STEPS = 5
 const DNS_TAB_OVERVIEW = 'overview'
 const DNS_TAB_STATS = 'stats'
 const DNS_TAB_ROUTING = 'routing'
 const DNS_TAB_LEAK = 'leak'
+const DNS_TAB_PROVIDERS = 'providers'
 
 interface Props {
   config: AdvancedDnsConfig
@@ -47,6 +52,8 @@ export function DnsAdvancedPanel({
   onRuntimeToggle,
 }: Props) {
   const [activeTab, setActiveTab] = useState(DNS_TAB_OVERVIEW)
+  const [providerCatalogUnlocked, setProviderCatalogUnlocked] = useState(false)
+  const [providerCatalogUnlockCount, setProviderCatalogUnlockCount] = useState(0)
 
   const previewModeLabel = formatDnsRoutingModeLabel(config.routing_mode)
   const savedModeLabel = formatDnsRoutingModeLabel(savedConfig.routing_mode)
@@ -60,6 +67,24 @@ export function DnsAdvancedPanel({
   const runtimeView = runtimeStatus
     ? buildDnsRuntimeViewModel(runtimeStatus)
     : null
+
+  const handleProviderCatalogUnlock = () => {
+    if (providerCatalogUnlocked) {
+      setActiveTab(DNS_TAB_PROVIDERS)
+      return
+    }
+
+    const nextCount = providerCatalogUnlockCount + 1
+    if (nextCount >= PROVIDER_CATALOG_UNLOCK_STEPS) {
+      setProviderCatalogUnlocked(true)
+      setProviderCatalogUnlockCount(PROVIDER_CATALOG_UNLOCK_STEPS)
+      setActiveTab(DNS_TAB_PROVIDERS)
+      showNotice.success('Provider Catalog unlocked')
+      return
+    }
+
+    setProviderCatalogUnlockCount(nextCount)
+  }
 
   const renderTabPanel = (
     value: string,
@@ -79,7 +104,11 @@ export function DnsAdvancedPanel({
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
+          <button
+            type="button"
+            onClick={handleProviderCatalogUnlock}
+            className="text-left"
+          >
             <div className="flex items-center gap-2 text-lg font-bold">
               <Settings2 className="h-4 w-4" />
               DNS 运行态应用
@@ -88,7 +117,12 @@ export function DnsAdvancedPanel({
               控制统一 DNS 配置派生出的 `dns_config.yaml` 是否应用到当前
               `core` 运行时。
             </div>
-          </div>
+            {providerCatalogUnlocked ? (
+              <div className="mt-2">
+                <Chip size="small" color="info" label="Provider Catalog unlocked" />
+              </div>
+            ) : null}
+          </button>
 
           <Switch
             checked={runtimeEnabled}
@@ -192,6 +226,9 @@ export function DnsAdvancedPanel({
           <Tab label="统计" value={DNS_TAB_STATS} />
           <Tab label="分流" value={DNS_TAB_ROUTING} />
           <Tab label="防泄漏" value={DNS_TAB_LEAK} />
+          {providerCatalogUnlocked ? (
+            <Tab label="Providers" value={DNS_TAB_PROVIDERS} />
+          ) : null}
         </Tabs>
 
         {renderTabPanel(
@@ -292,6 +329,12 @@ export function DnsAdvancedPanel({
             />
           </div>,
         )}
+        {providerCatalogUnlocked
+          ? renderTabPanel(
+              DNS_TAB_PROVIDERS,
+              <ProviderCatalogTab runtimeStatus={runtimeStatus} />,
+            )
+          : null}
       </div>
     </div>
   )

@@ -14,6 +14,21 @@
  */
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use once_cell::sync::Lazy;
+use parking_lot::RwLock;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservedEgressRegion {
+    pub country_code: String,
+    pub timezone: String,
+    pub source: String,
+    pub updated_at_ms: u64,
+}
+
+static OBSERVED_EGRESS_REGION: Lazy<RwLock<Option<ObservedEgressRegion>>> = Lazy::new(|| RwLock::new(None));
 
 // ── 配置 ──────────────────────────────────────────────────────────
 
@@ -67,6 +82,52 @@ impl Default for TimezoneSpoofConfig {
 
 fn default_ntp_interval() -> u32 {
     30
+}
+
+pub fn remember_observed_egress_region(country_code: Option<&str>, timezone: Option<&str>, source: &str) {
+    let Some(country_code) = normalize_country_code(country_code) else {
+        return;
+    };
+
+    let timezone = timezone
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| country_to_timezone(&country_code).to_string());
+
+    if timezone == "UTC" {
+        return;
+    }
+
+    *OBSERVED_EGRESS_REGION.write() = Some(ObservedEgressRegion {
+        country_code,
+        timezone,
+        source: source.trim().to_string(),
+        updated_at_ms: now_ms(),
+    });
+}
+
+pub fn get_observed_egress_region() -> Option<ObservedEgressRegion> {
+    OBSERVED_EGRESS_REGION.read().clone()
+}
+
+pub fn get_fresh_observed_egress_region(max_age_ms: u64) -> Option<ObservedEgressRegion> {
+    let observed = get_observed_egress_region()?;
+    (now_ms().saturating_sub(observed.updated_at_ms) <= max_age_ms).then_some(observed)
+}
+
+fn normalize_country_code(country_code: Option<&str>) -> Option<String> {
+    country_code
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("unknown"))
+        .map(str::to_ascii_uppercase)
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 // ── 区域 → NTP 服务器映射 ─────────────────────────────────────────
@@ -260,5 +321,24 @@ mod tests {
     fn test_timezone_to_locale() {
         assert_eq!(timezone_to_locale("Asia/Tokyo"), "ja-JP,ja;q=0.9,en;q=0.8");
         assert_eq!(timezone_to_locale("America/New_York"), "en-US,en;q=0.9");
+    }
+
+    #[test]
+    fn test_remember_observed_egress_region_derives_timezone_from_country() {
+        remember_observed_egress_region(Some("jp"), None, "test");
+
+        let observed = get_observed_egress_region().expect("observed egress region should exist");
+        assert_eq!(observed.country_code, "JP");
+        assert_eq!(observed.timezone, "Asia/Tokyo");
+        assert_eq!(observed.source, "test");
+    }
+
+    #[test]
+    fn test_get_fresh_observed_egress_region_returns_recent_value() {
+        remember_observed_egress_region(Some("DE"), Some("Europe/Berlin"), "test");
+
+        let observed = get_fresh_observed_egress_region(60_000).expect("fresh observed region should exist");
+        assert_eq!(observed.country_code, "DE");
+        assert_eq!(observed.timezone, "Europe/Berlin");
     }
 }

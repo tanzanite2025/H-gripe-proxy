@@ -15,9 +15,10 @@ const getLatestGeoUpdateTimestamp = (value: {
   mmdb: number | null
   geoip: number | null
   asn: number | null
+  city: number | null
   geosite: number | null
 }) =>
-  [value.mmdb, value.geoip, value.asn, value.geosite]
+  [value.mmdb, value.geoip, value.asn, value.city, value.geosite]
     .filter((item): item is number => item != null)
     .sort((left, right) => right - left)[0] ?? null
 

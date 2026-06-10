@@ -17,6 +17,8 @@ use smartstring::alias::String;
 use std::collections::HashSet;
 use tauri_plugin_mihomo::models::DnsMetrics;
 
+const DNS_LEAK_SERVER_SOURCE: &str = "https://ipleak.net/json/";
+
 fn parse_dns_server_value(value: &serde_json::Value) -> Option<DnsLeakServer> {
     if let Some(ip) = value.as_str() {
         return Some(DnsLeakServer {
@@ -76,34 +78,28 @@ fn dedupe_dns_servers(servers: Vec<DnsLeakServer>) -> Vec<DnsLeakServer> {
 }
 
 async fn query_dns_leak_servers(client: &Client) -> Result<Vec<DnsLeakServer>> {
-    let mut observed_servers = Vec::new();
-    let mut errors: Vec<String> = Vec::new();
-
-    for url in ["https://ipleak.net/json/", "https://www.dnsleaktest.com/api/query"] {
-        match super::geoip::fetch_json(client, url).await {
-            Ok(data) => {
-                observed_servers.extend(parse_dns_servers(&data));
-            }
-            Err(err) => {
-                logging!(warn, Type::Config, "DNS leak service failed for {url}: {err}");
-                errors.push(format!("{url}: {err}").into());
-            }
+    let data = match super::geoip::fetch_json(client, DNS_LEAK_SERVER_SOURCE).await {
+        Ok(data) => data,
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Config,
+                "DNS leak service failed for {DNS_LEAK_SERVER_SOURCE}: {err}"
+            );
+            return Err(anyhow!(
+                "failed to fetch DNS server list from {DNS_LEAK_SERVER_SOURCE}: {err}"
+            ));
         }
-    }
+    };
 
-    let servers = dedupe_dns_servers(observed_servers);
+    let servers = dedupe_dns_servers(parse_dns_servers(&data));
     if !servers.is_empty() {
         return Ok(servers);
     }
 
-    if errors.is_empty() {
-        Err(anyhow!("failed to fetch DNS server list from leak detection services"))
-    } else {
-        Err(anyhow!(
-            "failed to fetch DNS server list from leak detection services: {}",
-            errors.join(" | ")
-        ))
-    }
+    Err(anyhow!(
+        "DNS leak service returned no DNS server records: {DNS_LEAK_SERVER_SOURCE}"
+    ))
 }
 
 async fn enrich_dns_servers(client: &Client, servers: Vec<DnsLeakServer>) -> Vec<DnsLeakServer> {

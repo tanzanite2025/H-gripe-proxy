@@ -38,7 +38,7 @@ use self::{
 pub(crate) use self::stable_egress::{apply_stable_egress_policy, apply_stable_egress_policy_with_advanced};
 use crate::utils::dirs;
 use crate::{
-    config::{Config, IVerge},
+    config::{Config, DOMESTIC_DOH_NAMESERVERS, IVerge, value_sequence},
     constants,
     utils::tmpl,
 };
@@ -719,13 +719,12 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
                     .unwrap_or(false);
 
                 if !has_proxy_ns {
-                    // Auto-fill with domestic plain IP nameservers
-                    let fallback_ns: Vec<Value> = ["223.5.5.5", "119.29.29.29"].into_iter().map(Value::from).collect();
+                    let fallback_ns = value_sequence(DOMESTIC_DOH_NAMESERVERS);
                     dns_mapping.insert("proxy-server-nameserver".into(), Value::Sequence(fallback_ns));
                     logging!(
                         warn,
                         Type::Core,
-                        "respect-rules enabled but proxy-server-nameserver missing, auto-filled with domestic DNS"
+                        "respect-rules enabled but proxy-server-nameserver missing, auto-filled with domestic DoH"
                     );
                 }
             }
@@ -829,6 +828,7 @@ mod tests {
     }
 
     use super::apply_stable_egress_policy_with_advanced;
+    use crate::config::FOREIGN_DOH_NAMESERVERS;
     use serde_yaml_ng::Value;
 
     #[test]
@@ -947,14 +947,13 @@ proxies:
 dns:
   nameserver:
     - https://dns.alidns.com/dns-query
-    - https://dns.google/dns-query
   fallback:
     - https://cloudflare-dns.com/dns-query
   nameserver-policy:
     geosite:cn:
       - https://dns.alidns.com/dns-query
     geosite:geolocation-!cn:
-      - https://dns.google/dns-query
+      - https://cloudflare-dns.com/dns-query
 proxy-groups: []
 rules:
   - MATCH,Proxy
@@ -1037,6 +1036,6 @@ rules:
             .and_then(serde_yaml_ng::Value::as_sequence)
             .expect("high-risk domain dns policy should exist");
         assert_eq!(high_risk_policy.len(), 1);
-        assert_eq!(high_risk_policy[0].as_str(), Some("https://dns.google/dns-query"));
+        assert_eq!(high_risk_policy[0].as_str(), Some(FOREIGN_DOH_NAMESERVERS[0]));
     }
 }

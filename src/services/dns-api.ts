@@ -34,6 +34,59 @@ export interface DnsHealthCheckResult {
   protocol: string
 }
 
+export type DnsServerProviderKind =
+  | 'cloudflare'
+  | 'google'
+  | 'quad9'
+  | 'aliDns'
+  | 'dohPub'
+  | 'dotPub'
+
+export type DnsServerProviderAvailability =
+  | 'ready'
+  | 'experimental'
+  | 'placeholder'
+
+export interface DnsServerProviderEndpointRegistration {
+  protocol: DnsProtocol
+  server: string
+}
+
+export interface DnsServerProviderRegistration {
+  kind: DnsServerProviderKind
+  label: string
+  availability: DnsServerProviderAvailability
+  description: string
+  canonical_host: string
+  host_aliases: string[]
+  bootstrap_ips: string[]
+  supported_protocols: DnsProtocol[]
+  recommended_servers: DnsServerProviderEndpointRegistration[]
+}
+
+export interface DnsServerProviderHealthReport {
+  provider_kind: DnsServerProviderKind
+  provider_label: string
+  server: string
+  protocol: string
+  test_domain: string
+  healthy: boolean
+  message: string
+  latency_ms: number | null
+  checked_at:
+    | string
+    | number
+    | {
+        secs_since_epoch?: number
+        nanos_since_epoch?: number
+        secsSinceEpoch?: number
+        nanosSinceEpoch?: number
+        secs?: number
+        seconds?: number
+        nanos?: number
+      }
+}
+
 /**
  * DNS 查询选项
  */
@@ -120,6 +173,36 @@ export async function dnsBatchHealthCheck(
     return results
   } catch (err) {
     console.error('DNS batch health check failed:', err)
+    throw err
+  }
+}
+
+export async function getDnsProviderRegistrations(): Promise<
+  DnsServerProviderRegistration[]
+> {
+  try {
+    return await invoke<DnsServerProviderRegistration[]>(
+      'dns_get_provider_registrations',
+    )
+  } catch (err) {
+    console.error('DNS provider registration query failed:', err)
+    throw err
+  }
+}
+
+export async function probeDnsProvider(
+  kind: DnsServerProviderKind,
+  protocol?: DnsProtocol,
+  testDomain?: string,
+): Promise<DnsServerProviderHealthReport> {
+  try {
+    return await invoke<DnsServerProviderHealthReport>('dns_probe_provider', {
+      kind,
+      protocol,
+      testDomain,
+    })
+  } catch (err) {
+    console.error(`DNS provider probe failed for ${kind}:`, err)
     throw err
   }
 }

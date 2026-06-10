@@ -205,6 +205,8 @@ export interface CurrentEgressIdentity {
   proxy_chain: string[]
   egress_ip: string | null
   public_egress_ip: string | null
+  country_code: string | null
+  timezone: string | null
   proxy_endpoint: string | null
   destination_asn: string | null
   asn_org: string | null
@@ -229,21 +231,6 @@ export async function getCurrentEgressIdentity(): Promise<CurrentEgressIdentity>
     proxy_chain: Array.isArray(result.proxy_chain) ? result.proxy_chain : [],
     reputation: result.reputation ? normalizeIpReputation(result.reputation) : null,
   }
-}
-
-export interface CurrentPublicIpInfo {
-  ip: string
-  country_code: string | null
-  country: string | null
-  region: string | null
-  city: string | null
-  organization: string | null
-  asn: number | null
-  asn_organization: string | null
-}
-
-export async function getCurrentPublicIpInfo(): Promise<CurrentPublicIpInfo> {
-  return invoke<CurrentPublicIpInfo>('get_current_public_ip_info')
 }
 
 export type IdentityConsistencyLevel = 'good' | 'warning' | 'danger' | 'unknown'

@@ -3,6 +3,8 @@ use serde_yaml_ng::{Mapping, Value};
 #[cfg(target_os = "macos")]
 use crate::process::AsyncHandler;
 
+#[cfg(target_os = "windows")]
+use crate::config::{DOMESTIC_DOH_NAMESERVERS, value_sequence};
 use crate::constants::tun as tun_const;
 
 const LAN_DIRECT_RULES: [&str; 3] = [
@@ -180,10 +182,7 @@ fn has_non_empty_sequence(mapping: &Mapping, key: &str) -> bool {
 
 #[cfg(target_os = "windows")]
 fn default_domestic_nameservers() -> Vec<Value> {
-    ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
-        .into_iter()
-        .map(Value::from)
-        .collect()
+    value_sequence(DOMESTIC_DOH_NAMESERVERS)
 }
 
 #[cfg(test)]
@@ -191,6 +190,8 @@ fn default_domestic_nameservers() -> Vec<Value> {
 mod tests {
     use super::use_tun;
     use serde_yaml_ng::{Mapping, Value};
+    #[cfg(target_os = "windows")]
+    use crate::config::DOMESTIC_DOH_NAMESERVERS;
 
     fn parse_yaml(yaml: &str) -> Mapping {
         serde_yaml_ng::from_str(yaml).expect("test yaml should parse")
@@ -242,13 +243,12 @@ dns:
   enhanced-mode: redir-host
   nameserver:
     - https://dns.alidns.com/dns-query
-    - https://dns.google/dns-query
+    - https://cloudflare-dns.com/dns-query
   nameserver-policy:
     geosite:cn:
       - https://dns.alidns.com/dns-query
-      - https://doh.pub/dns-query
     geosite:geolocation-!cn:
-      - https://dns.google/dns-query
+      - https://cloudflare-dns.com/dns-query
 "#,
         );
 
@@ -268,9 +268,6 @@ dns:
             .iter()
             .filter_map(Value::as_str)
             .collect::<Vec<_>>();
-        assert_eq!(
-            nameserver,
-            vec!["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
-        );
+        assert_eq!(nameserver, DOMESTIC_DOH_NAMESERVERS.to_vec());
     }
 }

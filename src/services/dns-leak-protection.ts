@@ -66,29 +66,15 @@ const DNS_LEAK_PROTECTION_PRESETS: Record<
   },
 }
 
-const PLAIN_NAMESERVERS = ['223.5.5.5', '119.29.29.29', '8.8.8.8', '1.1.1.1']
-const DOH_NAMESERVERS = [
-  'https://dns.alidns.com/dns-query',
-  'https://doh.pub/dns-query',
-  'https://dns.google/dns-query',
-  'https://cloudflare-dns.com/dns-query',
-]
-const DOT_NAMESERVERS = [
-  'tls://dns.alidns.com:853',
-  'tls://dns.google:853',
-  'tls://1.1.1.1:853',
-]
-const PLAIN_FALLBACKS = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
-const DOH_FALLBACKS = [
-  'https://dns.google/dns-query',
-  'https://cloudflare-dns.com/dns-query',
-  'https://dns.quad9.net/dns-query',
-]
-const DOT_FALLBACKS = [
-  'tls://dns.google:853',
-  'tls://1.1.1.1:853',
-  'tls://9.9.9.9:853',
-]
+const DOMESTIC_PLAIN_NAMESERVERS = ['223.5.5.5']
+const DOMESTIC_DOH_NAMESERVERS = ['https://dns.alidns.com/dns-query']
+const DOMESTIC_DOT_NAMESERVERS = ['tls://dns.alidns.com:853']
+
+const FOREIGN_PLAIN_NAMESERVERS = ['1.1.1.1']
+const FOREIGN_DOH_NAMESERVERS = ['https://cloudflare-dns.com/dns-query']
+const FOREIGN_DOT_NAMESERVERS = ['tls://1.1.1.1:853']
+
+const ENCRYPTED_BOOTSTRAP_NAMESERVERS = ['https://1.1.1.1/dns-query']
 
 class DnsLeakProtectionService {
   private config: DnsLeakProtectionConfig = {
@@ -144,23 +130,25 @@ class DnsLeakProtectionService {
 
     config.ipv6 = !this.config.blockIpv6Dns
     config['default-nameserver'] = this.config.blockPlainDns
-      ? []
-      : ['223.5.5.5', '119.29.29.29']
+      ? ENCRYPTED_BOOTSTRAP_NAMESERVERS
+      : DOMESTIC_PLAIN_NAMESERVERS
 
     const preferDoH = this.config.forceDoH
     const preferDoT = !preferDoH && this.config.forceDoT
 
-    config.nameserver = preferDoH
-      ? DOH_NAMESERVERS
+    const domesticNameservers = preferDoH
+      ? DOMESTIC_DOH_NAMESERVERS
       : preferDoT
-        ? DOT_NAMESERVERS
-        : PLAIN_NAMESERVERS
+        ? DOMESTIC_DOT_NAMESERVERS
+        : DOMESTIC_PLAIN_NAMESERVERS
+    const foreignNameservers = preferDoH
+      ? FOREIGN_DOH_NAMESERVERS
+      : preferDoT
+        ? FOREIGN_DOT_NAMESERVERS
+        : FOREIGN_PLAIN_NAMESERVERS
 
-    config.fallback = preferDoH
-      ? DOH_FALLBACKS
-      : preferDoT
-        ? DOT_FALLBACKS
-        : PLAIN_FALLBACKS
+    config.nameserver = domesticNameservers
+    config.fallback = foreignNameservers
 
     config['fallback-filter'] = {
       geoip: true,
@@ -175,16 +163,10 @@ class DnsLeakProtectionService {
       ],
     }
 
-    if (preferDoH) {
+    if (preferDoH || preferDoT) {
       config['nameserver-policy'] = {
-        'geosite:cn': [
-          'https://dns.alidns.com/dns-query',
-          'https://doh.pub/dns-query',
-        ],
-        'geosite:geolocation-!cn': [
-          'https://dns.google/dns-query',
-          'https://cloudflare-dns.com/dns-query',
-        ],
+        'geosite:cn': domesticNameservers,
+        'geosite:geolocation-!cn': foreignNameservers,
       }
     }
 

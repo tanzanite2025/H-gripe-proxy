@@ -5,7 +5,6 @@ import type { ResidentialProxy } from '@/services/coordinator'
 import type {
   IpMetadataProviderConfig,
   IpMetadataProviderHealthReport,
-  IpMetadataProviderRegistration,
   IpReputation,
   IpReputationConfig,
   ResidentialProxyVerification,
@@ -15,7 +14,6 @@ import {
   normalizeIpReputation,
   normalizeIpReputationConfig,
   normalizeMetadataProviderHealthReport,
-  normalizeMetadataProviderRegistration,
   normalizeRiskRoutingRule,
   normalizeResidentialProxyVerification,
   serializeIpReputationConfig,
@@ -37,15 +35,6 @@ export async function ipReputationCheckIp(ip: string): Promise<IpReputation> {
   return normalizeIpReputation(await invoke('ip_reputation_check_ip', { ip }))
 }
 
-export async function ipReputationGetRegisteredMetadataProviders(): Promise<
-  IpMetadataProviderRegistration[]
-> {
-  const providers = await invoke<unknown[]>(
-    'ip_reputation_get_registered_metadata_providers',
-  )
-  return providers.map(normalizeMetadataProviderRegistration)
-}
-
 export async function ipReputationProbeMetadataProvider(
   providerConfig: IpMetadataProviderConfig,
   targetIp?: string,
@@ -54,9 +43,6 @@ export async function ipReputationProbeMetadataProvider(
     await invoke('ip_reputation_probe_metadata_provider', {
       providerConfig: {
         kind: providerConfig.kind,
-        database_path: providerConfig.databasePath ?? null,
-        api_endpoint: providerConfig.apiEndpoint ?? null,
-        access_token: providerConfig.accessToken ?? null,
         options: providerConfig.options,
       },
       targetIp: targetIp || null,

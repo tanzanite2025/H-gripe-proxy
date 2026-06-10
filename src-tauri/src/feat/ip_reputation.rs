@@ -3,9 +3,14 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
+fn sanitize_ip_reputation_config(mut config: IpReputationConfig) -> IpReputationConfig {
+    config.metadata_provider = crate::core::ip_intelligence::IpIntelligenceProviderConfig::default();
+    config
+}
+
 /// 全局 IP 信誉度管理器实例
 static IP_REPUTATION_MANAGER: Lazy<Arc<IpReputationManager>> = Lazy::new(|| {
-    let config = AdvancedConfig::load_default().ip_reputation;
+    let config = sanitize_ip_reputation_config(AdvancedConfig::load_default().ip_reputation);
     Arc::new(IpReputationManager::from_config(config))
 });
 
@@ -15,16 +20,18 @@ pub fn get_ip_reputation_manager() -> Arc<IpReputationManager> {
 }
 
 pub async fn ip_reputation_get_config() -> Result<IpReputationConfig> {
-    Ok(AdvancedConfig::load_default().ip_reputation)
+    Ok(sanitize_ip_reputation_config(AdvancedConfig::load_default().ip_reputation))
 }
 
 pub async fn apply_ip_reputation_config(config: IpReputationConfig) -> Result<()> {
-    get_ip_reputation_manager().update_config(config).await
+    get_ip_reputation_manager()
+        .update_config(sanitize_ip_reputation_config(config))
+        .await
 }
 
 pub async fn ip_reputation_update_config(config: IpReputationConfig) -> Result<()> {
     let mut advanced = AdvancedConfig::load_default_strict()?;
-    advanced.ip_reputation = config;
+    advanced.ip_reputation = sanitize_ip_reputation_config(config);
     crate::feat::save_advanced_config(&advanced).await
 }
 
@@ -32,16 +39,12 @@ pub async fn ip_reputation_check_ip(ip: &str) -> Result<IpReputation> {
     get_ip_reputation_manager().check_ip_reputation(ip).await
 }
 
-pub fn ip_reputation_get_registered_metadata_providers()
--> Vec<crate::core::ip_intelligence::IpIntelligenceProviderRegistration> {
-    crate::core::ip_intelligence::get_provider_registrations()
-}
-
 pub async fn ip_reputation_probe_metadata_provider(
-    provider_config: crate::core::ip_intelligence::IpIntelligenceProviderConfig,
+    _provider_config: crate::core::ip_intelligence::IpIntelligenceProviderConfig,
     target_ip: Option<&str>,
 ) -> crate::core::ip_intelligence::IpIntelligenceProviderHealthReport {
-    crate::core::ip_intelligence::probe_provider(&provider_config, target_ip).await
+    let local_provider = crate::core::ip_intelligence::IpIntelligenceProviderConfig::default();
+    crate::core::ip_intelligence::probe_provider(&local_provider, target_ip).await
 }
 
 pub fn ip_reputation_get_predefined_rules() -> Vec<RiskRoutingRule> {

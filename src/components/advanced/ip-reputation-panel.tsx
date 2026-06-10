@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   getIdentityConsistencyDriftReport,
@@ -11,11 +11,9 @@ import {
   ipReputationClearCache,
   ipReputationGetCacheEntries,
   ipReputationGetCacheStats,
-  ipReputationGetRegisteredMetadataProviders,
   ipReputationProbeMetadataProvider,
 } from '@/services/ip-reputation/api'
 import type {
-  IpMetadataProviderConfig,
   IpMetadataProviderHealthReport,
   IpReputation,
   IpReputationConfig,
@@ -25,11 +23,6 @@ import { IpReputationCacheCard } from './ip-reputation-panel/cache-card'
 import { IpReputationConsistencyCard } from './ip-reputation-panel/consistency-card'
 import { IpReputationLookupCard } from './ip-reputation-panel/lookup-card'
 import { IpReputationSettingsCard } from './ip-reputation-panel/settings-card'
-import {
-  DEFAULT_METADATA_PROVIDER_KIND,
-  parseMetadataOptions,
-  serializeMetadataOptions,
-} from './ip-reputation-panel/shared'
 
 interface Props {
   config: IpReputationConfig
@@ -43,32 +36,14 @@ export function IpReputationPanel({ config, onChange }: Props) {
   const [cacheEntries, setCacheEntries] = useState<IpReputation[]>([])
   const [cacheStats, setCacheStats] = useState<[number, number] | null>(null)
   const [showCache, setShowCache] = useState(false)
-  const [providerOverrideUnlocked, setProviderOverrideUnlocked] = useState(
-    config.metadataProvider.kind !== DEFAULT_METADATA_PROVIDER_KIND,
-  )
-  const [metadataOptionsDraft, setMetadataOptionsDraft] = useState(() =>
-    serializeMetadataOptions(config.metadataProvider.options),
-  )
   const [providerProbeIp, setProviderProbeIp] = useState('1.1.1.1')
   const [providerProbeLoading, setProviderProbeLoading] = useState(false)
   const [providerProbeResult, setProviderProbeResult] =
     useState<IpMetadataProviderHealthReport | null>(null)
 
   useEffect(() => {
-    setMetadataOptionsDraft(
-      serializeMetadataOptions(config.metadataProvider.options),
-    )
-  }, [config.metadataProvider.kind, config.metadataProvider.options])
-
-  useEffect(() => {
     setProviderProbeResult(null)
-  }, [
-    config.metadataProvider.kind,
-    config.metadataProvider.databasePath,
-    config.metadataProvider.apiEndpoint,
-    config.metadataProvider.accessToken,
-    config.metadataProvider.options,
-  ])
+  }, [config])
 
   const {
     data: consistencyReport,
@@ -102,14 +77,6 @@ export function IpReputationPanel({ config, onChange }: Props) {
     queryFn: getIdentityConsistencyDriftReport,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
-    retry: 1,
-  })
-
-  const { data: metadataProviders = [] } = useQuery({
-    queryKey: ['ip-reputation-metadata-providers'],
-    queryFn: ipReputationGetRegisteredMetadataProviders,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
     retry: 1,
   })
 
@@ -162,36 +129,6 @@ export function IpReputationPanel({ config, onChange }: Props) {
     }
   }
 
-  const updateMetadataProvider = (
-    patch: Partial<IpMetadataProviderConfig>,
-  ) => {
-    onChange({
-      ...config,
-      metadataProvider: {
-        ...config.metadataProvider,
-        ...patch,
-        options: patch.options ?? config.metadataProvider.options,
-      },
-    })
-  }
-
-  const handleProviderPanelToggle = (event: MouseEvent) => {
-    if (!event.altKey || !event.shiftKey) return
-    setProviderOverrideUnlocked((current) => !current)
-  }
-
-  const handleProviderKindChange = (value: string | number) => {
-    updateMetadataProvider({
-      kind: value as IpMetadataProviderConfig['kind'],
-    })
-  }
-
-  const handleMetadataOptionsDraftCommit = () => {
-    updateMetadataProvider({
-      options: parseMetadataOptions(metadataOptionsDraft),
-    })
-  }
-
   const handleProbeMetadataProvider = async () => {
     setProviderProbeLoading(true)
     try {
@@ -204,10 +141,6 @@ export function IpReputationPanel({ config, onChange }: Props) {
       setProviderProbeLoading(false)
     }
   }
-
-  const providerOverrideVisible =
-    providerOverrideUnlocked ||
-    config.metadataProvider.kind !== DEFAULT_METADATA_PROVIDER_KIND
 
   return (
     <div className="space-y-4">
@@ -222,9 +155,6 @@ export function IpReputationPanel({ config, onChange }: Props) {
 
       <IpReputationSettingsCard
         config={config}
-        metadataProviders={metadataProviders}
-        metadataOptionsDraft={metadataOptionsDraft}
-        providerOverrideVisible={providerOverrideVisible}
         providerProbeLoading={providerProbeLoading}
         providerProbeIp={providerProbeIp}
         providerProbeResult={providerProbeResult}
@@ -232,25 +162,6 @@ export function IpReputationPanel({ config, onChange }: Props) {
         onTtlChange={handleUpdateTtl}
         onRefreshCache={handleRefreshCache}
         onClearCache={handleClearCache}
-        onProviderPanelToggle={handleProviderPanelToggle}
-        onProviderKindChange={handleProviderKindChange}
-        onDatabasePathChange={(value) =>
-          updateMetadataProvider({
-            databasePath: value || undefined,
-          })
-        }
-        onApiEndpointChange={(value) =>
-          updateMetadataProvider({
-            apiEndpoint: value || undefined,
-          })
-        }
-        onAccessTokenChange={(value) =>
-          updateMetadataProvider({
-            accessToken: value || undefined,
-          })
-        }
-        onMetadataOptionsDraftChange={setMetadataOptionsDraft}
-        onMetadataOptionsDraftCommit={handleMetadataOptionsDraftCommit}
         onProviderProbeIpChange={setProviderProbeIp}
         onProbeProvider={handleProbeMetadataProvider}
       />

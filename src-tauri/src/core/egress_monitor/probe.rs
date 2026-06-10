@@ -1,6 +1,4 @@
-/**
- * 出口 IP 探测逻辑
- */
+use std::net::IpAddr;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
@@ -8,29 +6,66 @@ use tokio::time::Instant;
 
 use super::config::EgressIpProbeResult;
 
-/// 通过 Mihomo 本地 mixed-port 主动探测出口 IP
 pub async fn probe_egress_ip() -> Result<EgressIpProbeResult> {
     let client = build_proxied_client().await?;
 
     let start = Instant::now();
-    let (ip, country_code) = fetch_exit_ip_geo(&client).await?;
+    let ip = fetch_exit_ip(&client).await?;
+    let metadata = lookup_local_metadata(&ip).await;
 
     Ok(EgressIpProbeResult {
         ip,
-        country_code,
+        country_code: metadata
+            .as_ref()
+            .and_then(|item| normalize_country_code(item.country_code.as_deref())),
+        city: metadata
+            .as_ref()
+            .and_then(|item| normalize_optional_string(item.city.as_deref())),
+        timezone: metadata
+            .as_ref()
+            .and_then(|item| normalize_optional_string(item.timezone.as_deref())),
         probed_at_ms: now_ms(),
         latency_ms: start.elapsed().as_millis() as u64,
     })
 }
 
-async fn fetch_exit_ip_geo(client: &reqwest::Client) -> Result<(String, Option<String>)> {
-    let info = crate::core::runtime_diagnostics::geoip::fetch_public_ip_observation(client).await?;
-    let ip = info.ip.ok_or_else(|| anyhow!("public IP observation returned no IP"))?;
+async fn fetch_exit_ip(client: &reqwest::Client) -> Result<String> {
+    let plain_ip = crate::core::runtime_diagnostics::geoip::fetch_public_ip_plain(client).await?;
+    if is_ip_address(&plain_ip) {
+        return Ok(plain_ip.to_string());
+    }
 
-    Ok((
-        ip.to_string(),
-        info.country_code.map(|code| code.to_uppercase().to_string()),
-    ))
+    let ipv4_ip = crate::core::runtime_diagnostics::geoip::fetch_public_ipv4_plain(client).await?;
+    if is_ip_address(&ipv4_ip) {
+        return Ok(ipv4_ip.to_string());
+    }
+
+    Err(anyhow!("public IP observation returned no valid IP address"))
+}
+
+async fn lookup_local_metadata(ip: &str) -> Option<crate::core::ip_intelligence::IpIntelligenceRecord> {
+    crate::feat::get_ip_reputation_manager()
+        .lookup_ip_metadata_record(ip)
+        .await
+        .ok()
+}
+
+fn normalize_country_code(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("unknown"))
+        .map(str::to_ascii_uppercase)
+}
+
+fn normalize_optional_string(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn is_ip_address(value: &str) -> bool {
+    value.trim().parse::<IpAddr>().is_ok()
 }
 
 async fn build_proxied_client() -> Result<reqwest::Client> {

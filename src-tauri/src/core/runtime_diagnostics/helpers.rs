@@ -2,6 +2,10 @@ use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::config::{
+    DOMESTIC_DOH_NAMESERVERS, DOMESTIC_PLAIN_NAMESERVERS, FOREIGN_DOH_NAMESERVERS,
+};
+
 pub(super) fn mapping_bool(mapping: &Mapping, key: &str) -> Option<bool> {
     mapping.get(key).and_then(|value| value.as_bool())
 }
@@ -59,30 +63,28 @@ pub(super) fn same_string_list(values: &[String], expected: &[&str]) -> bool {
 }
 
 pub(super) fn infer_routing_mode(domestic_dns: &[String], foreign_dns: &[String]) -> Option<String> {
-    const DOMESTIC_PLAIN: &[&str] = &["223.5.5.5", "119.29.29.29"];
-    const DOMESTIC_DOH: &[&str] = &["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"];
-    const FOREIGN_DOH: &[&str] = &[
-        "https://dns.google/dns-query",
-        "https://cloudflare-dns.com/dns-query",
-        "https://dns.quad9.net/dns-query",
-    ];
-
     if domestic_dns.is_empty() && foreign_dns.is_empty() {
         return None;
     }
 
-    if same_string_list(domestic_dns, FOREIGN_DOH) && same_string_list(foreign_dns, FOREIGN_DOH) {
+    if same_string_list(domestic_dns, FOREIGN_DOH_NAMESERVERS)
+        && same_string_list(foreign_dns, FOREIGN_DOH_NAMESERVERS)
+    {
         return Some("privacy".into());
     }
 
-    if (same_string_list(domestic_dns, DOMESTIC_PLAIN) && same_string_list(foreign_dns, DOMESTIC_PLAIN))
-        || (same_string_list(domestic_dns, DOMESTIC_DOH) && same_string_list(foreign_dns, DOMESTIC_DOH))
+    if (same_string_list(domestic_dns, DOMESTIC_PLAIN_NAMESERVERS)
+        && same_string_list(foreign_dns, DOMESTIC_PLAIN_NAMESERVERS))
+        || (same_string_list(domestic_dns, DOMESTIC_DOH_NAMESERVERS)
+            && same_string_list(foreign_dns, DOMESTIC_DOH_NAMESERVERS))
     {
         return Some("speed".into());
     }
 
-    if (same_string_list(domestic_dns, DOMESTIC_PLAIN) && same_string_list(foreign_dns, FOREIGN_DOH))
-        || (same_string_list(domestic_dns, DOMESTIC_DOH) && same_string_list(foreign_dns, FOREIGN_DOH))
+    if (same_string_list(domestic_dns, DOMESTIC_PLAIN_NAMESERVERS)
+        && same_string_list(foreign_dns, FOREIGN_DOH_NAMESERVERS))
+        || (same_string_list(domestic_dns, DOMESTIC_DOH_NAMESERVERS)
+            && same_string_list(foreign_dns, FOREIGN_DOH_NAMESERVERS))
     {
         return Some("balanced".into());
     }
