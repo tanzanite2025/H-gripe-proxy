@@ -65,7 +65,7 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
 pub async fn import_profile(url: std::string::String, option: Option<PrfOption>) -> CmdResult {
     logging!(info, Type::Cmd, "[导入订阅] 开始导入: {}", help::mask_url(&url));
 
-    let item = &mut match PrfItem::from_url(&url, None, None, option.as_ref()).await {
+    let item = &mut match PrfItem::from_url_with_pipeline(&url, None, None, option.as_ref()).await {
         Ok(it) => {
             logging!(info, Type::Cmd, "[导入订阅] 下载完成，开始保存配置");
             it

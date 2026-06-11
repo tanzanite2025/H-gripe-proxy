@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 
 import { useListen } from '@/hooks/system'
 import { queryClient } from '@/services/query-client'
+import type { SubscriptionUpdateEvent } from '@/types/subscription-update'
 
 const getSafeCurrentWebviewWindow = () => {
   try {
@@ -15,6 +16,7 @@ const getSafeCurrentWebviewWindow = () => {
 
 export const useLayoutEvents = (
   handleNotice: (payload: [string, string]) => void,
+  handleSubscriptionUpdate?: (event: SubscriptionUpdateEvent) => void,
 ) => {
   const { addListener } = useListen()
 
@@ -88,6 +90,18 @@ export const useLayoutEvents = (
       ),
     )
 
+    register(
+      addListener('verge://subscription-update', ({ payload }) => {
+        const event = payload as SubscriptionUpdateEvent
+        window.dispatchEvent(
+          new CustomEvent<SubscriptionUpdateEvent>('subscription-update', {
+            detail: event,
+          }),
+        )
+        handleSubscriptionUpdate?.(event)
+      }),
+    )
+
     const appWindow = getSafeCurrentWebviewWindow()
     if (appWindow) {
       register(
@@ -125,5 +139,5 @@ export const useLayoutEvents = (
 
       unlisteners.length = 0
     }
-  }, [addListener, handleNotice])
+  }, [addListener, handleNotice, handleSubscriptionUpdate])
 }

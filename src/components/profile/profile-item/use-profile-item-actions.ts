@@ -15,7 +15,6 @@ type ProfileUpdateMode = 'direct' | 'proxy'
 interface UseProfileItemActionsParams {
   itemData: IProfileItem
   dialogs: ProfileItemDialogsController
-  mutateProfiles: () => Promise<void>
   setProfileLoading: (nextLoading: boolean) => void
   onEdit: () => void
   onSelect: (force: boolean) => void | Promise<void>
@@ -47,10 +46,18 @@ function buildUpdateOption(
   }
 }
 
+function isStructuredSubscriptionUpdateError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+
+  return (
+    message.includes('failed to update profile:') ||
+    message.includes('failed to apply updated profile:')
+  )
+}
+
 export function useProfileItemActions({
   itemData,
   dialogs,
-  mutateProfiles,
   setProfileLoading,
   onEdit,
   onSelect,
@@ -136,11 +143,13 @@ export function useProfileItemActions({
 
     try {
       await updateProfile(uid, buildUpdateOption(mode, option))
-      void mutateProfiles()
     } catch (error) {
-      showNotice.error(error)
-    } finally {
+      if (isStructuredSubscriptionUpdateError(error)) {
+        return
+      }
+
       setProfileLoading(false)
+      showNotice.error(error)
     }
   })
 

@@ -1,12 +1,15 @@
 use crate::{
     config::{Config, IProfiles, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
     core::{CoreManager, handle, tray, validate::ValidationOutcome},
-    utils::{
-        help::{mask_err, mask_url},
-        network::NetworkManager,
+    subscription::{
+        fetch::fetch_remote_profile,
+        model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
+        persist::{build_artifact_record, build_finished_attempt_record, persist_artifact, persist_attempt_result},
+        transport::{TransportKind, TransportPlan, apply_transport_to_option},
     },
+    utils::help::{mask_err, mask_url},
 };
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use clash_verge_logging::{Type, logging, logging_error};
 use scopeguard::defer;
 use smartstring::alias::String;
@@ -22,12 +25,19 @@ struct ProfileUpdateSnapshot {
     file_data: Option<String>,
 }
 
-async fn fetch_profile_update_item(url: &str, option: Option<&PrfOption>) -> Result<PrfItem> {
-    if option.is_some_and(|current| current.self_proxy.unwrap_or(false)) {
-        crate::feat::ensure_mihomo_core_ready().await?;
-    }
+struct ProfileUpdateExecution {
+    attempt: SubscriptionUpdateAttempt,
+    is_current: bool,
+    transport: TransportKind,
+    artifact: SubscriptionArtifactRecord,
+}
 
-    PrfItem::from_url(url, None, None, option).await
+struct ProfileUpdateFailure {
+    attempt: SubscriptionUpdateAttempt,
+    stage: UpdateStage,
+    transport: Option<TransportKind>,
+    artifact: Option<SubscriptionArtifactRecord>,
+    error: String,
 }
 
 fn log_profile_update_fetch_error(stage: &str, err: &anyhow::Error) {
@@ -40,7 +50,40 @@ fn log_profile_update_fetch_error(stage: &str, err: &anyhow::Error) {
     );
 }
 
-/// Toggle proxy profile — directly calls the same logic as patch_profiles_config_by_profile_index
+async fn persist_finished_subscription_attempt(
+    source_id: &String,
+    attempt: &SubscriptionUpdateAttempt,
+    final_status: UpdateFinalStatus,
+    stage: UpdateStage,
+    transport: Option<TransportKind>,
+    artifact: Option<&SubscriptionArtifactRecord>,
+    error: Option<String>,
+    runtime_activated: bool,
+    active_artifact_unchanged: bool,
+) {
+    let finished_attempt = build_finished_attempt_record(
+        attempt,
+        final_status,
+        stage,
+        transport,
+        artifact.map(|artifact| artifact.version.clone()),
+        error,
+        runtime_activated,
+        active_artifact_unchanged,
+    );
+
+    if let Err(err) = persist_attempt_result(source_id, artifact, &finished_attempt).await {
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: [Subscription Update] failed to persist subscription attempt state for {}: {}",
+            source_id,
+            err
+        );
+    }
+}
+
+/// Toggle proxy profile 闁?directly calls the same logic as patch_profiles_config_by_profile_index
 pub async fn toggle_proxy_profile(profile_index: String) {
     logging_error!(
         Type::Config,
@@ -48,7 +91,7 @@ pub async fn toggle_proxy_profile(profile_index: String) {
     );
 }
 
-/// 根据profile name修改profiles (feat 层版本，返回 anyhow::Result)
+/// 闁哄秷顫夊畵涔竢ofile name濞ｅ浂鍠楅弫绱乺ofiles (feat 閻忕偛鍊绘晶妤呭嫉椤掑﹦绀夐弶鈺傛煥濞?anyhow::Result)
 pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Result<ValidationOutcome> {
     let profiles = IProfiles {
         current: Some(profile_index),
@@ -57,13 +100,13 @@ pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Re
     patch_profiles_config(profiles).await
 }
 
-/// 修改profiles的配置（核心业务逻辑）
+/// Update profiles config (feature-layer entrypoint)
 pub async fn patch_profiles_config(profiles: IProfiles) -> Result<ValidationOutcome> {
     if CURRENT_SWITCHING_PROFILE
         .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
         .is_err()
     {
-        logging!(info, Type::Config, "当前正在切换配置，放弃请求");
+        logging!(info, Type::Config, "Profile switch is already in progress, skip the new request");
         return Ok(ValidationOutcome::Busy);
     }
 
@@ -72,12 +115,12 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> Result<ValidationOutc
     logging!(
         info,
         Type::Config,
-        "开始修改配置文件，目标profile: {:?}",
+        "鐎殿喒鍋撳┑顔碱儎閹便劑寮ㄨぐ鎺戝赋缂傚喚鍠楅弸鍐╃鐠佸湱绀夐柣鈺婂枟閻栴柖rofile: {:?}",
         target_profile
     );
 
     let previous_profile = Config::profiles().await.data_arc().current.clone();
-    logging!(info, Type::Config, "当前配置: {:?}", previous_profile);
+    logging!(info, Type::Config, "鐟滅増鎸告晶鐘绘煀瀹ュ洨鏋? {:?}", previous_profile);
 
     Config::profiles().await.edit_draft(|d| d.patch_config(&profiles));
 
@@ -85,7 +128,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> Result<ValidationOutc
 }
 
 async fn restore_previous_profile(prev_profile: &String) -> Result<()> {
-    logging!(info, Type::Config, "尝试恢复到之前的配置: {}", prev_profile);
+    logging!(info, Type::Config, "閻忓繑绻嗛惁顖炲箒閵忕媭妲婚柛鎺楊暒缁狅綁宕滃鍥ㄧ暠闂佹澘绉堕悿? {}", prev_profile);
     let restore_profiles = IProfiles {
         current: Some(prev_profile.to_owned()),
         items: None,
@@ -96,10 +139,10 @@ async fn restore_previous_profile(prev_profile: &String) -> Result<()> {
     Config::profiles().await.apply();
     crate::process::AsyncHandler::spawn(|| async move {
         if let Err(e) = crate::config::profiles::profiles_save_file_safe().await {
-            logging!(warn, Type::Config, "Warning: 异步保存恢复配置文件失败: {e}");
+            logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐寸┍濠靛棛鎽犻柟顓滃灩椤︽煡鏌婂鍥╂瀭闁哄倸娲ｅ▎銏″緞鏉堫偉袝: {e}");
         }
     });
-    logging!(info, Type::Config, "成功恢复到之前的配置");
+    logging!(info, Type::Config, "Restored the previous profile after update failure");
     Ok(())
 }
 
@@ -108,21 +151,21 @@ async fn handle_success(current_value: Option<&String>) -> Result<ValidationOutc
     handle::Handle::refresh_clash();
 
     if let Err(e) = tray::Tray::global().update_tooltip().await {
-        logging!(warn, Type::Config, "Warning: 异步更新托盘提示失败: {e}");
+        logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐哄即鐎涙ɑ鐓€闁瑰灚顭囧ú蹇涘箵閹邦喓浠涘鎯扮簿鐟? {e}");
     }
 
     if let Err(e) = tray::Tray::global().update_menu().await {
-        logging!(warn, Type::Config, "Warning: 异步更新托盘菜单失败: {e}");
+        logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐哄即鐎涙ɑ鐓€闁瑰灚顭囧ú蹇涙嚕濠婂啫绀嬪鎯扮簿鐟? {e}");
     }
 
     if let Err(e) = crate::config::profiles::profiles_save_file_safe().await {
-        logging!(warn, Type::Config, "Warning: 异步保存配置文件失败: {e}");
+        logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐寸┍濠靛棛鎽犻梺鏉跨Ф閻ゅ棝寮崶锔筋偨濠㈡儼绮剧憴? {e}");
     }
 
     if let Some(current) = current_value
         && crate::utils::window_manager::WindowManager::get_main_window().is_some()
     {
-        logging!(info, Type::Config, "向前端发送配置变更事件: {}", current);
+        logging!(info, Type::Config, "闁告碍鍨垫晶鐘电博椤栨艾绲洪梺顐＄窔閸樸倗绱旈鐓庣秮闁哄洨绻濈花銊︾? {}", current);
         handle::Handle::notify_profile_changed(current);
     }
 
@@ -141,12 +184,12 @@ async fn handle_validation_failure(
     outcome: ValidationOutcome,
     current_profile: Option<&String>,
 ) -> Result<ValidationOutcome> {
-    logging!(warn, Type::Config, "配置验证失败: {}", outcome);
+    logging!(warn, Type::Config, "闂佹澘绉堕悿鍡橆殽瀹€鍐濠㈡儼绮剧憴? {}", outcome);
     discard_and_restore(current_profile).await?;
     crate::cmd::validate::handle_validation_notice(
         &outcome,
         crate::cmd::validate::ValidationNoticeTarget::Runtime,
-        "运行时配置",
+        "runtime config",
     );
     Ok(outcome)
 }
@@ -155,7 +198,7 @@ async fn handle_update_error<E: std::fmt::Display>(
     e: E,
     current_profile: Option<&String>,
 ) -> Result<ValidationOutcome> {
-    logging!(warn, Type::Config, "更新过程发生错误: {}", e);
+    logging!(warn, Type::Config, "闁哄洤鐡ㄩ弻濠冩交閸モ斁鏌ら柛娆愬灩閺佹捇鏌ㄥ▎鎺濆殩: {}", e);
     discard_and_restore(current_profile).await?;
     let message: String = e.to_string().into();
     handle::Handle::notice_message("config_validate::boot_error", message.clone());
@@ -163,7 +206,7 @@ async fn handle_update_error<E: std::fmt::Display>(
 }
 
 async fn handle_timeout(current_profile: Option<&String>) -> Result<ValidationOutcome> {
-    let timeout_msg: String = "配置更新超时(30秒)，可能是配置验证或核心通信阻塞".into();
+    let timeout_msg: String = "Config update timed out after 30 seconds; validation or core communication may be blocked".into();
     logging!(error, Type::Config, "{}", timeout_msg);
     discard_and_restore(current_profile).await?;
     handle::Handle::notice_message("config_validate::timeout", timeout_msg.clone());
@@ -195,12 +238,12 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         .await
     {
         Ok(_) => {
-            logging!(info, Type::Tray, "切换代理成功: {} -> {}", group_name, proxy_name);
+            logging!(info, Type::Tray, "闁告帒娲﹀畷鍙夌閿濆洦鍊為柟瀛樺姇婵? {} -> {}", group_name, proxy_name);
             if let Err(error) = crate::feat::sync_runtime_stable_egress_selection().await {
                 logging!(
                     warn,
                     Type::Tray,
-                    "稳定出口运行态回写失败: {} -> {}, 错误: {}",
+                    "缂佸鍟块悾楣冨礄閸濆嫬缍撻弶鈺傚姌椤㈡垿骞€娴ｅ憡绀€闁告劖鐟ラ妵鎴犳嫻? {} -> {}, 闂佹寧鐟ㄩ? {}",
                     group_name,
                     proxy_name,
                     error
@@ -214,7 +257,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             logging!(
                 error,
                 Type::Tray,
-                "切换代理失败: {} -> {}, 错误: {:?}",
+                "闁告帒娲﹀畷鍙夌閿濆洦鍊炲鎯扮簿鐟? {} -> {}, 闂佹寧鐟ㄩ? {:?}",
                 group_name,
                 proxy_name,
                 err
@@ -228,12 +271,12 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         .await
     {
         Ok(_) => {
-            logging!(info, Type::Tray, "代理切换回退成功: {} -> {}", group_name, proxy_name);
+            logging!(info, Type::Tray, "濞寸媴绲块幃濠囧礆閸ャ劌搴婇柛銉у仱閳ь兘鍋撻柟瀛樺姇婵? {} -> {}", group_name, proxy_name);
             if let Err(error) = crate::feat::sync_runtime_stable_egress_selection().await {
                 logging!(
                     warn,
                     Type::Tray,
-                    "稳定出口运行态回写失败: {} -> {}, 错误: {}",
+                    "缂佸鍟块悾楣冨礄閸濆嫬缍撻弶鈺傚姌椤㈡垿骞€娴ｅ憡绀€闁告劖鐟ラ妵鎴犳嫻? {} -> {}, 闂佹寧鐟ㄩ? {}",
                     group_name,
                     proxy_name,
                     error
@@ -245,7 +288,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             logging!(
                 error,
                 Type::Tray,
-                "代理切换最终失败: {} -> {}, 错误: {:?}",
+                "濞寸媴绲块幃濠囧礆閸ャ劌搴婇柡鍫氬亾缂備礁鐗嗛妵鎴犳嫻? {} -> {}, 闂佹寧鐟ㄩ? {:?}",
                 group_name,
                 proxy_name,
                 err
@@ -261,19 +304,19 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     let is_remote = item.itype.as_ref().is_some_and(|s| s == "remote");
 
     if !is_remote {
-        logging!(info, Type::Config, "[订阅更新] {uid} 不是远程订阅，跳过更新");
+        logging!(info, Type::Config, "[Subscription Update] {uid} is not a remote subscription, skip update");
         Ok(None)
     } else if item.url.is_none() {
-        logging!(warn, Type::Config, "Warning: [订阅更新] {uid} 缺少URL，无法更新");
+        logging!(warn, Type::Config, "Warning: [Subscription Update] {uid} is missing a URL and cannot be updated");
         bail!("failed to get the profile item url");
     } else if !ignore_auto_update && !item.option.as_ref().and_then(|o| o.allow_auto_update).unwrap_or(true) {
-        logging!(info, Type::Config, "[订阅更新] {} 禁止自动更新，跳过更新", uid);
+        logging!(info, Type::Config, "[Subscription Update] {} has auto update disabled, skip update", uid);
         Ok(None)
     } else {
         logging!(
             info,
             Type::Config,
-            "[订阅更新] {} 是远程订阅，URL: {}",
+            "[閻犱降鍨藉Σ鍕即鐎涙ɑ鐓€] {} 闁哄嫷鍨电换娆戠矙鐎ｎ収鍚傞梻鍐ㄦ嫅缁辨紛RL: {}",
             uid,
             mask_url(
                 item.url
@@ -306,7 +349,7 @@ async fn snapshot_profile_update(uid: &String) -> Result<Option<ProfileUpdateSna
                     logging!(
                         warn,
                         Type::Config,
-                        "Warning: [订阅更新] current profile file is missing before update, will recreate it: {}",
+                        "Warning: [閻犱降鍨藉Σ鍕即鐎涙ɑ鐓€] current profile file is missing before update, will recreate it: {}",
                         file
                     );
                     None
@@ -347,135 +390,152 @@ async fn restore_profile_update_snapshot(snapshot: &ProfileUpdateSnapshot) -> Re
         .await
 }
 
-async fn perform_profile_update(
+async fn perform_profile_update_v2(
     uid: &String,
     url: &String,
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
     is_mannual_trigger: bool,
-) -> Result<bool> {
-    logging!(info, Type::Config, "[订阅更新] 开始下载新的订阅内容");
-    let mut merged_opt = PrfOption::merge(opt, option);
+) -> std::result::Result<ProfileUpdateExecution, ProfileUpdateFailure> {
+    logging!(info, Type::Config, "[Subscription Update] start downloading remote subscription");
+    let merged_opt = PrfOption::merge(opt, option);
     let is_current = {
         let profiles = Config::profiles().await;
         profiles.latest_arc().is_current_profile_index(uid)
     };
-    let profiles = Config::profiles().await;
-    let profiles_arc = profiles.latest_arc();
-    let profile_name = profiles_arc
-        .get_name_by_uid(uid)
-        .cloned()
-        .unwrap_or_else(|| String::from("UnKnown Profile"));
-    let strict_direct_update = false;
-    let mut last_err;
 
-    match fetch_profile_update_item(url, merged_opt.as_ref()).await {
-        Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 更新订阅配置成功");
-            profiles_draft_update_item_safe(uid, &mut item).await?;
-            return Ok(is_current);
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [订阅更新] 正常更新失败: {}{}",
-                mask_err(&err.to_string()),
-                if strict_direct_update {
-                    ""
-                } else {
-                    "，尝试使用Clash代理更新"
-                }
-            );
-            log_profile_update_fetch_error("direct update", &err);
+    let attempt = SubscriptionUpdateAttempt::new(
+        uid.clone(),
+        if is_mannual_trigger {
+            UpdateTrigger::Manual
+        } else {
+            UpdateTrigger::Automatic
+        },
+    );
 
-            last_err = err;
-        }
-    }
+    handle::Handle::notify_subscription_attempt_started(&attempt);
+    handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveSource, None);
+    handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveTransportPlan, None);
 
-    merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(true);
-    merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(false);
+    let transport_plan = TransportPlan::for_subscription_update().await;
+    let mut last_err = None;
+    let mut last_stage = UpdateStage::FetchPayload;
+    let mut last_transport = None;
+    let mut last_artifact = None;
 
-    match fetch_profile_update_item(url, merged_opt.as_ref()).await {
-        Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 使用 Clash代理 更新订阅配置成功");
-            profiles_draft_update_item_safe(uid, &mut item).await?;
-            handle::Handle::notice_message("update_with_clash_proxy", profile_name);
-            drop(last_err);
-            return Ok(is_current);
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [订阅更新] Clash代理更新失败: {}，尝试使用系统代理更新",
-                mask_err(&err.to_string())
-            );
-            log_profile_update_fetch_error("clash proxy update", &err);
-            last_err = err;
-        }
-    }
+    for candidate in transport_plan.ordered_candidates {
+        let transport = candidate.kind;
+        let attempt_option = apply_transport_to_option(merged_opt.as_ref(), transport);
 
-    let system_proxy_available = match NetworkManager::has_system_proxy() {
-        Ok(available) => available,
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [Subscription Update] failed to inspect system proxy settings, skip system proxy retry: {}",
-                mask_err(&err.to_string())
-            );
-            log_profile_update_fetch_error("inspect system proxy", &err);
-            if is_mannual_trigger {
-                handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
+        if matches!(transport, TransportKind::LocalProxy) {
+            if let Err(err) = crate::feat::ensure_mihomo_core_ready().await {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Subscription Update] {} skipped because Mihomo core is not ready: {}",
+                    transport.label(),
+                    mask_err(&err.to_string())
+                );
+                log_profile_update_fetch_error("ensure mihomo core ready", &err);
+                last_stage = UpdateStage::FetchPayload;
+                last_transport = Some(transport);
+                last_artifact = None;
+                last_err = Some(err);
+                continue;
             }
-            bail!(
-                "failed to update profile after direct and clash proxy attempts; system proxy retry skipped because proxy settings could not be inspected: {last_err}"
-            );
         }
-    };
 
-    if !system_proxy_available {
+        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::FetchPayload, Some(transport));
+
+        let fetched = match fetch_remote_profile(url, Some(&attempt_option)).await {
+            Ok(fetched) => fetched,
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Subscription Update] {} failed: {}",
+                    transport.label(),
+                    mask_err(&err.to_string())
+                );
+                log_profile_update_fetch_error(transport.label(), &err);
+                last_stage = UpdateStage::FetchPayload;
+                last_transport = Some(transport);
+                last_artifact = None;
+                last_err = Some(err);
+                continue;
+            }
+        };
+
+        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::MaterializeArtifact, Some(transport));
+
+        let raw_body = fetched.body.clone();
+        let artifact = build_artifact_record(
+            raw_body.as_str(),
+            chrono::Local::now().timestamp_millis(),
+            fetched.metadata.content_type.clone(),
+        );
+
+        if let Err(err) = persist_artifact(uid.as_str(), &artifact, raw_body.as_str()).await {
+            return Err(ProfileUpdateFailure {
+                attempt: attempt.clone(),
+                stage: UpdateStage::MaterializeArtifact,
+                transport: Some(transport),
+                artifact: Some(artifact.clone()),
+                error: format!("failed to persist subscription artifact: {err}").into(),
+            });
+        }
+
+        let mut item = match PrfItem::from_fetched_payload(url, fetched, None, None, Some(&attempt_option)).await {
+            Ok(item) => item,
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Subscription Update] {} returned an invalid payload: {}",
+                    transport.label(),
+                    mask_err(&err.to_string())
+                );
+                log_profile_update_fetch_error("materialize artifact", &err);
+                last_stage = UpdateStage::MaterializeArtifact;
+                last_transport = Some(transport);
+                last_artifact = Some(artifact.clone());
+                last_err = Some(err);
+                continue;
+            }
+        };
+
+        if let Err(err) = profiles_draft_update_item_safe(uid, &mut item).await {
+            return Err(ProfileUpdateFailure {
+                attempt: attempt.clone(),
+                stage: UpdateStage::MaterializeArtifact,
+                transport: Some(transport),
+                artifact: Some(artifact.clone()),
+                error: format!("failed to apply materialized subscription profile: {err}").into(),
+            });
+        }
+
         logging!(
             info,
             Type::Config,
-            "[Subscription Update] System proxy retry skipped because no system proxy is enabled"
+            "[Subscription Update] subscription fetch succeeded via {}",
+            transport.label()
         );
-        if is_mannual_trigger {
-            handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
-        }
-        bail!(
-            "failed to update profile after direct and clash proxy attempts; system proxy retry skipped because no system proxy is enabled: {last_err}"
-        );
+        return Ok(ProfileUpdateExecution {
+            attempt,
+            is_current,
+            transport,
+            artifact,
+        });
     }
 
-    merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(false);
-    merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(true);
-
-    match fetch_profile_update_item(url, merged_opt.as_ref()).await {
-        Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 使用 系统代理 更新订阅配置成功");
-            profiles_draft_update_item_safe(uid, &mut item).await?;
-            handle::Handle::notice_message("update_with_clash_proxy", profile_name);
-            drop(last_err);
-            return Ok(is_current);
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [订阅更新] 系统代理更新失败: {}，所有重试均已失败",
-                mask_err(&err.to_string())
-            );
-            log_profile_update_fetch_error("system proxy update", &err);
-            last_err = err;
-        }
-    }
-
-    if is_mannual_trigger {
-        handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
-    }
-    bail!("failed to update profile after all proxy attempts: {last_err}")
+    let last_err = last_err.unwrap_or_else(|| anyhow!("subscription update transport plan produced no attempts"));
+    Err(ProfileUpdateFailure {
+        attempt,
+        stage: last_stage,
+        transport: last_transport,
+        artifact: last_artifact,
+        error: format!("failed to update profile after all transport attempts: {last_err}").into(),
+    })
 }
 
 pub async fn update_profile(
@@ -485,63 +545,210 @@ pub async fn update_profile(
     ignore_auto_update: bool,
     is_mannual_trigger: bool,
 ) -> Result<()> {
-    logging!(info, Type::Config, "[订阅更新] 开始更新订阅 {}", uid);
-    let url_opt = should_update_profile(uid, ignore_auto_update).await?;
-    let rollback_snapshot = if url_opt.is_some() {
-        snapshot_profile_update(uid).await?
-    } else {
-        None
+    logging!(info, Type::Config, "[Subscription Update] start updating subscription {}", uid);
+
+    let Some((url, opt)) = should_update_profile(uid, ignore_auto_update).await? else {
+        return Ok(());
     };
 
-    let should_refresh = match url_opt {
-        Some((url, opt)) => {
-            perform_profile_update(uid, &url, opt.as_ref(), option, is_mannual_trigger).await? && auto_refresh
+    let rollback_snapshot = snapshot_profile_update(uid).await?;
+
+    let update_execution = match perform_profile_update_v2(uid, &url, opt.as_ref(), option, is_mannual_trigger).await {
+        Ok(execution) => execution,
+        Err(failure) => {
+            logging!(
+                error,
+                Type::Config,
+                "[Subscription Update] update failed at {:?}: {}",
+                failure.stage,
+                failure.error
+            );
+
+            if let Some(rollback_snapshot) = &rollback_snapshot {
+                restore_profile_update_snapshot(rollback_snapshot).await?;
+            }
+
+            let artifact_version = failure
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.version.clone());
+            let error_message = failure.error.clone();
+
+            handle::Handle::notify_subscription_update_failed(
+                &failure.attempt,
+                failure.stage,
+                failure.transport,
+                artifact_version,
+                error_message.clone(),
+                true,
+            );
+            persist_finished_subscription_attempt(
+                uid,
+                &failure.attempt,
+                UpdateFinalStatus::Failed,
+                failure.stage,
+                failure.transport,
+                failure.artifact.as_ref(),
+                Some(error_message.clone()),
+                false,
+                true,
+            )
+            .await;
+
+            bail!("failed to update profile: {error_message}");
         }
-        None => auto_refresh,
     };
+
+    let should_refresh = update_execution.is_current && auto_refresh;
 
     if should_refresh {
-        logging!(info, Type::Config, "[订阅更新] 更新内核配置");
+        handle::Handle::notify_subscription_stage_changed(
+            &update_execution.attempt,
+            UpdateStage::ActivateRuntime,
+            None,
+        );
+        logging!(info, Type::Config, "[Subscription Update] applying updated profile to runtime");
+
         match CoreManager::global()
             .update_config_without_restart_with_force(is_mannual_trigger)
             .await
         {
             Ok(outcome) if outcome.is_valid() => {
-                logging!(info, Type::Config, "[订阅更新] 更新成功");
+                logging!(info, Type::Config, "[Subscription Update] update succeeded");
+                handle::Handle::notify_subscription_update_succeeded(
+                    &update_execution.attempt,
+                    update_execution.transport,
+                    UpdateStage::EmitFinalResult,
+                    update_execution.artifact.version.clone(),
+                    true,
+                    false,
+                );
+                persist_finished_subscription_attempt(
+                    uid,
+                    &update_execution.attempt,
+                    UpdateFinalStatus::Succeeded,
+                    UpdateStage::EmitFinalResult,
+                    Some(update_execution.transport),
+                    Some(&update_execution.artifact),
+                    None,
+                    true,
+                    false,
+                )
+                .await;
                 handle::Handle::refresh_clash();
             }
             Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
-                logging!(info, Type::Config, "[订阅更新] 本次配置刷新已跳过: {}", outcome);
+                logging!(
+                    info,
+                    Type::Config,
+                    "[Subscription Update] runtime refresh skipped after successful fetch: {}",
+                    outcome
+                );
+                handle::Handle::notify_subscription_update_succeeded(
+                    &update_execution.attempt,
+                    update_execution.transport,
+                    UpdateStage::EmitFinalResult,
+                    update_execution.artifact.version.clone(),
+                    false,
+                    true,
+                );
+                persist_finished_subscription_attempt(
+                    uid,
+                    &update_execution.attempt,
+                    UpdateFinalStatus::Succeeded,
+                    UpdateStage::EmitFinalResult,
+                    Some(update_execution.transport),
+                    Some(&update_execution.artifact),
+                    None,
+                    false,
+                    true,
+                )
+                .await;
             }
             Ok(outcome) => {
                 let message = outcome.to_string();
-                logging!(error, Type::Config, "[订阅更新] 更新失败: {}", message);
+                logging!(error, Type::Config, "[Subscription Update] runtime activation failed: {}", message);
                 if let Some(rollback_snapshot) = &rollback_snapshot {
-                    restore_profile_update_snapshot(&rollback_snapshot).await?;
+                    restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
-                handle::Handle::notice_message("update_failed", message.clone());
-                if is_mannual_trigger {
-                    bail!("failed to apply updated profile: {message}");
-                }
+                handle::Handle::notify_subscription_update_failed(
+                    &update_execution.attempt,
+                    UpdateStage::ActivateRuntime,
+                    Some(update_execution.transport),
+                    Some(update_execution.artifact.version.clone()),
+                    message.clone(),
+                    true,
+                );
+                persist_finished_subscription_attempt(
+                    uid,
+                    &update_execution.attempt,
+                    UpdateFinalStatus::Failed,
+                    UpdateStage::ActivateRuntime,
+                    Some(update_execution.transport),
+                    Some(&update_execution.artifact),
+                    Some(message.clone().into()),
+                    false,
+                    true,
+                )
+                .await;
+                bail!("failed to apply updated profile: {message}");
             }
             Err(err) => {
-                logging!(error, Type::Config, "[订阅更新] 更新失败: {}", err);
+                let message = err.to_string();
+                logging!(error, Type::Config, "[Subscription Update] runtime activation failed: {}", message);
                 if let Some(rollback_snapshot) = &rollback_snapshot {
-                    restore_profile_update_snapshot(&rollback_snapshot).await?;
+                    restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
-                handle::Handle::notice_message("update_failed", format!("{err}"));
+                handle::Handle::notify_subscription_update_failed(
+                    &update_execution.attempt,
+                    UpdateStage::ActivateRuntime,
+                    Some(update_execution.transport),
+                    Some(update_execution.artifact.version.clone()),
+                    message.clone(),
+                    true,
+                );
+                persist_finished_subscription_attempt(
+                    uid,
+                    &update_execution.attempt,
+                    UpdateFinalStatus::Failed,
+                    UpdateStage::ActivateRuntime,
+                    Some(update_execution.transport),
+                    Some(&update_execution.artifact),
+                    Some(message.clone().into()),
+                    false,
+                    true,
+                )
+                .await;
                 logging!(error, Type::Config, "{err}");
-                if is_mannual_trigger {
-                    bail!("failed to apply updated profile: {err}");
-                }
+                bail!("failed to apply updated profile: {message}");
             }
         }
+    } else {
+        handle::Handle::notify_subscription_update_succeeded(
+            &update_execution.attempt,
+            update_execution.transport,
+            UpdateStage::EmitFinalResult,
+            update_execution.artifact.version.clone(),
+            false,
+            true,
+        );
+        persist_finished_subscription_attempt(
+            uid,
+            &update_execution.attempt,
+            UpdateFinalStatus::Succeeded,
+            UpdateStage::EmitFinalResult,
+            Some(update_execution.transport),
+            Some(&update_execution.artifact),
+            None,
+            false,
+            true,
+        )
+        .await;
     }
 
     Ok(())
 }
 
-/// 增强配置
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
     CoreManager::global().update_config_forced().await
 }

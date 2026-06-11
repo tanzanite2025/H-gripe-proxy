@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer } from 'react'
 
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
+import type { SubscriptionUpdateEvent } from '@/types/subscription-update'
 
 import { formatExpireDate, parseProfileUrl } from './shared'
 import { useNextUpdateDisplay } from './use-next-update-display'
@@ -82,16 +83,20 @@ export function useProfileItemState({
   }, [hasUrl, updated])
 
   useEffect(() => {
-    const handleUpdateStarted = (event: Event) => {
-      const customEvent = event as CustomEvent<{ uid?: string }>
-      if (customEvent.detail?.uid === uid) {
-        setProfileLoading(true)
-      }
-    }
+    const handleSubscriptionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<SubscriptionUpdateEvent>
+      const detail = customEvent.detail
 
-    const handleUpdateCompleted = (event: Event) => {
-      const customEvent = event as CustomEvent<{ uid?: string }>
-      if (customEvent.detail?.uid === uid) {
+      if (!detail || detail.source_id !== uid) {
+        return
+      }
+
+      if (detail.kind === 'attempt_started') {
+        setProfileLoading(true)
+        return
+      }
+
+      if (detail.kind === 'update_finished') {
         setProfileLoading(false)
         void mutateProfiles()
 
@@ -101,14 +106,12 @@ export function useProfileItemState({
       }
     }
 
-    window.addEventListener('profile-update-started', handleUpdateStarted)
-    window.addEventListener('profile-update-completed', handleUpdateCompleted)
+    window.addEventListener('subscription-update', handleSubscriptionUpdate)
 
     return () => {
-      window.removeEventListener('profile-update-started', handleUpdateStarted)
       window.removeEventListener(
-        'profile-update-completed',
-        handleUpdateCompleted,
+        'subscription-update',
+        handleSubscriptionUpdate,
       )
     }
   }, [

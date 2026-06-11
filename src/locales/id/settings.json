@@ -531,10 +531,6 @@
       "clashService": {
         "installSuccess": "Layanan Berhasil Diinstal",
         "uninstallSuccess": "Layanan Berhasil Dicopot"
-      },
-      "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully",
-        "withClashProxyFailed": "Update failed even with Clash proxy"
       }
     }
   },

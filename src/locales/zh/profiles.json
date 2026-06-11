@@ -43,6 +43,24 @@
       "notices": {
         "forceRefreshCompleted": "数据已强制刷新",
         "emergencyRefreshFailed": "紧急刷新失败: {{message}}"
+      },
+      "subscriptionUpdate": {
+        "failed": "{{name}} 更新失败（阶段：{{stage}}）",
+        "failedWithTransport": "{{name}} 更新失败（阶段：{{stage}}，链路：{{transport}}）",
+        "succeededViaTransport": "{{name}} 已通过{{transport}}更新成功",
+        "stages": {
+          "resolveSource": "解析订阅源",
+          "resolveTransportPlan": "规划更新链路",
+          "fetchPayload": "抓取订阅内容",
+          "materializeArtifact": "解析订阅内容",
+          "activateRuntime": "激活运行时",
+          "emitFinalResult": "提交最终结果"
+        },
+        "transports": {
+          "direct": "直连",
+          "localProxy": "Clash 代理",
+          "systemProxy": "系统代理"
+        }
       }
     },
     "title": "订阅"

@@ -43,6 +43,24 @@
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",
         "emergencyRefreshFailed": "Emergency refresh failed: {{message}}"
+      },
+      "subscriptionUpdate": {
+        "failed": "{{name}} 更新失敗（階段：{{stage}}）",
+        "failedWithTransport": "{{name}} 更新失敗（階段：{{stage}}，鏈路：{{transport}}）",
+        "succeededViaTransport": "{{name}} 已透過{{transport}}更新成功",
+        "stages": {
+          "resolveSource": "解析訂閱來源",
+          "resolveTransportPlan": "規劃更新鏈路",
+          "fetchPayload": "抓取訂閱內容",
+          "materializeArtifact": "解析訂閱內容",
+          "activateRuntime": "啟用執行階段",
+          "emitFinalResult": "提交最終結果"
+        },
+        "transports": {
+          "direct": "直連",
+          "localProxy": "Clash 代理",
+          "systemProxy": "系統代理"
+        }
       }
     },
     "title": "訂閱"

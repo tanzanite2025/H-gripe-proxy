@@ -1,6 +1,11 @@
 use crate::{
     APP_HANDLE,
     config::{Config, IClashTemp},
+    subscription::{
+        events::SubscriptionEvent,
+        model::{SubscriptionUpdateAttempt, UpdateStage},
+        transport::TransportKind,
+    },
     singleton,
 };
 use anyhow::{Result, anyhow};
@@ -140,14 +145,6 @@ impl Handle {
         Self::send_event(FrontendEvent::TimerUpdated { profile_index });
     }
 
-    pub fn notify_profile_update_started(uid: &String) {
-        Self::send_event(FrontendEvent::ProfileUpdateStarted { uid });
-    }
-
-    pub fn notify_profile_update_completed(uid: &String) {
-        Self::send_event(FrontendEvent::ProfileUpdateCompleted { uid });
-    }
-
     pub fn notice_message<S: AsRef<str>, M: Into<String>>(status: S, msg: M) {
         let status_str = status.as_ref();
         let msg_str = msg.into();
@@ -155,6 +152,62 @@ impl Handle {
         Self::send_event(FrontendEvent::NoticeMessage {
             status: status_str,
             message: msg_str,
+        });
+    }
+
+    pub fn notify_subscription_attempt_started(attempt: &SubscriptionUpdateAttempt) {
+        Self::send_event(FrontendEvent::SubscriptionUpdate {
+            event: SubscriptionEvent::attempt_started(attempt),
+        });
+    }
+
+    pub fn notify_subscription_stage_changed(
+        attempt: &SubscriptionUpdateAttempt,
+        stage: UpdateStage,
+        transport: Option<TransportKind>,
+    ) {
+        Self::send_event(FrontendEvent::SubscriptionUpdate {
+            event: SubscriptionEvent::stage_changed(attempt, stage, transport),
+        });
+    }
+
+    pub fn notify_subscription_update_succeeded(
+        attempt: &SubscriptionUpdateAttempt,
+        transport: TransportKind,
+        stage: UpdateStage,
+        artifact_version: String,
+        runtime_activated: bool,
+        active_artifact_unchanged: bool,
+    ) {
+        Self::send_event(FrontendEvent::SubscriptionUpdate {
+            event: SubscriptionEvent::succeeded(
+                attempt,
+                transport,
+                stage,
+                artifact_version,
+                runtime_activated,
+                active_artifact_unchanged,
+            ),
+        });
+    }
+
+    pub fn notify_subscription_update_failed(
+        attempt: &SubscriptionUpdateAttempt,
+        stage: UpdateStage,
+        transport: Option<TransportKind>,
+        artifact_version: Option<String>,
+        error: impl Into<String>,
+        active_artifact_unchanged: bool,
+    ) {
+        Self::send_event(FrontendEvent::SubscriptionUpdate {
+            event: SubscriptionEvent::failed(
+                attempt,
+                stage,
+                transport,
+                artifact_version,
+                error,
+                active_artifact_unchanged,
+            ),
         });
     }
 

@@ -531,10 +531,6 @@
       "clashService": {
         "installSuccess": "Служба успешно установлена",
         "uninstallSuccess": "Служба успешно удалена"
-      },
-      "updater": {
-        "withClashProxySuccess": "Обновление через Clash proxy выполнено успешно",
-        "withClashProxyFailed": "Обновление не удалось даже через Clash proxy"
       }
     }
   },

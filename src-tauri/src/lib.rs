@@ -13,6 +13,7 @@ mod module;
 mod multipath;
 mod process;
 mod security;
+mod subscription;
 mod tls_fingerprint;
 mod traffic;
 pub mod utils;

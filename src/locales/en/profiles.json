@@ -43,6 +43,24 @@
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",
         "emergencyRefreshFailed": "Emergency refresh failed: {{message}}"
+      },
+      "subscriptionUpdate": {
+        "failed": "{{name}} update failed at {{stage}}",
+        "failedWithTransport": "{{name}} update failed at {{stage}} via {{transport}}",
+        "succeededViaTransport": "{{name}} updated successfully via {{transport}}",
+        "stages": {
+          "resolveSource": "Resolve source",
+          "resolveTransportPlan": "Resolve transport plan",
+          "fetchPayload": "Fetch payload",
+          "materializeArtifact": "Materialize artifact",
+          "activateRuntime": "Activate runtime",
+          "emitFinalResult": "Emit final result"
+        },
+        "transports": {
+          "direct": "Direct connection",
+          "localProxy": "Clash proxy",
+          "systemProxy": "System proxy"
+        }
       }
     },
     "title": "Profiles"

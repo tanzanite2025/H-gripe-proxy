@@ -455,6 +455,24 @@ export interface TranslationResources {
             profileSwitched: string
             switchInterrupted: string
           }
+          subscriptionUpdate: {
+            failed: string
+            failedWithTransport: string
+            stages: {
+              activateRuntime: string
+              emitFinalResult: string
+              fetchPayload: string
+              materializeArtifact: string
+              resolveSource: string
+              resolveTransportPlan: string
+            }
+            succeededViaTransport: string
+            transports: {
+              direct: string
+              localProxy: string
+              systemProxy: string
+            }
+          }
         }
         importForm: {
           actions: {
@@ -719,10 +737,6 @@ export interface TranslationResources {
           clashService: {
             installSuccess: string
             uninstallSuccess: string
-          }
-          updater: {
-            withClashProxyFailed: string
-            withClashProxySuccess: string
           }
         }
       }

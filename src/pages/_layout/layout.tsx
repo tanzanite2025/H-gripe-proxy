@@ -31,6 +31,7 @@ import { Menu, MenuItem, Box } from '@/components/tailwind'
 import { useVerge } from '@/hooks/system'
 import { useI18n, useWindowDecorations } from '@/hooks/ui'
 import { navItems } from '@/pages/_core/router'
+import type { SubscriptionUpdateEvent } from '@/types/subscription-update'
 import getSystem from '@/utils/misc'
 
 import LogsPage from '../logs'
@@ -40,7 +41,7 @@ import {
   useLoadingOverlay,
   useNavMenuOrder,
 } from './hooks'
-import { handleNoticeMessage } from './utils'
+import { handleNoticeMessage, handleSubscriptionUpdateEvent } from './utils'
 
 import 'dayjs/locale/ru'
 import 'dayjs/locale/zh-cn'
@@ -200,7 +201,18 @@ const Layout = () => {
     [t, navigate],
   )
 
-  useLayoutEvents(handleNotice)
+  const handleSubscriptionUpdate = useCallback(
+    (event: SubscriptionUpdateEvent) => {
+      try {
+        handleSubscriptionUpdateEvent(event, t)
+      } catch (error) {
+        console.error('[订阅更新通知处理] 失败:', error)
+      }
+    },
+    [t],
+  )
+
+  useLayoutEvents(handleNotice, handleSubscriptionUpdate)
 
   useEffect(() => {
     if (language) {

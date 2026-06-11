@@ -1,8 +1,8 @@
 use crate::{
     config::profiles,
+    subscription::fetch::{FetchedSubscriptionPayload, fetch_remote_profile},
     utils::{
         dirs, help,
-        network::{NetworkManager, ProxyType},
         tmpl,
     },
 };
@@ -10,7 +10,6 @@ use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
-use std::time::Duration;
 use tokio::fs;
 // TODO, use other re-export
 use reqwest_dav::re_exports::url::form_urlencoded;
@@ -321,60 +320,50 @@ impl PrfItem {
         desc: Option<&String>,
         option: Option<&PrfOption>,
     ) -> Result<Self> {
-        let with_proxy = option.is_some_and(|o| o.with_proxy.unwrap_or(false));
-        let self_proxy = option.is_some_and(|o| o.self_proxy.unwrap_or(false));
-        let accept_invalid_certs = option.is_some_and(|o| o.danger_accept_invalid_certs.unwrap_or(false));
+        Self::from_url_with_pipeline(url, name, desc, option).await
+    }
+
+    pub async fn from_url_with_pipeline(
+        url: &str,
+        name: Option<&String>,
+        desc: Option<&String>,
+        option: Option<&PrfOption>,
+    ) -> Result<Self> {
+        if option.is_some_and(|current| current.self_proxy.unwrap_or(false)) {
+            crate::feat::ensure_mihomo_core_ready().await?;
+        }
+
+        let url = fix_dirty_url(url)?;
+        let fetched = fetch_remote_profile(url.as_str(), option).await?;
+        Self::from_fetched_payload(url.as_str(), fetched, name, desc, option).await
+    }
+
+    pub(crate) async fn from_fetched_payload(
+        url: &str,
+        fetched: FetchedSubscriptionPayload,
+        name: Option<&String>,
+        desc: Option<&String>,
+        option: Option<&PrfOption>,
+    ) -> Result<Self> {
+        let url = fix_dirty_url(url)?;
         let allow_auto_update = option.map(|o| o.allow_auto_update.unwrap_or(true));
-        let user_agent = option.and_then(|o| o.user_agent.clone());
         let update_interval = option.and_then(|o| o.update_interval);
-        let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
         let mut merge = option.and_then(|o| o.merge.clone());
         let mut script = option.and_then(|o| o.script.clone());
         let mut proxies = option.and_then(|o| o.proxies.clone());
         let mut groups = option.and_then(|o| o.groups.clone());
+        let status_code = fetched.metadata.status_code;
 
-        // 选择代理类型
-        let proxy_type = if self_proxy {
-            ProxyType::Localhost
-        } else if with_proxy {
-            ProxyType::System
-        } else {
-            ProxyType::None
-        };
-
-        let url = fix_dirty_url(url)?;
-
-        // 使用网络管理器发送请求
-        let resp = match NetworkManager::new()
-            .get_with_interrupt(
-                url.as_str(),
-                proxy_type,
-                Some(timeout),
-                user_agent.clone(),
-                accept_invalid_certs,
-            )
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                return Err(e).context("failed to fetch remote profile");
-            }
-        };
-
-        let status_code = resp.status();
-        if !status_code.is_success() {
+        if !(200..300).contains(&status_code) {
             bail!("failed to fetch remote profile with status {status_code}")
         }
 
-        let header = resp.headers();
+        let header = &fetched.headers;
 
-        // parse the Subscription UserInfo
         let extra;
         'extra: {
             for (k, v) in header.iter() {
                 let key_lower = k.as_str().to_ascii_lowercase();
-                // Accept standard custom-metadata prefixes (x-amz-meta-, x-obs-meta-, x-cos-meta-, etc.).
                 if key_lower
                     .strip_suffix("subscription-userinfo")
                     .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'))
@@ -392,7 +381,6 @@ impl PrfItem {
             extra = None;
         }
 
-        // parse the Content-Disposition
         let filename = match header.get("Content-Disposition") {
             Some(value) => {
                 let filename = format!("{value:?}");
@@ -416,11 +404,12 @@ impl PrfItem {
                 Some(crate::utils::help::get_last_part_and_decode(url.as_str()).unwrap_or_else(|| "Remote File".into()))
             }
         };
+
         let update_interval = match update_interval {
             Some(val) => Some(val),
             None => match header.get("profile-update-interval") {
                 Some(value) => match value.to_str().unwrap_or("").parse::<u64>() {
-                    Ok(val) => Some(val * 60), // hour -> min
+                    Ok(val) => Some(val * 60),
                     Err(_) => None,
                 },
                 None => None,
@@ -440,10 +429,13 @@ impl PrfItem {
         let name = name
             .map(|s| s.to_owned())
             .unwrap_or_else(|| filename.map(|s| s.into()).unwrap_or_else(|| "Remote File".into()));
-        let content_type = response_content_type(header);
-        let data = resp.text_with_charset()?;
+        let content_type = fetched
+            .metadata
+            .content_type
+            .clone()
+            .unwrap_or_else(|| response_content_type(header).into());
+        let data = fetched.body.as_str();
 
-        // process the charset "UTF-8 with BOM"
         let data = data.trim_start_matches('\u{feff}');
         if data.trim().is_empty() {
             bail!(
@@ -451,7 +443,6 @@ impl PrfItem {
             );
         }
 
-        // check the data whether the valid yaml format
         let yaml = match serde_yaml_ng::from_str::<Mapping>(data) {
             Ok(yaml) => yaml,
             Err(err) => {

@@ -390,21 +390,11 @@ impl Timer {
         }
     }
 
-    fn emit_update_event(uid: &String, is_start: bool) {
-        if is_start {
-            super::handle::Handle::notify_profile_update_started(uid);
-        } else {
-            super::handle::Handle::notify_profile_update_completed(uid);
-        }
-    }
-
     async fn async_task(uid: &String) {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
 
         match tokio::time::timeout(std::time::Duration::from_secs(40), async {
-            Self::emit_update_event(uid, true);
-
             let is_current = Config::profiles().await.latest_arc().current.as_ref() == Some(uid);
             logging!(
                 debug,
@@ -430,8 +420,6 @@ impl Timer {
             Ok(Err(e)) => logging_error!(Type::Timer, "Failed to update profile uid {}: {}", uid, e),
             Err(_) => logging_error!(Type::Timer, "Timer task timed out for uid: {}", uid),
         }
-
-        Self::emit_update_event(uid, false);
     }
 
     async fn wait_until_resolve_done(max_wait: Duration) {

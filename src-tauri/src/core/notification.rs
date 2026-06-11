@@ -1,3 +1,4 @@
+use crate::subscription::events::SubscriptionEvent;
 use crate::utils::window_manager::WindowManager;
 use clash_verge_logging::{Type, logging};
 use serde_json::json;
@@ -10,10 +11,9 @@ pub enum FrontendEvent<'a> {
     RefreshClash,
     RefreshVerge,
     NoticeMessage { status: &'a str, message: String },
+    SubscriptionUpdate { event: SubscriptionEvent },
     ProfileChanged { current_profile_id: &'a String },
     TimerUpdated { profile_index: &'a String },
-    ProfileUpdateStarted { uid: &'a String },
-    ProfileUpdateCompleted { uid: &'a String },
 }
 
 #[derive(Debug)]
@@ -37,10 +37,11 @@ impl NotificationSystem {
             FrontendEvent::NoticeMessage { status, message } => {
                 ("verge://notice-message", serde_json::to_value((status, message)))
             }
+            FrontendEvent::SubscriptionUpdate { event } => {
+                ("verge://subscription-update", serde_json::to_value(event))
+            }
             FrontendEvent::ProfileChanged { current_profile_id } => ("profile-changed", Ok(json!(current_profile_id))),
             FrontendEvent::TimerUpdated { profile_index } => ("verge://timer-updated", Ok(json!(profile_index))),
-            FrontendEvent::ProfileUpdateStarted { uid } => ("profile-update-started", Ok(json!({ "uid": uid }))),
-            FrontendEvent::ProfileUpdateCompleted { uid } => ("profile-update-completed", Ok(json!({ "uid": uid }))),
         }
     }
 

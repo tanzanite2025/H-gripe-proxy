@@ -39,6 +39,8 @@ pub static CLASH_CONFIG: &str = "config.yaml";
 pub static VERGE_CONFIG: &str = "verge.yaml";
 pub static PROFILE_YAML: &str = "profiles.yaml";
 pub static CHINA_RULES_CONFIG: &str = "china-rules.yaml";
+pub static SUBSCRIPTIONS_DIR: &str = "subscriptions";
+pub static SUBSCRIPTION_STATE_FILE: &str = "state.yaml";
 
 fn migrate_dir_if_needed(from: &Path, to: &Path, label: &str) -> Result<()> {
     if to.exists() || !from.exists() {
@@ -201,6 +203,22 @@ pub fn profiles_path() -> Result<PathBuf> {
 
 pub fn china_rules_path() -> Result<PathBuf> {
     Ok(app_home_dir()?.join(CHINA_RULES_CONFIG))
+}
+
+pub fn subscriptions_dir() -> Result<PathBuf> {
+    Ok(app_home_dir()?.join(SUBSCRIPTIONS_DIR))
+}
+
+pub fn subscription_state_path() -> Result<PathBuf> {
+    Ok(subscriptions_dir()?.join(SUBSCRIPTION_STATE_FILE))
+}
+
+pub fn subscription_artifacts_dir(source_id: &str) -> Result<PathBuf> {
+    Ok(subscriptions_dir()?.join("artifacts").join(source_id))
+}
+
+pub fn subscription_artifact_version_dir(source_id: &str, version: &str) -> Result<PathBuf> {
+    Ok(subscription_artifacts_dir(source_id)?.join(version))
 }
 
 #[cfg(target_os = "macos")]

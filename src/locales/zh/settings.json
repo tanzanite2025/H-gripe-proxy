@@ -531,10 +531,6 @@
       "clashService": {
         "installSuccess": "已成功安装服务",
         "uninstallSuccess": "已成功卸载服务"
-      },
-      "updater": {
-        "withClashProxySuccess": "使用 Clash 代理更新成功",
-        "withClashProxyFailed": "使用 Clash 代理更新失败"
       }
     }
   },

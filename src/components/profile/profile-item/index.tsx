@@ -45,7 +45,6 @@ export const ProfileItem = ({
   const actions = useProfileItemActions({
     itemData,
     dialogs,
-    mutateProfiles,
     setProfileLoading: state.setProfileLoading,
     onEdit,
     onSelect,
