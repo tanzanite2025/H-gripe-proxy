@@ -151,6 +151,9 @@ pub struct PrfOption {
     pub proxies: Option<String>,
 
     pub groups: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rules: Option<String>,
 }
 
 impl PrfOption {
@@ -169,6 +172,7 @@ impl PrfOption {
                 result.script = b_ref.script.clone().or(result.script);
                 result.proxies = b_ref.proxies.clone().or(result.proxies);
                 result.groups = b_ref.groups.clone().or(result.groups);
+                result.rules = b_ref.rules.clone().or(result.rules);
                 result.timeout_seconds = b_ref.timeout_seconds.or(result.timeout_seconds);
                 Some(result)
             }
@@ -352,6 +356,7 @@ impl PrfItem {
         let mut script = option.and_then(|o| o.script.clone());
         let mut proxies = option.and_then(|o| o.proxies.clone());
         let mut groups = option.and_then(|o| o.groups.clone());
+        let rules = option.and_then(|o| o.rules.clone());
         let status_code = fetched.metadata.status_code;
 
         if !(200..300).contains(&status_code) {
@@ -499,12 +504,13 @@ impl PrfItem {
             extra,
             option: Some(PrfOption {
                 update_interval,
+                allow_auto_update,
                 merge,
                 script,
                 proxies,
                 groups,
-                allow_auto_update,
-                ..PrfOption::default()
+                rules,
+                ..option.cloned().unwrap_or_default()
             }),
             home,
             updated: Some(chrono::Local::now().timestamp() as usize),

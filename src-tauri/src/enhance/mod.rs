@@ -5,6 +5,7 @@ mod obfuscation;
 mod script;
 pub mod seq;
 mod sniffer;
+pub(crate) mod subscription_update;
 mod tls_fingerprint;
 mod traffic_obfuscation;
 mod tun;
@@ -28,6 +29,7 @@ use self::{
     script::use_script,
     seq::{SeqMap, use_seq},
     sniffer::apply_sniffer_config,
+    subscription_update::apply_subscription_update_control_plane,
     timezone_spoof::apply_timezone_spoof_config,
     tls_fingerprint::apply_tls_fingerprint_config,
     traffic_obfuscation::apply_traffic_obfuscation_config,
@@ -806,6 +808,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     config = apply_traffic_obfuscation_config(config);
     config = apply_blackhole_breaker_config(config).await;
     config = apply_timezone_spoof_config(config);
+    config = apply_subscription_update_control_plane(config);
     config = use_sort(config);
 
     // dns settings

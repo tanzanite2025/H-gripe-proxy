@@ -95,6 +95,23 @@ impl IProfiles {
             return false;
         };
 
+        let legacy_rule_uids = items
+            .iter()
+            .filter_map(|item| {
+                let is_legacy_rules_type = item.itype.as_deref() == Some("rules");
+                let has_legacy_rules_uid = item.uid.as_deref().is_some_and(|uid| uid.starts_with('r'));
+                let has_legacy_rules_file = item
+                    .file
+                    .as_deref()
+                    .is_some_and(|file| file.starts_with("china-rules-") && file.ends_with(".yaml"));
+
+                if is_legacy_rules_type || has_legacy_rules_uid || has_legacy_rules_file {
+                    item.uid.clone()
+                } else {
+                    None
+                }
+            })
+            .collect::<HashSet<_>>();
         let original_len = items.len();
         items.retain(|item| {
             let is_legacy_rules_type = item.itype.as_deref() == Some("rules");
@@ -107,7 +124,20 @@ impl IProfiles {
             !(is_legacy_rules_type || has_legacy_rules_uid || has_legacy_rules_file)
         });
 
-        items.len() != original_len
+        let mut cleared_legacy_rule_refs = false;
+        for item in items.iter_mut() {
+            if let Some(option) = item.option.as_mut()
+                && option
+                    .rules
+                    .as_ref()
+                    .is_some_and(|rule_uid| legacy_rule_uids.contains(rule_uid))
+            {
+                option.rules = None;
+                cleared_legacy_rule_refs = true;
+            }
+        }
+
+        items.len() != original_len || cleared_legacy_rule_refs
     }
 
     pub fn to_view(&self) -> ProfilesView {
@@ -374,6 +404,7 @@ impl IProfiles {
                     op.script.clone(),
                     op.proxies.clone(),
                     op.groups.clone(),
+                    op.rules.clone(),
                 ]
                 .into_iter()
                 .collect::<Vec<_>>()
@@ -699,5 +730,36 @@ mod tests {
         assert!(!IProfiles::is_profile_file("rAbC123.yaml"));
         assert!(IProfiles::is_profile_file("pAbC123.yaml"));
         assert!(IProfiles::is_profile_file("gAbC123.yaml"));
+    }
+
+    #[test]
+    fn prune_legacy_rules_items_also_clears_primary_rule_references() {
+        let mut profiles = IProfiles {
+            current: Some("Rprimary".into()),
+            items: Some(vec![
+                PrfItem {
+                    uid: Some("Rprimary".into()),
+                    itype: Some("remote".into()),
+                    option: Some(PrfOption {
+                        rules: Some("rLegacyRule".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                PrfItem {
+                    uid: Some("rLegacyRule".into()),
+                    itype: Some("rules".into()),
+                    ..Default::default()
+                },
+            ]),
+        };
+
+        let changed = profiles.prune_legacy_auxiliary_rules_items();
+        let items = profiles.items.as_ref().expect("items should exist");
+        let primary_option = items[0].option.as_ref().expect("primary option should exist");
+
+        assert!(changed);
+        assert_eq!(items.len(), 1);
+        assert_eq!(primary_option.rules, None);
     }
 }

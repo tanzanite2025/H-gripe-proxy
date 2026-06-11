@@ -2,10 +2,13 @@ use crate::{
     config::{Config, IProfiles, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
     core::{CoreManager, handle, tray, validate::ValidationOutcome},
     subscription::{
+        control_plane::{
+            fetch_subscription_update_via_control_plane, subscription_update_uses_dedicated_control_plane,
+        },
         fetch::fetch_remote_profile,
         model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
         persist::{build_artifact_record, build_finished_attempt_record, persist_artifact, persist_attempt_result},
-        transport::{TransportKind, TransportPlan, apply_transport_to_option},
+        transport::{TransportKind, TransportPlan, apply_transport_to_option, transport_kind_from_option},
     },
     utils::help::{mask_err, mask_url},
 };
@@ -48,6 +51,30 @@ fn log_profile_update_fetch_error(stage: &str, err: &anyhow::Error) {
         stage,
         mask_err(&format!("{err:#}"))
     );
+}
+
+fn format_subscription_update_error(err: &anyhow::Error) -> String {
+    mask_err(&format!("{err:#}"))
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(": ")
+        .into()
+}
+
+fn append_subscription_update_note(
+    message: impl Into<std::string::String>,
+    note: Option<&String>,
+) -> String {
+    let mut message = message.into();
+
+    if let Some(note) = note.map(|note| note.trim()).filter(|note| !note.is_empty()) {
+        message.push_str(" Note: ");
+        message.push_str(note);
+    }
+
+    message.into()
 }
 
 async fn persist_finished_subscription_attempt(
@@ -399,6 +426,7 @@ async fn perform_profile_update_v2(
 ) -> std::result::Result<ProfileUpdateExecution, ProfileUpdateFailure> {
     logging!(info, Type::Config, "[Subscription Update] start downloading remote subscription");
     let merged_opt = PrfOption::merge(opt, option);
+    let persisted_option = opt.cloned();
     let is_current = {
         let profiles = Config::profiles().await;
         profiles.latest_arc().is_current_profile_index(uid)
@@ -417,7 +445,12 @@ async fn perform_profile_update_v2(
     handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveSource, None);
     handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveTransportPlan, None);
 
-    let transport_plan = TransportPlan::for_subscription_update().await;
+    let transport_plan = TransportPlan::for_subscription_update(Some(transport_kind_from_option(merged_opt.as_ref()))).await;
+    if let Some(note) = transport_plan.note.as_ref() {
+        logging!(info, Type::Config, "[Subscription Update] transport plan note: {}", note);
+    }
+    let use_dedicated_control_plane = subscription_update_uses_dedicated_control_plane().await;
+    let transport_plan_note = transport_plan.note.clone();
     let mut last_err = None;
     let mut last_stage = UpdateStage::FetchPayload;
     let mut last_transport = None;
@@ -434,7 +467,7 @@ async fn perform_profile_update_v2(
                     Type::Config,
                     "Warning: [Subscription Update] {} skipped because Mihomo core is not ready: {}",
                     transport.label(),
-                    mask_err(&err.to_string())
+                    format_subscription_update_error(&err)
                 );
                 log_profile_update_fetch_error("ensure mihomo core ready", &err);
                 last_stage = UpdateStage::FetchPayload;
@@ -447,7 +480,11 @@ async fn perform_profile_update_v2(
 
         handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::FetchPayload, Some(transport));
 
-        let fetched = match fetch_remote_profile(url, Some(&attempt_option)).await {
+        let fetched = match if use_dedicated_control_plane && matches!(transport, TransportKind::LocalProxy) {
+            fetch_subscription_update_via_control_plane(url, &attempt_option).await
+        } else {
+            fetch_remote_profile(url, Some(&attempt_option)).await
+        } {
             Ok(fetched) => fetched,
             Err(err) => {
                 logging!(
@@ -455,7 +492,7 @@ async fn perform_profile_update_v2(
                     Type::Config,
                     "Warning: [Subscription Update] {} failed: {}",
                     transport.label(),
-                    mask_err(&err.to_string())
+                    format_subscription_update_error(&err)
                 );
                 log_profile_update_fetch_error(transport.label(), &err);
                 last_stage = UpdateStage::FetchPayload;
@@ -485,7 +522,7 @@ async fn perform_profile_update_v2(
             });
         }
 
-        let mut item = match PrfItem::from_fetched_payload(url, fetched, None, None, Some(&attempt_option)).await {
+        let mut item = match PrfItem::from_fetched_payload(url, fetched, None, None, persisted_option.as_ref()).await {
             Ok(item) => item,
             Err(err) => {
                 logging!(
@@ -493,7 +530,7 @@ async fn perform_profile_update_v2(
                     Type::Config,
                     "Warning: [Subscription Update] {} returned an invalid payload: {}",
                     transport.label(),
-                    mask_err(&err.to_string())
+                    format_subscription_update_error(&err)
                 );
                 log_profile_update_fetch_error("materialize artifact", &err);
                 last_stage = UpdateStage::MaterializeArtifact;
@@ -534,7 +571,13 @@ async fn perform_profile_update_v2(
         stage: last_stage,
         transport: last_transport,
         artifact: last_artifact,
-        error: format!("failed to update profile after all transport attempts: {last_err}").into(),
+        error: append_subscription_update_note(
+            format!(
+                "failed to update profile after all transport attempts: {}",
+                format_subscription_update_error(&last_err)
+            ),
+            transport_plan_note.as_ref(),
+        ),
     })
 }
 

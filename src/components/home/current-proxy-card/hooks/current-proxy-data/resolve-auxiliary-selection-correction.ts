@@ -9,7 +9,7 @@ import {
 } from './shared'
 
 interface ResolveAuxiliarySelectionCorrectionOptions {
-  proxies: CurrentProxySource
+  proxies?: CurrentProxySource
   state: ProxyState
 }
 
@@ -25,7 +25,7 @@ export function resolveAuxiliarySelectionCorrection({
 }: ResolveAuxiliarySelectionCorrectionOptions):
   | AuxiliarySelectionCorrection
   | null {
-  if (!proxies.records || !state.selection.group) {
+  if (!proxies?.records || !state.selection.group) {
     return null
   }
 

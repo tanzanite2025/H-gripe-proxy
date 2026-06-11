@@ -298,6 +298,7 @@ interface IProfileOption {
   script?: string
   proxies?: string
   groups?: string
+  rules?: string
 }
 
 interface IProfilesConfig {

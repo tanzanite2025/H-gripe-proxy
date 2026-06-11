@@ -33,16 +33,16 @@ function buildUpdateOption(
     }
   }
 
-  if (option?.self_proxy) {
+  if (option?.with_proxy) {
     return {
-      with_proxy: false,
-      self_proxy: true,
+      with_proxy: true,
+      self_proxy: false,
     }
   }
 
   return {
-    with_proxy: true,
-    self_proxy: false,
+    with_proxy: false,
+    self_proxy: true,
   }
 }
 

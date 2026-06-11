@@ -43,7 +43,7 @@ export type ProxyState = {
 }
 
 export interface UseCurrentProxyDataProps {
-  proxies: CurrentProxySource
+  proxies?: CurrentProxySource
   currentProfileId: string | null
   defaultLatencyTimeout: number
   refreshProxy: () => void
