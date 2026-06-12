@@ -1,22 +1,9 @@
 <h1 align="center">
   <img src="Meta.png" alt="Meta Kennel" width="200">
-  <br>Meta Kernel<br>
+  <br>Tanzanite Mihomo Optimized Kernel<br>
 </h1>
 
-<h3 align="center">Another Mihomo Kernel.</h3>
-
-<p align="center">
-  <a href="https://goreportcard.com/report/github.com/MetaCubeX/mihomo">
-    <img src="https://goreportcard.com/badge/github.com/MetaCubeX/mihomo?style=flat-square">
-  </a>
-  <img src="https://img.shields.io/github/go-mod/go-version/MetaCubeX/mihomo/Alpha?style=flat-square">
-  <a href="https://github.com/MetaCubeX/mihomo/releases">
-    <img src="https://img.shields.io/github/release/MetaCubeX/mihomo/all.svg?style=flat-square">
-  </a>
-  <a href="https://github.com/MetaCubeX/mihomo">
-    <img src="https://img.shields.io/badge/release-Meta-00b4f0?style=flat-square">
-  </a>
-</p>
+<h3 align="center">Casey's independently maintained MIHOMO kernel for Clash Verge Optimized.</h3>
 
 ## Features
 
@@ -36,7 +23,7 @@ A web dashboard with first-class support for this project has been created; it c
 
 ## Configration example
 
-Configuration example is located at [/docs/config.yaml](https://github.com/MetaCubeX/mihomo/blob/Alpha/docs/config.yaml).
+Configuration example is located at [/docs/config.yaml](docs/config.yaml).
 
 ## Docs
 
@@ -50,8 +37,8 @@ Requirements:
 Build mihomo:
 
 ```shell
-git clone https://github.com/MetaCubeX/mihomo.git
-cd mihomo && go mod download
+git clone https://github.com/tanzanite2025/clash-verge-optimized.git
+cd clash-verge-optimized/mihomo && go mod download
 go build
 ```
 
@@ -97,5 +84,3 @@ API.
 ## License
 
 This software is released under the GPL-3.0 license.
-
-**In addition, any downstream projects not affiliated with `MetaCubeX` shall not contain the word `mihomo` in their names.**

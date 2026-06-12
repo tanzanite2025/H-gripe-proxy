@@ -27,6 +27,7 @@ const FORCE = process.argv.includes('--force') || process.argv.includes('-f')
 const VERSION_CACHE_FILE = path.join(TEMP_DIR, '.version_cache.json')
 const HASH_CACHE_FILE = path.join(TEMP_DIR, '.hash_cache.json')
 const MIHOMO_SOURCE_DIR = path.join(cwd, 'mihomo')
+const SIDECAR_METADATA_SUFFIX = '.build.json'
 
 const PLATFORM_MAP = {
   'x86_64-pc-windows-msvc': 'win32',
@@ -167,11 +168,20 @@ async function updateHashCache(targetPath) {
   }
 }
 
-async function findLatestSourceMtime(dir, extensions) {
-  let latest = 0
+function shouldIncludeMihomoSourceFile(name) {
+  return (
+    name.endsWith('.go') ||
+    name === 'go.mod' ||
+    name === 'go.sum' ||
+    name === 'Makefile'
+  )
+}
+
+async function collectMihomoSourceFiles(dir) {
+  const files = []
 
   async function walk(currentDir) {
-    let entries = []
+    let entries
     try {
       entries = await fsp.readdir(currentDir, { withFileTypes: true })
     } catch {
@@ -179,40 +189,75 @@ async function findLatestSourceMtime(dir, extensions) {
     }
 
     for (const entry of entries) {
-      if (entry.name === '.git' || entry.name === 'bin') continue
+      if (['.git', 'bin', 'dist', 'vendor'].includes(entry.name)) continue
 
       const entryPath = path.join(currentDir, entry.name)
       if (entry.isDirectory()) {
         await walk(entryPath)
-      } else if (
-        extensions.has(path.extname(entry.name)) ||
-        entry.name === 'go.mod' ||
-        entry.name === 'go.sum' ||
-        entry.name === 'Makefile'
-      ) {
-        const stat = await fsp.stat(entryPath)
-        latest = Math.max(latest, stat.mtimeMs)
+      } else if (shouldIncludeMihomoSourceFile(entry.name)) {
+        files.push(entryPath)
       }
     }
   }
 
   await walk(dir)
-  return latest
+  return files.sort()
 }
 
-async function assertLocalSidecarFresh(sidecarPath) {
-  if (!fs.existsSync(MIHOMO_SOURCE_DIR)) return
+async function calculateMihomoSourceTreeHash() {
+  const hash = createHash('sha256')
+  for (const file of await collectMihomoSourceFiles(MIHOMO_SOURCE_DIR)) {
+    const relative = path.relative(MIHOMO_SOURCE_DIR, file).replace(/\\/g, '/')
+    hash.update(relative)
+    hash.update('\0')
+    hash.update(await fsp.readFile(file))
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
 
-  const [sidecarStat, sourceMtime] = await Promise.all([
-    fsp.stat(sidecarPath),
-    findLatestSourceMtime(MIHOMO_SOURCE_DIR, new Set(['.go'])),
-  ])
-
-  if (sourceMtime > sidecarStat.mtimeMs + 1000) {
+async function readSidecarMetadata(sidecarPath) {
+  const metadataPath = `${sidecarPath}${SIDECAR_METADATA_SUFFIX}`
+  try {
+    return JSON.parse(await fsp.readFile(metadataPath, 'utf-8'))
+  } catch (err) {
     throw new Error(
       [
-        `Local sidecar is older than mihomo source: "${sidecarPath}".`,
-        'Rebuild mihomo and replace the sidecar before packaging, otherwise the installer will contain an old core.',
+        `Missing or invalid sidecar metadata "${metadataPath}".`,
+        'Run `pnpm mihomo:sidecar -- --target <rust-target>` to rebuild the local core sidecar before packaging.',
+        err.message,
+      ].join(' '),
+      { cause: err },
+    )
+  }
+}
+
+async function assertLocalSidecarMatchesSource(sidecarPath) {
+  if (!fs.existsSync(MIHOMO_SOURCE_DIR)) return
+
+  const metadata = await readSidecarMetadata(sidecarPath)
+  const [sourceTreeHash, binarySha256] = await Promise.all([
+    calculateMihomoSourceTreeHash(),
+    calculateFileHash(sidecarPath),
+  ])
+
+  if (metadata.sourceTreeHash !== sourceTreeHash) {
+    throw new Error(
+      [
+        `Local sidecar source hash mismatch: "${sidecarPath}".`,
+        `metadata=${metadata.sourceTreeHash ?? '<missing>'}`,
+        `current=${sourceTreeHash}`,
+        'Rebuild mihomo with `pnpm mihomo:sidecar -- --target <rust-target>` before packaging.',
+      ].join(' '),
+    )
+  }
+
+  if (metadata.binarySha256 !== binarySha256) {
+    throw new Error(
+      [
+        `Local sidecar binary hash mismatch: "${sidecarPath}".`,
+        `metadata=${metadata.binarySha256 ?? '<missing>'}`,
+        `current=${binarySha256}`,
       ].join(' '),
     )
   }
@@ -269,7 +314,7 @@ async function resolveLocalSidecar(binInfo) {
     await fsp.chmod(sidecarPath, 0o755)
   }
 
-  await assertLocalSidecarFresh(sidecarPath)
+  await assertLocalSidecarMatchesSource(sidecarPath)
   log_success(`Using local sidecar: "${sidecarPath}"`)
 }
 

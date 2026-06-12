@@ -12,8 +12,9 @@ on:
       - "v*"
       
 jobs:
-  # Send "core-updated" to MetaCubeX/ClashMetaForAndroid to trigger update-dependencies
+  # Optional: send "core-updated" to a downstream app repository.
   trigger-CMFA-update:
+    if: ${{ vars.CMFA_UPDATE_REPOSITORY != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v3
@@ -25,7 +26,7 @@ jobs:
       
       - name: Trigger update-dependencies
         run: |
-          curl -X POST https://api.github.com/repos/MetaCubeX/ClashMetaForAndroid/dispatches \
+          curl -X POST "https://api.github.com/repos/${{ vars.CMFA_UPDATE_REPOSITORY }}/dispatches" \
             -H "Accept: application/vnd.github.everest-preview+json" \
             -H "Authorization: token ${{ steps.generate-token.outputs.token }}" \
             -d '{"event_type": "core-updated"}'
