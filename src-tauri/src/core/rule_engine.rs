@@ -188,6 +188,17 @@ pub fn validate_rule(raw: &str) -> RuleValidation {
     }
 }
 
+/// Validate a rule spec (TYPE, PAYLOAD, TARGET) before sending to the runtime.
+/// This is the Rust gatekeeper for any rule that will be created via the
+/// mihomo runtime API — ensures the Rust rule engine accepts the format
+/// before delegating to Go.
+pub fn validate_rule_spec(rule_type: &str, payload: &str, target: &str) -> RuleValidation {
+    if rule_type.eq_ignore_ascii_case("MATCH") {
+        return validate_rule(&format!("MATCH,{target}"));
+    }
+    validate_rule(&format!("{rule_type},{payload},{target}"))
+}
+
 // ---------------------------------------------------------------------------
 // Parsing
 // ---------------------------------------------------------------------------

@@ -20,13 +20,21 @@ pub async fn apply_blackhole_breaker_config(mut config: Mapping) -> Mapping {
 
     if let serde_yaml_ng::Value::Sequence(seq) = rules {
         for (pattern, policy) in reject_rules.iter().rev() {
-            // DOMAIN-SUFFIX 匹配 *.xxx.com → xxx.com
             let suffix = if pattern.starts_with("*.") {
                 &pattern[2..]
             } else {
                 pattern
             };
             let rule_str = format!("DOMAIN-SUFFIX,{suffix},{policy}");
+            let v = crate::core::rule_engine::validate_rule(&rule_str);
+            if !v.valid {
+                log::warn!(
+                    "[BlackholeBreaker] skipping invalid rule "{}": {}",
+                    rule_str,
+                    v.error.as_deref().unwrap_or("unknown error")
+                );
+                continue;
+            }
             seq.insert(0, serde_yaml_ng::Value::String(rule_str));
         }
 

@@ -6,9 +6,7 @@ use tauri_plugin_mihomo::MihomoExt as _;
 
 use crate::config::{ResidentialProxy, ResidentialProxyType};
 use crate::core::ip_reputation::{IpReputation, ResidentialVerificationState};
-use crate::core::runtime_diagnostics::geoip::{
-    GeoIpInfo, PUBLIC_IP_PROBE_HOSTS, fetch_public_ip_observation,
-};
+use crate::core::runtime_diagnostics::geoip::{GeoIpInfo, PUBLIC_IP_PROBE_HOSTS, fetch_public_ip_observation};
 
 const RESIDENTIAL_VERIFY_GROUP: &str = "VERGE-RES-VERIFY";
 const RESIDENTIAL_VERIFY_RULE_SOURCE: &str = "residential-verification";
@@ -119,6 +117,19 @@ struct MihomoProbeRuleGuard<'a> {
 
 impl<'a> MihomoProbeRuleGuard<'a> {
     async fn create(app_handle: &'a tauri::AppHandle) -> Result<Self> {
+        // Validate probe rules through the Rust rule engine before sending to Go
+        for host in PUBLIC_IP_PROBE_HOSTS {
+            let v = super::rule_engine::validate_rule_spec("DOMAIN", host, RESIDENTIAL_VERIFY_GROUP);
+            if !v.valid {
+                return Err(anyhow::anyhow!(
+                    "residential probe rule DOMAIN,{},{}: {}",
+                    host,
+                    RESIDENTIAL_VERIFY_GROUP,
+                    v.error.unwrap_or_else(|| "invalid rule".into())
+                ));
+            }
+        }
+
         let mihomo = app_handle.mihomo().read().await;
         let mut rule_indexes = Vec::new();
 

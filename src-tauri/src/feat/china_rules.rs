@@ -42,10 +42,24 @@ fn parse_china_rules_text(file_data: &str) -> Result<Mapping> {
         }
     }
 
-    if let Some(rules) = mapping.get("rules")
-        && !rules.is_sequence()
-    {
-        bail!("`rules` in china-rules.yaml must be a sequence");
+    if let Some(rules) = mapping.get("rules") {
+        if !rules.is_sequence() {
+            bail!("`rules` in china-rules.yaml must be a sequence");
+        }
+        // Validate each rule through the Rust rule engine — single source of truth
+        if let Some(seq) = rules.as_sequence() {
+            for (i, item) in seq.iter().enumerate() {
+                if let Some(rule_str) = item.as_str() {
+                    let v = crate::core::rule_engine::validate_rule(rule_str);
+                    if !v.valid {
+                        bail!(
+                            "china-rules.yaml rules[{i}]: {}",
+                            v.error.unwrap_or_else(|| "invalid rule".into())
+                        );
+                    }
+                }
+            }
+        }
     }
 
     Ok(mapping)

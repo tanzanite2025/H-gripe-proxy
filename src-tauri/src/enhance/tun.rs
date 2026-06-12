@@ -189,9 +189,9 @@ fn default_domestic_nameservers() -> Vec<Value> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::use_tun;
-    use serde_yaml_ng::{Mapping, Value};
     #[cfg(target_os = "windows")]
     use crate::config::DOMESTIC_DOH_NAMESERVERS;
+    use serde_yaml_ng::{Mapping, Value};
 
     fn parse_yaml(yaml: &str) -> Mapping {
         serde_yaml_ng::from_str(yaml).expect("test yaml should parse")
@@ -228,6 +228,14 @@ rules:
                 .position(|rule| *rule == expected_rule)
                 .unwrap_or_else(|| panic!("{expected_rule} should be injected"));
             assert!(index < match_index, "{expected_rule} should be inserted before MATCH");
+        }
+    }
+
+    #[test]
+    fn lan_direct_rules_are_valid_per_rust_rule_engine() {
+        for rule in super::LAN_DIRECT_RULES {
+            let v = crate::core::rule_engine::validate_rule(rule);
+            assert!(v.valid, "LAN rule "{}" must pass Rust rule engine: {:?}", rule, v.error);
         }
     }
 

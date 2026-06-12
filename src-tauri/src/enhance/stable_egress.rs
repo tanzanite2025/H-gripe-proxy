@@ -131,6 +131,15 @@ pub(crate) fn apply_stable_egress_policy_with_advanced(
             );
         }
 
+        let v = crate::core::rule_engine::validate_rule(&rule_line);
+        if !v.valid {
+            log::warn!(
+                "[StableEgress] skipping invalid rule \"{}\": {}",
+                rule_line,
+                v.error.as_deref().unwrap_or("unknown error")
+            );
+            continue;
+        }
         generated_rules.push(Value::from(rule_line.as_str()));
     }
 
