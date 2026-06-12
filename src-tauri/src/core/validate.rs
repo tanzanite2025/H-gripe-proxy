@@ -6,7 +6,6 @@ use std::{
     fmt,
     sync::atomic::{AtomicBool, Ordering},
 };
-use tauri_plugin_shell::ShellExt as _;
 use tokio::fs;
 
 use crate::config::{Config, ConfigType};
@@ -367,7 +366,7 @@ impl CoreConfigValidator {
         Self::validate_config_internal_outcome(config_path).await
     }
 
-    /// 内部验证配置文件的实现
+    /// 内部验证配置文件的实现（纯 Rust，不再依赖 Go sidecar）
     async fn validate_config_internal_outcome(config_path: &str) -> Result<ValidationOutcome> {
         if handle::Handle::global().is_exiting() {
             logging!(info, Type::Validate, "应用正在退出，跳过验证");
@@ -378,114 +377,28 @@ impl CoreConfigValidator {
 
         logging!(info, Type::Validate, "开始验证配置文件: {}", config_path);
 
-        // Phase 1: Rust native schema validation (no Go sidecar needed)
         match super::native_config_validator::validate_native(config_path).await {
             Ok(report) if !report.is_valid() => {
                 let error_msg = report.error_summary();
                 logging!(warn, Type::Validate, "Rust native validation failed: {}", error_msg);
-                return Ok(ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, error_msg));
+                Ok(ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, error_msg))
             }
             Ok(report) => {
                 for w in &report.warnings {
                     logging!(warn, Type::Validate, "Native validation warning: {}", w);
                 }
-                logging!(info, Type::Validate, "Rust native validation passed");
+                logging!(info, Type::Validate, "验证成功");
+                Ok(ValidationOutcome::Valid)
             }
             Err(err) => {
                 let error_msg: String = err.to_string().into();
                 if error_msg.contains("YAML syntax error") {
-                    logging!(
-                        warn,
-                        Type::Validate,
-                        "YAML syntax error caught by native validator: {}",
-                        error_msg
-                    );
+                    logging!(warn, Type::Validate, "YAML syntax error: {}", error_msg);
                     return Ok(ValidationOutcome::invalid(ValidationErrorKind::YamlSyntax, error_msg));
                 }
-                logging!(
-                    warn,
-                    Type::Validate,
-                    "Native validation error (falling through to core): {}",
-                    error_msg
-                );
+                logging!(warn, Type::Validate, "Native validation error: {}", error_msg);
+                Err(err)
             }
-        }
-
-        // Phase 2: Go sidecar deep validation (runtime semantics)
-        Self::validate_config_via_sidecar(config_path).await
-    }
-
-    async fn validate_config_via_sidecar(config_path: &str) -> Result<ValidationOutcome> {
-        let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
-        logging!(info, Type::Validate, "使用内核: {}", clash_core);
-
-        let app_handle = handle::Handle::app_handle();
-        let app_dir = dirs::app_home_dir()?;
-        let app_dir_str = dirs::path_to_str(&app_dir)?;
-        logging!(info, Type::Validate, "验证目录: {}", app_dir_str);
-
-        let command = match app_handle.shell().sidecar(clash_core.as_str()) {
-            Ok(cmd) => cmd.args(["-t", "-d", app_dir_str, "-f", config_path]),
-            Err(err) => {
-                logging!(
-                    warn,
-                    Type::Validate,
-                    "Sidecar binary unavailable, accepting native-only result: {}",
-                    err
-                );
-                return Ok(ValidationOutcome::Valid);
-            }
-        };
-
-        let output = match command.output().await {
-            Ok(out) => out,
-            Err(err) => {
-                logging!(
-                    warn,
-                    Type::Validate,
-                    "Sidecar process failed to execute, accepting native-only result: {}",
-                    err
-                );
-                return Ok(ValidationOutcome::Valid);
-            }
-        };
-
-        let status = &output.status;
-        let stderr = &output.stderr;
-        let stdout = &output.stdout;
-
-        let error_keywords = ["FATA", "fatal", "Parse config error", "level=fatal"];
-        let has_error = !status.success() || contains_any_keyword(stderr, &error_keywords);
-
-        logging!(info, Type::Validate, "-------- 验证结果 --------");
-
-        if !stderr.is_empty() {
-            logging!(info, Type::Validate, "stderr输出:\n{:?}", stderr);
-        }
-
-        if has_error {
-            logging!(info, Type::Validate, "发现错误，开始处理错误信息");
-            let error_msg: String = if !stdout.is_empty() {
-                str::from_utf8(stdout).unwrap_or_default().into()
-            } else if !stderr.is_empty() {
-                str::from_utf8(stderr).unwrap_or_default().into()
-            } else if let Some(code) = status.code() {
-                format!("验证进程异常退出，退出码: {code}").into()
-            } else {
-                "验证进程被终止".into()
-            };
-
-            logging!(info, Type::Validate, "-------- 验证结束 --------");
-            let outcome = if status.code().is_none() {
-                ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, error_msg)
-            } else {
-                ValidationOutcome::invalid_from_message(error_msg)
-            };
-            Ok(outcome)
-        } else {
-            logging!(info, Type::Validate, "验证成功");
-            logging!(info, Type::Validate, "-------- 验证结束 --------");
-            Ok(ValidationOutcome::Valid)
         }
     }
 
@@ -512,23 +425,6 @@ fn has_ext<P: AsRef<std::path::Path>>(path: P, ext: &str) -> bool {
         .and_then(|s| s.to_str())
         .map(|s| s.eq_ignore_ascii_case(ext))
         .unwrap_or(false)
-}
-
-fn contains_any_keyword<'a>(buf: &'a [u8], keywords: &'a [&str]) -> bool {
-    for &kw in keywords {
-        let needle = kw.as_bytes();
-        if needle.is_empty() {
-            continue;
-        }
-        let mut i = 0;
-        while i + needle.len() <= buf.len() {
-            if &buf[i..i + needle.len()] == needle {
-                return true;
-            }
-            i += 1;
-        }
-    }
-    false
 }
 
 singleton!(CoreConfigValidator, CORECONFIGVALIDATOR);
