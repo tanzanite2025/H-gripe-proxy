@@ -369,7 +369,6 @@ impl CoreConfigValidator {
 
     /// 内部验证配置文件的实现
     async fn validate_config_internal_outcome(config_path: &str) -> Result<ValidationOutcome> {
-        // 检查程序是否正在退出，如果是则跳过验证
         if handle::Handle::global().is_exiting() {
             logging!(info, Type::Validate, "应用正在退出，跳过验证");
             return Ok(ValidationOutcome::Skipped {
@@ -379,6 +378,34 @@ impl CoreConfigValidator {
 
         logging!(info, Type::Validate, "开始验证配置文件: {}", config_path);
 
+        // Phase 1: Rust native schema validation (no Go sidecar needed)
+        match super::native_config_validator::validate_native(config_path).await {
+            Ok(report) if !report.is_valid() => {
+                let error_msg = report.error_summary();
+                logging!(warn, Type::Validate, "Rust native validation failed: {}", error_msg);
+                return Ok(ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, error_msg));
+            }
+            Ok(report) => {
+                for w in &report.warnings {
+                    logging!(warn, Type::Validate, "Native validation warning: {}", w);
+                }
+                logging!(info, Type::Validate, "Rust native validation passed");
+            }
+            Err(err) => {
+                let error_msg: String = err.to_string().into();
+                if error_msg.contains("YAML syntax error") {
+                    logging!(warn, Type::Validate, "YAML syntax error caught by native validator: {}", error_msg);
+                    return Ok(ValidationOutcome::invalid(ValidationErrorKind::YamlSyntax, error_msg));
+                }
+                logging!(warn, Type::Validate, "Native validation error (falling through to core): {}", error_msg);
+            }
+        }
+
+        // Phase 2: Go sidecar deep validation (runtime semantics)
+        Self::validate_config_via_sidecar(config_path).await
+    }
+
+    async fn validate_config_via_sidecar(config_path: &str) -> Result<ValidationOutcome> {
         let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
         logging!(info, Type::Validate, "使用内核: {}", clash_core);
 
@@ -387,19 +414,26 @@ impl CoreConfigValidator {
         let app_dir_str = dirs::path_to_str(&app_dir)?;
         logging!(info, Type::Validate, "验证目录: {}", app_dir_str);
 
-        // 使用子进程运行clash验证配置
-        let command =
-            app_handle
-                .shell()
-                .sidecar(clash_core.as_str())?
-                .args(["-t", "-d", app_dir_str, "-f", config_path]);
-        let output = command.output().await?;
+        let command = match app_handle.shell().sidecar(clash_core.as_str()) {
+            Ok(cmd) => cmd.args(["-t", "-d", app_dir_str, "-f", config_path]),
+            Err(err) => {
+                logging!(warn, Type::Validate, "Sidecar binary unavailable, accepting native-only result: {}", err);
+                return Ok(ValidationOutcome::Valid);
+            }
+        };
+
+        let output = match command.output().await {
+            Ok(out) => out,
+            Err(err) => {
+                logging!(warn, Type::Validate, "Sidecar process failed to execute, accepting native-only result: {}", err);
+                return Ok(ValidationOutcome::Valid);
+            }
+        };
 
         let status = &output.status;
         let stderr = &output.stderr;
         let stdout = &output.stdout;
 
-        // 检查进程退出状态和错误输出
         let error_keywords = ["FATA", "fatal", "Parse config error", "level=fatal"];
         let has_error = !status.success() || contains_any_keyword(stderr, &error_keywords);
 

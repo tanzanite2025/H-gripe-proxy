@@ -18,6 +18,7 @@ pub mod ip_reputation;
 pub mod logger;
 pub mod manager;
 pub mod mihomo_runtime_guard;
+pub mod native_config_validator;
 mod notification;
 pub mod residential_verification;
 pub mod runtime_diagnostics;
