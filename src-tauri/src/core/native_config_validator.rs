@@ -46,39 +46,6 @@ const VALID_PROXY_TYPES: &[&str] = &[
     "pass",
 ];
 const VALID_GROUP_TYPES: &[&str] = &["select", "url-test", "fallback", "load-balance", "relay"];
-const VALID_RULE_TYPES: &[&str] = &[
-    "DOMAIN",
-    "DOMAIN-SUFFIX",
-    "DOMAIN-KEYWORD",
-    "DOMAIN-REGEX",
-    "GEOSITE",
-    "GEOIP",
-    "IP-CIDR",
-    "IP-CIDR6",
-    "IP-ASN",
-    "SRC-GEOIP",
-    "SRC-IP-ASN",
-    "SRC-IP-CIDR",
-    "SRC-PORT",
-    "DST-PORT",
-    "IN-PORT",
-    "IN-TYPE",
-    "IN-USER",
-    "IN-NAME",
-    "PROCESS-NAME",
-    "PROCESS-PATH",
-    "PROCESS-NAME-REGEX",
-    "PROCESS-PATH-REGEX",
-    "UID",
-    "NETWORK",
-    "DSCP",
-    "RULE-SET",
-    "SUB-RULE",
-    "AND",
-    "OR",
-    "NOT",
-    "MATCH",
-];
 const VALID_CACHE_ALGORITHMS: &[&str] = &["lru", "arc"];
 
 pub async fn validate_native(config_path: &str) -> Result<NativeValidationReport> {
@@ -322,33 +289,11 @@ fn validate_rules(map: &Mapping, report: &mut NativeValidationReport) {
             continue;
         };
 
-        let parts: Vec<&str> = rule_str.splitn(4, ',').collect();
-        if parts.is_empty() {
-            report.errors.push(format!("rules[{i}]: empty rule").into());
-            continue;
-        }
-
-        let rule_type = parts[0].trim();
-
-        if rule_type.eq_ignore_ascii_case("MATCH") {
-            if parts.len() < 2 {
-                report
-                    .errors
-                    .push(format!("rules[{i}]: MATCH rule requires a target policy").into());
+        let validation = super::rule_engine::validate_rule(rule_str);
+        if !validation.valid {
+            if let Some(err) = validation.error {
+                report.errors.push(format!("rules[{i}]: {err}").into());
             }
-            continue;
-        }
-
-        if !VALID_RULE_TYPES.iter().any(|&vt| vt.eq_ignore_ascii_case(rule_type)) {
-            report
-                .warnings
-                .push(format!("rules[{i}]: unknown rule type \"{rule_type}\"").into());
-        }
-
-        if parts.len() < 3 && !rule_type.eq_ignore_ascii_case("MATCH") {
-            report
-                .errors
-                .push(format!("rules[{i}]: rule \"{rule_str}\" must have at least TYPE,MATCHER,TARGET").into());
         }
     }
 }

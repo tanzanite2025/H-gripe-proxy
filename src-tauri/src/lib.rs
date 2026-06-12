@@ -214,6 +214,7 @@ mod app_init {
             cmd::patch_profiles_config_by_profile_index,
             cmd::view_profile,
             cmd::read_china_rules_file,
+            cmd::test_rule_match,
             cmd::patch_profile,
             cmd::create_profile,
             cmd::create_profile_from_local_path,
