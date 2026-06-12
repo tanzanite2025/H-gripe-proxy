@@ -3,6 +3,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
+use super::rule_geodata::RuleGeoData;
+
 // ---------------------------------------------------------------------------
 // Connection metadata — the "packet header" we match rules against
 // ---------------------------------------------------------------------------
@@ -107,6 +109,15 @@ enum ParsedRule {
     Match {
         target: String,
     },
+    GeoIp {
+        code: String,
+        is_src: bool,
+        target: String,
+    },
+    GeoSite {
+        code: String,
+        target: String,
+    },
     // Rule types that require external data — we can parse but not match locally.
     ExternalData {
         rule_type: String,
@@ -128,22 +139,31 @@ enum PortKind {
 
 pub struct RuleEngine {
     rules: Vec<(ParsedRule, String)>, // (parsed, raw_string)
+    geo_data: RuleGeoData,
 }
 
 impl RuleEngine {
     pub fn from_rules(raw_rules: &[&str]) -> Result<Self> {
+        Self::from_rules_with_geo_data(raw_rules, RuleGeoData::empty())
+    }
+
+    pub fn from_rules_with_default_geo_data(raw_rules: &[&str]) -> Result<Self> {
+        Self::from_rules_with_geo_data(raw_rules, RuleGeoData::load_default())
+    }
+
+    pub fn from_rules_with_geo_data(raw_rules: &[&str], geo_data: RuleGeoData) -> Result<Self> {
         let mut rules = Vec::with_capacity(raw_rules.len());
         for &raw in raw_rules {
             let parsed = parse_rule(raw)?;
             rules.push((parsed, raw.to_owned()));
         }
-        Ok(Self { rules })
+        Ok(Self { rules, geo_data })
     }
 
     pub fn match_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
         let host = meta.host.to_ascii_lowercase();
         for (i, (rule, raw)) in self.rules.iter().enumerate() {
-            if let Some(target) = rule_matches(rule, meta, &host) {
+            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data) {
                 return RuleMatchResult {
                     matched: true,
                     rule_index: Some(i),
@@ -312,11 +332,22 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             };
             Ok(ParsedRule::Network { network, target })
         }
+        "GEOIP" => Ok(ParsedRule::GeoIp {
+            code: payload.to_ascii_lowercase(),
+            is_src,
+            target,
+        }),
+        "SRC-GEOIP" => Ok(ParsedRule::GeoIp {
+            code: payload.to_ascii_lowercase(),
+            is_src: true,
+            target,
+        }),
+        "GEOSITE" => Ok(ParsedRule::GeoSite {
+            code: payload.to_ascii_lowercase(),
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
-        "GEOIP"
-        | "SRC-GEOIP"
-        | "GEOSITE"
-        | "IP-ASN"
+        "IP-ASN"
         | "SRC-IP-ASN"
         | "RULE-SET"
         | "IN-TYPE"
@@ -458,7 +489,12 @@ fn parse_port_ranges(s: &str) -> Result<Vec<(u16, u16)>> {
 // Matching
 // ---------------------------------------------------------------------------
 
-fn rule_matches<'a>(rule: &'a ParsedRule, meta: &ConnectionMeta, host_lower: &str) -> Option<&'a str> {
+fn rule_matches<'a>(
+    rule: &'a ParsedRule,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    geo_data: &RuleGeoData,
+) -> Option<&'a str> {
     match rule {
         ParsedRule::Domain { domain, target } => {
             if host_lower == domain {
@@ -549,6 +585,23 @@ fn rule_matches<'a>(rule: &'a ParsedRule, meta: &ConnectionMeta, host_lower: &st
             }
         }
         ParsedRule::Match { target } => Some(target),
+        ParsedRule::GeoIp { code, is_src, target } => {
+            let ip = if *is_src { meta.src_ip } else { meta.dst_ip };
+            ip.and_then(|ip| {
+                if (code == "lan" && is_lan_ip(ip)) || geo_data.geoip_matches(code, ip) {
+                    Some(target.as_str())
+                } else {
+                    None
+                }
+            })
+        }
+        ParsedRule::GeoSite { code, target } => {
+            if geo_data.geosite_matches(code, host_lower) {
+                Some(target)
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -579,6 +632,9 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         } => "IN-PORT",
         ParsedRule::Network { .. } => "NETWORK",
         ParsedRule::Match { .. } => "MATCH",
+        ParsedRule::GeoIp { is_src: true, .. } => "SRC-GEOIP",
+        ParsedRule::GeoIp { .. } => "GEOIP",
+        ParsedRule::GeoSite { .. } => "GEOSITE",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -586,6 +642,26 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
 // ---------------------------------------------------------------------------
 // IP helpers
 // ---------------------------------------------------------------------------
+
+fn is_lan_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            ip.is_private()
+                || ip.is_unspecified()
+                || ip.is_loopback()
+                || ip.is_multicast()
+                || ip.is_link_local()
+                || ip.is_broadcast()
+        }
+        IpAddr::V6(ip) => {
+            ip.is_unspecified()
+                || ip.is_loopback()
+                || ip.is_multicast()
+                || ip.is_unicast_link_local()
+                || ip.is_unique_local()
+        }
+    }
+}
 
 fn cidr_contains(network: IpAddr, prefix_len: u8, candidate: IpAddr) -> bool {
     match (network, candidate) {
@@ -688,6 +764,8 @@ fn wildcard_match(pattern: &str, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::rule_geodata::{GeoIpData, GeoSiteData, GeoSiteDomainType, RuleGeoData};
+    use std::collections::HashMap;
 
     fn meta_domain(host: &str) -> ConnectionMeta {
         ConnectionMeta {
@@ -797,14 +875,67 @@ mod tests {
     }
 
     #[test]
-    fn geoip_parses_as_external_data() {
+    fn geoip_falls_through_without_geodata() {
         let v = validate_rule("GEOIP,CN,DIRECT,no-resolve");
         assert!(v.valid);
-        // external data rules parse but don't match
         let engine = RuleEngine::from_rules(&["GEOIP,CN,DIRECT,no-resolve", "MATCH,Proxy"]).unwrap();
         let r = engine.match_connection(&meta_ip("1.2.3.4", 80));
-        // GEOIP can't match locally → falls through to MATCH
         assert_eq!(r.target.as_deref(), Some("Proxy"));
+    }
+
+    #[test]
+    fn geoip_matches_with_geodata() {
+        let geoip = GeoIpData::from_cidr_map(HashMap::from([(
+            "cn".to_string(),
+            vec![("203.0.113.0".parse().unwrap(), 24)],
+        )]));
+        let geo_data = RuleGeoData::from_parts(Some(geoip), None);
+        let engine =
+            RuleEngine::from_rules_with_geo_data(&["GEOIP,CN,DIRECT,no-resolve", "MATCH,Proxy"], geo_data).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_ip("203.0.113.10", 80)).target.as_deref(),
+            Some("DIRECT")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_ip("198.51.100.10", 80)).target.as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn geosite_matches_with_geodata() {
+        let geosite = GeoSiteData::from_site_map(HashMap::from([(
+            "cn".to_string(),
+            vec![(GeoSiteDomainType::Domain, "example.cn".to_string())],
+        )]))
+        .unwrap();
+        let geo_data = RuleGeoData::from_parts(None, Some(geosite));
+        let engine = RuleEngine::from_rules_with_geo_data(&["GEOSITE,CN,DIRECT", "MATCH,Proxy"], geo_data).unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("www.example.cn"))
+                .target
+                .as_deref(),
+            Some("DIRECT")
+        );
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("www.example.com"))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn geoip_lan_matches_without_external_data() {
+        let engine = RuleEngine::from_rules(&["GEOIP,LAN,DIRECT", "MATCH,Proxy"]).unwrap();
+        assert_eq!(
+            engine.match_connection(&meta_ip("192.168.1.1", 80)).target.as_deref(),
+            Some("DIRECT")
+        );
     }
 
     #[test]

@@ -20,6 +20,7 @@ pub mod manager;
 pub mod mihomo_runtime_guard;
 pub mod native_config_validator;
 pub mod rule_engine;
+pub mod rule_geodata;
 mod notification;
 pub mod residential_verification;
 pub mod runtime_diagnostics;

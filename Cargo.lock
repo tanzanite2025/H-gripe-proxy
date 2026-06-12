@@ -1157,6 +1157,7 @@ dependencies = [
  "open",
  "parking_lot",
  "percent-encoding",
+ "prost 0.14.3",
  "rand 0.8.6",
  "regex",
  "reqwest 0.13.3",
