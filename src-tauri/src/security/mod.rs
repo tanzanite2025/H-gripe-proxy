@@ -10,6 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 
+use crate::singleton;
+
 pub mod anti_debug;
 pub mod firewall;
 pub mod honeypot;
@@ -46,6 +48,8 @@ impl SecurityMonitor {
         self.running.load(Ordering::Relaxed)
     }
 }
+
+singleton!(SecurityMonitor, SECURITY_MONITOR_INSTANCE);
 
 pub fn mark_security_compromised() {
     SECURITY_COMPROMISED.store(true, Ordering::SeqCst);

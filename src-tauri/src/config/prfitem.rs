@@ -334,7 +334,7 @@ impl PrfItem {
         option: Option<&PrfOption>,
     ) -> Result<Self> {
         if option.is_some_and(|current| current.self_proxy.unwrap_or(false)) {
-            crate::feat::ensure_mihomo_core_ready().await?;
+            crate::core::mihomo_runtime_guard::ensure_mihomo_core_ready().await?;
         }
 
         let url = fix_dirty_url(url)?;

@@ -1,7 +1,10 @@
 use super::CmdResult;
 use super::StringifyErr as _;
-use crate::config::{ClashInfo, Config};
-use crate::feat;
+use crate::{
+    app::{config as app_config, runtime},
+    config::{ClashInfo, Config},
+};
+use crate::core::mihomo_runtime_guard;
 use crate::utils::dirs;
 use compact_str::CompactString;
 use serde::Serialize;
@@ -12,7 +15,7 @@ use std::time::UNIX_EPOCH;
 /// 复制Clash环境变量
 #[tauri::command]
 pub async fn copy_clash_env() -> CmdResult {
-    feat::copy_clash_env().await;
+    runtime::copy_clash_env().await;
     Ok(())
 }
 
@@ -25,44 +28,46 @@ pub async fn get_clash_info() -> CmdResult<ClashInfo> {
 /// 修改Clash配置
 #[tauri::command]
 pub async fn patch_clash_config(payload: Mapping) -> CmdResult {
-    feat::patch_clash(&payload).await.stringify_err()
+    app_config::patch_clash(&payload).await.stringify_err()
 }
 
 /// 修改Clash模式
 #[tauri::command]
 pub async fn patch_clash_mode(payload: String) -> CmdResult {
     let mode = payload.parse().stringify_err()?;
-    feat::change_clash_mode(mode).await.stringify_err()
+    runtime::change_clash_mode(mode).await.stringify_err()
 }
 
 /// 启动核心
 #[tauri::command]
 pub async fn start_core() -> CmdResult {
-    feat::start_core().await.stringify_err()
+    runtime::start_core().await.stringify_err()
 }
 
 /// 关闭核心
 #[tauri::command]
 pub async fn stop_core() -> CmdResult {
-    feat::stop_core().await.stringify_err()
+    runtime::stop_core().await.stringify_err()
 }
 
 /// 重启核心
 #[tauri::command]
 pub async fn restart_core() -> CmdResult {
-    feat::restart_core().await.stringify_err()
+    runtime::restart_core().await.stringify_err()
 }
 
 /// Ensure Mihomo core and IPC are ready for frontend/runtime operations
 #[tauri::command]
 pub async fn ensure_mihomo_core_ready() -> CmdResult {
-    feat::ensure_mihomo_core_ready().await.stringify_err()
+    mihomo_runtime_guard::ensure_mihomo_core_ready()
+        .await
+        .stringify_err()
 }
 
 /// 测试URL延迟
 #[tauri::command]
 pub async fn test_delay(url: String) -> CmdResult<u32> {
-    let result = match feat::test_delay(url.into()).await {
+    let result = match runtime::test_delay(url.into()).await {
         Ok(delay) => delay,
         Err(e) => {
             clash_verge_logging::logging!(error, clash_verge_logging::Type::Cmd, "{}", e);
@@ -75,17 +80,17 @@ pub async fn test_delay(url: String) -> CmdResult<u32> {
 /// 应用或撤销DNS配置
 #[tauri::command]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
-    feat::apply_dns_config(apply).await.stringify_err()
+    runtime::apply_dns_config(apply).await.stringify_err()
 }
 
 #[tauri::command]
 pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
-    Ok(feat::get_clash_logs().await)
+    Ok(runtime::get_clash_logs().await)
 }
 
 #[tauri::command]
 pub async fn clear_logs() -> CmdResult {
-    feat::clear_clash_logs().await;
+    runtime::clear_clash_logs().await;
     Ok(())
 }
 

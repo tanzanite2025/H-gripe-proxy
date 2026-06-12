@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -6,8 +7,10 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
 use super::asn_classifier::{self, AsnCategory};
+use super::blackhole_breaker::get_blackhole_breaker_manager;
 use super::ip_intelligence::{
-    IpIntelligenceProvider, IpIntelligenceProviderConfig, IpIntelligenceRecord, build_provider,
+    IpIntelligenceProvider, IpIntelligenceProviderConfig, IpIntelligenceProviderHealthReport,
+    IpIntelligenceRecord, build_provider, probe_provider,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,14 +148,32 @@ fn sanitize_metadata_provider_config() -> IpIntelligenceProviderConfig {
     IpIntelligenceProviderConfig::default()
 }
 
-fn sanitize_ip_reputation_config(mut config: IpReputationConfig) -> IpReputationConfig {
+pub fn normalize_ip_reputation_config(mut config: IpReputationConfig) -> IpReputationConfig {
     config.metadata_provider = sanitize_metadata_provider_config();
     config
 }
 
+static IP_REPUTATION_MANAGER: Lazy<Arc<IpReputationManager>> = Lazy::new(|| {
+    let config = normalize_ip_reputation_config(
+        crate::core::coordinator::get_coordinator()
+            .get_advanced_config()
+            .ip_reputation,
+    );
+    Arc::new(IpReputationManager::from_config(config))
+});
+
+pub fn get_ip_reputation_manager() -> Arc<IpReputationManager> {
+    IP_REPUTATION_MANAGER.clone()
+}
+
+pub async fn probe_local_metadata_provider(target_ip: Option<&str>) -> IpIntelligenceProviderHealthReport {
+    let local_provider = sanitize_metadata_provider_config();
+    probe_provider(&local_provider, target_ip).await
+}
+
 impl IpReputationManager {
     pub fn from_config(config: IpReputationConfig) -> Self {
-        let config = sanitize_ip_reputation_config(config);
+        let config = normalize_ip_reputation_config(config);
         let metadata_provider = build_metadata_provider(&config);
 
         Self {
@@ -163,7 +184,7 @@ impl IpReputationManager {
     }
 
     pub async fn update_config(&self, config: IpReputationConfig) -> Result<()> {
-        let config = sanitize_ip_reputation_config(config);
+        let config = normalize_ip_reputation_config(config);
         let metadata_provider = build_metadata_provider(&config);
         *self.config.write().await = config;
         *self.metadata_provider.write().await = metadata_provider;
@@ -519,7 +540,9 @@ impl IpReputationManager {
                     RiskFallbackPolicy::Block => {
                         log::error!("[IpReputation] domain {domain} has no node satisfying reputation requirements");
                         let max_score = all_fraud_scores.iter().max().copied().unwrap_or(100);
-                        crate::feat::blackhole_breaker_record_fraud_score(domain, max_score).await;
+                        get_blackhole_breaker_manager()
+                            .record_fraud_score(domain, max_score)
+                            .await;
                         return Err(anyhow!("no node satisfies reputation requirements"));
                     }
                     RiskFallbackPolicy::Warn | RiskFallbackPolicy::Allow => {

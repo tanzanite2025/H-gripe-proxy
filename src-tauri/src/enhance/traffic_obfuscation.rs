@@ -11,7 +11,7 @@ use crate::traffic::{
 };
 
 fn load_advanced_config() -> AdvancedConfig {
-    crate::feat::get_coordinator().get_advanced_config()
+    crate::core::coordinator::get_coordinator().get_advanced_config()
 }
 
 pub fn apply_traffic_obfuscation_config(config: Mapping) -> Mapping {

@@ -1,4 +1,4 @@
-use crate::{config::Config, feat, process::AsyncHandler, singleton, utils::resolve::is_resolve_done};
+use crate::{app, config::Config, process::AsyncHandler, singleton, utils::resolve::is_resolve_done};
 use anyhow::Result;
 use clash_verge_logging::{Type, logging, logging_error};
 use parking_lot::{Mutex, RwLock};
@@ -404,7 +404,7 @@ impl Timer {
                 is_current
             );
 
-            feat::update_profile(uid, None, is_current, false, false).await
+            app::subscription::update_profile(uid, None, is_current, false, false).await
         })
         .await
         {

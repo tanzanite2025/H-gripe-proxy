@@ -66,7 +66,7 @@ pub fn apply_connection_stability(mut config: Mapping) -> Mapping {
 /// 根据 advanced.yaml 中的 multiplex 配置，为每个代理节点注入 smux + brutal-opts
 /// 从 coordinator 内存配置读取，避免各自 load_default 读磁盘
 pub fn apply_multiplex(config: Mapping) -> Mapping {
-    let advanced = crate::feat::get_coordinator().get_advanced_config();
+    let advanced = crate::core::coordinator::get_coordinator().get_advanced_config();
     apply_multiplex_config(config, &advanced.multiplex)
 }
 

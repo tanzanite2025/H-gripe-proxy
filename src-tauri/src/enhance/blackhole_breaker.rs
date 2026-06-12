@@ -6,7 +6,9 @@ use serde_yaml_ng::Mapping;
 
 /// 将熔断器生成的 REJECT-DROP 规则注入到 Mihomo 配置的 rules 前部
 pub async fn apply_blackhole_breaker_config(mut config: Mapping) -> Mapping {
-    let reject_rules = crate::feat::blackhole_breaker_generate_reject_rules().await;
+    let reject_rules = crate::core::blackhole_breaker::get_blackhole_breaker_manager()
+        .generate_reject_rules()
+        .await;
 
     if reject_rules.is_empty() {
         return config;

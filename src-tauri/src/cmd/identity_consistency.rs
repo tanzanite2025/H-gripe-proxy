@@ -17,7 +17,12 @@ pub async fn get_identity_consistency_report(app_handle: tauri::AppHandle) -> Cm
     let current_identity = build_current_egress_identity(Some(&app_handle)).await.stringify_err()?;
     let dns_runtime = build_dns_runtime_status().await.ok();
     let dns_leak = build_dns_leak_test_result().await.ok();
-    let tls_fingerprint = crate::feat::tls_fingerprint_get_current();
+    let tls_fingerprint = crate::core::coordinator::get_coordinator()
+        .get_advanced_config()
+        .security
+        .tls_fingerprint
+        .as_deref()
+        .and_then(crate::tls_fingerprint::TlsFingerprintLibrary::get_by_name);
 
     let report = build_identity_consistency_report(IdentityConsistencyInput {
         current_identity: &current_identity,

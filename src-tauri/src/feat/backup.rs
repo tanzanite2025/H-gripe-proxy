@@ -87,7 +87,7 @@ async fn finalize_restored_verge_config(
 
     // Ensure side-effects (flags, tray, sysproxy, hotkeys, auto-backup refresh, etc.) run.
     // Use not_save_file = true to avoid extra I/O (we already persisted the restored file).
-    if let Err(err) = super::patch_verge(&restored, true).await {
+    if let Err(err) = crate::app::config::patch_verge(&restored, true).await {
         logging!(error, Type::Backup, "Failed to apply restored verge config: {err:#?}");
     }
     Ok(())

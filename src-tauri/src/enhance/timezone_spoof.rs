@@ -13,7 +13,7 @@ macro_rules! revise {
 }
 
 fn load_advanced_config() -> AdvancedConfig {
-    crate::feat::get_coordinator().get_advanced_config()
+    crate::core::coordinator::get_coordinator().get_advanced_config()
 }
 
 pub fn apply_timezone_spoof_config(mut config: Mapping) -> Mapping {

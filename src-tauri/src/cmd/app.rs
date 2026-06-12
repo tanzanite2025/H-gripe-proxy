@@ -1,6 +1,6 @@
 use super::CmdResult;
 use crate::core::autostart;
-use crate::{cmd::StringifyErr as _, feat, utils::dirs};
+use crate::{app::{runtime, system, window}, cmd::StringifyErr as _, feat, utils::dirs};
 use smartstring::alias::String;
 use tauri::Url;
 #[cfg(debug_assertions)]
@@ -24,23 +24,19 @@ fn parse_web_url(url: &str) -> CmdResult<Url> {
 /// 打开应用程序所在目录
 #[tauri::command]
 pub async fn open_app_dir() -> CmdResult<()> {
-    let app_dir = dirs::app_home_dir().stringify_err()?;
-    open::that(app_dir).stringify_err()
+    system::open_app_dir().await.stringify_err()
 }
 
 /// 打开核心所在目录
 #[tauri::command]
 pub async fn open_core_dir() -> CmdResult<()> {
-    let core_dir = tauri::utils::platform::current_exe().stringify_err()?;
-    let core_dir = core_dir.parent().ok_or("failed to get core dir")?;
-    open::that(core_dir).stringify_err()
+    system::open_core_dir().await.stringify_err()
 }
 
 /// 打开日志目录
 #[tauri::command]
 pub async fn open_logs_dir() -> CmdResult<()> {
-    let log_dir = dirs::app_logs_dir().stringify_err()?;
-    open::that(log_dir).stringify_err()
+    system::open_logs_dir().await.stringify_err()
 }
 
 /// 打开网页链接
@@ -54,20 +50,14 @@ pub fn open_web_url(url: String) -> CmdResult<()> {
 /// 打开 Verge 最新日志
 #[tauri::command]
 pub async fn open_app_log() -> CmdResult<()> {
-    let log_path = dirs::app_latest_log().stringify_err()?;
-    #[cfg(target_os = "windows")]
-    let log_path = crate::utils::help::snapshot_path(&log_path).stringify_err()?;
-    open::that(log_path).stringify_err()
+    system::open_app_log().await.stringify_err()
 }
 
 // TODO 后续可以为前端提供接口，当前作为托盘菜单使用
 /// 打开 Clash 最新日志
 #[tauri::command]
 pub async fn open_core_log() -> CmdResult<()> {
-    let log_path = dirs::clash_latest_log().stringify_err()?;
-    #[cfg(target_os = "windows")]
-    let log_path = crate::utils::help::snapshot_path(&log_path).stringify_err()?;
-    open::that(log_path).stringify_err()
+    system::open_core_log().await.stringify_err()
 }
 
 /// 打开/关闭开发者工具
@@ -86,13 +76,13 @@ pub fn open_devtools(app_handle: AppHandle) {
 /// 退出应用
 #[tauri::command]
 pub async fn exit_app() {
-    feat::quit().await;
+    window::quit().await;
 }
 
 /// 重启应用
 #[tauri::command]
 pub async fn restart_app() -> CmdResult<()> {
-    feat::restart_app().await;
+    runtime::restart_app().await;
     Ok(())
 }
 

@@ -1,6 +1,8 @@
 use crate::{
-    cmd::validate::{ValidationNoticeTarget, handle_validation_notice},
-    core::{CoreManager, handle, validate::ValidationOutcome},
+    core::{
+        CoreManager, handle,
+        validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
+    },
     utils::{dirs, tmpl},
 };
 use anyhow::{Context as _, Result, bail};

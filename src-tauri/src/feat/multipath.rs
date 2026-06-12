@@ -1,5 +1,4 @@
 use crate::{
-    config::AdvancedConfig,
     multipath::{
         MultipathConfig, MultipathManager, NodePool, NodeStats, PathNode, PoolType, SessionBinding, SlicingStrategy,
     },
@@ -9,13 +8,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 fn multipath_manager() -> Arc<MultipathManager> {
-    crate::feat::get_coordinator().multipath_manager()
+    crate::core::coordinator::get_coordinator().multipath_manager()
 }
 
 fn persist_multipath_config(config: &MultipathConfig) -> Result<()> {
-    let mut advanced_config = AdvancedConfig::load_default_strict()?;
+    let mut advanced_config = crate::core::coordinator::get_coordinator().get_advanced_config();
     advanced_config.multipath = config.clone();
-    crate::feat::save_advanced_config_blocking(advanced_config)
+    crate::core::coordinator::save_advanced_config_blocking(advanced_config)
 }
 
 pub fn apply_multipath_config(config: MultipathConfig) -> Result<()> {
@@ -26,7 +25,9 @@ pub fn apply_multipath_config(config: MultipathConfig) -> Result<()> {
 
 /// 获取多路径配置
 pub fn multipath_get_config() -> MultipathConfig {
-    crate::feat::get_coordinator().get_advanced_config().multipath
+    crate::core::coordinator::get_coordinator()
+        .get_advanced_config()
+        .multipath
 }
 
 /// 获取会话绑定规则

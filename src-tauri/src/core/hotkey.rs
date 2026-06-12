@@ -3,9 +3,9 @@ use crate::singleton;
 use crate::utils::notification::{NotificationEvent, notify_event};
 use crate::utils::window_manager::WindowManager;
 use crate::{
+    app,
     config::Config,
     core::{clash_mode::ClashMode, handle},
-    feat,
 };
 use anyhow::{Result, bail};
 use arc_swap::ArcSwap;
@@ -120,31 +120,31 @@ impl Hotkey {
         match function {
             HotkeyFunction::OpenOrCloseDashboard => {
                 AsyncHandler::spawn(async move || {
-                    crate::feat::open_or_close_dashboard().await;
+                    app::window::open_or_close_dashboard().await;
                     notify_event(NotificationEvent::DashboardToggled).await;
                 });
             }
             HotkeyFunction::ClashModeRule => {
                 AsyncHandler::spawn(async move || {
-                    logging_error!(Type::Core, feat::change_clash_mode(ClashMode::Rule).await);
+                    logging_error!(Type::Core, app::runtime::change_clash_mode(ClashMode::Rule).await);
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Rule" }).await;
                 });
             }
             HotkeyFunction::ClashModeGlobal => {
                 AsyncHandler::spawn(async move || {
-                    logging_error!(Type::Core, feat::change_clash_mode(ClashMode::Global).await);
+                    logging_error!(Type::Core, app::runtime::change_clash_mode(ClashMode::Global).await);
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
                 });
             }
             HotkeyFunction::ToggleSystemProxy => {
                 AsyncHandler::spawn(async move || {
-                    let is_proxy_enabled = feat::toggle_system_proxy().await;
+                    let is_proxy_enabled = app::runtime::toggle_system_proxy().await;
                     notify_event(NotificationEvent::SystemProxyToggled(is_proxy_enabled)).await;
                 });
             }
             HotkeyFunction::ToggleTunMode => {
                 AsyncHandler::spawn(async move || {
-                    let is_tun_enable = feat::toggle_tun_mode(None).await;
+                    let is_tun_enable = app::runtime::toggle_tun_mode(None).await;
                     notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
                 });
             }
@@ -156,7 +156,7 @@ impl Hotkey {
                 );
             }
             HotkeyFunction::ReactivateProfiles => {
-                AsyncHandler::spawn(async move || match feat::enhance_profiles().await {
+                AsyncHandler::spawn(async move || match app::profile::reactivate_profiles().await {
                     Ok(outcome) if outcome.is_valid() => {
                         handle::Handle::refresh_clash();
                         notify_event(NotificationEvent::ProfilesReactivated).await;
@@ -185,13 +185,13 @@ impl Hotkey {
             HotkeyFunction::Quit => {
                 AsyncHandler::spawn(async move || {
                     notify_event(NotificationEvent::AppQuit).await;
-                    feat::quit().await;
+                    app::window::quit().await;
                 });
             }
             #[cfg(target_os = "macos")]
             HotkeyFunction::Hide => {
                 AsyncHandler::spawn(async move || {
-                    feat::hide().await;
+                    app::window::hide().await;
                     notify_event(NotificationEvent::AppHidden).await;
                 });
             }

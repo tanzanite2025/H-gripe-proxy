@@ -2,6 +2,7 @@
 #![recursion_limit = "512"]
 
 mod anti_probe;
+mod app;
 mod cmd;
 pub mod config;
 mod constants;
@@ -449,7 +450,7 @@ pub fn run() {
 
             // 初始化核心协调器（会加载 advanced.yaml 到内存）
             logging!(info, Type::Setup, "初始化核心协调器...");
-            let coordinator = crate::feat::get_coordinator();
+            let coordinator = crate::core::coordinator::get_coordinator();
             if let Err(e) = coordinator.initialize() {
                 logging!(error, Type::Setup, "Failed to initialize coordinator: {}", e);
             }
@@ -481,7 +482,7 @@ pub fn run() {
 
             // 启动会话绑定清理任务
             logging!(info, Type::Setup, "启动会话绑定清理任务...");
-            crate::feat::start_cleanup_task();
+            crate::core::session_affinity::get_session_affinity_manager().start_cleanup_task();
 
             logging!(info, Type::Setup, "初始化已启动");
             Ok(())
@@ -622,7 +623,7 @@ pub fn run() {
                 api.prevent_exit();
                 if !handle::Handle::global().is_exiting() {
                     AsyncHandler::spawn(|| async {
-                        feat::quit().await;
+                        app::window::quit().await;
                     });
                 }
             }

@@ -143,7 +143,7 @@ impl EgressMonitor {
                                 // IP 变化！
                                 let auto_rebind = config.read().auto_rebind_on_change;
                                 let notify = config.read().notify_on_change;
-                                let coordinator = crate::feat::get_coordinator();
+                                let coordinator = crate::core::coordinator::get_coordinator();
                                 let drift_policy =
                                     crate::core::stable_egress::current_egress_support_policy(&coordinator);
 

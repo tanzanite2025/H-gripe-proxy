@@ -1,7 +1,7 @@
 use super::CmdResult;
 use super::StringifyErr as _;
-use crate::cmd::validate::{ValidationNoticeTarget, handle_validation_notice};
 use crate::{
+    app,
     config::{
         Config, IProfiles, PrfItem, PrfOption, ProfilesView,
         profiles::{
@@ -10,8 +10,10 @@ use crate::{
         },
         profiles_append_item_safe,
     },
-    core::{CoreManager, handle, timer::Timer, tray::Tray, validate::ValidationOutcome},
-    feat,
+    core::{
+        CoreManager, handle, timer::Timer, tray::Tray,
+        validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
+    },
     utils::{dirs, help},
 };
 use clash_verge_logging::{Type, logging};
@@ -38,7 +40,7 @@ pub async fn get_profiles() -> CmdResult<ProfilesView> {
 /// 增强配置文件
 #[tauri::command]
 pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
-    match feat::enhance_profiles().await {
+    match app::profile::reactivate_profiles().await {
         Ok(outcome) if outcome.is_valid() => {
             handle::Handle::refresh_clash();
             Ok(outcome)
@@ -166,7 +168,7 @@ pub async fn create_profile_from_local_path(item: PrfItem, path: String) -> CmdR
 /// 更新配置文件
 #[tauri::command]
 pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResult {
-    match feat::update_profile(&index, option.as_ref(), true, true, true).await {
+    match crate::app::subscription::update_profile(&index, option.as_ref(), true, true, true).await {
         Ok(_) => Ok(()),
         Err(e) => {
             logging!(error, Type::Cmd, "{}", e);
@@ -212,13 +214,15 @@ pub async fn delete_profile(index: String) -> CmdResult {
 /// 修改profiles的配置
 #[tauri::command]
 pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationOutcome> {
-    feat::patch_profiles_config(profiles).await.stringify_err()
+    crate::app::profile::publish_profile_activation(profiles)
+        .await
+        .stringify_err()
 }
 
 /// 根据profile name修改profiles
 #[tauri::command]
 pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> CmdResult<ValidationOutcome> {
-    feat::patch_profiles_config_by_profile_index(profile_index)
+    crate::app::profile::publish_profile_activation_by_index(profile_index)
         .await
         .stringify_err()
 }

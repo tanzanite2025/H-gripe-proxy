@@ -9,12 +9,10 @@ use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::Mapping;
 
-/// Patch Clash configuration
 pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
     let res = {
-        // 激活订阅
         if patch.get("secret").is_some() || patch.get("external-controller").is_some() {
             Config::generate().await?;
             CoreManager::global().restart_core().await?;
@@ -28,10 +26,10 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
         handle::Handle::refresh_clash();
         <Result<()>>::Ok(())
     };
+
     match res {
         Ok(()) => {
             Config::clash().await.apply();
-            // 分离数据获取和异步调用
             let clash_data = Config::clash().await.data_arc();
             clash_data.save_config().await?;
             if let Err(err) = handle::Handle::sync_mihomo_controller_state().await {
@@ -51,7 +49,6 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     }
 }
 
-// Define update flags as bitflags for better performance
 bitflags! {
      #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
      struct UpdateFlags: u16 {
@@ -159,7 +156,9 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         update_flags.insert(UpdateFlags::SYS_PROXY);
     }
     if language.is_some() {
-        update_flags.insert(UpdateFlags::LANGUAGE | UpdateFlags::SYSTRAY_MENU | UpdateFlags::SYSTRAY_TOOLTIP);
+        update_flags.insert(
+            UpdateFlags::LANGUAGE | UpdateFlags::SYSTRAY_MENU | UpdateFlags::SYSTRAY_TOOLTIP,
+        );
     }
     if patch.hotkeys.is_some() {
         update_flags.insert(UpdateFlags::HOTKEY | UpdateFlags::SYSTRAY_MENU);
@@ -177,7 +176,8 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
 fn should_close_connections_on_route_change(current: &IVerge, patch: &IVerge) -> bool {
     let will_disable_system_proxy =
         current.enable_system_proxy.unwrap_or(false) && patch.enable_system_proxy == Some(false);
-    let will_disable_tun_mode = current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
+    let will_disable_tun_mode =
+        current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
 
     will_disable_system_proxy || will_disable_tun_mode
 }
@@ -198,7 +198,6 @@ async fn maybe_close_connections_after_route_change(current: &IVerge, patch: &IV
 
 #[allow(clippy::cognitive_complexity)]
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
-    // Process updates based on flags
     if update_flags.contains(UpdateFlags::RESTART_CORE) {
         Config::generate().await?;
         CoreManager::global().restart_core().await?;
@@ -247,7 +246,9 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     if update_flags.contains(UpdateFlags::LOG_FILE) {
         let log_max_size = patch.app_log_max_size.unwrap_or(128);
         let log_max_count = patch.app_log_max_count.unwrap_or(8);
-        Logger::global().update_log_config(log_max_size, log_max_count).await?;
+        Logger::global()
+            .update_log_config(log_max_size, log_max_count)
+            .await?;
     }
     Ok(())
 }
@@ -280,7 +281,6 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     }
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
-        // 分离数据获取和异步调用
         let verge_data = Config::verge().await.data_arc();
         logging!(debug, Type::Setup, "Saving Verge configuration to file...");
         verge_data.save_file().await?;

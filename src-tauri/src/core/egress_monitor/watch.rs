@@ -149,9 +149,9 @@ fn detect_changes(prev: &HashMap<String, String>, current: &HashMap<String, Stri
 
 async fn trigger_backwrite() {
     if let Some(runtime_config) = crate::config::Config::runtime().await.latest_arc().config.clone() {
-        let coordinator = crate::feat::get_coordinator();
-        let session_affinity = crate::feat::get_session_affinity_manager();
-        let ip_reputation = crate::feat::get_ip_reputation_manager();
+        let coordinator = crate::core::coordinator::get_coordinator();
+        let session_affinity = crate::core::session_affinity::get_session_affinity_manager();
+        let ip_reputation = crate::core::ip_reputation::get_ip_reputation_manager();
         if let Err(e) = crate::core::stable_egress::sync_runtime_stable_egress_selection(
             &coordinator,
             &session_affinity,

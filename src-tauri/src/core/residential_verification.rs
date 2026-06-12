@@ -251,7 +251,7 @@ async fn reputation_from_observation(observation: GeoIpInfo) -> Result<(String, 
     let egress_ip = observation
         .ip
         .ok_or_else(|| anyhow!("residential proxy egress lookup returned no IP"))?;
-    let reputation = crate::feat::get_ip_reputation_manager()
+    let reputation = crate::core::ip_reputation::get_ip_reputation_manager()
         .inspect_ip_metadata(&egress_ip)
         .await?;
 

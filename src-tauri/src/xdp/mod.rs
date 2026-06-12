@@ -1,6 +1,4 @@
-use once_cell::sync::Lazy;
 use parking_lot::RwLock;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -221,10 +219,4 @@ pub struct XdpSupportInfo {
     pub native_mode_supported: bool,
     pub hw_mode_supported: bool,
     pub available_interfaces: Vec<String>,
-}
-
-static XDP_MANAGER: Lazy<Arc<XdpManager>> = Lazy::new(|| Arc::new(XdpManager::new()));
-
-pub fn get_xdp_manager() -> Arc<XdpManager> {
-    XDP_MANAGER.clone()
 }

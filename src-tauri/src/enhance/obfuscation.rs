@@ -12,7 +12,7 @@ macro_rules! revise {
 
 /// Load advanced config from coordinator
 fn load_advanced_config() -> AdvancedConfig {
-    crate::feat::get_coordinator().get_advanced_config()
+    crate::core::coordinator::get_coordinator().get_advanced_config()
 }
 
 /// Apply obfuscation configuration from advanced.yaml to the Mihomo config mapping.

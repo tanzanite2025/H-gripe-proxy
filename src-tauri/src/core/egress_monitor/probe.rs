@@ -44,7 +44,7 @@ async fn fetch_exit_ip(client: &reqwest::Client) -> Result<String> {
 }
 
 async fn lookup_local_metadata(ip: &str) -> Option<crate::core::ip_intelligence::IpIntelligenceRecord> {
-    crate::feat::get_ip_reputation_manager()
+    crate::core::ip_reputation::get_ip_reputation_manager()
         .lookup_ip_metadata_record(ip)
         .await
         .ok()

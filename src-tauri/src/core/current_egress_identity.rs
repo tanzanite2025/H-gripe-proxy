@@ -64,7 +64,7 @@ async fn current_identity_from_mihomo_egress_status(
         return Ok(None);
     }
 
-    crate::feat::ensure_mihomo_core_ready().await?;
+    crate::core::mihomo_runtime_guard::ensure_mihomo_core_ready().await?;
 
     let mihomo = app_handle.mihomo().read().await;
     let status = mihomo.get_egress_status().await?;
@@ -168,7 +168,7 @@ async fn attach_reputation(identity: &mut CurrentEgressIdentity, _observed_count
         return;
     };
 
-    let ip_reputation_manager = crate::feat::get_ip_reputation_manager();
+    let ip_reputation_manager = crate::core::ip_reputation::get_ip_reputation_manager();
     let Ok(reputation) = ip_reputation_manager.inspect_ip_metadata(ip).await else {
         identity.destination_asn = None;
         identity.asn_org = None;

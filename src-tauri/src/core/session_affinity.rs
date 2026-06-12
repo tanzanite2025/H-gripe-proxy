@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -170,6 +171,26 @@ pub struct SessionAffinityManager {
     process_bindings: Arc<RwLock<HashMap<String, NodeBinding>>>,
     /// 连接 -> 节点绑定
     connection_bindings: Arc<RwLock<HashMap<ConnectionId, NodeBinding>>>,
+}
+
+fn load_session_affinity_config() -> anyhow::Result<SessionAffinityConfig> {
+    Ok(crate::core::coordinator::get_coordinator()
+        .get_advanced_config()
+        .session_affinity)
+}
+
+static SESSION_AFFINITY_MANAGER: Lazy<Arc<SessionAffinityManager>> = Lazy::new(|| {
+    let config = load_session_affinity_config().unwrap_or_else(|e| {
+        log::warn!("[SessionAffinity] 鍔犺浇閰嶇疆澶辫触锛屼娇鐢ㄩ粯璁ら厤缃? {}", e);
+        SessionAffinityConfig::default()
+    });
+    let manager = Arc::new(SessionAffinityManager::new());
+    futures::executor::block_on(manager.update_config(config)).ok();
+    manager
+});
+
+pub fn get_session_affinity_manager() -> Arc<SessionAffinityManager> {
+    SESSION_AFFINITY_MANAGER.clone()
 }
 
 impl SessionAffinityManager {

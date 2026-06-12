@@ -9,6 +9,7 @@
 /// - `RiskFallbackPolicy::Block` / `EgressFailoverPolicy::Block` 语义对齐
 /// - IP 信誉评分作为触发信号之一
 use anyhow::Result;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -216,6 +217,13 @@ fn now_secs() -> u64 {
 pub struct BlackholeBreakerManager {
     config: Arc<RwLock<BlackholeBreakerConfig>>,
     states: Arc<RwLock<HashMap<String, BreakerRuntimeState>>>,
+}
+
+static BLACKHOLE_BREAKER_MANAGER: Lazy<Arc<BlackholeBreakerManager>> =
+    Lazy::new(|| Arc::new(BlackholeBreakerManager::new()));
+
+pub fn get_blackhole_breaker_manager() -> Arc<BlackholeBreakerManager> {
+    BLACKHOLE_BREAKER_MANAGER.clone()
 }
 
 impl BlackholeBreakerManager {

@@ -1,5 +1,5 @@
 use super::CmdResult;
-use crate::{core::tray::Tray, feat, process::AsyncHandler};
+use crate::{app::runtime, core::tray::Tray, process::AsyncHandler};
 use clash_verge_logging::{Type, logging};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -25,7 +25,7 @@ pub async fn sync_tray_proxy_selection() -> CmdResult<()> {
 
 async fn run_tray_sync_loop() {
     loop {
-        if let Err(error) = feat::sync_runtime_stable_egress_selection().await {
+        if let Err(error) = runtime::sync_runtime_stable_egress_selection().await {
             logging!(
                 error,
                 Type::Cmd,

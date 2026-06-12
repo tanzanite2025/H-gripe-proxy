@@ -7,7 +7,7 @@ use std::net::IpAddr;
 
 #[tauri::command]
 pub fn anti_probe_get_config() -> CmdResult<AntiProbeConfig> {
-    Ok(crate::feat::anti_probe_get_config())
+    Ok(crate::core::coordinator::get_coordinator().anti_probe().get_config())
 }
 
 /// 验证握手暗号
@@ -20,12 +20,16 @@ pub fn anti_probe_verify_handshake(client_ip: String, token: String) -> CmdResul
 /// 生成握手暗号
 #[tauri::command]
 pub fn anti_probe_generate_token() -> CmdResult<String> {
-    Ok(crate::feat::anti_probe_generate_token())
+    Ok(crate::core::coordinator::get_coordinator()
+        .anti_probe()
+        .generate_token())
 }
 
 /// 清理过期缓存
 #[tauri::command]
 pub fn anti_probe_cleanup() -> CmdResult<()> {
-    crate::feat::anti_probe_cleanup();
+    crate::core::coordinator::get_coordinator()
+        .anti_probe()
+        .cleanup_expired();
     Ok(())
 }

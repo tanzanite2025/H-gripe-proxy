@@ -4,7 +4,7 @@ use crate::core::service;
 use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::window_manager::WindowManager;
-use crate::{Type, cmd, config::Config, core::clash_mode::ClashMode, feat, logging};
+use crate::{Type, app, config::Config, core::clash_mode::ClashMode, logging};
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
@@ -540,18 +540,10 @@ async fn create_tray_menu(
         .await
         .map_or(None, |res| res.ok().and_then(|snapshot| snapshot.proxies));
 
-    let runtime_proxy_groups_order = cmd::get_runtime_config()
-        .await
-        .map_err(|e| {
-            logging!(
-                error,
-                Type::Cmd,
-                "Failed to fetch runtime proxy groups for tray menu: {e}"
-            );
-        })
-        .ok()
-        .flatten()
-        .map(|config| {
+    let runtime_proxy_groups_order = {
+        let runtime = Config::runtime().await;
+        let runtime = runtime.latest_arc();
+        runtime.config.as_ref().map(|config| {
             config
                 .get("proxy-groups")
                 .and_then(|groups| groups.as_sequence())
@@ -564,7 +556,8 @@ async fn create_tray_menu(
                         .collect::<Vec<String>>()
                 })
                 .unwrap_or_default()
-        });
+        })
+    };
 
     let proxy_group_order_map: Option<HashMap<smartstring::SmartString<smartstring::LazyCompact>, usize>> =
         runtime_proxy_groups_order.as_ref().map(|group_names| {
@@ -819,7 +812,7 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                 {
                     logging!(info, Type::ProxyMode, "Switch Proxy Mode To: {}", final_mode);
                     match final_mode.parse::<ClashMode>() {
-                        Ok(mode) => logging_error!(Type::ProxyMode, feat::change_clash_mode(mode).await),
+                        Ok(mode) => logging_error!(Type::ProxyMode, app::runtime::change_clash_mode(mode).await),
                         Err(err) => logging!(error, Type::ProxyMode, "{err}"),
                     }
                 }
@@ -829,43 +822,43 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                 WindowManager::show_main_window().await;
             }
             MenuIds::SYSTEM_PROXY => {
-                feat::toggle_system_proxy().await;
+                app::runtime::toggle_system_proxy().await;
             }
             MenuIds::TUN_MODE => {
-                feat::toggle_tun_mode(None).await;
+                app::runtime::toggle_tun_mode(None).await;
             }
             MenuIds::CLOSE_ALL_CONNECTIONS => {
                 if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
                     logging!(error, Type::Tray, "Failed to close all connections from tray: {err}");
                 }
             }
-            MenuIds::COPY_ENV => feat::copy_clash_env().await,
+            MenuIds::COPY_ENV => app::runtime::copy_clash_env().await,
             MenuIds::CONF_DIR => {
-                let _ = cmd::open_app_dir().await;
+                let _ = app::system::open_app_dir().await;
             }
             MenuIds::CORE_DIR => {
-                let _ = cmd::open_core_dir().await;
+                let _ = app::system::open_core_dir().await;
             }
             MenuIds::LOGS_DIR => {
-                let _ = cmd::open_logs_dir().await;
+                let _ = app::system::open_logs_dir().await;
             }
             MenuIds::APP_LOG => {
-                let _ = cmd::open_app_log().await;
+                let _ = app::system::open_app_log().await;
             }
             MenuIds::CORE_LOG => {
-                let _ = cmd::open_core_log().await;
+                let _ = app::system::open_core_log().await;
             }
-            MenuIds::RESTART_CLASH => feat::restart_clash_core().await,
-            MenuIds::RESTART_APP => feat::restart_app().await,
+            MenuIds::RESTART_CLASH => app::runtime::restart_clash_core().await,
+            MenuIds::RESTART_APP => app::runtime::restart_app().await,
             MenuIds::EXIT => {
-                feat::quit().await;
+                app::window::quit().await;
             }
             id if id.starts_with("profiles_") => {
                 let profile_index = match id.strip_prefix("profiles_") {
                     Some(index_str) => index_str,
                     None => return,
                 };
-                feat::toggle_proxy_profile(profile_index.into()).await;
+                app::profile::toggle_proxy_profile(profile_index.into()).await;
             }
             id if id.starts_with("proxy_") => {
                 // proxy_{group_name}_{proxy_name}
@@ -877,7 +870,7 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                     Some((g, p)) => (g, p),
                     None => return,
                 };
-                feat::switch_proxy_node(group_name, proxy_name).await;
+                app::runtime::switch_proxy_node(group_name, proxy_name).await;
             }
             _ => {
                 logging!(debug, Type::Tray, "Unhandled tray menu event: {:?}", event.id);

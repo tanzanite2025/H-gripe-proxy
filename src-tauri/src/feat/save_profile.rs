@@ -177,7 +177,7 @@ async fn handle_saved_profile_file(
     is_script_file: bool,
     affects_runtime: bool,
 ) -> Result<ValidationOutcome> {
-    use crate::cmd::validate::{ValidationNoticeTarget, handle_validation_notice};
+    use crate::core::validate::{ValidationNoticeTarget, handle_validation_notice};
 
     let (target, file_type) = if is_script_file {
         (ValidationNoticeTarget::Script, "脚本文件")

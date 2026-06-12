@@ -22,7 +22,7 @@ struct StaticProxySpec {
 }
 
 fn load_advanced_config_for_stable_egress() -> AdvancedConfig {
-    crate::feat::get_coordinator().get_advanced_config()
+    crate::core::coordinator::get_coordinator().get_advanced_config()
 }
 
 pub(crate) fn apply_stable_egress_policy(config: Mapping) -> Mapping {

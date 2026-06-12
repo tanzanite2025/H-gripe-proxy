@@ -214,7 +214,7 @@ pub fn execute_from_advanced_config() {
 }
 
 fn load_advanced_self_destruct_config() -> crate::config::advanced::SelfDestructConfig {
-    crate::feat::get_coordinator()
+    crate::core::coordinator::get_coordinator()
         .get_advanced_config()
         .security
         .self_destruct

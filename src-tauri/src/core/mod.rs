@@ -30,6 +30,7 @@ pub mod session_affinity;
 pub mod stable_egress;
 pub mod sysopt;
 pub mod timer;
+pub mod traffic_runtime;
 pub mod timezone_spoof;
 pub mod tor_runtime;
 pub mod tray;

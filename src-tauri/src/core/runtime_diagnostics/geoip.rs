@@ -143,7 +143,7 @@ pub async fn fetch_public_ipv4_plain(client: &Client) -> Result<String> {
 }
 
 async fn lookup_local_ip_info(ip: &str) -> GeoIpInfo {
-    match crate::feat::get_ip_reputation_manager()
+    match crate::core::ip_reputation::get_ip_reputation_manager()
         .lookup_ip_metadata_record(ip)
         .await
     {

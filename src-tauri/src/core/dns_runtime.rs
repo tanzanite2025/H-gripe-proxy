@@ -3,9 +3,11 @@ use hickory_proto::rr::Name;
 use hickory_resolver::TokioAsyncResolver;
 use hickory_resolver::config::*;
 use serde::{Deserialize, Serialize};
+use serde_yaml_ng::Mapping;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
+use tokio::fs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -641,6 +643,14 @@ pub async fn probe_dns_server_provider(
             checked_at,
         },
     }
+}
+
+pub async fn save_dns_config_mapping(dns_config: &Mapping) -> Result<()> {
+    let dns_path = crate::utils::dirs::app_home_dir()?.join(crate::constants::files::DNS_CONFIG);
+    let yaml_str = serde_yaml_ng::to_string(dns_config)?;
+    fs::write(&dns_path, yaml_str).await?;
+    log::info!("[DnsRuntime] DNS config saved to {dns_path:?}");
+    Ok(())
 }
 
 #[cfg(test)]

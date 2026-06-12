@@ -16,7 +16,7 @@ pub async fn traffic_obfuscation_get_config() -> TrafficObfuscationConfig {
     if let Some(scheduler) = scheduler_guard.as_ref() {
         scheduler.get_config().await
     } else {
-        effective_traffic_obfuscation_config(&AdvancedConfig::load_default())
+        effective_traffic_obfuscation_config(&crate::core::coordinator::get_coordinator().get_advanced_config())
     }
 }
 
@@ -43,14 +43,14 @@ pub async fn apply_traffic_obfuscation_config(config: TrafficObfuscationConfig) 
 
 pub async fn traffic_obfuscation_update_config(config: TrafficObfuscationConfig) -> Result<()> {
     config.validate().map_err(|e| anyhow::anyhow!("{}", e))?;
-
     persist_traffic_obfuscation_config(&config).await?;
     log::info!("traffic obfuscation config updated");
     Ok(())
 }
 
 pub async fn traffic_obfuscation_start() -> Result<()> {
-    let mut config = effective_traffic_obfuscation_config(&AdvancedConfig::load_default());
+    let mut config =
+        effective_traffic_obfuscation_config(&crate::core::coordinator::get_coordinator().get_advanced_config());
     if !config.enabled {
         let (padding, timing, direction) = ObfuscationProfile::Conservative.derive_configs();
         config = TrafficObfuscationConfig {
@@ -68,7 +68,8 @@ pub async fn traffic_obfuscation_start() -> Result<()> {
 }
 
 pub async fn traffic_obfuscation_stop() -> Result<()> {
-    let mut config = effective_traffic_obfuscation_config(&AdvancedConfig::load_default());
+    let mut config =
+        effective_traffic_obfuscation_config(&crate::core::coordinator::get_coordinator().get_advanced_config());
     config.enabled = false;
     config.profile = ObfuscationProfile::None;
 
@@ -121,13 +122,15 @@ pub async fn traffic_obfuscation_apply_profile(profile: ObfuscationProfile) -> R
 }
 
 async fn persist_traffic_obfuscation_config(config: &TrafficObfuscationConfig) -> Result<()> {
-    let mut advanced = AdvancedConfig::load_default_strict()?;
-    advanced.traffic_obfuscation = config.clone();
-    advanced.traffic_padding.enabled = false;
-    crate::feat::save_advanced_config(&advanced).await
+    let config = config.clone();
+    crate::core::coordinator::update_advanced_config(move |advanced| {
+        advanced.traffic_obfuscation = config;
+        advanced.traffic_padding.enabled = false;
+    })
+    .await
 }
 
-fn effective_traffic_obfuscation_config(advanced: &AdvancedConfig) -> TrafficObfuscationConfig {
+pub fn effective_traffic_obfuscation_config(advanced: &AdvancedConfig) -> TrafficObfuscationConfig {
     if advanced.traffic_obfuscation.enabled {
         advanced.traffic_obfuscation.clone()
     } else if advanced.traffic_padding.enabled {

@@ -4,7 +4,6 @@ use crate::security::{
 };
 use anyhow::{Result, anyhow, bail};
 use once_cell::sync::Lazy;
-use parking_lot::RwLock;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,9 +18,6 @@ pub struct SecurityStatus {
     pub anti_debug_enabled: bool,
     pub suspicious_parent: bool,
 }
-
-static SECURITY_MONITOR: Lazy<Arc<RwLock<SecurityMonitor>>> =
-    Lazy::new(|| Arc::new(RwLock::new(SecurityMonitor::new())));
 
 static LOCAL_SECURITY_MONITOR: Lazy<Arc<LocalSecurityMonitor>> =
     Lazy::new(|| Arc::new(LocalSecurityMonitor::new(LocalSecurityConfig::default())));
@@ -44,13 +40,13 @@ pub use crate::security::local_stealth::{LocalStealthConfig, StealthApplyResult}
 
 // ---------- Security monitor control ----------
 pub async fn start_monitor() {
-    {
-        let monitor = SECURITY_MONITOR.read();
-        monitor.start();
-    }
+    SecurityMonitor::global().start();
 
     // 初始化内存蜜罐以检测内存扫描（从 coordinator 内存配置读取）
-    let hp_cfg = crate::feat::get_coordinator().get_advanced_config().security.honeypot;
+    let hp_cfg = crate::core::coordinator::get_coordinator()
+        .get_advanced_config()
+        .security
+        .honeypot;
     if hp_cfg.enabled {
         honeypot::init_global_honeypot_with_count(hp_cfg.token_count);
     } else {
@@ -85,8 +81,7 @@ pub async fn start_monitor() {
 }
 
 pub fn stop_monitor() {
-    let monitor = SECURITY_MONITOR.read();
-    monitor.stop();
+    SecurityMonitor::global().stop();
 
     // 停止蜜罐监控线程
     HONEYPOT_FLAG.store(false, Ordering::SeqCst);
@@ -307,7 +302,9 @@ pub async fn leak_monitor_get_port() -> Result<u16> {
 // ---------- Local stealth ----------
 
 pub async fn local_stealth_get_config() -> LocalStealthConfig {
-    crate::config::AdvancedConfig::load_default().local_stealth
+    crate::core::coordinator::get_coordinator()
+        .get_advanced_config()
+        .local_stealth
 }
 
 pub async fn apply_local_stealth_config(config: LocalStealthConfig) {
@@ -316,9 +313,10 @@ pub async fn apply_local_stealth_config(config: LocalStealthConfig) {
 }
 
 pub async fn local_stealth_update_config(config: LocalStealthConfig) -> Result<()> {
-    let mut advanced = crate::config::AdvancedConfig::load_default_strict()?;
-    advanced.local_stealth = config.clone();
-    crate::feat::save_advanced_config(&advanced).await
+    crate::core::coordinator::update_advanced_config(move |advanced| {
+        advanced.local_stealth = config;
+    })
+    .await
 }
 
 pub async fn local_stealth_apply() -> Result<StealthApplyResult> {
@@ -346,7 +344,7 @@ pub async fn local_stealth_get_port() -> Result<Option<u16>> {
 }
 
 fn record_ingress_signal(source: impl Into<String>, reason: ThreatReason) {
-    let ingress_countermeasure = crate::feat::get_coordinator().ingress_countermeasure();
+    let ingress_countermeasure = crate::core::coordinator::get_coordinator().ingress_countermeasure();
     let source = source.into();
     tauri::async_runtime::spawn(async move {
         ingress_countermeasure.record_signal(source.clone(), reason).await;

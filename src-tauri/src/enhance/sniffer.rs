@@ -11,7 +11,7 @@ macro_rules! revise {
 
 /// Load advanced config from coordinator (same pattern as stable_egress.rs)
 fn load_advanced_config() -> AdvancedConfig {
-    crate::feat::get_coordinator().get_advanced_config()
+    crate::core::coordinator::get_coordinator().get_advanced_config()
 }
 
 /// Apply sniffer configuration from advanced.yaml to the Mihomo config mapping.

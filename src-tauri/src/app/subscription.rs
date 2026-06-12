@@ -1,6 +1,10 @@
 use crate::{
-    config::{Config, IProfiles, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
-    core::{CoreManager, handle, tray, validate::ValidationOutcome},
+    config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
+    core::{
+        CoreManager, handle,
+        mihomo_runtime_guard,
+        validate::ValidationOutcome,
+    },
     subscription::{
         control_plane::{
             fetch_subscription_update_via_control_plane, subscription_update_uses_dedicated_control_plane,
@@ -13,15 +17,9 @@ use crate::{
     utils::help::{mask_err, mask_url},
 };
 use anyhow::{Result, anyhow, bail};
-use clash_verge_logging::{Type, logging, logging_error};
-use scopeguard::defer;
+use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-use tauri::Emitter as _;
 use tokio::fs;
-
-static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
 
 struct ProfileUpdateSnapshot {
     item: PrfItem,
@@ -110,220 +108,6 @@ async fn persist_finished_subscription_attempt(
     }
 }
 
-/// Toggle proxy profile 闁?directly calls the same logic as patch_profiles_config_by_profile_index
-pub async fn toggle_proxy_profile(profile_index: String) {
-    logging_error!(
-        Type::Config,
-        patch_profiles_config_by_profile_index(profile_index).await
-    );
-}
-
-/// 闁哄秷顫夊畵涔竢ofile name濞ｅ浂鍠楅弫绱乺ofiles (feat 閻忕偛鍊绘晶妤呭嫉椤掑﹦绀夐弶鈺傛煥濞?anyhow::Result)
-pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Result<ValidationOutcome> {
-    let profiles = IProfiles {
-        current: Some(profile_index),
-        items: None,
-    };
-    patch_profiles_config(profiles).await
-}
-
-/// Update profiles config (feature-layer entrypoint)
-pub async fn patch_profiles_config(profiles: IProfiles) -> Result<ValidationOutcome> {
-    if CURRENT_SWITCHING_PROFILE
-        .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-        .is_err()
-    {
-        logging!(info, Type::Config, "Profile switch is already in progress, skip the new request");
-        return Ok(ValidationOutcome::Busy);
-    }
-
-    let target_profile = profiles.current.as_ref();
-
-    logging!(
-        info,
-        Type::Config,
-        "鐎殿喒鍋撳┑顔碱儎閹便劑寮ㄨぐ鎺戝赋缂傚喚鍠楅弸鍐╃鐠佸湱绀夐柣鈺婂枟閻栴柖rofile: {:?}",
-        target_profile
-    );
-
-    let previous_profile = Config::profiles().await.data_arc().current.clone();
-    logging!(info, Type::Config, "鐟滅増鎸告晶鐘绘煀瀹ュ洨鏋? {:?}", previous_profile);
-
-    Config::profiles().await.edit_draft(|d| d.patch_config(&profiles));
-
-    perform_config_update(target_profile, previous_profile.as_ref()).await
-}
-
-async fn restore_previous_profile(prev_profile: &String) -> Result<()> {
-    logging!(info, Type::Config, "閻忓繑绻嗛惁顖炲箒閵忕媭妲婚柛鎺楊暒缁狅綁宕滃鍥ㄧ暠闂佹澘绉堕悿? {}", prev_profile);
-    let restore_profiles = IProfiles {
-        current: Some(prev_profile.to_owned()),
-        items: None,
-    };
-    Config::profiles()
-        .await
-        .edit_draft(|d| d.patch_config(&restore_profiles));
-    Config::profiles().await.apply();
-    crate::process::AsyncHandler::spawn(|| async move {
-        if let Err(e) = crate::config::profiles::profiles_save_file_safe().await {
-            logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐寸┍濠靛棛鎽犻柟顓滃灩椤︽煡鏌婂鍥╂瀭闁哄倸娲ｅ▎銏″緞鏉堫偉袝: {e}");
-        }
-    });
-    logging!(info, Type::Config, "Restored the previous profile after update failure");
-    Ok(())
-}
-
-async fn handle_success(current_value: Option<&String>) -> Result<ValidationOutcome> {
-    Config::profiles().await.apply();
-    handle::Handle::refresh_clash();
-
-    if let Err(e) = tray::Tray::global().update_tooltip().await {
-        logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐哄即鐎涙ɑ鐓€闁瑰灚顭囧ú蹇涘箵閹邦喓浠涘鎯扮簿鐟? {e}");
-    }
-
-    if let Err(e) = tray::Tray::global().update_menu().await {
-        logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐哄即鐎涙ɑ鐓€闁瑰灚顭囧ú蹇涙嚕濠婂啫绀嬪鎯扮簿鐟? {e}");
-    }
-
-    if let Err(e) = crate::config::profiles::profiles_save_file_safe().await {
-        logging!(warn, Type::Config, "Warning: 鐎殿喖鍊归鐐寸┍濠靛棛鎽犻梺鏉跨Ф閻ゅ棝寮崶锔筋偨濠㈡儼绮剧憴? {e}");
-    }
-
-    if let Some(current) = current_value
-        && crate::utils::window_manager::WindowManager::get_main_window().is_some()
-    {
-        logging!(info, Type::Config, "闁告碍鍨垫晶鐘电博椤栨艾绲洪梺顐＄窔閸樸倗绱旈鐓庣秮闁哄洨绻濈花銊︾? {}", current);
-        handle::Handle::notify_profile_changed(current);
-    }
-
-    Ok(ValidationOutcome::Valid)
-}
-
-async fn discard_and_restore(current_profile: Option<&String>) -> Result<()> {
-    Config::profiles().await.discard();
-    if let Some(prev_profile) = current_profile {
-        restore_previous_profile(prev_profile).await?;
-    }
-    Ok(())
-}
-
-async fn handle_validation_failure(
-    outcome: ValidationOutcome,
-    current_profile: Option<&String>,
-) -> Result<ValidationOutcome> {
-    logging!(warn, Type::Config, "闂佹澘绉堕悿鍡橆殽瀹€鍐濠㈡儼绮剧憴? {}", outcome);
-    discard_and_restore(current_profile).await?;
-    crate::cmd::validate::handle_validation_notice(
-        &outcome,
-        crate::cmd::validate::ValidationNoticeTarget::Runtime,
-        "runtime config",
-    );
-    Ok(outcome)
-}
-
-async fn handle_update_error<E: std::fmt::Display>(
-    e: E,
-    current_profile: Option<&String>,
-) -> Result<ValidationOutcome> {
-    logging!(warn, Type::Config, "闁哄洤鐡ㄩ弻濠冩交閸モ斁鏌ら柛娆愬灩閺佹捇鏌ㄥ▎鎺濆殩: {}", e);
-    discard_and_restore(current_profile).await?;
-    let message: String = e.to_string().into();
-    handle::Handle::notice_message("config_validate::boot_error", message.clone());
-    Ok(ValidationOutcome::invalid_from_message(message))
-}
-
-async fn handle_timeout(current_profile: Option<&String>) -> Result<ValidationOutcome> {
-    let timeout_msg: String = "Config update timed out after 30 seconds; validation or core communication may be blocked".into();
-    logging!(error, Type::Config, "{}", timeout_msg);
-    discard_and_restore(current_profile).await?;
-    handle::Handle::notice_message("config_validate::timeout", timeout_msg.clone());
-    Ok(ValidationOutcome::invalid_from_message(timeout_msg))
-}
-
-async fn perform_config_update(
-    current_value: Option<&String>,
-    current_profile: Option<&String>,
-) -> Result<ValidationOutcome> {
-    defer! {
-        CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
-    }
-    let update_result =
-        tokio::time::timeout(Duration::from_secs(30), CoreManager::global().update_config_forced()).await;
-
-    match update_result {
-        Ok(Ok(outcome)) if outcome.is_valid() => handle_success(current_value).await,
-        Ok(Ok(outcome)) => handle_validation_failure(outcome, current_profile).await,
-        Ok(Err(e)) => handle_update_error(e, current_profile).await,
-        Err(_) => handle_timeout(current_profile).await,
-    }
-}
-
-pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
-    match handle::Handle::mihomo()
-        .await
-        .select_node_for_group(group_name, proxy_name)
-        .await
-    {
-        Ok(_) => {
-            logging!(info, Type::Tray, "闁告帒娲﹀畷鍙夌閿濆洦鍊為柟瀛樺姇婵? {} -> {}", group_name, proxy_name);
-            if let Err(error) = crate::feat::sync_runtime_stable_egress_selection().await {
-                logging!(
-                    warn,
-                    Type::Tray,
-                    "缂佸鍟块悾楣冨礄閸濆嫬缍撻弶鈺傚姌椤㈡垿骞€娴ｅ憡绀€闁告劖鐟ラ妵鎴犳嫻? {} -> {}, 闂佹寧鐟ㄩ? {}",
-                    group_name,
-                    proxy_name,
-                    error
-                );
-            }
-            let _ = handle::Handle::app_handle().emit("verge://refresh-proxy-config", ());
-            let _ = tray::Tray::global().update_menu().await;
-            return;
-        }
-        Err(err) => {
-            logging!(
-                error,
-                Type::Tray,
-                "闁告帒娲﹀畷鍙夌閿濆洦鍊炲鎯扮簿鐟? {} -> {}, 闂佹寧鐟ㄩ? {:?}",
-                group_name,
-                proxy_name,
-                err
-            );
-        }
-    }
-
-    match handle::Handle::mihomo()
-        .await
-        .select_node_for_group(group_name, proxy_name)
-        .await
-    {
-        Ok(_) => {
-            logging!(info, Type::Tray, "濞寸媴绲块幃濠囧礆閸ャ劌搴婇柛銉у仱閳ь兘鍋撻柟瀛樺姇婵? {} -> {}", group_name, proxy_name);
-            if let Err(error) = crate::feat::sync_runtime_stable_egress_selection().await {
-                logging!(
-                    warn,
-                    Type::Tray,
-                    "缂佸鍟块悾楣冨礄閸濆嫬缍撻弶鈺傚姌椤㈡垿骞€娴ｅ憡绀€闁告劖鐟ラ妵鎴犳嫻? {} -> {}, 闂佹寧鐟ㄩ? {}",
-                    group_name,
-                    proxy_name,
-                    error
-                );
-            }
-            let _ = tray::Tray::global().update_menu().await;
-        }
-        Err(err) => {
-            logging!(
-                error,
-                Type::Tray,
-                "濞寸媴绲块幃濠囧礆閸ャ劌搴婇柡鍫氬亾缂備礁鐗嗛妵鎴犳嫻? {} -> {}, 闂佹寧鐟ㄩ? {:?}",
-                group_name,
-                proxy_name,
-                err
-            );
-        }
-    }
-}
-
 async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<(String, Option<PrfOption>)>> {
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
@@ -343,16 +127,16 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
         logging!(
             info,
             Type::Config,
-            "[閻犱降鍨藉Σ鍕即鐎涙ɑ鐓€] {} 闁哄嫷鍨电换娆戠矙鐎ｎ収鍚傞梻鍐ㄦ嫅缁辨紛RL: {}",
+            "[Subscription Update] {} target URL: {}",
             uid,
             mask_url(
                 item.url
                     .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?
+                    .ok_or_else(|| anyhow!("Profile URL is None"))?
             )
         );
         Ok(Some((
-            item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
+            item.url.clone().ok_or_else(|| anyhow!("Profile URL is None"))?,
             item.option.clone(),
         )))
     }
@@ -376,7 +160,7 @@ async fn snapshot_profile_update(uid: &String) -> Result<Option<ProfileUpdateSna
                     logging!(
                         warn,
                         Type::Config,
-                        "Warning: [閻犱降鍨藉Σ鍕即鐎涙ɑ鐓€] current profile file is missing before update, will recreate it: {}",
+                        "Warning: [Subscription Update] current profile file is missing before update, will recreate it: {}",
                         file
                     );
                     None
@@ -400,7 +184,7 @@ async fn restore_profile_update_snapshot(snapshot: &ProfileUpdateSnapshot) -> Re
         .item
         .uid
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("profile update snapshot is missing uid"))?;
+        .ok_or_else(|| anyhow!("profile update snapshot is missing uid"))?;
     let restored_item = snapshot.item.clone();
 
     Config::profiles()
@@ -417,12 +201,12 @@ async fn restore_profile_update_snapshot(snapshot: &ProfileUpdateSnapshot) -> Re
         .await
 }
 
-async fn perform_profile_update_v2(
+async fn perform_profile_update(
     uid: &String,
     url: &String,
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
-    is_mannual_trigger: bool,
+    is_manual_trigger: bool,
 ) -> std::result::Result<ProfileUpdateExecution, ProfileUpdateFailure> {
     logging!(info, Type::Config, "[Subscription Update] start downloading remote subscription");
     let merged_opt = PrfOption::merge(opt, option);
@@ -434,7 +218,7 @@ async fn perform_profile_update_v2(
 
     let attempt = SubscriptionUpdateAttempt::new(
         uid.clone(),
-        if is_mannual_trigger {
+        if is_manual_trigger {
             UpdateTrigger::Manual
         } else {
             UpdateTrigger::Automatic
@@ -445,7 +229,8 @@ async fn perform_profile_update_v2(
     handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveSource, None);
     handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveTransportPlan, None);
 
-    let transport_plan = TransportPlan::for_subscription_update(Some(transport_kind_from_option(merged_opt.as_ref()))).await;
+    let transport_plan =
+        TransportPlan::for_subscription_update(Some(transport_kind_from_option(merged_opt.as_ref()))).await;
     if let Some(note) = transport_plan.note.as_ref() {
         logging!(info, Type::Config, "[Subscription Update] transport plan note: {}", note);
     }
@@ -461,7 +246,7 @@ async fn perform_profile_update_v2(
         let attempt_option = apply_transport_to_option(merged_opt.as_ref(), transport);
 
         if matches!(transport, TransportKind::LocalProxy) {
-            if let Err(err) = crate::feat::ensure_mihomo_core_ready().await {
+            if let Err(err) = mihomo_runtime_guard::ensure_mihomo_core_ready().await {
                 logging!(
                     warn,
                     Type::Config,
@@ -522,24 +307,25 @@ async fn perform_profile_update_v2(
             });
         }
 
-        let mut item = match PrfItem::from_fetched_payload(url, fetched, None, None, persisted_option.as_ref()).await {
-            Ok(item) => item,
-            Err(err) => {
-                logging!(
-                    warn,
-                    Type::Config,
-                    "Warning: [Subscription Update] {} returned an invalid payload: {}",
-                    transport.label(),
-                    format_subscription_update_error(&err)
-                );
-                log_profile_update_fetch_error("materialize artifact", &err);
-                last_stage = UpdateStage::MaterializeArtifact;
-                last_transport = Some(transport);
-                last_artifact = Some(artifact.clone());
-                last_err = Some(err);
-                continue;
-            }
-        };
+        let mut item =
+            match PrfItem::from_fetched_payload(url, fetched, None, None, persisted_option.as_ref()).await {
+                Ok(item) => item,
+                Err(err) => {
+                    logging!(
+                        warn,
+                        Type::Config,
+                        "Warning: [Subscription Update] {} returned an invalid payload: {}",
+                        transport.label(),
+                        format_subscription_update_error(&err)
+                    );
+                    log_profile_update_fetch_error("materialize artifact", &err);
+                    last_stage = UpdateStage::MaterializeArtifact;
+                    last_transport = Some(transport);
+                    last_artifact = Some(artifact.clone());
+                    last_err = Some(err);
+                    continue;
+                }
+            };
 
         if let Err(err) = profiles_draft_update_item_safe(uid, &mut item).await {
             return Err(ProfileUpdateFailure {
@@ -586,7 +372,7 @@ pub async fn update_profile(
     option: Option<&PrfOption>,
     auto_refresh: bool,
     ignore_auto_update: bool,
-    is_mannual_trigger: bool,
+    is_manual_trigger: bool,
 ) -> Result<()> {
     logging!(info, Type::Config, "[Subscription Update] start updating subscription {}", uid);
 
@@ -596,7 +382,7 @@ pub async fn update_profile(
 
     let rollback_snapshot = snapshot_profile_update(uid).await?;
 
-    let update_execution = match perform_profile_update_v2(uid, &url, opt.as_ref(), option, is_mannual_trigger).await {
+    let update_execution = match perform_profile_update(uid, &url, opt.as_ref(), option, is_manual_trigger).await {
         Ok(execution) => execution,
         Err(failure) => {
             logging!(
@@ -653,7 +439,7 @@ pub async fn update_profile(
         logging!(info, Type::Config, "[Subscription Update] applying updated profile to runtime");
 
         match CoreManager::global()
-            .update_config_without_restart_with_force(is_mannual_trigger)
+            .update_config_without_restart_with_force(is_manual_trigger)
             .await
         {
             Ok(outcome) if outcome.is_valid() => {
@@ -680,7 +466,7 @@ pub async fn update_profile(
                 .await;
                 handle::Handle::refresh_clash();
             }
-            Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
+            Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_manual_trigger => {
                 logging!(
                     info,
                     Type::Config,
@@ -790,8 +576,4 @@ pub async fn update_profile(
     }
 
     Ok(())
-}
-
-pub async fn enhance_profiles() -> Result<ValidationOutcome> {
-    CoreManager::global().update_config_forced().await
 }

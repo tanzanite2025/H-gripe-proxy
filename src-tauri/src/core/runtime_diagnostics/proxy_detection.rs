@@ -288,7 +288,7 @@ pub async fn build_proxy_detection_result() -> Result<ProxyDetectionResult> {
     };
 
     let proxy_reputation = if let Some(proxy_ip) = proxy_info.as_ref().and_then(|info| info.ip.as_deref()) {
-        match crate::feat::get_ip_reputation_manager()
+        match crate::core::ip_reputation::get_ip_reputation_manager()
             .inspect_ip_metadata(proxy_ip)
             .await
         {
