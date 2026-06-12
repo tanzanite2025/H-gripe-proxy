@@ -7,6 +7,7 @@ use crate::{
         profiles::{
             profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
             profiles_reorder_safe, profiles_save_file_safe,
+            resolve_profile_file_path,
         },
         profiles_append_item_safe,
     },
@@ -14,7 +15,7 @@ use crate::{
         CoreManager, handle, timer::Timer, tray::Tray,
         validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
     },
-    utils::{dirs, help},
+    utils::help,
 };
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
@@ -271,7 +272,7 @@ pub async fn view_profile(index: String) -> CmdResult {
         .as_ref()
         .ok_or("the file field is null")?;
 
-    let path = dirs::app_profiles_dir().stringify_err()?.join(file.as_str());
+    let path = resolve_profile_file_path(file.as_str()).stringify_err()?;
     if !path.exists() {
         return CmdResult::Err(format!("file not found \"{}\"", path.display()).into());
     }

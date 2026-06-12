@@ -2,8 +2,7 @@ use crate::{
     config::profiles,
     subscription::fetch::{FetchedSubscriptionPayload, fetch_remote_profile},
     utils::{
-        dirs, help,
-        tmpl,
+        help, tmpl,
     },
 };
 use anyhow::{Context as _, Result, bail};
@@ -593,7 +592,7 @@ impl PrfItem {
             .file
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("could not find the file"))?;
-        let path = dirs::app_profiles_dir()?.join(file.as_str());
+        let path = profiles::resolve_profile_file_path(file.as_str())?;
         let content = fs::read_to_string(path).await.context("failed to read the file")?;
         Ok(content.into())
     }
@@ -604,7 +603,7 @@ impl PrfItem {
             .file
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("could not find the file"))?;
-        let path = dirs::app_profiles_dir()?.join(file.as_str());
+        let path = profiles::resolve_profile_file_path(file.as_str())?;
         fs::write(path, data.as_bytes())
             .await
             .context("failed to save the file")
