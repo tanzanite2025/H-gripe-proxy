@@ -394,10 +394,20 @@ impl CoreConfigValidator {
             Err(err) => {
                 let error_msg: String = err.to_string().into();
                 if error_msg.contains("YAML syntax error") {
-                    logging!(warn, Type::Validate, "YAML syntax error caught by native validator: {}", error_msg);
+                    logging!(
+                        warn,
+                        Type::Validate,
+                        "YAML syntax error caught by native validator: {}",
+                        error_msg
+                    );
                     return Ok(ValidationOutcome::invalid(ValidationErrorKind::YamlSyntax, error_msg));
                 }
-                logging!(warn, Type::Validate, "Native validation error (falling through to core): {}", error_msg);
+                logging!(
+                    warn,
+                    Type::Validate,
+                    "Native validation error (falling through to core): {}",
+                    error_msg
+                );
             }
         }
 
@@ -417,7 +427,12 @@ impl CoreConfigValidator {
         let command = match app_handle.shell().sidecar(clash_core.as_str()) {
             Ok(cmd) => cmd.args(["-t", "-d", app_dir_str, "-f", config_path]),
             Err(err) => {
-                logging!(warn, Type::Validate, "Sidecar binary unavailable, accepting native-only result: {}", err);
+                logging!(
+                    warn,
+                    Type::Validate,
+                    "Sidecar binary unavailable, accepting native-only result: {}",
+                    err
+                );
                 return Ok(ValidationOutcome::Valid);
             }
         };
@@ -425,7 +440,12 @@ impl CoreConfigValidator {
         let output = match command.output().await {
             Ok(out) => out,
             Err(err) => {
-                logging!(warn, Type::Validate, "Sidecar process failed to execute, accepting native-only result: {}", err);
+                logging!(
+                    warn,
+                    Type::Validate,
+                    "Sidecar process failed to execute, accepting native-only result: {}",
+                    err
+                );
                 return Ok(ValidationOutcome::Valid);
             }
         };
