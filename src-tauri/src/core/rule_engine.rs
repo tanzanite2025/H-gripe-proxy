@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::IpAddr;
 
 // ---------------------------------------------------------------------------
 // Connection metadata — the "packet header" we match rules against
@@ -193,41 +193,26 @@ pub fn validate_rule(raw: &str) -> RuleValidation {
 // ---------------------------------------------------------------------------
 
 fn parse_rule(raw: &str) -> Result<ParsedRule> {
-    let parts: Vec<&str> = raw.splitn(4, ',').collect();
-    if parts.is_empty() {
-        bail!("empty rule");
-    }
+    let parts = parse_rule_payload(raw)?;
+    let rule_type_upper = parts.rule_type.to_ascii_uppercase();
 
-    let rule_type = parts[0].trim();
-
-    // MATCH is special — only needs target
-    if rule_type.eq_ignore_ascii_case("MATCH") {
-        let target = parts.get(1).map(|s| s.trim()).unwrap_or("");
-        if target.is_empty() {
+    if rule_type_upper == "MATCH" {
+        if parts.target.is_empty() {
             bail!("MATCH rule requires a target policy");
         }
-        return Ok(ParsedRule::Match {
-            target: target.to_owned(),
-        });
+        return Ok(ParsedRule::Match { target: parts.target });
     }
 
-    // All other rules need at least TYPE,PAYLOAD,TARGET
-    if parts.len() < 3 {
+    if parts.payload.is_empty() || parts.target.is_empty() {
         bail!("rule must have at least TYPE,PAYLOAD,TARGET");
     }
 
-    let payload = parts[1].trim();
-    let target = parts[2].trim().to_owned();
-    let params_str = parts.get(3).unwrap_or(&"");
-    let params: Vec<&str> = if params_str.is_empty() {
-        Vec::new()
-    } else {
-        params_str.split(',').map(|s| s.trim()).collect()
-    };
+    let payload = parts.payload.as_str();
+    let target = parts.target;
+    let param_refs: Vec<&str> = parts.params.iter().map(|s| s.as_str()).collect();
+    let (is_src, _no_resolve) = parse_params(&param_refs);
 
-    let (is_src, _no_resolve) = parse_params(&params);
-
-    match rule_type.to_ascii_uppercase().as_str() {
+    match rule_type_upper.as_str() {
         "DOMAIN" => Ok(ParsedRule::Domain {
             domain: payload.to_ascii_lowercase(),
             target,
@@ -342,8 +327,59 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             payload: payload.to_owned(),
             target,
         }),
-        _ => bail!("unsupported rule type: {rule_type}"),
+        _ => bail!("unsupported rule type: {}", parts.rule_type),
     }
+}
+
+struct RuleParts {
+    rule_type: String,
+    payload: String,
+    target: String,
+    params: Vec<String>,
+}
+
+fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
+    let items: Vec<String> = raw.split(',').map(|s| s.trim().to_owned()).collect();
+    if items.is_empty() || items[0].is_empty() {
+        bail!("empty rule");
+    }
+
+    let rule_type = items[0].to_ascii_uppercase();
+    let mut payload = String::new();
+    let mut target = String::new();
+    let mut params = Vec::new();
+
+    if items.len() > 1 {
+        match rule_type.as_str() {
+            "MATCH" => {
+                target = items[1].clone();
+            }
+            "NOT" | "OR" | "AND" | "SUB-RULE" | "DOMAIN-REGEX" | "PROCESS-NAME-REGEX" | "PROCESS-PATH-REGEX" => {
+                if let Some(last) = items.last() {
+                    target = last.clone();
+                }
+                if items.len() > 2 {
+                    payload = items[1..items.len() - 1].join(",");
+                }
+            }
+            _ => {
+                payload = items[1].clone();
+                if items.len() > 2 {
+                    target = items[2].clone();
+                }
+                if items.len() > 3 {
+                    params = items[3..].to_vec();
+                }
+            }
+        }
+    }
+
+    Ok(RuleParts {
+        rule_type,
+        payload,
+        target,
+        params,
+    })
 }
 
 fn parse_params(params: &[&str]) -> (bool, bool) {
@@ -378,6 +414,10 @@ fn parse_ip_suffix(s: &str) -> Result<(Vec<u8>, u8)> {
         IpAddr::V4(v4) => v4.octets().to_vec(),
         IpAddr::V6(v6) => v6.octets().to_vec(),
     };
+    let max_bits = (addr_bytes.len() * 8) as u8;
+    if bits > max_bits {
+        bail!("IP-SUFFIX: bit count {bits} exceeds maximum {max_bits}");
+    }
     Ok((addr_bytes, bits))
 }
 
@@ -740,6 +780,7 @@ mod tests {
 
         assert!(!validate_rule("DOMAIN").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
+        assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("DST-PORT,notaport,Direct").valid);
         assert!(!validate_rule("UNKNOWN-TYPE,foo,bar").valid);
     }
@@ -761,5 +802,11 @@ mod tests {
         let mut m = ConnectionMeta::default();
         m.dst_ip = Some("fd12:3456::1".parse().unwrap());
         assert_eq!(engine.match_connection(&m).target.as_deref(), Some("Local"));
+    }
+
+    #[test]
+    fn domain_regex_payload_with_comma() {
+        let engine = RuleEngine::from_rules(&["DOMAIN-REGEX,^(foo|bar).example\\.com$,Proxy", "MATCH,DIRECT"]).unwrap();
+        assert!(engine.match_connection(&meta_domain("foo.example.com")).matched);
     }
 }
