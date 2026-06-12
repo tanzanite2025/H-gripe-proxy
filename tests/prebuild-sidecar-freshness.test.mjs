@@ -4,9 +4,12 @@ import path from 'node:path'
 import { test } from 'node:test'
 
 const root = path.resolve(import.meta.dirname, '..')
-const prebuild = fs.readFileSync(path.join(root, 'scripts/prebuild.mjs'), 'utf8')
+const prebuild = fs.readFileSync(
+  path.join(root, 'scripts/prebuild.mjs'),
+  'utf8',
+)
 
-test('prebuild rejects stale local mihomo sidecar', () => {
+test('prebuild verifies local mihomo sidecar metadata', () => {
   assert.match(
     prebuild,
     /MIHOMO_SOURCE_DIR\s*=\s*path\.join\(cwd,\s*'mihomo'\)/,
@@ -14,12 +17,17 @@ test('prebuild rejects stale local mihomo sidecar', () => {
   )
   assert.match(
     prebuild,
-    /assertLocalSidecarFresh\(sidecarPath\)/,
-    'prebuild should verify source freshness before accepting the sidecar',
+    /assertLocalSidecarMatchesSource\(sidecarPath\)/,
+    'prebuild should verify source and binary hashes before accepting the sidecar',
   )
   assert.match(
     prebuild,
-    /Local sidecar is older than mihomo source/,
-    'stale sidecar failures should explain the packaging risk',
+    /Local sidecar source hash mismatch/,
+    'stale sidecar failures should explain the source mismatch',
+  )
+  assert.match(
+    prebuild,
+    /Local sidecar binary hash mismatch/,
+    'tampered sidecar failures should explain the binary mismatch',
   )
 })

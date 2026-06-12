@@ -17,6 +17,7 @@
     "web:build": "tsc --noEmit && vite build",
     "web:serve": "vite preview",
     "prebuild": "node scripts/prebuild.mjs",
+    "mihomo:sidecar": "node scripts/build-mihomo-sidecar.mjs",
     "verify:styles": "node scripts/verify-emotion-styles.mjs",
     "migrate:file": "node scripts/migrate-to-tailwind.mjs",
     "migrate:all": "node scripts/migrate-all.mjs",

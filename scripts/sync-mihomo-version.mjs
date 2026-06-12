@@ -2,9 +2,8 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
-const VERSION_URL =
-  'https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt'
 const DEFAULT_CHANGELOG = 'Changelog.md'
+const DEFAULT_VERSION_FILE = path.join('mihomo', 'version.txt')
 
 const args = process.argv.slice(2)
 const CHECK = args.includes('--check')
@@ -26,16 +25,27 @@ function normalizeVersion(version) {
   return normalized.startsWith('v') ? normalized : `v${normalized}`
 }
 
-async function fetchLatestVersion() {
+async function fetchLatestVersion(cwd) {
   const explicitVersion = readArgValue('--version')
   if (explicitVersion) return normalizeVersion(explicitVersion)
 
-  const response = await fetch(VERSION_URL, {
-    method: 'GET',
-  })
+  const versionFile = readArgValue('--version-file') || DEFAULT_VERSION_FILE
+  const versionPath = path.join(cwd, versionFile)
+  if (fs.existsSync(versionPath)) {
+    return normalizeVersion(await fsp.readFile(versionPath, 'utf-8'))
+  }
+
+  const versionURL = process.env.MIHOMO_VERSION_URL
+  if (!versionURL) {
+    throw new Error(
+      'missing mihomo version source: pass --version, --version-file, or MIHOMO_VERSION_URL',
+    )
+  }
+
+  const response = await fetch(versionURL, { method: 'GET' })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${VERSION_URL}: ${response.status}`)
+    throw new Error(`Failed to fetch ${versionURL}: ${response.status}`)
   }
 
   return normalizeVersion(await response.text())
@@ -74,7 +84,7 @@ async function main() {
     throw new Error(`could not find ${path.relative(cwd, changelogPath)}`)
   }
 
-  const version = await fetchLatestVersion()
+  const version = await fetchLatestVersion(cwd)
   const content = await fsp.readFile(changelogPath, 'utf-8')
   const nextContent =
     replaceExistingLine(content, version) ?? insertMihomoLine(content, version)
