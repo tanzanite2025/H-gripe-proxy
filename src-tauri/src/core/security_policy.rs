@@ -167,6 +167,21 @@ pub fn get_security_policy_manager() -> Arc<SecurityPolicyManager> {
 
 /// Apply a single policy to Mihomo by creating rules with the policy's source tag
 pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
+    // Validate all rules through the Rust rule engine before sending to Go
+    for (i, rule) in policy.rules.iter().enumerate() {
+        let v = super::rule_engine::validate_rule_spec(&rule.rule_type, &rule.payload, &rule.proxy);
+        if !v.valid {
+            return Err(anyhow::anyhow!(
+                "security policy "{}" rule[{i}] ({},{},{}): {}",
+                policy.name,
+                rule.rule_type,
+                rule.payload,
+                rule.proxy,
+                v.error.unwrap_or_else(|| "invalid rule".into())
+            ));
+        }
+    }
+
     let manager = get_security_policy_manager();
     if let Some(state) = manager.get_applied_state(&policy.name).await
         && state.applied

@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
 use smartstring::alias::String;
 use std::time::Duration;
-use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_mihomo::Error as MihomoError;
+use tauri_plugin_mihomo::MihomoExt as _;
 use tokio::sync::Mutex;
 
 use once_cell::sync::Lazy;
@@ -66,11 +66,7 @@ pub struct MihomoRuntimeRuleSpec {
 }
 
 impl MihomoRuntimeRuleSpec {
-    pub fn new(
-        rule_type: impl Into<String>,
-        payload: impl Into<String>,
-        proxy: impl Into<String>,
-    ) -> Self {
+    pub fn new(rule_type: impl Into<String>, payload: impl Into<String>, proxy: impl Into<String>) -> Self {
         Self {
             rule_type: rule_type.into(),
             payload: payload.into(),
@@ -92,6 +88,20 @@ impl<'a> MihomoRuleGuard<'a> {
         source: Option<&str>,
         position: Option<&str>,
     ) -> Result<Self> {
+        // Validate every rule through the Rust rule engine before sending to Go
+        for (i, rule) in rules.iter().enumerate() {
+            let v = super::rule_engine::validate_rule_spec(&rule.rule_type, &rule.payload, &rule.proxy);
+            if !v.valid {
+                return Err(anyhow::anyhow!(
+                    "runtime rule[{i}] ({},{},{}): {}",
+                    rule.rule_type,
+                    rule.payload,
+                    rule.proxy,
+                    v.error.unwrap_or_else(|| "invalid rule".into())
+                ));
+            }
+        }
+
         let mihomo = app_handle.mihomo().read().await;
         let mut rule_indexes = Vec::new();
 
