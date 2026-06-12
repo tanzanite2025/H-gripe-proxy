@@ -1,7 +1,7 @@
 use super::SeqMap;
 use crate::{
-    config::PrfItem,
-    utils::{dirs, help},
+    config::{PrfItem, profiles::resolve_profile_file_path},
+    utils::help,
 };
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
@@ -31,7 +31,7 @@ impl AsyncChainItemFrom for Option<ChainItem> {
         let itype = item.itype.as_ref()?.as_str();
         let file = item.file.clone()?;
         let uid = item.uid.clone().unwrap_or_else(|| "".into());
-        let path = dirs::app_profiles_dir().ok()?.join(file.as_str());
+        let path = resolve_profile_file_path(file.as_str()).ok()?;
 
         if !path.exists() {
             return None;

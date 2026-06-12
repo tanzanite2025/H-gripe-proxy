@@ -8,7 +8,7 @@ use clash_verge_logging::{Type, logging};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 use tokio::fs;
 
 /// Define the `profiles.yaml` schema
@@ -174,23 +174,40 @@ impl IProfiles {
         match help::read_yaml::<Self>(&path).await {
             Ok(mut profiles) => {
                 let items = profiles.items.get_or_insert_with(Vec::new);
+                let mut changed = false;
                 for item in items.iter_mut() {
                     if item.uid.is_none() {
                         item.uid = Some(help::get_uid("d").into());
+                        changed = true;
+                    }
+                    if let Some(file) = item.file.clone()
+                        && resolve_profile_file_path(file.as_str()).is_err()
+                    {
+                        logging!(
+                            warn,
+                            Type::Config,
+                            "Removed invalid profile file reference from item {:?}: {}",
+                            item.uid,
+                            file
+                        );
+                        item.file = None;
+                        changed = true;
                     }
                 }
 
-                if profiles.prune_legacy_auxiliary_rules_items() {
+                changed |= profiles.prune_legacy_auxiliary_rules_items();
+
+                if changed {
                     logging!(
                         info,
                         Type::Config,
-                        "Removed legacy auxiliary china rules items from profiles config"
+                        "Persisting sanitized profiles config"
                     );
                     if let Err(err) = profiles.save_file().await {
                         logging!(
                             warn,
                             Type::Config,
-                            "Failed to persist legacy auxiliary china rules cleanup: {}",
+                            "Failed to persist sanitized profiles config: {}",
                             err
                         );
                     }
@@ -274,7 +291,7 @@ impl IProfiles {
                 .file
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("file field is required when file_data is provided"))?;
-            let path = dirs::app_profiles_dir()?.join(file.as_str());
+            let path = resolve_profile_file_path(file.as_str())?;
 
             fs::write(&path, file_data.as_bytes())
                 .await
@@ -327,6 +344,9 @@ impl IProfiles {
 
         for each in items.iter_mut() {
             if each.uid.as_ref() == Some(uid) {
+                if let Some(file) = item.file.as_ref() {
+                    resolve_profile_file_path(file.as_str())?;
+                }
                 patch!(each, item, itype);
                 patch!(each, item, name);
                 patch!(each, item, desc);
@@ -375,7 +395,7 @@ impl IProfiles {
                         // the file must exists
                         each.file = Some(file.clone());
 
-                        let path = dirs::app_profiles_dir()?.join(file.as_str());
+                        let path = resolve_profile_file_path(file.as_str())?;
 
                         fs::write(&path, file_data.as_bytes())
                             .await
@@ -414,12 +434,16 @@ impl IProfiles {
 
         // remove the main item (if exists) and delete its file
         if let Some(file) = Self::take_item_file_by_uid(&mut items, Some(uid.as_str())) {
-            let _ = dirs::app_profiles_dir()?.join(file.as_str()).remove_if_exists().await;
+            if let Ok(path) = resolve_profile_file_path(file.as_str()) {
+                let _ = path.remove_if_exists().await;
+            }
         }
 
         for delete_uid in delete_uids {
             if let Some(file) = Self::take_item_file_by_uid(&mut items, delete_uid.as_deref()) {
-                let _ = dirs::app_profiles_dir()?.join(file.as_str()).remove_if_exists().await;
+                if let Ok(path) = resolve_profile_file_path(file.as_str()) {
+                    let _ = path.remove_if_exists().await;
+                }
             }
         }
 
@@ -447,7 +471,7 @@ impl IProfiles {
             (Some(current), Some(items)) => {
                 if let Some(item) = items.iter().find(|e| e.uid.as_ref() == Some(current)) {
                     let file_path = match item.file.as_ref() {
-                        Some(file) => dirs::app_profiles_dir()?.join(file.as_str()),
+                        Some(file) => resolve_profile_file_path(file.as_str())?,
                         None => bail!("failed to get the file field"),
                     };
                     return help::read_mapping(&file_path).await;
@@ -652,6 +676,23 @@ impl IProfiles {
     }
 }
 
+pub fn resolve_profile_file_path(filename: &str) -> Result<PathBuf> {
+    let filename = filename.trim();
+    if !IProfiles::is_profile_file(filename) {
+        bail!("invalid profile file name: {filename}");
+    }
+
+    let base_dir = dirs::app_profiles_dir()?;
+    let path = base_dir.join(filename);
+    let is_direct_child = path.parent().is_some_and(|parent| parent == base_dir.as_path())
+        && path.starts_with(&base_dir);
+    if !is_direct_child {
+        bail!("invalid profile file name: {filename}");
+    }
+
+    Ok(path)
+}
+
 // 特殊的Send-safe helper函数，完全避免跨await持有guard
 use crate::config::Config;
 
@@ -730,6 +771,12 @@ mod tests {
         assert!(!IProfiles::is_profile_file("rAbC123.yaml"));
         assert!(IProfiles::is_profile_file("pAbC123.yaml"));
         assert!(IProfiles::is_profile_file("gAbC123.yaml"));
+    }
+
+    #[test]
+    fn profile_path_resolver_rejects_traversal() {
+        assert!(resolve_profile_file_path("../Rabc.yaml").is_err());
+        assert!(resolve_profile_file_path("nested/Rabc.yaml").is_err());
     }
 
     #[test]

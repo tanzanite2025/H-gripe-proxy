@@ -153,7 +153,7 @@ async fn snapshot_profile_update(uid: &String) -> Result<Option<ProfileUpdateSna
     let item = profiles_arc.get_item(uid)?.clone();
     let file_data = match item.file.as_ref() {
         Some(file) => {
-            let path = crate::utils::dirs::app_profiles_dir()?.join(file.as_str());
+            let path = crate::config::profiles::resolve_profile_file_path(file.as_str())?;
             match fs::try_exists(&path).await {
                 Ok(true) => Some(fs::read_to_string(path).await?.into()),
                 Ok(false) => {
@@ -176,7 +176,7 @@ async fn snapshot_profile_update(uid: &String) -> Result<Option<ProfileUpdateSna
 
 async fn restore_profile_update_snapshot(snapshot: &ProfileUpdateSnapshot) -> Result<()> {
     if let (Some(file), Some(file_data)) = (snapshot.item.file.as_ref(), snapshot.file_data.as_ref()) {
-        let path = crate::utils::dirs::app_profiles_dir()?.join(file.as_str());
+        let path = crate::config::profiles::resolve_profile_file_path(file.as_str())?;
         fs::write(path, file_data.as_bytes()).await?;
     }
 

@@ -184,7 +184,12 @@ async function findLatestSourceMtime(dir, extensions) {
       const entryPath = path.join(currentDir, entry.name)
       if (entry.isDirectory()) {
         await walk(entryPath)
-      } else if (extensions.has(path.extname(entry.name)) || entry.name === 'go.mod' || entry.name === 'go.sum' || entry.name === 'Makefile') {
+      } else if (
+        extensions.has(path.extname(entry.name)) ||
+        entry.name === 'go.mod' ||
+        entry.name === 'go.sum' ||
+        entry.name === 'Makefile'
+      ) {
         const stat = await fsp.stat(entryPath)
         latest = Math.max(latest, stat.mtimeMs)
       }
@@ -419,7 +424,7 @@ const resolveServicePermission = async () => {
           continue
         }
         try {
-          execSync(`chmod 755 ${filePath}`)
+          await fsp.chmod(filePath, 0o755)
           log_success(`chmod finished: "${filePath}"`)
         } catch (e) {
           log_error(`chmod failed for ${filePath}:`, e.message)
