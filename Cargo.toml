@@ -8,6 +8,11 @@ members = [
   "crates/clash-verge-i18n",
   "crates/clash-verge-limiter",
 ]
+exclude = [
+  "crates/clash-verge-logger",
+  "crates/clash-verge-service-ipc",
+  "crates/sysproxy",
+]
 resolver = "2"
 
 [profile.release]
@@ -53,6 +58,9 @@ clash-verge-i18n = { path = "crates/clash-verge-i18n" }
 clash-verge-limiter = { path = "crates/clash-verge-limiter" }
 tauri-plugin-clash-verge-sysinfo = { path = "crates/tauri-plugin-clash-verge-sysinfo" }
 tauri-plugin-mihomo = { path = "crates/tauri-plugin-mihomo" }
+clash_verge_logger = { path = "crates/clash-verge-logger" }
+clash_verge_service_ipc = { path = "crates/clash-verge-service-ipc" }
+sysproxy = { path = "crates/sysproxy" }
 
 tauri = { version = "2.10.3" }
 tauri-plugin-clipboard-manager = "2.3.2"

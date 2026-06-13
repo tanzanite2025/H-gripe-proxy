@@ -1,33 +1,29 @@
-import { execSync } from 'child_process'
+import { execFileSync, execSync } from 'child_process'
 import { createHash } from 'crypto'
 import fs from 'fs'
 import fsp from 'fs/promises'
 import path from 'path'
 
-import AdmZip from 'adm-zip'
 import { glob } from 'glob'
-import { HttpsProxyAgent } from 'https-proxy-agent'
-import fetch from 'node-fetch'
-import { extract } from 'tar'
 
-import { log_debug, log_error, log_info, log_success } from './utils.mjs'
-
-/**
- * Prebuild script with optimization features:
- * 1. Skip downloading mihomo core if it already exists (unless --force is used)
- * 2. Cache version information for 1 hour to avoid repeated version checks
- * 3. Use file hash to detect changes and skip unnecessary chmod/copy operations
- * 4. Use --force or -f flag to force re-download and update all resources
- *
- */
+import { log_debug, log_error, log_success } from './utils.mjs'
 
 const cwd = process.cwd()
 const TEMP_DIR = path.join(cwd, 'node_modules/.verge')
 const FORCE = process.argv.includes('--force') || process.argv.includes('-f')
-const VERSION_CACHE_FILE = path.join(TEMP_DIR, '.version_cache.json')
 const HASH_CACHE_FILE = path.join(TEMP_DIR, '.hash_cache.json')
 const MIHOMO_SOURCE_DIR = path.join(cwd, 'mihomo')
 const SIDECAR_METADATA_SUFFIX = '.build.json'
+const RESOURCES_DIR = path.join(cwd, 'src-tauri', 'resources')
+const SIDECAR_DIR = path.join(cwd, 'src-tauri', 'sidecar')
+const SERVICE_CRATE_DIR = path.join(cwd, 'crates', 'clash-verge-service-ipc')
+const SIMPLE_SC_SOURCE = path.join(
+  cwd,
+  'src-tauri',
+  'packages',
+  'windows',
+  'SimpleSC.dll',
+)
 
 const PLATFORM_MAP = {
   'x86_64-pc-windows-msvc': 'win32',
@@ -42,6 +38,7 @@ const PLATFORM_MAP = {
   'riscv64gc-unknown-linux-gnu': 'linux',
   'loongarch64-unknown-linux-gnu': 'linux',
 }
+
 const ARCH_MAP = {
   'x86_64-pc-windows-msvc': 'x64',
   'i686-pc-windows-msvc': 'ia32',
@@ -69,62 +66,50 @@ const SIDECAR_HOST = target
       .toString()
       .match(/(?<=host: ).+(?=\s*)/g)[0]
 
-const RESOURCES_DIR = path.join(cwd, 'src-tauri', 'resources')
-const SIDECAR_DIR = path.join(cwd, 'src-tauri', 'sidecar')
-// Linux service binaries are bundled as externalBin sidecars (see tauri.linux.conf.json)
 const SERVICE_DIR = platform === 'linux' ? SIDECAR_DIR : RESOURCES_DIR
 
-// =======================
-// Version Cache
-// =======================
-async function loadVersionCache() {
-  try {
-    if (fs.existsSync(VERSION_CACHE_FILE)) {
-      const data = await fsp.readFile(VERSION_CACHE_FILE, 'utf-8')
-      return JSON.parse(data)
-    }
-  } catch (err) {
-    log_debug('Failed to load version cache:', err.message)
-  }
-  return {}
-}
-async function saveVersionCache(cache) {
-  try {
-    await fsp.mkdir(TEMP_DIR, { recursive: true })
-    await fsp.writeFile(VERSION_CACHE_FILE, JSON.stringify(cache, null, 2))
-    log_debug('Version cache saved')
-  } catch (err) {
-    log_debug('Failed to save version cache:', err.message)
-  }
-}
-async function getCachedVersion(key) {
-  const cache = await loadVersionCache()
-  const cached = cache[key]
-  if (cached && Date.now() - cached.timestamp < 3600000) {
-    log_info(`Using cached version for ${key}: ${cached.version}`)
-    return cached.version
-  }
-  return null
-}
-async function setCachedVersion(key, version) {
-  const cache = await loadVersionCache()
-  cache[key] = { version, timestamp: Date.now() }
-  await saveVersionCache(cache)
+const LOCAL_RESOURCE_SOURCES = {
+  'Country.mmdb': path.join(RESOURCES_DIR, 'Country.mmdb'),
+  'geosite.dat': path.join(RESOURCES_DIR, 'geosite.dat'),
+  'geoip.dat': path.join(RESOURCES_DIR, 'geoip.dat'),
+  'enableLoopback.exe': path.join(RESOURCES_DIR, 'enableLoopback.exe'),
 }
 
-// =======================
-// Hash Cache & File Hash
-// =======================
+const SERVICE_BINARIES = [
+  'clash-verge-service',
+  'clash-verge-service-install',
+  'clash-verge-service-uninstall',
+]
+
+const META_MAP = {
+  'win32-x64': 'mihomo-windows-amd64-v2',
+  'win32-ia32': 'mihomo-windows-386',
+  'win32-arm64': 'mihomo-windows-arm64',
+  'darwin-x64': 'mihomo-darwin-amd64-v2-go122',
+  'darwin-arm64': 'mihomo-darwin-arm64-go122',
+  'linux-x64': 'mihomo-linux-amd64-v2',
+  'linux-ia32': 'mihomo-linux-386',
+  'linux-arm64': 'mihomo-linux-arm64',
+  'linux-arm': 'mihomo-linux-armv7',
+  'linux-riscv64': 'mihomo-linux-riscv64',
+  'linux-loong64': 'mihomo-linux-loong64',
+}
+
+if (!META_MAP[`${platform}-${arch}`]) {
+  throw new Error(`verge-mihomo unsupported platform "${platform}-${arch}"`)
+}
+
 async function calculateFileHash(filePath) {
   try {
     const fileBuffer = await fsp.readFile(filePath)
     const hashSum = createHash('sha256')
     hashSum.update(fileBuffer)
     return hashSum.digest('hex')
-  } catch (ignoreErr) {
+  } catch {
     return null
   }
 }
+
 async function loadHashCache() {
   try {
     if (fs.existsSync(HASH_CACHE_FILE)) {
@@ -136,6 +121,7 @@ async function loadHashCache() {
   }
   return {}
 }
+
 async function saveHashCache(cache) {
   try {
     await fsp.mkdir(TEMP_DIR, { recursive: true })
@@ -145,6 +131,7 @@ async function saveHashCache(cache) {
     log_debug('Failed to save hash cache:', err.message)
   }
 }
+
 async function hasFileChanged(filePath, targetPath) {
   if (FORCE) return true
   if (!fs.existsSync(targetPath)) return true
@@ -152,13 +139,10 @@ async function hasFileChanged(filePath, targetPath) {
   const sourceHash = await calculateFileHash(filePath)
   const targetHash = await calculateFileHash(targetPath)
   if (!sourceHash || !targetHash) return true
-  const cacheKey = targetPath
-  const cachedHash = hashCache[cacheKey]
-  if (cachedHash === sourceHash && sourceHash === targetHash) {
-    return false
-  }
-  return true
+  const cachedHash = hashCache[targetPath]
+  return !(cachedHash === sourceHash && sourceHash === targetHash)
 }
+
 async function updateHashCache(targetPath) {
   const hashCache = await loadHashCache()
   const hash = await calculateFileHash(targetPath)
@@ -263,33 +247,6 @@ async function assertLocalSidecarMatchesSource(sidecarPath) {
   }
 }
 
-// =======================
-// Mihomo target maps (local sidecar only)
-// =======================
-const META_MAP = {
-  'win32-x64': 'mihomo-windows-amd64-v2',
-  'win32-ia32': 'mihomo-windows-386',
-  'win32-arm64': 'mihomo-windows-arm64',
-  'darwin-x64': 'mihomo-darwin-amd64-v2-go122',
-  'darwin-arm64': 'mihomo-darwin-arm64-go122',
-  'linux-x64': 'mihomo-linux-amd64-v2',
-  'linux-ia32': 'mihomo-linux-386',
-  'linux-arm64': 'mihomo-linux-arm64',
-  'linux-arm': 'mihomo-linux-armv7',
-  'linux-riscv64': 'mihomo-linux-riscv64',
-  'linux-loong64': 'mihomo-linux-loong64',
-}
-
-// =======================
-// Validate availability
-// =======================
-if (!META_MAP[`${platform}-${arch}`]) {
-  throw new Error(`verge-mihomo unsupported platform "${platform}-${arch}"`)
-}
-
-// =======================
-// Build meta objects
-// =======================
 function clashMeta() {
   const isWin = platform === 'win32'
   return {
@@ -318,138 +275,141 @@ async function resolveLocalSidecar(binInfo) {
   log_success(`Using local sidecar: "${sidecarPath}"`)
 }
 
-// =======================
-// download helper (增强：status + magic bytes)
-// =======================
-async function downloadFile(url, outPath) {
-  const options = {}
-  const httpProxy =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy
-  if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
+async function resolveLocalResource(file, localPath, options = {}) {
+  const { dir = RESOURCES_DIR, requiredOn = () => true } = options
+  if (!requiredOn()) return
 
-  const response = await fetch(url, {
-    ...options,
-    method: 'GET',
-    headers: { 'Content-Type': 'application/octet-stream' },
-  })
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    // 将 body 写到文件以便排查（可通过临时目录查看）
-    await fsp.mkdir(path.dirname(outPath), { recursive: true })
-    await fsp.writeFile(outPath, body)
-    throw new Error(`Failed to download ${url}: status ${response.status}`)
+  const targetPath = path.join(dir, file)
+  const sourcePath = path.resolve(localPath)
+
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(
+      `Missing local controlled resource "${sourcePath}" for "${file}". Prebuild no longer downloads this asset automatically.`,
+    )
   }
 
-  const buf = Buffer.from(await response.arrayBuffer())
-  await fsp.mkdir(path.dirname(outPath), { recursive: true })
-
-  // 简单 magic 字节检查
-  if (url.endsWith('.gz') || url.endsWith('.tgz')) {
-    if (!(buf[0] === 0x1f && buf[1] === 0x8b)) {
-      await fsp.writeFile(outPath, buf)
-      throw new Error(
-        `Downloaded file for ${url} is not a valid gzip (magic mismatch).`,
-      )
-    }
-  } else if (url.endsWith('.zip')) {
-    if (!(buf[0] === 0x50 && buf[1] === 0x4b)) {
-      await fsp.writeFile(outPath, buf)
-      throw new Error(
-        `Downloaded file for ${url} is not a valid zip (magic mismatch).`,
-      )
-    }
-  }
-
-  await fsp.writeFile(outPath, buf)
-  log_success(`download finished: ${url}`)
-}
-
-// =======================
-// Other resource resolvers
-// =======================
-async function resolveResource(binInfo) {
-  const { file, downloadURL, localPath, dir } = binInfo
-  const baseDir = dir ?? RESOURCES_DIR
-  const targetPath = path.join(baseDir, file)
-
-  if (!FORCE && fs.existsSync(targetPath) && !downloadURL && !localPath) {
-    log_success(`"${file}" already exists, skipping`)
+  if (sourcePath === targetPath) {
+    await updateHashCache(targetPath)
+    log_success(`Validated local controlled resource: "${file}"`)
     return
   }
 
-  if (downloadURL) {
-    if (!FORCE && fs.existsSync(targetPath)) {
-      log_success(`"${file}" already exists, skipping download`)
-      return
-    }
-    await fsp.mkdir(baseDir, { recursive: true })
-    await downloadFile(downloadURL, targetPath)
-    await updateHashCache(targetPath)
+  if (!(await hasFileChanged(sourcePath, targetPath))) {
+    return
   }
 
-  if (localPath) {
-    if (!(await hasFileChanged(localPath, targetPath))) {
-      return
+  await fsp.mkdir(dir, { recursive: true })
+  await fsp.copyFile(sourcePath, targetPath)
+  if (platform !== 'win32' && /\.(sh|bin|exe)?$/i.test(file)) {
+    try {
+      await fsp.chmod(targetPath, 0o755)
+    } catch (err) {
+      log_debug(`chmod skipped for "${targetPath}":`, err.message)
     }
-    await fsp.mkdir(baseDir, { recursive: true })
-    await fsp.copyFile(localPath, targetPath)
-    await updateHashCache(targetPath)
-    log_success(`Copied file: ${file}`)
   }
-
-  log_success(`${file} finished`)
+  await updateHashCache(targetPath)
+  log_success(`Copied local controlled resource: "${file}"`)
 }
 
-// SimpleSC.dll (win plugin)
+function serviceFileInfo(name) {
+  const ext = platform === 'win32' ? '.exe' : ''
+  const suffix = platform === 'linux' ? `-${SIDECAR_HOST}` : ''
+  return {
+    sourceFile: `${name}${ext}`,
+    targetFile: `${name}${suffix}${ext}`,
+  }
+}
+
+function cargoBinaryName(name) {
+  return `${name}${platform === 'win32' ? '.exe' : ''}`
+}
+
+function buildServiceBundle() {
+  const bins = SERVICE_BINARIES.flatMap((name) => ['--bin', name])
+  const args = [
+    'build',
+    '--release',
+    '--manifest-path',
+    path.join(SERVICE_CRATE_DIR, 'Cargo.toml'),
+    '--features',
+    'standalone',
+  ]
+  if (target) {
+    args.push('--target', target)
+  }
+  args.push(...bins)
+
+  execFileSync('cargo', args, {
+    cwd,
+    env: process.env,
+    stdio: 'inherit',
+  })
+}
+
+function builtServiceBinaryPath(name) {
+  const profileDir = target
+    ? path.join(cwd, 'target', target, 'release')
+    : path.join(cwd, 'target', 'release')
+  return path.join(profileDir, cargoBinaryName(name))
+}
+
+async function resolveServiceBundle() {
+  const files = SERVICE_BINARIES.map((name) => {
+    const info = serviceFileInfo(name)
+    return {
+      name,
+      sourcePath: builtServiceBinaryPath(name),
+      targetPath: path.join(SERVICE_DIR, info.targetFile),
+    }
+  })
+
+  const needsBuild =
+    FORCE || files.some(({ targetPath }) => !fs.existsSync(targetPath))
+
+  if (needsBuild) {
+    buildServiceBundle()
+  }
+
+  await fsp.mkdir(SERVICE_DIR, { recursive: true })
+
+  for (const { name, sourcePath, targetPath } of files) {
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(
+        `Missing locally built service binary "${sourcePath}" for "${name}".`,
+      )
+    }
+
+    if (!(await hasFileChanged(sourcePath, targetPath))) {
+      continue
+    }
+
+    await fsp.copyFile(sourcePath, targetPath)
+    if (platform !== 'win32') await fsp.chmod(targetPath, 0o755)
+    await updateHashCache(targetPath)
+    log_success(`Installed local service binary: "${path.basename(targetPath)}"`)
+  }
+}
+
 const resolvePlugin = async () => {
-  const url =
-    'https://nsis.sourceforge.io/mediawiki/images/e/ef/NSIS_Simple_Service_Plugin_Unicode_1.30.zip'
-  const tempDir = path.join(TEMP_DIR, 'SimpleSC')
-  const tempZip = path.join(
-    tempDir,
-    'NSIS_Simple_Service_Plugin_Unicode_1.30.zip',
-  )
-  const tempDll = path.join(tempDir, 'SimpleSC.dll')
   const pluginDir = path.join(process.env.APPDATA || '', 'Local/NSIS')
   const pluginPath = path.join(pluginDir, 'SimpleSC.dll')
-  await fsp.mkdir(pluginDir, { recursive: true })
-  await fsp.mkdir(tempDir, { recursive: true })
-  if (!FORCE && fs.existsSync(pluginPath)) return
-  try {
-    if (!fs.existsSync(tempZip)) {
-      await downloadFile(url, tempZip)
-    }
-    const zip = new AdmZip(tempZip)
-    zip
-      .getEntries()
-      .forEach((entry) => log_debug(`"SimpleSC" entry`, entry.entryName))
-    zip.extractAllTo(tempDir, true)
-    if (fs.existsSync(tempDll)) {
-      await fsp.cp(tempDll, pluginPath, { recursive: true, force: true })
-      log_success(`unzip finished: "SimpleSC"`)
-    } else {
-      // 如果 dll 名称不同，尝试找到 dll
-      const files = await fsp.readdir(tempDir)
-      const dll = files.find((f) => f.toLowerCase().endsWith('.dll'))
-      if (dll) {
-        await fsp.cp(path.join(tempDir, dll), pluginPath, {
-          recursive: true,
-          force: true,
-        })
-        log_success(`unzip finished: "SimpleSC" (found ${dll})`)
-      } else {
-        throw new Error('SimpleSC.dll not found in zip')
-      }
-    }
-  } finally {
-    await fsp.rm(tempDir, { recursive: true, force: true })
+
+  if (!fs.existsSync(SIMPLE_SC_SOURCE)) {
+    throw new Error(
+      `Missing local controlled resource "${SIMPLE_SC_SOURCE}" for "SimpleSC.dll".`,
+    )
   }
+
+  if (!(await hasFileChanged(SIMPLE_SC_SOURCE, pluginPath))) {
+    return
+  }
+
+  await fsp.mkdir(pluginDir, { recursive: true })
+  await fsp.copyFile(SIMPLE_SC_SOURCE, pluginPath)
+  await updateHashCache(pluginPath)
+  log_success('Installed local NSIS SimpleSC.dll')
 }
 
-// service chmod (保留并使用 glob)
 const resolveServicePermission = async () => {
   const serviceExecutables = [
     'clash-verge-service*',
@@ -459,24 +419,23 @@ const resolveServicePermission = async () => {
   const hashCache = await loadHashCache()
   let hasChanges = false
 
-  for (const f of serviceExecutables) {
-    const files = glob.sync(path.join(SERVICE_DIR, f))
+  for (const pattern of serviceExecutables) {
+    const files = glob.sync(path.join(SERVICE_DIR, pattern))
     for (const filePath of files) {
-      if (fs.existsSync(filePath)) {
-        const currentHash = await calculateFileHash(filePath)
-        const cacheKey = `${filePath}_chmod`
-        if (!FORCE && hashCache[cacheKey] === currentHash) {
-          continue
-        }
-        try {
-          await fsp.chmod(filePath, 0o755)
-          log_success(`chmod finished: "${filePath}"`)
-        } catch (e) {
-          log_error(`chmod failed for ${filePath}:`, e.message)
-        }
-        hashCache[cacheKey] = currentHash
-        hasChanges = true
+      if (!fs.existsSync(filePath)) continue
+      const currentHash = await calculateFileHash(filePath)
+      const cacheKey = `${filePath}_chmod`
+      if (!FORCE && hashCache[cacheKey] === currentHash) {
+        continue
       }
+      try {
+        await fsp.chmod(filePath, 0o755)
+        log_success(`chmod finished: "${filePath}"`)
+      } catch (err) {
+        log_error(`chmod failed for ${filePath}:`, err.message)
+      }
+      hashCache[cacheKey] = currentHash
+      hasChanges = true
     }
   }
 
@@ -485,216 +444,67 @@ const resolveServicePermission = async () => {
   }
 }
 
-// =======================
-// Other resource resolvers (service, mmdb, geosite, geoip, enableLoopback)
-// =======================
-const SERVICE_LATEST_URL =
-  'https://github.com/clash-verge-rev/clash-verge-service-ipc/releases/latest'
-const SERVICE_URL_PREFIX =
-  'https://github.com/clash-verge-rev/clash-verge-service-ipc/releases/download'
-let SERVICE_VERSION
-
-const SERVICE_BINARIES = [
-  'clash-verge-service',
-  'clash-verge-service-install',
-  'clash-verge-service-uninstall',
-]
-
-function serviceFileInfo(name) {
-  const ext = platform === 'win32' ? '.exe' : ''
-  const suffix = platform === 'linux' ? '-' + SIDECAR_HOST : ''
-  return {
-    sourceFile: `${name}${ext}`,
-    targetFile: `${name}${suffix}${ext}`,
-  }
-}
-
-function parseServiceVersionFromUrl(url) {
-  const match = url.match(/\/releases\/tag\/([^/?#]+)/)
-  return match ? decodeURIComponent(match[1]) : null
-}
-
-async function getLatestServiceVersion() {
-  if (!FORCE) {
-    const cached = await getCachedVersion('SERVICE_VERSION')
-    if (cached) {
-      SERVICE_VERSION = cached
-      return
-    }
-  }
-
-  const options = {}
-  const httpProxy =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy
-  if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
-
-  try {
-    const response = await fetch(SERVICE_LATEST_URL, {
-      ...options,
-      method: 'GET',
-      redirect: 'follow',
-    })
-    if (!response.ok)
-      throw new Error(
-        `Failed to fetch ${SERVICE_LATEST_URL}: ${response.status}`,
-      )
-
-    SERVICE_VERSION = parseServiceVersionFromUrl(response.url)
-    if (!SERVICE_VERSION)
-      throw new Error(
-        `Unable to resolve service release tag from ${response.url}`,
-      )
-
-    log_info(`Latest service version: ${SERVICE_VERSION}`)
-    await setCachedVersion('SERVICE_VERSION', SERVICE_VERSION)
-  } catch (err) {
-    log_error('Error fetching latest service version:', err.message)
-    process.exit(1)
-  }
-}
-
-async function findExtractedFile(dir, fileName) {
-  const entries = await fsp.readdir(dir, { withFileTypes: true })
-  for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name)
-    if (entry.isFile() && entry.name === fileName) return entryPath
-    if (entry.isDirectory()) {
-      const found = await findExtractedFile(entryPath, fileName)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-async function resolveServiceBundle() {
-  const files = SERVICE_BINARIES.map((name) => {
-    const info = serviceFileInfo(name)
-    return {
-      ...info,
-      targetPath: path.join(SERVICE_DIR, info.targetFile),
-    }
-  })
-
-  if (!FORCE && files.every(({ targetPath }) => fs.existsSync(targetPath))) {
-    log_success('"clash-verge-service-ipc" already exists, skipping download')
-    return
-  }
-
-  await getLatestServiceVersion()
-
-  const archiveExt = platform === 'win32' ? 'zip' : 'tar.gz'
-  const archiveFile = `clash-verge-service-ipc-${SERVICE_VERSION}-${SIDECAR_HOST}.${archiveExt}`
-  const downloadURL = `${SERVICE_URL_PREFIX}/${SERVICE_VERSION}/${archiveFile}`
-  const tempDir = path.join(TEMP_DIR, 'clash-verge-service-ipc')
-  const tempArchive = path.join(tempDir, archiveFile)
-
-  await fsp.mkdir(tempDir, { recursive: true })
-  await fsp.mkdir(SERVICE_DIR, { recursive: true })
-
-  try {
-    await downloadFile(downloadURL, tempArchive)
-
-    if (platform === 'win32') {
-      const zip = new AdmZip(tempArchive)
-      zip
-        .getEntries()
-        .forEach((entry) =>
-          log_debug('"clash-verge-service-ipc" entry:', entry.entryName),
-        )
-      zip.extractAllTo(tempDir, true)
-    } else {
-      await extract({ cwd: tempDir, file: tempArchive })
-    }
-
-    for (const { sourceFile, targetFile, targetPath } of files) {
-      const extractedFile = await findExtractedFile(tempDir, sourceFile)
-      if (!extractedFile) {
-        throw new Error(`Expected binary ${sourceFile} not found in archive`)
-      }
-
-      await fsp.copyFile(extractedFile, targetPath)
-      if (platform !== 'win32') await fsp.chmod(targetPath, 0o755)
-      await updateHashCache(targetPath)
-      log_success(`Extracted service file: ${targetFile}`)
-    }
-
-    log_success(`service bundle finished: ${archiveFile}`)
-  } finally {
-    await fsp.rm(tempDir, { recursive: true, force: true })
-  }
-}
-
 const resolveMmdb = () =>
-  resolveResource({
-    file: 'Country.mmdb',
-    downloadURL: `https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb`,
-  })
+  resolveLocalResource('Country.mmdb', LOCAL_RESOURCE_SOURCES['Country.mmdb'])
+
 const resolveGeosite = () =>
-  resolveResource({
-    file: 'geosite.dat',
-    downloadURL: `https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat`,
-  })
+  resolveLocalResource('geosite.dat', LOCAL_RESOURCE_SOURCES['geosite.dat'])
+
 const resolveGeoIP = () =>
-  resolveResource({
-    file: 'geoip.dat',
-    downloadURL: `https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat`,
-  })
+  resolveLocalResource('geoip.dat', LOCAL_RESOURCE_SOURCES['geoip.dat'])
+
 const resolveEnableLoopback = () =>
-  resolveResource({
-    file: 'enableLoopback.exe',
-    downloadURL: `https://github.com/Kuingsmile/uwp-tool/releases/download/latest/enableLoopback.exe`,
-  })
+  resolveLocalResource(
+    'enableLoopback.exe',
+    LOCAL_RESOURCE_SOURCES['enableLoopback.exe'],
+    { requiredOn: () => platform === 'win32' },
+  )
 
 const resolveSetDnsScript = () =>
-  resolveResource({
-    file: 'set_dns.sh',
-    localPath: path.join(cwd, 'scripts/set_dns.sh'),
-  })
-const resolveUnSetDnsScript = () =>
-  resolveResource({
-    file: 'unset_dns.sh',
-    localPath: path.join(cwd, 'scripts/unset_dns.sh'),
+  resolveLocalResource('set_dns.sh', path.join(cwd, 'scripts', 'set_dns.sh'), {
+    requiredOn: () => platform === 'darwin',
   })
 
-// =======================
-// Tasks
-// =======================
+const resolveUnSetDnsScript = () =>
+  resolveLocalResource(
+    'unset_dns.sh',
+    path.join(cwd, 'scripts', 'unset_dns.sh'),
+    { requiredOn: () => platform === 'darwin' },
+  )
+
 const tasks = [
   {
     name: 'verge-mihomo',
     func: () => resolveLocalSidecar(clashMeta()),
     retry: 1,
   },
-  { name: 'plugin', func: resolvePlugin, retry: 5, winOnly: true },
-  { name: 'service', func: resolveServiceBundle, retry: 5 },
-  { name: 'mmdb', func: resolveMmdb, retry: 5 },
-  { name: 'geosite', func: resolveGeosite, retry: 5 },
-  { name: 'geoip', func: resolveGeoIP, retry: 5 },
+  { name: 'plugin', func: resolvePlugin, retry: 1, winOnly: true },
+  { name: 'service', func: resolveServiceBundle, retry: 1 },
+  { name: 'mmdb', func: resolveMmdb, retry: 1 },
+  { name: 'geosite', func: resolveGeosite, retry: 1 },
+  { name: 'geoip', func: resolveGeoIP, retry: 1 },
   {
     name: 'enableLoopback',
     func: resolveEnableLoopback,
-    retry: 5,
+    retry: 1,
     winOnly: true,
   },
   {
     name: 'service_chmod',
     func: resolveServicePermission,
-    retry: 5,
+    retry: 1,
     unixOnly: platform === 'linux' || platform === 'darwin',
   },
   {
     name: 'set_dns_script',
     func: resolveSetDnsScript,
-    retry: 5,
+    retry: 1,
     macosOnly: true,
   },
   {
     name: 'unset_dns_script',
     func: resolveUnSetDnsScript,
-    retry: 5,
+    retry: 1,
     macosOnly: true,
   },
 ]
