@@ -8,11 +8,14 @@ use std::process::{Command, Output};
 use windows::Win32::Globalization::{GetACP, GetOEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-const TASK_NAME_USER: &str = "Clash Verge";
-const TASK_NAME_ADMIN: &str = "Clash Verge (Admin)";
+const CURRENT_TASK_NAME_USER: &str = "Clash Verge Optimized";
+const CURRENT_TASK_NAME_ADMIN: &str = "Clash Verge Optimized (Admin)";
+const LEGACY_TASK_NAME_USER: &str = "Clash Verge";
+const LEGACY_TASK_NAME_ADMIN: &str = "Clash Verge (Admin)";
 const TASK_XML_DIR: &str = "tasks";
-const TASK_XML_USER: &str = "clash-verge-task-user.xml";
-const TASK_XML_ADMIN: &str = "clash-verge-task-admin.xml";
+const CURRENT_TASK_XML_USER: &str = "clash-verge-optimized-task-user.xml";
+const CURRENT_TASK_XML_ADMIN: &str = "clash-verge-optimized-task-admin.xml";
+const LEGACY_STARTUP_SHORTCUT_NAMES: &[&str] = &["Clash-Verge.lnk", "Clash Verge.lnk"];
 
 #[derive(Clone, Copy)]
 pub enum TaskMode {
@@ -23,8 +26,15 @@ pub enum TaskMode {
 impl TaskMode {
     const fn name(self) -> &'static str {
         match self {
-            Self::User => TASK_NAME_USER,
-            Self::Admin => TASK_NAME_ADMIN,
+            Self::User => CURRENT_TASK_NAME_USER,
+            Self::Admin => CURRENT_TASK_NAME_ADMIN,
+        }
+    }
+
+    const fn legacy_name(self) -> &'static str {
+        match self {
+            Self::User => LEGACY_TASK_NAME_USER,
+            Self::Admin => LEGACY_TASK_NAME_ADMIN,
         }
     }
 
@@ -44,8 +54,8 @@ impl TaskMode {
 
     const fn xml_file_name(self) -> &'static str {
         match self {
-            Self::User => TASK_XML_USER,
-            Self::Admin => TASK_XML_ADMIN,
+            Self::User => CURRENT_TASK_XML_USER,
+            Self::Admin => CURRENT_TASK_XML_ADMIN,
         }
     }
 }
@@ -97,11 +107,9 @@ fn get_startup_dir() -> Result<PathBuf> {
 
 async fn cleanup_legacy_shortcuts() -> Result<()> {
     let startup_dir = get_startup_dir()?;
-    let old_shortcut = startup_dir.join("Clash-Verge.lnk");
-    let new_shortcut = startup_dir.join("Clash Verge.lnk");
-
-    old_shortcut.remove_if_exists().await?;
-    new_shortcut.remove_if_exists().await?;
+    for legacy_shortcut_name in LEGACY_STARTUP_SHORTCUT_NAMES {
+        startup_dir.join(legacy_shortcut_name).remove_if_exists().await?;
+    }
     Ok(())
 }
 
@@ -262,9 +270,27 @@ fn schtasks_output(mut cmd: Command) -> Result<Output> {
 }
 
 pub fn is_task_enabled(mode: TaskMode) -> Result<bool> {
+    if is_current_task_enabled(mode)? {
+        return Ok(true);
+    }
+
+    is_legacy_task_enabled(mode)
+}
+
+fn is_current_task_enabled(mode: TaskMode) -> Result<bool> {
     let output = schtasks_output({
         let mut cmd = Command::new("schtasks");
         cmd.args(["/Query", "/TN", mode.name()]);
+        cmd
+    })?;
+
+    Ok(output.status.success())
+}
+
+fn is_legacy_task_enabled(mode: TaskMode) -> Result<bool> {
+    let output = schtasks_output({
+        let mut cmd = Command::new("schtasks");
+        cmd.args(["/Query", "/TN", mode.legacy_name()]);
         cmd
     })?;
 
@@ -289,6 +315,10 @@ pub fn create_task(mode: TaskMode) -> Result<()> {
         ));
     }
 
+    if let Err(err) = remove_legacy_task(mode) {
+        logging!(warn, Type::Setup, "Failed to remove legacy {} auto-launch task: {}", mode.label(), err);
+    }
+
     logging!(info, Type::Setup, "Created {} auto-launch task", mode.label());
     Ok(())
 }
@@ -302,7 +332,18 @@ pub fn remove_task(mode: TaskMode) -> Result<()> {
 
     if output.status.success() {
         logging!(info, Type::Setup, "Removed {} auto-launch task", mode.label());
-        return Ok(());
+    }
+
+    if !output.status.success() && is_current_task_enabled(mode)? {
+        return Err(anyhow!(
+            "failed to remove {} task: {}",
+            mode.label(),
+            output_message(&output)
+        ));
+    }
+
+    if let Err(err) = remove_legacy_task(mode) {
+        logging!(warn, Type::Setup, "Failed to remove legacy {} auto-launch task: {}", mode.label(), err);
     }
 
     if !is_task_enabled(mode)? {
@@ -315,8 +356,27 @@ pub fn remove_task(mode: TaskMode) -> Result<()> {
         return Ok(());
     }
 
+    Err(anyhow!("failed to fully remove {} auto-launch tasks", mode.label()))
+}
+
+fn remove_legacy_task(mode: TaskMode) -> Result<()> {
+    let output = schtasks_output({
+        let mut cmd = Command::new("schtasks");
+        cmd.args(["/Delete", "/TN", mode.legacy_name(), "/F"]);
+        cmd
+    })?;
+
+    if output.status.success() {
+        logging!(info, Type::Setup, "Removed legacy {} auto-launch task", mode.label());
+        return Ok(());
+    }
+
+    if !is_legacy_task_enabled(mode)? {
+        return Ok(());
+    }
+
     Err(anyhow!(
-        "failed to remove {} task: {}",
+        "failed to remove legacy {} task: {}",
         mode.label(),
         output_message(&output)
     ))
