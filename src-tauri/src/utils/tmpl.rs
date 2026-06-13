@@ -1,7 +1,7 @@
 //! Some config file template
 
 /// template for new a profile item
-pub const ITEM_LOCAL: &str = "# Profile Template for Clash Verge
+pub const ITEM_LOCAL: &str = "# Profile Template for Clash Verge Optimized
 
 proxies: []
 
@@ -11,13 +11,13 @@ rules: []
 ";
 
 /// enhanced profile
-pub const ITEM_MERGE: &str = "# Profile Enhancement Merge Template for Clash Verge
+pub const ITEM_MERGE: &str = "# Profile Enhancement Merge Template for Clash Verge Optimized
 
 profile:
   store-selected: true
 ";
 
-pub const ITEM_MERGE_EMPTY: &str = "# Profile Enhancement Merge Template for Clash Verge
+pub const ITEM_MERGE_EMPTY: &str = "# Profile Enhancement Merge Template for Clash Verge Optimized
 
 ";
 
@@ -29,7 +29,7 @@ function main(config, profileName) {
 }
 ";
 
-pub const CHINA_RULES_TEMPLATE: &str = "# Built-in china rules for Clash Verge
+pub const CHINA_RULES_TEMPLATE: &str = "# Built-in china rules for Clash Verge Optimized
 #
 # Keep this file focused on China direct-routing only.
 # Do not put Google / OpenAI / overseas-service routing here.
@@ -56,7 +56,7 @@ rules:
 ";
 
 /// enhanced profile
-pub const ITEM_PROXIES: &str = "# Profile Enhancement Proxies Template for Clash Verge
+pub const ITEM_PROXIES: &str = "# Profile Enhancement Proxies Template for Clash Verge Optimized
 
 prepend: []
 
@@ -66,7 +66,7 @@ delete: []
 ";
 
 /// enhanced profile
-pub const ITEM_GROUPS: &str = "# Profile Enhancement Groups Template for Clash Verge
+pub const ITEM_GROUPS: &str = "# Profile Enhancement Groups Template for Clash Verge Optimized
 
 prepend: []
 

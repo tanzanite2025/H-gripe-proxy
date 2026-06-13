@@ -8,6 +8,9 @@ import AdmZip from 'adm-zip'
 
 const target = process.argv.slice(2)[0]
 const alpha = process.argv.slice(2)[1]
+const require = createRequire(import.meta.url)
+const packageJson = require('../package.json')
+const tauriConfig = require('../src-tauri/tauri.conf.json')
 
 const ARCH_MAP = {
   'x86_64-pc-windows-msvc': 'x64',
@@ -20,6 +23,15 @@ const PROCESS_MAP = {
   ia32: 'x86',
   arm64: 'arm64',
 }
+function getWindowsExeName() {
+  return `${tauriConfig.productName}.exe`
+}
+
+function getPortableArchiveName(version, arch) {
+  const portableBaseName = tauriConfig.productName.replace(/[^A-Za-z0-9]+/g, '.')
+  return `${portableBaseName}_${version}_${arch}_fixed_webview2_portable.zip`
+}
+
 const arch = target ? ARCH_MAP[target] : PROCESS_MAP[process.arch]
 /// Script for ci
 /// 打包绿色版/便携版 (only Windows)
@@ -42,8 +54,9 @@ async function resolvePortable() {
   }
 
   const zip = new AdmZip()
+  const exeName = getWindowsExeName()
 
-  zip.addLocalFile(path.join(releaseDir, 'Clash Verge.exe'))
+  zip.addLocalFile(path.join(releaseDir, exeName))
   zip.addLocalFile(path.join(releaseDir, 'verge-mihomo.exe'))
   zip.addLocalFolder(path.join(releaseDir, 'resources'), 'resources')
   zip.addLocalFolder(
@@ -55,11 +68,9 @@ async function resolvePortable() {
   )
   zip.addLocalFolder(configDir, '.config')
 
-  const require = createRequire(import.meta.url)
-  const packageJson = require('../package.json')
   const { version } = packageJson
 
-  const zipFile = `Clash.Verge_${version}_${arch}_fixed_webview2_portable.zip`
+  const zipFile = getPortableArchiveName(version, arch)
   zip.writeZip(zipFile)
 
   console.log('[INFO]: create portable zip successfully')

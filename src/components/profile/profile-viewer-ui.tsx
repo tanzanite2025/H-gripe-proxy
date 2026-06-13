@@ -152,7 +152,7 @@ export function ProfileViewerUI({
                 <TextField
                   {...text}
                   {...field}
-                  placeholder={`clash-verge/v${version}`}
+                  placeholder={`clash-verge-optimized/v${version}`}
                   label="User Agent"
                 />
               )}

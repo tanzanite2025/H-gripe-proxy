@@ -1,8 +1,8 @@
 [package]
 name = "clash-verge-optimized"
 version = "0.0.5"
-description = "clash verge optimized"
-authors = ["zzzgydi", "Tunglies", "wonfen", "MystiPanda"]
+description = "Clash Verge Optimized"
+authors = ["tanzanite2025"]
 license = "GPL-3.0-only"
 repository = "https://github.com/tanzanite2025/clash-verge-optimized.git"
 default-run = "clash-verge-optimized"

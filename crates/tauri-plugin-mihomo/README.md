@@ -2,14 +2,14 @@
 
 > [!IMPORTANT]
 >
-> 此仓库未发布到 crates.io 和 npm 中，请通过 git 使用
+> 此仓库未发布到 crates.io 和 npm 中，请先拉取本仓库，再通过本地 path 使用
 >
 > ```shell
 > # Cargo.toml
-> tauri-plugin-mihomo = { git = "https://github.com/clash-verge-rev/tauri-plugin-mihomo" }
+> tauri-plugin-mihomo = { path = "../clash-verge-optimized/crates/tauri-plugin-mihomo" }
 >
 > # package.json
-> "tauri-plugin-mihomo-api": "git+https://github.com/clash-verge-rev/tauri-plugin-mihomo"
+> "tauri-plugin-mihomo-api": "file:../clash-verge-optimized/crates/tauri-plugin-mihomo"
 > ```
 
 一个基于 Tauri 框架调用 Mihomo API 的插件，支持 Mihomo 的 HTTP 和 Socket 通信
