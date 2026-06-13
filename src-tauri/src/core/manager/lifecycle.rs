@@ -90,7 +90,7 @@ impl CoreManager {
             return Ok(());
         }
 
-        let message = "TUN protection unavailable: Clash Verge Service is not ready. Core start blocked to avoid traffic leaks. Repair the service or run as administrator.";
+        let message = "TUN protection unavailable: the privileged service is not ready. Core start blocked to avoid traffic leaks. Repair the service or run as administrator.";
         logging!(warn, Type::Core, "{}", message);
         self.set_running_mode(RunningMode::NotRunning);
         Handle::notice_message("update_failed", message);
