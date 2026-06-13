@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,7 +69,19 @@ func SetASNUrl(url string) {
 	asnUrl = url
 }
 
+func requireRemoteGeodataURL(url string, path string) (string, error) {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return "", fmt.Errorf("remote geodata URL is not configured; provide the local file at %s or set geox-url explicitly", path)
+	}
+	return url, nil
+}
+
 func downloadToPath(url string, path string) (err error) {
+	url, err = requireRemoteGeodataURL(url, path)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
 	defer cancel()
 	resp, err := mihomoHttp.HttpRequest(ctx, url, http.MethodGet, nil, nil)
@@ -101,6 +114,9 @@ func InitGeoSite() error {
 	}
 	if !initGeoSite {
 		if err := Verify(C.GeositeName); err != nil {
+			if _, urlErr := requireRemoteGeodataURL(GeoSiteUrl(), C.Path.GeoSite()); urlErr != nil {
+				return fmt.Errorf("GeoSite.dat invalid and can't refresh it: %w", urlErr)
+			}
 			log.Warnln("GeoSite.dat invalid, remove and download: %s", err)
 			if err := os.Remove(C.Path.GeoSite()); err != nil {
 				return fmt.Errorf("can't remove invalid GeoSite.dat: %s", err.Error())
@@ -130,6 +146,9 @@ func InitGeoIP() error {
 
 		if initGeoIP != 1 {
 			if err := Verify(C.GeoipName); err != nil {
+				if _, urlErr := requireRemoteGeodataURL(GeoIpUrl(), C.Path.GeoIP()); urlErr != nil {
+					return fmt.Errorf("GeoIP.dat invalid and can't refresh it: %w", urlErr)
+				}
 				log.Warnln("GeoIP.dat invalid, remove and download: %s", err)
 				if err := os.Remove(C.Path.GeoIP()); err != nil {
 					return fmt.Errorf("can't remove invalid GeoIP.dat: %s", err.Error())
@@ -152,6 +171,9 @@ func InitGeoIP() error {
 
 	if initGeoIP != 2 {
 		if !mmdb.Verify(C.Path.MMDB()) {
+			if _, err := requireRemoteGeodataURL(MmdbUrl(), C.Path.MMDB()); err != nil {
+				return fmt.Errorf("MMDB invalid and can't refresh it: %w", err)
+			}
 			log.Warnln("MMDB invalid, remove and download")
 			if err := os.Remove(C.Path.MMDB()); err != nil {
 				return fmt.Errorf("can't remove invalid MMDB: %s", err.Error())
@@ -179,6 +201,9 @@ func InitASN() error {
 	}
 	if !initASN {
 		if !mmdb.Verify(C.Path.ASN()) {
+			if _, err := requireRemoteGeodataURL(ASNUrl(), C.Path.ASN()); err != nil {
+				return fmt.Errorf("ASN invalid and can't refresh it: %w", err)
+			}
 			log.Warnln("ASN invalid, remove and download")
 			if err := os.Remove(C.Path.ASN()); err != nil {
 				return fmt.Errorf("can't remove invalid ASN: %s", err.Error())

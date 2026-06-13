@@ -215,7 +215,7 @@ clashverge-clean/
 - **原始项目**: [Clash Verge](https://github.com/zzzgydi/clash-verge) - 初始创意和架构
 - **当前维护仓库**: [Clash Verge Optimized](https://github.com/tanzanite2025/clash-verge-optimized) - 当前版本维护与定制优化
 - **框架**: [Tauri](https://github.com/tauri-apps/tauri) - 跨平台应用框架
-- **内核**: [Mihomo](https://github.com/MetaCubeX/mihomo) - Clash 代理核心
+- **内核**: [Tanzanite Mihomo Optimized Kernel](mihomo/) - 本项目维护的 MIHOMO 代理核心
 
 ---
 

@@ -19,7 +19,9 @@
 
 ## Dashboard
 
-A web dashboard with first-class support for this project has been created; it can be checked out at [metacubexd](https://github.com/MetaCubeX/metacubexd).
+This kernel does not download a dashboard by default. Desktop builds should
+package their UI locally; standalone users can configure `external-ui` or
+`external-ui-url` explicitly when they need a remote dashboard bundle.
 
 ## Configration example
 
@@ -27,7 +29,7 @@ Configuration example is located at [/docs/config.yaml](docs/config.yaml).
 
 ## Docs
 
-Documentation can be found in [mihomo Docs](https://wiki.metacubex.one/).
+Project-specific configuration docs are kept in [docs/config.yaml](docs/config.yaml).
 
 ## For development
 

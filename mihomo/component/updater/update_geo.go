@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/tanzanite2025/mihomo-optimized/common/atomic"
@@ -44,8 +45,20 @@ func SetGeoUpdateInterval(newGeoUpdateInterval int) {
 	updateInterval = newGeoUpdateInterval
 }
 
+func requireGeoUpdateURL(name, url string) (string, error) {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return "", fmt.Errorf("%s update URL is not configured; provide the local file or set geox-url explicitly", name)
+	}
+	return url, nil
+}
+
 func UpdateMMDB() (err error) {
-	vehicle := resource.NewHTTPVehicle(geodata.MmdbUrl(), C.Path.MMDB(), "", nil, defaultHttpTimeout, 0)
+	url, err := requireGeoUpdateURL("MMDB", geodata.MmdbUrl())
+	if err != nil {
+		return err
+	}
+	vehicle := resource.NewHTTPVehicle(url, C.Path.MMDB(), "", nil, defaultHttpTimeout, 0)
 	var oldHash utils.HashType
 	if buf, err := os.ReadFile(vehicle.Path()); err == nil {
 		oldHash = utils.MakeHash(buf)
@@ -76,7 +89,11 @@ func UpdateMMDB() (err error) {
 }
 
 func UpdateASN() (err error) {
-	vehicle := resource.NewHTTPVehicle(geodata.ASNUrl(), C.Path.ASN(), "", nil, defaultHttpTimeout, 0)
+	url, err := requireGeoUpdateURL("ASN", geodata.ASNUrl())
+	if err != nil {
+		return err
+	}
+	vehicle := resource.NewHTTPVehicle(url, C.Path.ASN(), "", nil, defaultHttpTimeout, 0)
 	var oldHash utils.HashType
 	if buf, err := os.ReadFile(vehicle.Path()); err == nil {
 		oldHash = utils.MakeHash(buf)
@@ -108,8 +125,15 @@ func UpdateASN() (err error) {
 
 func UpdateGeoIp() (err error) {
 	geoLoader, err := geodata.GetGeoDataLoader("standard")
+	if err != nil {
+		return fmt.Errorf("can't get GeoIP geodata loader: %w", err)
+	}
 
-	vehicle := resource.NewHTTPVehicle(geodata.GeoIpUrl(), C.Path.GeoIP(), "", nil, defaultHttpTimeout, 0)
+	url, err := requireGeoUpdateURL("GeoIP", geodata.GeoIpUrl())
+	if err != nil {
+		return err
+	}
+	vehicle := resource.NewHTTPVehicle(url, C.Path.GeoIP(), "", nil, defaultHttpTimeout, 0)
 	var oldHash utils.HashType
 	if buf, err := os.ReadFile(vehicle.Path()); err == nil {
 		oldHash = utils.MakeHash(buf)
@@ -138,8 +162,15 @@ func UpdateGeoIp() (err error) {
 
 func UpdateGeoSite() (err error) {
 	geoLoader, err := geodata.GetGeoDataLoader("standard")
+	if err != nil {
+		return fmt.Errorf("can't get GeoSite geodata loader: %w", err)
+	}
 
-	vehicle := resource.NewHTTPVehicle(geodata.GeoSiteUrl(), C.Path.GeoSite(), "", nil, defaultHttpTimeout, 0)
+	url, err := requireGeoUpdateURL("GeoSite", geodata.GeoSiteUrl())
+	if err != nil {
+		return err
+	}
+	vehicle := resource.NewHTTPVehicle(url, C.Path.GeoSite(), "", nil, defaultHttpTimeout, 0)
 	var oldHash utils.HashType
 	if buf, err := os.ReadFile(vehicle.Path()); err == nil {
 		oldHash = utils.MakeHash(buf)
