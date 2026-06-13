@@ -570,12 +570,9 @@ func DefaultRawConfig() *RawConfig {
 		Profile: RawProfile{
 			StoreSelected: true,
 		},
-		GeoXUrl: RawGeoXUrl{
-			Mmdb:    "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb",
-			ASN:     "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb",
-			GeoIp:   "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat",
-			GeoSite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat",
-		},
+		// Remote geodata downloads are opt-in. Packagers should provide local
+		// resources; users may still set geox-url explicitly when needed.
+		GeoXUrl: RawGeoXUrl{},
 		Sniffer: RawSniffer{
 			Enable:          false,
 			Sniff:           map[string]RawSniffingConfig{},
@@ -586,7 +583,8 @@ func DefaultRawConfig() *RawConfig {
 			ParsePureIp:     true,
 			OverrideDest:    true,
 		},
-		ExternalUIURL: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip",
+		// Remote dashboard downloads are opt-in; desktop builds package their UI.
+		ExternalUIURL: "",
 		ExternalControllerCors: RawCors{
 			AllowOrigins:        []string{"*"},
 			AllowPrivateNetwork: true,

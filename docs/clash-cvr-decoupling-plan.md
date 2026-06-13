@@ -20,15 +20,14 @@
 
 这些不是普通文案，而是构建或运行时实际会拉取/依赖的外部源。
 
-| 文件 | 残留 | 风险 |
-| --- | --- | --- |
-| `src-tauri/Cargo.toml` | `https://github.com/clash-verge-rev/sysproxy-rs` | 系统代理能力依赖 CVR fork |
-| `src-tauri/Cargo.toml` | `https://github.com/clash-verge-rev/clash-verge-logger` | 日志 crate 依赖 CVR fork |
-| `src-tauri/Cargo.toml` | `https://github.com/clash-verge-rev/clash-verge-service-ipc` | service IPC crate 依赖 CVR fork |
-| `Cargo.lock` | 上述 Git source lock | 锁文件仍指向 CVR 源 |
-| `scripts/prebuild.mjs` | `clash-verge-rev/clash-verge-service-ipc` release 下载 | 打包时 service bundle 仍来自 CVR release |
-| `scripts/prebuild.mjs` | `MetaCubeX/meta-rules-dat` | geodata 仍来自 MetaCubeX release |
-| `mihomo/docs/config.yaml` | `MetaCubeX/meta-rules-dat` / `metacubexd` 示例 | 内核示例默认仍导向上游生态 |
+当前状态：第一阶段和内核运行时默认下载链已经完成本地化。
+
+- `src-tauri` 的 `sysproxy`、`clash-verge-logger`、`clash-verge-service-ipc` 已改为 workspace 本地 crate。
+- `scripts/prebuild.mjs` 已改为校验本地 sidecar、service bundle、geodata、loopback、SimpleSC 资源，不再下载外部 latest。
+- `mihomo` 默认 geodata / dashboard URL 已清空；缺本地资源时返回明确错误，只有用户显式配置 URL 才联网。
+- `mihomo/Dockerfile` 不再隐式下载外部 geodata，镜像构建必须提供受控本地 geodata。
+
+后续原则：新增构建资源必须固定来源、版本和校验，不再引入默认 latest 下载链。
 
 ### 2. 产品身份 / 元数据残留
 
@@ -215,12 +214,18 @@ const SERVICE_SHA256 = {
 
 目标：默认资源来源不再指向 MetaCubeX。
 
-需要决策：
+当前策略：
 
-1. 是否自建 `meta-rules-dat` 镜像。
-2. 是否固定 release tag，而不是 `latest`。
-3. 是否接受第三方 geodata 作为“数据源”，但文档明确为外部数据。
-4. 是否继续默认 `metacubexd` dashboard，或改成本项目内置/自建 dashboard。
+1. 不再内置任何远程默认 geodata URL。
+2. 不再默认下载远程 dashboard。
+3. 桌面端由外层构建提供本地受控资源。
+4. Docker 镜像由构建上下文提供本地受控 geodata。
+
+后续可选决策：
+
+1. 是否自建 geodata 镜像。
+2. 是否为可选远程资源增加固定 release tag 和 sha256。
+3. 是否提供本项目自建 dashboard 发布资产。
 
 建议：
 

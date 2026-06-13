@@ -78,6 +78,8 @@ func (u *UIUpdater) AutoDownloadUI() {
 		dirEntries, _ := os.ReadDir(u.externalUIPath)
 		if len(dirEntries) > 0 {
 			log.Infoln("UI already exists, skip downloading")
+		} else if strings.TrimSpace(u.externalUIURL) == "" {
+			log.Warnln("External UI download skipped: external-ui-url is not configured")
 		} else {
 			log.Infoln("External UI downloading ...")
 			err := u.downloadUI()
@@ -113,7 +115,12 @@ func detectFileType(data []byte) compressionType {
 }
 
 func (u *UIUpdater) downloadUI() error {
-	data, err := downloadForBytes(u.externalUIURL)
+	downloadURL := strings.TrimSpace(u.externalUIURL)
+	if downloadURL == "" {
+		return errors.New("external-ui-url is not configured; provide a local external-ui path or set external-ui-url explicitly")
+	}
+
+	data, err := downloadForBytes(downloadURL)
 	if err != nil {
 		return fmt.Errorf("can't download file: %w", err)
 	}
