@@ -42,6 +42,14 @@ pub struct ConnectionMeta {
     pub uid: u32,
     #[serde(default)]
     pub dscp: u8,
+    #[serde(
+        default,
+        alias = "type",
+        alias = "inType",
+        alias = "inbound_type",
+        alias = "inboundType"
+    )]
+    pub in_type: String,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -163,6 +171,10 @@ enum ParsedRule {
     },
     Dscp {
         ranges: Vec<(u8, u8)>,
+        target: String,
+    },
+    InType {
+        types: Vec<String>,
         target: String,
     },
     // Rule types that require external data — we can parse but not match locally.
@@ -458,9 +470,12 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             ranges: parse_dscp_ranges(payload)?,
             target,
         }),
+        "IN-TYPE" => Ok(ParsedRule::InType {
+            types: parse_in_types(payload)?,
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
-        "IN-TYPE"
-        | "IN-USER"
+        "IN-USER"
         | "IN-NAME"
         | "PROCESS-NAME-WILDCARD"
         | "PROCESS-PATH-WILDCARD"
@@ -650,6 +665,55 @@ fn parse_dscp_value(s: &str) -> Result<u8> {
         bail!("DSCP cannot exceed 63");
     }
     Ok(dscp)
+}
+
+fn parse_in_types(s: &str) -> Result<Vec<String>> {
+    let mut types = Vec::new();
+    for part in s.split('/') {
+        let in_type = part.trim();
+        if in_type.is_empty() {
+            bail!("IN-TYPE payload cannot contain empty types");
+        }
+        let upper = in_type.to_ascii_uppercase();
+        if upper == "SOCKS" {
+            types.push("SOCKS4".to_owned());
+            types.push("SOCKS5".to_owned());
+        } else if is_supported_in_type(&upper) {
+            types.push(upper);
+        } else {
+            bail!("unknown IN-TYPE: {in_type}");
+        }
+    }
+    if types.is_empty() {
+        bail!("IN-TYPE payload cannot be empty");
+    }
+    Ok(types)
+}
+
+fn is_supported_in_type(in_type: &str) -> bool {
+    matches!(
+        in_type,
+        "HTTP"
+            | "HTTPS"
+            | "SOCKS4"
+            | "SOCKS5"
+            | "SHADOWSOCKS"
+            | "SNELL"
+            | "VMESS"
+            | "VLESS"
+            | "REDIR"
+            | "TPROXY"
+            | "TROJAN"
+            | "TUNNEL"
+            | "TUN"
+            | "TUIC"
+            | "HYSTERIA2"
+            | "ANYTLS"
+            | "MIERU"
+            | "SUDOKU"
+            | "TRUSTTUNNEL"
+            | "INNER"
+    )
 }
 
 const RULE_SET_INTERNAL_TARGET: &str = "__RULE_SET_MATCH__";
@@ -1061,6 +1125,14 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::InType { types, target } => {
+            let in_type = meta.in_type.to_ascii_uppercase();
+            if !in_type.is_empty() && types.iter().any(|rule_type| rule_type == &in_type) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -1103,6 +1175,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::ProcessPathRegex { .. } => "PROCESS-PATH-REGEX",
         ParsedRule::Uid { .. } => "UID",
         ParsedRule::Dscp { .. } => "DSCP",
+        ParsedRule::InType { .. } => "IN-TYPE",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1274,6 +1347,13 @@ mod tests {
     fn meta_dscp(dscp: u8) -> ConnectionMeta {
         ConnectionMeta {
             dscp,
+            ..Default::default()
+        }
+    }
+
+    fn meta_in_type(in_type: &str) -> ConnectionMeta {
+        ConnectionMeta {
+            in_type: in_type.to_owned(),
             ..Default::default()
         }
     }
@@ -1498,6 +1578,48 @@ mod tests {
     }
 
     #[test]
+    fn in_type_matches_case_insensitively() {
+        let engine = RuleEngine::from_rules(&["IN-TYPE,HTTP/TUN,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_in_type("http")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_type("Tun")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_type("HTTPS")).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn in_type_socks_expands_to_socks4_and_socks5() {
+        let engine = RuleEngine::from_rules(&["IN-TYPE,SOCKS,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_in_type("socks4")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_type("Socks5")).target.as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn in_type_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["IN-TYPE,HTTP,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1517,6 +1639,7 @@ mod tests {
         assert!(validate_rule("UID,1000/2000-2002,Proxy").valid);
         assert!(validate_rule("DSCP,10/46-48,Proxy").valid);
         assert!(validate_rule("DSCP,*,Proxy").valid);
+        assert!(validate_rule("IN-TYPE,HTTP/SOCKS/TUN,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
@@ -1526,6 +1649,8 @@ mod tests {
         assert!(!validate_rule("UID,not-a-uid,Proxy").valid);
         assert!(!validate_rule("DSCP,64,Proxy").valid);
         assert!(!validate_rule("DSCP,not-a-dscp,Proxy").valid);
+        assert!(!validate_rule("IN-TYPE,,Proxy").valid);
+        assert!(!validate_rule("IN-TYPE,UNKNOWN,Proxy").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
