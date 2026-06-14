@@ -169,6 +169,14 @@ enum ParsedRule {
         regex: Regex,
         target: String,
     },
+    ProcessNameWildcard {
+        pattern: String,
+        target: String,
+    },
+    ProcessPathWildcard {
+        pattern: String,
+        target: String,
+    },
     Uid {
         ranges: Vec<(u32, u32)>,
         target: String,
@@ -474,6 +482,14 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
                 .context("invalid PROCESS-PATH-REGEX pattern")?,
             target,
         }),
+        "PROCESS-NAME-WILDCARD" => Ok(ParsedRule::ProcessNameWildcard {
+            pattern: payload.to_ascii_lowercase(),
+            target,
+        }),
+        "PROCESS-PATH-WILDCARD" => Ok(ParsedRule::ProcessPathWildcard {
+            pattern: payload.to_ascii_lowercase(),
+            target,
+        }),
         "UID" => Ok(ParsedRule::Uid {
             ranges: parse_uid_ranges(payload)?,
             target,
@@ -495,13 +511,11 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             target,
         }),
         // Types that require external data — validate format but don't match locally
-        "PROCESS-NAME-WILDCARD" | "PROCESS-PATH-WILDCARD" | "AND" | "OR" | "NOT" | "SUB-RULE" => {
-            Ok(ParsedRule::ExternalData {
-                rule_type: rule_type_upper,
-                payload: payload.to_owned(),
-                target,
-            })
-        }
+        "AND" | "OR" | "NOT" | "SUB-RULE" => Ok(ParsedRule::ExternalData {
+            rule_type: rule_type_upper,
+            payload: payload.to_owned(),
+            target,
+        }),
         _ => bail!("unsupported rule type: {}", parts.rule_type),
     }
 }
@@ -1137,6 +1151,20 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::ProcessNameWildcard { pattern, target } => {
+            if !meta.process_name.is_empty() && wildcard_match(pattern, &meta.process_name.to_ascii_lowercase()) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessPathWildcard { pattern, target } => {
+            if !meta.process_path.is_empty() && wildcard_match(pattern, &meta.process_path.to_ascii_lowercase()) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         ParsedRule::Uid { ranges, target } => {
             if meta.uid != 0 && ranges.iter().any(|(start, end)| meta.uid >= *start && meta.uid <= *end) {
                 Some(target.as_str())
@@ -1217,6 +1245,8 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::ProcessPath { .. } => "PROCESS-PATH",
         ParsedRule::ProcessNameRegex { .. } => "PROCESS-NAME-REGEX",
         ParsedRule::ProcessPathRegex { .. } => "PROCESS-PATH-REGEX",
+        ParsedRule::ProcessNameWildcard { .. } => "PROCESS-NAME-WILDCARD",
+        ParsedRule::ProcessPathWildcard { .. } => "PROCESS-PATH-WILDCARD",
         ParsedRule::Uid { .. } => "UID",
         ParsedRule::Dscp { .. } => "DSCP",
         ParsedRule::InType { .. } => "IN-TYPE",
@@ -1588,6 +1618,57 @@ mod tests {
     }
 
     #[test]
+    fn process_name_wildcard_matches_case_insensitively() {
+        let engine = RuleEngine::from_rules(&["PROCESS-NAME-WILDCARD,*telegram?.exe,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_process_name("ORG.Telegram1.EXE"))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine
+                .match_connection(&meta_process_name("firefox.exe"))
+                .target
+                .as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn process_path_wildcard_matches_case_insensitively() {
+        let engine =
+            RuleEngine::from_rules(&["PROCESS-PATH-WILDCARD,*\\telegram\\telegram.exe,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_process_path("C:\\Users\\Alice\\Telegram\\Telegram.EXE"))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine
+                .match_connection(&meta_process_path("C:\\Program Files\\Firefox\\firefox.exe"))
+                .target
+                .as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn process_wildcard_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["PROCESS-NAME-WILDCARD,*telegram*,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn uid_matches_single_value_and_ranges() {
         let engine = RuleEngine::from_rules(&["UID,1000/2000-2002,Proxy", "MATCH,DIRECT"]).unwrap();
 
@@ -1752,6 +1833,8 @@ mod tests {
         assert!(validate_rule("PROCESS-PATH,C:\\Program Files\\Telegram\\Telegram.exe,Proxy").valid);
         assert!(validate_rule("PROCESS-NAME-REGEX,^telegram(-desktop)?\\.exe$,Proxy").valid);
         assert!(validate_rule("PROCESS-PATH-REGEX,telegram\\.exe$,Proxy").valid);
+        assert!(validate_rule("PROCESS-NAME-WILDCARD,*telegram*,Proxy").valid);
+        assert!(validate_rule("PROCESS-PATH-WILDCARD,*\\telegram\\telegram.exe,Proxy").valid);
         assert!(validate_rule("UID,1000/2000-2002,Proxy").valid);
         assert!(validate_rule("DSCP,10/46-48,Proxy").valid);
         assert!(validate_rule("DSCP,*,Proxy").valid);
