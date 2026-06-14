@@ -84,6 +84,29 @@ pub struct RuleMatchResult {
     pub rule_raw: Option<String>,
     pub target: Option<String>,
     pub rule_type: Option<String>,
+    pub outcome: String,
+    pub explanation: String,
+    pub trace: Vec<RuleTraceStep>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuleTraceStep {
+    pub rule_index: usize,
+    pub rule_raw: String,
+    pub rule_type: String,
+    pub matched: bool,
+    pub target: Option<String>,
+    pub detail: Option<RuleTraceDetail>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuleTraceDetail {
+    pub reference_type: String,
+    pub name: String,
+    pub condition_matched: Option<bool>,
+    pub matched_rule_raw: Option<String>,
+    pub matched_rule_type: Option<String>,
+    pub matched_target: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -307,15 +330,42 @@ impl RuleEngine {
     }
 
     pub fn match_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
+        self.match_connection_impl(meta, false)
+    }
+
+    pub fn explain_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
+        self.match_connection_impl(meta, true)
+    }
+
+    fn match_connection_impl(&self, meta: &ConnectionMeta, include_trace: bool) -> RuleMatchResult {
         let host = meta.host.to_ascii_lowercase();
+        let mut trace = include_trace.then(|| Vec::with_capacity(self.rules.len()));
         for (i, (rule, raw)) in self.rules.iter().enumerate() {
-            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data, &self.rule_sets, &self.sub_rules) {
+            let target = rule_matches(rule, meta, &host, &self.geo_data, &self.rule_sets, &self.sub_rules);
+            if let Some(trace) = trace.as_mut() {
+                trace.push(rule_trace_step(
+                    i,
+                    rule,
+                    raw,
+                    meta,
+                    &host,
+                    target,
+                    &self.geo_data,
+                    &self.rule_sets,
+                    &self.sub_rules,
+                ));
+            }
+            if let Some(target) = target {
+                let rule_type = rule_type_name(rule);
                 return RuleMatchResult {
                     matched: true,
                     rule_index: Some(i),
                     rule_raw: Some(raw.clone()),
                     target: Some(target.to_owned()),
-                    rule_type: Some(rule_type_name(rule).to_owned()),
+                    rule_type: Some(rule_type.to_owned()),
+                    outcome: "matched".to_owned(),
+                    explanation: format!("matched rule #{i} ({rule_type}) -> {target}"),
+                    trace: trace.unwrap_or_default(),
                 };
             }
         }
@@ -325,6 +375,9 @@ impl RuleEngine {
             rule_raw: None,
             target: None,
             rule_type: None,
+            outcome: "fallthrough".to_owned(),
+            explanation: "no rules matched; fallthrough without target".to_owned(),
+            trace: trace.unwrap_or_default(),
         }
     }
 }
@@ -986,6 +1039,10 @@ impl RuleSetData {
     fn matches(&self, name: &str, meta: &ConnectionMeta) -> bool {
         self.sets.get(name).is_some_and(|matcher| matcher.matches(meta))
     }
+
+    fn explain(&self, name: &str, meta: &ConnectionMeta) -> Option<RuleMatchResult> {
+        self.sets.get(name).map(|matcher| matcher.explain(meta))
+    }
 }
 
 #[derive(Default)]
@@ -1033,6 +1090,26 @@ impl SubRuleData {
         result
     }
 
+    fn explain_match_named(
+        &self,
+        name: &str,
+        meta: &ConnectionMeta,
+        host_lower: &str,
+        geo_data: &RuleGeoData,
+        rule_sets: &RuleSetData,
+        visited: &mut HashSet<String>,
+    ) -> Option<SubRuleMatchTrace> {
+        if !visited.insert(name.to_owned()) {
+            return None;
+        }
+        let result = self
+            .sets
+            .get(name)
+            .and_then(|matcher| matcher.explain_match(meta, host_lower, geo_data, rule_sets, self, visited));
+        visited.remove(name);
+        result
+    }
+
     fn validate_references(&self) -> Result<()> {
         for name in self.sets.keys() {
             self.validate_sub_rule_references(name, &mut Vec::new())?;
@@ -1064,6 +1141,12 @@ struct SubRuleMatcher {
     rules: Vec<(ParsedRule, String)>,
 }
 
+struct SubRuleMatchTrace {
+    rule_raw: String,
+    rule_type: String,
+    target: String,
+}
+
 impl SubRuleMatcher {
     fn from_rules(raw_rules: &[String]) -> Result<Self> {
         let mut rules = Vec::with_capacity(raw_rules.len());
@@ -1085,6 +1168,26 @@ impl SubRuleMatcher {
         self.rules
             .iter()
             .find_map(|(rule, _)| rule_matches_inner(rule, meta, host_lower, geo_data, rule_sets, sub_rules, visited))
+    }
+
+    fn explain_match(
+        &self,
+        meta: &ConnectionMeta,
+        host_lower: &str,
+        geo_data: &RuleGeoData,
+        rule_sets: &RuleSetData,
+        sub_rules: &SubRuleData,
+        visited: &mut HashSet<String>,
+    ) -> Option<SubRuleMatchTrace> {
+        self.rules.iter().find_map(|(rule, raw)| {
+            rule_matches_inner(rule, meta, host_lower, geo_data, rule_sets, sub_rules, visited).map(|target| {
+                SubRuleMatchTrace {
+                    rule_raw: raw.clone(),
+                    rule_type: rule_type_name(rule).to_owned(),
+                    target: target.to_owned(),
+                }
+            })
+        })
     }
 
     fn sub_rule_references(&self) -> Vec<&str> {
@@ -1136,6 +1239,10 @@ impl RuleSetMatcher {
 
     fn matches(&self, meta: &ConnectionMeta) -> bool {
         self.engine.match_connection(meta).matched
+    }
+
+    fn explain(&self, meta: &ConnectionMeta) -> RuleMatchResult {
+        self.engine.match_connection(meta)
     }
 }
 
@@ -1578,6 +1685,78 @@ fn rule_matches_inner<'a>(
             visited_sub_rules,
         )
         .and_then(|_| sub_rules.match_named(name, meta, host_lower, geo_data, rule_sets, visited_sub_rules)),
+    }
+}
+
+fn rule_trace_step(
+    rule_index: usize,
+    rule: &ParsedRule,
+    raw: &str,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    target: Option<&str>,
+    geo_data: &RuleGeoData,
+    rule_sets: &RuleSetData,
+    sub_rules: &SubRuleData,
+) -> RuleTraceStep {
+    RuleTraceStep {
+        rule_index,
+        rule_raw: raw.to_owned(),
+        rule_type: rule_type_name(rule).to_owned(),
+        matched: target.is_some(),
+        target: target.map(str::to_owned),
+        detail: rule_trace_detail(rule, meta, host_lower, geo_data, rule_sets, sub_rules),
+    }
+}
+
+fn rule_trace_detail(
+    rule: &ParsedRule,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    geo_data: &RuleGeoData,
+    rule_sets: &RuleSetData,
+    sub_rules: &SubRuleData,
+) -> Option<RuleTraceDetail> {
+    match rule {
+        ParsedRule::RuleSet { name, .. } => {
+            let inner = rule_sets.explain(name, meta);
+            Some(RuleTraceDetail {
+                reference_type: "rule_set".to_owned(),
+                name: name.clone(),
+                condition_matched: None,
+                matched_rule_raw: inner.as_ref().and_then(|result| result.rule_raw.clone()),
+                matched_rule_type: inner.as_ref().and_then(|result| result.rule_type.clone()),
+                matched_target: inner.as_ref().and_then(|result| result.target.clone()),
+            })
+        }
+        ParsedRule::SubRule { condition, name } => {
+            let mut condition_visited = HashSet::new();
+            let condition_matched = rule_matches_inner(
+                condition,
+                meta,
+                host_lower,
+                geo_data,
+                rule_sets,
+                sub_rules,
+                &mut condition_visited,
+            )
+            .is_some();
+            let sub_match = if condition_matched {
+                let mut sub_rule_visited = HashSet::new();
+                sub_rules.explain_match_named(name, meta, host_lower, geo_data, rule_sets, &mut sub_rule_visited)
+            } else {
+                None
+            };
+            Some(RuleTraceDetail {
+                reference_type: "sub_rule".to_owned(),
+                name: name.clone(),
+                condition_matched: Some(condition_matched),
+                matched_rule_raw: sub_match.as_ref().map(|result| result.rule_raw.clone()),
+                matched_rule_type: sub_match.as_ref().map(|result| result.rule_type.clone()),
+                matched_target: sub_match.as_ref().map(|result| result.target.clone()),
+            })
+        }
+        _ => None,
     }
 }
 
@@ -2550,6 +2729,89 @@ mod tests {
         };
 
         assert!(RuleSetData::from_rule_providers(HashMap::from([("nested".to_string(), provider)])).is_err());
+    }
+
+    #[test]
+    fn explain_connection_records_match_trace() {
+        let engine = RuleEngine::from_rules(&["DOMAIN,example.net,Proxy", "DOMAIN,example.com,DIRECT"]).unwrap();
+        let result = engine.explain_connection(&meta_domain("example.com"));
+
+        assert!(result.matched);
+        assert_eq!(result.outcome, "matched");
+        assert_eq!(result.rule_index, Some(1));
+        assert_eq!(result.rule_type.as_deref(), Some("DOMAIN"));
+        assert_eq!(result.target.as_deref(), Some("DIRECT"));
+        assert_eq!(result.trace.len(), 2);
+        assert!(!result.trace[0].matched);
+        assert_eq!(result.trace[1].rule_raw, "DOMAIN,example.com,DIRECT");
+        assert_eq!(result.trace[1].target.as_deref(), Some("DIRECT"));
+    }
+
+    #[test]
+    fn explain_connection_records_fallthrough_trace() {
+        let engine = RuleEngine::from_rules(&["DOMAIN,example.net,Proxy"]).unwrap();
+        let result = engine.explain_connection(&meta_domain("example.com"));
+
+        assert!(!result.matched);
+        assert_eq!(result.outcome, "fallthrough");
+        assert_eq!(result.explanation, "no rules matched; fallthrough without target");
+        assert_eq!(result.trace.len(), 1);
+        assert_eq!(result.trace[0].rule_type, "DOMAIN");
+        assert!(!result.trace[0].matched);
+    }
+
+    #[test]
+    fn explain_connection_shows_rule_set_inner_match() {
+        let provider = RuleProviderConfig {
+            provider_type: "inline".to_string(),
+            behavior: RuleProviderBehavior::Classical,
+            path: None,
+            payload: vec!["DOMAIN-SUFFIX,example.com,REJECT".to_string()],
+            format: None,
+        };
+        let rule_sets = RuleSetData::from_rule_providers(HashMap::from([("private".to_string(), provider)])).unwrap();
+        let engine =
+            RuleEngine::from_rules_with_rule_sets(&["RULE-SET,private,DIRECT", "MATCH,Proxy"], rule_sets).unwrap();
+        let result = engine.explain_connection(&meta_domain("www.example.com"));
+        let detail = result.trace[0].detail.as_ref().unwrap();
+
+        assert_eq!(result.target.as_deref(), Some("DIRECT"));
+        assert_eq!(detail.reference_type, "rule_set");
+        assert_eq!(detail.name, "private");
+        assert_eq!(
+            detail.matched_rule_raw.as_deref(),
+            Some("DOMAIN-SUFFIX,example.com,__RULE_SET_MATCH__")
+        );
+        assert_eq!(detail.matched_rule_type.as_deref(), Some("DOMAIN-SUFFIX"));
+    }
+
+    #[test]
+    fn explain_connection_shows_sub_rule_inner_match() {
+        let sub_rules = SubRuleData::from_sub_rules(HashMap::from([(
+            "domain-preview".to_string(),
+            vec!["DOMAIN-SUFFIX,example.com,Proxy".to_string()],
+        )]))
+        .unwrap();
+        let engine = RuleEngine::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            &["SUB-RULE,DOMAIN-SUFFIX,example.com,domain-preview", "MATCH,DIRECT"],
+            RuleGeoData::empty(),
+            RuleSetData::empty(),
+            sub_rules,
+        )
+        .unwrap();
+        let result = engine.explain_connection(&meta_domain("www.example.com"));
+        let detail = result.trace[0].detail.as_ref().unwrap();
+
+        assert_eq!(result.target.as_deref(), Some("Proxy"));
+        assert_eq!(detail.reference_type, "sub_rule");
+        assert_eq!(detail.name, "domain-preview");
+        assert_eq!(detail.condition_matched, Some(true));
+        assert_eq!(
+            detail.matched_rule_raw.as_deref(),
+            Some("DOMAIN-SUFFIX,example.com,Proxy")
+        );
+        assert_eq!(detail.matched_rule_type.as_deref(), Some("DOMAIN-SUFFIX"));
+        assert_eq!(detail.matched_target.as_deref(), Some("Proxy"));
     }
 
     #[test]

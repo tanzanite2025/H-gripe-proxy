@@ -16,5 +16,5 @@ pub async fn test_rule_match(
         &rule_refs, rule_sets, sub_rules,
     )
     .stringify_err()?;
-    Ok(engine.match_connection(&connection))
+    Ok(engine.explain_connection(&connection))
 }
