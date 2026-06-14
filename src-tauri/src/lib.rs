@@ -230,6 +230,7 @@ mod app_init {
             cmd::authorize_startup_script,
             cmd::clear_startup_script_authorization,
             cmd::test_delay,
+            cmd::plan_latency_test,
             cmd::download_icon_cache,
             #[cfg(debug_assertions)]
             cmd::open_devtools,

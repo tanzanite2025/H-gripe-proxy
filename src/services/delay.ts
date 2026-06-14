@@ -3,6 +3,7 @@ import { delayProxyByName, ProxyDelay } from 'tauri-plugin-mihomo-api'
 import { debugLog } from '@/utils/misc'
 
 import { getDelayTestConfig } from './adaptive-config'
+import { planLatencyTest } from './cmds/runtime'
 import {
   DEFAULT_DELAY_TIMEOUT,
   normalizeDelayTestUrl,
@@ -293,22 +294,35 @@ class DelayManager {
     timeout?: number,
     concurrency?: number,
   ) {
-    // 使用自适应配置
-    const config = getDelayTestConfig()
-    const effectiveTimeout = timeout ?? config.timeout
-    const effectiveConcurrency = concurrency ?? config.concurrency
-
     // 检查网络状态
     if (!networkMonitor.isOnline()) {
       debugLog(`[DelayManager] 网络离线，跳过批量延迟测试: ${group}`)
       return
     }
 
+    const plan = await planLatencyTest({
+      proxyNames: nameList,
+      group,
+      url: this.getUrl(group),
+      timeoutMs: timeout,
+      concurrency,
+      networkQuality: networkMonitor.getQuality(),
+    })
+
+    if (plan.status === 'skipped') {
+      debugLog(`[DelayManager] 批量测试跳过，组: ${group}, 原因: ${plan.reason}`)
+      return
+    }
+
+    const effectiveTimeout = plan.timeoutMs
+    const actualConcurrency = plan.concurrency
+    this.setUrl(group, plan.normalizedUrl)
+
     debugLog(
-      `[DelayManager] 批量测试延迟开始，组: ${group}, 数量: ${nameList.length}, 并发数: ${effectiveConcurrency}`,
+      `[DelayManager] 批量测试延迟开始，组: ${group}, 数量: ${plan.scheduledCount}, 并发数: ${actualConcurrency}`,
     )
 
-    const names = nameList.filter(Boolean)
+    const names = plan.proxyNames
     // 设置正在延迟测试中
     names.forEach((name) => this.setDelay(name, group, -2))
 
@@ -368,12 +382,6 @@ class DelayManager {
       return help()
     }
 
-    // 限制并发数，避免发送太多请求
-    const actualConcurrency = Math.min(
-      effectiveConcurrency,
-      names.length,
-      10,
-    )
     debugLog(`[DelayManager] 实际并发数: ${actualConcurrency}`)
 
     const promiseList: Promise<void>[] = []
