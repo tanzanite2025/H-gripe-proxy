@@ -261,15 +261,15 @@ behavior=ipcidr:
 7. `UID`：已完成（PR #21）。
 8. `DSCP`：已完成（PR #22）。
 9. `IN-TYPE` / `IN-USER` / `IN-NAME`：已完成（PR #23-#25）。
-10. `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD`：待做。
-11. `AND` / `OR` / `NOT` / `SUB-RULE`：待做，建议放在 wildcard 之后单独拆 PR。
+10. `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD`：已完成（PR #27）。
+11. `AND` / `OR` / `NOT` / `SUB-RULE`：已完成（本 PR）。
 
 说明：
 
 - ASN 与 RULE-SET 仍属于“数据查表 + 规则复用”，风险低。
 - PROCESS/UID/IN-* 开始涉及 OS、进程权限、入口监听器上下文，复杂度会明显上升。
 - 当前 Rust 侧只消费 `ConnectionMeta` 已提供的 process / uid / dscp / inbound metadata；不负责 OS 级进程发现或 inbound runtime 采集。
-- 下一张实现 PR 建议优先补齐 process wildcard 变体，让 PROCESS 系列规则闭环后，再进入逻辑组合规则。
+- Phase 4 外部数据类规则已闭环；后续建议进入 Phase 5 的规则预览 / 配置 explain 等控制器外围逻辑。
 
 #### Phase 5：控制器外围逻辑 Rust 化
 
@@ -342,22 +342,21 @@ behavior=ipcidr:
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，下一张实现 PR 建议直接做：
+按当前状态，下一张实现 PR 建议进入：
 
 ```text
-feat: add local PROCESS wildcard rule matching
+feat: add Rust rule preview / explain support
 ```
 
 范围只包含：
 
-- `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD` 解析为 typed rule。
-- 复用现有 `wildcard_match`，按 Mihomo 行为做大小写不敏感匹配。
-- 继续只消费 `ConnectionMeta.process_name` / `ConnectionMeta.process_path`，缺 metadata 时 fail-soft。
-- focused tests：name/path wildcard 命中、大小写不敏感、缺 metadata fallthrough、validate rule 通过。
+- 复用已迁移的 Rust rule engine。
+- 为规则预览 / explain 输出统一结构。
+- 继续保持 Go sidecar 只负责 runtime 转发链路。
+- focused tests：命中规则解释、未命中 fallthrough、RULE-SET / SUB-RULE 展示。
 
 不包含：
 
-- OS 级进程发现。
-- `UID` / `DSCP` / `IN-*`（已完成）。
-- `AND` / `OR` / `NOT` / `SUB-RULE` 逻辑组合规则。
-- DNS runtime 或协议栈迁移。
+- DNS runtime。
+- 协议栈 / TUN / tunnel。
+- Go sidecar 替换。

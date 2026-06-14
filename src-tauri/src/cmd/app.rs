@@ -1,6 +1,11 @@
 use super::CmdResult;
 use crate::core::autostart;
-use crate::{app::{runtime, system, window}, cmd::StringifyErr as _, feat, utils::dirs};
+use crate::{
+    app::{runtime, system, window},
+    cmd::StringifyErr as _,
+    feat,
+    utils::dirs,
+};
 use smartstring::alias::String;
 use tauri::Url;
 #[cfg(debug_assertions)]

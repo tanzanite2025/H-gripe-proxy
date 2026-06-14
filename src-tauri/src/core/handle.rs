@@ -1,12 +1,12 @@
 use crate::{
     APP_HANDLE,
     config::{Config, IClashTemp},
+    singleton,
     subscription::{
         events::SubscriptionEvent,
         model::{SubscriptionUpdateAttempt, UpdateStage},
         transport::TransportKind,
     },
-    singleton,
 };
 use anyhow::{Result, anyhow};
 use smartstring::alias::String;

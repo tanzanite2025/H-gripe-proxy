@@ -83,7 +83,9 @@ struct DnsServerProviderDefinition {
 
 impl DnsServerProviderDefinition {
     fn matches_host(&self, host: &str) -> bool {
-        self.host_aliases.iter().any(|candidate| candidate.eq_ignore_ascii_case(host))
+        self.host_aliases
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(host))
     }
 
     fn matches_ip(&self, ip: &IpAddr) -> bool {
@@ -139,12 +141,7 @@ impl DnsServerProviderDefinition {
     }
 }
 
-const ALL_DNS_PROTOCOLS: &[DnsProtocol] = &[
-    DnsProtocol::Udp,
-    DnsProtocol::Tcp,
-    DnsProtocol::Doh,
-    DnsProtocol::Dot,
-];
+const ALL_DNS_PROTOCOLS: &[DnsProtocol] = &[DnsProtocol::Udp, DnsProtocol::Tcp, DnsProtocol::Doh, DnsProtocol::Dot];
 const DOH_PUB_PROTOCOLS: &[DnsProtocol] = &[DnsProtocol::Udp, DnsProtocol::Tcp, DnsProtocol::Doh];
 const DOT_PUB_PROTOCOLS: &[DnsProtocol] = &[DnsProtocol::Udp, DnsProtocol::Tcp, DnsProtocol::Dot];
 
@@ -154,7 +151,11 @@ const CLOUDFLARE_DNS_PROVIDER: DnsServerProviderDefinition = DnsServerProviderDe
     availability: DnsServerProviderAvailability::Ready,
     description: "Built-in public DNS provider with UDP, TCP, DoH, and DoT endpoints.",
     canonical_host: "cloudflare-dns.com",
-    host_aliases: &["cloudflare-dns.com", "one.one.one.one", "1dot1dot1dot1.cloudflare-dns.com"],
+    host_aliases: &[
+        "cloudflare-dns.com",
+        "one.one.one.one",
+        "1dot1dot1dot1.cloudflare-dns.com",
+    ],
     bootstrap_ips: &["1.1.1.1", "1.0.0.1"],
     supported_protocols: ALL_DNS_PROTOCOLS,
 };
@@ -719,13 +720,14 @@ mod tests {
 
         assert_eq!(cloudflare.canonical_host, "cloudflare-dns.com");
         assert_eq!(cloudflare.supported_protocols.len(), 4);
-        assert!(cloudflare
-            .recommended_servers
-            .iter()
-            .any(|server| server.protocol == DnsProtocol::Doh && server.server == "https://cloudflare-dns.com/dns-query"));
-        assert!(cloudflare
-            .recommended_servers
-            .iter()
-            .any(|server| server.protocol == DnsProtocol::Dot && server.server == "tls://cloudflare-dns.com:853"));
+        assert!(cloudflare.recommended_servers.iter().any(
+            |server| server.protocol == DnsProtocol::Doh && server.server == "https://cloudflare-dns.com/dns-query"
+        ));
+        assert!(
+            cloudflare
+                .recommended_servers
+                .iter()
+                .any(|server| server.protocol == DnsProtocol::Dot && server.server == "tls://cloudflare-dns.com:853")
+        );
     }
 }

@@ -5,9 +5,7 @@ use crate::{
     core::{
         CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
-        runtime_diagnostics::{
-            build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
-        },
+        runtime_diagnostics::{build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result},
         runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
 };

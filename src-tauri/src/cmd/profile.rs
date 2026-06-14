@@ -6,13 +6,14 @@ use crate::{
         Config, IProfiles, PrfItem, PrfOption, ProfilesView,
         profiles::{
             profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
-            profiles_reorder_safe, profiles_save_file_safe,
-            resolve_profile_file_path,
+            profiles_reorder_safe, profiles_save_file_safe, resolve_profile_file_path,
         },
         profiles_append_item_safe,
     },
     core::{
-        CoreManager, handle, timer::Timer, tray::Tray,
+        CoreManager, handle,
+        timer::Timer,
+        tray::Tray,
         validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
     },
     utils::help,

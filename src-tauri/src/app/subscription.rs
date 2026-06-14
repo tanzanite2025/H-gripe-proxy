@@ -1,10 +1,6 @@
 use crate::{
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
-    core::{
-        CoreManager, handle,
-        mihomo_runtime_guard,
-        validate::ValidationOutcome,
-    },
+    core::{CoreManager, handle, mihomo_runtime_guard, validate::ValidationOutcome},
     subscription::{
         control_plane::{
             fetch_subscription_update_via_control_plane, subscription_update_uses_dedicated_control_plane,
@@ -61,10 +57,7 @@ fn format_subscription_update_error(err: &anyhow::Error) -> String {
         .into()
 }
 
-fn append_subscription_update_note(
-    message: impl Into<std::string::String>,
-    note: Option<&String>,
-) -> String {
+fn append_subscription_update_note(message: impl Into<std::string::String>, note: Option<&String>) -> String {
     let mut message = message.into();
 
     if let Some(note) = note.map(|note| note.trim()).filter(|note| !note.is_empty()) {
@@ -115,13 +108,26 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     let is_remote = item.itype.as_ref().is_some_and(|s| s == "remote");
 
     if !is_remote {
-        logging!(info, Type::Config, "[Subscription Update] {uid} is not a remote subscription, skip update");
+        logging!(
+            info,
+            Type::Config,
+            "[Subscription Update] {uid} is not a remote subscription, skip update"
+        );
         Ok(None)
     } else if item.url.is_none() {
-        logging!(warn, Type::Config, "Warning: [Subscription Update] {uid} is missing a URL and cannot be updated");
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: [Subscription Update] {uid} is missing a URL and cannot be updated"
+        );
         bail!("failed to get the profile item url");
     } else if !ignore_auto_update && !item.option.as_ref().and_then(|o| o.allow_auto_update).unwrap_or(true) {
-        logging!(info, Type::Config, "[Subscription Update] {} has auto update disabled, skip update", uid);
+        logging!(
+            info,
+            Type::Config,
+            "[Subscription Update] {} has auto update disabled, skip update",
+            uid
+        );
         Ok(None)
     } else {
         logging!(
@@ -129,11 +135,7 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
             Type::Config,
             "[Subscription Update] {} target URL: {}",
             uid,
-            mask_url(
-                item.url
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("Profile URL is None"))?
-            )
+            mask_url(item.url.as_ref().ok_or_else(|| anyhow!("Profile URL is None"))?)
         );
         Ok(Some((
             item.url.clone().ok_or_else(|| anyhow!("Profile URL is None"))?,
@@ -208,7 +210,11 @@ async fn perform_profile_update(
     option: Option<&PrfOption>,
     is_manual_trigger: bool,
 ) -> std::result::Result<ProfileUpdateExecution, ProfileUpdateFailure> {
-    logging!(info, Type::Config, "[Subscription Update] start downloading remote subscription");
+    logging!(
+        info,
+        Type::Config,
+        "[Subscription Update] start downloading remote subscription"
+    );
     let merged_opt = PrfOption::merge(opt, option);
     let persisted_option = opt.cloned();
     let is_current = {
@@ -232,7 +238,12 @@ async fn perform_profile_update(
     let transport_plan =
         TransportPlan::for_subscription_update(Some(transport_kind_from_option(merged_opt.as_ref()))).await;
     if let Some(note) = transport_plan.note.as_ref() {
-        logging!(info, Type::Config, "[Subscription Update] transport plan note: {}", note);
+        logging!(
+            info,
+            Type::Config,
+            "[Subscription Update] transport plan note: {}",
+            note
+        );
     }
     let use_dedicated_control_plane = subscription_update_uses_dedicated_control_plane().await;
     let transport_plan_note = transport_plan.note.clone();
@@ -307,25 +318,24 @@ async fn perform_profile_update(
             });
         }
 
-        let mut item =
-            match PrfItem::from_fetched_payload(url, fetched, None, None, persisted_option.as_ref()).await {
-                Ok(item) => item,
-                Err(err) => {
-                    logging!(
-                        warn,
-                        Type::Config,
-                        "Warning: [Subscription Update] {} returned an invalid payload: {}",
-                        transport.label(),
-                        format_subscription_update_error(&err)
-                    );
-                    log_profile_update_fetch_error("materialize artifact", &err);
-                    last_stage = UpdateStage::MaterializeArtifact;
-                    last_transport = Some(transport);
-                    last_artifact = Some(artifact.clone());
-                    last_err = Some(err);
-                    continue;
-                }
-            };
+        let mut item = match PrfItem::from_fetched_payload(url, fetched, None, None, persisted_option.as_ref()).await {
+            Ok(item) => item,
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Subscription Update] {} returned an invalid payload: {}",
+                    transport.label(),
+                    format_subscription_update_error(&err)
+                );
+                log_profile_update_fetch_error("materialize artifact", &err);
+                last_stage = UpdateStage::MaterializeArtifact;
+                last_transport = Some(transport);
+                last_artifact = Some(artifact.clone());
+                last_err = Some(err);
+                continue;
+            }
+        };
 
         if let Err(err) = profiles_draft_update_item_safe(uid, &mut item).await {
             return Err(ProfileUpdateFailure {
@@ -374,7 +384,12 @@ pub async fn update_profile(
     ignore_auto_update: bool,
     is_manual_trigger: bool,
 ) -> Result<()> {
-    logging!(info, Type::Config, "[Subscription Update] start updating subscription {}", uid);
+    logging!(
+        info,
+        Type::Config,
+        "[Subscription Update] start updating subscription {}",
+        uid
+    );
 
     let Some((url, opt)) = should_update_profile(uid, ignore_auto_update).await? else {
         return Ok(());
@@ -397,10 +412,7 @@ pub async fn update_profile(
                 restore_profile_update_snapshot(rollback_snapshot).await?;
             }
 
-            let artifact_version = failure
-                .artifact
-                .as_ref()
-                .map(|artifact| artifact.version.clone());
+            let artifact_version = failure.artifact.as_ref().map(|artifact| artifact.version.clone());
             let error_message = failure.error.clone();
 
             handle::Handle::notify_subscription_update_failed(
@@ -436,7 +448,11 @@ pub async fn update_profile(
             UpdateStage::ActivateRuntime,
             None,
         );
-        logging!(info, Type::Config, "[Subscription Update] applying updated profile to runtime");
+        logging!(
+            info,
+            Type::Config,
+            "[Subscription Update] applying updated profile to runtime"
+        );
 
         match CoreManager::global()
             .update_config_without_restart_with_force(is_manual_trigger)
@@ -496,7 +512,12 @@ pub async fn update_profile(
             }
             Ok(outcome) => {
                 let message = outcome.to_string();
-                logging!(error, Type::Config, "[Subscription Update] runtime activation failed: {}", message);
+                logging!(
+                    error,
+                    Type::Config,
+                    "[Subscription Update] runtime activation failed: {}",
+                    message
+                );
                 if let Some(rollback_snapshot) = &rollback_snapshot {
                     restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
@@ -524,7 +545,12 @@ pub async fn update_profile(
             }
             Err(err) => {
                 let message = err.to_string();
-                logging!(error, Type::Config, "[Subscription Update] runtime activation failed: {}", message);
+                logging!(
+                    error,
+                    Type::Config,
+                    "[Subscription Update] runtime activation failed: {}",
+                    message
+                );
                 if let Some(rollback_snapshot) = &rollback_snapshot {
                     restore_profile_update_snapshot(rollback_snapshot).await?;
                 }

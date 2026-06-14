@@ -9,8 +9,8 @@ use tokio::sync::RwLock;
 use super::asn_classifier::{self, AsnCategory};
 use super::blackhole_breaker::get_blackhole_breaker_manager;
 use super::ip_intelligence::{
-    IpIntelligenceProvider, IpIntelligenceProviderConfig, IpIntelligenceProviderHealthReport,
-    IpIntelligenceRecord, build_provider, probe_provider,
+    IpIntelligenceProvider, IpIntelligenceProviderConfig, IpIntelligenceProviderHealthReport, IpIntelligenceRecord,
+    build_provider, probe_provider,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

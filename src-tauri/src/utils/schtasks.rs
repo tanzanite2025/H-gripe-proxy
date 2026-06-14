@@ -316,7 +316,13 @@ pub fn create_task(mode: TaskMode) -> Result<()> {
     }
 
     if let Err(err) = remove_legacy_task(mode) {
-        logging!(warn, Type::Setup, "Failed to remove legacy {} auto-launch task: {}", mode.label(), err);
+        logging!(
+            warn,
+            Type::Setup,
+            "Failed to remove legacy {} auto-launch task: {}",
+            mode.label(),
+            err
+        );
     }
 
     logging!(info, Type::Setup, "Created {} auto-launch task", mode.label());
@@ -343,7 +349,13 @@ pub fn remove_task(mode: TaskMode) -> Result<()> {
     }
 
     if let Err(err) = remove_legacy_task(mode) {
-        logging!(warn, Type::Setup, "Failed to remove legacy {} auto-launch task: {}", mode.label(), err);
+        logging!(
+            warn,
+            Type::Setup,
+            "Failed to remove legacy {} auto-launch task: {}",
+            mode.label(),
+            err
+        );
     }
 
     if !is_task_enabled(mode)? {

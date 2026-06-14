@@ -1,9 +1,7 @@
 use crate::{
     config::profiles,
     subscription::fetch::{FetchedSubscriptionPayload, fetch_remote_profile},
-    utils::{
-        help, tmpl,
-    },
+    utils::{help, tmpl},
 };
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -251,7 +249,7 @@ impl PrfItem {
                 let option = item.option.as_ref();
                 Self::from_local(name, desc, file_data, option).await
             }
-            typ => bail!("invalid profile item type \"{typ}\""),
+            profile_type => bail!("invalid profile item type \"{profile_type}\""),
         }
     }
 

@@ -33,10 +33,7 @@ fn proxy_type_from_transport(transport: TransportKind) -> ProxyType {
 }
 
 fn header_value(headers: &HeaderMap, key: &str) -> Option<String> {
-    headers
-        .get(key)
-        .and_then(|value| value.to_str().ok())
-        .map(Into::into)
+    headers.get(key).and_then(|value| value.to_str().ok()).map(Into::into)
 }
 
 pub async fn fetch_remote_profile(url: &str, option: Option<&PrfOption>) -> Result<FetchedSubscriptionPayload> {

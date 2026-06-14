@@ -14,9 +14,7 @@ use std::time::Duration;
 
 static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
 
-pub async fn publish_profile_activation_by_index(
-    profile_index: String,
-) -> Result<ValidationOutcome> {
+pub async fn publish_profile_activation_by_index(profile_index: String) -> Result<ValidationOutcome> {
     let profiles = IProfiles {
         current: Some(profile_index),
         items: None,
@@ -29,7 +27,11 @@ pub async fn publish_profile_activation(profiles: IProfiles) -> Result<Validatio
         .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
         .is_err()
     {
-        logging!(info, Type::Config, "Profile switch is already in progress, skip the new request");
+        logging!(
+            info,
+            Type::Config,
+            "Profile switch is already in progress, skip the new request"
+        );
         return Ok(ValidationOutcome::Busy);
     }
 
@@ -132,11 +134,8 @@ async fn perform_profile_publish(
         CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
     }
 
-    let update_result = tokio::time::timeout(
-        Duration::from_secs(30),
-        CoreManager::global().update_config_forced(),
-    )
-    .await;
+    let update_result =
+        tokio::time::timeout(Duration::from_secs(30), CoreManager::global().update_config_forced()).await;
 
     match update_result {
         Ok(Ok(outcome)) if outcome.is_valid() => handle_success(current_value).await,

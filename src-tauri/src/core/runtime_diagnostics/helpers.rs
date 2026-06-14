@@ -2,9 +2,7 @@ use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::config::{
-    DOMESTIC_DOH_NAMESERVERS, DOMESTIC_PLAIN_NAMESERVERS, FOREIGN_DOH_NAMESERVERS,
-};
+use crate::config::{DOMESTIC_DOH_NAMESERVERS, DOMESTIC_PLAIN_NAMESERVERS, FOREIGN_DOH_NAMESERVERS};
 
 pub(super) fn mapping_bool(mapping: &Mapping, key: &str) -> Option<bool> {
     mapping.get(key).and_then(|value| value.as_bool())
@@ -67,8 +65,7 @@ pub(super) fn infer_routing_mode(domestic_dns: &[String], foreign_dns: &[String]
         return None;
     }
 
-    if same_string_list(domestic_dns, FOREIGN_DOH_NAMESERVERS)
-        && same_string_list(foreign_dns, FOREIGN_DOH_NAMESERVERS)
+    if same_string_list(domestic_dns, FOREIGN_DOH_NAMESERVERS) && same_string_list(foreign_dns, FOREIGN_DOH_NAMESERVERS)
     {
         return Some("privacy".into());
     }
