@@ -40,6 +40,8 @@ pub struct ConnectionMeta {
     pub process_path: String,
     #[serde(default)]
     pub uid: u32,
+    #[serde(default)]
+    pub dscp: u8,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -157,6 +159,10 @@ enum ParsedRule {
     },
     Uid {
         ranges: Vec<(u32, u32)>,
+        target: String,
+    },
+    Dscp {
+        ranges: Vec<(u8, u8)>,
         target: String,
     },
     // Rule types that require external data — we can parse but not match locally.
@@ -448,11 +454,14 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             ranges: parse_uid_ranges(payload)?,
             target,
         }),
+        "DSCP" => Ok(ParsedRule::Dscp {
+            ranges: parse_dscp_ranges(payload)?,
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
         "IN-TYPE"
         | "IN-USER"
         | "IN-NAME"
-        | "DSCP"
         | "PROCESS-NAME-WILDCARD"
         | "PROCESS-PATH-WILDCARD"
         | "AND"
@@ -599,6 +608,48 @@ fn parse_uid_value(s: &str) -> Result<u32> {
     s.trim_matches([' ', '[', ']'])
         .parse()
         .context("UID payload must be numeric")
+}
+
+fn parse_dscp_ranges(s: &str) -> Result<Vec<(u8, u8)>> {
+    let s = s.trim();
+    if s.is_empty() || s == "*" {
+        return Ok(Vec::new());
+    }
+
+    let parts = s.replace(',', "/");
+    let parts = parts
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .collect::<Vec<_>>();
+    if parts.len() > 28 {
+        bail!("DSCP supports at most 28 ranges");
+    }
+
+    parts
+        .into_iter()
+        .map(|part| {
+            let part = part.trim();
+            if let Some((start_s, end_s)) = part.split_once('-') {
+                let start = parse_dscp_value(start_s)?;
+                let end = parse_dscp_value(end_s)?;
+                Ok(if start <= end { (start, end) } else { (end, start) })
+            } else {
+                let dscp = parse_dscp_value(part)?;
+                Ok((dscp, dscp))
+            }
+        })
+        .collect()
+}
+
+fn parse_dscp_value(s: &str) -> Result<u8> {
+    let dscp: u8 = s
+        .trim_matches([' ', '[', ']'])
+        .parse()
+        .context("DSCP payload must be numeric")?;
+    if dscp > 63 {
+        bail!("DSCP cannot exceed 63");
+    }
+    Ok(dscp)
 }
 
 const RULE_SET_INTERNAL_TARGET: &str = "__RULE_SET_MATCH__";
@@ -999,6 +1050,17 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::Dscp { ranges, target } => {
+            if ranges.is_empty()
+                || ranges
+                    .iter()
+                    .any(|(start, end)| meta.dscp >= *start && meta.dscp <= *end)
+            {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -1040,6 +1102,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::ProcessNameRegex { .. } => "PROCESS-NAME-REGEX",
         ParsedRule::ProcessPathRegex { .. } => "PROCESS-PATH-REGEX",
         ParsedRule::Uid { .. } => "UID",
+        ParsedRule::Dscp { .. } => "DSCP",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1204,6 +1267,13 @@ mod tests {
     fn meta_uid(uid: u32) -> ConnectionMeta {
         ConnectionMeta {
             uid,
+            ..Default::default()
+        }
+    }
+
+    fn meta_dscp(dscp: u8) -> ConnectionMeta {
+        ConnectionMeta {
+            dscp,
             ..Default::default()
         }
     }
@@ -1406,6 +1476,28 @@ mod tests {
     }
 
     #[test]
+    fn dscp_matches_single_value_and_ranges() {
+        let engine = RuleEngine::from_rules(&["DSCP,10/46-48,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(engine.match_connection(&meta_dscp(10)).target.as_deref(), Some("Proxy"));
+        assert_eq!(engine.match_connection(&meta_dscp(47)).target.as_deref(), Some("Proxy"));
+        assert_eq!(
+            engine.match_connection(&meta_dscp(20)).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn dscp_wildcard_matches_default_metadata() {
+        let engine = RuleEngine::from_rules(&["DSCP,*,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1423,6 +1515,8 @@ mod tests {
         assert!(validate_rule("PROCESS-NAME-REGEX,^telegram(-desktop)?\\.exe$,Proxy").valid);
         assert!(validate_rule("PROCESS-PATH-REGEX,telegram\\.exe$,Proxy").valid);
         assert!(validate_rule("UID,1000/2000-2002,Proxy").valid);
+        assert!(validate_rule("DSCP,10/46-48,Proxy").valid);
+        assert!(validate_rule("DSCP,*,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
@@ -1430,6 +1524,8 @@ mod tests {
         assert!(!validate_rule("PROCESS-PATH-REGEX,[,Proxy").valid);
         assert!(!validate_rule("UID,*,Proxy").valid);
         assert!(!validate_rule("UID,not-a-uid,Proxy").valid);
+        assert!(!validate_rule("DSCP,64,Proxy").valid);
+        assert!(!validate_rule("DSCP,not-a-dscp,Proxy").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
