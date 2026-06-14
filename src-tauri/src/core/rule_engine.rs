@@ -34,6 +34,8 @@ pub struct ConnectionMeta {
     pub in_port: u16,
     #[serde(default)]
     pub network: NetworkType,
+    #[serde(default, alias = "process", alias = "processName")]
+    pub process_name: String,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -130,6 +132,10 @@ enum ParsedRule {
         target: String,
     },
     RuleSet {
+        name: String,
+        target: String,
+    },
+    ProcessName {
         name: String,
         target: String,
     },
@@ -396,13 +402,16 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             name: payload.to_owned(),
             target,
         }),
+        "PROCESS-NAME" => Ok(ParsedRule::ProcessName {
+            name: payload.to_owned(),
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
         "IN-TYPE"
         | "IN-USER"
         | "IN-NAME"
         | "DSCP"
         | "UID"
-        | "PROCESS-NAME"
         | "PROCESS-PATH"
         | "PROCESS-NAME-REGEX"
         | "PROCESS-PATH-REGEX"
@@ -877,6 +886,13 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::ProcessName { name, target } => {
+            if !meta.process_name.is_empty() && meta.process_name.eq_ignore_ascii_case(name) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -913,6 +929,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::IpAsn { is_src: true, .. } => "SRC-IP-ASN",
         ParsedRule::IpAsn { .. } => "IP-ASN",
         ParsedRule::RuleSet { .. } => "RULE-SET",
+        ParsedRule::ProcessName { .. } => "PROCESS-NAME",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1060,6 +1077,13 @@ mod tests {
         }
     }
 
+    fn meta_process_name(process_name: &str) -> ConnectionMeta {
+        ConnectionMeta {
+            process_name: process_name.to_owned(),
+            ..Default::default()
+        }
+    }
+
     fn file_provider(path: PathBuf, behavior: RuleProviderBehavior) -> RuleProviderConfig {
         RuleProviderConfig {
             provider_type: "file".to_string(),
@@ -1141,6 +1165,25 @@ mod tests {
     }
 
     #[test]
+    fn process_name_matches_case_insensitively() {
+        let engine = RuleEngine::from_rules(&["PROCESS-NAME,Telegram.exe,Proxy", "MATCH,DIRECT"]).unwrap();
+        let result = engine.match_connection(&meta_process_name("telegram.EXE"));
+
+        assert_eq!(result.target.as_deref(), Some("Proxy"));
+        assert_eq!(result.rule_type.as_deref(), Some("PROCESS-NAME"));
+    }
+
+    #[test]
+    fn process_name_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["PROCESS-NAME,Telegram.exe,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1153,6 +1196,7 @@ mod tests {
     fn validate_rule_catches_errors() {
         assert!(validate_rule("DOMAIN,google.com,Proxy").valid);
         assert!(validate_rule("IP-CIDR,10.0.0.0/8,Direct").valid);
+        assert!(validate_rule("PROCESS-NAME,Telegram.exe,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
