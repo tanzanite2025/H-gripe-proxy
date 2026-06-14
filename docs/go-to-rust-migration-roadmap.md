@@ -17,10 +17,15 @@
 | Phase 2 | 规则解析与基础匹配 | 完成 | `DOMAIN` / `IP-CIDR` / 端口 / `NETWORK` / `MATCH` 等已 Rust 化 |
 | Phase 2.5 | 规则校验单一路径 | 完成 | 运行时与配置注入规则都先过 Rust rule engine |
 | Phase 3 | `GEOIP` / `GEOSITE` 本地匹配 | 完成 | 支持本地 MMDB / `GeoIP.dat` / `GeoSite.dat` 数据加载 |
+| Phase 4A | `IP-ASN` / `SRC-IP-ASN` 本地匹配 | 完成 | PR #15；支持本地 ASN MMDB，缺数据 fail-soft |
+| Phase 4B | `RULE-SET` 本地规则集加载 | 完成 | PR #16；第一版支持本地 file provider |
+| Phase 4C | 进程 / UID / DSCP / inbound 元数据规则 | 部分完成 | PR #17-#25；已完成 exact/regex process、UID、DSCP、`IN-TYPE` / `IN-USER` / `IN-NAME` |
 
 ## 下一阶段推荐顺序
 
 ### A. `IP-ASN` / `SRC-IP-ASN` 本地匹配
+
+**状态：已完成（PR #15）。**
 
 **优先级：最高。复杂度：低。**
 
@@ -120,6 +125,8 @@ struct IpInfoAsn {
 ---
 
 ### B. `RULE-SET` 本地规则集加载
+
+**状态：已完成（PR #16）。**
 
 **优先级：第二。复杂度：中。**
 
@@ -243,21 +250,26 @@ behavior=ipcidr:
 
 #### Phase 4：补齐规则引擎外部数据类型
 
-推荐顺序：
+当前进度：
 
-1. `IP-ASN` / `SRC-IP-ASN`
-2. `RULE-SET`
-3. `PROCESS-NAME`
-4. `PROCESS-PATH`
-5. `PROCESS-NAME-REGEX`
-6. `UID`
-7. `DSCP`
-8. `IN-TYPE` / `IN-USER` / `IN-NAME`
+1. `IP-ASN` / `SRC-IP-ASN`：已完成（PR #15）。
+2. `RULE-SET`：已完成（PR #16）。
+3. `PROCESS-NAME`：已完成（PR #17）。
+4. `PROCESS-PATH`：已完成（PR #18）。
+5. `PROCESS-NAME-REGEX`：已完成（PR #19）。
+6. `PROCESS-PATH-REGEX`：已完成（PR #20）。
+7. `UID`：已完成（PR #21）。
+8. `DSCP`：已完成（PR #22）。
+9. `IN-TYPE` / `IN-USER` / `IN-NAME`：已完成（PR #23-#25）。
+10. `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD`：待做。
+11. `AND` / `OR` / `NOT` / `SUB-RULE`：待做，建议放在 wildcard 之后单独拆 PR。
 
 说明：
 
 - ASN 与 RULE-SET 仍属于“数据查表 + 规则复用”，风险低。
 - PROCESS/UID/IN-* 开始涉及 OS、进程权限、入口监听器上下文，复杂度会明显上升。
+- 当前 Rust 侧只消费 `ConnectionMeta` 已提供的 process / uid / dscp / inbound metadata；不负责 OS 级进程发现或 inbound runtime 采集。
+- 下一张实现 PR 建议优先补齐 process wildcard 变体，让 PROCESS 系列规则闭环后，再进入逻辑组合规则。
 
 #### Phase 5：控制器外围逻辑 Rust 化
 
@@ -333,19 +345,19 @@ behavior=ipcidr:
 按当前状态，下一张实现 PR 建议直接做：
 
 ```text
-feat: add local IP-ASN and SRC-IP-ASN rule matching
+feat: add local PROCESS wildcard rule matching
 ```
 
 范围只包含：
 
-- `AsnData` 本地 MMDB 加载。
-- `IP-ASN` / `SRC-IP-ASN` 解析为 typed rule。
-- rule engine 匹配接入 ASN 查询。
-- focused tests。
+- `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD` 解析为 typed rule。
+- 复用现有 `wildcard_match`，按 Mihomo 行为做大小写不敏感匹配。
+- 继续只消费 `ConnectionMeta.process_name` / `ConnectionMeta.process_path`，缺 metadata 时 fail-soft。
+- focused tests：name/path wildcard 命中、大小写不敏感、缺 metadata fallthrough、validate rule 通过。
 
 不包含：
 
-- RULE-SET。
-- 远程 ASN 数据下载。
-- Go sidecar 改造。
-- DNS runtime。
+- OS 级进程发现。
+- `UID` / `DSCP` / `IN-*`（已完成）。
+- `AND` / `OR` / `NOT` / `SUB-RULE` 逻辑组合规则。
+- DNS runtime 或协议栈迁移。
