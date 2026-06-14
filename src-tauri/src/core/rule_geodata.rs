@@ -13,11 +13,13 @@ use crate::utils::dirs;
 const GEOIP_MMDB_CANDIDATES: &[&str] = &["Country.mmdb", "geoip.metadb", "geoip.db", "GeoLite2-City.mmdb"];
 const GEOIP_DAT_CANDIDATES: &[&str] = &["GeoIP.dat"];
 const GEOSITE_DAT_CANDIDATES: &[&str] = &["GeoSite.dat"];
+const ASN_MMDB_CANDIDATES: &[&str] = &["ASN.mmdb", "GeoLite2-ASN.mmdb"];
 
 #[derive(Clone, Default)]
 pub struct RuleGeoData {
     geoip: Option<GeoIpData>,
     geosite: Option<GeoSiteData>,
+    asn: Option<AsnData>,
 }
 
 impl RuleGeoData {
@@ -29,12 +31,13 @@ impl RuleGeoData {
         Self {
             geoip: GeoIpData::load_default().ok(),
             geosite: GeoSiteData::load_default().ok(),
+            asn: AsnData::load_default().ok(),
         }
     }
 
     #[cfg(test)]
-    pub fn from_parts(geoip: Option<GeoIpData>, geosite: Option<GeoSiteData>) -> Self {
-        Self { geoip, geosite }
+    pub fn from_parts(geoip: Option<GeoIpData>, geosite: Option<GeoSiteData>, asn: Option<AsnData>) -> Self {
+        Self { geoip, geosite, asn }
     }
 
     pub fn geoip_matches(&self, code: &str, ip: IpAddr) -> bool {
@@ -43,6 +46,10 @@ impl RuleGeoData {
 
     pub fn geosite_matches(&self, code: &str, host: &str) -> bool {
         self.geosite.as_ref().is_some_and(|geosite| geosite.matches(code, host))
+    }
+
+    pub fn asn_matches(&self, asn: u32, ip: IpAddr) -> bool {
+        self.asn.as_ref().is_some_and(|data| data.matches(asn, ip))
     }
 }
 
@@ -118,6 +125,53 @@ impl GeoIpData {
                 let matched = ranges.iter().any(|(addr, prefix)| cidr_contains(*addr, *prefix, ip));
                 matched != negated
             }),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AsnData {
+    source: AsnSource,
+}
+
+#[derive(Clone)]
+enum AsnSource {
+    Mmdb(PathBuf),
+    #[cfg(test)]
+    Map(HashMap<IpAddr, u32>),
+}
+
+impl AsnData {
+    #[cfg(test)]
+    pub fn from_asn_map(asns: HashMap<IpAddr, u32>) -> Self {
+        Self {
+            source: AsnSource::Map(asns),
+        }
+    }
+
+    pub fn load_default() -> Result<Self> {
+        let path = resolve_first_existing(ASN_MMDB_CANDIDATES).ok_or_else(|| anyhow!("ASN data not found"))?;
+        Self::from_mmdb_path(path)
+    }
+
+    pub fn from_mmdb_path(path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
+        maxminddb::Reader::open_readfile(&path)
+            .with_context(|| format!("failed to open ASN MMDB at {}", path.display()))?;
+        Ok(Self {
+            source: AsnSource::Mmdb(path),
+        })
+    }
+
+    fn matches(&self, asn: u32, ip: IpAddr) -> bool {
+        self.lookup(ip).is_ok_and(|found| found == Some(asn))
+    }
+
+    fn lookup(&self, ip: IpAddr) -> Result<Option<u32>> {
+        match &self.source {
+            AsnSource::Mmdb(path) => mmdb_asn(path, ip),
+            #[cfg(test)]
+            AsnSource::Map(asns) => Ok(asns.get(&ip).copied()),
         }
     }
 }
@@ -218,16 +272,16 @@ impl GeoSiteMatcher {
 }
 
 #[derive(Debug, Deserialize)]
-struct MmdbCountryRecord<'a> {
+struct MmdbCountryRecord {
     #[serde(default)]
-    country: MmdbCountry<'a>,
+    country: MmdbCountry,
     #[serde(default)]
-    registered_country: MmdbCountry<'a>,
+    registered_country: MmdbCountry,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct MmdbCountry<'a> {
-    iso_code: Option<&'a str>,
+struct MmdbCountry {
+    iso_code: Option<String>,
 }
 
 fn mmdb_codes(path: &Path, ip: IpAddr) -> Result<Vec<String>> {
@@ -241,7 +295,7 @@ fn mmdb_codes(path: &Path, ip: IpAddr) -> Result<Vec<String>> {
                 .lookup(ip)
                 .with_context(|| format!("failed to query GeoIP MMDB for {ip}"))?;
             let record = lookup
-                .decode::<MmdbCountryRecord<'_>>()
+                .decode::<MmdbCountryRecord>()
                 .with_context(|| format!("failed to decode GeoIP MMDB record for {ip}"))?;
             Ok(record
                 .into_iter()
@@ -249,11 +303,23 @@ fn mmdb_codes(path: &Path, ip: IpAddr) -> Result<Vec<String>> {
                     [record.country.iso_code, record.registered_country.iso_code]
                         .into_iter()
                         .flatten()
-                        .map(normalize_code)
+                        .map(|code| normalize_code(&code))
                 })
                 .collect())
         }
     }
+}
+
+fn mmdb_asn(path: &Path, ip: IpAddr) -> Result<Option<u32>> {
+    let reader = maxminddb::Reader::open_readfile(path)
+        .with_context(|| format!("failed to open ASN MMDB at {}", path.display()))?;
+    let lookup = reader
+        .lookup(ip)
+        .with_context(|| format!("failed to query ASN MMDB for {ip}"))?;
+    let record = lookup
+        .decode::<maxminddb::geoip2::Asn<'_>>()
+        .with_context(|| format!("failed to decode ASN MMDB record for {ip}"))?;
+    Ok(record.and_then(|item| item.autonomous_system_number))
 }
 
 fn decode_mmdb_string(reader: &maxminddb::Reader<Vec<u8>>, ip: IpAddr) -> Result<String> {

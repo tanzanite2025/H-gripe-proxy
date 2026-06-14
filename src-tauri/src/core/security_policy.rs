@@ -172,7 +172,7 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
         let v = super::rule_engine::validate_rule_spec(&rule.rule_type, &rule.payload, &rule.proxy);
         if !v.valid {
             return Err(anyhow::anyhow!(
-                "security policy "{}" rule[{i}] ({},{},{}): {}",
+                "security policy \"{}\" rule[{i}] ({},{},{}): {}",
                 policy.name,
                 rule.rule_type,
                 rule.payload,

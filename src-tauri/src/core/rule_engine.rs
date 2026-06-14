@@ -118,6 +118,11 @@ enum ParsedRule {
         code: String,
         target: String,
     },
+    IpAsn {
+        asn: u32,
+        is_src: bool,
+        target: String,
+    },
     // Rule types that require external data — we can parse but not match locally.
     ExternalData {
         rule_type: String,
@@ -346,10 +351,18 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             code: payload.to_ascii_lowercase(),
             target,
         }),
+        "IP-ASN" => Ok(ParsedRule::IpAsn {
+            asn: parse_asn(payload)?,
+            is_src,
+            target,
+        }),
+        "SRC-IP-ASN" => Ok(ParsedRule::IpAsn {
+            asn: parse_asn(payload)?,
+            is_src: true,
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
-        "IP-ASN"
-        | "SRC-IP-ASN"
-        | "RULE-SET"
+        "RULE-SET"
         | "IN-TYPE"
         | "IN-USER"
         | "IN-NAME"
@@ -365,7 +378,7 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
         | "OR"
         | "NOT"
         | "SUB-RULE" => Ok(ParsedRule::ExternalData {
-            rule_type: rule_type.to_ascii_uppercase(),
+            rule_type: rule_type_upper,
             payload: payload.to_owned(),
             target,
         }),
@@ -461,6 +474,10 @@ fn parse_ip_suffix(s: &str) -> Result<(Vec<u8>, u8)> {
         bail!("IP-SUFFIX: bit count {bits} exceeds maximum {max_bits}");
     }
     Ok((addr_bytes, bits))
+}
+
+fn parse_asn(s: &str) -> Result<u32> {
+    s.parse().context("IP-ASN payload must be a numeric ASN")
 }
 
 fn parse_port_ranges(s: &str) -> Result<Vec<(u16, u16)>> {
@@ -602,6 +619,16 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::IpAsn { asn, is_src, target } => {
+            let ip = if *is_src { meta.src_ip } else { meta.dst_ip };
+            ip.and_then(|ip| {
+                if geo_data.asn_matches(*asn, ip) {
+                    Some(target.as_str())
+                } else {
+                    None
+                }
+            })
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -635,6 +662,8 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::GeoIp { is_src: true, .. } => "SRC-GEOIP",
         ParsedRule::GeoIp { .. } => "GEOIP",
         ParsedRule::GeoSite { .. } => "GEOSITE",
+        ParsedRule::IpAsn { is_src: true, .. } => "SRC-IP-ASN",
+        ParsedRule::IpAsn { .. } => "IP-ASN",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -764,7 +793,7 @@ fn wildcard_match(pattern: &str, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::rule_geodata::{GeoIpData, GeoSiteData, GeoSiteDomainType, RuleGeoData};
+    use crate::core::rule_geodata::{AsnData, GeoIpData, GeoSiteData, GeoSiteDomainType, RuleGeoData};
     use std::collections::HashMap;
 
     fn meta_domain(host: &str) -> ConnectionMeta {
@@ -870,6 +899,7 @@ mod tests {
         assert!(!validate_rule("DOMAIN").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
+        assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
         assert!(!validate_rule("DST-PORT,notaport,Direct").valid);
         assert!(!validate_rule("UNKNOWN-TYPE,foo,bar").valid);
     }
@@ -889,7 +919,7 @@ mod tests {
             "cn".to_string(),
             vec![("203.0.113.0".parse().unwrap(), 24)],
         )]));
-        let geo_data = RuleGeoData::from_parts(Some(geoip), None);
+        let geo_data = RuleGeoData::from_parts(Some(geoip), None, None);
         let engine =
             RuleEngine::from_rules_with_geo_data(&["GEOIP,CN,DIRECT,no-resolve", "MATCH,Proxy"], geo_data).unwrap();
 
@@ -910,7 +940,7 @@ mod tests {
             vec![(GeoSiteDomainType::Domain, "example.cn".to_string())],
         )]))
         .unwrap();
-        let geo_data = RuleGeoData::from_parts(None, Some(geosite));
+        let geo_data = RuleGeoData::from_parts(None, Some(geosite), None);
         let engine = RuleEngine::from_rules_with_geo_data(&["GEOSITE,CN,DIRECT", "MATCH,Proxy"], geo_data).unwrap();
 
         assert_eq!(
@@ -936,6 +966,56 @@ mod tests {
             engine.match_connection(&meta_ip("192.168.1.1", 80)).target.as_deref(),
             Some("DIRECT")
         );
+    }
+
+    #[test]
+    fn ip_asn_falls_through_without_geodata() {
+        let v = validate_rule("IP-ASN,13335,DIRECT");
+        assert!(v.valid);
+        let engine = RuleEngine::from_rules(&["IP-ASN,13335,DIRECT", "MATCH,Proxy"]).unwrap();
+        assert_eq!(
+            engine.match_connection(&meta_ip("1.1.1.1", 443)).target.as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn ip_asn_matches_destination_with_geodata() {
+        let asn_data = AsnData::from_asn_map(HashMap::from([("1.1.1.1".parse().unwrap(), 13335)]));
+        let geo_data = RuleGeoData::from_parts(None, None, Some(asn_data));
+        let engine = RuleEngine::from_rules_with_geo_data(&["IP-ASN,13335,DIRECT", "MATCH,Proxy"], geo_data).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_ip("1.1.1.1", 443)).target.as_deref(),
+            Some("DIRECT")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_ip("8.8.8.8", 443)).target.as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn src_ip_asn_matches_source_with_geodata() {
+        let asn_data = AsnData::from_asn_map(HashMap::from([("8.8.8.8".parse().unwrap(), 15169)]));
+        let geo_data = RuleGeoData::from_parts(None, None, Some(asn_data));
+        let engine =
+            RuleEngine::from_rules_with_geo_data(&["SRC-IP-ASN,15169,Proxy", "MATCH,DIRECT"], geo_data).unwrap();
+        let mut meta = meta_ip("1.1.1.1", 443);
+        meta.src_ip = Some("8.8.8.8".parse().unwrap());
+
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("Proxy"));
+    }
+
+    #[test]
+    fn ip_asn_accepts_ipv6_query_path() {
+        let asn_data = AsnData::from_asn_map(HashMap::from([("2606:4700:4700::1111".parse().unwrap(), 13335)]));
+        let geo_data = RuleGeoData::from_parts(None, None, Some(asn_data));
+        let engine = RuleEngine::from_rules_with_geo_data(&["IP-ASN,13335,DIRECT", "MATCH,Proxy"], geo_data).unwrap();
+        let mut meta = ConnectionMeta::default();
+        meta.dst_ip = Some("2606:4700:4700::1111".parse().unwrap());
+
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("DIRECT"));
     }
 
     #[test]

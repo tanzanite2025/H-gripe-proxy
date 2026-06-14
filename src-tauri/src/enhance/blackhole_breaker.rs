@@ -29,7 +29,7 @@ pub async fn apply_blackhole_breaker_config(mut config: Mapping) -> Mapping {
             let v = crate::core::rule_engine::validate_rule(&rule_str);
             if !v.valid {
                 log::warn!(
-                    "[BlackholeBreaker] skipping invalid rule "{}": {}",
+                    "[BlackholeBreaker] skipping invalid rule \"{}\": {}",
                     rule_str,
                     v.error.as_deref().unwrap_or("unknown error")
                 );
