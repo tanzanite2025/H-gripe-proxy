@@ -38,6 +38,8 @@ pub struct ConnectionMeta {
     pub process_name: String,
     #[serde(default, alias = "processPath", alias = "exe_path", alias = "exePath")]
     pub process_path: String,
+    #[serde(default)]
+    pub uid: u32,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -151,6 +153,10 @@ enum ParsedRule {
     },
     ProcessPathRegex {
         regex: Regex,
+        target: String,
+    },
+    Uid {
+        ranges: Vec<(u32, u32)>,
         target: String,
     },
     // Rule types that require external data — we can parse but not match locally.
@@ -438,12 +444,15 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
                 .context("invalid PROCESS-PATH-REGEX pattern")?,
             target,
         }),
+        "UID" => Ok(ParsedRule::Uid {
+            ranges: parse_uid_ranges(payload)?,
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
         "IN-TYPE"
         | "IN-USER"
         | "IN-NAME"
         | "DSCP"
-        | "UID"
         | "PROCESS-NAME-WILDCARD"
         | "PROCESS-PATH-WILDCARD"
         | "AND"
@@ -550,6 +559,46 @@ fn parse_ip_suffix(s: &str) -> Result<(Vec<u8>, u8)> {
 
 fn parse_asn(s: &str) -> Result<u32> {
     s.parse().context("IP-ASN payload must be a numeric ASN")
+}
+
+fn parse_uid_ranges(s: &str) -> Result<Vec<(u32, u32)>> {
+    let s = s.trim();
+    if s.is_empty() || s == "*" {
+        bail!("UID payload must contain at least one numeric UID or UID range");
+    }
+
+    let parts = s.replace(',', "/");
+    let parts = parts
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .collect::<Vec<_>>();
+    if parts.is_empty() {
+        bail!("UID payload must contain at least one numeric UID or UID range");
+    }
+    if parts.len() > 28 {
+        bail!("UID supports at most 28 ranges");
+    }
+
+    parts
+        .into_iter()
+        .map(|part| {
+            let part = part.trim();
+            if let Some((start_s, end_s)) = part.split_once('-') {
+                let start = parse_uid_value(start_s)?;
+                let end = parse_uid_value(end_s)?;
+                Ok(if start <= end { (start, end) } else { (end, start) })
+            } else {
+                let uid = parse_uid_value(part)?;
+                Ok((uid, uid))
+            }
+        })
+        .collect()
+}
+
+fn parse_uid_value(s: &str) -> Result<u32> {
+    s.trim_matches([' ', '[', ']'])
+        .parse()
+        .context("UID payload must be numeric")
 }
 
 const RULE_SET_INTERNAL_TARGET: &str = "__RULE_SET_MATCH__";
@@ -943,6 +992,13 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::Uid { ranges, target } => {
+            if meta.uid != 0 && ranges.iter().any(|(start, end)| meta.uid >= *start && meta.uid <= *end) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -983,6 +1039,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::ProcessPath { .. } => "PROCESS-PATH",
         ParsedRule::ProcessNameRegex { .. } => "PROCESS-NAME-REGEX",
         ParsedRule::ProcessPathRegex { .. } => "PROCESS-PATH-REGEX",
+        ParsedRule::Uid { .. } => "UID",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1140,6 +1197,13 @@ mod tests {
     fn meta_process_path(process_path: &str) -> ConnectionMeta {
         ConnectionMeta {
             process_path: process_path.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn meta_uid(uid: u32) -> ConnectionMeta {
+        ConnectionMeta {
+            uid,
             ..Default::default()
         }
     }
@@ -1314,6 +1378,34 @@ mod tests {
     }
 
     #[test]
+    fn uid_matches_single_value_and_ranges() {
+        let engine = RuleEngine::from_rules(&["UID,1000/2000-2002,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_uid(1000)).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_uid(2001)).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_uid(3000)).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn uid_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["UID,1000,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1330,11 +1422,14 @@ mod tests {
         assert!(validate_rule("PROCESS-PATH,C:\\Program Files\\Telegram\\Telegram.exe,Proxy").valid);
         assert!(validate_rule("PROCESS-NAME-REGEX,^telegram(-desktop)?\\.exe$,Proxy").valid);
         assert!(validate_rule("PROCESS-PATH-REGEX,telegram\\.exe$,Proxy").valid);
+        assert!(validate_rule("UID,1000/2000-2002,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
         assert!(!validate_rule("PROCESS-NAME-REGEX,[,Proxy").valid);
         assert!(!validate_rule("PROCESS-PATH-REGEX,[,Proxy").valid);
+        assert!(!validate_rule("UID,*,Proxy").valid);
+        assert!(!validate_rule("UID,not-a-uid,Proxy").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
