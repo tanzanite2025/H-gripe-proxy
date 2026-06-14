@@ -1,9 +1,15 @@
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
+use std::{
+    collections::HashMap,
+    fs,
+    net::IpAddr,
+    path::{Path, PathBuf},
+};
 
 use super::rule_geodata::RuleGeoData;
+use crate::utils::dirs;
 
 // ---------------------------------------------------------------------------
 // Connection metadata — the "packet header" we match rules against
@@ -123,6 +129,10 @@ enum ParsedRule {
         is_src: bool,
         target: String,
     },
+    RuleSet {
+        name: String,
+        target: String,
+    },
     // Rule types that require external data — we can parse but not match locally.
     ExternalData {
         rule_type: String,
@@ -145,30 +155,51 @@ enum PortKind {
 pub struct RuleEngine {
     rules: Vec<(ParsedRule, String)>, // (parsed, raw_string)
     geo_data: RuleGeoData,
+    rule_sets: RuleSetData,
 }
 
 impl RuleEngine {
     pub fn from_rules(raw_rules: &[&str]) -> Result<Self> {
-        Self::from_rules_with_geo_data(raw_rules, RuleGeoData::empty())
+        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::empty(), RuleSetData::empty())
     }
 
     pub fn from_rules_with_default_geo_data(raw_rules: &[&str]) -> Result<Self> {
-        Self::from_rules_with_geo_data(raw_rules, RuleGeoData::load_default())
+        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::load_default(), RuleSetData::empty())
+    }
+
+    pub fn from_rules_with_default_geo_data_and_rule_sets(raw_rules: &[&str], rule_sets: RuleSetData) -> Result<Self> {
+        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::load_default(), rule_sets)
     }
 
     pub fn from_rules_with_geo_data(raw_rules: &[&str], geo_data: RuleGeoData) -> Result<Self> {
+        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, geo_data, RuleSetData::empty())
+    }
+
+    pub fn from_rules_with_rule_sets(raw_rules: &[&str], rule_sets: RuleSetData) -> Result<Self> {
+        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::empty(), rule_sets)
+    }
+
+    fn from_rules_with_geo_data_and_rule_sets(
+        raw_rules: &[&str],
+        geo_data: RuleGeoData,
+        rule_sets: RuleSetData,
+    ) -> Result<Self> {
         let mut rules = Vec::with_capacity(raw_rules.len());
         for &raw in raw_rules {
             let parsed = parse_rule(raw)?;
             rules.push((parsed, raw.to_owned()));
         }
-        Ok(Self { rules, geo_data })
+        Ok(Self {
+            rules,
+            geo_data,
+            rule_sets,
+        })
     }
 
     pub fn match_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
         let host = meta.host.to_ascii_lowercase();
         for (i, (rule, raw)) in self.rules.iter().enumerate() {
-            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data) {
+            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data, &self.rule_sets) {
                 return RuleMatchResult {
                     matched: true,
                     rule_index: Some(i),
@@ -361,9 +392,12 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             is_src: true,
             target,
         }),
+        "RULE-SET" => Ok(ParsedRule::RuleSet {
+            name: payload.to_owned(),
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
-        "RULE-SET"
-        | "IN-TYPE"
+        "IN-TYPE"
         | "IN-USER"
         | "IN-NAME"
         | "DSCP"
@@ -480,6 +514,212 @@ fn parse_asn(s: &str) -> Result<u32> {
     s.parse().context("IP-ASN payload must be a numeric ASN")
 }
 
+const RULE_SET_INTERNAL_TARGET: &str = "__RULE_SET_MATCH__";
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RuleProviderBehavior {
+    Domain,
+    Ipcidr,
+    Classical,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RuleProviderConfig {
+    #[serde(default, rename = "type")]
+    pub provider_type: String,
+    pub behavior: RuleProviderBehavior,
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+    #[serde(default)]
+    pub payload: Vec<String>,
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Default)]
+pub struct RuleSetData {
+    sets: HashMap<String, RuleSetMatcher>,
+}
+
+impl RuleSetData {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    pub fn from_rule_providers(providers: HashMap<String, RuleProviderConfig>) -> Result<Self> {
+        let mut sets = HashMap::new();
+        for (name, provider) in providers {
+            if let Some(matcher) = RuleSetMatcher::from_provider(&provider)
+                .with_context(|| format!("failed to load rule provider {name}"))?
+            {
+                sets.insert(name, matcher);
+            }
+        }
+        Ok(Self { sets })
+    }
+
+    fn matches(&self, name: &str, meta: &ConnectionMeta) -> bool {
+        self.sets.get(name).is_some_and(|matcher| matcher.matches(meta))
+    }
+}
+
+struct RuleSetMatcher {
+    engine: RuleEngine,
+}
+
+impl RuleSetMatcher {
+    fn from_provider(provider: &RuleProviderConfig) -> Result<Option<Self>> {
+        let items = load_rule_provider_items(provider)?;
+        let rules = items
+            .iter()
+            .filter_map(|item| match normalize_rule_set_item(provider.behavior, item) {
+                Ok(Some(rule)) => Some(Ok(rule)),
+                Ok(None) => None,
+                Err(err) => Some(Err(err)),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        if rules.is_empty() {
+            return Ok(None);
+        }
+        let rule_refs = rules.iter().map(String::as_str).collect::<Vec<_>>();
+        let engine = RuleEngine::from_rules(&rule_refs)?;
+        Ok(Some(Self { engine }))
+    }
+
+    fn matches(&self, meta: &ConnectionMeta) -> bool {
+        self.engine.match_connection(meta).matched
+    }
+}
+
+fn load_rule_provider_items(provider: &RuleProviderConfig) -> Result<Vec<String>> {
+    if !provider.payload.is_empty() {
+        return Ok(provider.payload.clone());
+    }
+    let provider_type = provider.provider_type.to_ascii_lowercase();
+    if provider_type == "inline" {
+        return Ok(Vec::new());
+    }
+    if !provider_type.is_empty() && provider_type != "file" && provider_type != "http" {
+        return Ok(Vec::new());
+    }
+    let Some(path) = provider.path.as_deref().and_then(resolve_provider_path) else {
+        return Ok(Vec::new());
+    };
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("failed to read rule provider file {}", path.display()))?;
+    if provider
+        .format
+        .as_deref()
+        .is_some_and(|format| format.eq_ignore_ascii_case("text"))
+    {
+        return Ok(parse_rule_provider_text(&content));
+    }
+    parse_rule_provider_file(&content)
+}
+
+fn resolve_provider_path(path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        return path.is_file().then(|| path.to_path_buf());
+    }
+
+    let mut roots = Vec::new();
+    if let Ok(current_dir) = std::env::current_dir() {
+        roots.push(current_dir);
+    }
+    if let Ok(app_home) = dirs::app_home_dir() {
+        roots.push(app_home);
+    }
+    if let Ok(resources_dir) = dirs::app_resources_dir() {
+        roots.push(resources_dir);
+    }
+
+    roots
+        .into_iter()
+        .map(|root| root.join(path))
+        .find(|candidate| candidate.is_file())
+}
+
+#[derive(Deserialize)]
+struct RuleProviderFile {
+    payload: Vec<String>,
+}
+
+fn parse_rule_provider_file(content: &str) -> Result<Vec<String>> {
+    if let Ok(file) = serde_yaml_ng::from_str::<RuleProviderFile>(content) {
+        return Ok(file.payload);
+    }
+    if let Ok(payload) = serde_yaml_ng::from_str::<Vec<String>>(content) {
+        return Ok(payload);
+    }
+    Ok(parse_rule_provider_text(content))
+}
+
+fn parse_rule_provider_text(content: &str) -> Vec<String> {
+    content.lines().map(str::to_owned).collect()
+}
+
+fn normalize_rule_set_item(behavior: RuleProviderBehavior, item: &str) -> Result<Option<String>> {
+    let item = item.trim();
+    if item.is_empty() || item.starts_with('#') {
+        return Ok(None);
+    }
+
+    let rule = match behavior {
+        RuleProviderBehavior::Domain => normalize_domain_provider_item(item),
+        RuleProviderBehavior::Ipcidr => normalize_ipcidr_provider_item(item),
+        RuleProviderBehavior::Classical => normalize_classical_provider_item(item)?,
+    };
+
+    let parts = parse_rule_payload(&rule)?;
+    if parts.rule_type.eq_ignore_ascii_case("RULE-SET") {
+        bail!("nested RULE-SET providers are not supported");
+    }
+    parse_rule(&rule)?;
+    Ok(Some(rule))
+}
+
+fn normalize_domain_provider_item(item: &str) -> String {
+    if item.contains(',') {
+        append_or_replace_rule_target(item)
+    } else {
+        format!("DOMAIN-SUFFIX,{item},{RULE_SET_INTERNAL_TARGET}")
+    }
+}
+
+fn normalize_ipcidr_provider_item(item: &str) -> String {
+    if item.contains(',') {
+        append_or_replace_rule_target(item)
+    } else {
+        format!("IP-CIDR,{item},{RULE_SET_INTERNAL_TARGET}")
+    }
+}
+
+fn normalize_classical_provider_item(item: &str) -> Result<String> {
+    if !item.contains(',') {
+        bail!("classical RULE-SET item must include a rule type and payload");
+    }
+    Ok(append_or_replace_rule_target(item))
+}
+
+fn append_or_replace_rule_target(item: &str) -> String {
+    let parts = parse_rule_payload(item).unwrap_or_else(|_| RuleParts {
+        rule_type: item.to_owned(),
+        payload: String::new(),
+        target: String::new(),
+        params: Vec::new(),
+    });
+    if parts.rule_type == "MATCH" {
+        return format!("MATCH,{RULE_SET_INTERNAL_TARGET}");
+    }
+    let mut rule = format!("{},{},{}", parts.rule_type, parts.payload, RULE_SET_INTERNAL_TARGET);
+    if !parts.params.is_empty() {
+        rule.push(',');
+        rule.push_str(&parts.params.join(","));
+    }
+    rule
+}
+
 fn parse_port_ranges(s: &str) -> Result<Vec<(u16, u16)>> {
     let mut ranges = Vec::new();
     for part in s.split('/') {
@@ -511,6 +751,7 @@ fn rule_matches<'a>(
     meta: &ConnectionMeta,
     host_lower: &str,
     geo_data: &RuleGeoData,
+    rule_sets: &RuleSetData,
 ) -> Option<&'a str> {
     match rule {
         ParsedRule::Domain { domain, target } => {
@@ -629,6 +870,13 @@ fn rule_matches<'a>(
                 }
             })
         }
+        ParsedRule::RuleSet { name, target } => {
+            if rule_sets.matches(name, meta) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -664,6 +912,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::GeoSite { .. } => "GEOSITE",
         ParsedRule::IpAsn { is_src: true, .. } => "SRC-IP-ASN",
         ParsedRule::IpAsn { .. } => "IP-ASN",
+        ParsedRule::RuleSet { .. } => "RULE-SET",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -794,7 +1043,7 @@ fn wildcard_match(pattern: &str, text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::core::rule_geodata::{AsnData, GeoIpData, GeoSiteData, GeoSiteDomainType, RuleGeoData};
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fs, path::PathBuf};
 
     fn meta_domain(host: &str) -> ConnectionMeta {
         ConnectionMeta {
@@ -808,6 +1057,16 @@ mod tests {
             dst_ip: Some(dst.parse().unwrap()),
             dst_port: port,
             ..Default::default()
+        }
+    }
+
+    fn file_provider(path: PathBuf, behavior: RuleProviderBehavior) -> RuleProviderConfig {
+        RuleProviderConfig {
+            provider_type: "file".to_string(),
+            behavior,
+            path: Some(path),
+            payload: Vec::new(),
+            format: None,
         }
     }
 
@@ -1016,6 +1275,133 @@ mod tests {
         meta.dst_ip = Some("2606:4700:4700::1111".parse().unwrap());
 
         assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("DIRECT"));
+    }
+
+    #[test]
+    fn rule_set_yaml_domain_provider_matches_outer_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("private.yaml");
+        fs::write(&path, "payload:\n  - DOMAIN-SUFFIX,example.com\n").unwrap();
+        let rule_sets = RuleSetData::from_rule_providers(HashMap::from([(
+            "private".to_string(),
+            file_provider(path, RuleProviderBehavior::Classical),
+        )]))
+        .unwrap();
+        let engine =
+            RuleEngine::from_rules_with_rule_sets(&["RULE-SET,private,DIRECT", "MATCH,Proxy"], rule_sets).unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("www.example.com"))
+                .target
+                .as_deref(),
+            Some("DIRECT")
+        );
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("www.example.net"))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn rule_set_yaml_ipcidr_provider_matches_ip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("private-ip.yaml");
+        fs::write(&path, "payload:\n  - 10.0.0.0/8\n").unwrap();
+        let rule_sets = RuleSetData::from_rule_providers(HashMap::from([(
+            "private-ip".to_string(),
+            file_provider(path, RuleProviderBehavior::Ipcidr),
+        )]))
+        .unwrap();
+        let engine =
+            RuleEngine::from_rules_with_rule_sets(&["RULE-SET,private-ip,DIRECT", "MATCH,Proxy"], rule_sets).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_ip("10.1.2.3", 443)).target.as_deref(),
+            Some("DIRECT")
+        );
+        assert_eq!(
+            engine
+                .match_connection(&meta_ip("198.51.100.10", 443))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn rule_set_text_domain_provider_matches_domain_suffix() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("domain.txt");
+        fs::write(&path, "example.org\n# ignored\n\n").unwrap();
+        let rule_sets = RuleSetData::from_rule_providers(HashMap::from([(
+            "domain".to_string(),
+            file_provider(path, RuleProviderBehavior::Domain),
+        )]))
+        .unwrap();
+        let engine =
+            RuleEngine::from_rules_with_rule_sets(&["RULE-SET,domain,Proxy", "MATCH,DIRECT"], rule_sets).unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("api.example.org"))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn rule_set_outer_target_overrides_provider_rule_target() {
+        let provider = RuleProviderConfig {
+            provider_type: "inline".to_string(),
+            behavior: RuleProviderBehavior::Classical,
+            path: None,
+            payload: vec!["DOMAIN-SUFFIX,example.com,REJECT".to_string()],
+            format: None,
+        };
+        let rule_sets = RuleSetData::from_rule_providers(HashMap::from([("reject".to_string(), provider)])).unwrap();
+        let engine =
+            RuleEngine::from_rules_with_rule_sets(&["RULE-SET,reject,DIRECT", "MATCH,Proxy"], rule_sets).unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("www.example.com"))
+                .target
+                .as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn rule_set_missing_provider_falls_through() {
+        let engine =
+            RuleEngine::from_rules_with_rule_sets(&["RULE-SET,missing,DIRECT", "MATCH,Proxy"], RuleSetData::empty())
+                .unwrap();
+
+        assert_eq!(
+            engine
+                .match_connection(&meta_domain("www.example.com"))
+                .target
+                .as_deref(),
+            Some("Proxy")
+        );
+    }
+
+    #[test]
+    fn rule_set_nested_provider_is_rejected() {
+        let provider = RuleProviderConfig {
+            provider_type: "inline".to_string(),
+            behavior: RuleProviderBehavior::Classical,
+            path: None,
+            payload: vec!["RULE-SET,other".to_string()],
+            format: None,
+        };
+
+        assert!(RuleSetData::from_rule_providers(HashMap::from([("nested".to_string(), provider)])).is_err());
     }
 
     #[test]
