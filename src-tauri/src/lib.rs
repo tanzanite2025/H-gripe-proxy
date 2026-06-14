@@ -204,6 +204,7 @@ mod app_init {
             cmd::patch_clash_mode,
             cmd::get_runtime_config,
             cmd::get_runtime_yaml,
+            cmd::get_runtime_diagnostics_summary,
             cmd::get_dns_runtime_status,
             cmd::test_dns_leak,
             cmd::test_proxy_detection,
