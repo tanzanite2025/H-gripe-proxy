@@ -52,6 +52,8 @@ pub struct ConnectionMeta {
     pub in_type: String,
     #[serde(default, alias = "inUser", alias = "inbound_user", alias = "inboundUser")]
     pub in_user: String,
+    #[serde(default, alias = "inName", alias = "inbound_name", alias = "inboundName")]
+    pub in_name: String,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -181,6 +183,10 @@ enum ParsedRule {
     },
     InUser {
         users: Vec<String>,
+        target: String,
+    },
+    InName {
+        names: Vec<String>,
         target: String,
     },
     // Rule types that require external data — we can parse but not match locally.
@@ -484,8 +490,12 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             users: parse_slash_list(payload, "IN-USER")?,
             target,
         }),
+        "IN-NAME" => Ok(ParsedRule::InName {
+            names: parse_slash_list(payload, "IN-NAME")?,
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
-        "IN-NAME" | "PROCESS-NAME-WILDCARD" | "PROCESS-PATH-WILDCARD" | "AND" | "OR" | "NOT" | "SUB-RULE" => {
+        "PROCESS-NAME-WILDCARD" | "PROCESS-PATH-WILDCARD" | "AND" | "OR" | "NOT" | "SUB-RULE" => {
             Ok(ParsedRule::ExternalData {
                 rule_type: rule_type_upper,
                 payload: payload.to_owned(),
@@ -1160,6 +1170,13 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::InName { names, target } => {
+            if !meta.in_name.is_empty() && names.iter().any(|name| name == &meta.in_name) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -1204,6 +1221,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::Dscp { .. } => "DSCP",
         ParsedRule::InType { .. } => "IN-TYPE",
         ParsedRule::InUser { .. } => "IN-USER",
+        ParsedRule::InName { .. } => "IN-NAME",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1389,6 +1407,13 @@ mod tests {
     fn meta_in_user(in_user: &str) -> ConnectionMeta {
         ConnectionMeta {
             in_user: in_user.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn meta_in_name(in_name: &str) -> ConnectionMeta {
+        ConnectionMeta {
+            in_name: in_name.to_owned(),
             ..Default::default()
         }
     }
@@ -1683,6 +1708,34 @@ mod tests {
     }
 
     #[test]
+    fn in_name_matches_exactly() {
+        let engine = RuleEngine::from_rules(&["IN-NAME,home/work,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_in_name("home")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_name("work")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_name("Home")).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn in_name_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["IN-NAME,home,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1704,6 +1757,7 @@ mod tests {
         assert!(validate_rule("DSCP,*,Proxy").valid);
         assert!(validate_rule("IN-TYPE,HTTP/SOCKS/TUN,Proxy").valid);
         assert!(validate_rule("IN-USER,alice/bob,Proxy").valid);
+        assert!(validate_rule("IN-NAME,home/work,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
@@ -1716,6 +1770,7 @@ mod tests {
         assert!(!validate_rule("IN-TYPE,,Proxy").valid);
         assert!(!validate_rule("IN-TYPE,UNKNOWN,Proxy").valid);
         assert!(!validate_rule("IN-USER,,Proxy").valid);
+        assert!(!validate_rule("IN-NAME,,Proxy").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
