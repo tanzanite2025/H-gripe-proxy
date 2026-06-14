@@ -39,3 +39,13 @@ test('latency planning uses the Rust command path', () => {
   assert.match(commandModule, /#\[tauri::command\][\s\S]*pub async fn plan_latency_test\(/)
   assert.match(registry, /cmd::plan_latency_test/)
 })
+
+test('node selection planning command is implemented and registered', () => {
+  const frontend = read('src/services/proxy-runtime-selection.ts')
+  const commandModule = read('src-tauri/src/cmd/node_selection.rs')
+  const registry = read('src-tauri/src/lib.rs')
+
+  assert.match(frontend, /invoke<NodeSelectionPlan>\('plan_node_selection'/)
+  assert.match(commandModule, /#\[tauri::command\][\s\S]*pub async fn plan_node_selection\(/)
+  assert.match(registry, /cmd::plan_node_selection/)
+})
