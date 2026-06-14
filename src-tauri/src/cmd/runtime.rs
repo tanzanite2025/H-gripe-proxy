@@ -5,7 +5,10 @@ use crate::{
     core::{
         CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
-        runtime_diagnostics::{build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result},
+        runtime_diagnostics::{
+            build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
+            build_runtime_diagnostics_summary,
+        },
         runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
 };
@@ -52,6 +55,12 @@ pub async fn test_dns_leak() -> CmdResult<DnsLeakTestResult> {
 #[tauri::command]
 pub async fn test_proxy_detection() -> CmdResult<ProxyDetectionResult> {
     build_proxy_detection_result().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_diagnostics_summary() -> CmdResult<crate::core::runtime_diagnostics::RuntimeDiagnosticsSummary>
+{
+    build_runtime_diagnostics_summary().await.stringify_err()
 }
 
 #[tauri::command]
