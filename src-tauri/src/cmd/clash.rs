@@ -1,6 +1,6 @@
 use super::CmdResult;
 use super::StringifyErr as _;
-use crate::core::mihomo_runtime_guard;
+use crate::core::{latency_test::normalize_latency_test_url, mihomo_runtime_guard};
 use crate::utils::dirs;
 use crate::{
     app::{config as app_config, runtime},
@@ -65,7 +65,7 @@ pub async fn ensure_mihomo_core_ready() -> CmdResult {
 /// 测试URL延迟
 #[tauri::command]
 pub async fn test_delay(url: String) -> CmdResult<u32> {
-    let result = match runtime::test_delay(url.into()).await {
+    let result = match runtime::test_delay(normalize_latency_test_url(&url)).await {
         Ok(delay) => delay,
         Err(e) => {
             clash_verge_logging::logging!(error, clash_verge_logging::Type::Cmd, "{}", e);

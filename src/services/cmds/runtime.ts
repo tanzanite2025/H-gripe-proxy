@@ -118,3 +118,32 @@ export async function cmdGetProxyDelay(
 export async function cmdTestDelay(url: string) {
   return invoke<number>('test_delay', { url })
 }
+
+export type LatencyNetworkQuality = 'good' | 'poor' | 'offline'
+export type LatencyTestPlanStatus = 'ready' | 'skipped'
+
+export interface LatencyTestPlanRequest {
+  proxyNames?: string[]
+  group?: string | null
+  url?: string | null
+  timeoutMs?: number | null
+  concurrency?: number | null
+  networkQuality?: LatencyNetworkQuality | null
+}
+
+export interface LatencyTestPlan {
+  status: LatencyTestPlanStatus
+  reason: string
+  group: string | null
+  normalizedUrl: string
+  timeoutMs: number
+  requestedCount: number
+  scheduledCount: number
+  concurrency: number
+  estimatedMaxDurationMs: number | null
+  proxyNames: string[]
+}
+
+export async function planLatencyTest(request: LatencyTestPlanRequest) {
+  return invoke<LatencyTestPlan>('plan_latency_test', { request })
+}
