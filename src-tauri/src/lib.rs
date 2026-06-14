@@ -200,6 +200,7 @@ mod app_init {
             cmd::is_service_available,
             cmd::get_clash_info,
             cmd::patch_clash_config,
+            cmd::explain_config_diff,
             cmd::patch_clash_mode,
             cmd::get_runtime_config,
             cmd::get_runtime_yaml,

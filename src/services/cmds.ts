@@ -1,5 +1,6 @@
 export * from './cmds/profiles'
 export * from './cmds/china-rules'
+export * from './cmds/config-explain'
 export * from './cmds/diagnostics'
 export * from './cmds/runtime'
 export * from './cmds/system'
