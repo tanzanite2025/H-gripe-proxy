@@ -1,8 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import dayjs from 'dayjs'
 
-import { normalizeDelayTestUrl } from '@/services/delay-config'
-
 export async function getClashInfo() {
   return invoke<IClashInfo | null>('get_clash_info')
 }
@@ -86,33 +84,6 @@ export async function clearLogs() {
 
 export async function applyDnsConfig(apply: boolean) {
   return invoke<void>('apply_dns_config', { apply })
-}
-
-export async function cmdGetProxyDelay(
-  name: string,
-  timeout: number,
-  url?: string,
-) {
-  const testUrl = normalizeDelayTestUrl(url)
-
-  try {
-    const result = await invoke<{ delay: number }>(
-      'plugin:mihomo|delay_proxy_by_name',
-      {
-        proxyName: name,
-        testUrl,
-        timeout,
-      },
-    )
-
-    if (result && typeof result.delay === 'number') {
-      return result
-    }
-
-    return { delay: 1e6 }
-  } catch {
-    return { delay: 1e6 }
-  }
 }
 
 export async function cmdTestDelay(url: string) {

@@ -273,15 +273,21 @@ behavior=ipcidr:
 
 #### Phase 5：控制器外围逻辑 Rust 化
 
-候选：
+当前进度：
 
-- 规则预览 / 规则解释器。
-- 配置 diff / explain。
-- runtime diagnostics 聚合。
-- latency test 调度层。
-- 节点选择策略的外层编排。
+1. 规则预览 / 规则解释器：已完成（PR #31）。
+2. 配置 diff / explain：已完成（PR #33）。
+3. runtime diagnostics 聚合：已完成（PR #34）。
+4. latency test 调度层：已完成（PR #35）。
+5. 节点选择策略的外层编排：下一批候选。
 
 这类逻辑不碰真实转发链路，适合继续迁。
+
+Phase 5 的删除边界：
+
+- Rust 已接管的控制器外围能力，不再保留前端或 Go 侧同类预览 / explain / 规划兜底入口。
+- Go `mihomo/` 中的 rule matching、`URLTest`、provider health check、tunnel scheduler 仍属于真实 runtime / forwarding 数据来源；在 Rust 尚未接管 runtime 前不能删除。
+- 每次迁完一个外围能力，应同步删除旧 wrapper / fallback，并在测试里固定调用 Rust Tauri command。
 
 #### Phase 6：DNS 解析迁移
 
