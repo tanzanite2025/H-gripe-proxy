@@ -149,6 +149,10 @@ enum ParsedRule {
         regex: Regex,
         target: String,
     },
+    ProcessPathRegex {
+        regex: Regex,
+        target: String,
+    },
     // Rule types that require external data — we can parse but not match locally.
     ExternalData {
         rule_type: String,
@@ -427,13 +431,19 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
                 .context("invalid PROCESS-NAME-REGEX pattern")?,
             target,
         }),
+        "PROCESS-PATH-REGEX" => Ok(ParsedRule::ProcessPathRegex {
+            regex: RegexBuilder::new(payload)
+                .case_insensitive(true)
+                .build()
+                .context("invalid PROCESS-PATH-REGEX pattern")?,
+            target,
+        }),
         // Types that require external data — validate format but don't match locally
         "IN-TYPE"
         | "IN-USER"
         | "IN-NAME"
         | "DSCP"
         | "UID"
-        | "PROCESS-PATH-REGEX"
         | "PROCESS-NAME-WILDCARD"
         | "PROCESS-PATH-WILDCARD"
         | "AND"
@@ -926,6 +936,13 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::ProcessPathRegex { regex, target } => {
+            if !meta.process_path.is_empty() && regex.is_match(&meta.process_path) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -965,6 +982,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::ProcessName { .. } => "PROCESS-NAME",
         ParsedRule::ProcessPath { .. } => "PROCESS-PATH",
         ParsedRule::ProcessNameRegex { .. } => "PROCESS-NAME-REGEX",
+        ParsedRule::ProcessPathRegex { .. } => "PROCESS-PATH-REGEX",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1273,6 +1291,29 @@ mod tests {
     }
 
     #[test]
+    fn process_path_regex_matches_case_insensitively() {
+        let engine = RuleEngine::from_rules(&[
+            "PROCESS-PATH-REGEX,^c:\\\\program files\\\\telegram\\\\telegram\\.exe$,Proxy",
+            "MATCH,DIRECT",
+        ])
+        .unwrap();
+        let result = engine.match_connection(&meta_process_path("C:\\Program Files\\Telegram\\Telegram.EXE"));
+
+        assert_eq!(result.target.as_deref(), Some("Proxy"));
+        assert_eq!(result.rule_type.as_deref(), Some("PROCESS-PATH-REGEX"));
+    }
+
+    #[test]
+    fn process_path_regex_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["PROCESS-PATH-REGEX,telegram\\.exe$,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1288,10 +1329,12 @@ mod tests {
         assert!(validate_rule("PROCESS-NAME,Telegram.exe,Proxy").valid);
         assert!(validate_rule("PROCESS-PATH,C:\\Program Files\\Telegram\\Telegram.exe,Proxy").valid);
         assert!(validate_rule("PROCESS-NAME-REGEX,^telegram(-desktop)?\\.exe$,Proxy").valid);
+        assert!(validate_rule("PROCESS-PATH-REGEX,telegram\\.exe$,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
         assert!(!validate_rule("PROCESS-NAME-REGEX,[,Proxy").valid);
+        assert!(!validate_rule("PROCESS-PATH-REGEX,[,Proxy").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
