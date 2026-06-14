@@ -50,6 +50,8 @@ pub struct ConnectionMeta {
         alias = "inboundType"
     )]
     pub in_type: String,
+    #[serde(default, alias = "inUser", alias = "inbound_user", alias = "inboundUser")]
+    pub in_user: String,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -175,6 +177,10 @@ enum ParsedRule {
     },
     InType {
         types: Vec<String>,
+        target: String,
+    },
+    InUser {
+        users: Vec<String>,
         target: String,
     },
     // Rule types that require external data — we can parse but not match locally.
@@ -474,19 +480,18 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             types: parse_in_types(payload)?,
             target,
         }),
-        // Types that require external data — validate format but don't match locally
-        "IN-USER"
-        | "IN-NAME"
-        | "PROCESS-NAME-WILDCARD"
-        | "PROCESS-PATH-WILDCARD"
-        | "AND"
-        | "OR"
-        | "NOT"
-        | "SUB-RULE" => Ok(ParsedRule::ExternalData {
-            rule_type: rule_type_upper,
-            payload: payload.to_owned(),
+        "IN-USER" => Ok(ParsedRule::InUser {
+            users: parse_slash_list(payload, "IN-USER")?,
             target,
         }),
+        // Types that require external data — validate format but don't match locally
+        "IN-NAME" | "PROCESS-NAME-WILDCARD" | "PROCESS-PATH-WILDCARD" | "AND" | "OR" | "NOT" | "SUB-RULE" => {
+            Ok(ParsedRule::ExternalData {
+                rule_type: rule_type_upper,
+                payload: payload.to_owned(),
+                target,
+            })
+        }
         _ => bail!("unsupported rule type: {}", parts.rule_type),
     }
 }
@@ -714,6 +719,21 @@ fn is_supported_in_type(in_type: &str) -> bool {
             | "TRUSTTUNNEL"
             | "INNER"
     )
+}
+
+fn parse_slash_list(s: &str, rule_type: &str) -> Result<Vec<String>> {
+    let mut values = Vec::new();
+    for part in s.split('/') {
+        let value = part.trim();
+        if value.is_empty() {
+            bail!("{rule_type} payload cannot contain empty values");
+        }
+        values.push(value.to_owned());
+    }
+    if values.is_empty() {
+        bail!("{rule_type} payload cannot be empty");
+    }
+    Ok(values)
 }
 
 const RULE_SET_INTERNAL_TARGET: &str = "__RULE_SET_MATCH__";
@@ -1133,6 +1153,13 @@ fn rule_matches<'a>(
                 None
             }
         }
+        ParsedRule::InUser { users, target } => {
+            if !meta.in_user.is_empty() && users.iter().any(|user| user == &meta.in_user) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
         // External data rules cannot be matched locally
         ParsedRule::ExternalData { .. } => None,
     }
@@ -1176,6 +1203,7 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::Uid { .. } => "UID",
         ParsedRule::Dscp { .. } => "DSCP",
         ParsedRule::InType { .. } => "IN-TYPE",
+        ParsedRule::InUser { .. } => "IN-USER",
         ParsedRule::ExternalData { rule_type, .. } => rule_type,
     }
 }
@@ -1354,6 +1382,13 @@ mod tests {
     fn meta_in_type(in_type: &str) -> ConnectionMeta {
         ConnectionMeta {
             in_type: in_type.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn meta_in_user(in_user: &str) -> ConnectionMeta {
+        ConnectionMeta {
+            in_user: in_user.to_owned(),
             ..Default::default()
         }
     }
@@ -1620,6 +1655,34 @@ mod tests {
     }
 
     #[test]
+    fn in_user_matches_exactly() {
+        let engine = RuleEngine::from_rules(&["IN-USER,alice/bob,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&meta_in_user("alice")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_user("bob")).target.as_deref(),
+            Some("Proxy")
+        );
+        assert_eq!(
+            engine.match_connection(&meta_in_user("Alice")).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
+    fn in_user_without_metadata_falls_through() {
+        let engine = RuleEngine::from_rules(&["IN-USER,alice,Proxy", "MATCH,DIRECT"]).unwrap();
+
+        assert_eq!(
+            engine.match_connection(&ConnectionMeta::default()).target.as_deref(),
+            Some("DIRECT")
+        );
+    }
+
+    #[test]
     fn wildcard_match_cases() {
         assert!(wildcard_match("*.google.com", "www.google.com"));
         assert!(wildcard_match("*.google.com", "mail.google.com"));
@@ -1640,6 +1703,7 @@ mod tests {
         assert!(validate_rule("DSCP,10/46-48,Proxy").valid);
         assert!(validate_rule("DSCP,*,Proxy").valid);
         assert!(validate_rule("IN-TYPE,HTTP/SOCKS/TUN,Proxy").valid);
+        assert!(validate_rule("IN-USER,alice/bob,Proxy").valid);
         assert!(validate_rule("MATCH,DIRECT").valid);
 
         assert!(!validate_rule("DOMAIN").valid);
@@ -1651,6 +1715,7 @@ mod tests {
         assert!(!validate_rule("DSCP,not-a-dscp,Proxy").valid);
         assert!(!validate_rule("IN-TYPE,,Proxy").valid);
         assert!(!validate_rule("IN-TYPE,UNKNOWN,Proxy").valid);
+        assert!(!validate_rule("IN-USER,,Proxy").valid);
         assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
         assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
         assert!(!validate_rule("IP-ASN,not-a-number,Direct").valid);
