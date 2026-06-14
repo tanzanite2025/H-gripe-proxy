@@ -46,7 +46,5 @@ pub fn validate_advanced_config(config: AdvancedConfig) -> CmdResult<()> {
 /// 获取协调器状态
 #[tauri::command]
 pub async fn coordinator_get_status() -> CmdResult<CoordinatorStatus> {
-    crate::core::coordinator::coordinator_get_status()
-        .await
-        .stringify_err()
+    crate::core::coordinator::coordinator_get_status().await.stringify_err()
 }

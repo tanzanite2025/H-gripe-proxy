@@ -4,10 +4,7 @@ use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_mihomo::models::EgressStatus;
 
 use crate::core::{
-    CoreManager,
-    ip_reputation::IpReputation,
-    manager::RunningMode,
-    timezone_spoof::remember_observed_egress_region,
+    CoreManager, ip_reputation::IpReputation, manager::RunningMode, timezone_spoof::remember_observed_egress_region,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

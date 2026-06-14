@@ -124,14 +124,12 @@ fn app_home_dir_with_ids(app_id: &str, legacy_app_ids: &[&str]) -> Result<PathBu
     let app_handle = handle::Handle::app_handle();
 
     match app_handle.path().data_dir() {
-        Ok(dir) => {
-            Ok(migrate_from_legacy_candidates(
-                &dir,
-                app_id,
-                legacy_app_ids,
-                "app home directory",
-            ))
-        }
+        Ok(dir) => Ok(migrate_from_legacy_candidates(
+            &dir,
+            app_id,
+            legacy_app_ids,
+            "app home directory",
+        )),
         Err(e) => {
             logging!(error, Type::File, "Failed to get the app home directory: {e}");
             Err(anyhow::anyhow!("Failed to get the app homedirectory"))

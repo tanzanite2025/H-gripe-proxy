@@ -102,9 +102,7 @@ impl SubscriptionEvent {
             artifact_version,
             runtime_activated: false,
             active_artifact_unchanged,
-            error: Some(UpdateErrorView {
-                message: error.into(),
-            }),
+            error: Some(UpdateErrorView { message: error.into() }),
         }
     }
 }

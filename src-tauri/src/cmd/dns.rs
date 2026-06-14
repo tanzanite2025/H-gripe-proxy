@@ -1,8 +1,8 @@
 use crate::cmd::{CmdResult, StringifyErr};
 use crate::core::dns_runtime::{
-    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsServerProviderHealthReport,
-    DnsServerProviderKind, DnsServerProviderRegistration, dns_health_check as build_dns_health_check,
-    dns_query as build_dns_query, list_dns_server_provider_registrations, probe_dns_server_provider,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsServerProviderHealthReport, DnsServerProviderKind,
+    DnsServerProviderRegistration, dns_health_check as build_dns_health_check, dns_query as build_dns_query,
+    list_dns_server_provider_registrations, probe_dns_server_provider,
 };
 use log::error;
 

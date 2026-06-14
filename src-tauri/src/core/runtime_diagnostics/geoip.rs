@@ -9,10 +9,7 @@ use std::net::IpAddr;
 const PUBLIC_IP_PLAIN_SOURCE: &str = "https://api.ipify.org";
 const PUBLIC_IPV4_PLAIN_SOURCE: &str = "https://api4.ipify.org";
 
-pub const PUBLIC_IP_PROBE_HOSTS: [&str; 2] = [
-    "api.ipify.org",
-    "api4.ipify.org",
-];
+pub const PUBLIC_IP_PROBE_HOSTS: [&str; 2] = ["api.ipify.org", "api4.ipify.org"];
 
 #[derive(Debug, Clone, Default)]
 pub struct GeoIpInfo {
@@ -93,9 +90,7 @@ pub async fn fetch_public_ip_plain(client: &Client) -> Result<String> {
         }
     }
 
-    Err(anyhow!(
-        "failed to fetch plain public IP from {PUBLIC_IP_PLAIN_SOURCE}"
-    ))
+    Err(anyhow!("failed to fetch plain public IP from {PUBLIC_IP_PLAIN_SOURCE}"))
 }
 
 pub async fn fetch_public_ipv4_plain(client: &Client) -> Result<String> {
@@ -159,11 +154,7 @@ async fn lookup_local_ip_info(ip: &str) -> GeoIpInfo {
             isp: record.asn_organization.map(Into::into),
         },
         Err(error) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Local MMDB geo lookup failed for {ip}: {error}"
-            );
+            logging!(warn, Type::Config, "Local MMDB geo lookup failed for {ip}: {error}");
             GeoIpInfo {
                 ip: Some(ip.to_string().into()),
                 ..GeoIpInfo::default()
@@ -269,10 +260,7 @@ mod tests {
     }
 
     fn extract_host(url: &str) -> &str {
-        url.trim_start_matches("https://")
-            .split('/')
-            .next()
-            .unwrap_or_default()
+        url.trim_start_matches("https://").split('/').next().unwrap_or_default()
     }
 
     #[test]

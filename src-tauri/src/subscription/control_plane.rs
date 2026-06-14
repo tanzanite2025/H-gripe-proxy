@@ -94,14 +94,14 @@ async fn try_control_plane_candidates(
     let mut last_err = None;
 
     for candidate in ordered_candidates {
-        let selection_guard = match MihomoSelectionGuard::select(app_handle, SUBSCRIPTION_UPDATE_GROUP, &candidate).await
-        {
-            Ok(guard) => guard,
-            Err(err) => {
-                last_err = Some(anyhow!("control-plane candidate {candidate} is unavailable: {err}"));
-                continue;
-            }
-        };
+        let selection_guard =
+            match MihomoSelectionGuard::select(app_handle, SUBSCRIPTION_UPDATE_GROUP, &candidate).await {
+                Ok(guard) => guard,
+                Err(err) => {
+                    last_err = Some(anyhow!("control-plane candidate {candidate} is unavailable: {err}"));
+                    continue;
+                }
+            };
 
         let fetch_result = fetch_remote_profile(url, Some(option)).await;
         let restore_result = selection_guard.restore().await;

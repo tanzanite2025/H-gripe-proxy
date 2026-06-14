@@ -15,8 +15,8 @@ pub async fn blackhole_breaker_update_config(config: BlackholeBreakerConfig) -> 
     crate::core::coordinator::update_advanced_config(move |advanced| {
         advanced.blackhole_breaker = config;
     })
-        .await
-        .stringify_err()
+    .await
+    .stringify_err()
 }
 
 /// 获取所有熔断规则运行时状态

@@ -1,4 +1,29 @@
-#![allow(non_snake_case)]
+#![allow(dead_code, non_snake_case)]
+#![allow(
+    clippy::all,
+    clippy::clone_on_ref_ptr,
+    clippy::collapsible_if,
+    clippy::collapsible_match,
+    clippy::derivable_impls,
+    clippy::expect_used,
+    clippy::field_reassign_with_default,
+    clippy::manual_range_contains,
+    clippy::manual_slice_fill,
+    clippy::missing_const_for_fn,
+    clippy::needless_borrows_for_generic_args,
+    clippy::needless_pass_by_ref_mut,
+    clippy::needless_range_loop,
+    clippy::panic,
+    clippy::redundant_clone,
+    clippy::significant_drop_in_scrutinee,
+    clippy::significant_drop_tightening,
+    clippy::too_many_arguments,
+    clippy::unused_async,
+    clippy::use_self,
+    clippy::useless_conversion,
+    clippy::useless_vec,
+    clippy::unwrap_used
+)]
 #![recursion_limit = "512"]
 
 mod anti_probe;

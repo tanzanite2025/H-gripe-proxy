@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     net::IpAddr,
     path::{Path, PathBuf},
@@ -197,11 +197,14 @@ enum ParsedRule {
         names: Vec<String>,
         target: String,
     },
-    // Rule types that require external data — we can parse but not match locally.
-    ExternalData {
-        rule_type: String,
-        payload: String,
+    Logical {
+        op: LogicalOp,
+        rules: Vec<ParsedRule>,
         target: String,
+    },
+    SubRule {
+        condition: Box<ParsedRule>,
+        name: String,
     },
 }
 
@@ -212,6 +215,13 @@ enum PortKind {
     In,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum LogicalOp {
+    And,
+    Or,
+    Not,
+}
+
 // ---------------------------------------------------------------------------
 // Rule engine
 // ---------------------------------------------------------------------------
@@ -220,33 +230,68 @@ pub struct RuleEngine {
     rules: Vec<(ParsedRule, String)>, // (parsed, raw_string)
     geo_data: RuleGeoData,
     rule_sets: RuleSetData,
+    sub_rules: SubRuleData,
 }
 
 impl RuleEngine {
     pub fn from_rules(raw_rules: &[&str]) -> Result<Self> {
-        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::empty(), RuleSetData::empty())
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::empty(),
+            RuleSetData::empty(),
+            SubRuleData::empty(),
+        )
     }
 
     pub fn from_rules_with_default_geo_data(raw_rules: &[&str]) -> Result<Self> {
-        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::load_default(), RuleSetData::empty())
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::load_default(),
+            RuleSetData::empty(),
+            SubRuleData::empty(),
+        )
     }
 
     pub fn from_rules_with_default_geo_data_and_rule_sets(raw_rules: &[&str], rule_sets: RuleSetData) -> Result<Self> {
-        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::load_default(), rule_sets)
+        Self::from_rules_with_default_geo_data_rule_sets_and_sub_rules(raw_rules, rule_sets, SubRuleData::empty())
+    }
+
+    pub fn from_rules_with_default_geo_data_rule_sets_and_sub_rules(
+        raw_rules: &[&str],
+        rule_sets: RuleSetData,
+        sub_rules: SubRuleData,
+    ) -> Result<Self> {
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::load_default(),
+            rule_sets,
+            sub_rules,
+        )
     }
 
     pub fn from_rules_with_geo_data(raw_rules: &[&str], geo_data: RuleGeoData) -> Result<Self> {
-        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, geo_data, RuleSetData::empty())
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            geo_data,
+            RuleSetData::empty(),
+            SubRuleData::empty(),
+        )
     }
 
     pub fn from_rules_with_rule_sets(raw_rules: &[&str], rule_sets: RuleSetData) -> Result<Self> {
-        Self::from_rules_with_geo_data_and_rule_sets(raw_rules, RuleGeoData::empty(), rule_sets)
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::empty(),
+            rule_sets,
+            SubRuleData::empty(),
+        )
     }
 
-    fn from_rules_with_geo_data_and_rule_sets(
+    fn from_rules_with_geo_data_rule_sets_and_sub_rules(
         raw_rules: &[&str],
         geo_data: RuleGeoData,
         rule_sets: RuleSetData,
+        sub_rules: SubRuleData,
     ) -> Result<Self> {
         let mut rules = Vec::with_capacity(raw_rules.len());
         for &raw in raw_rules {
@@ -257,13 +302,14 @@ impl RuleEngine {
             rules,
             geo_data,
             rule_sets,
+            sub_rules,
         })
     }
 
     pub fn match_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
         let host = meta.host.to_ascii_lowercase();
         for (i, (rule, raw)) in self.rules.iter().enumerate() {
-            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data, &self.rule_sets) {
+            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data, &self.rule_sets, &self.sub_rules) {
                 return RuleMatchResult {
                     matched: true,
                     rule_index: Some(i),
@@ -324,17 +370,34 @@ pub fn validate_rule_spec(rule_type: &str, payload: &str, target: &str) -> RuleV
 // ---------------------------------------------------------------------------
 
 fn parse_rule(raw: &str) -> Result<ParsedRule> {
-    let parts = parse_rule_payload(raw)?;
+    parse_rule_with_target(raw, true)
+}
+
+fn parse_logic_child_rule(raw: &str) -> Result<ParsedRule> {
+    let rule = parse_rule_with_target(raw, false)?;
+    match rule {
+        ParsedRule::Match { .. } | ParsedRule::SubRule { .. } => {
+            bail!("unsupported rule type [{raw}] on logic rule");
+        }
+        _ => Ok(rule),
+    }
+}
+
+fn parse_rule_with_target(raw: &str, need_target: bool) -> Result<ParsedRule> {
+    let parts = parse_rule_payload(raw, need_target)?;
     let rule_type_upper = parts.rule_type.to_ascii_uppercase();
 
     if rule_type_upper == "MATCH" {
+        if !need_target {
+            bail!("MATCH is not supported inside logic rules");
+        }
         if parts.target.is_empty() {
             bail!("MATCH rule requires a target policy");
         }
         return Ok(ParsedRule::Match { target: parts.target });
     }
 
-    if parts.payload.is_empty() || parts.target.is_empty() {
+    if parts.payload.is_empty() || (need_target && parts.target.is_empty()) {
         bail!("rule must have at least TYPE,PAYLOAD,TARGET");
     }
 
@@ -510,11 +573,24 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             names: parse_slash_list(payload, "IN-NAME")?,
             target,
         }),
-        // Types that require external data — validate format but don't match locally
-        "AND" | "OR" | "NOT" | "SUB-RULE" => Ok(ParsedRule::ExternalData {
-            rule_type: rule_type_upper,
-            payload: payload.to_owned(),
+        "AND" => Ok(ParsedRule::Logical {
+            op: LogicalOp::And,
+            rules: parse_logical_rules(payload, LogicalOp::And)?,
             target,
+        }),
+        "OR" => Ok(ParsedRule::Logical {
+            op: LogicalOp::Or,
+            rules: parse_logical_rules(payload, LogicalOp::Or)?,
+            target,
+        }),
+        "NOT" => Ok(ParsedRule::Logical {
+            op: LogicalOp::Not,
+            rules: parse_logical_rules(payload, LogicalOp::Not)?,
+            target,
+        }),
+        "SUB-RULE" => Ok(ParsedRule::SubRule {
+            condition: Box::new(parse_sub_rule_condition(payload)?),
+            name: target,
         }),
         _ => bail!("unsupported rule type: {}", parts.rule_type),
     }
@@ -527,7 +603,7 @@ struct RuleParts {
     params: Vec<String>,
 }
 
-fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
+fn parse_rule_payload(raw: &str, need_target: bool) -> Result<RuleParts> {
     let items: Vec<String> = raw.split(',').map(|s| s.trim().to_owned()).collect();
     if items.is_empty() || items[0].is_empty() {
         bail!("empty rule");
@@ -544,20 +620,29 @@ fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
                 target = items[1].clone();
             }
             "NOT" | "OR" | "AND" | "SUB-RULE" | "DOMAIN-REGEX" | "PROCESS-NAME-REGEX" | "PROCESS-PATH-REGEX" => {
-                if let Some(last) = items.last() {
-                    target = last.clone();
-                }
-                if items.len() > 2 {
+                if need_target {
+                    if let Some(last) = items.last() {
+                        target = last.clone();
+                    }
+                    if items.len() > 2 {
+                        payload = items[1..items.len() - 1].join(",");
+                    }
+                } else {
                     payload = items[1..items.len() - 1].join(",");
+                    if let Some(last) = items.last() {
+                        payload.push_str(if payload.is_empty() { "" } else { "," });
+                        payload.push_str(last);
+                    }
                 }
             }
             _ => {
                 payload = items[1].clone();
-                if items.len() > 2 {
+                if need_target && items.len() > 2 {
                     target = items[2].clone();
                 }
-                if items.len() > 3 {
-                    params = items[3..].to_vec();
+                let param_start = if need_target { 3 } else { 2 };
+                if items.len() > param_start {
+                    params = items[param_start..].to_vec();
                 }
             }
         }
@@ -569,6 +654,99 @@ fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
         target,
         params,
     })
+}
+
+fn parse_logical_rules(payload: &str, op: LogicalOp) -> Result<Vec<ParsedRule>> {
+    let rules = logical_rule_segments(payload)?
+        .into_iter()
+        .map(|segment| parse_logic_child_rule(segment))
+        .collect::<Result<Vec<_>>>()?;
+    if rules.is_empty() {
+        bail!("logic rule payload must contain at least one rule");
+    }
+    if matches!(op, LogicalOp::Not) && rules.len() != 1 {
+        bail!("NOT rule must contain one rule");
+    }
+    Ok(rules)
+}
+
+fn parse_sub_rule_condition(payload: &str) -> Result<ParsedRule> {
+    let payload = payload.trim();
+    if payload.starts_with('(')
+        && payload.ends_with(')')
+        && let Some(inner) = unwrap_single_parenthesized_rule(payload)?
+    {
+        parse_logic_child_rule(inner)
+    } else {
+        parse_logic_child_rule(payload)
+    }
+}
+
+fn logical_rule_segments(payload: &str) -> Result<Vec<&str>> {
+    let payload = payload.trim();
+    if payload.is_empty() {
+        bail!("logic rule payload cannot be empty");
+    }
+    if let Some(inner) = unwrap_single_parenthesized_rule(payload)? {
+        let inner_segments = direct_parenthesized_segments(inner)?;
+        if !inner_segments.is_empty() {
+            return Ok(inner_segments);
+        }
+    }
+    direct_parenthesized_segments(payload)
+}
+
+fn unwrap_single_parenthesized_rule(payload: &str) -> Result<Option<&str>> {
+    let ranges = parenthesized_ranges(payload)?;
+    Ok(if ranges.len() == 1 && ranges[0] == (0, payload.len() - 1) {
+        Some(&payload[1..payload.len() - 1])
+    } else {
+        None
+    })
+}
+
+fn direct_parenthesized_segments(payload: &str) -> Result<Vec<&str>> {
+    parenthesized_ranges(payload)?
+        .into_iter()
+        .map(|(start, end)| Ok(&payload[start + 1..end]))
+        .collect()
+}
+
+fn parenthesized_ranges(payload: &str) -> Result<Vec<(usize, usize)>> {
+    let mut ranges = Vec::new();
+    let mut depth = 0usize;
+    let mut start = None;
+    for (idx, byte) in payload.bytes().enumerate() {
+        match byte {
+            b'(' => {
+                if depth == 0 {
+                    start = Some(idx);
+                }
+                depth += 1;
+            }
+            b')' => {
+                if depth == 0 {
+                    bail!("logic rule payload has unmatched ')'");
+                }
+                depth -= 1;
+                if depth == 0 {
+                    let Some(range_start) = start.take() else {
+                        bail!("logic rule payload has invalid parentheses");
+                    };
+                    ranges.push((range_start, idx));
+                }
+            }
+            b',' | b' ' | b'\t' | b'\r' | b'\n' if depth == 0 => {}
+            _ if depth == 0 => {
+                bail!("logic rule payload must wrap each child rule in parentheses");
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        bail!("logic rule payload has unmatched '('");
+    }
+    Ok(ranges)
 }
 
 fn parse_params(params: &[&str]) -> (bool, bool) {
@@ -810,6 +988,129 @@ impl RuleSetData {
     }
 }
 
+#[derive(Default)]
+pub struct SubRuleData {
+    sets: HashMap<String, SubRuleMatcher>,
+}
+
+impl SubRuleData {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    pub fn from_sub_rules(sub_rules: HashMap<String, Vec<String>>) -> Result<Self> {
+        let mut sets = HashMap::new();
+        for (name, raw_rules) in sub_rules {
+            if name.is_empty() {
+                bail!("sub-rule name cannot be empty");
+            }
+            let matcher =
+                SubRuleMatcher::from_rules(&raw_rules).with_context(|| format!("failed to load sub-rule {name}"))?;
+            sets.insert(name, matcher);
+        }
+        let data = Self { sets };
+        data.validate_references()?;
+        Ok(data)
+    }
+
+    fn match_named<'a>(
+        &'a self,
+        name: &str,
+        meta: &ConnectionMeta,
+        host_lower: &str,
+        geo_data: &'a RuleGeoData,
+        rule_sets: &'a RuleSetData,
+        visited: &mut HashSet<String>,
+    ) -> Option<&'a str> {
+        if !visited.insert(name.to_owned()) {
+            return None;
+        }
+        let result = self
+            .sets
+            .get(name)
+            .and_then(|matcher| matcher.matches(meta, host_lower, geo_data, rule_sets, self, visited));
+        visited.remove(name);
+        result
+    }
+
+    fn validate_references(&self) -> Result<()> {
+        for name in self.sets.keys() {
+            self.validate_sub_rule_references(name, &mut Vec::new())?;
+        }
+        Ok(())
+    }
+
+    fn validate_sub_rule_references(&self, name: &str, stack: &mut Vec<String>) -> Result<()> {
+        if stack.iter().any(|existing| existing == name) {
+            stack.push(name.to_owned());
+            bail!("sub-rule circular reference: {}", stack.join("->"));
+        }
+        let Some(matcher) = self.sets.get(name) else {
+            bail!("sub-rule {name} not found");
+        };
+        stack.push(name.to_owned());
+        for reference in matcher.sub_rule_references() {
+            if !self.sets.contains_key(reference) {
+                bail!("sub-rule {reference} not found");
+            }
+            self.validate_sub_rule_references(reference, stack)?;
+        }
+        stack.pop();
+        Ok(())
+    }
+}
+
+struct SubRuleMatcher {
+    rules: Vec<(ParsedRule, String)>,
+}
+
+impl SubRuleMatcher {
+    fn from_rules(raw_rules: &[String]) -> Result<Self> {
+        let mut rules = Vec::with_capacity(raw_rules.len());
+        for raw in raw_rules {
+            rules.push((parse_rule(raw)?, raw.to_owned()));
+        }
+        Ok(Self { rules })
+    }
+
+    fn matches<'a>(
+        &'a self,
+        meta: &ConnectionMeta,
+        host_lower: &str,
+        geo_data: &'a RuleGeoData,
+        rule_sets: &'a RuleSetData,
+        sub_rules: &'a SubRuleData,
+        visited: &mut HashSet<String>,
+    ) -> Option<&'a str> {
+        self.rules
+            .iter()
+            .find_map(|(rule, _)| rule_matches_inner(rule, meta, host_lower, geo_data, rule_sets, sub_rules, visited))
+    }
+
+    fn sub_rule_references(&self) -> Vec<&str> {
+        let mut references = Vec::new();
+        for (rule, _) in &self.rules {
+            collect_sub_rule_references(rule, &mut references);
+        }
+        references
+    }
+}
+
+fn collect_sub_rule_references<'a>(rule: &'a ParsedRule, references: &mut Vec<&'a str>) {
+    match rule {
+        ParsedRule::SubRule { condition, name } => {
+            collect_sub_rule_references(condition, references);
+            references.push(name);
+        }
+        ParsedRule::Logical { rules, .. } => {
+            for rule in rules {
+                collect_sub_rule_references(rule, references);
+            }
+        }
+        _ => {}
+    }
+}
+
 struct RuleSetMatcher {
     engine: RuleEngine,
 }
@@ -917,7 +1218,7 @@ fn normalize_rule_set_item(behavior: RuleProviderBehavior, item: &str) -> Result
         RuleProviderBehavior::Classical => normalize_classical_provider_item(item)?,
     };
 
-    let parts = parse_rule_payload(&rule)?;
+    let parts = parse_rule_payload(&rule, true)?;
     if parts.rule_type.eq_ignore_ascii_case("RULE-SET") {
         bail!("nested RULE-SET providers are not supported");
     }
@@ -949,7 +1250,7 @@ fn normalize_classical_provider_item(item: &str) -> Result<String> {
 }
 
 fn append_or_replace_rule_target(item: &str) -> String {
-    let parts = parse_rule_payload(item).unwrap_or_else(|_| RuleParts {
+    let parts = parse_rule_payload(item, true).unwrap_or_else(|_| RuleParts {
         rule_type: item.to_owned(),
         payload: String::new(),
         target: String::new(),
@@ -996,8 +1297,29 @@ fn rule_matches<'a>(
     rule: &'a ParsedRule,
     meta: &ConnectionMeta,
     host_lower: &str,
-    geo_data: &RuleGeoData,
-    rule_sets: &RuleSetData,
+    geo_data: &'a RuleGeoData,
+    rule_sets: &'a RuleSetData,
+    sub_rules: &'a SubRuleData,
+) -> Option<&'a str> {
+    rule_matches_inner(
+        rule,
+        meta,
+        host_lower,
+        geo_data,
+        rule_sets,
+        sub_rules,
+        &mut HashSet::new(),
+    )
+}
+
+fn rule_matches_inner<'a>(
+    rule: &'a ParsedRule,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    geo_data: &'a RuleGeoData,
+    rule_sets: &'a RuleSetData,
+    sub_rules: &'a SubRuleData,
+    visited_sub_rules: &mut HashSet<String>,
 ) -> Option<&'a str> {
     match rule {
         ParsedRule::Domain { domain, target } => {
@@ -1205,8 +1527,57 @@ fn rule_matches<'a>(
                 None
             }
         }
-        // External data rules cannot be matched locally
-        ParsedRule::ExternalData { .. } => None,
+        ParsedRule::Logical { op, rules, target } => {
+            let matched = match op {
+                LogicalOp::And => rules.iter().all(|rule| {
+                    rule_matches_inner(
+                        rule,
+                        meta,
+                        host_lower,
+                        geo_data,
+                        rule_sets,
+                        sub_rules,
+                        visited_sub_rules,
+                    )
+                    .is_some()
+                }),
+                LogicalOp::Or => rules.iter().any(|rule| {
+                    rule_matches_inner(
+                        rule,
+                        meta,
+                        host_lower,
+                        geo_data,
+                        rule_sets,
+                        sub_rules,
+                        visited_sub_rules,
+                    )
+                    .is_some()
+                }),
+                LogicalOp::Not => rules.first().is_some_and(|rule| {
+                    rule_matches_inner(
+                        rule,
+                        meta,
+                        host_lower,
+                        geo_data,
+                        rule_sets,
+                        sub_rules,
+                        visited_sub_rules,
+                    )
+                    .is_none()
+                }),
+            };
+            matched.then_some(target.as_str())
+        }
+        ParsedRule::SubRule { condition, name } => rule_matches_inner(
+            condition,
+            meta,
+            host_lower,
+            geo_data,
+            rule_sets,
+            sub_rules,
+            visited_sub_rules,
+        )
+        .and_then(|_| sub_rules.match_named(name, meta, host_lower, geo_data, rule_sets, visited_sub_rules)),
     }
 }
 
@@ -1252,7 +1623,10 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::InType { .. } => "IN-TYPE",
         ParsedRule::InUser { .. } => "IN-USER",
         ParsedRule::InName { .. } => "IN-NAME",
-        ParsedRule::ExternalData { rule_type, .. } => rule_type,
+        ParsedRule::Logical { op: LogicalOp::And, .. } => "AND",
+        ParsedRule::Logical { op: LogicalOp::Or, .. } => "OR",
+        ParsedRule::Logical { op: LogicalOp::Not, .. } => "NOT",
+        ParsedRule::SubRule { .. } => "SUB-RULE",
     }
 }
 
@@ -1526,6 +1900,82 @@ mod tests {
         let mut m = meta_domain("example.com");
         m.network = NetworkType::Udp;
         assert_eq!(engine.match_connection(&m).target.as_deref(), Some("UdpProxy"));
+    }
+
+    #[test]
+    fn logical_and_matches_all_child_rules() {
+        let engine = RuleEngine::from_rules(&[
+            "AND,((DOMAIN,example.com),(NETWORK,TCP),(DST-PORT,443)),Proxy",
+            "MATCH,DIRECT",
+        ])
+        .unwrap();
+        let mut meta = meta_domain("example.com");
+        meta.network = NetworkType::Tcp;
+        meta.dst_port = 443;
+
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("Proxy"));
+
+        meta.dst_port = 80;
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("DIRECT"));
+    }
+
+    #[test]
+    fn logical_or_and_not_match_mihomo_payload_shape() {
+        let engine =
+            RuleEngine::from_rules(&["OR,((DOMAIN,example.com),(NOT,((NETWORK,UDP)))),Proxy", "MATCH,DIRECT"]).unwrap();
+        let mut meta = meta_domain("other.example");
+        meta.network = NetworkType::Tcp;
+
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("Proxy"));
+
+        meta.network = NetworkType::Udp;
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("DIRECT"));
+    }
+
+    #[test]
+    fn sub_rule_routes_to_named_rule_list() {
+        let sub_rules = SubRuleData::from_sub_rules(HashMap::from([(
+            "sub-rule-name1".to_string(),
+            vec!["DOMAIN,example.com,Proxy".to_string(), "MATCH,DIRECT".to_string()],
+        )]))
+        .unwrap();
+        let engine = RuleEngine::from_rules_with_default_geo_data_rule_sets_and_sub_rules(
+            &[
+                "SUB-RULE,(OR,((NETWORK,TCP),(NETWORK,UDP))),sub-rule-name1",
+                "MATCH,FALLBACK",
+            ],
+            RuleSetData::empty(),
+            sub_rules,
+        )
+        .unwrap();
+        let mut meta = meta_domain("example.com");
+        meta.network = NetworkType::Tcp;
+
+        assert_eq!(engine.match_connection(&meta).target.as_deref(), Some("Proxy"));
+    }
+
+    #[test]
+    fn sub_rule_rejects_missing_or_circular_references() {
+        assert!(
+            SubRuleData::from_sub_rules(HashMap::from([(
+                "first".to_string(),
+                vec!["SUB-RULE,(DOMAIN,example.com),missing".to_string()],
+            )]))
+            .is_err()
+        );
+        assert!(
+            SubRuleData::from_sub_rules(HashMap::from([
+                (
+                    "first".to_string(),
+                    vec!["SUB-RULE,(DOMAIN,example.com),second".to_string()],
+                ),
+                (
+                    "second".to_string(),
+                    vec!["SUB-RULE,(DOMAIN,example.org),first".to_string()],
+                ),
+            ]))
+            .is_err()
+        );
     }
 
     #[test]

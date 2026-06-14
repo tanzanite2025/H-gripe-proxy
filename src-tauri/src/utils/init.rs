@@ -312,7 +312,12 @@ async fn init_dns_config() -> Result<()> {
 
     if !dns_path.exists() {
         logging!(info, Type::Setup, "Creating default DNS config file");
-        help::save_yaml(&dns_path, &default_dns_config, Some("# Clash Verge Optimized DNS Config")).await?;
+        help::save_yaml(
+            &dns_path,
+            &default_dns_config,
+            Some("# Clash Verge Optimized DNS Config"),
+        )
+        .await?;
     }
 
     Ok(())
@@ -439,7 +444,13 @@ pub async fn init_resources() -> Result<()> {
         let legacy_path = app_dir.join(file);
         if legacy_path.exists() {
             if let Err(error) = fs::remove_file(&legacy_path).await {
-                logging!(warn, Type::Setup, "failed to remove legacy resource '{}': {}", file, error);
+                logging!(
+                    warn,
+                    Type::Setup,
+                    "failed to remove legacy resource '{}': {}",
+                    file,
+                    error
+                );
             } else {
                 logging!(info, Type::Setup, "removed legacy resource '{}'", file);
             }

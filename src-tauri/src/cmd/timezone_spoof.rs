@@ -18,8 +18,8 @@ pub async fn timezone_spoof_update_config(config: TimezoneSpoofConfig) -> CmdRes
     crate::core::coordinator::update_advanced_config(move |advanced| {
         advanced.timezone_spoof = config;
     })
-        .await
-        .stringify_err()
+    .await
+    .stringify_err()
 }
 
 /// 根据国家代码获取推荐的 NTP 服务器

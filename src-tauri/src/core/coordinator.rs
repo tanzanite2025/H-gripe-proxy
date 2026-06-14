@@ -151,9 +151,7 @@ impl CoreCoordinator {
 
         if old.security.tls_fingerprint != new.security.tls_fingerprint {
             if let Some(name) = new.security.tls_fingerprint.as_ref() {
-                self.tls_fingerprint
-                    .set_by_name(name)
-                    .map_err(anyhow::Error::msg)?;
+                self.tls_fingerprint.set_by_name(name).map_err(anyhow::Error::msg)?;
             } else {
                 self.tls_fingerprint.clear();
             }

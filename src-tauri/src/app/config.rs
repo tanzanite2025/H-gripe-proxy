@@ -156,9 +156,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         update_flags.insert(UpdateFlags::SYS_PROXY);
     }
     if language.is_some() {
-        update_flags.insert(
-            UpdateFlags::LANGUAGE | UpdateFlags::SYSTRAY_MENU | UpdateFlags::SYSTRAY_TOOLTIP,
-        );
+        update_flags.insert(UpdateFlags::LANGUAGE | UpdateFlags::SYSTRAY_MENU | UpdateFlags::SYSTRAY_TOOLTIP);
     }
     if patch.hotkeys.is_some() {
         update_flags.insert(UpdateFlags::HOTKEY | UpdateFlags::SYSTRAY_MENU);
@@ -176,8 +174,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
 fn should_close_connections_on_route_change(current: &IVerge, patch: &IVerge) -> bool {
     let will_disable_system_proxy =
         current.enable_system_proxy.unwrap_or(false) && patch.enable_system_proxy == Some(false);
-    let will_disable_tun_mode =
-        current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
+    let will_disable_tun_mode = current.enable_tun_mode.unwrap_or(false) && patch.enable_tun_mode == Some(false);
 
     will_disable_system_proxy || will_disable_tun_mode
 }
@@ -246,9 +243,7 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     if update_flags.contains(UpdateFlags::LOG_FILE) {
         let log_max_size = patch.app_log_max_size.unwrap_or(128);
         let log_max_count = patch.app_log_max_count.unwrap_or(8);
-        Logger::global()
-            .update_log_config(log_max_size, log_max_count)
-            .await?;
+        Logger::global().update_log_config(log_max_size, log_max_count).await?;
     }
     Ok(())
 }

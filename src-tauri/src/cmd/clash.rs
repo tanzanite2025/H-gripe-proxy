@@ -1,11 +1,11 @@
 use super::CmdResult;
 use super::StringifyErr as _;
+use crate::core::mihomo_runtime_guard;
+use crate::utils::dirs;
 use crate::{
     app::{config as app_config, runtime},
     config::{ClashInfo, Config},
 };
-use crate::core::mihomo_runtime_guard;
-use crate::utils::dirs;
 use compact_str::CompactString;
 use serde::Serialize;
 use serde_yaml_ng::Mapping;
@@ -59,9 +59,7 @@ pub async fn restart_core() -> CmdResult {
 /// Ensure Mihomo core and IPC are ready for frontend/runtime operations
 #[tauri::command]
 pub async fn ensure_mihomo_core_ready() -> CmdResult {
-    mihomo_runtime_guard::ensure_mihomo_core_ready()
-        .await
-        .stringify_err()
+    mihomo_runtime_guard::ensure_mihomo_core_ready().await.stringify_err()
 }
 
 /// 测试URL延迟

@@ -25,8 +25,8 @@ pub async fn egress_monitor_start() -> CmdResult<()> {
     crate::core::coordinator::update_advanced_config(|advanced| {
         advanced.egress_monitor.enabled = true;
     })
-        .await
-        .stringify_err()
+    .await
+    .stringify_err()
 }
 
 /// 停止出口监控
@@ -35,8 +35,8 @@ pub async fn egress_monitor_stop() -> CmdResult<()> {
     crate::core::coordinator::update_advanced_config(|advanced| {
         advanced.egress_monitor.enabled = false;
     })
-        .await
-        .stringify_err()
+    .await
+    .stringify_err()
 }
 
 /// 获取出口监控统计
