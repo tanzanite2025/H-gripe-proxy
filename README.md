@@ -167,6 +167,41 @@ target/release/bundle/nsis/
 
 ---
 
+## GO 内核转 Rust 迁移进度 / Go-to-Rust Migration
+
+迁移路线图详见 [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md)。
+当前策略是：优先把“不碰真实转发链路”的控制与校验逻辑迁入 Tauri Rust 后端，Mihomo Go sidecar 继续负责 runtime 转发、协议栈、TUN 和 DNS runtime。
+
+### 当前状态
+
+Phase 4「规则引擎外部数据类型」已闭环，以下规则能力已进入 Rust 本地规则引擎路径：
+
+- `IP-ASN` / `SRC-IP-ASN`
+- `RULE-SET`
+- `PROCESS-NAME` / `PROCESS-PATH`
+- `PROCESS-NAME-REGEX` / `PROCESS-PATH-REGEX`
+- `UID`
+- `DSCP`
+- `IN-TYPE` / `IN-USER` / `IN-NAME`
+- `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD`
+- `AND` / `OR` / `NOT` / `SUB-RULE`
+
+Rust 侧规则匹配继续遵循 fail-soft 原则：如果 `ConnectionMeta` 或本地 provider / sub-rule 数据缺失，应当继续 fallthrough，而不是 panic 或回退到 Go sidecar 做同类预览校验。
+
+### 下一阶段
+
+下一步建议进入 Phase 5「控制器外围逻辑 Rust 化」：
+
+- 规则预览 / 规则解释器
+- 配置 diff / explain
+- runtime diagnostics 聚合
+- latency test 调度层
+- 节点选择策略的外层编排
+
+近期不建议直接替换 Go sidecar，也不建议先迁 DNS runtime、协议栈、TUN、tunnel 或 adapter 转发链路。
+
+---
+
 ## 项目结构 / Project Structure
 
 ```
@@ -241,5 +276,5 @@ the Free Software Foundation, either version 3 of the License, or
 
 ---
 
-**最后更新** / Last Updated: 2026-06-08  
+**最后更新** / Last Updated: 2026-06-14  
 **维护者** / Maintainer: tanzanite2025
