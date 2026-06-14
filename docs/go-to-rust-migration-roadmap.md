@@ -19,17 +19,19 @@
 | Phase 3 | `GEOIP` / `GEOSITE` 本地匹配 | 完成 | 支持本地 MMDB / `GeoIP.dat` / `GeoSite.dat` 数据加载 |
 | Phase 4A | `IP-ASN` / `SRC-IP-ASN` 本地匹配 | 完成 | PR #15；支持本地 ASN MMDB，缺数据 fail-soft |
 | Phase 4B | `RULE-SET` 本地规则集加载 | 完成 | PR #16；第一版支持本地 file provider |
-| Phase 4C | 进程 / UID / DSCP / inbound 元数据规则 | 部分完成 | PR #17-#25；已完成 exact/regex process、UID、DSCP、`IN-TYPE` / `IN-USER` / `IN-NAME` |
+| Phase 4C | 进程 / UID / DSCP / inbound 元数据规则 | 完成 | PR #17-#25；已完成 exact/regex process、UID、DSCP、`IN-TYPE` / `IN-USER` / `IN-NAME` |
+| Phase 4D | wildcard / logical / sub-rule 规则 | 完成 | PR #27-#31；`PROCESS-*WILDCARD`、`AND` / `OR` / `NOT` / `SUB-RULE` 与 rule explain |
+| Phase 5 | 控制器外围逻辑 Rust 化 | 完成 | PR #31-#37；rule explain、config diff、diagnostics summary、latency planner、node selection planner |
 
-## 下一阶段推荐顺序
+## 已完成阶段详情
 
 ### A. `IP-ASN` / `SRC-IP-ASN` 本地匹配
 
 **状态：已完成（PR #15）。**
 
-**优先级：最高。复杂度：低。**
+**原优先级：最高。复杂度：低。**
 
-这是下一步最简单的实现，因为当前代码已经具备三块基础：
+这是 Phase 4 中最简单的实现，因为当时代码已经具备三块基础：
 
 - `maxminddb` 依赖已经存在。
 - `src-tauri/src/core/ip_intelligence.rs` 已有 `GeoLite2-ASN.mmdb` 查询逻辑。
@@ -128,7 +130,7 @@ struct IpInfoAsn {
 
 **状态：已完成（PR #16）。**
 
-**优先级：第二。复杂度：中。**
+**原优先级：第二。复杂度：中。**
 
 这一步比 ASN 稍复杂，因为它不只是查一个数据库，而是要加载、缓存、解析一组外部规则文件。
 
@@ -262,14 +264,14 @@ behavior=ipcidr:
 8. `DSCP`：已完成（PR #22）。
 9. `IN-TYPE` / `IN-USER` / `IN-NAME`：已完成（PR #23-#25）。
 10. `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD`：已完成（PR #27）。
-11. `AND` / `OR` / `NOT` / `SUB-RULE`：已完成（本 PR）。
+11. `AND` / `OR` / `NOT` / `SUB-RULE`：已完成（PR #31）。
 
 说明：
 
 - ASN 与 RULE-SET 仍属于“数据查表 + 规则复用”，风险低。
 - PROCESS/UID/IN-* 开始涉及 OS、进程权限、入口监听器上下文，复杂度会明显上升。
 - 当前 Rust 侧只消费 `ConnectionMeta` 已提供的 process / uid / dscp / inbound metadata；不负责 OS 级进程发现或 inbound runtime 采集。
-- Phase 4 外部数据类规则已闭环；后续建议进入 Phase 5 的规则预览 / 配置 explain 等控制器外围逻辑。
+- Phase 4 外部数据类规则已闭环；Phase 5 已继续把控制器外围逻辑迁入 Rust。
 
 #### Phase 5：控制器外围逻辑 Rust 化
 
@@ -348,21 +350,21 @@ Phase 5 的删除边界：
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，下一张实现 PR 建议进入：
+按当前状态，Phase 5 已完成，下一张实现 PR 建议进入 Phase 6 的最小安全入口：
 
 ```text
-feat: add Rust rule preview / explain support
+feat: add Rust DNS config explain / probe planner
 ```
 
 范围只包含：
 
-- 复用已迁移的 Rust rule engine。
-- 为规则预览 / explain 输出统一结构。
-- 继续保持 Go sidecar 只负责 runtime 转发链路。
-- focused tests：命中规则解释、未命中 fallthrough、RULE-SET / SUB-RULE 展示。
+- 读取 runtime YAML 中的 DNS 配置，输出 Rust 侧结构化 explain。
+- 校验 `nameserver` / `fallback` / `proxy-server-nameserver` / `nameserver-policy` 等控制面配置。
+- 规划 DNS probe / health check 输入，但不接管真实 resolver。
+- focused tests：正常配置、缺失 nameserver、policy 解析、fake-ip / redir-host 模式解释。
 
 不包含：
 
-- DNS runtime。
+- DNS resolver runtime。
 - 协议栈 / TUN / tunnel。
 - Go sidecar 替换。
