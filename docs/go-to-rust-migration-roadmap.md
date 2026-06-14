@@ -279,7 +279,7 @@ behavior=ipcidr:
 2. 配置 diff / explain：已完成（PR #33）。
 3. runtime diagnostics 聚合：已完成（PR #34）。
 4. latency test 调度层：已完成（PR #35）。
-5. 节点选择策略的外层编排：下一批候选。
+5. 节点选择策略的外层编排：已完成 Rust plan / explain 层（PR #37）。
 
 这类逻辑不碰真实转发链路，适合继续迁。
 

@@ -221,6 +221,7 @@ mod app_init {
             cmd::invoke_uwp_tool,
             cmd::copy_clash_env,
             cmd::sync_tray_proxy_selection,
+            cmd::plan_node_selection,
             cmd::apply_dns_config,
             cmd::get_clash_logs,
             cmd::clear_logs,
