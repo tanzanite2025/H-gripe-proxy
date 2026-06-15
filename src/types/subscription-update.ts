@@ -47,6 +47,15 @@ export interface SubscriptionArtifactMetadata {
   artifact: SubscriptionArtifactRecord
 }
 
+export interface SubscriptionArtifactSummary {
+  source_id: string
+  artifact: SubscriptionArtifactRecord
+  has_diagnostics: boolean
+  has_raw_body: boolean
+  has_normalized_yaml: boolean
+  is_active: boolean
+}
+
 export type SubscriptionArtifactContentKind = 'raw_body' | 'normalized_yaml'
 
 export interface SubscriptionArtifactContent {

@@ -4,7 +4,9 @@ use crate::subscription::{
     model::{SubscriptionSourceState, SubscriptionStateDocument},
     persist::{
         SubscriptionArtifactContent, SubscriptionArtifactContentKind,
-        SubscriptionArtifactMetadata, list_subscription_artifact_metadata,
+        SubscriptionArtifactMetadata, SubscriptionArtifactSummary,
+        list_subscription_artifact_metadata,
+        list_subscription_artifact_summaries as list_subscription_artifact_summary_records,
         read_subscription_artifact_content, read_subscription_artifact_diagnostics,
         read_subscription_artifact_metadata, read_subscription_source_state,
         read_subscription_state_document,
@@ -63,6 +65,15 @@ pub async fn list_subscription_artifacts(
     source_id: String,
 ) -> CmdResult<Vec<SubscriptionArtifactMetadata>> {
     list_subscription_artifact_metadata(source_id.as_str())
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn list_subscription_artifact_summaries(
+    source_id: String,
+) -> CmdResult<Vec<SubscriptionArtifactSummary>> {
+    list_subscription_artifact_summary_records(source_id.as_str())
         .await
         .stringify_err()
 }

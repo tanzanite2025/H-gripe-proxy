@@ -5,6 +5,7 @@ import type {
   SubscriptionArtifactContentKind,
   SubscriptionArtifactDiagnostics,
   SubscriptionArtifactMetadata,
+  SubscriptionArtifactSummary,
   SubscriptionSourceState,
   SubscriptionStateDocument,
 } from '@/types/subscription-update'
@@ -54,4 +55,11 @@ export async function listSubscriptionArtifacts(sourceId: string) {
   return invoke<SubscriptionArtifactMetadata[]>('list_subscription_artifacts', {
     sourceId,
   })
+}
+
+export async function listSubscriptionArtifactSummaries(sourceId: string) {
+  return invoke<SubscriptionArtifactSummary[]>(
+    'list_subscription_artifact_summaries',
+    { sourceId },
+  )
 }
