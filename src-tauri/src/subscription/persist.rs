@@ -3,7 +3,7 @@ use crate::{
         artifact::SubscriptionArtifactCandidate,
         model::{
             SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState,
-            SubscriptionStateDocument, UpdateFinalStatus,
+            SubscriptionStageRecord, SubscriptionStateDocument, UpdateFinalStatus,
         },
     },
     utils::{dirs, help},
@@ -117,11 +117,24 @@ pub fn build_finished_attempt_record(
     runtime_activated: bool,
     active_artifact_unchanged: bool,
 ) -> SubscriptionAttemptRecord {
+    let finished_at = Local::now().timestamp_millis();
+    let mut stage_history = attempt.stage_history.clone();
+    if stage_history
+        .last()
+        .is_none_or(|record| record.stage != stage || record.transport != transport)
+    {
+        stage_history.push(SubscriptionStageRecord {
+            stage,
+            changed_at: finished_at,
+            transport,
+        });
+    }
+
     SubscriptionAttemptRecord {
         attempt_id: attempt.attempt_id.clone(),
         trigger: attempt.trigger,
         started_at: attempt.started_at,
-        finished_at: Local::now().timestamp_millis(),
+        finished_at,
         final_status,
         stage,
         transport,
@@ -129,5 +142,36 @@ pub fn build_finished_attempt_record(
         error,
         runtime_activated,
         active_artifact_unchanged,
+        stage_history,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::subscription::{
+        model::{SubscriptionUpdateAttempt, UpdateStage, UpdateTrigger},
+        transport::TransportKind,
+    };
+
+    #[test]
+    fn finished_attempt_record_copies_stage_history() {
+        let mut attempt = SubscriptionUpdateAttempt::new("source-a", UpdateTrigger::Manual);
+        attempt.record_stage_changed(UpdateStage::FetchPayload, Some(TransportKind::Direct));
+
+        let record = build_finished_attempt_record(
+            &attempt,
+            UpdateFinalStatus::Succeeded,
+            UpdateStage::EmitFinalResult,
+            Some(TransportKind::Direct),
+            Some("artifact-a".into()),
+            None,
+            true,
+            false,
+        );
+
+        assert_eq!(record.stage_history.len(), 2);
+        assert_eq!(record.stage_history[0].stage, UpdateStage::FetchPayload);
+        assert_eq!(record.stage_history[1].stage, UpdateStage::EmitFinalResult);
     }
 }

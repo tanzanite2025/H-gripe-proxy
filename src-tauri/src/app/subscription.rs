@@ -23,6 +23,15 @@ struct ProfileUpdateSnapshot {
     file_data: Option<String>,
 }
 
+fn record_and_notify_subscription_stage(
+    attempt: &mut SubscriptionUpdateAttempt,
+    stage: UpdateStage,
+    transport: Option<TransportKind>,
+) {
+    attempt.record_stage_changed(stage, transport);
+    handle::Handle::notify_subscription_stage_changed(attempt, stage, transport);
+}
+
 struct ProfileUpdateExecution {
     attempt: SubscriptionUpdateAttempt,
     is_current: bool,
@@ -223,7 +232,7 @@ async fn perform_profile_update(
         profiles.latest_arc().is_current_profile_index(uid)
     };
 
-    let attempt = SubscriptionUpdateAttempt::new(
+    let mut attempt = SubscriptionUpdateAttempt::new(
         uid.clone(),
         if is_manual_trigger {
             UpdateTrigger::Manual
@@ -233,8 +242,8 @@ async fn perform_profile_update(
     );
 
     handle::Handle::notify_subscription_attempt_started(&attempt);
-    handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveSource, None);
-    handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::ResolveTransportPlan, None);
+    record_and_notify_subscription_stage(&mut attempt, UpdateStage::ResolveSource, None);
+    record_and_notify_subscription_stage(&mut attempt, UpdateStage::ResolveTransportPlan, None);
 
     let transport_plan =
         TransportPlan::for_subscription_update(Some(transport_kind_from_option(merged_opt.as_ref()))).await;
@@ -275,7 +284,7 @@ async fn perform_profile_update(
             }
         }
 
-        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::FetchPayload, Some(transport));
+        record_and_notify_subscription_stage(&mut attempt, UpdateStage::FetchPayload, Some(transport));
 
         let fetched = match if use_dedicated_control_plane && matches!(transport, TransportKind::LocalProxy) {
             fetch_subscription_update_via_control_plane(url, &attempt_option).await
@@ -300,7 +309,7 @@ async fn perform_profile_update(
             }
         };
 
-        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::DecodePayload, Some(transport));
+        record_and_notify_subscription_stage(&mut attempt, UpdateStage::DecodePayload, Some(transport));
 
         let artifact_candidate =
             match build_clash_yaml_artifact_candidate(&fetched, chrono::Local::now().timestamp_millis()) {
@@ -322,7 +331,7 @@ async fn perform_profile_update(
                 }
             };
 
-        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::MaterializeArtifact, Some(transport));
+        record_and_notify_subscription_stage(&mut attempt, UpdateStage::MaterializeArtifact, Some(transport));
 
         let artifact = artifact_candidate.record.clone();
 
@@ -415,54 +424,58 @@ pub async fn update_profile(
 
     let rollback_snapshot = snapshot_profile_update(uid).await?;
 
-    let update_execution = match perform_profile_update(uid, &url, opt.as_ref(), option, is_manual_trigger).await {
-        Ok(execution) => execution,
-        Err(failure) => {
-            logging!(
-                error,
-                Type::Config,
-                "[Subscription Update] update failed at {:?}: {}",
-                failure.stage,
-                failure.error
-            );
+    let mut update_execution =
+        match perform_profile_update(uid, &url, opt.as_ref(), option, is_manual_trigger).await {
+            Ok(execution) => execution,
+            Err(failure) => {
+                logging!(
+                    error,
+                    Type::Config,
+                    "[Subscription Update] update failed at {:?}: {}",
+                    failure.stage,
+                    failure.error
+                );
 
-            if let Some(rollback_snapshot) = &rollback_snapshot {
-                restore_profile_update_snapshot(rollback_snapshot).await?;
+                if let Some(rollback_snapshot) = &rollback_snapshot {
+                    restore_profile_update_snapshot(rollback_snapshot).await?;
+                }
+
+                let artifact_version = failure
+                    .artifact
+                    .as_ref()
+                    .map(|artifact| artifact.version.clone());
+                let error_message = failure.error.clone();
+
+                handle::Handle::notify_subscription_update_failed(
+                    &failure.attempt,
+                    failure.stage,
+                    failure.transport,
+                    artifact_version,
+                    error_message.clone(),
+                    true,
+                );
+                persist_finished_subscription_attempt(
+                    uid,
+                    &failure.attempt,
+                    UpdateFinalStatus::Failed,
+                    failure.stage,
+                    failure.transport,
+                    failure.artifact.as_ref(),
+                    Some(error_message.clone()),
+                    false,
+                    true,
+                )
+                .await;
+
+                bail!("failed to update profile: {error_message}");
             }
-
-            let artifact_version = failure.artifact.as_ref().map(|artifact| artifact.version.clone());
-            let error_message = failure.error.clone();
-
-            handle::Handle::notify_subscription_update_failed(
-                &failure.attempt,
-                failure.stage,
-                failure.transport,
-                artifact_version,
-                error_message.clone(),
-                true,
-            );
-            persist_finished_subscription_attempt(
-                uid,
-                &failure.attempt,
-                UpdateFinalStatus::Failed,
-                failure.stage,
-                failure.transport,
-                failure.artifact.as_ref(),
-                Some(error_message.clone()),
-                false,
-                true,
-            )
-            .await;
-
-            bail!("failed to update profile: {error_message}");
-        }
-    };
+        };
 
     let should_refresh = update_execution.is_current && auto_refresh;
 
     if should_refresh {
-        handle::Handle::notify_subscription_stage_changed(
-            &update_execution.attempt,
+        record_and_notify_subscription_stage(
+            &mut update_execution.attempt,
             UpdateStage::ActivateRuntime,
             None,
         );
