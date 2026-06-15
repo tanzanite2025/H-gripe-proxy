@@ -1,7 +1,13 @@
 use crate::cmd::{CmdResult, StringifyErr};
+use crate::core::dns_config_explain::{
+    DnsConfigExplainReport, DnsConfigProbePlan,
+    explain_dns_config as build_dns_config_explain,
+    plan_dns_probe as build_dns_probe_plan,
+};
 use crate::core::dns_runtime::{
-    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsServerProviderHealthReport, DnsServerProviderKind,
-    DnsServerProviderRegistration, dns_health_check as build_dns_health_check, dns_query as build_dns_query,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsServerProviderHealthReport,
+    DnsServerProviderKind, DnsServerProviderRegistration,
+    dns_health_check as build_dns_health_check, dns_query as build_dns_query,
     list_dns_server_provider_registrations, probe_dns_server_provider,
 };
 use log::error;
@@ -87,4 +93,20 @@ pub async fn dns_probe_provider(
     test_domain: Option<String>,
 ) -> CmdResult<DnsServerProviderHealthReport> {
     Ok(probe_dns_server_provider(kind, protocol, test_domain.as_deref()).await)
+}
+
+#[tauri::command]
+pub async fn dns_explain_config(
+    yaml: String,
+    test_domain: Option<String>,
+) -> CmdResult<DnsConfigExplainReport> {
+    build_dns_config_explain(&yaml, test_domain.as_deref()).stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_plan_probe(
+    yaml: String,
+    test_domain: Option<String>,
+) -> CmdResult<DnsConfigProbePlan> {
+    build_dns_probe_plan(&yaml, test_domain.as_deref()).stringify_err()
 }

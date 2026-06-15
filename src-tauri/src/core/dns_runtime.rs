@@ -259,6 +259,16 @@ pub struct DnsHealthCheckResult {
     pub protocol: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsServerProbeTarget {
+    pub server: String,
+    pub protocol: DnsProtocol,
+    pub protocol_name: String,
+    pub socket_addr: String,
+    pub tls_dns_name: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DnsServerEndpoint {
     socket_addr: SocketAddr,
@@ -579,6 +589,19 @@ pub async fn dns_health_check(
     }
 }
 
+pub fn plan_dns_server_probe_target(server: &str) -> Result<DnsServerProbeTarget> {
+    let effective_protocol = infer_dns_protocol(Some(server), None);
+    let endpoint = parse_dns_server_endpoint(server, &effective_protocol)?;
+
+    Ok(DnsServerProbeTarget {
+        server: server.trim().into(),
+        protocol: effective_protocol,
+        protocol_name: dns_protocol_name(effective_protocol),
+        socket_addr: endpoint.socket_addr.to_string().into(),
+        tls_dns_name: endpoint.tls_dns_name,
+    })
+}
+
 pub async fn probe_dns_server_provider(
     kind: DnsServerProviderKind,
     protocol: Option<DnsProtocol>,
@@ -729,5 +752,15 @@ mod tests {
                 .iter()
                 .any(|server| server.protocol == DnsProtocol::Dot && server.server == "tls://cloudflare-dns.com:853")
         );
+    }
+
+    #[test]
+    fn probe_target_plan_reuses_runtime_endpoint_resolution() {
+        let target = plan_dns_server_probe_target("https://cloudflare-dns.com/dns-query").unwrap();
+
+        assert_eq!(target.protocol, DnsProtocol::Doh);
+        assert_eq!(target.protocol_name, "Doh");
+        assert_eq!(target.socket_addr, "1.1.1.1:443");
+        assert_eq!(target.tls_dns_name.as_deref(), Some("cloudflare-dns.com"));
     }
 }

@@ -276,6 +276,8 @@ mod app_init {
             cmd::dns_batch_health_check,
             cmd::dns_get_provider_registrations,
             cmd::dns_probe_provider,
+            cmd::dns_explain_config,
+            cmd::dns_plan_probe,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,
             cmd::anti_probe_generate_token,

@@ -7,8 +7,17 @@ export * from './cmds/system'
 export * from './cmds/backups'
 export * from './cmds/security-policy'
 export {
+  type DnsConfigExplainReport,
+  type DnsConfigProbePlan,
+  type DnsConfigProbePlanStatus,
+  type DnsConfigProbeSkipped,
+  type DnsConfigServerExplain,
+  type DnsConfigServerSection,
   type DnsProtocol,
+  type DnsServerProbeTarget,
+  explainDnsConfig,
   getDnsProviderRegistrations,
+  planDnsProbe,
   probeDnsProvider,
   type DnsServerProviderAvailability,
   type DnsServerProviderEndpointRegistration,
