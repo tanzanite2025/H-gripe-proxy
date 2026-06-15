@@ -4,7 +4,11 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { getDnsMetrics as pluginGetDnsMetrics, dnsWarmup as pluginDnsWarmup, type DnsMetrics } from 'tauri-plugin-mihomo-api'
+import {
+  getDnsMetrics as pluginGetDnsMetrics,
+  dnsWarmup as pluginDnsWarmup,
+  type DnsMetrics,
+} from 'tauri-plugin-mihomo-api'
 
 /**
  * DNS 协议类型
@@ -32,6 +36,14 @@ export interface DnsHealthCheckResult {
   success: boolean
   error?: string
   protocol: string
+}
+
+export interface DnsServerProbeTarget {
+  server: string
+  protocol: DnsProtocol
+  protocolName: string
+  socketAddr: string
+  tlsDnsName?: string | null
 }
 
 export type DnsServerProviderKind =
@@ -85,6 +97,55 @@ export interface DnsServerProviderHealthReport {
         seconds?: number
         nanos?: number
       }
+}
+
+export type DnsConfigProbePlanStatus = 'ready' | 'skipped'
+
+export interface DnsConfigExplainReport {
+  valid: boolean
+  explanation: string
+  enabled?: boolean | null
+  enhancedMode?: string | null
+  fakeIpRange?: string | null
+  serverSections: DnsConfigServerSection[]
+  nameserverPolicyCount: number
+  fallbackFilterKeys: string[]
+  probePlan: DnsConfigProbePlan
+  errors: string[]
+  warnings: string[]
+}
+
+export interface DnsConfigServerSection {
+  key: string
+  serverCount: number
+  probeableCount: number
+  skippedCount: number
+  servers: DnsConfigServerExplain[]
+}
+
+export interface DnsConfigServerExplain {
+  section: string
+  policyKey?: string | null
+  server: string
+  probeable: boolean
+  reason: string
+  target?: DnsServerProbeTarget | null
+}
+
+export interface DnsConfigProbePlan {
+  status: DnsConfigProbePlanStatus
+  reason: string
+  testDomain: string
+  targetCount: number
+  targets: DnsServerProbeTarget[]
+  skipped: DnsConfigProbeSkipped[]
+}
+
+export interface DnsConfigProbeSkipped {
+  section: string
+  policyKey?: string | null
+  server: string
+  reason: string
 }
 
 /**
@@ -165,11 +226,14 @@ export async function dnsBatchHealthCheck(
   protocol?: DnsProtocol,
 ): Promise<DnsHealthCheckResult[]> {
   try {
-    const results = await invoke<DnsHealthCheckResult[]>('dns_batch_health_check', {
-      servers,
-      testDomain,
-      protocol,
-    })
+    const results = await invoke<DnsHealthCheckResult[]>(
+      'dns_batch_health_check',
+      {
+        servers,
+        testDomain,
+        protocol,
+      },
+    )
     return results
   } catch (err) {
     console.error('DNS batch health check failed:', err)
@@ -203,6 +267,36 @@ export async function probeDnsProvider(
     })
   } catch (err) {
     console.error(`DNS provider probe failed for ${kind}:`, err)
+    throw err
+  }
+}
+
+export async function explainDnsConfig(
+  yaml: string,
+  testDomain?: string,
+): Promise<DnsConfigExplainReport> {
+  try {
+    return await invoke<DnsConfigExplainReport>('dns_explain_config', {
+      yaml,
+      testDomain,
+    })
+  } catch (err) {
+    console.error('DNS config explain failed:', err)
+    throw err
+  }
+}
+
+export async function planDnsProbe(
+  yaml: string,
+  testDomain?: string,
+): Promise<DnsConfigProbePlan> {
+  try {
+    return await invoke<DnsConfigProbePlan>('dns_plan_probe', {
+      yaml,
+      testDomain,
+    })
+  } catch (err) {
+    console.error('DNS probe planning failed:', err)
     throw err
   }
 }

@@ -8,6 +8,7 @@ pub mod config_explain;
 pub mod coordinator;
 pub mod coordinator_status;
 pub mod current_egress_identity;
+pub mod dns_config_explain;
 pub mod dns_runtime;
 pub mod egress_identity;
 pub mod egress_monitor;
