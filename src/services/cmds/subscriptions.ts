@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import type {
+  SubscriptionArtifactContent,
+  SubscriptionArtifactContentKind,
   SubscriptionArtifactDiagnostics,
   SubscriptionArtifactMetadata,
   SubscriptionSourceState,
@@ -34,6 +36,17 @@ export async function getSubscriptionArtifactMetadata(
   return invoke<SubscriptionArtifactMetadata | null>(
     'get_subscription_artifact_metadata',
     { sourceId, version },
+  )
+}
+
+export async function getSubscriptionArtifactContent(
+  sourceId: string,
+  version: string,
+  contentKind: SubscriptionArtifactContentKind,
+) {
+  return invoke<SubscriptionArtifactContent | null>(
+    'get_subscription_artifact_content',
+    { sourceId, version, contentKind },
   )
 }
 

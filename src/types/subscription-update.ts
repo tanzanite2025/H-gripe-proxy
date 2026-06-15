@@ -47,6 +47,15 @@ export interface SubscriptionArtifactMetadata {
   artifact: SubscriptionArtifactRecord
 }
 
+export type SubscriptionArtifactContentKind = 'raw_body' | 'normalized_yaml'
+
+export interface SubscriptionArtifactContent {
+  source_id: string
+  version: string
+  content_kind: SubscriptionArtifactContentKind
+  content: string
+}
+
 export interface SubscriptionFormatDetection {
   format: SubscriptionFormat
   reason: string
