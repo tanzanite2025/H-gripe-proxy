@@ -6,5 +6,6 @@ pub mod fetch;
 pub mod format;
 pub mod model;
 pub mod persist;
+pub mod runtime_candidate;
 pub mod source;
 pub mod transport;
