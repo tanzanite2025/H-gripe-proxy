@@ -231,6 +231,61 @@ pub struct RuntimeProjectionPlan {
     pub outputs: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeMihomoProjection {
+    pub status: AppRuntimePlanStatus,
+    pub reason: String,
+    pub app_id: String,
+    pub session_id: Option<String>,
+    pub mutates_runtime: bool,
+    pub proxy_groups: Vec<MihomoProxyGroupProjection>,
+    pub rules: Vec<MihomoRuleProjection>,
+    pub dns: Option<MihomoDnsProjection>,
+    pub yaml_patch: String,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MihomoRuleProjection {
+    pub matcher: String,
+    pub value: String,
+    pub target: String,
+    pub rule: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MihomoProxyGroupProjection {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub group_type: String,
+    pub proxies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MihomoDnsProjection {
+    pub profile_id: String,
+    pub name: String,
+    pub nameservers: Vec<String>,
+    pub runtime_supported_nameservers: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct MihomoYamlPatch {
+    #[serde(rename = "proxy-groups", skip_serializing_if = "Vec::is_empty")]
+    proxy_groups: Vec<MihomoProxyGroupProjection>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    rules: Vec<String>,
+}
+
 pub async fn read_app_runtime_state_document() -> Result<AppRuntimeStateDocument> {
     let path = dirs::app_runtime_state_path()?;
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
@@ -452,6 +507,71 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
     }
 }
 
+pub fn project_app_runtime_plan_to_mihomo(
+    state: &AppRuntimeStateDocument,
+    request: AppRuntimePlanRequest,
+) -> Result<AppRuntimeMihomoProjection> {
+    let plan = explain_app_runtime_plan(state, request);
+    let mut facts = plan.facts.clone();
+    facts.push("Mihomo projection is an execution artifact; Rust app runtime state remains the source of truth".into());
+
+    if plan.status == AppRuntimePlanStatus::Rejected {
+        return Ok(AppRuntimeMihomoProjection {
+            status: plan.status,
+            reason: plan.reason,
+            app_id: plan.app_id,
+            session_id: plan.session_id,
+            mutates_runtime: false,
+            proxy_groups: Vec::new(),
+            rules: Vec::new(),
+            dns: None,
+            yaml_patch: String::new(),
+            facts,
+            warnings: plan.warnings,
+        });
+    }
+
+    let mut warnings = plan.warnings.clone();
+    let Some(app) = plan.app.as_ref() else {
+        warnings.push("runtime plan is ready but missing app facts".into());
+        return ready_projection_without_yaml(plan, facts, warnings);
+    };
+    let routing_intent = plan.routing_intent.unwrap_or(AppRoutingIntent::Direct);
+    let mut proxy_groups = Vec::new();
+    let target = mihomo_target_for_plan(&plan, routing_intent, &mut proxy_groups, &mut warnings);
+    let rules = target
+        .as_ref()
+        .map(|target| mihomo_rules_for_app(app, target, &mut warnings))
+        .unwrap_or_default();
+    let dns = plan.dns_profile.as_ref().map(mihomo_dns_projection);
+    let yaml_patch = mihomo_yaml_patch(&proxy_groups, &rules)?;
+    let reason = if rules.is_empty() {
+        format!("app `{}` produced no Mihomo-compatible rule projection", plan.app_id).into()
+    } else {
+        format!(
+            "app `{}` projected {} Mihomo rule(s) and {} proxy group(s)",
+            plan.app_id,
+            rules.len(),
+            proxy_groups.len()
+        )
+        .into()
+    };
+
+    Ok(AppRuntimeMihomoProjection {
+        status: plan.status,
+        reason,
+        app_id: plan.app_id,
+        session_id: plan.session_id,
+        mutates_runtime: false,
+        proxy_groups,
+        rules,
+        dns,
+        yaml_patch,
+        facts,
+        warnings,
+    })
+}
+
 async fn update_state_document(
     update: impl FnOnce(&mut AppRuntimeStateDocument) -> Result<()>,
 ) -> Result<AppRuntimeStateDocument> {
@@ -587,6 +707,183 @@ fn dns_profile_plan_view(dns_profile: DnsProfile) -> Result<DnsProfilePlanView> 
     })
 }
 
+fn ready_projection_without_yaml(
+    plan: AppRuntimePlan,
+    facts: Vec<String>,
+    warnings: Vec<String>,
+) -> Result<AppRuntimeMihomoProjection> {
+    Ok(AppRuntimeMihomoProjection {
+        status: plan.status,
+        reason: "runtime plan could not be projected to Mihomo YAML".into(),
+        app_id: plan.app_id,
+        session_id: plan.session_id,
+        mutates_runtime: false,
+        proxy_groups: Vec::new(),
+        rules: Vec::new(),
+        dns: None,
+        yaml_patch: String::new(),
+        facts,
+        warnings,
+    })
+}
+
+fn mihomo_target_for_plan(
+    plan: &AppRuntimePlan,
+    routing_intent: AppRoutingIntent,
+    proxy_groups: &mut Vec<MihomoProxyGroupProjection>,
+    warnings: &mut Vec<String>,
+) -> Option<String> {
+    match routing_intent {
+        AppRoutingIntent::Direct => Some("DIRECT".into()),
+        AppRoutingIntent::Reject => Some("REJECT".into()),
+        AppRoutingIntent::Proxy | AppRoutingIntent::Auto | AppRoutingIntent::Fallback => {
+            let Some(node_pool) = plan.node_pool.as_ref() else {
+                warnings.push("Mihomo projection requires a node pool for proxy-like routing intents".into());
+                return None;
+            };
+            let proxies = sorted_candidate_node_names(&node_pool.candidates);
+            if proxies.is_empty() {
+                warnings.push(format!("node pool `{}` has no Mihomo proxy candidates", node_pool.pool_id).into());
+                return None;
+            }
+            let group = mihomo_proxy_group(&plan.app_id, routing_intent, proxies);
+            let target = group.name.clone();
+            proxy_groups.push(group);
+            Some(target)
+        }
+    }
+}
+
+fn mihomo_proxy_group(
+    app_id: &str,
+    routing_intent: AppRoutingIntent,
+    proxies: Vec<String>,
+) -> MihomoProxyGroupProjection {
+    let (group_type, url, interval) = match routing_intent {
+        AppRoutingIntent::Auto => (
+            "url-test",
+            Some("https://www.gstatic.com/generate_204".into()),
+            Some(300),
+        ),
+        AppRoutingIntent::Fallback => (
+            "fallback",
+            Some("https://www.gstatic.com/generate_204".into()),
+            Some(300),
+        ),
+        _ => ("select", None, None),
+    };
+
+    MihomoProxyGroupProjection {
+        name: format!("app-{app_id}").into(),
+        group_type: group_type.into(),
+        proxies,
+        url,
+        interval,
+    }
+}
+
+fn sorted_candidate_node_names(candidates: &[NodePoolCandidate]) -> Vec<String> {
+    let mut ordered = candidates.to_vec();
+    ordered.sort_by(|left, right| {
+        left.priority
+            .unwrap_or(u32::MAX)
+            .cmp(&right.priority.unwrap_or(u32::MAX))
+            .then_with(|| left.node_name.cmp(&right.node_name))
+    });
+
+    let mut seen = BTreeSet::new();
+    ordered
+        .into_iter()
+        .filter_map(|candidate| {
+            let node_name = candidate.node_name.trim();
+            if node_name.is_empty() || !seen.insert(node_name.to_owned()) {
+                None
+            } else {
+                Some(node_name.into())
+            }
+        })
+        .collect()
+}
+
+fn mihomo_rules_for_app(app: &AppRegistryEntry, target: &str, warnings: &mut Vec<String>) -> Vec<MihomoRuleProjection> {
+    let mut rules = Vec::new();
+    for matcher in &app.process_matchers {
+        let Some(mihomo_matcher) = mihomo_matcher_kind(matcher.kind) else {
+            warnings.push(
+                format!(
+                    "process matcher `{:?}` cannot be projected to a Mihomo rule",
+                    matcher.kind
+                )
+                .into(),
+            );
+            continue;
+        };
+        let value = matcher.pattern.trim();
+        if value.is_empty() {
+            warnings.push(format!("process matcher `{mihomo_matcher}` has an empty pattern").into());
+            continue;
+        }
+        if value.contains(',') {
+            warnings.push(format!("process matcher `{mihomo_matcher}` contains ',' and cannot be projected").into());
+            continue;
+        }
+
+        rules.push(MihomoRuleProjection {
+            matcher: mihomo_matcher.into(),
+            value: value.into(),
+            target: target.into(),
+            rule: format!("{mihomo_matcher},{value},{target}").into(),
+        });
+    }
+
+    if rules.is_empty() {
+        warnings.push(format!("app `{}` has no Mihomo-compatible process matchers", app.app_id).into());
+    }
+
+    rules
+}
+
+fn mihomo_matcher_kind(kind: AppProcessMatcherKind) -> Option<&'static str> {
+    match kind {
+        AppProcessMatcherKind::ProcessName => Some("PROCESS-NAME"),
+        AppProcessMatcherKind::ProcessPath => Some("PROCESS-PATH"),
+        AppProcessMatcherKind::ProcessNameRegex
+        | AppProcessMatcherKind::ProcessPathRegex
+        | AppProcessMatcherKind::BundleId => None,
+    }
+}
+
+fn mihomo_dns_projection(profile: &DnsProfilePlanView) -> MihomoDnsProjection {
+    MihomoDnsProjection {
+        profile_id: profile.profile_id.clone(),
+        name: profile.name.clone(),
+        nameservers: profile
+            .resolver_plan
+            .nameservers
+            .iter()
+            .map(|nameserver| nameserver.server.as_str().into())
+            .collect(),
+        runtime_supported_nameservers: profile
+            .resolver_plan
+            .nameservers
+            .iter()
+            .filter(|nameserver| nameserver.runtime_supported)
+            .count(),
+    }
+}
+
+fn mihomo_yaml_patch(proxy_groups: &[MihomoProxyGroupProjection], rules: &[MihomoRuleProjection]) -> Result<String> {
+    if proxy_groups.is_empty() && rules.is_empty() {
+        return Ok(String::new());
+    }
+
+    Ok(serde_yaml_ng::to_string(&MihomoYamlPatch {
+        proxy_groups: proxy_groups.to_vec(),
+        rules: rules.iter().map(|rule| rule.rule.clone()).collect(),
+    })?
+    .into())
+}
+
 fn plan_reason(app: &AppRegistryEntry, binding: &AppPolicyBinding, node_pool: Option<&NodePool>) -> String {
     match (binding.routing_intent, node_pool) {
         (AppRoutingIntent::Direct, _) => format!("app `{}` will use direct routing intent", app.app_id).into(),
@@ -703,6 +1000,98 @@ mod tests {
             plan.warnings
                 .iter()
                 .any(|warning| warning.contains("missing dns_profile_id `default`"))
+        );
+    }
+
+    #[test]
+    fn mihomo_projection_emits_process_rule_proxy_group_and_yaml_patch() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            policy_bindings: vec![sample_binding()],
+        };
+
+        let projection = project_app_runtime_plan_to_mihomo(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(projection.status, AppRuntimePlanStatus::Ready);
+        assert!(!projection.mutates_runtime);
+        assert_eq!(projection.proxy_groups.len(), 1);
+        assert_eq!(projection.proxy_groups[0].name, "app-browser");
+        assert_eq!(projection.proxy_groups[0].group_type, "select");
+        assert_eq!(projection.proxy_groups[0].proxies, vec!["us-1"]);
+        assert_eq!(projection.rules.len(), 1);
+        assert_eq!(projection.rules[0].rule, "PROCESS-NAME,browser.exe,app-browser");
+        assert_eq!(
+            projection.dns.as_ref().map(|dns| dns.nameservers.clone()),
+            Some(vec!["1.1.1.1".into()])
+        );
+        assert!(projection.yaml_patch.contains("proxy-groups:"));
+        assert!(projection.yaml_patch.contains("PROCESS-NAME,browser.exe,app-browser"));
+    }
+
+    #[test]
+    fn mihomo_projection_maps_direct_binding_without_proxy_group() {
+        let mut binding = sample_binding();
+        binding.node_pool_id = None;
+        binding.routing_intent = AppRoutingIntent::Direct;
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            policy_bindings: vec![binding],
+        };
+
+        let projection = project_app_runtime_plan_to_mihomo(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: None,
+            },
+        )
+        .unwrap();
+
+        assert!(projection.proxy_groups.is_empty());
+        assert_eq!(projection.rules[0].rule, "PROCESS-NAME,browser.exe,DIRECT");
+        assert!(projection.yaml_patch.contains("PROCESS-NAME,browser.exe,DIRECT"));
+    }
+
+    #[test]
+    fn mihomo_projection_warns_for_unsupported_matchers() {
+        let mut app = sample_app();
+        app.process_matchers = vec![AppProcessMatcher {
+            kind: AppProcessMatcherKind::BundleId,
+            pattern: "com.example.browser".into(),
+        }];
+        let state = AppRuntimeStateDocument {
+            apps: vec![app],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            policy_bindings: vec![sample_binding()],
+        };
+
+        let projection = project_app_runtime_plan_to_mihomo(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: None,
+            },
+        )
+        .unwrap();
+
+        assert!(projection.rules.is_empty());
+        assert!(
+            projection
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("cannot be projected to a Mihomo rule"))
         );
     }
 

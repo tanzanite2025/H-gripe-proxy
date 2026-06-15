@@ -279,6 +279,7 @@ mod app_init {
             cmd::upsert_app_policy_binding,
             cmd::delete_app_policy_binding,
             cmd::explain_app_runtime_plan,
+            cmd::project_app_runtime_plan_to_mihomo,
             cmd::script_validate_notice,
             cmd::validate_script_file,
             cmd::create_local_backup,

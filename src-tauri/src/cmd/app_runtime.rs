@@ -1,10 +1,11 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
-    AppPolicyBinding, AppRegistryEntry, AppRuntimePlan, AppRuntimePlanRequest, AppRuntimeStateDocument, DnsProfile,
-    NodePool, delete_app_policy_binding as delete_app_policy_binding_record,
+    AppPolicyBinding, AppRegistryEntry, AppRuntimeMihomoProjection, AppRuntimePlan, AppRuntimePlanRequest,
+    AppRuntimeStateDocument, DnsProfile, NodePool, delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, explain_app_runtime_plan as build_app_runtime_plan,
-    read_app_runtime_state_document, upsert_app_policy_binding as upsert_app_policy_binding_record,
+    project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
+    upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
     upsert_node_pool as upsert_node_pool_record,
 };
@@ -60,4 +61,12 @@ pub async fn delete_app_policy_binding(binding_id: String) -> CmdResult<AppRunti
 pub async fn explain_app_runtime_plan(request: AppRuntimePlanRequest) -> CmdResult<AppRuntimePlan> {
     let state = read_app_runtime_state_document().await.stringify_err()?;
     Ok(build_app_runtime_plan(&state, request))
+}
+
+#[tauri::command]
+pub async fn project_app_runtime_plan_to_mihomo(
+    request: AppRuntimePlanRequest,
+) -> CmdResult<AppRuntimeMihomoProjection> {
+    let state = read_app_runtime_state_document().await.stringify_err()?;
+    build_app_runtime_mihomo_projection(&state, request).stringify_err()
 }

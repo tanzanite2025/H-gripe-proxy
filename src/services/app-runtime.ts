@@ -125,6 +125,28 @@ export interface RuntimeProjectionPlan {
   outputs: string[]
 }
 
+export interface MihomoRuleProjection {
+  matcher: string
+  value: string
+  target: string
+  rule: string
+}
+
+export interface MihomoProxyGroupProjection {
+  name: string
+  type: string
+  proxies: string[]
+  url?: string
+  interval?: number
+}
+
+export interface MihomoDnsProjection {
+  profileId: string
+  name: string
+  nameservers: string[]
+  runtimeSupportedNameservers: number
+}
+
 export interface AppRuntimePlan {
   status: 'ready' | 'rejected'
   reason: string
@@ -136,6 +158,20 @@ export interface AppRuntimePlan {
   dnsProfile?: DnsProfilePlanView
   routingIntent?: AppRoutingIntent
   projection: RuntimeProjectionPlan
+  facts: string[]
+  warnings: string[]
+}
+
+export interface AppRuntimeMihomoProjection {
+  status: 'ready' | 'rejected'
+  reason: string
+  appId: string
+  sessionId?: string
+  mutatesRuntime: boolean
+  proxyGroups: MihomoProxyGroupProjection[]
+  rules: MihomoRuleProjection[]
+  dns?: MihomoDnsProjection
+  yamlPatch: string
   facts: string[]
   warnings: string[]
 }
@@ -196,4 +232,10 @@ export async function explainAppRuntimePlan(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimePlan> {
   return invoke('explain_app_runtime_plan', { request })
+}
+
+export async function projectAppRuntimePlanToMihomo(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeMihomoProjection> {
+  return invoke('project_app_runtime_plan_to_mihomo', { request })
 }
