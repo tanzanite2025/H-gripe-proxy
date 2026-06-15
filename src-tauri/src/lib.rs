@@ -274,6 +274,8 @@ mod app_init {
             cmd::delete_app_registry_entry,
             cmd::upsert_node_pool,
             cmd::delete_node_pool,
+            cmd::upsert_dns_profile,
+            cmd::delete_dns_profile,
             cmd::upsert_app_policy_binding,
             cmd::delete_app_policy_binding,
             cmd::explain_app_runtime_plan,
