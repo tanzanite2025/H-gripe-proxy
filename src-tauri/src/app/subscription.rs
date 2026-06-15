@@ -9,7 +9,8 @@ use crate::{
             publish_subscription_artifact, restore_subscription_active_artifact,
         },
         runtime_candidate::{
-            activate_subscription_active_artifact_runtime, validate_subscription_artifact_runtime_candidate,
+            SubscriptionRuntimeProfileProjection, activate_subscription_active_artifact_runtime,
+            validate_subscription_artifact_runtime_candidate,
         },
         transport::TransportKind,
     },
@@ -40,6 +41,7 @@ struct ProfileUpdateExecution {
     transport: TransportKind,
     artifact: SubscriptionArtifactRecord,
     publish: SubscriptionArtifactPublishResult,
+    runtime_projection: SubscriptionRuntimeProfileProjection,
 }
 
 type ProfileUpdateFailure = SubscriptionUpdateFailure;
@@ -84,11 +86,24 @@ async fn restore_published_subscription_artifact(source_id: &String, publish: &S
         logging!(
             warn,
             Type::Config,
-            "Warning: [Subscription Update] failed to restore active artifact for {} after activation failure: {}",
+            "Warning: [Subscription Update] failed to restore active artifact for {} after publish rollback: {}",
             source_id,
             err
         );
     }
+}
+
+async fn apply_legacy_profile_compatibility_projection(
+    uid: &String,
+    legacy_profile_projection: &mut PrfItem,
+    publish: &SubscriptionArtifactPublishResult,
+) -> Result<()> {
+    if let Err(err) = profiles_draft_update_item_safe(uid, legacy_profile_projection).await {
+        restore_published_subscription_artifact(uid, publish).await;
+        bail!("failed to commit legacy profile compatibility projection: {err}");
+    }
+
+    Ok(())
 }
 
 async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<(String, Option<PrfOption>)>> {
@@ -217,7 +232,8 @@ async fn perform_profile_update(
             },
         )
         .await?;
-    let mut item = update.legacy_profile_item;
+    let mut legacy_profile_projection = update.legacy_profile_projection;
+    let runtime_projection = SubscriptionRuntimeProfileProjection::from_profile_item(uid, &legacy_profile_projection);
 
     if is_current {
         record_and_notify_subscription_stage(
@@ -231,7 +247,8 @@ async fn perform_profile_update(
             Some(update.transport),
         );
 
-        match validate_subscription_artifact_runtime_candidate(uid, &update.artifact.version, &item).await {
+        match validate_subscription_artifact_runtime_candidate(uid, &update.artifact.version, &runtime_projection).await
+        {
             Ok(outcome) if outcome.is_valid() => {}
             Ok(outcome) => {
                 return Err(SubscriptionUpdateFailure {
@@ -254,16 +271,6 @@ async fn perform_profile_update(
         }
     }
 
-    if let Err(err) = profiles_draft_update_item_safe(uid, &mut item).await {
-        return Err(SubscriptionUpdateFailure {
-            attempt: update.attempt,
-            stage: UpdateStage::MaterializeArtifact,
-            transport: Some(update.transport),
-            artifact: Some(update.artifact),
-            error: format!("failed to apply materialized subscription profile: {err}").into(),
-        });
-    }
-
     record_and_notify_subscription_stage(
         &mut update.attempt,
         UpdateStage::PublishArtifact,
@@ -282,12 +289,24 @@ async fn perform_profile_update(
         }
     };
 
+    if let Err(err) = apply_legacy_profile_compatibility_projection(uid, &mut legacy_profile_projection, &publish).await
+    {
+        return Err(SubscriptionUpdateFailure {
+            attempt: update.attempt,
+            stage: UpdateStage::PublishArtifact,
+            transport: Some(update.transport),
+            artifact: Some(update.artifact),
+            error: err.to_string().into(),
+        });
+    }
+
     Ok(ProfileUpdateExecution {
         attempt: update.attempt,
         is_current,
         transport: update.transport,
         artifact: update.artifact,
         publish,
+        runtime_projection,
     })
 }
 
@@ -364,7 +383,13 @@ pub async fn update_profile(
             "[Subscription Update] applying updated profile to runtime"
         );
 
-        match activate_subscription_active_artifact_runtime(uid, is_manual_trigger).await {
+        match activate_subscription_active_artifact_runtime(
+            uid,
+            &update_execution.runtime_projection,
+            is_manual_trigger,
+        )
+        .await
+        {
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[Subscription Update] update succeeded");
                 handle::Handle::notify_subscription_update_succeeded(

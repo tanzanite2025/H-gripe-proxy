@@ -1,6 +1,6 @@
 use crate::{
     config::{
-        Config, ConfigType, PrfItem, PrfOption,
+        Config, ConfigType, PrfExtra, PrfItem, PrfOption,
         profiles::{IProfiles, resolve_profile_file_path},
     },
     core::{
@@ -18,19 +18,41 @@ use smartstring::alias::String;
 use std::path::PathBuf;
 use tokio::fs;
 
+#[derive(Debug, Clone)]
+pub struct SubscriptionRuntimeProfileProjection {
+    source_id: String,
+    extra: Option<PrfExtra>,
+    updated: Option<usize>,
+    home: Option<String>,
+    option: Option<PrfOption>,
+}
+
+impl SubscriptionRuntimeProfileProjection {
+    pub fn from_profile_item(source_id: &String, item: &PrfItem) -> Self {
+        Self {
+            source_id: source_id.clone(),
+            extra: item.extra,
+            updated: item.updated,
+            home: item.home.clone(),
+            option: item.option.clone(),
+        }
+    }
+}
+
 pub async fn validate_subscription_artifact_runtime_candidate(
     source_id: &String,
     artifact_version: &String,
-    candidate_item: &PrfItem,
+    runtime_projection: &SubscriptionRuntimeProfileProjection,
 ) -> Result<ValidationOutcome> {
     let candidate_item =
-        build_subscription_artifact_runtime_candidate_item(source_id, artifact_version, candidate_item).await?;
+        build_subscription_artifact_runtime_candidate_item(source_id, artifact_version, runtime_projection).await?;
 
-    validate_subscription_runtime_candidate(source_id, &candidate_item).await
+    validate_subscription_runtime_candidate(source_id, runtime_projection, &candidate_item).await
 }
 
-pub async fn validate_subscription_runtime_candidate(
+async fn validate_subscription_runtime_candidate(
     source_id: &String,
+    runtime_projection: &SubscriptionRuntimeProfileProjection,
     candidate_item: &PrfItem,
 ) -> Result<ValidationOutcome> {
     let candidate_profile = write_subscription_runtime_candidate_profile(candidate_item).await?;
@@ -39,7 +61,7 @@ pub async fn validate_subscription_runtime_candidate(
             apply_subscription_runtime_candidate_profile(
                 profiles,
                 source_id,
-                candidate_item,
+                runtime_projection,
                 candidate_profile.file.clone(),
             )
         })?;
@@ -73,16 +95,12 @@ pub async fn validate_subscription_runtime_candidate(
 
 pub async fn activate_subscription_active_artifact_runtime(
     source_id: &String,
+    runtime_projection: &SubscriptionRuntimeProfileProjection,
     force: bool,
 ) -> Result<ValidationOutcome> {
     let artifact_version = active_subscription_artifact_version(source_id).await?;
-    let base_item = {
-        let profiles = Config::profiles().await;
-        let profiles_arc = profiles.latest_arc();
-        profiles_arc.get_item(source_id)?.clone()
-    };
     let candidate_item =
-        build_subscription_artifact_runtime_candidate_item(source_id, &artifact_version, &base_item).await?;
+        build_subscription_artifact_runtime_candidate_item(source_id, &artifact_version, runtime_projection).await?;
     let candidate_profile = write_subscription_runtime_candidate_profile(&candidate_item).await?;
 
     let result = async {
@@ -90,7 +108,7 @@ pub async fn activate_subscription_active_artifact_runtime(
             apply_subscription_runtime_candidate_profile(
                 profiles,
                 source_id,
-                &candidate_item,
+                runtime_projection,
                 candidate_profile.file.clone(),
             )
         })?;
@@ -160,7 +178,7 @@ async fn active_subscription_artifact_version(source_id: &String) -> Result<Stri
 async fn build_subscription_artifact_runtime_candidate_item(
     source_id: &String,
     artifact_version: &String,
-    base_item: &PrfItem,
+    runtime_projection: &SubscriptionRuntimeProfileProjection,
 ) -> Result<PrfItem> {
     let artifact = read_subscription_artifact_content(
         source_id.as_str(),
@@ -175,27 +193,34 @@ async fn build_subscription_artifact_runtime_candidate_item(
     })?;
 
     Ok(runtime_candidate_item_from_artifact_content(
-        base_item,
+        runtime_projection,
         artifact.version.as_str(),
         artifact.content,
     ))
 }
 
 fn runtime_candidate_item_from_artifact_content(
-    base_item: &PrfItem,
+    runtime_projection: &SubscriptionRuntimeProfileProjection,
     artifact_version: &str,
     normalized_yaml: String,
 ) -> PrfItem {
-    let mut candidate = base_item.clone();
-    candidate.file = Some(format!("{}-{artifact_version}.yaml", help::get_uid("S")).into());
-    candidate.file_data = Some(normalized_yaml);
-    candidate
+    PrfItem {
+        uid: Some(runtime_projection.source_id.clone()),
+        itype: Some("remote".into()),
+        file: Some(format!("{}-{artifact_version}.yaml", help::get_uid("S")).into()),
+        extra: runtime_projection.extra,
+        updated: runtime_projection.updated,
+        option: runtime_projection.option.clone(),
+        home: runtime_projection.home.clone(),
+        file_data: Some(normalized_yaml),
+        ..PrfItem::default()
+    }
 }
 
 fn apply_subscription_runtime_candidate_profile(
     profiles: &mut IProfiles,
     source_id: &String,
-    candidate_item: &PrfItem,
+    runtime_projection: &SubscriptionRuntimeProfileProjection,
     candidate_file: String,
 ) -> Result<()> {
     let items = profiles.items.get_or_insert_with(Vec::new);
@@ -203,10 +228,10 @@ fn apply_subscription_runtime_candidate_profile(
         bail!("failed to find subscription runtime candidate source \"uid:{source_id}\"");
     };
 
-    item.extra = candidate_item.extra.clone();
-    item.updated = candidate_item.updated;
-    item.home = candidate_item.home.clone();
-    item.option = PrfOption::merge(item.option.as_ref(), candidate_item.option.as_ref());
+    item.extra = runtime_projection.extra;
+    item.updated = runtime_projection.updated;
+    item.home = runtime_projection.home.clone();
+    item.option = PrfOption::merge(item.option.as_ref(), runtime_projection.option.as_ref());
     item.file = Some(candidate_file);
 
     Ok(())
@@ -248,9 +273,15 @@ mod tests {
             }),
             ..PrfItem::default()
         };
+        let runtime_projection = SubscriptionRuntimeProfileProjection::from_profile_item(&source_id, &candidate);
 
-        apply_subscription_runtime_candidate_profile(&mut profiles, &source_id, &candidate, "Rcandidate.yaml".into())
-            .expect("candidate profile");
+        apply_subscription_runtime_candidate_profile(
+            &mut profiles,
+            &source_id,
+            &runtime_projection,
+            "Rcandidate.yaml".into(),
+        )
+        .expect("candidate profile");
 
         let item = profiles.get_item(source_id.as_str()).expect("source item");
         assert_eq!(profiles.current.as_deref(), Some("source-a"));
@@ -265,20 +296,28 @@ mod tests {
 
     #[test]
     fn builds_runtime_candidate_item_from_artifact_content() {
-        let base = PrfItem {
+        let legacy_item = PrfItem {
             uid: Some("source-a".into()),
             itype: Some("remote".into()),
             file: Some("Rlegacy.yaml".into()),
             file_data: Some("legacy: true".into()),
+            url: Some("https://example.com/sub.yaml".into()),
+            name: Some("legacy source".into()),
             updated: Some(123),
             ..PrfItem::default()
         };
+        let runtime_projection =
+            SubscriptionRuntimeProfileProjection::from_profile_item(&String::from("source-a"), &legacy_item);
 
-        let candidate = runtime_candidate_item_from_artifact_content(&base, "artifact-a", "proxies: []".into());
+        let candidate =
+            runtime_candidate_item_from_artifact_content(&runtime_projection, "artifact-a", "proxies: []".into());
 
         assert_eq!(candidate.uid.as_deref(), Some("source-a"));
         assert_eq!(candidate.updated, Some(123));
+        assert_eq!(candidate.itype.as_deref(), Some("remote"));
         assert_eq!(candidate.file_data.as_deref(), Some("proxies: []"));
+        assert!(candidate.url.is_none());
+        assert!(candidate.name.is_none());
         assert_ne!(candidate.file.as_deref(), Some("Rlegacy.yaml"));
         assert!(
             candidate
@@ -297,7 +336,7 @@ mod tests {
             apply_subscription_runtime_candidate_profile(
                 &mut profiles,
                 &source_id,
-                &PrfItem::default(),
+                &SubscriptionRuntimeProfileProjection::from_profile_item(&source_id, &PrfItem::default()),
                 "Rcandidate.yaml".into(),
             )
             .is_err()

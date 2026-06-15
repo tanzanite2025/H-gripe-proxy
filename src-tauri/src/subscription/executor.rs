@@ -31,7 +31,7 @@ pub struct SubscriptionUpdateExecution {
     pub attempt: SubscriptionUpdateAttempt,
     pub transport: TransportKind,
     pub artifact: SubscriptionArtifactRecord,
-    pub legacy_profile_item: PrfItem,
+    pub legacy_profile_projection: PrfItem,
 }
 
 #[derive(Debug, Clone)]
@@ -214,29 +214,32 @@ impl SubscriptionUpdateExecutor {
                 });
             }
 
-            let legacy_profile_item =
-                match PrfItem::from_fetched_payload(self.url.as_str(), fetched, None, None, persisted_option.as_ref())
-                    .await
-                {
-                    Ok(item) => item,
-                    Err(err) => {
-                        logging!(
-                            warn,
-                            Type::Config,
-                            "Warning: [Subscription Update] {} returned an invalid payload: {}",
-                            transport.label(),
-                            format_subscription_update_error(&err)
-                        );
-                        log_subscription_update_error("materialize artifact", &err);
-                        last_failure = Some(TransportAttemptFailure {
-                            stage: UpdateStage::MaterializeArtifact,
-                            transport: Some(transport),
-                            artifact: Some(artifact),
-                            error: err,
-                        });
-                        continue;
-                    }
-                };
+            let legacy_profile_projection = match PrfItem::from_fetched_payload_compatibility_update(
+                self.url.as_str(),
+                fetched,
+                persisted_option.as_ref(),
+            )
+            .await
+            {
+                Ok(item) => item,
+                Err(err) => {
+                    logging!(
+                        warn,
+                        Type::Config,
+                        "Warning: [Subscription Update] {} returned an invalid payload: {}",
+                        transport.label(),
+                        format_subscription_update_error(&err)
+                    );
+                    log_subscription_update_error("materialize artifact", &err);
+                    last_failure = Some(TransportAttemptFailure {
+                        stage: UpdateStage::MaterializeArtifact,
+                        transport: Some(transport),
+                        artifact: Some(artifact),
+                        error: err,
+                    });
+                    continue;
+                }
+            };
 
             logging!(
                 info,
@@ -248,7 +251,7 @@ impl SubscriptionUpdateExecutor {
                 attempt,
                 transport,
                 artifact,
-                legacy_profile_item,
+                legacy_profile_projection,
             });
         }
 

@@ -453,9 +453,9 @@ Implemented:
 
 ### Phase 6: Remove Legacy Coupling
 
-- Reduce `PrfItem` to a UI projection or compatibility wrapper.
+- Reduce `PrfItem` to a UI projection or compatibility wrapper. **Partially done: runtime activation now consumes an explicit subscription runtime projection plus the active artifact, while legacy `PrfItem` materialization is kept as a compatibility projection.**
 - Remove retry and notification logic from `app::subscription`.
-- Make subscription pipeline the only update path.
+- Make subscription pipeline the only update path. **Partially done: subscription updates use the pipeline artifact as the activation input, and legacy compatibility writes are committed after artifact publish with active-artifact rollback on failure.**
 
 ## Testing Strategy
 
@@ -490,6 +490,6 @@ The redesign is complete when:
 
 The next highest-leverage slice is Phase 6: remove legacy coupling once the team is comfortable with the Phase 5 UI.
 
-1. Stop relying on `PrfItem` as the source-of-truth for subscription runtime activation.
-2. Move any remaining legacy compatibility writes behind explicit migration/rollback boundaries.
+1. Move final subscription success/failure notification assembly out of `app::subscription`.
+2. Collapse the remaining app-level orchestration into the subscription pipeline.
 3. Extend diagnostics previews into file/open-location deep links if needed.
