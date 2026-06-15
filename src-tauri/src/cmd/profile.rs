@@ -18,6 +18,7 @@ use crate::{
     },
     utils::help,
 };
+use chrono::Local;
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
 use std::path::Path;
@@ -29,6 +30,31 @@ fn profile_import_error(err: &anyhow::Error) -> std::string::String {
     }
 
     format!("导入订阅失败: {err:#}")
+}
+
+async fn persist_profile_source_config(source_id: &String, profile: &PrfItem) -> CmdResult {
+    use crate::subscription::{
+        model::SubscriptionSourceConfig,
+        persist::{persist_subscription_source_config, remove_subscription_source_state},
+    };
+
+    if profile.itype.as_deref() != Some("remote") {
+        remove_subscription_source_state(source_id).await.stringify_err()?;
+        return Ok(());
+    }
+
+    let url = profile
+        .url
+        .clone()
+        .ok_or_else(|| "remote profile is missing url".to_string())?;
+    let source_config = SubscriptionSourceConfig {
+        url,
+        option: profile.option.clone(),
+        updated_at: Local::now().timestamp_millis(),
+    };
+    persist_subscription_source_config(source_id, &source_config)
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]
@@ -96,6 +122,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
     }
 
     if let Some(uid) = &item.uid {
+        persist_profile_source_config(uid, item).await?;
         logging!(info, Type::Cmd, "[导入订阅] 发送配置变更通知: {}", uid);
         handle::Handle::notify_profile_changed(uid);
     }
@@ -126,6 +153,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
         Ok(_) => {
             profiles_save_file_safe().await.stringify_err()?;
             if let Some(uid) = &item.uid {
+                persist_profile_source_config(uid, &item).await?;
                 logging!(info, Type::Cmd, "[创建订阅] 发送配置变更通知: {}", uid);
                 handle::Handle::notify_profile_changed(uid);
             }
@@ -184,6 +212,9 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
 pub async fn delete_profile(index: String) -> CmdResult {
     let should_update = profiles_delete_item_safe(&index).await.stringify_err()?;
     profiles_save_file_safe().await.stringify_err()?;
+    crate::subscription::persist::remove_subscription_source_state(&index)
+        .await
+        .stringify_err()?;
     if let Err(e) = Tray::global().update_tooltip().await {
         logging!(warn, Type::Cmd, "Warning: 异步更新托盘提示失败: {e}");
     }
@@ -246,6 +277,7 @@ pub async fn patch_profile(index: String, profile: PrfItem) -> CmdResult {
     };
 
     profiles_patch_item_safe(&index, &profile).await.stringify_err()?;
+    persist_profile_source_config(&index, &profile).await?;
 
     if should_refresh_timer {
         crate::process::AsyncHandler::spawn(move || async move {

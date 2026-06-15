@@ -45,20 +45,20 @@ Relevant current code:
 
 ## Implementation Progress
 
-Status after PR #60:
+Current status:
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Typed source view | Done | `subscription::source` projects legacy remote profiles into read-only `SubscriptionSource` records. |
+| Typed source config | Done | `SubscriptionSourceConfig` is stored in `subscriptions/state.yaml` and profile commands keep it current. |
 | Transport planning | Done | `subscription::transport::TransportPlan` explains direct / local Mihomo / system proxy candidates. |
 | Fetch / decode / artifact materialization | Done | Clash YAML payloads are fetched, format-detected, normalized, diagnosed, and written under artifact directories. |
 | Artifact readers / cleanup | Done | Diagnostics, metadata, content, summaries, event timeline, and retention cleanup are exposed. |
-| Typed executor/state machine | Done | `SubscriptionUpdateExecutor` owns source → transport → fetch retry → decode → materialize → legacy item generation. |
-| Runtime candidate validation | Done | Current subscription updates validate a generated runtime candidate before committing the legacy profile write. |
-| Artifact publish pointer | Done | `PublishArtifact` cuts `active_artifact_version` after validation and rolls it back if legacy activation later fails. |
-| Active artifact consumption | Done | Current subscription updates validate candidate artifacts and activate runtime from `active_artifact_version` / `normalized.yaml`; legacy files remain compatibility views. |
-| Runtime activation replacement | In progress | The success path now feeds `CoreManager::update_config_without_restart_with_force(...)` through an active-artifact-backed runtime source; the CoreManager boundary itself remains. |
-| Legacy storage removal | Not started | `PrfItem` / `profiles.yaml` remain compatibility and source-definition storage. |
+| Typed executor/state machine | Done | `SubscriptionUpdateExecutor` owns source config → transport → fetch retry → decode → materialize artifact. |
+| Runtime candidate validation | Done | Current subscription updates validate a generated runtime candidate from artifact + source config before publish. |
+| Artifact publish pointer | Done | `PublishArtifact` cuts `active_artifact_version` after validation and rolls it back if activation later fails. |
+| Active artifact consumption | Done | Current subscription updates validate candidate artifacts and activate runtime from `active_artifact_version` / `normalized.yaml`. |
+| Runtime activation replacement | Done for update path | The success path feeds `CoreManager::update_config_without_restart_with_force(...)` through an active-artifact-backed runtime source. |
+| Redundant storage removal | In progress | Remote update source-of-truth is now subscription state; `profiles.yaml` remains a UI selection/list adapter only. |
 
 ## Architecture Principles
 
@@ -67,7 +67,7 @@ Status after PR #60:
 3. Treat activation as a publish step, not a side effect of fetch.
 4. Move transport selection into a dedicated capability layer.
 5. Emit structured events and structured diagnostics.
-6. Preserve backward compatibility during migration.
+6. Prefer one canonical fact chain over duplicate writes.
 
 ## Domain Model
 
@@ -280,16 +280,16 @@ This makes rollback implicit:
 
 No compensating snapshot restore should be required for the happy path architecture.
 
-Current transitional model after PR #60:
+Current model:
 
-1. `SubscriptionUpdateExecutor` downloads, decodes, and materializes the artifact candidate.
-2. If the updated source is current, the app writes a temporary candidate profile file and validates the generated runtime config with the Rust native validator.
-3. The legacy profile write is committed only after candidate validation succeeds.
+1. Profile import/create/patch/delete writes `subscriptions/state.yaml.sources[*].source_config`.
+2. `SubscriptionUpdateExecutor` reads source config, downloads, decodes, and materializes the artifact candidate.
+3. If the updated source is current, the app writes a temporary runtime candidate file from artifact content and validates the generated runtime config with the Rust native validator.
 4. `PublishArtifact` updates `subscriptions/state.yaml.sources[*].active_artifact_version`.
-5. Existing legacy runtime activation still runs through `CoreManager::update_config_without_restart_with_force(...)`.
-6. If legacy activation fails, the code restores both the legacy profile snapshot and the previous active artifact pointer.
+5. Runtime activation consumes `active_artifact_version` + `source_config`.
+6. If activation fails, the code restores only the previous active artifact pointer.
 
-This is intentionally not the final model: runtime generation still needs to consume the active artifact directly.
+There is no successful-update profile rewrite in this chain.
 
 ## Event Protocol
 
@@ -328,28 +328,23 @@ pub enum SubscriptionEvent {
 
 Frontend should render messages from structured payloads instead of interpreting opaque status strings.
 
-## Backward Compatibility
-
-Migration must preserve existing users and files.
+## Canonical State Chain
 
 ### Read path
 
-During transition:
-
-- continue reading legacy `IProfileItem`
-- derive `SubscriptionSource` from remote `type: remote` entries
-- derive initial artifact pointer from existing profile files
+- update reads source config from `subscriptions/state.yaml`
+- runtime reads active artifact content from `subscriptions/artifacts/<source_id>/<version>/normalized.yaml`
+- UI status reads structured attempts/events from subscription state
 
 ### Write path
 
-Phase 1 may continue writing legacy structures while also writing new state files.
+- profile commands write `source_config`
+- update writes immutable artifacts, attempt history, and `active_artifact_version`
+- update does not rewrite profile item payloads
 
-### Final phase
+### Remaining adapter
 
-Once stable:
-
-- `PrfItem` becomes a compatibility view model
-- source and artifact persistence become canonical
+`profiles.yaml` can still drive the visible profile list/current selection until remote subscription source listing moves fully to subscription state, but it is not the subscription update source-of-truth.
 
 ## Proposed Module Layout
 
@@ -408,14 +403,14 @@ The current `IProfileItem` UI can remain initially, but update status should com
 
 - Define `SubscriptionSource`, `SubscriptionArtifact`, `SubscriptionUpdateAttempt`. **Done.**
 - Introduce typed `UpdateStage`. **Done.**
-- Add structured event types alongside existing notice messages. **Mostly done; frontend still renders compatibility notifications.**
+- Add structured event types alongside existing notice messages. **Mostly done; frontend still renders some existing notifications.**
 
 ### Phase 1: Extract Transport and Fetch
 
 - Move transport decision out of `app::subscription`. **Done.**
 - Create `TransportPlan`. **Done.**
 - Centralize request execution and response capture. **Done in `SubscriptionUpdateExecutor`; fetch implementation still reuses existing HTTP helper.**
-- Preserve existing persistence for now. **Done during transition.**
+- Preserve existing persistence for now. **Superseded: update source/config/artifact state now lives in `subscriptions/state.yaml` and artifact directories.**
 
 ### Phase 2: Extract Format Detection
 
@@ -426,14 +421,14 @@ The current `IProfileItem` UI can remain initially, but update status should com
 ### Phase 3: Introduce Candidate Artifact Persistence
 
 - Write fetched payloads into artifact directories. **Done.**
-- Stop directly replacing active profile files during fetch. **Partially done: validation happens before write, but successful updates still write legacy profile files.**
-- Generate runtime config from candidate artifacts. **Partially done through temporary legacy-compatible candidate profile.**
+- Stop directly replacing active profile files during fetch. **Done: successful updates publish artifacts and do not rewrite profile payloads.**
+- Generate runtime config from candidate artifacts. **Done for current update path through a temporary runtime adapter profile file generated from artifact content.**
 
 ### Phase 4: Publish/Activate Boundary
 
 - Activate only after validation succeeds. **Done for current subscription updates.**
-- Replace snapshot rollback with publish gating. **Partially done: publish is gated and rollback restores active artifact, but legacy profile snapshot rollback remains.**
-- Emit structured success/failure events. **Partially done.**
+- Replace snapshot rollback with publish gating. **Done for update path: rollback restores only the active artifact pointer.**
+- Emit structured success/failure events. **Done for current update flow.**
 
 ### Phase 4.5: Consume Active Artifact
 
@@ -441,9 +436,8 @@ Implemented:
 
 - Read `active_artifact_version` from `subscriptions/state.yaml`.
 - Load `subscriptions/artifacts/<source_id>/<version>/normalized.yaml`.
-- Generate the runtime candidate from the active artifact rather than from the just-written legacy profile file.
-- Keep `profiles.yaml` / profile files in sync as compatibility views.
-- Preserve rollback behavior: activation failure leaves the previous active artifact pointer in place.
+- Generate the runtime candidate from the active artifact rather than from a rewritten profile file.
+- Preserve rollback behavior at the artifact boundary: activation failure leaves the previous active artifact pointer in place.
 
 ### Phase 5: UI Migration
 
@@ -453,9 +447,20 @@ Implemented:
 
 ### Phase 6: Remove Legacy Coupling
 
-- Reduce `PrfItem` to a UI projection or compatibility wrapper. **Partially done: runtime activation now consumes an explicit subscription runtime projection plus the active artifact, while legacy `PrfItem` materialization is kept as a compatibility projection.**
-- Remove retry and notification logic from `app::subscription`. **Done for current update flow: `app::subscription` is now a thin command entrypoint; top-level update orchestration, final notifications, attempt persistence, stage notifications, and compatibility rollback helpers live in `subscription::orchestration`.**
-- Make subscription pipeline the only update path. **Partially done: subscription updates use the pipeline artifact as the activation input; the pipeline now syncs legacy profile settings into `source_config`, reads the actual fetch config back from subscription state, and commits legacy compatibility writes after artifact publish with active-artifact rollback on failure.**
+- Reduce `PrfItem` to a UI/runtime adapter only. **Done for the update path: fetch reads `SubscriptionSourceConfig` from `subscriptions/state.yaml`; artifact publication owns active versions; runtime activation consumes the active artifact plus source config.**
+- Remove retry and notification logic from `app::subscription`. **Done: `app::subscription` is a thin command entrypoint; update orchestration, stage events, final notifications, attempt persistence, and artifact rollback live in `subscription::orchestration`.**
+- Make subscription pipeline the only update path. **Done for current remote updates: profile create/import/patch/delete commands write subscription state directly, update no longer syncs from `profiles.yaml`, and successful fetch no longer writes duplicate profile payloads.**
+
+The single fact chain is now:
+
+```text
+profile command → subscriptions/state.yaml source_config
+source_config → fetch/decode → immutable artifact
+artifact publish → active_artifact_version
+active_artifact_version + source_config → runtime candidate → runtime activation
+```
+
+`profiles.yaml` remains only the existing UI selection/list adapter until the frontend model is fully moved; it is not a subscription update source of truth.
 
 ## Testing Strategy
 
@@ -471,7 +476,7 @@ Add scenario-based tests for:
 - YAML missing required top-level keys
 - runtime validation failure after successful fetch
 - activation failure with old artifact preserved
-- legacy profile migration
+- source state migration/removal
 
 Tests should cover pipeline stage outputs, persisted artifacts, and emitted structured events.
 
@@ -488,7 +493,7 @@ The redesign is complete when:
 
 ## Recommended Next Implementation Slice
 
-The next highest-leverage slice is Phase 6: remove legacy coupling once the team is comfortable with the Phase 5 UI.
+The next highest-leverage slice is removing the remaining UI dependency on `profiles.yaml` for remote subscription source listing/selection.
 
-1. Move subscription source edit commands to write `subscriptions/state.yaml` directly.
+1. Expose subscription source list/edit commands backed by `subscriptions/state.yaml`.
 2. Promote diagnostics previews into file/open-location deep links if needed.
