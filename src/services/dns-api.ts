@@ -148,6 +148,56 @@ export interface DnsConfigProbeSkipped {
   reason: string
 }
 
+export type DnsResolverPlanStatus = 'ready' | 'disabled' | 'rejected'
+
+export interface DnsResolverRuntimeFeaturePlan {
+  configured: boolean
+  runtimeApplied: boolean
+  reason: string
+}
+
+export interface DnsResolverRuntimeProjection {
+  fakeIp: DnsResolverRuntimeFeaturePlan
+  fallbackFilter: DnsResolverRuntimeFeaturePlan
+  nameserverPolicy: DnsResolverRuntimeFeaturePlan
+}
+
+export interface DnsResolverNameserverPlan {
+  server: string
+  protocol: DnsProtocol
+  protocolName: string
+  target?: DnsServerProbeTarget | null
+  runtimeSupported: boolean
+  reason: string
+}
+
+export interface DnsResolverPlan {
+  status: DnsResolverPlanStatus
+  reason: string
+  enabled?: boolean | null
+  timeoutMs: number
+  attempts: number
+  nameservers: DnsResolverNameserverPlan[]
+  runtimeProjection: DnsResolverRuntimeProjection
+  warnings: string[]
+}
+
+export interface DnsResolverRuntimeMetrics {
+  totalQueries: number
+  successfulQueries: number
+  failedQueries: number
+  totalLatencyMs: number
+  lastError?: string | null
+}
+
+export interface DnsResolverRuntimeQueryReport {
+  plan: DnsResolverPlan
+  domain: string
+  result?: DnsQueryResult | null
+  attemptedServers: string[]
+  metrics: DnsResolverRuntimeMetrics
+}
+
 /**
  * DNS 查询选项
  */
@@ -297,6 +347,32 @@ export async function planDnsProbe(
     })
   } catch (err) {
     console.error('DNS probe planning failed:', err)
+    throw err
+  }
+}
+
+export async function buildDnsResolverPlan(
+  yaml: string,
+): Promise<DnsResolverPlan> {
+  try {
+    return await invoke<DnsResolverPlan>('dns_build_resolver_plan', { yaml })
+  } catch (err) {
+    console.error('DNS resolver plan build failed:', err)
+    throw err
+  }
+}
+
+export async function dnsRuntimeQuery(
+  yaml: string,
+  domain: string,
+): Promise<DnsResolverRuntimeQueryReport> {
+  try {
+    return await invoke<DnsResolverRuntimeQueryReport>('dns_runtime_query', {
+      yaml,
+      domain,
+    })
+  } catch (err) {
+    console.error(`DNS runtime query failed for ${domain}:`, err)
     throw err
   }
 }
