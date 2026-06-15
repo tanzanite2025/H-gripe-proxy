@@ -1,4 +1,4 @@
-use crate::core::connection_metrics::ConnectionMetricsSnapshot;
+use crate::core::connection_metrics::ConnectionMetricsEventPayload;
 use crate::subscription::events::SubscriptionEvent;
 use crate::utils::window_manager::WindowManager;
 use clash_verge_logging::{Type, logging};
@@ -15,7 +15,7 @@ pub enum FrontendEvent<'a> {
     SubscriptionUpdate { event: SubscriptionEvent },
     ProfileChanged { current_profile_id: &'a String },
     TimerUpdated { profile_index: &'a String },
-    ConnectionMetrics { snapshot: ConnectionMetricsSnapshot },
+    ConnectionMetrics { payload: ConnectionMetricsEventPayload },
 }
 
 #[derive(Debug)]

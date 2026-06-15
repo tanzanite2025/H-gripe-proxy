@@ -18,7 +18,7 @@ use tauri::AppHandle;
 use tauri_plugin_mihomo::{Mihomo, MihomoExt as _, models::Protocol};
 use tokio::sync::RwLockReadGuard;
 
-use super::connection_metrics::ConnectionMetricsSnapshot;
+use super::connection_metrics::ConnectionMetricsEventPayload;
 use super::notification::{FrontendEvent, NotificationSystem};
 
 #[derive(Debug)]
@@ -220,8 +220,8 @@ impl Handle {
         self.is_exiting.load(Ordering::Acquire)
     }
 
-    pub fn send_connection_metrics(snapshot: ConnectionMetricsSnapshot) {
-        Self::send_event(FrontendEvent::ConnectionMetrics { snapshot });
+    pub fn send_connection_metrics(payload: ConnectionMetricsEventPayload) {
+        Self::send_event(FrontendEvent::ConnectionMetrics { payload });
     }
 
     fn send_event(event: FrontendEvent) {

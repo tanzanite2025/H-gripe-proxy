@@ -1,4 +1,7 @@
-use crate::core::{connection_metrics, handle};
+use crate::core::{
+    connection_metrics::{self, ConnectionMetricsEventPayload},
+    handle,
+};
 use crate::process::AsyncHandler;
 use crate::utils::connections_stream;
 use crate::{Type, logging};
@@ -73,9 +76,9 @@ impl ConnectionMonitorController {
 
                     match state {
                         connections_stream::StreamConsumeState::Event(event) => {
-                            let snapshot =
-                                connection_metrics::ingest_connection_metrics_snapshot(&event.snapshot).await;
-                            handle::Handle::send_connection_metrics(snapshot);
+                            let raw = serde_json::to_value(&event.snapshot).unwrap_or_default();
+                            let metrics = connection_metrics::ingest_connection_metrics_snapshot(&event.snapshot).await;
+                            handle::Handle::send_connection_metrics(ConnectionMetricsEventPayload { metrics, raw });
                         }
                         connections_stream::StreamConsumeState::Stale => {
                             logging!(debug, Type::Core, "Connection monitor stream stale, reconnecting");
