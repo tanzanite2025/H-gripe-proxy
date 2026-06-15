@@ -10,16 +10,17 @@ use crate::{
 };
 use anyhow::Result;
 use chrono::Local;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
 use tokio::fs;
 
 const ARTIFACT_DIAGNOSTICS_FILE: &str = "diagnostics.yaml";
+const ARTIFACT_METADATA_FILE: &str = "metadata.yaml";
 
-#[derive(Debug, Clone, Serialize)]
-struct PersistedArtifactMetadata<'a> {
-    source_id: &'a str,
-    artifact: &'a SubscriptionArtifactRecord,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionArtifactMetadata {
+    pub source_id: String,
+    pub artifact: SubscriptionArtifactRecord,
 }
 
 async fn load_state_document() -> Result<SubscriptionStateDocument> {
@@ -65,11 +66,7 @@ pub async fn read_subscription_artifact_diagnostics(
     source_id: &str,
     version: &str,
 ) -> Result<Option<SubscriptionArtifactDiagnostics>> {
-    if !is_safe_subscription_artifact_path_segment(source_id)
-        || !is_safe_subscription_artifact_path_segment(version)
-    {
-        anyhow::bail!("invalid subscription artifact path segment");
-    }
+    ensure_safe_subscription_artifact_path(source_id, version)?;
 
     let path = dirs::subscription_artifact_version_dir(source_id, version)?
         .join(ARTIFACT_DIAGNOSTICS_FILE);
@@ -78,6 +75,85 @@ pub async fn read_subscription_artifact_diagnostics(
     }
 
     help::read_yaml(&path).await.map(Some)
+}
+
+pub async fn read_subscription_artifact_metadata(
+    source_id: &str,
+    version: &str,
+) -> Result<Option<SubscriptionArtifactMetadata>> {
+    ensure_safe_subscription_artifact_path(source_id, version)?;
+
+    let path = dirs::subscription_artifact_version_dir(source_id, version)?
+        .join(ARTIFACT_METADATA_FILE);
+    if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+        return Ok(None);
+    }
+
+    let metadata: SubscriptionArtifactMetadata = help::read_yaml(&path).await?;
+    validate_artifact_metadata_source(source_id, &metadata)?;
+    Ok(Some(metadata))
+}
+
+pub async fn list_subscription_artifact_metadata(
+    source_id: &str,
+) -> Result<Vec<SubscriptionArtifactMetadata>> {
+    if !is_safe_subscription_artifact_path_segment(source_id) {
+        anyhow::bail!("invalid subscription artifact path segment");
+    }
+
+    let dir = dirs::subscription_artifacts_dir(source_id)?;
+    if !tokio::fs::try_exists(&dir).await.unwrap_or(false) {
+        return Ok(Vec::new());
+    }
+
+    let mut entries = fs::read_dir(dir).await?;
+    let mut artifacts = Vec::new();
+    while let Some(entry) = entries.next_entry().await? {
+        if !entry.file_type().await?.is_dir() {
+            continue;
+        }
+
+        let path = entry.path().join(ARTIFACT_METADATA_FILE);
+        if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+            continue;
+        }
+
+        let metadata: SubscriptionArtifactMetadata = help::read_yaml(&path).await?;
+        validate_artifact_metadata_source(source_id, &metadata)?;
+        artifacts.push(metadata);
+    }
+
+    sort_artifact_metadata_newest_first(&mut artifacts);
+    Ok(artifacts)
+}
+
+pub fn sort_artifact_metadata_newest_first(artifacts: &mut [SubscriptionArtifactMetadata]) {
+    artifacts.sort_by(|left, right| {
+        right
+            .artifact
+            .fetched_at
+            .cmp(&left.artifact.fetched_at)
+            .then_with(|| right.artifact.version.cmp(&left.artifact.version))
+    });
+}
+
+fn ensure_safe_subscription_artifact_path(source_id: &str, version: &str) -> Result<()> {
+    if !is_safe_subscription_artifact_path_segment(source_id)
+        || !is_safe_subscription_artifact_path_segment(version)
+    {
+        anyhow::bail!("invalid subscription artifact path segment");
+    }
+    Ok(())
+}
+
+fn validate_artifact_metadata_source(
+    source_id: &str,
+    metadata: &SubscriptionArtifactMetadata,
+) -> Result<()> {
+    if metadata.source_id != source_id {
+        anyhow::bail!("subscription artifact metadata source mismatch");
+    }
+    Ok(())
 }
 
 async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
@@ -107,11 +183,11 @@ pub async fn persist_artifact_candidate(
     )
     .await?;
 
-    let metadata = PersistedArtifactMetadata {
-        source_id,
-        artifact: &candidate.record,
+    let metadata = SubscriptionArtifactMetadata {
+        source_id: source_id.into(),
+        artifact: candidate.record.clone(),
     };
-    let metadata_path = dir.join("metadata.yaml");
+    let metadata_path = dir.join(ARTIFACT_METADATA_FILE);
     help::save_yaml(&metadata_path, &metadata, Some("# Subscription Artifact Metadata")).await
 }
 
@@ -255,5 +331,38 @@ mod tests {
         assert!(!is_safe_subscription_artifact_path_segment(".."));
         assert!(!is_safe_subscription_artifact_path_segment("../source-a"));
         assert!(!is_safe_subscription_artifact_path_segment("source\\a"));
+    }
+
+    #[test]
+    fn sorts_artifact_metadata_newest_first() {
+        let mut artifacts = vec![
+            artifact_metadata("source-a", "artifact-a", 100),
+            artifact_metadata("source-a", "artifact-c", 200),
+            artifact_metadata("source-a", "artifact-b", 200),
+        ];
+
+        sort_artifact_metadata_newest_first(&mut artifacts);
+
+        assert_eq!(artifacts[0].artifact.version, "artifact-c");
+        assert_eq!(artifacts[1].artifact.version, "artifact-b");
+        assert_eq!(artifacts[2].artifact.version, "artifact-a");
+    }
+
+    fn artifact_metadata(
+        source_id: &str,
+        version: &str,
+        fetched_at: i64,
+    ) -> SubscriptionArtifactMetadata {
+        SubscriptionArtifactMetadata {
+            source_id: source_id.into(),
+            artifact: SubscriptionArtifactRecord {
+                version: version.into(),
+                content_hash: format!("hash-{version}").into(),
+                fetched_at,
+                content_length: 0,
+                content_type: None,
+                detected_format: None,
+            },
+        }
     }
 }

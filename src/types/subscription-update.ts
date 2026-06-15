@@ -42,6 +42,11 @@ export interface SubscriptionArtifactRecord {
   detected_format?: SubscriptionFormat | null
 }
 
+export interface SubscriptionArtifactMetadata {
+  source_id: string
+  artifact: SubscriptionArtifactRecord
+}
+
 export interface SubscriptionFormatDetection {
   format: SubscriptionFormat
   reason: string
