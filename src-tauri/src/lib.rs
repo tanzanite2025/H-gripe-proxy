@@ -257,6 +257,7 @@ mod app_init {
             cmd::get_next_update_time,
             cmd::get_subscription_state,
             cmd::get_subscription_source_state,
+            cmd::get_subscription_source_update_events,
             cmd::get_subscription_artifact_diagnostics,
             cmd::get_subscription_artifact_metadata,
             cmd::get_subscription_artifact_content,

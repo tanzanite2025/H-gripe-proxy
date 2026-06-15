@@ -1,13 +1,14 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::subscription::{
     artifact::SubscriptionArtifactDiagnostics,
+    events::SubscriptionEvent,
     model::{SubscriptionSourceState, SubscriptionStateDocument},
     persist::{
         cleanup_subscription_artifacts, list_subscription_artifact_metadata,
         list_subscription_artifact_summaries as list_subscription_artifact_summary_records,
         read_subscription_artifact_content, read_subscription_artifact_diagnostics,
         read_subscription_artifact_metadata, read_subscription_source_state,
-        read_subscription_state_document,
+        read_subscription_source_update_events, read_subscription_state_document,
         SubscriptionArtifactCleanupResult, SubscriptionArtifactContent,
         SubscriptionArtifactContentKind, SubscriptionArtifactMetadata,
         SubscriptionArtifactSummary,
@@ -24,6 +25,15 @@ pub async fn get_subscription_source_state(
     source_id: String,
 ) -> CmdResult<Option<SubscriptionSourceState>> {
     read_subscription_source_state(source_id.as_str()).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_subscription_source_update_events(
+    source_id: String,
+) -> CmdResult<Vec<SubscriptionEvent>> {
+    read_subscription_source_update_events(source_id.as_str())
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]
