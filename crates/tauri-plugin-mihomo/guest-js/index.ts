@@ -613,66 +613,6 @@ export class MihomoWebSocket {
   }
 
   /**
-   * 创建一个新的 WebSocket 连接，用于 Mihomo 的流量监控
-   * @returns WebSocket 实例
-   */
-  static async connect_traffic(): Promise<MihomoWebSocket> {
-    const listeners: Set<(arg: Message) => void> = new Set();
-    const onMessage = new Channel<Message>();
-    onMessage.onmessage = (message: Message): void => {
-      listeners.forEach((l) => {
-        l(message);
-      });
-    };
-    const id = await invoke<number>("plugin:mihomo|ws_traffic", {
-      onMessage,
-    });
-    const instance = new MihomoWebSocket(id, listeners);
-    MihomoWebSocket.instances.add(instance);
-    return instance;
-  }
-
-  /**
-   * 创建一个新的 WebSocket 连接，用于 Mihomo 的内存监控
-   * @returns WebSocket 实例
-   */
-  static async connect_memory(): Promise<MihomoWebSocket> {
-    const listeners: Set<(arg: Message) => void> = new Set();
-    const onMessage = new Channel<Message>();
-    onMessage.onmessage = (message: Message): void => {
-      listeners.forEach((l) => {
-        l(message);
-      });
-    };
-    const id = await invoke<number>("plugin:mihomo|ws_memory", {
-      onMessage,
-    });
-    const instance = new MihomoWebSocket(id, listeners);
-    MihomoWebSocket.instances.add(instance);
-    return instance;
-  }
-
-  /**
-   * 创建一个新的 WebSocket 连接，用于 Mihomo 的连接监控
-   * @returns WebSocket 实例
-   */
-  static async connect_connections(): Promise<MihomoWebSocket> {
-    const listeners: Set<(arg: Message) => void> = new Set();
-    const onMessage = new Channel<Message>();
-    onMessage.onmessage = (message: Message): void => {
-      listeners.forEach((l) => {
-        l(message);
-      });
-    };
-    const id = await invoke<number>("plugin:mihomo|ws_connections", {
-      onMessage,
-    });
-    const instance = new MihomoWebSocket(id, listeners);
-    MihomoWebSocket.instances.add(instance);
-    return instance;
-  }
-
-  /**
    * 创建一个新的 WebSocket 连接，用于 Mihomo 的日志监控
    * @returns WebSocket 实例
    */

@@ -283,21 +283,6 @@ export declare class MihomoWebSocket {
     private static instances;
     constructor(id: number, listeners: Set<(arg: Message) => void>);
     /**
-     * 创建一个新的 WebSocket 连接，用于 Mihomo 的流量监控
-     * @returns WebSocket 实例
-     */
-    static connect_traffic(): Promise<MihomoWebSocket>;
-    /**
-     * 创建一个新的 WebSocket 连接，用于 Mihomo 的内存监控
-     * @returns WebSocket 实例
-     */
-    static connect_memory(): Promise<MihomoWebSocket>;
-    /**
-     * 创建一个新的 WebSocket 连接，用于 Mihomo 的连接监控
-     * @returns WebSocket 实例
-     */
-    static connect_connections(): Promise<MihomoWebSocket>;
-    /**
      * 创建一个新的 WebSocket 连接，用于 Mihomo 的日志监控
      * @returns WebSocket 实例
      */
