@@ -3,6 +3,7 @@ use crate::{
     subscription::control_plane::subscription_update_uses_dedicated_control_plane,
     utils::network::NetworkManager,
 };
+use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging};
 use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
@@ -40,18 +41,38 @@ pub struct TransportPlan {
 
 impl TransportPlan {
     pub async fn for_subscription_update(preferred_transport: Option<TransportKind>) -> Self {
+        let local_proxy_port = local_proxy_port().await;
+        let system_proxy_url = match NetworkManager::system_proxy_url() {
+            Ok(proxy_url) => proxy_url,
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Subscription Update] failed to inspect system proxy settings, skip system proxy candidate: {}",
+                    err
+                );
+                None
+            }
+        };
+
+        Self::from_subscription_update_environment(
+            preferred_transport,
+            local_proxy_port,
+            system_proxy_url.map(Into::into),
+            subscription_update_uses_dedicated_control_plane().await,
+        )
+    }
+
+    pub fn from_subscription_update_environment(
+        preferred_transport: Option<TransportKind>,
+        local_proxy_port: Option<u16>,
+        system_proxy_url: Option<String>,
+        dedicated_control_plane: bool,
+    ) -> Self {
         let mut ordered_candidates = vec![TransportCandidate {
             kind: TransportKind::Direct,
             reason: "Always attempt direct fetch first".into(),
         }];
-
-        let local_proxy_port = {
-            let verge_port = Config::verge().await.data_arc().verge_mixed_port;
-            match verge_port {
-                Some(port) => Some(port),
-                None => Some(Config::clash().await.data_arc().get_mixed_port()),
-            }
-        };
 
         if let Some(port) = local_proxy_port {
             ordered_candidates.push(TransportCandidate {
@@ -60,27 +81,16 @@ impl TransportPlan {
             });
         }
 
-        match NetworkManager::system_proxy_url() {
-            Ok(Some(proxy_url)) => {
-                ordered_candidates.push(TransportCandidate {
-                    kind: TransportKind::SystemProxy,
-                    reason: format!("System proxy is enabled at {proxy_url}").into(),
-                });
-            }
-            Ok(None) => {}
-            Err(err) => {
-                logging!(
-                    warn,
-                    Type::Config,
-                    "Warning: [Subscription Update] failed to inspect system proxy settings, skip system proxy candidate: {}",
-                    err
-                );
-            }
+        if let Some(proxy_url) = system_proxy_url {
+            ordered_candidates.push(TransportCandidate {
+                kind: TransportKind::SystemProxy,
+                reason: format!("System proxy is enabled at {proxy_url}").into(),
+            });
         }
 
         let (ordered_candidates, note) = collapse_equivalent_local_core_candidates(
             ordered_candidates,
-            subscription_update_uses_dedicated_control_plane().await,
+            dedicated_control_plane,
         );
         let preferred_transport = if note.is_some() {
             Some(TransportKind::LocalProxy)
@@ -89,10 +99,38 @@ impl TransportPlan {
         };
 
         Self {
-            ordered_candidates: prioritize_transport_candidates(ordered_candidates, preferred_transport),
+            ordered_candidates: prioritize_transport_candidates(
+                ordered_candidates,
+                preferred_transport,
+            ),
             note,
         }
     }
+}
+
+async fn local_proxy_port() -> Option<u16> {
+    match Config::verge().await.data_arc().verge_mixed_port {
+        Some(port) => Some(port),
+        None => Some(Config::clash().await.data_arc().get_mixed_port()),
+    }
+}
+
+pub async fn plan_subscription_update_transport_for_source(
+    source_id: &str,
+) -> Result<TransportPlan> {
+    let preferred_transport = {
+        let profiles = Config::profiles().await;
+        let profiles = profiles.latest_arc();
+        let item = profiles.get_item(source_id)?;
+
+        if !item.itype.as_deref().is_some_and(|item_type| item_type == "remote") {
+            bail!("subscription source {source_id} is not a remote profile");
+        }
+
+        transport_kind_from_option(item.option.as_ref())
+    };
+
+    Ok(TransportPlan::for_subscription_update(Some(preferred_transport)).await)
 }
 
 fn collapse_equivalent_local_core_candidates(
@@ -209,7 +247,8 @@ mod tests {
             },
         ];
 
-        let reordered = prioritize_transport_candidates(ordered_candidates, Some(TransportKind::LocalProxy));
+        let reordered =
+            prioritize_transport_candidates(ordered_candidates, Some(TransportKind::LocalProxy));
 
         assert_eq!(
             reordered.iter().map(|candidate| candidate.kind).collect::<Vec<_>>(),
@@ -218,6 +257,58 @@ mod tests {
                 TransportKind::Direct,
                 TransportKind::SystemProxy
             ]
+        );
+    }
+
+    #[test]
+    fn transport_plan_explains_available_candidates() {
+        let plan = TransportPlan::from_subscription_update_environment(
+            Some(TransportKind::SystemProxy),
+            Some(7890),
+            Some("http://127.0.0.1:1080".into()),
+            false,
+        );
+
+        assert_eq!(
+            plan.ordered_candidates
+                .iter()
+                .map(|candidate| candidate.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                TransportKind::SystemProxy,
+                TransportKind::Direct,
+                TransportKind::LocalProxy
+            ]
+        );
+        assert!(
+            plan.ordered_candidates[0]
+                .reason
+                .contains("System proxy is enabled")
+        );
+        assert!(plan.note.is_none());
+    }
+
+    #[test]
+    fn transport_plan_collapses_equivalent_direct_and_local_candidates() {
+        let plan = TransportPlan::from_subscription_update_environment(
+            Some(TransportKind::Direct),
+            Some(7890),
+            None,
+            true,
+        );
+
+        assert_eq!(
+            plan.ordered_candidates
+                .iter()
+                .map(|candidate| candidate.kind)
+                .collect::<Vec<_>>(),
+            vec![TransportKind::LocalProxy]
+        );
+        assert!(plan.note.is_some());
+        assert!(
+            plan.ordered_candidates[0]
+                .reason
+                .contains("dedicated Mihomo control-plane group")
         );
     }
 
@@ -234,7 +325,8 @@ mod tests {
             },
         ];
 
-        let reordered = prioritize_transport_candidates(ordered_candidates, Some(TransportKind::SystemProxy));
+        let reordered =
+            prioritize_transport_candidates(ordered_candidates, Some(TransportKind::SystemProxy));
 
         assert_eq!(
             reordered.iter().map(|candidate| candidate.kind).collect::<Vec<_>>(),
@@ -259,7 +351,8 @@ mod tests {
             },
         ];
 
-        let (collapsed, note) = collapse_equivalent_local_core_candidates(ordered_candidates, true);
+        let (collapsed, note) =
+            collapse_equivalent_local_core_candidates(ordered_candidates, true);
 
         assert!(note.is_some());
         assert_eq!(
@@ -282,7 +375,8 @@ mod tests {
             },
         ];
 
-        let (collapsed, note) = collapse_equivalent_local_core_candidates(ordered_candidates.clone(), false);
+        let (collapsed, note) =
+            collapse_equivalent_local_core_candidates(ordered_candidates.clone(), false);
 
         assert!(note.is_none());
         assert_eq!(

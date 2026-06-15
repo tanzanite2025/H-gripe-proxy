@@ -9,6 +9,7 @@ import type {
   SubscriptionArtifactSummary,
   SubscriptionSourceState,
   SubscriptionStateDocument,
+  SubscriptionTransportPlan,
   SubscriptionUpdateEvent,
 } from '@/types/subscription-update'
 
@@ -27,6 +28,12 @@ export async function getSubscriptionSourceUpdateEvents(sourceId: string) {
     'get_subscription_source_update_events',
     { sourceId },
   )
+}
+
+export async function planSubscriptionUpdateTransport(sourceId: string) {
+  return invoke<SubscriptionTransportPlan>('plan_subscription_update_transport', {
+    sourceId,
+  })
 }
 
 export async function getSubscriptionArtifactDiagnostics(
