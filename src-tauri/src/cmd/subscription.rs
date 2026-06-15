@@ -13,6 +13,7 @@ use crate::subscription::{
         SubscriptionArtifactContentKind, SubscriptionArtifactMetadata,
         SubscriptionArtifactSummary,
     },
+    transport::{plan_subscription_update_transport_for_source, TransportPlan},
 };
 
 #[tauri::command]
@@ -32,6 +33,15 @@ pub async fn get_subscription_source_update_events(
     source_id: String,
 ) -> CmdResult<Vec<SubscriptionEvent>> {
     read_subscription_source_update_events(source_id.as_str())
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn plan_subscription_update_transport(
+    source_id: String,
+) -> CmdResult<TransportPlan> {
+    plan_subscription_update_transport_for_source(source_id.as_str())
         .await
         .stringify_err()
 }

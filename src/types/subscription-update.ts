@@ -14,6 +14,16 @@ export type SubscriptionUpdateTransportKind =
   | 'local_proxy'
   | 'system_proxy'
 
+export interface SubscriptionTransportCandidate {
+  kind: SubscriptionUpdateTransportKind
+  reason: string
+}
+
+export interface SubscriptionTransportPlan {
+  ordered_candidates: SubscriptionTransportCandidate[]
+  note?: string | null
+}
+
 export type SubscriptionUpdateFinalStatus = 'succeeded' | 'failed'
 
 export type SubscriptionFormat =
