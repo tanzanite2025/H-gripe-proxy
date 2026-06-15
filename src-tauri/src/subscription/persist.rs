@@ -308,7 +308,7 @@ pub fn retained_artifact_versions(
     if let Some(active_version) = active_version {
         if artifacts
             .iter()
-            .any(|item| item.artifact.version == active_version)
+            .any(|item| item.artifact.version.as_str() == active_version)
             && !versions.iter().any(|version| version.as_str() == active_version)
         {
             versions.push(active_version.into());
