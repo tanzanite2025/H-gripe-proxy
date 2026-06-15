@@ -1,11 +1,13 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
+use async_trait::async_trait;
 use hickory_proto::rr::Name;
 use hickory_resolver::TokioAsyncResolver;
 use hickory_resolver::config::*;
 use serde::{Deserialize, Serialize};
-use serde_yaml_ng::Mapping;
+use serde_yaml_ng::{Mapping, Value};
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tokio::fs;
 
@@ -227,6 +229,8 @@ const DNS_SERVER_PROVIDERS: [&DnsServerProviderDefinition; 6] = [
 ];
 
 const DEFAULT_DNS_HEALTH_CHECK_DOMAIN: &str = "www.google.com";
+const DEFAULT_DNS_RUNTIME_TIMEOUT_MS: u64 = 5_000;
+const DEFAULT_DNS_RUNTIME_ATTEMPTS: u8 = 2;
 
 fn provider_definitions() -> &'static [&'static DnsServerProviderDefinition] {
     &DNS_SERVER_PROVIDERS
@@ -259,6 +263,191 @@ pub struct DnsHealthCheckResult {
     pub protocol: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DnsResolverPlanStatus {
+    Ready,
+    Disabled,
+    Rejected,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeFeaturePlan {
+    pub configured: bool,
+    pub runtime_applied: bool,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeProjection {
+    pub fake_ip: DnsResolverRuntimeFeaturePlan,
+    pub fallback_filter: DnsResolverRuntimeFeaturePlan,
+    pub nameserver_policy: DnsResolverRuntimeFeaturePlan,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverNameserverPlan {
+    pub server: String,
+    pub protocol: DnsProtocol,
+    pub protocol_name: String,
+    pub target: Option<DnsServerProbeTarget>,
+    pub runtime_supported: bool,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverPlan {
+    pub status: DnsResolverPlanStatus,
+    pub reason: String,
+    pub enabled: Option<bool>,
+    pub timeout_ms: u64,
+    pub attempts: u8,
+    pub nameservers: Vec<DnsResolverNameserverPlan>,
+    pub runtime_projection: DnsResolverRuntimeProjection,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsRuntimeQueryOptions {
+    pub timeout_ms: u64,
+    pub attempts: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeMetrics {
+    pub total_queries: u64,
+    pub successful_queries: u64,
+    pub failed_queries: u64,
+    pub total_latency_ms: u64,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeQueryReport {
+    pub plan: DnsResolverPlan,
+    pub domain: String,
+    pub result: Option<DnsQueryResult>,
+    pub attempted_servers: Vec<String>,
+    pub metrics: DnsResolverRuntimeMetrics,
+}
+
+#[async_trait]
+pub trait RustDnsResolverRuntime: Send + Sync {
+    async fn query(
+        &self,
+        nameserver: &DnsResolverNameserverPlan,
+        domain: &str,
+        options: DnsRuntimeQueryOptions,
+    ) -> Result<DnsQueryResult>;
+}
+
+#[derive(Debug, Default)]
+pub struct HickoryDnsResolverRuntime;
+
+#[async_trait]
+impl RustDnsResolverRuntime for HickoryDnsResolverRuntime {
+    async fn query(
+        &self,
+        nameserver: &DnsResolverNameserverPlan,
+        domain: &str,
+        options: DnsRuntimeQueryOptions,
+    ) -> Result<DnsQueryResult> {
+        dns_query_with_options(
+            domain.to_string(),
+            Some(nameserver.server.clone()),
+            Some(nameserver.protocol),
+            options,
+        )
+        .await
+    }
+}
+
+pub struct DnsResolverRuntimeController<R: RustDnsResolverRuntime> {
+    runtime: R,
+    metrics: Arc<Mutex<DnsResolverRuntimeMetrics>>,
+}
+
+impl<R: RustDnsResolverRuntime> DnsResolverRuntimeController<R> {
+    pub fn new(runtime: R) -> Self {
+        Self {
+            runtime,
+            metrics: Arc::new(Mutex::new(DnsResolverRuntimeMetrics::default())),
+        }
+    }
+
+    pub async fn query(&self, plan: DnsResolverPlan, domain: String) -> DnsResolverRuntimeQueryReport {
+        let options = DnsRuntimeQueryOptions {
+            timeout_ms: plan.timeout_ms,
+            attempts: plan.attempts,
+        };
+        let mut attempted_servers = Vec::new();
+        let mut result = None;
+
+        if plan.status == DnsResolverPlanStatus::Ready {
+            for nameserver in plan.nameservers.iter().filter(|item| item.runtime_supported) {
+                attempted_servers.push(nameserver.server.clone());
+                match self.runtime.query(nameserver, &domain, options).await {
+                    Ok(query_result) if query_result.success => {
+                        self.record_query(&query_result);
+                        result = Some(query_result);
+                        break;
+                    }
+                    Ok(query_result) => {
+                        self.record_query(&query_result);
+                        result = Some(query_result);
+                    }
+                    Err(error) => {
+                        self.record_error(error.to_string());
+                    }
+                }
+            }
+        }
+
+        if result.is_none() && plan.status != DnsResolverPlanStatus::Ready {
+            self.record_error(plan.reason.clone());
+        }
+
+        DnsResolverRuntimeQueryReport {
+            plan,
+            domain,
+            result,
+            attempted_servers,
+            metrics: self.metrics(),
+        }
+    }
+
+    pub fn metrics(&self) -> DnsResolverRuntimeMetrics {
+        self.metrics.lock().expect("dns metrics lock poisoned").clone()
+    }
+
+    fn record_query(&self, result: &DnsQueryResult) {
+        let mut metrics = self.metrics.lock().expect("dns metrics lock poisoned");
+        metrics.total_queries += 1;
+        metrics.total_latency_ms = metrics.total_latency_ms.saturating_add(result.latency);
+        if result.success {
+            metrics.successful_queries += 1;
+            metrics.last_error = None;
+        } else {
+            metrics.failed_queries += 1;
+            metrics.last_error = result.error.clone();
+        }
+    }
+
+    fn record_error(&self, error: String) {
+        let mut metrics = self.metrics.lock().expect("dns metrics lock poisoned");
+        metrics.total_queries += 1;
+        metrics.failed_queries += 1;
+        metrics.last_error = Some(error);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsServerProbeTarget {
@@ -280,6 +469,255 @@ struct DnsServerParts {
     scheme: Option<String>,
     host: String,
     port: Option<u16>,
+}
+
+pub fn build_dns_resolver_plan(yaml: &str) -> Result<DnsResolverPlan> {
+    let value: Value = serde_yaml_ng::from_str(yaml).context("YAML syntax error")?;
+    let root = value
+        .as_mapping()
+        .ok_or_else(|| anyhow!("config root must be a YAML mapping"))?;
+    let Some(dns) = dns_mapping(root) else {
+        return Ok(rejected_resolver_plan("dns config is missing"));
+    };
+
+    let mut warnings = Vec::new();
+    let enabled = optional_bool(dns, "enable", &mut warnings);
+    if enabled == Some(false) {
+        return Ok(DnsResolverPlan {
+            status: DnsResolverPlanStatus::Disabled,
+            reason: "dns.enable is false; Rust resolver runtime stays inactive".into(),
+            enabled,
+            timeout_ms: DEFAULT_DNS_RUNTIME_TIMEOUT_MS,
+            attempts: DEFAULT_DNS_RUNTIME_ATTEMPTS,
+            nameservers: Vec::new(),
+            runtime_projection: build_runtime_projection(dns),
+            warnings,
+        });
+    }
+
+    let timeout_ms = optional_u64(dns, "timeout", &mut warnings).unwrap_or(DEFAULT_DNS_RUNTIME_TIMEOUT_MS);
+    let attempts = optional_u64(dns, "attempts", &mut warnings)
+        .and_then(|value| u8::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_DNS_RUNTIME_ATTEMPTS);
+    let nameservers = extract_server_values(dns.get("nameserver"), "dns.nameserver", &mut warnings)
+        .into_iter()
+        .map(build_nameserver_plan)
+        .collect::<Vec<_>>();
+    let supported_count = nameservers.iter().filter(|item| item.runtime_supported).count();
+
+    let (status, reason) = if nameservers.is_empty() {
+        (
+            DnsResolverPlanStatus::Rejected,
+            "dns.nameserver is empty; no Rust resolver can be built".into(),
+        )
+    } else if supported_count == 0 {
+        (
+            DnsResolverPlanStatus::Rejected,
+            "dns.nameserver has no runtime-supported targets".into(),
+        )
+    } else {
+        (
+            DnsResolverPlanStatus::Ready,
+            format!("Rust resolver runtime can query {supported_count} nameserver target(s)"),
+        )
+    };
+
+    Ok(DnsResolverPlan {
+        status,
+        reason,
+        enabled,
+        timeout_ms,
+        attempts,
+        nameservers,
+        runtime_projection: build_runtime_projection(dns),
+        warnings,
+    })
+}
+
+pub async fn dns_runtime_query(yaml: &str, domain: String) -> Result<DnsResolverRuntimeQueryReport> {
+    let plan = build_dns_resolver_plan(yaml)?;
+    let controller = DnsResolverRuntimeController::new(HickoryDnsResolverRuntime);
+    Ok(controller.query(plan, domain).await)
+}
+
+fn rejected_resolver_plan(reason: &str) -> DnsResolverPlan {
+    DnsResolverPlan {
+        status: DnsResolverPlanStatus::Rejected,
+        reason: reason.into(),
+        enabled: None,
+        timeout_ms: DEFAULT_DNS_RUNTIME_TIMEOUT_MS,
+        attempts: DEFAULT_DNS_RUNTIME_ATTEMPTS,
+        nameservers: Vec::new(),
+        runtime_projection: default_runtime_projection(),
+        warnings: Vec::new(),
+    }
+}
+
+fn build_nameserver_plan(server: String) -> DnsResolverNameserverPlan {
+    let protocol = infer_dns_protocol(Some(&server), None);
+    match plan_dns_server_probe_target(&server) {
+        Ok(target) => DnsResolverNameserverPlan {
+            server,
+            protocol,
+            protocol_name: dns_protocol_name(protocol),
+            target: Some(target),
+            runtime_supported: true,
+            reason: "supported by Rust resolver runtime".into(),
+        },
+        Err(error) => DnsResolverNameserverPlan {
+            server,
+            protocol,
+            protocol_name: dns_protocol_name(protocol),
+            target: None,
+            runtime_supported: false,
+            reason: error.to_string(),
+        },
+    }
+}
+
+fn build_runtime_projection(dns: &Mapping) -> DnsResolverRuntimeProjection {
+    let enhanced_mode = dns
+        .get("enhanced-mode")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let fake_ip_configured = enhanced_mode == "fake-ip" || dns.contains_key("fake-ip-range");
+    let fallback_filter_configured = dns.contains_key("fallback-filter");
+    let nameserver_policy_count = dns
+        .get("nameserver-policy")
+        .and_then(Value::as_mapping)
+        .map(Mapping::len)
+        .unwrap_or(0);
+
+    DnsResolverRuntimeProjection {
+        fake_ip: DnsResolverRuntimeFeaturePlan {
+            configured: fake_ip_configured,
+            runtime_applied: false,
+            reason: "fake-ip remains plan/explain-only in this slice".into(),
+        },
+        fallback_filter: DnsResolverRuntimeFeaturePlan {
+            configured: fallback_filter_configured,
+            runtime_applied: false,
+            reason: "fallback-filter remains plan/explain-only in this slice".into(),
+        },
+        nameserver_policy: DnsResolverRuntimeFeaturePlan {
+            configured: nameserver_policy_count > 0,
+            runtime_applied: false,
+            reason: format!(
+                "{nameserver_policy_count} nameserver-policy entries remain plan/explain-only in this slice"
+            ),
+        },
+    }
+}
+
+fn default_runtime_projection() -> DnsResolverRuntimeProjection {
+    DnsResolverRuntimeProjection {
+        fake_ip: DnsResolverRuntimeFeaturePlan {
+            configured: false,
+            runtime_applied: false,
+            reason: "fake-ip is not configured".into(),
+        },
+        fallback_filter: DnsResolverRuntimeFeaturePlan {
+            configured: false,
+            runtime_applied: false,
+            reason: "fallback-filter is not configured".into(),
+        },
+        nameserver_policy: DnsResolverRuntimeFeaturePlan {
+            configured: false,
+            runtime_applied: false,
+            reason: "nameserver-policy is not configured".into(),
+        },
+    }
+}
+
+fn dns_mapping(root: &Mapping) -> Option<&Mapping> {
+    if let Some(dns) = root.get("dns") {
+        return dns.as_mapping();
+    }
+
+    if root.keys().any(|key| {
+        key.as_str()
+            .map(|key| {
+                matches!(
+                    key,
+                    "nameserver"
+                        | "fallback"
+                        | "default-nameserver"
+                        | "proxy-server-nameserver"
+                        | "direct-nameserver"
+                        | "enhanced-mode"
+                        | "fake-ip-range"
+                        | "fallback-filter"
+                        | "nameserver-policy"
+                )
+            })
+            .unwrap_or(false)
+    }) {
+        return Some(root);
+    }
+
+    None
+}
+
+fn optional_bool(dns: &Mapping, key: &str, warnings: &mut Vec<String>) -> Option<bool> {
+    dns.get(key).and_then(|value| match value.as_bool() {
+        Some(value) => Some(value),
+        None => {
+            warnings.push(format!("dns.{key}: expected boolean, got {}", value_type(value)));
+            None
+        }
+    })
+}
+
+fn optional_u64(dns: &Mapping, key: &str, warnings: &mut Vec<String>) -> Option<u64> {
+    dns.get(key).and_then(|value| match value.as_u64() {
+        Some(value) => Some(value),
+        None => {
+            warnings.push(format!(
+                "dns.{key}: expected unsigned integer, got {}",
+                value_type(value)
+            ));
+            None
+        }
+    })
+}
+
+fn extract_server_values(value: Option<&Value>, path: &str, warnings: &mut Vec<String>) -> Vec<String> {
+    match value {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::String(server)) => {
+            warnings.push(format!("{path}: expected array, treating string as one server"));
+            vec![server.trim().into()]
+        }
+        Some(Value::Sequence(items)) => items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| match item.as_str() {
+                Some(server) => Some(server.trim().into()),
+                None => {
+                    warnings.push(format!("{path}[{index}]: expected string, got {}", value_type(item)));
+                    None
+                }
+            })
+            .collect(),
+        Some(other) => {
+            warnings.push(format!("{path}: expected array, got {}", value_type(other)));
+            Vec::new()
+        }
+    }
+}
+
+fn value_type(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Sequence(_) => "array",
+        Value::Mapping(_) => "mapping",
+        Value::Tagged(_) => "tagged",
+    }
 }
 
 fn infer_dns_protocol(server: Option<&str>, protocol: Option<DnsProtocol>) -> DnsProtocol {
@@ -471,13 +909,29 @@ fn find_dns_provider_by_ip(ip: &IpAddr) -> Option<&'static DnsServerProviderDefi
 }
 
 async fn create_resolver(server: Option<String>, protocol: Option<DnsProtocol>) -> Result<TokioAsyncResolver> {
+    create_resolver_with_options(
+        server,
+        protocol,
+        DnsRuntimeQueryOptions {
+            timeout_ms: DEFAULT_DNS_RUNTIME_TIMEOUT_MS,
+            attempts: DEFAULT_DNS_RUNTIME_ATTEMPTS,
+        },
+    )
+    .await
+}
+
+async fn create_resolver_with_options(
+    server: Option<String>,
+    protocol: Option<DnsProtocol>,
+    options: DnsRuntimeQueryOptions,
+) -> Result<TokioAsyncResolver> {
     let effective_protocol = infer_dns_protocol(server.as_deref(), protocol);
 
     let Some(server_addr) = server else {
-        return Ok(TokioAsyncResolver::tokio(
-            ResolverConfig::default(),
-            ResolverOpts::default(),
-        ));
+        let mut opts = ResolverOpts::default();
+        opts.timeout = Duration::from_millis(options.timeout_ms);
+        opts.attempts = options.attempts as usize;
+        return Ok(TokioAsyncResolver::tokio(ResolverConfig::default(), opts));
     };
 
     let endpoint = parse_dns_server_endpoint(&server_addr, &effective_protocol)?;
@@ -492,8 +946,8 @@ async fn create_resolver(server: Option<String>, protocol: Option<DnsProtocol>) 
     });
 
     let mut opts = ResolverOpts::default();
-    opts.timeout = Duration::from_secs(5);
-    opts.attempts = 2;
+    opts.timeout = Duration::from_millis(options.timeout_ms);
+    opts.attempts = options.attempts as usize;
 
     Ok(TokioAsyncResolver::tokio(config, opts))
 }
@@ -503,6 +957,24 @@ pub async fn dns_query(
     server: Option<String>,
     protocol: Option<DnsProtocol>,
 ) -> Result<DnsQueryResult> {
+    dns_query_with_options(
+        domain,
+        server,
+        protocol,
+        DnsRuntimeQueryOptions {
+            timeout_ms: DEFAULT_DNS_RUNTIME_TIMEOUT_MS,
+            attempts: DEFAULT_DNS_RUNTIME_ATTEMPTS,
+        },
+    )
+    .await
+}
+
+pub async fn dns_query_with_options(
+    domain: String,
+    server: Option<String>,
+    protocol: Option<DnsProtocol>,
+    options: DnsRuntimeQueryOptions,
+) -> Result<DnsQueryResult> {
     let start = Instant::now();
     let effective_protocol = infer_dns_protocol(server.as_deref(), protocol);
     let protocol_str = if server.is_none() && protocol.is_none() {
@@ -511,7 +983,7 @@ pub async fn dns_query(
         dns_protocol_name(effective_protocol)
     };
 
-    let resolver = create_resolver(server.clone(), Some(effective_protocol)).await?;
+    let resolver = create_resolver_with_options(server.clone(), Some(effective_protocol), options).await?;
     let name = Name::from_str(&domain)?;
 
     match resolver.lookup_ip(name).await {
@@ -762,5 +1234,69 @@ mod tests {
         assert_eq!(target.protocol_name, "Doh");
         assert_eq!(target.socket_addr, "1.1.1.1:443");
         assert_eq!(target.tls_dns_name.as_deref(), Some("cloudflare-dns.com"));
+    }
+
+    #[test]
+    fn resolver_plan_uses_nameserver_as_runtime_targets() {
+        let plan = build_dns_resolver_plan(
+            r#"
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  timeout: 3000
+  nameserver:
+    - 1.1.1.1
+    - https://dns.google/dns-query
+  fallback-filter:
+    geoip: true
+  nameserver-policy:
+    "+.example.com": 8.8.8.8
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(plan.status, DnsResolverPlanStatus::Ready);
+        assert_eq!(plan.timeout_ms, 3000);
+        assert_eq!(plan.attempts, DEFAULT_DNS_RUNTIME_ATTEMPTS);
+        assert_eq!(plan.nameservers.len(), 2);
+        assert!(plan.nameservers.iter().all(|server| server.runtime_supported));
+        assert!(plan.runtime_projection.fake_ip.configured);
+        assert!(!plan.runtime_projection.fake_ip.runtime_applied);
+        assert!(plan.runtime_projection.fallback_filter.configured);
+        assert!(plan.runtime_projection.nameserver_policy.configured);
+    }
+
+    #[test]
+    fn resolver_plan_rejects_missing_nameservers_fail_soft() {
+        let plan = build_dns_resolver_plan(
+            r#"
+dns:
+  enable: true
+  enhanced-mode: normal
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(plan.status, DnsResolverPlanStatus::Rejected);
+        assert!(plan.reason.contains("dns.nameserver is empty"));
+    }
+
+    #[test]
+    fn resolver_plan_marks_unsupported_nameserver_without_panicking() {
+        let plan = build_dns_resolver_plan(
+            r#"
+dns:
+  enable: true
+  nameserver:
+    - https://unregistered.example/dns-query
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(plan.status, DnsResolverPlanStatus::Rejected);
+        assert_eq!(plan.nameservers.len(), 1);
+        assert!(!plan.nameservers[0].runtime_supported);
+        assert!(plan.nameservers[0].reason.contains("unsupported DNS hostname"));
     }
 }

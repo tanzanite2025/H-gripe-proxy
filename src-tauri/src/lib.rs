@@ -300,6 +300,8 @@ mod app_init {
             cmd::dns_probe_provider,
             cmd::dns_explain_config,
             cmd::dns_plan_probe,
+            cmd::dns_build_resolver_plan,
+            cmd::dns_runtime_query,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,
             cmd::anti_probe_generate_token,
