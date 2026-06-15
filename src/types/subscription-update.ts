@@ -131,6 +131,7 @@ export type SubscriptionUpdateEvent =
       source_id: string
       attempt_id: string
       stage: SubscriptionUpdateStage
+      changed_at: number
       transport?: SubscriptionUpdateTransportKind | null
     }
   | {
@@ -138,6 +139,7 @@ export type SubscriptionUpdateEvent =
       source_id: string
       attempt_id: string
       trigger: SubscriptionUpdateTrigger
+      finished_at: number
       final_status: SubscriptionUpdateFinalStatus
       stage: SubscriptionUpdateStage
       transport?: SubscriptionUpdateTransportKind | null

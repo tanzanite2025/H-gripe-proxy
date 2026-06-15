@@ -9,6 +9,7 @@ import type {
   SubscriptionArtifactSummary,
   SubscriptionSourceState,
   SubscriptionStateDocument,
+  SubscriptionUpdateEvent,
 } from '@/types/subscription-update'
 
 export async function getSubscriptionState() {
@@ -19,6 +20,13 @@ export async function getSubscriptionSourceState(sourceId: string) {
   return invoke<SubscriptionSourceState | null>('get_subscription_source_state', {
     sourceId,
   })
+}
+
+export async function getSubscriptionSourceUpdateEvents(sourceId: string) {
+  return invoke<SubscriptionUpdateEvent[]>(
+    'get_subscription_source_update_events',
+    { sourceId },
+  )
 }
 
 export async function getSubscriptionArtifactDiagnostics(

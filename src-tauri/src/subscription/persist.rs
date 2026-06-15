@@ -1,6 +1,7 @@
 use crate::{
     subscription::{
         artifact::{SubscriptionArtifactCandidate, SubscriptionArtifactDiagnostics},
+        events::{events_from_attempt_record, SubscriptionEvent},
         model::{
             SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState,
             SubscriptionStageRecord, SubscriptionStateDocument, UpdateFinalStatus,
@@ -88,6 +89,23 @@ pub async fn read_subscription_source_state(
 ) -> Result<Option<SubscriptionSourceState>> {
     let state = read_subscription_state_document().await?;
     Ok(find_subscription_source_state(&state, source_id))
+}
+
+pub async fn read_subscription_source_update_events(
+    source_id: &str,
+) -> Result<Vec<SubscriptionEvent>> {
+    if !is_safe_subscription_artifact_path_segment(source_id) {
+        anyhow::bail!("invalid subscription artifact path segment");
+    }
+
+    let Some(source_state) = read_subscription_source_state(source_id).await? else {
+        return Ok(Vec::new());
+    };
+    let Some(attempt) = source_state.latest_attempt else {
+        return Ok(Vec::new());
+    };
+
+    Ok(events_from_attempt_record(source_id, &attempt))
 }
 
 pub fn is_safe_subscription_artifact_path_segment(value: &str) -> bool {
