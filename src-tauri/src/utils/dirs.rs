@@ -14,6 +14,7 @@ use tauri::Manager as _;
 #[cfg(not(feature = "verge-dev"))]
 pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized";
 #[cfg(not(feature = "verge-dev"))]
+// Legacy migration from Clash Verge Rev.
 pub static LEGACY_APP_IDS: &[&str] = &["io.github.clash-verge-rev.clash-verge-rev"];
 #[cfg(not(feature = "verge-dev"))]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup";
@@ -23,6 +24,7 @@ pub static LEGACY_BACKUP_DIRS: &[&str] = &["clash-verge-rev-backup"];
 #[cfg(feature = "verge-dev")]
 pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized.dev";
 #[cfg(feature = "verge-dev")]
+// Legacy migration from Clash Verge Rev.
 pub static LEGACY_APP_IDS: &[&str] = &["io.github.clash-verge-rev.clash-verge-rev.dev"];
 #[cfg(feature = "verge-dev")]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup-dev";

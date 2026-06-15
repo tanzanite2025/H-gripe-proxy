@@ -5,6 +5,7 @@ pub const SERVICE_BUNDLE_ID: &str = "io.github.tanzanite2025.clash-verge-optimiz
 pub const SERVICE_DISPLAY_NAME: &str = "Clash Verge Optimized Service";
 pub const SERVICE_EXECUTABLE_NAME: &str = "clash-verge-service";
 
+// Legacy migration from Clash Verge Rev.
 pub const LEGACY_SERVICE_BUNDLE_ID: &str = "io.github.clash-verge-rev.clash-verge-rev.service";
 pub const LEGACY_HELPER_ID: &str = "io.github.clashverge.helper";
 
