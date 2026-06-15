@@ -13,7 +13,13 @@
 
 ## 项目介绍 / Project Introduction
 
-Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/tauri) 框架的 Mihomo (Clash Meta) 图形用户界面应用。
+Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/tauri) 构建的个人维护代理桌面应用。
+
+当前仓库的真实职责边界是：
+
+- Rust / Tauri 桌面层负责配置、控制面、运行时协调、诊断、安全边界和平台集成
+- `mihomo/` 下的 Go 内核继续承担真实转发、协议栈、TUN、DNS runtime 等尚未迁入 Rust 的能力
+- 打包链默认只接受本仓库内受控的 sidecar / service / resources，不再依赖上游 latest 下载链
 
 本仓库是 **个人深度优化版本**，在以下方面进行了全面改进：
 
@@ -111,8 +117,7 @@ pnpm build:fast
 ### Mihomo 内核改动后的打包要求
 
 如果你修改了 `mihomo/` 下的 Go 内核源码，正式打包前需要先重编本地 sidecar。
-仓库的 `scripts/prebuild.mjs` 会在打包前校验：
-`src-tauri/sidecar` 里的 `verge-mihomo` 是否比 `mihomo/` 源码更新。
+仓库的 `scripts/prebuild.mjs` 会在打包前校验 `src-tauri/sidecar` 里的 `verge-mihomo` 是否比 `mihomo/` 源码更新。
 如果 sidecar 过旧，`pnpm build` 会直接拒绝继续，避免把旧内核打进安装包。
 
 Windows x64 示例：
@@ -220,10 +225,10 @@ clashverge-clean/
 
 ## 致谢 / Credits
 
-- **原始项目**: [Clash Verge](https://github.com/zzzgydi/clash-verge) - 初始创意和架构
-- **当前维护仓库**: [Clash Verge Optimized](https://github.com/tanzanite2025/clash-verge-optimized) - 当前版本维护与定制优化
+- **原始项目**: [Clash Verge](https://github.com/zzzgydi/clash-verge) - 早期桌面形态与开源起点
+- **当前维护仓库**: [Clash Verge Optimized](https://github.com/tanzanite2025/clash-verge-optimized) - 当前个人维护与持续重构主体
 - **框架**: [Tauri](https://github.com/tauri-apps/tauri) - 跨平台应用框架
-- **内核**: [Tanzanite Mihomo Optimized Kernel](mihomo/) - 本项目维护的 MIHOMO 代理核心
+- **内核**: [Tanzanite Mihomo Optimized Kernel](mihomo/) - 当前仓库内联维护的 Mihomo Go 内核
 
 ---
 

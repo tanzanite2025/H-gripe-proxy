@@ -2,52 +2,59 @@
 
 > [!IMPORTANT]
 >
-> 此仓库未发布到 crates.io 和 npm 中，请先拉取本仓库，再通过本地 path 使用
+> This plugin is currently consumed from the local workspace.
+> It is not published to `crates.io` or npm.
 >
-> ```shell
+> ```toml
 > # Cargo.toml
-> tauri-plugin-mihomo = { path = "../clash-verge-optimized/crates/tauri-plugin-mihomo" }
+> tauri-plugin-mihomo = { path = "./crates/tauri-plugin-mihomo" }
+> ```
 >
-> # package.json
-> "tauri-plugin-mihomo-api": "file:../clash-verge-optimized/crates/tauri-plugin-mihomo"
+> ```json
+> {
+>   "dependencies": {
+>     "tauri-plugin-mihomo-api": "file:./crates/tauri-plugin-mihomo"
+>   }
+> }
 > ```
 
-一个基于 Tauri 框架调用 Mihomo API 的插件，支持 Mihomo 的 HTTP 和 Socket 通信
+`tauri-plugin-mihomo` is the Tauri-side bridge used by this repository to talk to Mihomo over HTTP and socket transports.
 
-### 测试 Mimoho 所有 API 的接口状态
+## Workspace Usage
 
-推荐使用 [nextest](https://github.com/nextest-rs/nextest) （一款更干净美观、速度更快的跨平台测试运行器）进行单元测试
+In this repository:
 
-默认使用 socket 连接 Mihomo 测试，可通过设置 `MIHOMO_SOCKET` 环境变量来使用 http 连接 Mihomo 测试
+- Rust code uses the plugin through the workspace dependency defined in `Cargo.toml`
+- Frontend code uses `tauri-plugin-mihomo-api` via the local `file:` dependency in `package.json`
+- No external upstream repository path is required for normal development
 
-> 修改 `.env` 配置文件，将 `MIHOMO_SOCKET` 设置为 `0`, 再执行单元测试
+## Testing
+
+[`nextest`](https://github.com/nextest-rs/nextest) is recommended for plugin test runs.
+
+By default, tests use the Mihomo socket endpoint. You can switch to HTTP mode by setting `MIHOMO_SOCKET=0`.
 
 ```shell
-# 此命令会排除 restart/reload_config 方法, 因为这两个接口都会让内核重新加载配置文件，会导致其他测试用例错误
+# Excludes restart/reload_config because they reload Mihomo state
 cargo nextest run mihomo_
 
-# --------------------------
-# 测试 reload_config 方法
+# Test reload_config separately
 cargo nextest run reload
 
-# 测试 restart 方法
+# Test restart separately
 cargo nextest run restart
 ```
 
-### Contribute
-
-##### 准备环境
-
-- [`prek`](https://github.com/j178/prek): ⚡ Better `pre-commit`, re-engineered in Rust，**用于对 Git 提交前的检查**
-
-#### 构建前端文件
+## Frontend Build
 
 ```shell
-pnpm i
+pnpm install
 pnpm build
 ```
 
-#### 修改了 `model.rs` 后，如需重新导出前端对象
+## Regenerate Bindings
+
+If you modify `model.rs`, regenerate exported frontend bindings with:
 
 ```shell
 cargo test export_bindings
