@@ -9,6 +9,92 @@
 3. **Go sidecar 暂时只保留运行时核心**：协议栈、TUN、真实转发链路最后处理。
 4. **每一步都能单独 PR / 单独回滚**：避免一次性重写核心导致不可验证。
 
+同时迁移路线必须兼顾最终产品形态：项目不只是把 Go 内核逐步替换成 Rust，也要演进成 **应用级代理编排平台**：
+
+```text
+App registry / software profile
+  -> node pool / DNS profile / security profile
+  -> Rust routing + runtime plan
+  -> Go Mihomo runtime bridge now
+  -> Rust-owned runtime later
+```
+
+因此 Go → Rust 迁移不能只按“替换底层模块”线性推进。凡是会影响最终应用管理、节点池、自定义出口策略的数据模型，都应在 Rust 控制面阶段同步预埋，避免底层迁完后再重写一遍 profile / policy / runtime plan。
+
+## 并行主线：应用级代理编排
+
+最终主线是 **软件内部添加软件，并为每个软件绑定自定义节点池和运行策略**。这条主线应与 Go → Rust 迁移并行推进，但每一步仍保持单一事实链。
+
+### 可以与 Go → Rust 同时做的部分
+
+这些能力属于 Rust 控制面 / 数据模型 / 诊断层，不依赖完整 Rust 协议栈，适合现在同步建设：
+
+1. **App registry / 软件资产模型**
+   - `app_id`
+   - executable path / app bundle id
+   - launch args / working directory / env
+   - process matcher
+   - platform-specific metadata
+
+2. **Node pool / 节点池模型**
+   - pool id / name / tags
+   - region / protocol / cost / purpose
+   - latency / availability / failover constraints
+   - pool-level health summary
+
+3. **App policy binding**
+   - app → node pool
+   - app → DNS profile
+   - app → security profile
+   - app → routing intent（direct / proxy / reject / auto / fallback）
+
+4. **Rust runtime plan / explain**
+   - 把 app + node pool + DNS + security policy 编译成结构化 plan。
+   - 当前阶段可继续输出到 Mihomo runtime config。
+   - 后续 Rust 接管 tunnel / outbound 后，复用同一个 plan，不改变上层模型。
+
+5. **App-scoped observability**
+   - per-app connection view
+   - per-app exit IP verification
+   - per-app DNS leak / proxy leak diagnosis
+   - node pool health 与实际出口一致性检测
+
+6. **App session lifecycle**
+   - Rust 记录 app session。
+   - 启动前解析 policy plan。
+   - 运行时订阅连接 / 日志 / DNS 诊断。
+   - 退出后保留诊断结果和策略表现。
+
+### 不应提前做的部分
+
+这些能力依赖底层 runtime / OS 网络接管，不宜在 Go sidecar 尚未替换前硬做，否则会产生新的双路：
+
+- 自研 outbound / inbound 协议栈。
+- 完整 TUN / transparent proxy 替换。
+- 强 per-app 网络隔离或 sandbox。
+- 直接绕过 Mihomo runtime 的真实流量转发。
+- 与 Go sidecar 并行维护第二套路由执行器。
+
+### 单一事实链要求
+
+应用级编排主线也必须遵循同一事实链：
+
+```text
+app registry
+  -> app policy binding
+  -> node pool / DNS / security profiles
+  -> Rust runtime plan
+  -> generated runtime config / active runtime
+  -> observed app session state
+```
+
+禁止：
+
+- UI 一套 app/pool 配置，runtime 另一套临时配置。
+- app policy 直接写入 Mihomo YAML，但 Rust state 不知道。
+- 节点池选择在前端临时计算。
+- Go runtime 与 Rust runtime plan 长期并行竞争决策权。
+
 ## 已完成
 
 | 阶段 | 能力 | 状态 | 说明 |
@@ -417,6 +503,54 @@ Mihomo /logs WS
 - Rust 当前负责 app-facing 聚合、生命周期、事件分发和 API 边界；尚未接管 tunnel / adapter / DNS resolver / protocol runtime。
 - `Mihomo::ws_connections()` / `Mihomo::ws_logs()` 仍保留为 Rust 内部桥接，不再是前端 API。
 
+#### Phase 7.5：应用级代理编排控制面
+
+当前进度：**未开始实现，建议与 Phase 6A/8 并行推进控制面模型**。
+
+目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
+
+```text
+AppRegistry
+  -> AppPolicyBinding
+  -> NodePool / DnsProfile / SecurityProfile
+  -> RuntimePlan
+  -> Mihomo config projection now
+  -> Rust runtime execution later
+```
+
+建议拆分：
+
+1. **App registry state**
+   - 只记录软件资产，不启动或接管网络。
+   - 支持 executable path / bundle id / process matcher / launch metadata。
+   - Rust state 是唯一事实源，前端只读写 Tauri command。
+
+2. **Node pool state**
+   - 从现有 proxies / proxy-groups 抽象出 pool 视图。
+   - 支持 region / protocol / tag / purpose / health constraint。
+   - 第一版不改变 Mihomo 节点执行，只生成 Rust plan / explain。
+
+3. **Policy binding**
+   - `app_id -> node_pool_id`
+   - `app_id -> dns_profile_id`
+   - `app_id -> security_profile_id`
+   - 编译成 runtime plan，而不是前端临时选择节点。
+
+4. **Plan-to-Mihomo projection**
+   - 当前阶段把 Rust plan 投影到现有 runtime YAML / rules / proxy-groups。
+   - 投影只作为执行产物，不能成为事实源。
+   - 后续 Rust 接管 outbound / tunnel 后，替换 projection backend，不替换上层 app/pool/policy model。
+
+5. **App-scoped diagnostics**
+   - 复用 Phase 7 metrics/logs 事件路径。
+   - 把连接、出口 IP、DNS 位置、安全检测归因到 app session。
+
+删除边界：
+
+- 不新增前端直接操作 Mihomo proxy-group 的 app 级旁路。
+- 不新增第二套与 Rust `RuntimePlan` 并行的 routing decision。
+- 不在 Rust outbound 未完成前声称已经实现强 per-app isolation。
+
 #### Phase 8：协议栈 / TUN / 数据转发
 
 最后处理：
@@ -436,7 +570,11 @@ Mihomo /logs WS
 3. 缺少外部数据时必须 fail-soft，不能 panic。
 4. 新增 focused unit tests。
 5. `test_rule_match` 或对应 Tauri command 能走 Rust 路径验证。
-6. PR 描述里写清楚：
+6. 如果 PR 涉及 app / node pool / policy，必须说明：
+   - Rust state 中的唯一事实源。
+   - runtime projection 是否只是执行产物。
+   - 后续切换到 Rust runtime 时是否可复用同一模型。
+7. PR 描述里写清楚：
    - 已迁移能力
    - 未迁移能力
    - 数据文件位置
@@ -449,10 +587,39 @@ Mihomo /logs WS
 - 不要同时迁 DNS runtime 和 RULE-SET。
 - 不要保留 Go/Rust 两条规则校验长期并行。
 - 不要为了让测试通过硬编码常见 ASN / 域名 / 国家码。
+- 不要在 Rust state 之外新增 app / node pool 的临时事实源。
+- 不要让前端直接生成 app 级 Mihomo 规则作为长期方案。
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，Phase 7 的 app-facing 直连 WebSocket 双路已经清掉；下一张实现 PR 建议回到 Phase 6A 未完成项，开始 DNS runtime 接管的最小可验证切片：
+按当前目标，下一阶段应拆成两条可并行但互不阻塞的 PR 线：
+
+### 主线 A：应用级代理编排控制面底座
+
+这是为了避免“Rust 内核迁完后再重做应用/节点池模型”。建议先做不碰真实转发的最小切片：
+
+```text
+feat(app-runtime): introduce app registry and node pool planning model
+```
+
+建议范围：
+
+- Rust `AppRegistry` state。
+- Rust `NodePool` state / read model。
+- `AppPolicyBinding` skeleton。
+- `RuntimePlan` explain command。
+- 第一版只做 plan / explain / persisted state，不启动软件、不改 TUN、不替换 Mihomo runtime。
+
+不包含：
+
+- per-app network isolation。
+- 自研 outbound / inbound。
+- 直接启动和注入第三方软件。
+- 前端绕过 Rust state 直接写 Mihomo rules。
+
+### 主线 B：DNS runtime 最小接管切片
+
+Phase 7 的 app-facing 直连 WebSocket 双路已经清掉；底层迁移线可以继续回到 Phase 6A 未完成项：
 
 ```text
 feat(dns): introduce Rust resolver runtime skeleton
@@ -470,3 +637,5 @@ feat(dns): introduce Rust resolver runtime skeleton
 - 协议栈 / TUN / tunnel。
 - adapter outbound/inbound。
 - 一次性替换 Go DNS runtime。
+
+主线 A 和主线 B 可以同时推进，因为 A 定义最终 app/pool/policy 控制面，B 定义底层 DNS runtime 能力。二者通过 `RuntimePlan` 对接，避免日后重复建模。
