@@ -11,29 +11,27 @@ use std::{
 };
 use tauri::Manager as _;
 
+struct LegacyPathMigrationConfig {
+    legacy_app_ids: &'static [&'static str],
+    legacy_backup_dirs: &'static [&'static str],
+}
+
+#[cfg(feature = "verge-dev")]
+struct ReleasePathMigrationConfig {
+    release_app_id: &'static str,
+    release_legacy_app_ids: &'static [&'static str],
+}
+
 #[cfg(not(feature = "verge-dev"))]
 pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized";
 #[cfg(not(feature = "verge-dev"))]
-// Legacy migration from Clash Verge Rev.
-pub static LEGACY_APP_IDS: &[&str] = &["io.github.clash-verge-rev.clash-verge-rev"];
 #[cfg(not(feature = "verge-dev"))]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup";
-#[cfg(not(feature = "verge-dev"))]
-pub static LEGACY_BACKUP_DIRS: &[&str] = &["clash-verge-rev-backup"];
 
 #[cfg(feature = "verge-dev")]
 pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized.dev";
 #[cfg(feature = "verge-dev")]
-// Legacy migration from Clash Verge Rev.
-pub static LEGACY_APP_IDS: &[&str] = &["io.github.clash-verge-rev.clash-verge-rev.dev"];
-#[cfg(feature = "verge-dev")]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup-dev";
-#[cfg(feature = "verge-dev")]
-pub static LEGACY_BACKUP_DIRS: &[&str] = &["clash-verge-rev-backup-dev"];
-#[cfg(feature = "verge-dev")]
-pub static RELEASE_APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized";
-#[cfg(feature = "verge-dev")]
-pub static RELEASE_LEGACY_APP_IDS: &[&str] = &["io.github.clash-verge-rev.clash-verge-rev"];
 
 pub static PORTABLE_FLAG: OnceCell<bool> = OnceCell::new();
 
@@ -43,6 +41,27 @@ pub static PROFILE_YAML: &str = "profiles.yaml";
 pub static CHINA_RULES_CONFIG: &str = "china-rules.yaml";
 pub static SUBSCRIPTIONS_DIR: &str = "subscriptions";
 pub static SUBSCRIPTION_STATE_FILE: &str = "state.yaml";
+
+// Legacy migration from Clash Verge Rev.
+#[cfg(not(feature = "verge-dev"))]
+const LEGACY_PATH_MIGRATION: LegacyPathMigrationConfig = LegacyPathMigrationConfig {
+    legacy_app_ids: &["io.github.clash-verge-rev.clash-verge-rev"],
+    legacy_backup_dirs: &["clash-verge-rev-backup"],
+};
+
+// Legacy migration from Clash Verge Rev.
+#[cfg(feature = "verge-dev")]
+const LEGACY_PATH_MIGRATION: LegacyPathMigrationConfig = LegacyPathMigrationConfig {
+    legacy_app_ids: &["io.github.clash-verge-rev.clash-verge-rev.dev"],
+    legacy_backup_dirs: &["clash-verge-rev-backup-dev"],
+};
+
+// Legacy migration from Clash Verge Rev.
+#[cfg(feature = "verge-dev")]
+const RELEASE_PATH_MIGRATION: ReleasePathMigrationConfig = ReleasePathMigrationConfig {
+    release_app_id: "io.github.tanzanite2025.clash-verge-optimized",
+    release_legacy_app_ids: &["io.github.clash-verge-rev.clash-verge-rev"],
+};
 
 fn migrate_dir_if_needed(from: &Path, to: &Path, label: &str) -> Result<()> {
     if to.exists() || !from.exists() {
@@ -58,7 +77,12 @@ fn migrate_dir_if_needed(from: &Path, to: &Path, label: &str) -> Result<()> {
     Ok(())
 }
 
-fn migrate_from_legacy_candidates(base_dir: &Path, current_name: &str, legacy_names: &[&str], label: &str) -> PathBuf {
+fn resolve_migrated_dir_from_legacy_names(
+    base_dir: &Path,
+    current_name: &str,
+    legacy_names: &[&str],
+    label: &str,
+) -> PathBuf {
     let current_dir = base_dir.join(current_name);
     if current_dir.exists() {
         return current_dir;
@@ -95,15 +119,24 @@ pub fn init_portable_flag() -> Result<()> {
 
 /// get the verge app home dir
 pub fn app_home_dir() -> Result<PathBuf> {
-    app_home_dir_with_ids(APP_ID, LEGACY_APP_IDS)
+    app_home_dir_with_legacy_migration(APP_ID, &LEGACY_PATH_MIGRATION)
 }
 
 #[cfg(feature = "verge-dev")]
 pub fn release_app_home_dir() -> Result<PathBuf> {
-    app_home_dir_with_ids(RELEASE_APP_ID, RELEASE_LEGACY_APP_IDS)
+    app_home_dir_with_legacy_migration(
+        RELEASE_PATH_MIGRATION.release_app_id,
+        &LegacyPathMigrationConfig {
+            legacy_app_ids: RELEASE_PATH_MIGRATION.release_legacy_app_ids,
+            legacy_backup_dirs: &[],
+        },
+    )
 }
 
-fn app_home_dir_with_ids(app_id: &str, legacy_app_ids: &[&str]) -> Result<PathBuf> {
+fn app_home_dir_with_legacy_migration(
+    app_id: &str,
+    migration: &LegacyPathMigrationConfig,
+) -> Result<PathBuf> {
     use tauri::utils::platform::current_exe;
 
     let flag = PORTABLE_FLAG.get().unwrap_or(&false);
@@ -114,10 +147,10 @@ fn app_home_dir_with_ids(app_id: &str, legacy_app_ids: &[&str]) -> Result<PathBu
             .parent()
             .ok_or_else(|| anyhow::anyhow!("failed to get the portable app dir"))?;
         let config_dir = PathBuf::from(app_dir).join(".config");
-        return Ok(migrate_from_legacy_candidates(
+        return Ok(resolve_migrated_dir_from_legacy_names(
             &config_dir,
             app_id,
-            legacy_app_ids,
+            migration.legacy_app_ids,
             "app home directory",
         ));
     }
@@ -126,10 +159,10 @@ fn app_home_dir_with_ids(app_id: &str, legacy_app_ids: &[&str]) -> Result<PathBu
     let app_handle = handle::Handle::app_handle();
 
     match app_handle.path().data_dir() {
-        Ok(dir) => Ok(migrate_from_legacy_candidates(
+        Ok(dir) => Ok(resolve_migrated_dir_from_legacy_names(
             &dir,
             app_id,
-            legacy_app_ids,
+            migration.legacy_app_ids,
             "app home directory",
         )),
         Err(e) => {
@@ -200,7 +233,7 @@ pub fn app_latest_log() -> Result<PathBuf> {
 pub fn local_backup_dir() -> Result<PathBuf> {
     let app_dir = app_home_dir()?;
     let dir = app_dir.join(BACKUP_DIR);
-    for legacy_backup_dir in LEGACY_BACKUP_DIRS {
+    for legacy_backup_dir in LEGACY_PATH_MIGRATION.legacy_backup_dirs {
         let legacy_dir = app_dir.join(legacy_backup_dir);
         if let Err(e) = migrate_dir_if_needed(&legacy_dir, &dir, "backup directory") {
             logging!(warn, Type::File, "Failed to migrate legacy backup directory: {e}");
