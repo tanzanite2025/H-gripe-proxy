@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import legacy from '@vitejs/plugin-legacy'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import svgr from 'vite-plugin-svgr'
 
 export default defineConfig({
@@ -41,5 +41,9 @@ export default defineConfig({
   },
   define: {
     OS_PLATFORM: `"${process.platform}"`,
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './test/setup.ts',
   },
 })
