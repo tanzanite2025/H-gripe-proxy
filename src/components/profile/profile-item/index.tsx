@@ -67,6 +67,7 @@ export const ProfileItem = ({
         isDragging={isDragging}
         batchMode={batchMode}
         isSelected={isSelected}
+        subscriptionStatus={state.subscriptionStatus}
         updated={state.updated}
         showNextUpdate={state.showNextUpdate}
         nextUpdateTime={state.nextUpdateTime}
