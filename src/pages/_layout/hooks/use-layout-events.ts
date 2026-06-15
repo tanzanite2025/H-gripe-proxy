@@ -93,6 +93,13 @@ export const useLayoutEvents = (
     register(
       addListener('verge://subscription-update', ({ payload }) => {
         const event = payload as SubscriptionUpdateEvent
+        queryClient.invalidateQueries({ queryKey: ['getSubscriptionState'] })
+        queryClient.invalidateQueries({
+          queryKey: ['getSubscriptionSourceState', event.source_id],
+        })
+        queryClient.invalidateQueries({
+          queryKey: ['getSubscriptionSourceUpdateEvents', event.source_id],
+        })
         window.dispatchEvent(
           new CustomEvent<SubscriptionUpdateEvent>('subscription-update', {
             detail: event,

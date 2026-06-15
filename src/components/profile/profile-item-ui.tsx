@@ -10,6 +10,7 @@ import parseTraffic from '@/utils/format'
 import { ProfileBox } from './profile-box'
 import { ProfileCardActions } from './profile-card-actions'
 import { formatExpireDate } from './profile-item/shared'
+import type { SubscriptionStatusBadge } from './profile-item/use-profile-item-state'
 
 interface ProfileItemUIProps {
   // Basic info
@@ -26,6 +27,7 @@ interface ProfileItemUIProps {
   isDragging: boolean
   batchMode?: boolean
   isSelected?: boolean
+  subscriptionStatus?: SubscriptionStatusBadge
 
   // Time display
   updated: number
@@ -74,6 +76,7 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
     isDragging,
     batchMode,
     isSelected,
+    subscriptionStatus,
     updated,
     showNextUpdate,
     nextUpdateTime,
@@ -180,6 +183,24 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
               {name}
             </h2>
 
+            {subscriptionStatus && (
+              <span
+                className={[
+                  'mt-0.5 max-w-[120px] shrink-0 truncate rounded-full px-2 py-0.5 text-[11px] font-medium',
+                  subscriptionStatus.tone === 'success'
+                    ? 'bg-green-500/15 text-green-500'
+                    : subscriptionStatus.tone === 'error'
+                      ? 'bg-red-500/15 text-red-500'
+                      : subscriptionStatus.tone === 'info'
+                        ? 'bg-blue-500/15 text-blue-500'
+                        : 'bg-white/10 text-text-secondary',
+                ].join(' ')}
+                title={subscriptionStatus.title}
+              >
+                {subscriptionStatus.label}
+              </span>
+            )}
+
             {hasUrl && (
               <IconButton
                 size="small"
@@ -206,7 +227,10 @@ export const ProfileItemUI = (props: ProfileItemUIProps) => {
             </p>
           ) : (
             hasUrl && (
-              <p className="truncate" title={`${t('shared.labels.from')} ${from}`}>
+              <p
+                className="truncate"
+                title={`${t('shared.labels.from')} ${from}`}
+              >
                 {from}
               </p>
             )
