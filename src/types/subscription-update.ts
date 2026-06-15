@@ -16,6 +16,13 @@ export type SubscriptionUpdateTransportKind =
 
 export type SubscriptionUpdateFinalStatus = 'succeeded' | 'failed'
 
+export type SubscriptionFormat =
+  | 'clash_yaml'
+  | 'base64_links'
+  | 'sing_box'
+  | 'html'
+  | 'unknown_text'
+
 export interface SubscriptionUpdateErrorView {
   message: string
 }
@@ -32,7 +39,25 @@ export interface SubscriptionArtifactRecord {
   fetched_at: number
   content_length: number
   content_type?: string | null
-  detected_format?: string | null
+  detected_format?: SubscriptionFormat | null
+}
+
+export interface SubscriptionFormatDetection {
+  format: SubscriptionFormat
+  reason: string
+  preview: string
+  topLevelKeys: string[]
+}
+
+export interface SubscriptionResponseDiagnostics {
+  statusCode: number
+  contentType?: string | null
+  contentLength: number
+}
+
+export interface SubscriptionArtifactDiagnostics {
+  formatDetection: SubscriptionFormatDetection
+  response: SubscriptionResponseDiagnostics
 }
 
 export interface SubscriptionAttemptRecord {

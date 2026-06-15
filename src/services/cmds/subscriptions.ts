@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import type {
+  SubscriptionArtifactDiagnostics,
   SubscriptionSourceState,
   SubscriptionStateDocument,
 } from '@/types/subscription-update'
@@ -13,4 +14,14 @@ export async function getSubscriptionSourceState(sourceId: string) {
   return invoke<SubscriptionSourceState | null>('get_subscription_source_state', {
     sourceId,
   })
+}
+
+export async function getSubscriptionArtifactDiagnostics(
+  sourceId: string,
+  version: string,
+) {
+  return invoke<SubscriptionArtifactDiagnostics | null>(
+    'get_subscription_artifact_diagnostics',
+    { sourceId, version },
+  )
 }
