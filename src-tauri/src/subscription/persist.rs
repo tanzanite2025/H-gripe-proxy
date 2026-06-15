@@ -49,6 +49,16 @@ pub struct SubscriptionArtifactMetadata {
     pub artifact: SubscriptionArtifactRecord,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionArtifactSummary {
+    pub source_id: String,
+    pub artifact: SubscriptionArtifactRecord,
+    pub has_diagnostics: bool,
+    pub has_raw_body: bool,
+    pub has_normalized_yaml: bool,
+    pub is_active: bool,
+}
+
 async fn load_state_document() -> Result<SubscriptionStateDocument> {
     let path = dirs::subscription_state_path()?;
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
@@ -116,7 +126,7 @@ pub async fn read_subscription_artifact_metadata(
     }
 
     let metadata: SubscriptionArtifactMetadata = help::read_yaml(&path).await?;
-    validate_artifact_metadata_source(source_id, &metadata)?;
+    validate_artifact_metadata(source_id, version, &metadata)?;
     Ok(Some(metadata))
 }
 
@@ -161,18 +171,64 @@ pub async fn list_subscription_artifact_metadata(
             continue;
         }
 
+        let version = entry.file_name().to_string_lossy().into_owned();
+        if !is_safe_subscription_artifact_path_segment(version.as_str()) {
+            continue;
+        }
+
         let path = entry.path().join(ARTIFACT_METADATA_FILE);
         if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
             continue;
         }
 
         let metadata: SubscriptionArtifactMetadata = help::read_yaml(&path).await?;
-        validate_artifact_metadata_source(source_id, &metadata)?;
+        validate_artifact_metadata(source_id, version.as_str(), &metadata)?;
         artifacts.push(metadata);
     }
 
     sort_artifact_metadata_newest_first(&mut artifacts);
     Ok(artifacts)
+}
+
+pub async fn list_subscription_artifact_summaries(
+    source_id: &str,
+) -> Result<Vec<SubscriptionArtifactSummary>> {
+    if !is_safe_subscription_artifact_path_segment(source_id) {
+        anyhow::bail!("invalid subscription artifact path segment");
+    }
+
+    let active_version = read_subscription_source_state(source_id)
+        .await?
+        .and_then(|source_state| source_state.active_artifact_version);
+    let metadata = list_subscription_artifact_metadata(source_id).await?;
+    let mut summaries = Vec::with_capacity(metadata.len());
+
+    for item in metadata {
+        let version = item.artifact.version.as_str();
+        ensure_safe_subscription_artifact_path(source_id, version)?;
+        let dir = dirs::subscription_artifact_version_dir(source_id, version)?;
+        let has_diagnostics = tokio::fs::try_exists(dir.join(ARTIFACT_DIAGNOSTICS_FILE))
+            .await
+            .unwrap_or(false);
+        let has_raw_body = tokio::fs::try_exists(dir.join(ARTIFACT_RAW_FILE))
+            .await
+            .unwrap_or(false);
+        let has_normalized_yaml = tokio::fs::try_exists(dir.join(ARTIFACT_NORMALIZED_FILE))
+            .await
+            .unwrap_or(false);
+        let is_active = active_version.as_deref() == Some(version);
+
+        summaries.push(SubscriptionArtifactSummary {
+            source_id: item.source_id,
+            artifact: item.artifact,
+            has_diagnostics,
+            has_raw_body,
+            has_normalized_yaml,
+            is_active,
+        });
+    }
+
+    Ok(summaries)
 }
 
 pub fn sort_artifact_metadata_newest_first(artifacts: &mut [SubscriptionArtifactMetadata]) {
@@ -194,12 +250,19 @@ fn ensure_safe_subscription_artifact_path(source_id: &str, version: &str) -> Res
     Ok(())
 }
 
-fn validate_artifact_metadata_source(
+fn validate_artifact_metadata(
     source_id: &str,
+    version: &str,
     metadata: &SubscriptionArtifactMetadata,
 ) -> Result<()> {
     if metadata.source_id != source_id {
         anyhow::bail!("subscription artifact metadata source mismatch");
+    }
+    if metadata.artifact.version != version {
+        anyhow::bail!("subscription artifact metadata version mismatch");
+    }
+    if !is_safe_subscription_artifact_path_segment(metadata.artifact.version.as_str()) {
+        anyhow::bail!("invalid subscription artifact path segment");
     }
     Ok(())
 }
@@ -387,6 +450,20 @@ mod tests {
         assert_eq!(
             SubscriptionArtifactContentKind::NormalizedYaml.file_name(),
             "normalized.yaml"
+        );
+    }
+
+    #[test]
+    fn validates_artifact_metadata_identity() {
+        let metadata = artifact_metadata("source-a", "artifact-a", 100);
+
+        assert!(validate_artifact_metadata("source-a", "artifact-a", &metadata).is_ok());
+        assert!(validate_artifact_metadata("source-b", "artifact-a", &metadata).is_err());
+        assert!(validate_artifact_metadata("source-a", "artifact-b", &metadata).is_err());
+
+        let unsafe_version = artifact_metadata("source-a", "../artifact-a", 100);
+        assert!(
+            validate_artifact_metadata("source-a", "../artifact-a", &unsafe_version).is_err()
         );
     }
 

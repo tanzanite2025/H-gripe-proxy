@@ -261,6 +261,7 @@ mod app_init {
             cmd::get_subscription_artifact_metadata,
             cmd::get_subscription_artifact_content,
             cmd::list_subscription_artifacts,
+            cmd::list_subscription_artifact_summaries,
             cmd::script_validate_notice,
             cmd::validate_script_file,
             cmd::create_local_backup,
