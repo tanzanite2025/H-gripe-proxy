@@ -1,13 +1,16 @@
 use crate::{
-    config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
+    config::{Config, PrfItem, PrfOption},
     core::{handle, validate::ValidationOutcome},
     subscription::{
         executor::{SubscriptionUpdateExecutor, SubscriptionUpdateFailure},
-        model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
-        persist::{
-            SubscriptionArtifactPublishResult, build_finished_attempt_record, persist_attempt_result,
-            publish_subscription_artifact, restore_subscription_active_artifact,
+        model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateStage, UpdateTrigger},
+        orchestration::{
+            apply_legacy_profile_compatibility_projection, notify_and_persist_subscription_update_failure,
+            notify_and_persist_subscription_update_success, notify_subscription_attempt_started,
+            notify_subscription_stage_changed, record_and_notify_subscription_stage,
+            restore_published_subscription_artifact,
         },
+        persist::{SubscriptionArtifactPublishResult, publish_subscription_artifact},
         runtime_candidate::{
             SubscriptionRuntimeProfileProjection, activate_subscription_active_artifact_runtime,
             validate_subscription_artifact_runtime_candidate,
@@ -26,15 +29,6 @@ struct ProfileUpdateSnapshot {
     file_data: Option<String>,
 }
 
-fn record_and_notify_subscription_stage(
-    attempt: &mut SubscriptionUpdateAttempt,
-    stage: UpdateStage,
-    transport: Option<TransportKind>,
-) {
-    attempt.record_stage_changed(stage, transport);
-    handle::Handle::notify_subscription_stage_changed(attempt, stage, transport);
-}
-
 struct ProfileUpdateExecution {
     attempt: SubscriptionUpdateAttempt,
     is_current: bool,
@@ -45,66 +39,6 @@ struct ProfileUpdateExecution {
 }
 
 type ProfileUpdateFailure = SubscriptionUpdateFailure;
-
-async fn persist_finished_subscription_attempt(
-    source_id: &String,
-    attempt: &SubscriptionUpdateAttempt,
-    final_status: UpdateFinalStatus,
-    stage: UpdateStage,
-    transport: Option<TransportKind>,
-    artifact: Option<&SubscriptionArtifactRecord>,
-    error: Option<String>,
-    runtime_activated: bool,
-    active_artifact_unchanged: bool,
-) {
-    let finished_attempt = build_finished_attempt_record(
-        attempt,
-        final_status,
-        stage,
-        transport,
-        artifact.map(|artifact| artifact.version.clone()),
-        error,
-        runtime_activated,
-        active_artifact_unchanged,
-    );
-
-    if let Err(err) = persist_attempt_result(source_id, artifact, &finished_attempt).await {
-        logging!(
-            warn,
-            Type::Config,
-            "Warning: [Subscription Update] failed to persist subscription attempt state for {}: {}",
-            source_id,
-            err
-        );
-    }
-}
-
-async fn restore_published_subscription_artifact(source_id: &String, publish: &SubscriptionArtifactPublishResult) {
-    if let Err(err) =
-        restore_subscription_active_artifact(source_id, publish.previous_active_artifact_version.clone()).await
-    {
-        logging!(
-            warn,
-            Type::Config,
-            "Warning: [Subscription Update] failed to restore active artifact for {} after publish rollback: {}",
-            source_id,
-            err
-        );
-    }
-}
-
-async fn apply_legacy_profile_compatibility_projection(
-    uid: &String,
-    legacy_profile_projection: &mut PrfItem,
-    publish: &SubscriptionArtifactPublishResult,
-) -> Result<()> {
-    if let Err(err) = profiles_draft_update_item_safe(uid, legacy_profile_projection).await {
-        restore_published_subscription_artifact(uid, publish).await;
-        bail!("failed to commit legacy profile compatibility projection: {err}");
-    }
-
-    Ok(())
-}
 
 async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<(String, Option<PrfOption>)>> {
     let profiles = Config::profiles().await;
@@ -225,12 +159,9 @@ async fn perform_profile_update(
         UpdateTrigger::Automatic
     };
     let mut update = SubscriptionUpdateExecutor::new(uid.clone(), url.clone(), opt.cloned(), option.cloned(), trigger)
-        .execute(
-            handle::Handle::notify_subscription_attempt_started,
-            |attempt, stage, transport| {
-                handle::Handle::notify_subscription_stage_changed(attempt, stage, transport);
-            },
-        )
+        .execute(notify_subscription_attempt_started, |attempt, stage, transport| {
+            notify_subscription_stage_changed(attempt, stage, transport);
+        })
         .await?;
     let mut legacy_profile_projection = update.legacy_profile_projection;
     let runtime_projection = SubscriptionRuntimeProfileProjection::from_profile_item(uid, &legacy_profile_projection);
@@ -345,29 +276,9 @@ pub async fn update_profile(
                 restore_profile_update_snapshot(rollback_snapshot).await?;
             }
 
-            let artifact_version = failure.artifact.as_ref().map(|artifact| artifact.version.clone());
             let error_message = failure.error.clone();
 
-            handle::Handle::notify_subscription_update_failed(
-                &failure.attempt,
-                failure.stage,
-                failure.transport,
-                artifact_version,
-                error_message.clone(),
-                true,
-            );
-            persist_finished_subscription_attempt(
-                uid,
-                &failure.attempt,
-                UpdateFinalStatus::Failed,
-                failure.stage,
-                failure.transport,
-                failure.artifact.as_ref(),
-                Some(error_message.clone()),
-                false,
-                true,
-            )
-            .await;
+            notify_and_persist_subscription_update_failure(uid, &failure, true).await;
 
             bail!("failed to update profile: {error_message}");
         }
@@ -392,22 +303,11 @@ pub async fn update_profile(
         {
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[Subscription Update] update succeeded");
-                handle::Handle::notify_subscription_update_succeeded(
-                    &update_execution.attempt,
-                    update_execution.transport,
-                    UpdateStage::EmitFinalResult,
-                    update_execution.artifact.version.clone(),
-                    true,
-                    false,
-                );
-                persist_finished_subscription_attempt(
+                notify_and_persist_subscription_update_success(
                     uid,
                     &update_execution.attempt,
-                    UpdateFinalStatus::Succeeded,
-                    UpdateStage::EmitFinalResult,
-                    Some(update_execution.transport),
-                    Some(&update_execution.artifact),
-                    None,
+                    update_execution.transport,
+                    &update_execution.artifact,
                     true,
                     false,
                 )
@@ -421,22 +321,11 @@ pub async fn update_profile(
                     "[Subscription Update] runtime refresh skipped after successful fetch: {}",
                     outcome
                 );
-                handle::Handle::notify_subscription_update_succeeded(
-                    &update_execution.attempt,
-                    update_execution.transport,
-                    UpdateStage::EmitFinalResult,
-                    update_execution.artifact.version.clone(),
-                    false,
-                    false,
-                );
-                persist_finished_subscription_attempt(
+                notify_and_persist_subscription_update_success(
                     uid,
                     &update_execution.attempt,
-                    UpdateFinalStatus::Succeeded,
-                    UpdateStage::EmitFinalResult,
-                    Some(update_execution.transport),
-                    Some(&update_execution.artifact),
-                    None,
+                    update_execution.transport,
+                    &update_execution.artifact,
                     false,
                     false,
                 )
@@ -454,23 +343,15 @@ pub async fn update_profile(
                     restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
                 restore_published_subscription_artifact(uid, &update_execution.publish).await;
-                handle::Handle::notify_subscription_update_failed(
-                    &update_execution.attempt,
-                    UpdateStage::ActivateRuntime,
-                    Some(update_execution.transport),
-                    Some(update_execution.artifact.version.clone()),
-                    message.clone(),
-                    true,
-                );
-                persist_finished_subscription_attempt(
+                notify_and_persist_subscription_update_failure(
                     uid,
-                    &update_execution.attempt,
-                    UpdateFinalStatus::Failed,
-                    UpdateStage::ActivateRuntime,
-                    Some(update_execution.transport),
-                    Some(&update_execution.artifact),
-                    Some(message.clone().into()),
-                    false,
+                    &SubscriptionUpdateFailure {
+                        attempt: update_execution.attempt.clone(),
+                        stage: UpdateStage::ActivateRuntime,
+                        transport: Some(update_execution.transport),
+                        artifact: Some(update_execution.artifact.clone()),
+                        error: message.clone(),
+                    },
                     true,
                 )
                 .await;
@@ -488,23 +369,15 @@ pub async fn update_profile(
                     restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
                 restore_published_subscription_artifact(uid, &update_execution.publish).await;
-                handle::Handle::notify_subscription_update_failed(
-                    &update_execution.attempt,
-                    UpdateStage::ActivateRuntime,
-                    Some(update_execution.transport),
-                    Some(update_execution.artifact.version.clone()),
-                    message.clone(),
-                    true,
-                );
-                persist_finished_subscription_attempt(
+                notify_and_persist_subscription_update_failure(
                     uid,
-                    &update_execution.attempt,
-                    UpdateFinalStatus::Failed,
-                    UpdateStage::ActivateRuntime,
-                    Some(update_execution.transport),
-                    Some(&update_execution.artifact),
-                    Some(message.clone().into()),
-                    false,
+                    &SubscriptionUpdateFailure {
+                        attempt: update_execution.attempt.clone(),
+                        stage: UpdateStage::ActivateRuntime,
+                        transport: Some(update_execution.transport),
+                        artifact: Some(update_execution.artifact.clone()),
+                        error: message.clone(),
+                    },
                     true,
                 )
                 .await;
@@ -513,22 +386,11 @@ pub async fn update_profile(
             }
         }
     } else {
-        handle::Handle::notify_subscription_update_succeeded(
-            &update_execution.attempt,
-            update_execution.transport,
-            UpdateStage::EmitFinalResult,
-            update_execution.artifact.version.clone(),
-            false,
-            false,
-        );
-        persist_finished_subscription_attempt(
+        notify_and_persist_subscription_update_success(
             uid,
             &update_execution.attempt,
-            UpdateFinalStatus::Succeeded,
-            UpdateStage::EmitFinalResult,
-            Some(update_execution.transport),
-            Some(&update_execution.artifact),
-            None,
+            update_execution.transport,
+            &update_execution.artifact,
             false,
             false,
         )
