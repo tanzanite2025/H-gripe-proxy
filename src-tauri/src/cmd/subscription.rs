@@ -13,12 +13,30 @@ use crate::subscription::{
         SubscriptionArtifactContentKind, SubscriptionArtifactMetadata,
         SubscriptionArtifactSummary,
     },
+    source::{
+        get_subscription_source as get_subscription_source_record,
+        list_subscription_sources as list_subscription_source_records, SubscriptionSource,
+    },
     transport::{plan_subscription_update_transport_for_source, TransportPlan},
 };
 
 #[tauri::command]
 pub async fn get_subscription_state() -> CmdResult<SubscriptionStateDocument> {
     read_subscription_state_document().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn list_subscription_sources() -> CmdResult<Vec<SubscriptionSource>> {
+    list_subscription_source_records().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_subscription_source(
+    source_id: String,
+) -> CmdResult<Option<SubscriptionSource>> {
+    get_subscription_source_record(source_id.as_str())
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]
