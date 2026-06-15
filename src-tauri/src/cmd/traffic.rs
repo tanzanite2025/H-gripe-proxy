@@ -86,3 +86,23 @@ pub async fn traffic_reset_connection_metrics() -> CmdResult<()> {
     crate::core::connection_metrics::reset_connection_metrics().await;
     Ok(())
 }
+
+/// 启动 Rust 连接监控后台任务。
+#[tauri::command]
+pub async fn connection_monitor_start() -> CmdResult<()> {
+    crate::core::connection_monitor::global().start();
+    Ok(())
+}
+
+/// 停止 Rust 连接监控后台任务。
+#[tauri::command]
+pub async fn connection_monitor_stop() -> CmdResult<()> {
+    crate::core::connection_monitor::global().stop();
+    Ok(())
+}
+
+/// 查询连接监控是否运行中。
+#[tauri::command]
+pub async fn connection_monitor_is_running() -> CmdResult<bool> {
+    Ok(crate::core::connection_monitor::global().is_running())
+}

@@ -1,3 +1,4 @@
+use crate::core::connection_metrics::ConnectionMetricsSnapshot;
 use crate::subscription::events::SubscriptionEvent;
 use crate::utils::window_manager::WindowManager;
 use clash_verge_logging::{Type, logging};
@@ -14,6 +15,7 @@ pub enum FrontendEvent<'a> {
     SubscriptionUpdate { event: SubscriptionEvent },
     ProfileChanged { current_profile_id: &'a String },
     TimerUpdated { profile_index: &'a String },
+    ConnectionMetrics { snapshot: ConnectionMetricsSnapshot },
 }
 
 #[derive(Debug)]
@@ -40,6 +42,9 @@ impl NotificationSystem {
             FrontendEvent::SubscriptionUpdate { event } => ("verge://subscription-update", serde_json::to_value(event)),
             FrontendEvent::ProfileChanged { current_profile_id } => ("profile-changed", Ok(json!(current_profile_id))),
             FrontendEvent::TimerUpdated { profile_index } => ("verge://timer-updated", Ok(json!(profile_index))),
+            FrontendEvent::ConnectionMetrics { snapshot } => {
+                ("verge://connection-metrics", serde_json::to_value(snapshot))
+            }
         }
     }
 
