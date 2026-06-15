@@ -144,9 +144,6 @@ impl Builder {
                 commands::upgrade_ui,
                 commands::upgrade_geo,
                 // ws
-                commands::ws_traffic,
-                commands::ws_memory,
-                commands::ws_connections,
                 commands::ws_logs,
                 commands::ws_disconnect,
                 commands::clear_all_ws_connections,

@@ -293,48 +293,6 @@ pub(crate) async fn upgrade_geo(state: State<'_, RwLock<Mihomo>>) -> Result<()> 
 
 // mihomo websocket
 #[command]
-pub(crate) async fn ws_traffic(
-    state: State<'_, RwLock<Mihomo>>,
-    on_message: Channel<serde_json::Value>,
-) -> Result<ConnectionId> {
-    state
-        .read()
-        .await
-        .ws_traffic(move |data| {
-            let _ = on_message.send(data);
-        })
-        .await
-}
-
-#[command]
-pub(crate) async fn ws_memory(
-    state: State<'_, RwLock<Mihomo>>,
-    on_message: Channel<serde_json::Value>,
-) -> Result<ConnectionId> {
-    state
-        .read()
-        .await
-        .ws_memory(move |data| {
-            let _ = on_message.send(data);
-        })
-        .await
-}
-
-#[command]
-pub(crate) async fn ws_connections(
-    state: State<'_, RwLock<Mihomo>>,
-    on_message: Channel<serde_json::Value>,
-) -> Result<ConnectionId> {
-    state
-        .read()
-        .await
-        .ws_connections(move |data| {
-            let _ = on_message.send(data);
-        })
-        .await
-}
-
-#[command]
 pub(crate) async fn ws_logs(
     state: State<'_, RwLock<Mihomo>>,
     level: LogLevel,
