@@ -66,6 +66,9 @@ ${StrLoc}
 !define UNINSTALLERSIGNCOMMAND "{{uninstaller_sign_cmd}}"
 !define ESTIMATEDSIZE "{{estimated_size}}"
 !define STARTMENUFOLDER "{{start_menu_folder}}"
+; Legacy migration from Clash Verge Rev.
+; Keep these identifiers until a stable release has shipped with the new identity
+; chain and the old upgrade/uninstall path is no longer required.
 !define LEGACY_APPDATA_DIR "io.github.clash-verge-rev.clash-verge-rev"
 !define LEGACY_EXE_NAME "Clash Verge.exe"
 !define LEGACY_EXE_NAME_ALT "clash-verge.exe"
@@ -523,6 +526,146 @@ Function .onInit
   !endif
 FunctionEnd
 
+Function CleanupLegacyWindowStateArtifacts
+  ; Legacy migration from Clash Verge Rev.
+  DetailPrint "Removing legacy window-state.json / .window-state.json"
+  SetShellVarContext current
+  Delete "$APPDATA\${LEGACY_APPDATA_DIR}\window-state.json"
+  Delete "$APPDATA\${LEGACY_APPDATA_DIR}\.window-state.json"
+FunctionEnd
+
+Function CleanupLegacyAutoLaunchEntries
+  ; Legacy migration from Clash Verge Rev.
+  Push $R1
+  Push $R2
+
+  StrCpy $R1 "Software\Microsoft\Windows\CurrentVersion\Run"
+
+  SetRegView 64
+  ReadRegStr $R2 HKCU "$R1" "${LEGACY_REG_DISPLAYNAME}"
+  ${If} $R2 != ""
+    DeleteRegValue HKCU "$R1" "${LEGACY_REG_DISPLAYNAME}"
+  ${EndIf}
+  ReadRegStr $R2 HKLM "$R1" "${LEGACY_REG_DISPLAYNAME}"
+  ${If} $R2 != ""
+    DeleteRegValue HKLM "$R1" "${LEGACY_REG_DISPLAYNAME}"
+  ${EndIf}
+  ReadRegStr $R2 HKCU "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
+  ${If} $R2 != ""
+    DeleteRegValue HKCU "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
+  ${EndIf}
+  ReadRegStr $R2 HKLM "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
+  ${If} $R2 != ""
+    DeleteRegValue HKLM "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
+  ${EndIf}
+
+  Pop $R2
+  Pop $R1
+FunctionEnd
+
+Function CleanupLegacyInstallDirExecutables
+  ; Legacy migration from Clash Verge Rev.
+  IfFileExists "$INSTDIR\${LEGACY_EXE_NAME}" 0 +2
+    Delete "$INSTDIR\${LEGACY_EXE_NAME}"
+FunctionEnd
+
+Function CleanupLegacyDesktopShortcuts
+  ; Legacy migration from Clash Verge Rev.
+  Push $R1
+  Push $R2
+  Push $R3
+  Push $R4
+
+  Delete "C:\Users\Public\Desktop\${LEGACY_DESKTOP_SHORTCUT}"
+  Delete "C:\Users\Public\Desktop\${LEGACY_DESKTOP_SHORTCUT_ALT}"
+
+  DetailPrint "Removing legacy shortcuts from all user desktops..."
+  SetRegView 64
+  StrCpy $R1 0
+  LegacyUserLoop:
+    EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" $R1
+    ${If} $R2 == ""
+      Goto LegacyUserDone
+    ${EndIf}
+    ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$R2" "ProfileImagePath"
+    ${If} $R3 != ""
+      StrCpy $R4 "$R3\Desktop"
+      Delete "$R4\${LEGACY_DESKTOP_SHORTCUT}"
+      Delete "$R4\${LEGACY_DESKTOP_SHORTCUT_ALT}"
+    ${EndIf}
+    IntOp $R1 $R1 + 1
+    Goto LegacyUserLoop
+  LegacyUserDone:
+  !insertmacro SetContext
+
+  Pop $R4
+  Pop $R3
+  Pop $R2
+  Pop $R1
+FunctionEnd
+
+Function CleanupLegacyStartMenuFolders
+  ; Legacy migration from Clash Verge Rev.
+  SetShellVarContext current
+  RMDir /r /REBOOTOK "$SMPROGRAMS\${LEGACY_STARTMENU_DIR}"
+  RMDir /r /REBOOTOK "$SMPROGRAMS\${LEGACY_STARTMENU_DIR_ALT}"
+  !insertmacro SetContext
+  RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\${LEGACY_STARTMENU_DIR}"
+  RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\${LEGACY_STARTMENU_DIR_ALT}"
+FunctionEnd
+
+Function CleanupLegacyRegistryArtifacts
+  ; Legacy migration from Clash Verge Rev.
+  Push $R1
+  Push $R2
+  Push $R3
+
+  SetRegView 64
+  DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${LEGACY_EXE_NAME}"
+  DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${LEGACY_EXE_NAME_ALT}"
+  DeleteRegKey HKLM "${LEGACY_REG_VENDOR_KEY_REV}"
+  DeleteRegKey HKLM "${LEGACY_REG_VENDOR_KEY}"
+  DeleteRegKey HKCU "${LEGACY_REG_VENDOR_KEY_REV}"
+  DeleteRegKey HKCU "${LEGACY_REG_VENDOR_KEY}"
+  DeleteRegKey HKCU "${LEGACY_UNINSTALL_KEY_ALT}"
+  DeleteRegKey HKCU "${LEGACY_UNINSTALL_KEY}"
+
+  StrCpy $R1 0
+  LegacyUninstallLoop:
+    EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" $R1
+    ${If} $R2 == ""
+      Goto LegacyUninstallDone
+    ${EndIf}
+    ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2" "DisplayName"
+    ${If} $R3 != ""
+      StrCmp $R3 "${LEGACY_REG_DISPLAYNAME}" 0 +3
+      StrCmp $R3 "${LEGACY_REG_DISPLAYNAME_ALT}" 0 +2
+      DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2"
+    ${EndIf}
+    IntOp $R1 $R1 + 1
+    Goto LegacyUninstallLoop
+  LegacyUninstallDone:
+  !insertmacro SetContext
+
+  Pop $R3
+  Pop $R2
+  Pop $R1
+FunctionEnd
+
+Function CleanupLegacyCompatibilityArtifacts
+  ; Legacy migration from Clash Verge Rev.
+  Call CleanupLegacyWindowStateArtifacts
+  Call CleanupLegacyAutoLaunchEntries
+  Call CleanupLegacyInstallDirExecutables
+FunctionEnd
+
+Function CleanupLegacyRetiredShellArtifacts
+  ; Legacy migration from Clash Verge Rev.
+  Call CleanupLegacyDesktopShortcuts
+  Call CleanupLegacyStartMenuFolders
+  Call CleanupLegacyRegistryArtifacts
+FunctionEnd
+
 
 Function CheckVCRuntime64
   Push $R0
@@ -911,35 +1054,7 @@ Section Install
   CreateDirectory "$0"
   DetailPrint "Ensured user startup folder exists: $0"
 
-  ; Remove stale window-state files
-  DetailPrint "Removing window-state.json / .window-state.json"
-  Delete "$APPDATA\${LEGACY_APPDATA_DIR}\window-state.json"
-  Delete "$APPDATA\${LEGACY_APPDATA_DIR}\.window-state.json"
-
-  ; Clean legacy auto-launch registry entries
-  StrCpy $R1 "Software\Microsoft\Windows\CurrentVersion\Run"
-
-  SetRegView 64
-  ReadRegStr $R2 HKCU "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKCU "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
-  ${EndIf}
-
-  ; Remove legacy executables
-  IfFileExists "$INSTDIR\${LEGACY_EXE_NAME}" 0 +2
-    Delete "$INSTDIR\${LEGACY_EXE_NAME}"
+  Call CleanupLegacyCompatibilityArtifacts
 
   !insertmacro SetContext
 
@@ -1084,36 +1199,7 @@ Section Uninstall
   !insertmacro CheckAllVergeProcesses
   !insertmacro RemoveVergeService
 
-  ; Remove cached window state files
-  DetailPrint "Removing window-state.json / .window-state.json"
-  SetShellVarContext current
-  Delete "$APPDATA\${LEGACY_APPDATA_DIR}\window-state.json"
-  Delete "$APPDATA\${LEGACY_APPDATA_DIR}\.window-state.json"
-
-  ; Clean legacy auto-launch registry entries
-  StrCpy $R1 "Software\Microsoft\Windows\CurrentVersion\Run"
-
-  SetRegView 64
-  ReadRegStr $R2 HKCU "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKCU "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "${LEGACY_REG_DISPLAYNAME_ALT}"
-  ${EndIf}
-
-  ; Remove legacy executables
-  IfFileExists "$INSTDIR\${LEGACY_EXE_NAME}" 0 +2
-    Delete "$INSTDIR\${LEGACY_EXE_NAME}"
+  Call CleanupLegacyCompatibilityArtifacts
 
   !insertmacro SetContext
 
@@ -1183,65 +1269,7 @@ Section Uninstall
       Delete "$DESKTOP\${PRODUCTNAME}.lnk"
     ${EndIf}
 
-    ; Remove legacy public desktop shortcuts
-    Delete "C:\Users\Public\Desktop\${LEGACY_DESKTOP_SHORTCUT}"
-    Delete "C:\Users\Public\Desktop\${LEGACY_DESKTOP_SHORTCUT_ALT}"
-
-    ; Remove legacy shortcuts from all user desktops
-    DetailPrint "Removing ${PRODUCTNAME} shortcuts from all user desktops..."
-    SetRegView 64
-    StrCpy $R1 0
-    LegacyUserLoop:
-      EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" $R1
-      ${If} $R2 == ""
-        Goto LegacyUserDone
-      ${EndIf}
-      ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$R2" "ProfileImagePath"
-      ${If} $R3 != ""
-        StrCpy $R4 "$R3\Desktop"
-        Delete "$R4\${LEGACY_DESKTOP_SHORTCUT}"
-        Delete "$R4\${LEGACY_DESKTOP_SHORTCUT_ALT}"
-      ${EndIf}
-      IntOp $R1 $R1 + 1
-      Goto LegacyUserLoop
-    LegacyUserDone:
-    !insertmacro SetContext
-
-    ; Remove legacy start menu folders
-    SetShellVarContext current
-    RMDir /r /REBOOTOK "$SMPROGRAMS\${LEGACY_STARTMENU_DIR}"
-    RMDir /r /REBOOTOK "$SMPROGRAMS\${LEGACY_STARTMENU_DIR_ALT}"
-    !insertmacro SetContext
-    RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\${LEGACY_STARTMENU_DIR}"
-    RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\${LEGACY_STARTMENU_DIR_ALT}"
-
-    ; Clean legacy registry keys
-    SetRegView 64
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${LEGACY_EXE_NAME}"
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${LEGACY_EXE_NAME_ALT}"
-    DeleteRegKey HKLM "${LEGACY_REG_VENDOR_KEY_REV}"
-    DeleteRegKey HKLM "${LEGACY_REG_VENDOR_KEY}"
-    DeleteRegKey HKCU "${LEGACY_REG_VENDOR_KEY_REV}"
-    DeleteRegKey HKCU "${LEGACY_REG_VENDOR_KEY}"
-    DeleteRegKey HKCU "${LEGACY_UNINSTALL_KEY_ALT}"
-    DeleteRegKey HKCU "${LEGACY_UNINSTALL_KEY}"
-
-    StrCpy $R1 0
-    LegacyUninstallLoop:
-      EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" $R1
-      ${If} $R2 == ""
-        Goto LegacyUninstallDone
-      ${EndIf}
-      ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2" "DisplayName"
-      ${If} $R3 != ""
-        StrCmp $R3 "${LEGACY_REG_DISPLAYNAME}" 0 +3
-        StrCmp $R3 "${LEGACY_REG_DISPLAYNAME_ALT}" 0 +2
-        DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2"
-      ${EndIf}
-      IntOp $R1 $R1 + 1
-      Goto LegacyUninstallLoop
-    LegacyUninstallDone:
-    !insertmacro SetContext
+    Call CleanupLegacyRetiredShellArtifacts
   ${EndIf}
 
   ; Remove registry information for add/remove programs
