@@ -24,6 +24,15 @@ interface UseProfileItemStateParams {
 }
 
 type SubscriptionStatusTone = 'info' | 'success' | 'error' | 'muted'
+type FinishedSubscriptionStatus = Pick<
+  SubscriptionAttemptRecord,
+  | 'final_status'
+  | 'stage'
+  | 'transport'
+  | 'artifact_version'
+  | 'error'
+  | 'finished_at'
+>
 
 export interface SubscriptionStatusBadge {
   tone: SubscriptionStatusTone
@@ -258,18 +267,12 @@ function buildSubscriptionStatusBadge({
 
     return buildFinishedSubscriptionStatusBadge({
       attempt: {
-        attempt_id: liveEvent.attempt_id,
-        trigger: liveEvent.trigger,
-        started_at: liveEvent.finished_at,
         finished_at: liveEvent.finished_at,
         final_status: liveEvent.final_status,
         stage: liveEvent.stage,
         transport: liveEvent.transport,
         artifact_version: liveEvent.artifact_version,
         error: liveEvent.error?.message,
-        runtime_activated: liveEvent.runtime_activated,
-        active_artifact_unchanged: liveEvent.active_artifact_unchanged,
-        stage_history: [],
       },
       artifactVersion,
       stage,
@@ -323,7 +326,7 @@ function buildFinishedSubscriptionStatusBadge({
   stage,
   t,
 }: {
-  attempt: SubscriptionAttemptRecord
+  attempt: FinishedSubscriptionStatus
   artifactVersion?: string
   stage: string
   t: (key: string, options?: Record<string, unknown>) => string
