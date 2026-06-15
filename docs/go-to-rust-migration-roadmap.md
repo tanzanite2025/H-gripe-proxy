@@ -24,6 +24,7 @@
 | Phase 5 | 控制器外围逻辑 Rust 化 | 完成 | PR #31-#37；rule explain、config diff、diagnostics summary、latency planner、node selection planner |
 | Phase 6A | DNS 控制面 explain / probe planner | 完成 | PR #45；只做 DNS 配置解释和 probe plan，不接管 Go DNS runtime |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
+| Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
 
 ## 已完成阶段详情
 
@@ -368,14 +369,53 @@ state.source_config -> ResolveTransportPlan
 - `CoreManager::update_config_without_restart_with_force(...)` 仍是 runtime activation 入口。
 - Go sidecar 仍负责真实 runtime / forwarding。
 
-#### Phase 7：连接统计 / 流量监控
+#### Phase 7：连接统计 / 流量监控 / 日志事件路径
 
-这块看起来简单，但要确认数据来源：
+当前进度：**完成 app-facing 单一路径（截至 PR #79）**。
 
-- 如果只是 UI 展示，可以先做 Rust 聚合缓存。
-- 如果需要真实 per-connection 统计，仍依赖 Go tunnel/runtime 事件。
+已完成：
 
-建议先做“Rust 侧统一指标模型”，不要先拆 tunnel。
+1. Rust `ConnectionMetricsAggregator` / `ConnectionMetricsSnapshot` 统一指标模型：已完成（PR #72）。
+2. Rust `ConnectionMonitorController` 持续消费 Mihomo `/connections` 事件并发出 `verge://connection-metrics`：已完成（PR #73）。
+3. 前端连接页面切到 Rust event path：已完成（PR #74）。
+4. 前端 traffic speed 切到 Rust metrics：已完成（PR #75）。
+5. 前端 memory usage 切到 Rust metrics：已完成（PR #76）。
+6. macOS tray speed 复用 Rust unified metrics，删除 Rust `/traffic` stream adapter：已完成（PR #77）。
+7. 删除前端插件层 `ws_traffic` / `ws_memory` / `ws_connections` API：已完成（PR #78）。
+8. 日志页面切到 Rust `LogMonitorController` / `verge://core-log`，删除前端 `MihomoWebSocket` / `ws_logs` API：已完成（PR #79）。
+
+当前 app-facing 链路：
+
+```text
+metrics:
+Mihomo /connections WS
+  -> Rust ConnectionMonitorController
+  -> ConnectionMetricsAggregator
+  -> verge://connection-metrics
+  -> frontend connections / traffic / memory
+  -> tray speed internal subscriber
+
+logs:
+Mihomo /logs WS
+  -> Rust LogMonitorController
+  -> verge://core-log
+  -> frontend logs page
+```
+
+已消除的双路：
+
+- 前端不再直接调用 `MihomoWebSocket.connect_connections()`。
+- 前端不再直接调用 `MihomoWebSocket.connect_traffic()`。
+- 前端不再直接调用 `MihomoWebSocket.connect_memory()`。
+- 前端不再直接调用 `MihomoWebSocket.connect_logs()`。
+- 托盘速率不再单独连接 Mihomo `/traffic`。
+- `tauri-plugin-mihomo` 不再向前端暴露 metrics/logs WebSocket commands。
+
+仍未迁移的底层边界：
+
+- 真实连接、流量、内存、日志数据仍来自 Go sidecar runtime。
+- Rust 当前负责 app-facing 聚合、生命周期、事件分发和 API 边界；尚未接管 tunnel / adapter / DNS resolver / protocol runtime。
+- `Mihomo::ws_connections()` / `Mihomo::ws_logs()` 仍保留为 Rust 内部桥接，不再是前端 API。
 
 #### Phase 8：协议栈 / TUN / 数据转发
 
@@ -412,21 +452,21 @@ state.source_config -> ResolveTransportPlan
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，订阅 pipeline 已完成单一事实链。下一张实现 PR 建议开始 Phase 7：
+按当前状态，Phase 7 的 app-facing 直连 WebSocket 双路已经清掉；下一张实现 PR 建议回到 Phase 6A 未完成项，开始 DNS runtime 接管的最小可验证切片：
 
 ```text
-feat: introduce Rust connection metrics model
+feat(dns): introduce Rust resolver runtime skeleton
 ```
 
-范围只包含：
+建议范围只包含：
 
-- Rust 侧连接/流量统一指标模型（`ConnectionMetrics` / `TrafficSnapshot`）。
-- 从 Go sidecar Mihomo WebSocket 事件流消费并聚合到 Rust 模型。
-- Tauri command 暴露结构化指标快照。
-- focused tests：connection snapshot merge、traffic aggregation、stale connection detection。
+- Rust DNS runtime trait / controller skeleton。
+- 从现有 Clash DNS config 构建 resolver plan。
+- 先支持普通 nameserver 查询和 timeout / retry / metrics。
+- 保持 fake-ip、fallback-filter、nameserver-policy 只做 plan/explain，不在第一刀替换。
 
 不包含：
 
-- DNS resolver runtime。
 - 协议栈 / TUN / tunnel。
-- Go sidecar 替换。
+- adapter outbound/inbound。
+- 一次性替换 Go DNS runtime。
