@@ -2,8 +2,8 @@ import { Box } from '@/components/tailwind'
 
 import { ProxyDelaySettingsActions } from './proxy-delay-settings/proxy-delay-settings-actions'
 import { ProxyDelaySettingsFields } from './proxy-delay-settings/proxy-delay-settings-fields'
-import { useProxyDelaySettingsCopy } from './proxy-delay-settings/use-proxy-delay-settings-copy'
 import { useProxyDelaySettingsController } from './proxy-delay-settings/use-proxy-delay-settings-controller'
+import { useProxyDelaySettingsCopy } from './proxy-delay-settings/use-proxy-delay-settings-copy'
 
 export function ProxyDelaySettings() {
   const copy = useProxyDelaySettingsCopy()

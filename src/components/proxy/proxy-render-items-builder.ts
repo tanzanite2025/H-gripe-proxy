@@ -1,9 +1,9 @@
 import type { CalculatedProxies } from '@/services/proxy-runtime'
 
-import { buildProxyItems } from './render-list/utils'
 import { buildGlobalSelectorSections } from './render-list/global-selector-sections'
 import { resolveSelectionGroup } from './render-list/selection-group'
 import type { IRenderItem } from './render-list/types'
+import { buildProxyItems } from './render-list/utils'
 import { DEFAULT_STATE, type HeadState } from './use-head-state'
 
 export interface ProxyRenderListBuilderOptions {

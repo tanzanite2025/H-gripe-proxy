@@ -1,5 +1,5 @@
-import type { CSSProperties, HTMLAttributes } from 'react'
 import { GripVertical, Trash2 } from 'lucide-react'
+import type { CSSProperties, HTMLAttributes } from 'react'
 
 import { Chip } from '@/components/tailwind/Chip'
 import { IconButton } from '@/components/tailwind/IconButton'

@@ -4,8 +4,8 @@ import { ProxyChainDialogs } from './proxy-chain-dialogs'
 import { ProxyChainGrid } from './proxy-chain-grid'
 import { ProxyChainToolbar } from './proxy-chain-toolbar'
 import { ResidentialExitSection } from './residential-exit-section'
-import { useProxyChainController } from './use-proxy-chain-controller'
 import type { ProxyChainProps } from './types'
+import { useProxyChainController } from './use-proxy-chain-controller'
 
 export const ProxyChain = (props: ProxyChainProps) => {
   const controller = useProxyChainController(props)

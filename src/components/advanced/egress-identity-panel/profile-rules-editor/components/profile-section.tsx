@@ -5,6 +5,7 @@ import type { ResidentialProxyPool } from '@/services/coordinator'
 
 import type { EgressProfileOption } from '../../shared'
 import type { EgressIdentityProfileRulesEditorProps } from '../shared'
+
 import { EmptyState } from './empty-state'
 import { ProfileCard } from './profile-card'
 import { SectionHeader } from './section-header'

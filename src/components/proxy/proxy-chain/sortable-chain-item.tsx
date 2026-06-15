@@ -2,13 +2,14 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 import type { ProxyChainItem } from '../proxy-chain-types'
-import { ProxyChainItemView } from './proxy-chain-item-view'
+
 import {
   getProxyChainBorderClass,
   getProxyChainDelayColor,
   getProxyChainRoleChipClass,
   getProxyChainRoleLabel,
 } from './proxy-chain-item-state'
+import { ProxyChainItemView } from './proxy-chain-item-view'
 
 interface SortableChainItemProps {
   proxy: ProxyChainItem

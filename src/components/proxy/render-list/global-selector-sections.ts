@@ -1,7 +1,8 @@
+import type { HeadState } from '../use-head-state'
+
 import { GLOBAL_SELECTOR_SECTION_COPY } from './section-copy'
 import { buildManualSectionProxies } from './section-proxies'
 import type { ProxyGroup, ProxyItem, VisibleSectionKind } from './types'
-import type { HeadState } from '../use-head-state'
 
 type ProxySection = {
   kind: VisibleSectionKind

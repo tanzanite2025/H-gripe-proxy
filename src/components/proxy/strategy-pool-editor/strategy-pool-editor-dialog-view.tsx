@@ -11,6 +11,7 @@ import {
 } from '@/components/tailwind'
 
 import type { StrategyPoolGroupRef } from '../strategy-pools/types'
+
 import { StrategyPoolCandidateGrid } from './strategy-pool-candidate-grid'
 import type { CandidateOption } from './types'
 

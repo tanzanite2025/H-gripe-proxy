@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -9,12 +9,13 @@ import {
   useCoreDataStatus,
   useProxiesData,
 } from '@/providers/app-data-context'
-import { resolveVergeDelayTimeout } from '@/services/delay-config'
 import delayManager from '@/services/delay'
+import { resolveVergeDelayTimeout } from '@/services/delay-config'
+
+import { getDelaySignalVisual } from '../utils/delay-visuals'
 
 import { useCurrentProxyData } from './use-current-proxy-data'
 import { useProxyDelayCheck } from './use-proxy-delay-check'
-import { getDelaySignalVisual } from '../utils/delay-visuals'
 
 const SORT_TOOLTIP_KEYS = {
   0: 'proxies.page.tooltips.sortDefault',

@@ -2,6 +2,7 @@ import { Card } from '@/components/tailwind/Card'
 
 import type { EgressIdentityProfileRulesEditorProps } from '../shared'
 import { buildProfileTargetOptions } from '../shared'
+
 import { EmptyState } from './empty-state'
 import { SectionHeader } from './section-header'
 import { ShortcutRuleCard } from './shortcut-rule-card'

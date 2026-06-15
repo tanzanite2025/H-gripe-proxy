@@ -3,8 +3,8 @@ import { useMemo } from 'react'
 import { useCurrentEgressIdentity } from '@/hooks/data'
 import { useProxiesData } from '@/providers/app-data-context'
 
-import { buildRuntimeSummaryItem } from './runtime-summary/build-runtime-summary-item'
 import type { IRenderItem } from './render-list/types'
+import { buildRuntimeSummaryItem } from './runtime-summary/build-runtime-summary-item'
 
 export const useRuntimeSummaryItem = (): IRenderItem | null => {
   const { proxies: proxiesData } = useProxiesData()

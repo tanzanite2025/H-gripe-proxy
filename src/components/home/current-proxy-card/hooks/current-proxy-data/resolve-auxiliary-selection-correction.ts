@@ -1,6 +1,7 @@
 import { isAuxiliarySelectionName } from '@/services/proxy-display'
 
 import { normalizePolicyName } from '../../utils/proxy-selection'
+
 import {
   extractProxyNames,
   pickVisibleProxyName,

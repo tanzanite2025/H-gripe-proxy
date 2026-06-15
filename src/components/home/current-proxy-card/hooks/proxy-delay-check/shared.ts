@@ -1,4 +1,3 @@
-import type { CurrentProxySource } from '../current-proxy-data/shared'
 
 export interface DelayCheckTargets {
   providerNames: string[]

@@ -3,12 +3,12 @@ import type { ChangeEvent, KeyboardEvent } from 'react'
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
 import { TextField } from '@/components/tailwind/TextField'
+import type { IpReputation } from '@/services/ip-reputation/model'
 import {
   getIpTypeText,
   getRiskLevelColor,
   getRiskLevelText,
 } from '@/services/ip-reputation/presentation'
-import type { IpReputation } from '@/services/ip-reputation/model'
 
 import {
   getFraudScoreBg,

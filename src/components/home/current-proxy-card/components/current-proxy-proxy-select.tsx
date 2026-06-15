@@ -2,6 +2,7 @@ import type { SelectChangeEvent } from '@/components/tailwind/Select'
 import { Select, type SelectPrimitiveValue } from '@/components/tailwind/Select'
 
 import type { ProxyOption } from '../hooks/current-proxy-data/shared'
+
 import { CurrentProxyOptionItem } from './current-proxy-option-item'
 import { CURRENT_PROXY_SELECT_CLASSNAME } from './current-proxy-select-styles'
 

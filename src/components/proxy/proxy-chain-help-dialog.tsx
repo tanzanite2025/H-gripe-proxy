@@ -9,16 +9,16 @@ import {
 import { IconButton } from '@/components/tailwind/IconButton'
 import { Tab, Tabs } from '@/components/tailwind/Tabs'
 
+import { ProxyChainHelpBestPracticesTab } from './proxy-chain-help-dialog/best-practices-tab'
 import {
   PROXY_CHAIN_HELP_TABS,
   PROXY_CHAIN_HELP_TITLE,
 } from './proxy-chain-help-dialog/data'
-import { ProxyChainHelpBestPracticesTab } from './proxy-chain-help-dialog/best-practices-tab'
 import { ProxyChainHelpExamplesTab } from './proxy-chain-help-dialog/examples-tab'
 import { ProxyChainHelpFaqTab } from './proxy-chain-help-dialog/faq-tab'
 import { ProxyChainHelpOverviewTab } from './proxy-chain-help-dialog/overview-tab'
-import { ProxyChainHelpTabPanel } from './proxy-chain-help-dialog/shared'
 import { ProxyChainHelpSetupTab } from './proxy-chain-help-dialog/setup-tab'
+import { ProxyChainHelpTabPanel } from './proxy-chain-help-dialog/shared'
 
 interface ProxyChainHelpDialogProps {
   open: boolean

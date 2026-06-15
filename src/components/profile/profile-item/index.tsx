@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 
 import { ProfileItemUI } from '../profile-item-ui'
+
 import { ProfileItemDialogs } from './profile-item-dialogs'
 import { ProfileItemMenu } from './profile-item-menu'
 import { type ProfileItemProps } from './shared'

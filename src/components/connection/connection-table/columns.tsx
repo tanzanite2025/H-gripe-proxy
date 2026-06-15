@@ -6,6 +6,7 @@ import parseTraffic from '@/utils/format'
 
 import { createCloseConnectionAction } from '../connection-actions'
 import type { ConnectionTableField } from '../connection-page-model'
+
 import type { BaseConnectionColumn } from './types'
 
 interface ConnectionColumnLabels {

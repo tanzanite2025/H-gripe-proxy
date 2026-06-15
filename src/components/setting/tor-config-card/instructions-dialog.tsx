@@ -1,10 +1,10 @@
+import { Button } from '@/components/tailwind/Button'
 import {
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
 } from '@/components/tailwind/Dialog'
-import { Button } from '@/components/tailwind/Button'
 
 import { TOR_USAGE_INSTRUCTIONS } from './constants'
 

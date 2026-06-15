@@ -7,8 +7,9 @@ import {
   Tooltip,
 } from '@/components/tailwind'
 
-import type { HeadState } from '../use-head-state'
 import type { IRenderItem } from '../render-list/types'
+import type { HeadState } from '../use-head-state'
+
 import { ProxyGroupIcon } from './proxy-group-icon'
 
 interface ProxyGroupCardProps {

@@ -4,6 +4,7 @@ import {
 } from '@/services/proxy-display'
 
 import { normalizePolicyName } from '../../utils/proxy-selection'
+
 import type { ProxyState } from './shared'
 import {
   buildSelectionSnapshot,

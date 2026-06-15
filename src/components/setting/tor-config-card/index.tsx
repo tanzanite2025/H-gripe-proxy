@@ -17,6 +17,7 @@ import {
 import { showNotice } from '@/services/notice-service'
 
 import { buildTorRuntimeViewModel } from '../tor-runtime-view-model'
+
 import {
   buildTorSocksUrl,
   DEFAULT_TOR_CONFIG,

@@ -10,7 +10,7 @@ import { EgressIdentityOverviewCard } from './overview-card'
 import { EgressIdentityProfileRulesEditor } from './profile-rules-editor'
 import { EgressIdentityRuntimeToolsCard } from './runtime-tools-card'
 import type { EgressProfileOption } from './shared'
-import { useEgressConfigEditor } from './use-egress-config-editor'
+import { createEgressConfigEditor } from './use-egress-config-editor'
 import { useEgressPreviewActions } from './use-egress-preview-actions'
 
 interface Props {
@@ -71,7 +71,7 @@ export function EgressIdentityPanel({
     handleToggleEnabled,
     handleClearRules,
     handleDefaultProfileChange,
-  } = useEgressConfigEditor({
+  } = createEgressConfigEditor({
     config,
     onChange,
   })

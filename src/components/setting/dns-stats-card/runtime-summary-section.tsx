@@ -1,4 +1,5 @@
 import type { DnsRuntimeViewModel } from '../dns-runtime-view-model'
+
 import { DnsSectionHeading, DnsTextRow } from './shared'
 
 interface RuntimeSummarySectionProps {

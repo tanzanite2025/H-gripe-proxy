@@ -1,6 +1,6 @@
 import { ProxyChainHelpDialog } from '../proxy-chain-help-dialog'
+
 import { ResidentialPoolDialog } from './residential-pool-dialog'
-import type { ProxyChainProps } from './types'
 
 export interface ProxyChainDialogsProps {
   helpDialogOpen: boolean

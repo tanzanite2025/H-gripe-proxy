@@ -1,6 +1,7 @@
-import type { StrategyPoolGroupRef } from '../strategy-pools/types'
-import { normalizeStrategyPoolNames } from '../strategy-pools/strategy-pool-rules'
 import { buildGroupsYaml } from '../../profile/groups-editor-viewer/utils/group-helpers'
+import { normalizeStrategyPoolNames } from '../strategy-pools/strategy-pool-rules'
+import type { StrategyPoolGroupRef } from '../strategy-pools/types'
+
 import type { GroupSequence } from './types'
 
 export const cloneGroupConfig = (

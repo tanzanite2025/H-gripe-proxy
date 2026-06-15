@@ -1,6 +1,6 @@
-import type { StrategyPoolGroupRef } from './strategy-pools/types'
 import { StrategyPoolEditorDialogView } from './strategy-pool-editor/strategy-pool-editor-dialog-view'
 import { useStrategyPoolEditor } from './strategy-pool-editor/use-strategy-pool-editor'
+import type { StrategyPoolGroupRef } from './strategy-pools/types'
 
 interface Props {
   open: boolean

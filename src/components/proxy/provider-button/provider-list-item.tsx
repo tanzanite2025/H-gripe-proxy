@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { RefreshCw } from 'lucide-react'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 import { useTranslation } from 'react-i18next'
+import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { IconButton } from '@/components/tailwind/IconButton'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'

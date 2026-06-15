@@ -20,14 +20,15 @@ import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/misc'
 
 import { SystemProxyUI } from '../system-proxy-ui'
+
 import {
   createSystemProxyFormValue,
   DEFAULT_PAC,
   FALLBACK_HOST_OPTIONS,
   sleep,
 } from './constants'
-import { loadSystemProxyHostOptions } from './host-options'
 import { getDefaultBypass } from './helpers'
+import { loadSystemProxyHostOptions } from './host-options'
 import { buildSystemProxyPatch } from './patch'
 import type { SystemProxyFormValue } from './types'
 import {

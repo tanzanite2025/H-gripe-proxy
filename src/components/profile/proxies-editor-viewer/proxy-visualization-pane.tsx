@@ -6,6 +6,7 @@ import { List, ListItem } from '@/components/tailwind/List'
 import { TextField } from '@/components/tailwind/TextField'
 
 import { ProxyItem } from '../proxy-item'
+
 import { SortableProxySection } from './sortable-proxy-section'
 import type {
   ProxyVisualizationPaneProps,

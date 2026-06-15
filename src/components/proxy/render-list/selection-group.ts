@@ -1,8 +1,8 @@
-import type { CalculatedProxies } from '@/services/proxy-runtime'
 import {
   getPreferredProxyGroupName,
   isProxyGroupItem,
 } from '@/services/proxy-display'
+import type { CalculatedProxies } from '@/services/proxy-runtime'
 
 import type { ProxyGroup } from './types'
 
