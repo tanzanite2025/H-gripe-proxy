@@ -1,5 +1,5 @@
 use crate::{
-    core::dns_runtime::{DnsResolverPlan, build_dns_resolver_plan},
+    core::dns_runtime::{DnsResolverPlan, DnsResolverPlanStatus, build_dns_resolver_plan},
     utils::{dirs, help},
 };
 use anyhow::{Result, bail};
@@ -17,6 +17,8 @@ pub struct AppRuntimeStateDocument {
     pub node_pools: Vec<NodePool>,
     #[serde(default)]
     pub dns_profiles: Vec<DnsProfile>,
+    #[serde(default)]
+    pub security_profiles: Vec<SecurityProfile>,
     #[serde(default)]
     pub policy_bindings: Vec<AppPolicyBinding>,
 }
@@ -134,6 +136,32 @@ pub struct DnsProfile {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityProfile {
+    pub profile_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub controls: SecurityProfileControls,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityProfileControls {
+    #[serde(default)]
+    pub require_node_pool: bool,
+    #[serde(default)]
+    pub require_dns_profile: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_runtime_supported_nameservers: Option<usize>,
+    #[serde(default)]
+    pub allowed_routing_intents: Vec<AppRoutingIntent>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AppRoutingIntent {
@@ -188,6 +216,7 @@ pub struct AppRuntimePlan {
     pub policy_binding: Option<AppPolicyBinding>,
     pub node_pool: Option<NodePoolPlanView>,
     pub dns_profile: Option<DnsProfilePlanView>,
+    pub security_profile: Option<SecurityProfilePlanView>,
     pub routing_intent: Option<AppRoutingIntent>,
     pub projection: RuntimeProjectionPlan,
     pub facts: Vec<String>,
@@ -214,6 +243,15 @@ pub struct DnsProfilePlanView {
     pub test_domain: Option<String>,
     pub tags: Vec<String>,
     pub resolver_plan: DnsResolverPlan,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityProfilePlanView {
+    pub profile_id: String,
+    pub name: String,
+    pub controls: SecurityProfileControls,
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -284,6 +322,78 @@ struct MihomoYamlPatch {
     proxy_groups: Vec<MihomoProxyGroupProjection>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     rules: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeDiagnosticStatus {
+    Healthy,
+    Degraded,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeDiagnosticSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeDiagnosticCheckStatus {
+    Passed,
+    Warning,
+    Failed,
+    Skipped,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeDiagnosticCategory {
+    Registry,
+    PolicyBinding,
+    NodePool,
+    Dns,
+    Security,
+    Projection,
+    RuntimeBoundary,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeDiagnosticCheck {
+    pub check_id: String,
+    pub category: AppRuntimeDiagnosticCategory,
+    pub severity: AppRuntimeDiagnosticSeverity,
+    pub status: AppRuntimeDiagnosticCheckStatus,
+    pub message: String,
+    pub details: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeDiagnosticsSummary {
+    pub passed: usize,
+    pub warnings: usize,
+    pub failed: usize,
+    pub skipped: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeDiagnosticsReport {
+    pub status: AppRuntimeDiagnosticStatus,
+    pub reason: String,
+    pub app_id: String,
+    pub session_id: Option<String>,
+    pub plan: AppRuntimePlan,
+    pub mihomo_projection: AppRuntimeMihomoProjection,
+    pub checks: Vec<AppRuntimeDiagnosticCheck>,
+    pub summary: AppRuntimeDiagnosticsSummary,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 pub async fn read_app_runtime_state_document() -> Result<AppRuntimeStateDocument> {
@@ -367,6 +477,35 @@ pub async fn delete_dns_profile(profile_id: &str) -> Result<AppRuntimeStateDocum
     .await
 }
 
+pub async fn upsert_security_profile(mut security_profile: SecurityProfile) -> Result<AppRuntimeStateDocument> {
+    validate_security_profile(&security_profile)?;
+    security_profile.updated_at = now_millis();
+    update_state_document(|state| {
+        upsert_by(&mut state.security_profiles, security_profile, |profile| {
+            profile.profile_id.clone()
+        });
+        Ok(())
+    })
+    .await
+}
+
+pub async fn delete_security_profile(profile_id: &str) -> Result<AppRuntimeStateDocument> {
+    let profile_id = normalize_id(profile_id, "profile_id")?;
+    update_state_document(|state| {
+        state
+            .security_profiles
+            .retain(|profile| profile.profile_id != profile_id);
+        for binding in &mut state.policy_bindings {
+            if binding.security_profile_id.as_deref() == Some(profile_id.as_str()) {
+                binding.security_profile_id = None;
+                binding.updated_at = now_millis();
+            }
+        }
+        Ok(())
+    })
+    .await
+}
+
 pub async fn upsert_app_policy_binding(mut binding: AppPolicyBinding) -> Result<AppRuntimeStateDocument> {
     validate_policy_binding(&binding)?;
     binding.updated_at = now_millis();
@@ -386,6 +525,14 @@ pub async fn upsert_app_policy_binding(mut binding: AppPolicyBinding) -> Result<
                 .all(|profile| &profile.profile_id != profile_id)
         {
             bail!("policy binding references missing dns_profile_id `{profile_id}`");
+        }
+        if let Some(profile_id) = binding.security_profile_id.as_ref()
+            && state
+                .security_profiles
+                .iter()
+                .all(|profile| &profile.profile_id != profile_id)
+        {
+            bail!("policy binding references missing security_profile_id `{profile_id}`");
         }
         upsert_by(&mut state.policy_bindings, binding, |stored| stored.binding_id.clone());
         Ok(())
@@ -416,7 +563,7 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
         ],
     };
     let facts = vec![
-        "Rust AppRuntimeStateDocument is the only source of app/pool/dns-profile/policy facts".into(),
+        "Rust AppRuntimeStateDocument is the only source of app/pool/dns-profile/security-profile/policy facts".into(),
         "first slice only explains a runtime plan and does not mutate Mihomo runtime".into(),
     ];
 
@@ -430,6 +577,7 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
             policy_binding: None,
             node_pool: None,
             dns_profile: None,
+            security_profile: None,
             routing_intent: None,
             projection,
             facts,
@@ -452,6 +600,7 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
             policy_binding: None,
             node_pool: None,
             dns_profile: None,
+            security_profile: None,
             routing_intent: None,
             projection,
             facts,
@@ -475,6 +624,16 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
                 .find(|profile| &profile.profile_id == profile_id)
         })
         .cloned();
+    let security_profile = binding
+        .security_profile_id
+        .as_ref()
+        .and_then(|profile_id| {
+            state
+                .security_profiles
+                .iter()
+                .find(|profile| &profile.profile_id == profile_id)
+        })
+        .cloned();
 
     if requires_node_pool(binding.routing_intent) && node_pool.is_none() {
         warnings.push(format!("routing intent `{:?}` has no node pool", binding.routing_intent).into());
@@ -483,6 +642,11 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
         && dns_profile.is_none()
     {
         warnings.push(format!("policy binding references missing dns_profile_id `{profile_id}`").into());
+    }
+    if let Some(profile_id) = binding.security_profile_id.as_ref()
+        && security_profile.is_none()
+    {
+        warnings.push(format!("policy binding references missing security_profile_id `{profile_id}`").into());
     }
 
     AppRuntimePlan {
@@ -500,6 +664,7 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
                 None
             }
         }),
+        security_profile: security_profile.map(security_profile_plan_view),
         routing_intent: Some(binding.routing_intent),
         projection,
         facts,
@@ -572,6 +737,84 @@ pub fn project_app_runtime_plan_to_mihomo(
     })
 }
 
+pub fn diagnose_app_runtime(
+    state: &AppRuntimeStateDocument,
+    request: AppRuntimePlanRequest,
+) -> Result<AppRuntimeDiagnosticsReport> {
+    let plan = explain_app_runtime_plan(state, request.clone());
+    let mihomo_projection = project_app_runtime_plan_to_mihomo(state, request)?;
+    let mut checks = Vec::new();
+
+    checks.push(diagnostic_check(
+        "app_registered",
+        AppRuntimeDiagnosticCategory::Registry,
+        if plan.app.is_some() {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        },
+        if plan.app.is_some() {
+            format!("app `{}` is registered", plan.app_id).into()
+        } else {
+            format!("app `{}` is not registered", plan.app_id).into()
+        },
+        Vec::new(),
+    ));
+
+    checks.push(diagnostic_check(
+        "enabled_policy_binding",
+        AppRuntimeDiagnosticCategory::PolicyBinding,
+        if plan.policy_binding.is_some() {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        } else if plan.app.is_some() {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Skipped
+        },
+        if let Some(binding) = plan.policy_binding.as_ref() {
+            format!("enabled policy binding `{}` selected", binding.binding_id).into()
+        } else if plan.app.is_some() {
+            format!("app `{}` has no enabled policy binding", plan.app_id).into()
+        } else {
+            "policy binding check skipped because app is missing".into()
+        },
+        Vec::new(),
+    ));
+
+    append_node_pool_diagnostics(&plan, &mut checks);
+    append_dns_diagnostics(&plan, &mut checks);
+    append_security_diagnostics(&plan, &mut checks);
+    append_projection_diagnostics(&mihomo_projection, &mut checks);
+
+    checks.push(diagnostic_check(
+        "runtime_mutation_boundary",
+        AppRuntimeDiagnosticCategory::RuntimeBoundary,
+        AppRuntimeDiagnosticCheckStatus::Passed,
+        "diagnostics and projection do not mutate Mihomo runtime".into(),
+        vec!["mutatesRuntime=false".into()],
+    ));
+
+    let summary = diagnostics_summary(&checks);
+    let status = diagnostics_status(&summary);
+    let reason = diagnostics_reason(status, &summary);
+    let warnings = combined_diagnostic_warnings(&plan, &mihomo_projection, &checks);
+    let mut facts = plan.facts.clone();
+    facts.push("App-scoped diagnostics aggregate plan, DNS, security and Mihomo projection readiness".into());
+
+    Ok(AppRuntimeDiagnosticsReport {
+        status,
+        reason,
+        app_id: plan.app_id.clone(),
+        session_id: plan.session_id.clone(),
+        plan,
+        mihomo_projection,
+        checks,
+        summary,
+        facts,
+        warnings,
+    })
+}
+
 async fn update_state_document(
     update: impl FnOnce(&mut AppRuntimeStateDocument) -> Result<()>,
 ) -> Result<AppRuntimeStateDocument> {
@@ -621,6 +864,18 @@ fn validate_dns_profile(dns_profile: &DnsProfile) -> Result<()> {
     Ok(())
 }
 
+fn validate_security_profile(security_profile: &SecurityProfile) -> Result<()> {
+    normalize_id(&security_profile.profile_id, "profile_id")?;
+    ensure_non_empty(&security_profile.name, "name")?;
+    let mut seen = BTreeSet::new();
+    for intent in &security_profile.controls.allowed_routing_intents {
+        if !seen.insert(format!("{intent:?}")) {
+            bail!("duplicate allowed routing intent `{intent:?}`");
+        }
+    }
+    Ok(())
+}
+
 fn validate_policy_binding(binding: &AppPolicyBinding) -> Result<()> {
     normalize_id(&binding.binding_id, "binding_id")?;
     normalize_id(&binding.app_id, "app_id")?;
@@ -629,6 +884,9 @@ fn validate_policy_binding(binding: &AppPolicyBinding) -> Result<()> {
     }
     if let Some(profile_id) = binding.dns_profile_id.as_ref() {
         normalize_id(profile_id, "dns_profile_id")?;
+    }
+    if let Some(profile_id) = binding.security_profile_id.as_ref() {
+        normalize_id(profile_id, "security_profile_id")?;
     }
     Ok(())
 }
@@ -705,6 +963,354 @@ fn dns_profile_plan_view(dns_profile: DnsProfile) -> Result<DnsProfilePlanView> 
         tags: dns_profile.tags,
         resolver_plan,
     })
+}
+
+fn security_profile_plan_view(security_profile: SecurityProfile) -> SecurityProfilePlanView {
+    SecurityProfilePlanView {
+        profile_id: security_profile.profile_id,
+        name: security_profile.name,
+        controls: security_profile.controls,
+        tags: security_profile.tags,
+    }
+}
+
+fn append_node_pool_diagnostics(plan: &AppRuntimePlan, checks: &mut Vec<AppRuntimeDiagnosticCheck>) {
+    let routing_intent = plan.routing_intent.unwrap_or(AppRoutingIntent::Direct);
+    let requires_pool = requires_node_pool(routing_intent);
+    checks.push(diagnostic_check(
+        "node_pool_binding",
+        AppRuntimeDiagnosticCategory::NodePool,
+        match (requires_pool, plan.node_pool.as_ref()) {
+            (true, Some(_)) => AppRuntimeDiagnosticCheckStatus::Passed,
+            (true, None) => AppRuntimeDiagnosticCheckStatus::Failed,
+            (false, _) => AppRuntimeDiagnosticCheckStatus::Skipped,
+        },
+        match (requires_pool, plan.node_pool.as_ref()) {
+            (true, Some(pool)) => {
+                format!("routing intent `{routing_intent:?}` uses node pool `{}`", pool.pool_id).into()
+            }
+            (true, None) => format!("routing intent `{routing_intent:?}` requires a node pool").into(),
+            (false, _) => format!("routing intent `{routing_intent:?}` does not require a node pool").into(),
+        },
+        Vec::new(),
+    ));
+
+    checks.push(diagnostic_check(
+        "node_pool_candidates",
+        AppRuntimeDiagnosticCategory::NodePool,
+        match plan.node_pool.as_ref() {
+            Some(pool) if pool.candidate_count > 0 => AppRuntimeDiagnosticCheckStatus::Passed,
+            Some(_) => AppRuntimeDiagnosticCheckStatus::Failed,
+            None => AppRuntimeDiagnosticCheckStatus::Skipped,
+        },
+        match plan.node_pool.as_ref() {
+            Some(pool) if pool.candidate_count > 0 => {
+                format!("node pool `{}` has {} candidate(s)", pool.pool_id, pool.candidate_count).into()
+            }
+            Some(pool) => format!("node pool `{}` has no candidates", pool.pool_id).into(),
+            None => "node pool candidate check skipped because no pool is bound".into(),
+        },
+        plan.node_pool
+            .as_ref()
+            .map(|pool| {
+                pool.candidates
+                    .iter()
+                    .map(|candidate| candidate.node_name.clone())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    ));
+}
+
+fn append_dns_diagnostics(plan: &AppRuntimePlan, checks: &mut Vec<AppRuntimeDiagnosticCheck>) {
+    let dns_profile_id = plan
+        .policy_binding
+        .as_ref()
+        .and_then(|binding| binding.dns_profile_id.clone());
+    checks.push(diagnostic_check(
+        "dns_profile_binding",
+        AppRuntimeDiagnosticCategory::Dns,
+        match (dns_profile_id.as_ref(), plan.dns_profile.as_ref()) {
+            (Some(_), Some(profile)) if profile.resolver_plan.status == DnsResolverPlanStatus::Ready => {
+                AppRuntimeDiagnosticCheckStatus::Passed
+            }
+            (Some(_), Some(_)) => AppRuntimeDiagnosticCheckStatus::Warning,
+            (Some(_), None) => AppRuntimeDiagnosticCheckStatus::Failed,
+            (None, _) => AppRuntimeDiagnosticCheckStatus::Skipped,
+        },
+        match (dns_profile_id.as_ref(), plan.dns_profile.as_ref()) {
+            (Some(_), Some(profile)) => format!(
+                "DNS profile `{}` resolver plan is `{:?}`",
+                profile.profile_id, profile.resolver_plan.status
+            )
+            .into(),
+            (Some(profile_id), None) => format!("DNS profile `{profile_id}` could not be resolved").into(),
+            (None, _) => "DNS profile check skipped because no DNS profile is bound".into(),
+        },
+        plan.dns_profile
+            .as_ref()
+            .map(|profile| {
+                profile
+                    .resolver_plan
+                    .nameservers
+                    .iter()
+                    .map(|nameserver| nameserver.server.as_str().into())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    ));
+}
+
+fn append_security_diagnostics(plan: &AppRuntimePlan, checks: &mut Vec<AppRuntimeDiagnosticCheck>) {
+    let security_profile_id = plan
+        .policy_binding
+        .as_ref()
+        .and_then(|binding| binding.security_profile_id.clone());
+    checks.push(diagnostic_check(
+        "security_profile_binding",
+        AppRuntimeDiagnosticCategory::Security,
+        match (security_profile_id.as_ref(), plan.security_profile.as_ref()) {
+            (Some(_), Some(_)) => AppRuntimeDiagnosticCheckStatus::Passed,
+            (Some(_), None) => AppRuntimeDiagnosticCheckStatus::Failed,
+            (None, _) => AppRuntimeDiagnosticCheckStatus::Skipped,
+        },
+        match (security_profile_id.as_ref(), plan.security_profile.as_ref()) {
+            (Some(_), Some(profile)) => format!("security profile `{}` selected", profile.profile_id).into(),
+            (Some(profile_id), None) => format!("security profile `{profile_id}` could not be resolved").into(),
+            (None, _) => "security profile check skipped because no profile is bound".into(),
+        },
+        Vec::new(),
+    ));
+
+    let Some(profile) = plan.security_profile.as_ref() else {
+        return;
+    };
+
+    if profile.controls.require_node_pool {
+        checks.push(diagnostic_check(
+            "security_requires_node_pool",
+            AppRuntimeDiagnosticCategory::Security,
+            if plan.node_pool.is_some() {
+                AppRuntimeDiagnosticCheckStatus::Passed
+            } else {
+                AppRuntimeDiagnosticCheckStatus::Failed
+            },
+            if plan.node_pool.is_some() {
+                format!(
+                    "security profile `{}` requires and found a node pool",
+                    profile.profile_id
+                )
+                .into()
+            } else {
+                format!("security profile `{}` requires a node pool", profile.profile_id).into()
+            },
+            Vec::new(),
+        ));
+    }
+
+    if profile.controls.require_dns_profile {
+        checks.push(diagnostic_check(
+            "security_requires_dns_profile",
+            AppRuntimeDiagnosticCategory::Security,
+            if plan.dns_profile.is_some() {
+                AppRuntimeDiagnosticCheckStatus::Passed
+            } else {
+                AppRuntimeDiagnosticCheckStatus::Failed
+            },
+            if plan.dns_profile.is_some() {
+                format!(
+                    "security profile `{}` requires and found a DNS profile",
+                    profile.profile_id
+                )
+                .into()
+            } else {
+                format!("security profile `{}` requires a DNS profile", profile.profile_id).into()
+            },
+            Vec::new(),
+        ));
+    }
+
+    if let Some(min_nameservers) = profile.controls.min_runtime_supported_nameservers {
+        let supported = plan
+            .dns_profile
+            .as_ref()
+            .map(|dns| {
+                dns.resolver_plan
+                    .nameservers
+                    .iter()
+                    .filter(|nameserver| nameserver.runtime_supported)
+                    .count()
+            })
+            .unwrap_or_default();
+        checks.push(diagnostic_check(
+            "security_min_runtime_supported_nameservers",
+            AppRuntimeDiagnosticCategory::Security,
+            if supported >= min_nameservers {
+                AppRuntimeDiagnosticCheckStatus::Passed
+            } else {
+                AppRuntimeDiagnosticCheckStatus::Failed
+            },
+            format!(
+                "security profile `{}` requires {min_nameservers} runtime-supported DNS nameserver(s), found {supported}",
+                profile.profile_id
+            )
+            .into(),
+            Vec::new(),
+        ));
+    }
+
+    if !profile.controls.allowed_routing_intents.is_empty() {
+        let routing_intent = plan.routing_intent.unwrap_or(AppRoutingIntent::Direct);
+        checks.push(diagnostic_check(
+            "security_allowed_routing_intent",
+            AppRuntimeDiagnosticCategory::Security,
+            if profile.controls.allowed_routing_intents.contains(&routing_intent) {
+                AppRuntimeDiagnosticCheckStatus::Passed
+            } else {
+                AppRuntimeDiagnosticCheckStatus::Failed
+            },
+            format!(
+                "routing intent `{routing_intent:?}` checked against security profile `{}`",
+                profile.profile_id
+            )
+            .into(),
+            profile
+                .controls
+                .allowed_routing_intents
+                .iter()
+                .map(|intent| format!("{intent:?}").into())
+                .collect(),
+        ));
+    }
+}
+
+fn append_projection_diagnostics(projection: &AppRuntimeMihomoProjection, checks: &mut Vec<AppRuntimeDiagnosticCheck>) {
+    checks.push(diagnostic_check(
+        "mihomo_projection_mutation",
+        AppRuntimeDiagnosticCategory::Projection,
+        if projection.mutates_runtime {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        },
+        if projection.mutates_runtime {
+            "Mihomo projection would mutate runtime".into()
+        } else {
+            "Mihomo projection is preview-only".into()
+        },
+        Vec::new(),
+    ));
+
+    checks.push(diagnostic_check(
+        "mihomo_projection_rules",
+        AppRuntimeDiagnosticCategory::Projection,
+        if projection.status == AppRuntimePlanStatus::Rejected {
+            AppRuntimeDiagnosticCheckStatus::Skipped
+        } else if projection.rules.is_empty() {
+            AppRuntimeDiagnosticCheckStatus::Warning
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        },
+        if projection.status == AppRuntimePlanStatus::Rejected {
+            "Mihomo rule projection skipped because runtime plan is rejected".into()
+        } else if projection.rules.is_empty() {
+            format!("app `{}` produced no Mihomo-compatible rules", projection.app_id).into()
+        } else {
+            format!("projected {} Mihomo rule(s)", projection.rules.len()).into()
+        },
+        projection.rules.iter().map(|rule| rule.rule.clone()).collect(),
+    ));
+}
+
+fn diagnostic_check(
+    check_id: &str,
+    category: AppRuntimeDiagnosticCategory,
+    status: AppRuntimeDiagnosticCheckStatus,
+    message: String,
+    details: Vec<String>,
+) -> AppRuntimeDiagnosticCheck {
+    AppRuntimeDiagnosticCheck {
+        check_id: check_id.into(),
+        category,
+        severity: diagnostic_severity(status),
+        status,
+        message,
+        details,
+    }
+}
+
+fn diagnostic_severity(status: AppRuntimeDiagnosticCheckStatus) -> AppRuntimeDiagnosticSeverity {
+    match status {
+        AppRuntimeDiagnosticCheckStatus::Passed | AppRuntimeDiagnosticCheckStatus::Skipped => {
+            AppRuntimeDiagnosticSeverity::Info
+        }
+        AppRuntimeDiagnosticCheckStatus::Warning => AppRuntimeDiagnosticSeverity::Warning,
+        AppRuntimeDiagnosticCheckStatus::Failed => AppRuntimeDiagnosticSeverity::Error,
+    }
+}
+
+fn diagnostics_summary(checks: &[AppRuntimeDiagnosticCheck]) -> AppRuntimeDiagnosticsSummary {
+    let mut summary = AppRuntimeDiagnosticsSummary::default();
+    for check in checks {
+        match check.status {
+            AppRuntimeDiagnosticCheckStatus::Passed => summary.passed += 1,
+            AppRuntimeDiagnosticCheckStatus::Warning => summary.warnings += 1,
+            AppRuntimeDiagnosticCheckStatus::Failed => summary.failed += 1,
+            AppRuntimeDiagnosticCheckStatus::Skipped => summary.skipped += 1,
+        }
+    }
+    summary
+}
+
+fn diagnostics_status(summary: &AppRuntimeDiagnosticsSummary) -> AppRuntimeDiagnosticStatus {
+    if summary.failed > 0 {
+        AppRuntimeDiagnosticStatus::Blocked
+    } else if summary.warnings > 0 {
+        AppRuntimeDiagnosticStatus::Degraded
+    } else {
+        AppRuntimeDiagnosticStatus::Healthy
+    }
+}
+
+fn diagnostics_reason(status: AppRuntimeDiagnosticStatus, summary: &AppRuntimeDiagnosticsSummary) -> String {
+    match status {
+        AppRuntimeDiagnosticStatus::Healthy => format!("{} diagnostic check(s) passed", summary.passed).into(),
+        AppRuntimeDiagnosticStatus::Degraded => format!(
+            "{} warning diagnostic check(s), {} passed",
+            summary.warnings, summary.passed
+        )
+        .into(),
+        AppRuntimeDiagnosticStatus::Blocked => format!(
+            "{} failed diagnostic check(s), {} warning(s)",
+            summary.failed, summary.warnings
+        )
+        .into(),
+    }
+}
+
+fn combined_diagnostic_warnings(
+    plan: &AppRuntimePlan,
+    projection: &AppRuntimeMihomoProjection,
+    checks: &[AppRuntimeDiagnosticCheck],
+) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut warnings = Vec::new();
+    for warning in plan.warnings.iter().chain(projection.warnings.iter()) {
+        if seen.insert(warning.clone()) {
+            warnings.push(warning.clone());
+        }
+    }
+    for check in checks.iter().filter(|check| {
+        matches!(
+            check.status,
+            AppRuntimeDiagnosticCheckStatus::Warning | AppRuntimeDiagnosticCheckStatus::Failed
+        )
+    }) {
+        if seen.insert(check.message.clone()) {
+            warnings.push(check.message.clone());
+        }
+    }
+    warnings
 }
 
 fn ready_projection_without_yaml(
@@ -922,6 +1528,7 @@ mod tests {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
             dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
         };
 
@@ -942,6 +1549,12 @@ mod tests {
                 .map(|profile| profile.resolver_plan.nameservers.len()),
             Some(1)
         );
+        assert_eq!(
+            plan.security_profile
+                .as_ref()
+                .map(|profile| profile.profile_id.as_str()),
+            Some("strict")
+        );
         assert!(!plan.projection.mutates_runtime);
     }
 
@@ -951,6 +1564,7 @@ mod tests {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
             dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
             policy_bindings: Vec::new(),
         };
 
@@ -983,6 +1597,7 @@ mod tests {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
             dns_profiles: Vec::new(),
+            security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
         };
 
@@ -1004,11 +1619,110 @@ mod tests {
     }
 
     #[test]
+    fn diagnostics_report_combines_plan_projection_and_security_checks() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+        };
+
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Healthy);
+        assert_eq!(report.summary.failed, 0);
+        assert_eq!(report.summary.warnings, 0);
+        assert_eq!(report.plan.status, AppRuntimePlanStatus::Ready);
+        assert_eq!(report.mihomo_projection.rules.len(), 1);
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|check| check.check_id == "security_requires_dns_profile"
+                    && check.status == AppRuntimeDiagnosticCheckStatus::Passed)
+        );
+    }
+
+    #[test]
+    fn diagnostics_report_blocks_when_security_policy_is_not_satisfied() {
+        let mut binding = sample_binding();
+        binding.dns_profile_id = None;
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: Vec::new(),
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![binding],
+        };
+
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Blocked);
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|check| check.check_id == "security_requires_dns_profile"
+                    && check.status == AppRuntimeDiagnosticCheckStatus::Failed)
+        );
+    }
+
+    #[test]
+    fn diagnostics_report_marks_projection_without_rules_as_degraded() {
+        let mut app = sample_app();
+        app.process_matchers = vec![AppProcessMatcher {
+            kind: AppProcessMatcherKind::BundleId,
+            pattern: "com.example.browser".into(),
+        }];
+        let state = AppRuntimeStateDocument {
+            apps: vec![app],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+        };
+
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|check| check.check_id == "mihomo_projection_rules"
+                    && check.status == AppRuntimeDiagnosticCheckStatus::Warning)
+        );
+    }
+
+    #[test]
     fn mihomo_projection_emits_process_rule_proxy_group_and_yaml_patch() {
         let state = AppRuntimeStateDocument {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
             dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
         };
 
@@ -1046,6 +1760,7 @@ mod tests {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
             dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![binding],
         };
 
@@ -1074,6 +1789,7 @@ mod tests {
             apps: vec![app],
             node_pools: vec![sample_pool()],
             dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
         };
 
@@ -1153,6 +1869,21 @@ dns:
             .into(),
             test_domain: Some("example.com".into()),
             tags: vec!["default".into()],
+            updated_at: 1,
+        }
+    }
+
+    fn sample_security_profile() -> SecurityProfile {
+        SecurityProfile {
+            profile_id: "strict".into(),
+            name: "Strict App Runtime".into(),
+            controls: SecurityProfileControls {
+                require_node_pool: true,
+                require_dns_profile: true,
+                min_runtime_supported_nameservers: Some(1),
+                allowed_routing_intents: vec![AppRoutingIntent::Proxy, AppRoutingIntent::Auto],
+            },
+            tags: vec!["strict".into()],
             updated_at: 1,
         }
     }

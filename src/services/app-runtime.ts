@@ -77,6 +77,21 @@ export interface DnsProfile {
   updatedAt: number
 }
 
+export interface SecurityProfileControls {
+  requireNodePool: boolean
+  requireDnsProfile: boolean
+  minRuntimeSupportedNameservers?: number
+  allowedRoutingIntents: AppRoutingIntent[]
+}
+
+export interface SecurityProfile {
+  profileId: string
+  name: string
+  controls: SecurityProfileControls
+  tags: string[]
+  updatedAt: number
+}
+
 export interface AppPolicyBinding {
   bindingId: string
   appId: string
@@ -92,6 +107,7 @@ export interface AppRuntimeStateDocument {
   apps: AppRegistryEntry[]
   nodePools: NodePool[]
   dnsProfiles: DnsProfile[]
+  securityProfiles: SecurityProfile[]
   policyBindings: AppPolicyBinding[]
 }
 
@@ -116,6 +132,13 @@ export interface DnsProfilePlanView {
   testDomain?: string | null
   tags: string[]
   resolverPlan: DnsResolverPlan
+}
+
+export interface SecurityProfilePlanView {
+  profileId: string
+  name: string
+  controls: SecurityProfileControls
+  tags: string[]
 }
 
 export interface RuntimeProjectionPlan {
@@ -156,6 +179,7 @@ export interface AppRuntimePlan {
   policyBinding?: AppPolicyBinding
   nodePool?: NodePoolPlanView
   dnsProfile?: DnsProfilePlanView
+  securityProfile?: SecurityProfilePlanView
   routingIntent?: AppRoutingIntent
   projection: RuntimeProjectionPlan
   facts: string[]
@@ -172,6 +196,54 @@ export interface AppRuntimeMihomoProjection {
   rules: MihomoRuleProjection[]
   dns?: MihomoDnsProjection
   yamlPatch: string
+  facts: string[]
+  warnings: string[]
+}
+
+export type AppRuntimeDiagnosticStatus = 'healthy' | 'degraded' | 'blocked'
+
+export type AppRuntimeDiagnosticSeverity = 'info' | 'warning' | 'error'
+
+export type AppRuntimeDiagnosticCheckStatus =
+  | 'passed'
+  | 'warning'
+  | 'failed'
+  | 'skipped'
+
+export type AppRuntimeDiagnosticCategory =
+  | 'registry'
+  | 'policyBinding'
+  | 'nodePool'
+  | 'dns'
+  | 'security'
+  | 'projection'
+  | 'runtimeBoundary'
+
+export interface AppRuntimeDiagnosticCheck {
+  checkId: string
+  category: AppRuntimeDiagnosticCategory
+  severity: AppRuntimeDiagnosticSeverity
+  status: AppRuntimeDiagnosticCheckStatus
+  message: string
+  details: string[]
+}
+
+export interface AppRuntimeDiagnosticsSummary {
+  passed: number
+  warnings: number
+  failed: number
+  skipped: number
+}
+
+export interface AppRuntimeDiagnosticsReport {
+  status: AppRuntimeDiagnosticStatus
+  reason: string
+  appId: string
+  sessionId?: string
+  plan: AppRuntimePlan
+  mihomoProjection: AppRuntimeMihomoProjection
+  checks: AppRuntimeDiagnosticCheck[]
+  summary: AppRuntimeDiagnosticsSummary
   facts: string[]
   warnings: string[]
 }
@@ -216,6 +288,18 @@ export async function deleteDnsProfile(
   return invoke('delete_dns_profile', { profileId })
 }
 
+export async function upsertSecurityProfile(
+  securityProfile: SecurityProfile,
+): Promise<AppRuntimeStateDocument> {
+  return invoke('upsert_security_profile', { securityProfile })
+}
+
+export async function deleteSecurityProfile(
+  profileId: string,
+): Promise<AppRuntimeStateDocument> {
+  return invoke('delete_security_profile', { profileId })
+}
+
 export async function upsertAppPolicyBinding(
   binding: AppPolicyBinding,
 ): Promise<AppRuntimeStateDocument> {
@@ -238,4 +322,10 @@ export async function projectAppRuntimePlanToMihomo(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeMihomoProjection> {
   return invoke('project_app_runtime_plan_to_mihomo', { request })
+}
+
+export async function diagnoseAppRuntime(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeDiagnosticsReport> {
+  return invoke('diagnose_app_runtime', { request })
 }

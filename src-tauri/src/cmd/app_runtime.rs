@@ -1,13 +1,15 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
-    AppPolicyBinding, AppRegistryEntry, AppRuntimeMihomoProjection, AppRuntimePlan, AppRuntimePlanRequest,
-    AppRuntimeStateDocument, DnsProfile, NodePool, delete_app_policy_binding as delete_app_policy_binding_record,
+    AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
+    AppRuntimePlanRequest, AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
+    delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
-    delete_node_pool as delete_node_pool_record, explain_app_runtime_plan as build_app_runtime_plan,
+    delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
+    diagnose_app_runtime as build_app_runtime_diagnostics, explain_app_runtime_plan as build_app_runtime_plan,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
-    upsert_node_pool as upsert_node_pool_record,
+    upsert_node_pool as upsert_node_pool_record, upsert_security_profile as upsert_security_profile_record,
 };
 
 #[tauri::command]
@@ -46,6 +48,18 @@ pub async fn delete_dns_profile(profile_id: String) -> CmdResult<AppRuntimeState
 }
 
 #[tauri::command]
+pub async fn upsert_security_profile(security_profile: SecurityProfile) -> CmdResult<AppRuntimeStateDocument> {
+    upsert_security_profile_record(security_profile).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn delete_security_profile(profile_id: String) -> CmdResult<AppRuntimeStateDocument> {
+    delete_security_profile_record(profile_id.as_str())
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
 pub async fn upsert_app_policy_binding(binding: AppPolicyBinding) -> CmdResult<AppRuntimeStateDocument> {
     upsert_app_policy_binding_record(binding).await.stringify_err()
 }
@@ -69,4 +83,10 @@ pub async fn project_app_runtime_plan_to_mihomo(
 ) -> CmdResult<AppRuntimeMihomoProjection> {
     let state = read_app_runtime_state_document().await.stringify_err()?;
     build_app_runtime_mihomo_projection(&state, request).stringify_err()
+}
+
+#[tauri::command]
+pub async fn diagnose_app_runtime(request: AppRuntimePlanRequest) -> CmdResult<AppRuntimeDiagnosticsReport> {
+    let state = read_app_runtime_state_document().await.stringify_err()?;
+    build_app_runtime_diagnostics(&state, request).stringify_err()
 }
