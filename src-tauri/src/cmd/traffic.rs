@@ -2,7 +2,10 @@ use super::{CmdResult, StringifyErr as _};
 /**
  * 流量功能 Tauri 命令
  */
-use crate::traffic::{ObfuscationProfile, ObfuscationStats, TrafficObfuscationConfig};
+use crate::{
+    core::connection_metrics::ConnectionMetricsSnapshot,
+    traffic::{ObfuscationProfile, ObfuscationStats, TrafficObfuscationConfig},
+};
 
 /// 应用混淆配置（供内部调用，委托 feat 层）
 pub async fn apply_traffic_obfuscation_config(config: TrafficObfuscationConfig) -> CmdResult<()> {
@@ -67,4 +70,19 @@ pub async fn traffic_obfuscation_apply_profile(profile: ObfuscationProfile) -> C
     crate::core::traffic_runtime::traffic_obfuscation_apply_profile(profile)
         .await
         .stringify_err()
+}
+
+/// 获取 Rust 聚合的连接/流量指标快照。
+#[tauri::command]
+pub async fn traffic_get_connection_metrics_snapshot() -> CmdResult<ConnectionMetricsSnapshot> {
+    crate::core::connection_metrics::refresh_connection_metrics_snapshot()
+        .await
+        .stringify_err()
+}
+
+/// 重置 Rust 连接/流量指标聚合状态。
+#[tauri::command]
+pub async fn traffic_reset_connection_metrics() -> CmdResult<()> {
+    crate::core::connection_metrics::reset_connection_metrics().await;
+    Ok(())
 }

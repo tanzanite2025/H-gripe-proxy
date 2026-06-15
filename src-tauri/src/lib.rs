@@ -413,6 +413,8 @@ mod app_init {
             cmd::traffic_obfuscation_reset_stats,
             cmd::traffic_obfuscation_is_running,
             cmd::traffic_obfuscation_apply_profile,
+            cmd::traffic_get_connection_metrics_snapshot,
+            cmd::traffic_reset_connection_metrics,
             cmd::egress_monitor_get_config,
             cmd::egress_monitor_update_config,
             cmd::egress_monitor_start,

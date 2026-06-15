@@ -5,6 +5,7 @@ pub mod backup;
 pub mod blackhole_breaker;
 pub mod clash_mode;
 pub mod config_explain;
+pub mod connection_metrics;
 pub mod coordinator;
 pub mod coordinator_status;
 pub mod current_egress_identity;

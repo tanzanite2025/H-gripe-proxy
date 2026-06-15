@@ -3,7 +3,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
 use std::time::Duration;
-use tauri_plugin_mihomo::models::{ConnectionId, WebSocketMessage};
+use tauri_plugin_mihomo::models::{ConnectionId, Connections, WebSocketMessage};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
@@ -17,6 +17,12 @@ const MIHOMO_WS_STREAM_CLOSE_CODE: u64 = 1000;
 pub struct TrafficSpeedEvent {
     pub up: u64,
     pub down: u64,
+}
+
+/// `/connections` 连接快照事件。
+#[derive(Debug)]
+pub struct ConnectionSnapshotEvent {
+    pub snapshot: Connections,
 }
 
 /// Mihomo WebSocket 流消费状态。
@@ -77,6 +83,25 @@ fn parse_traffic_event(data: Value) -> Option<InternalWsEvent<TrafficSpeedEvent>
     }
 }
 
+fn parse_connections_event(data: Value) -> Option<InternalWsEvent<ConnectionSnapshotEvent>> {
+    if let Ok(payload) = serde_json::from_value::<Connections>(data.clone()) {
+        return Some(InternalWsEvent::Data(ConnectionSnapshotEvent { snapshot: payload }));
+    }
+
+    if let Ok(ws_message) = WebSocketMessage::deserialize(&data) {
+        match ws_message {
+            WebSocketMessage::Text(text) => {
+                let payload = serde_json::from_str::<Connections>(&text).ok()?;
+                Some(InternalWsEvent::Data(ConnectionSnapshotEvent { snapshot: payload }))
+            }
+            WebSocketMessage::Close(_) => Some(InternalWsEvent::Closed),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
 fn try_send_internal_event<T>(message_tx: &mpsc::Sender<InternalWsEvent<T>>, event: InternalWsEvent<T>) {
     if let Err(err) = message_tx.try_send(event) {
         match err {
@@ -99,6 +124,30 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
             let message_tx = message_tx.clone();
             move |message| {
                 if let Some(event) = parse_traffic_event(message) {
+                    try_send_internal_event(&message_tx, event);
+                }
+            }
+        })
+        .await?;
+    drop(message_tx);
+    Ok(MihomoWsEventStream {
+        connection_id,
+        receiver: message_rx,
+        last_valid_event_at: Instant::now(),
+    })
+}
+
+/// 建立 `/connections` WebSocket 订阅（通用流）。
+pub async fn connect_connections_stream() -> Result<MihomoWsEventStream<ConnectionSnapshotEvent>> {
+    let (message_tx, message_rx) =
+        mpsc::channel::<InternalWsEvent<ConnectionSnapshotEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
+
+    let connection_id = handle::Handle::mihomo()
+        .await
+        .ws_connections({
+            let message_tx = message_tx.clone();
+            move |message| {
+                if let Some(event) = parse_connections_event(message) {
                     try_send_internal_event(&message_tx, event);
                 }
             }

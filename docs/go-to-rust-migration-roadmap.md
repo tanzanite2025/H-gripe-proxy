@@ -23,7 +23,7 @@
 | Phase 4D | wildcard / logical / sub-rule 规则 | 完成 | PR #27-#31；`PROCESS-*WILDCARD`、`AND` / `OR` / `NOT` / `SUB-RULE` 与 rule explain |
 | Phase 5 | 控制器外围逻辑 Rust 化 | 完成 | PR #31-#37；rule explain、config diff、diagnostics summary、latency planner、node selection planner |
 | Phase 6A | DNS 控制面 explain / probe planner | 完成 | PR #45；只做 DNS 配置解释和 probe plan，不接管 Go DNS runtime |
-| Phase 6B | 订阅更新控制面 / artifact pipeline | 进行中 | PR #46-#60；已完成 source/transport/fetch/decode/artifact/state/event/executor/publish validation，runtime activation 仍走 legacy path |
+| Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 
 ## 已完成阶段详情
 
@@ -329,7 +329,7 @@ Phase 5 的删除边界：
 
 ##### Phase 6B：订阅更新 pipeline 迁移
 
-当前进度：**约 75%（截至 PR #60）**。
+当前进度：**完成（截至 PR #71）**。
 
 已完成：
 
@@ -344,39 +344,27 @@ Phase 5 的删除边界：
 9. Legacy profile → typed `SubscriptionSource` read-only view：已完成（PR #58）。
 10. `SubscriptionUpdateExecutor` state machine：已完成（PR #59）。
 11. Runtime candidate validation + `PublishArtifact` / `active_artifact_version` 切换：已完成（PR #60）。
+12. 订阅源配置持久化到 state / orchestration 下沉 / app 层瘦身：已完成（PR #62-#70）。
+13. 单一事实链收敛：已完成（PR #71）。移除所有 legacy compatibility projection / snapshot / sync 路径。
 
-当前 pipeline 形态：
+当前 pipeline 形态（单一事实链）：
 
 ```text
-ResolveSource
-  -> ResolveTransportPlan
+profile command -> state.source_config
+state.source_config -> ResolveTransportPlan
   -> FetchPayload
   -> DecodePayload
   -> MaterializeArtifact
-  -> GenerateRuntimeConfigCandidate
-  -> ValidateRuntimeCandidate
-  -> profiles_draft_update_item_safe(...)   # legacy compatibility write
-  -> PublishArtifact
-  -> ActivateRuntime                        # still existing legacy activation
+  -> GenerateRuntimeConfigCandidate (from artifact)
+  -> ValidateRuntimeCandidate (Rust native validator)
+  -> PublishArtifact (active_artifact_version)
+  -> ActivateRuntime (source_config + active artifact)
   -> EmitFinalResult
 ```
 
-仍未迁移 / 下一步：
+当前不能删除的边界：
 
-1. **PR C：让成功路径消费 active artifact**
-   - 从 `active_artifact_version` 读取 `normalized.yaml` 生成运行时候选。
-   - 将 legacy profile 文件写回降级为兼容视图 / UI 同步，而不是 runtime candidate 的主来源。
-   - 保持 `profiles.yaml` 读写兼容，不删除用户现有 profile。
-2. 拆出 `subscription::activate` 或等价模块。
-   - 将 publish / activate / rollback 边界从 `app::subscription` 移出。
-   - `app::subscription` 最终只负责命令入口和 legacy 兼容通知。
-3. 前端从 `profiles.updated` 推断逐步切到 `subscriptions/state.yaml` / typed events。
-4. 删除或弱化 `PrfItem::from_fetched_payload(...)` 在订阅 update 成功路径里的主导地位。
-
-当前不能删除的 legacy 边界：
-
-- `profiles.yaml` 仍是用户 profile/source 兼容入口。
-- `profiles_draft_update_item_safe(...)` 仍会写 legacy profile file。
+- `profiles.yaml` 仍是用户 profile/source 的 UI 元数据和当前选中记录。
 - `CoreManager::update_config_without_restart_with_force(...)` 仍是 runtime activation 入口。
 - Go sidecar 仍负责真实 runtime / forwarding。
 
@@ -424,22 +412,21 @@ ResolveSource
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，DNS 控制面入口和订阅 PR A/B 已完成。下一张实现 PR 建议继续订阅 pipeline：
+按当前状态，订阅 pipeline 已完成单一事实链。下一张实现 PR 建议开始 Phase 7：
 
 ```text
-feat: consume active subscription artifact in update success path
+feat: introduce Rust connection metrics model
 ```
 
 范围只包含：
 
-- 从 `subscriptions/state.yaml` 的 `active_artifact_version` 读取已发布 artifact。
-- 以 active artifact 的 `normalized.yaml` 作为 runtime candidate 输入。
-- 保留 legacy profile writeback 作为兼容层。
-- focused tests：active artifact lookup、missing artifact fail-safe、activation failure keeps previous active artifact、legacy profile compatibility。
+- Rust 侧连接/流量统一指标模型（`ConnectionMetrics` / `TrafficSnapshot`）。
+- 从 Go sidecar Mihomo WebSocket 事件流消费并聚合到 Rust 模型。
+- Tauri command 暴露结构化指标快照。
+- focused tests：connection snapshot merge、traffic aggregation、stale connection detection。
 
 不包含：
 
 - DNS resolver runtime。
 - 协议栈 / TUN / tunnel。
 - Go sidecar 替换。
-- 删除 `PrfItem` / `profiles.yaml`。
