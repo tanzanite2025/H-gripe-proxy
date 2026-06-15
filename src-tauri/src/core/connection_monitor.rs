@@ -5,6 +5,7 @@ use crate::core::{
 use crate::process::AsyncHandler;
 use crate::utils::connections_stream;
 use crate::{Type, logging};
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
@@ -143,7 +144,14 @@ impl ConnectionMonitorController {
 }
 
 async fn disconnect(conn_id: &Arc<Mutex<Option<ConnectionId>>>) {
-    if let Some(id) = conn_id.lock().take() {
+    let id = conn_id.lock().take();
+    if let Some(id) = id {
         connections_stream::disconnect_connection(id).await;
     }
+}
+
+static CONNECTION_MONITOR: Lazy<ConnectionMonitorController> = Lazy::new(ConnectionMonitorController::default);
+
+pub fn global() -> &'static ConnectionMonitorController {
+    &CONNECTION_MONITOR
 }

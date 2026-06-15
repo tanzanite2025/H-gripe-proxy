@@ -6,6 +6,7 @@ pub type CmdResult<T = ()> = Result<T, String>;
 // Command modules
 pub mod anti_probe;
 pub mod app;
+pub mod app_runtime;
 pub mod backup;
 pub mod blackhole_breaker;
 pub mod china_rules;
@@ -48,6 +49,7 @@ pub mod xdp;
 // Re-export all command functions for backwards compatibility
 pub use anti_probe::*;
 pub use app::*;
+pub use app_runtime::*;
 pub use backup::*;
 pub use blackhole_breaker::*;
 pub use china_rules::*;

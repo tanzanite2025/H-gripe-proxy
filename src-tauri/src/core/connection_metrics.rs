@@ -31,7 +31,7 @@ pub struct TrafficSnapshot {
 }
 
 /// Full metrics snapshot exposed via Tauri command.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionMetricsSnapshot {
     pub traffic: TrafficSnapshot,
@@ -159,7 +159,7 @@ impl ConnectionMetricsAggregator {
             .read()
             .await
             .clone()
-            .unwrap_or(ConnectionMetricsSnapshot {
+            .unwrap_or_else(|| ConnectionMetricsSnapshot {
                 traffic: TrafficSnapshot::default(),
                 speeds: Vec::new(),
                 stale: true,
