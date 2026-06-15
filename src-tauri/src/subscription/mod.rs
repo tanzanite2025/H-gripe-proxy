@@ -1,6 +1,7 @@
 pub mod artifact;
 pub mod control_plane;
 pub mod events;
+pub mod executor;
 pub mod fetch;
 pub mod format;
 pub mod model;
