@@ -1,6 +1,7 @@
-import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 
-import { useMihomoWsSubscription } from '@/hooks/network'
+import { subscribeMetrics } from '@/services/connection-metrics'
 
 export interface IMemoryUsageItem {
   inuse: number
@@ -8,54 +9,32 @@ export interface IMemoryUsageItem {
 }
 
 const FALLBACK_MEMORY_USAGE: IMemoryUsageItem = { inuse: 0 }
-const DUPLICATE_MEMORY_WINDOW_MS = 50
-
-let lastMemorySignature = ''
-let lastMemoryTimestamp = 0
-
-const shouldSkipDuplicateMemory = (memory: IMemoryUsageItem) => {
-  const now = Date.now()
-  const signature = `${memory.inuse}:${memory.oslimit ?? ''}`
-
-  if (
-    signature === lastMemorySignature &&
-    now - lastMemoryTimestamp <= DUPLICATE_MEMORY_WINDOW_MS
-  ) {
-    return true
-  }
-
-  lastMemorySignature = signature
-  lastMemoryTimestamp = now
-  return false
-}
+const QUERY_KEY = 'rust-memory-usage'
 
 export const useMemoryData = () => {
-  const { response, refresh } = useMihomoWsSubscription<IMemoryUsageItem>({
-    storageKey: 'mihomo_memory_date',
-    buildSubscriptKey: (date) => `getClashMemory-${date}`,
-    fallbackData: FALLBACK_MEMORY_USAGE,
-    connect: () => MihomoWebSocket.connect_memory(),
-    throttleMs: 500,
-    setupHandlers: ({ next, scheduleReconnect }) => ({
-      handleMessage: (data) => {
-        if (data.startsWith('Websocket error')) {
-          next(data, FALLBACK_MEMORY_USAGE)
-          void scheduleReconnect()
-          return
-        }
+  const queryClient = useQueryClient()
 
-        try {
-          const parsed = JSON.parse(data) as IMemoryUsageItem
-          if (shouldSkipDuplicateMemory(parsed)) {
-            return
-          }
-          next(null, parsed)
-        } catch (error) {
-          next(error, FALLBACK_MEMORY_USAGE)
-        }
-      },
-    }),
+  useEffect(() => {
+    return subscribeMetrics((payload) => {
+      queryClient.setQueryData<IMemoryUsageItem>([QUERY_KEY], {
+        inuse: payload.metrics.traffic.memory,
+      })
+    })
+  }, [queryClient])
+
+  const response = useQuery<IMemoryUsageItem>({
+    queryKey: [QUERY_KEY],
+    queryFn: () => FALLBACK_MEMORY_USAGE,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   })
+
+  const refresh = () => {
+    queryClient.setQueryData<IMemoryUsageItem>(
+      [QUERY_KEY],
+      FALLBACK_MEMORY_USAGE,
+    )
+  }
 
   return { response, refreshGetClashMemory: refresh }
 }
