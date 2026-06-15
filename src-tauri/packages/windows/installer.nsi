@@ -526,15 +526,19 @@ Function .onInit
   !endif
 FunctionEnd
 
-Function CleanupLegacyWindowStateArtifacts
+!macro CleanupLegacyWindowStateArtifactsImpl
   ; Legacy migration from Clash Verge Rev.
   DetailPrint "Removing legacy window-state.json / .window-state.json"
   SetShellVarContext current
   Delete "$APPDATA\${LEGACY_APPDATA_DIR}\window-state.json"
   Delete "$APPDATA\${LEGACY_APPDATA_DIR}\.window-state.json"
+!macroend
+
+Function CleanupLegacyWindowStateArtifacts
+  !insertmacro CleanupLegacyWindowStateArtifactsImpl
 FunctionEnd
 
-Function CleanupLegacyAutoLaunchEntries
+!macro CleanupLegacyAutoLaunchEntriesImpl
   ; Legacy migration from Clash Verge Rev.
   Push $R1
   Push $R2
@@ -561,15 +565,23 @@ Function CleanupLegacyAutoLaunchEntries
 
   Pop $R2
   Pop $R1
+!macroend
+
+Function CleanupLegacyAutoLaunchEntries
+  !insertmacro CleanupLegacyAutoLaunchEntriesImpl
 FunctionEnd
 
-Function CleanupLegacyInstallDirExecutables
+!macro CleanupLegacyInstallDirExecutablesImpl
   ; Legacy migration from Clash Verge Rev.
   IfFileExists "$INSTDIR\${LEGACY_EXE_NAME}" 0 +2
     Delete "$INSTDIR\${LEGACY_EXE_NAME}"
+!macroend
+
+Function CleanupLegacyInstallDirExecutables
+  !insertmacro CleanupLegacyInstallDirExecutablesImpl
 FunctionEnd
 
-Function CleanupLegacyDesktopShortcuts
+!macro CleanupLegacyDesktopShortcutsImpl labelSuffix
   ; Legacy migration from Clash Verge Rev.
   Push $R1
   Push $R2
@@ -582,10 +594,10 @@ Function CleanupLegacyDesktopShortcuts
   DetailPrint "Removing legacy shortcuts from all user desktops..."
   SetRegView 64
   StrCpy $R1 0
-  LegacyUserLoop:
+  LegacyUserLoop_${labelSuffix}:
     EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" $R1
     ${If} $R2 == ""
-      Goto LegacyUserDone
+      Goto LegacyUserDone_${labelSuffix}
     ${EndIf}
     ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$R2" "ProfileImagePath"
     ${If} $R3 != ""
@@ -594,17 +606,21 @@ Function CleanupLegacyDesktopShortcuts
       Delete "$R4\${LEGACY_DESKTOP_SHORTCUT_ALT}"
     ${EndIf}
     IntOp $R1 $R1 + 1
-    Goto LegacyUserLoop
-  LegacyUserDone:
+    Goto LegacyUserLoop_${labelSuffix}
+  LegacyUserDone_${labelSuffix}:
   !insertmacro SetContext
 
   Pop $R4
   Pop $R3
   Pop $R2
   Pop $R1
+!macroend
+
+Function CleanupLegacyDesktopShortcuts
+  !insertmacro CleanupLegacyDesktopShortcutsImpl install
 FunctionEnd
 
-Function CleanupLegacyStartMenuFolders
+!macro CleanupLegacyStartMenuFoldersImpl
   ; Legacy migration from Clash Verge Rev.
   SetShellVarContext current
   RMDir /r /REBOOTOK "$SMPROGRAMS\${LEGACY_STARTMENU_DIR}"
@@ -612,9 +628,13 @@ Function CleanupLegacyStartMenuFolders
   !insertmacro SetContext
   RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\${LEGACY_STARTMENU_DIR}"
   RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\${LEGACY_STARTMENU_DIR_ALT}"
+!macroend
+
+Function CleanupLegacyStartMenuFolders
+  !insertmacro CleanupLegacyStartMenuFoldersImpl
 FunctionEnd
 
-Function CleanupLegacyRegistryArtifacts
+!macro CleanupLegacyRegistryArtifactsImpl labelSuffix
   ; Legacy migration from Clash Verge Rev.
   Push $R1
   Push $R2
@@ -631,10 +651,10 @@ Function CleanupLegacyRegistryArtifacts
   DeleteRegKey HKCU "${LEGACY_UNINSTALL_KEY}"
 
   StrCpy $R1 0
-  LegacyUninstallLoop:
+  LegacyUninstallLoop_${labelSuffix}:
     EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" $R1
     ${If} $R2 == ""
-      Goto LegacyUninstallDone
+      Goto LegacyUninstallDone_${labelSuffix}
     ${EndIf}
     ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2" "DisplayName"
     ${If} $R3 != ""
@@ -643,13 +663,17 @@ Function CleanupLegacyRegistryArtifacts
       DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2"
     ${EndIf}
     IntOp $R1 $R1 + 1
-    Goto LegacyUninstallLoop
-  LegacyUninstallDone:
+    Goto LegacyUninstallLoop_${labelSuffix}
+  LegacyUninstallDone_${labelSuffix}:
   !insertmacro SetContext
 
   Pop $R3
   Pop $R2
   Pop $R1
+!macroend
+
+Function CleanupLegacyRegistryArtifacts
+  !insertmacro CleanupLegacyRegistryArtifactsImpl install
 FunctionEnd
 
 Function CleanupLegacyCompatibilityArtifacts
@@ -659,11 +683,25 @@ Function CleanupLegacyCompatibilityArtifacts
   Call CleanupLegacyInstallDirExecutables
 FunctionEnd
 
+Function un.CleanupLegacyCompatibilityArtifacts
+  ; Legacy migration from Clash Verge Rev.
+  !insertmacro CleanupLegacyWindowStateArtifactsImpl
+  !insertmacro CleanupLegacyAutoLaunchEntriesImpl
+  !insertmacro CleanupLegacyInstallDirExecutablesImpl
+FunctionEnd
+
 Function CleanupLegacyRetiredShellArtifacts
   ; Legacy migration from Clash Verge Rev.
   Call CleanupLegacyDesktopShortcuts
   Call CleanupLegacyStartMenuFolders
   Call CleanupLegacyRegistryArtifacts
+FunctionEnd
+
+Function un.CleanupLegacyRetiredShellArtifacts
+  ; Legacy migration from Clash Verge Rev.
+  !insertmacro CleanupLegacyDesktopShortcutsImpl uninstall
+  !insertmacro CleanupLegacyStartMenuFoldersImpl
+  !insertmacro CleanupLegacyRegistryArtifactsImpl uninstall
 FunctionEnd
 
 
@@ -1199,7 +1237,7 @@ Section Uninstall
   !insertmacro CheckAllVergeProcesses
   !insertmacro RemoveVergeService
 
-  Call CleanupLegacyCompatibilityArtifacts
+  Call un.CleanupLegacyCompatibilityArtifacts
 
   !insertmacro SetContext
 
@@ -1269,7 +1307,7 @@ Section Uninstall
       Delete "$DESKTOP\${PRODUCTNAME}.lnk"
     ${EndIf}
 
-    Call CleanupLegacyRetiredShellArtifacts
+    Call un.CleanupLegacyRetiredShellArtifacts
   ${EndIf}
 
   ; Remove registry information for add/remove programs
