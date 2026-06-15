@@ -54,6 +54,9 @@
           "fetchPayload": "Fetch payload",
           "decodePayload": "Decode payload",
           "materializeArtifact": "Materialize artifact",
+          "generateRuntimeConfigCandidate": "Generate runtime candidate",
+          "validateRuntimeCandidate": "Validate runtime candidate",
+          "publishArtifact": "Publish artifact",
           "activateRuntime": "Activate runtime",
           "emitFinalResult": "Emit final result"
         },
@@ -79,6 +82,7 @@
       "home": "Home",
       "select": "Select",
       "shareQrCode": "Share QR Code",
+      "updateHistory": "Update History",
       "editInfo": "Edit Info",
       "editFile": "Edit File",
       "editProxies": "Edit Proxies",
@@ -110,6 +114,25 @@
         "noSchedule": "No schedule",
         "unknown": "Unknown",
         "autoUpdateDisabled": "Auto update disabled"
+      },
+      "subscriptionStatus": {
+        "active": "Active",
+        "attemptStarted": "Update started\nAttempt: {{attempt}}\nTime: {{time}}",
+        "failedAt": "Failed: {{stage}}",
+        "updated": "Updated",
+        "updating": "Updating"
+      },
+      "updateHistory": {
+        "title": "{{name}} update history",
+        "latestAttempt": "Latest attempt timeline",
+        "noEvents": "No update events recorded yet.",
+        "artifacts": "Artifacts and diagnostics",
+        "noArtifacts": "No artifacts recorded yet.",
+        "attemptStarted": "Attempt started",
+        "active": "Active",
+        "rawBody": "Raw body",
+        "normalizedYaml": "Normalized YAML",
+        "diagnostics": "Diagnostics"
       }
     }
   },

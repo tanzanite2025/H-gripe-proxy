@@ -302,6 +302,7 @@ export interface TranslationResources {
           select: string
           shareQrCode: string
           update: string
+          updateHistory: string
           updateViaProxy: string
         }
         more: {
@@ -322,9 +323,28 @@ export interface TranslationResources {
             noSchedule: string
             unknown: string
           }
+          subscriptionStatus: {
+            active: string
+            attemptStarted: string
+            failedAt: string
+            updated: string
+            updating: string
+          }
           tooltips: {
             showLast: string
             showNext: string
+          }
+          updateHistory: {
+            active: string
+            artifacts: string
+            attemptStarted: string
+            diagnostics: string
+            latestAttempt: string
+            noArtifacts: string
+            noEvents: string
+            normalizedYaml: string
+            rawBody: string
+            title: string
           }
         }
       }
@@ -463,9 +483,12 @@ export interface TranslationResources {
               decodePayload: string
               emitFinalResult: string
               fetchPayload: string
+              generateRuntimeConfigCandidate: string
               materializeArtifact: string
+              publishArtifact: string
               resolveSource: string
               resolveTransportPlan: string
+              validateRuntimeCandidate: string
             }
             succeededViaTransport: string
             transports: {
@@ -1302,7 +1325,9 @@ export interface TranslationResources {
         }
       }
       labels: {
+        artifact: string
         downloaded: string
+        error: string
         expireTime: string
         from: string
         icon: string
@@ -1310,7 +1335,11 @@ export interface TranslationResources {
         password: string
         readOnly: string
         retryAttempts: string
+        stage: string
+        status: string
+        time: string
         timeout: string
+        transport: string
         updateAt: string
         updateTime: string
         uploaded: string

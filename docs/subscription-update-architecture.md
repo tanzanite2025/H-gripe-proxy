@@ -448,7 +448,7 @@ Implemented:
 ### Phase 5: UI Migration
 
 - Replace string notice handling with typed subscription event handling. **Partially done: subscription notices now share structured stage/transport labels, profile cards render live and persisted status from subscription state/events, and subscription event queries invalidate from typed events.**
-- Add update history and stage-specific diagnostics UI. **Pending: profile cards surface last status/stage/artifact/error in a compact badge, but a full diagnostics/history panel is still outstanding.**
+- Add update history and stage-specific diagnostics UI. **Partially done: profile context menus expose an update-history dialog with the latest structured attempt timeline plus raw body / normalized YAML / diagnostics artifact previews.**
 
 ### Phase 6: Remove Legacy Coupling
 
@@ -487,9 +487,8 @@ The redesign is complete when:
 
 ## Recommended Next Implementation Slice
 
-The next highest-leverage slice is the remaining Phase 5 diagnostics/history UI.
+The next highest-leverage slice is Phase 5 test coverage and any remaining diagnostics deep links.
 
-1. Add an expanded per-profile update history panel backed by `get_subscription_source_update_events`.
-2. Add diagnostics links for artifact raw body, normalized YAML, and format/transport diagnostics.
-3. Keep profile-card status badges wired to structured state/events.
-4. Add UI tests for stage-specific fetch / parse / validation / activation failures.
+1. Add UI tests for stage-specific fetch / parse / validation / activation failures.
+2. Extend diagnostics previews into file/open-location deep links if needed.
+3. Then begin Phase 6 once UI coverage is in place.

@@ -6,10 +6,8 @@ import { ProxiesEditorViewer } from '@/components/profile/proxies-editor-viewer'
 import { QrViewer } from '@/components/profile/qr-viewer'
 import { Typography } from '@/components/tailwind/Typography'
 
-import {
-  buildProfileQrCodeValue,
-  type ProfileItemProps,
-} from './shared'
+import { buildProfileQrCodeValue, type ProfileItemProps } from './shared'
+import { SubscriptionUpdateHistoryDialog } from './subscription-update-history-dialog'
 import type { ProfileItemDialogsController } from './use-profile-item-dialogs'
 
 interface ProfileItemDialogsProps {
@@ -97,6 +95,15 @@ export function ProfileItemDialogs({
           subject={name}
           fileName={name}
           onClose={dialogs.closeQr}
+        />
+      )}
+
+      {dialogs.updateHistoryOpen && itemData.url && (
+        <SubscriptionUpdateHistoryDialog
+          open={true}
+          sourceId={itemData.uid}
+          profileName={name}
+          onClose={dialogs.closeUpdateHistory}
         />
       )}
     </>

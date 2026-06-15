@@ -16,6 +16,7 @@ export interface ProfileItemDialogsController {
   scriptOpen: boolean
   confirmOpen: boolean
   qrOpen: boolean
+  updateHistoryOpen: boolean
   profileDocument: ReturnType<typeof useEditorDocument>
   scriptDocument: ReturnType<typeof useEditorDocument>
   openFile: () => void
@@ -28,6 +29,8 @@ export interface ProfileItemDialogsController {
   closeConfirm: () => void
   openQr: () => void
   closeQr: () => void
+  openUpdateHistory: () => void
+  closeUpdateHistory: () => void
   handleSaveProfileDocument: () => Promise<void>
   handleSaveScriptDocument: () => Promise<void>
 }
@@ -42,6 +45,7 @@ export function useProfileItemDialogs({
   const [scriptOpen, setScriptOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  const [updateHistoryOpen, setUpdateHistoryOpen] = useState(false)
 
   const loadProfileDocument = useCallback(() => readProfileFile(uid), [uid])
   const loadScriptDocument = useCallback(
@@ -68,6 +72,8 @@ export function useProfileItemDialogs({
   const closeConfirm = useCallback(() => setConfirmOpen(false), [])
   const openQr = useCallback(() => setQrOpen(true), [])
   const closeQr = useCallback(() => setQrOpen(false), [])
+  const openUpdateHistory = useCallback(() => setUpdateHistoryOpen(true), [])
+  const closeUpdateHistory = useCallback(() => setUpdateHistoryOpen(false), [])
 
   const handleSaveProfileDocument = useLockFn(async () => {
     const currentValue = profileDocument.value
@@ -98,6 +104,7 @@ export function useProfileItemDialogs({
     scriptOpen,
     confirmOpen,
     qrOpen,
+    updateHistoryOpen,
     profileDocument,
     scriptDocument,
     openFile,
@@ -110,6 +117,8 @@ export function useProfileItemDialogs({
     closeConfirm,
     openQr,
     closeQr,
+    openUpdateHistory,
+    closeUpdateHistory,
     handleSaveProfileDocument,
     handleSaveScriptDocument,
   }

@@ -4,10 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { openWebUrl, updateProfile, viewProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
-import {
-  profileItemMenuLabels,
-  type ContextMenuItem,
-} from './shared'
+import { profileItemMenuLabels, type ContextMenuItem } from './shared'
 import type { ProfileItemDialogsController } from './use-profile-item-dialogs'
 
 type ProfileUpdateMode = 'direct' | 'proxy'
@@ -95,6 +92,11 @@ export function useProfileItemActions({
   const handleShareQrCode = useCallback(() => {
     closeMenu()
     dialogs.openQr()
+  }, [closeMenu, dialogs])
+
+  const handleOpenUpdateHistory = useCallback(() => {
+    closeMenu()
+    dialogs.openUpdateHistory()
   }, [closeMenu, dialogs])
 
   const handleEditFile = useCallback(() => {
@@ -204,6 +206,11 @@ export function useProfileItemActions({
         handler: handleShareQrCode,
         disabled: false,
       },
+      {
+        label: profileItemMenuLabels.updateHistory,
+        handler: handleOpenUpdateHistory,
+        disabled: false,
+      },
       ...commonItems,
     ]
   }, [
@@ -213,6 +220,7 @@ export function useProfileItemActions({
     handleEditScript,
     handleOpenFileOnDisk,
     handleOpenHome,
+    handleOpenUpdateHistory,
     handleShareQrCode,
     hasHome,
     hasUrl,

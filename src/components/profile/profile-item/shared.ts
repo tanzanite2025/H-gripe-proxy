@@ -28,6 +28,7 @@ export const profileItemMenuLabels = {
   home: 'profiles.components.menu.home',
   select: 'profiles.components.menu.select',
   shareQrCode: 'profiles.components.menu.shareQrCode',
+  updateHistory: 'profiles.components.menu.updateHistory',
   editInfo: 'profiles.components.menu.editInfo',
   editFile: 'profiles.components.menu.editFile',
   editProxies: 'profiles.components.menu.editProxies',

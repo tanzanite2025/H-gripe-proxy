@@ -54,6 +54,9 @@
           "fetchPayload": "抓取订阅内容",
           "decodePayload": "识别订阅格式",
           "materializeArtifact": "解析订阅内容",
+          "generateRuntimeConfigCandidate": "生成运行时候选配置",
+          "validateRuntimeCandidate": "验证运行时候选配置",
+          "publishArtifact": "发布产物",
           "activateRuntime": "激活运行时",
           "emitFinalResult": "提交最终结果"
         },
@@ -79,6 +82,7 @@
       "home": "首 页",
       "select": "使用",
       "shareQrCode": "分享二维码",
+      "updateHistory": "更新历史",
       "editInfo": "编辑信息",
       "editFile": "编辑文件",
       "editProxies": "编辑节点",
@@ -110,6 +114,25 @@
         "noSchedule": "没有计划",
         "unknown": "未知",
         "autoUpdateDisabled": "自动更新已禁用"
+      },
+      "subscriptionStatus": {
+        "active": "当前启用",
+        "attemptStarted": "更新已开始\n尝试: {{attempt}}\n时间: {{time}}",
+        "failedAt": "失败: {{stage}}",
+        "updated": "已更新",
+        "updating": "更新中"
+      },
+      "updateHistory": {
+        "title": "{{name}} 更新历史",
+        "latestAttempt": "最近一次更新时间线",
+        "noEvents": "暂无更新事件记录。",
+        "artifacts": "产物和诊断",
+        "noArtifacts": "暂无产物记录。",
+        "attemptStarted": "开始更新",
+        "active": "当前启用",
+        "rawBody": "原始内容",
+        "normalizedYaml": "标准化 YAML",
+        "diagnostics": "诊断"
       }
     }
   },
