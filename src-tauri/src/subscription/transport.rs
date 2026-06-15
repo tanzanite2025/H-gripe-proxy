@@ -103,7 +103,9 @@ fn collapse_equivalent_local_core_candidates(
         return (ordered_candidates, None);
     }
 
-    let has_direct = ordered_candidates.iter().any(|candidate| candidate.kind == TransportKind::Direct);
+    let has_direct = ordered_candidates
+        .iter()
+        .any(|candidate| candidate.kind == TransportKind::Direct);
     let has_local_proxy = ordered_candidates
         .iter()
         .any(|candidate| candidate.kind == TransportKind::LocalProxy);
@@ -117,10 +119,7 @@ fn collapse_equivalent_local_core_candidates(
             return true;
         }
 
-        !matches!(
-            candidate.kind,
-            TransportKind::Direct | TransportKind::LocalProxy
-        )
+        !matches!(candidate.kind, TransportKind::Direct | TransportKind::LocalProxy)
     });
 
     for candidate in &mut ordered_candidates {
@@ -147,7 +146,9 @@ fn prioritize_transport_candidates(
     preferred_transport: Option<TransportKind>,
 ) -> Vec<TransportCandidate> {
     if let Some(preferred_transport) = preferred_transport
-        && let Some(index) = ordered_candidates.iter().position(|candidate| candidate.kind == preferred_transport)
+        && let Some(index) = ordered_candidates
+            .iter()
+            .position(|candidate| candidate.kind == preferred_transport)
     {
         let preferred_candidate = ordered_candidates.remove(index);
         ordered_candidates.insert(0, preferred_candidate);
@@ -212,7 +213,11 @@ mod tests {
 
         assert_eq!(
             reordered.iter().map(|candidate| candidate.kind).collect::<Vec<_>>(),
-            vec![TransportKind::LocalProxy, TransportKind::Direct, TransportKind::SystemProxy]
+            vec![
+                TransportKind::LocalProxy,
+                TransportKind::Direct,
+                TransportKind::SystemProxy
+            ]
         );
     }
 

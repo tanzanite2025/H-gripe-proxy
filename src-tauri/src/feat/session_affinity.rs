@@ -1,7 +1,5 @@
 use crate::core::egress_identity::EgressSelectionContext;
-use crate::core::session_affinity::{
-    SessionAffinityManager, process_detection,
-};
+use crate::core::session_affinity::{SessionAffinityManager, process_detection};
 use anyhow::Result;
 use std::sync::Arc;
 

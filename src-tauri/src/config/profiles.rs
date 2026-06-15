@@ -198,11 +198,7 @@ impl IProfiles {
                 changed |= profiles.prune_legacy_auxiliary_rules_items();
 
                 if changed {
-                    logging!(
-                        info,
-                        Type::Config,
-                        "Persisting sanitized profiles config"
-                    );
+                    logging!(info, Type::Config, "Persisting sanitized profiles config");
                     if let Err(err) = profiles.save_file().await {
                         logging!(
                             warn,
@@ -223,7 +219,12 @@ impl IProfiles {
     }
 
     pub async fn save_file(&self) -> Result<()> {
-        help::save_yaml(&dirs::profiles_path()?, self, Some("# Profiles Config for Clash Verge Optimized")).await
+        help::save_yaml(
+            &dirs::profiles_path()?,
+            self,
+            Some("# Profiles Config for Clash Verge Optimized"),
+        )
+        .await
     }
 
     /// 只修改current，valid和chain
@@ -684,8 +685,8 @@ pub fn resolve_profile_file_path(filename: &str) -> Result<PathBuf> {
 
     let base_dir = dirs::app_profiles_dir()?;
     let path = base_dir.join(filename);
-    let is_direct_child = path.parent().is_some_and(|parent| parent == base_dir.as_path())
-        && path.starts_with(&base_dir);
+    let is_direct_child =
+        path.parent().is_some_and(|parent| parent == base_dir.as_path()) && path.starts_with(&base_dir);
     if !is_direct_child {
         bail!("invalid profile file name: {filename}");
     }

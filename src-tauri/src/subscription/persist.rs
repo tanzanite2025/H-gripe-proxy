@@ -53,11 +53,7 @@ async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
     help::save_yaml(&path, state, Some("# Subscription State for Clash Verge Optimized")).await
 }
 
-pub async fn persist_artifact(
-    source_id: &str,
-    artifact: &SubscriptionArtifactRecord,
-    raw_body: &str,
-) -> Result<()> {
+pub async fn persist_artifact(source_id: &str, artifact: &SubscriptionArtifactRecord, raw_body: &str) -> Result<()> {
     let dir = dirs::subscription_artifact_version_dir(source_id, artifact.version.as_str())?;
     fs::create_dir_all(&dir).await?;
 

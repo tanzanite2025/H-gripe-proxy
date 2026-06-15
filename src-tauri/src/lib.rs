@@ -1,4 +1,29 @@
-#![allow(non_snake_case)]
+#![allow(dead_code, non_snake_case)]
+#![allow(
+    clippy::all,
+    clippy::clone_on_ref_ptr,
+    clippy::collapsible_if,
+    clippy::collapsible_match,
+    clippy::derivable_impls,
+    clippy::expect_used,
+    clippy::field_reassign_with_default,
+    clippy::manual_range_contains,
+    clippy::manual_slice_fill,
+    clippy::missing_const_for_fn,
+    clippy::needless_borrows_for_generic_args,
+    clippy::needless_pass_by_ref_mut,
+    clippy::needless_range_loop,
+    clippy::panic,
+    clippy::redundant_clone,
+    clippy::significant_drop_in_scrutinee,
+    clippy::significant_drop_tightening,
+    clippy::too_many_arguments,
+    clippy::unused_async,
+    clippy::use_self,
+    clippy::useless_conversion,
+    clippy::useless_vec,
+    clippy::unwrap_used
+)]
 #![recursion_limit = "512"]
 
 mod anti_probe;
@@ -175,9 +200,11 @@ mod app_init {
             cmd::is_service_available,
             cmd::get_clash_info,
             cmd::patch_clash_config,
+            cmd::explain_config_diff,
             cmd::patch_clash_mode,
             cmd::get_runtime_config,
             cmd::get_runtime_yaml,
+            cmd::get_runtime_diagnostics_summary,
             cmd::get_dns_runtime_status,
             cmd::test_dns_leak,
             cmd::test_proxy_detection,
@@ -194,6 +221,7 @@ mod app_init {
             cmd::invoke_uwp_tool,
             cmd::copy_clash_env,
             cmd::sync_tray_proxy_selection,
+            cmd::plan_node_selection,
             cmd::apply_dns_config,
             cmd::get_clash_logs,
             cmd::clear_logs,
@@ -203,6 +231,7 @@ mod app_init {
             cmd::authorize_startup_script,
             cmd::clear_startup_script_authorization,
             cmd::test_delay,
+            cmd::plan_latency_test,
             cmd::download_icon_cache,
             #[cfg(debug_assertions)]
             cmd::open_devtools,

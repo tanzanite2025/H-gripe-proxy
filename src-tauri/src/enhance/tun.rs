@@ -235,7 +235,11 @@ rules:
     fn lan_direct_rules_are_valid_per_rust_rule_engine() {
         for rule in super::LAN_DIRECT_RULES {
             let v = crate::core::rule_engine::validate_rule(rule);
-            assert!(v.valid, "LAN rule "{}" must pass Rust rule engine: {:?}", rule, v.error);
+            assert!(
+                v.valid,
+                "LAN rule \"{}\" must pass Rust rule engine: {:?}",
+                rule, v.error
+            );
         }
     }
 

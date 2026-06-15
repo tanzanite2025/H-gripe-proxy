@@ -1,11 +1,11 @@
 use super::CmdResult;
 use super::StringifyErr as _;
+use crate::core::{latency_test::normalize_latency_test_url, mihomo_runtime_guard};
+use crate::utils::dirs;
 use crate::{
     app::{config as app_config, runtime},
     config::{ClashInfo, Config},
 };
-use crate::core::mihomo_runtime_guard;
-use crate::utils::dirs;
 use compact_str::CompactString;
 use serde::Serialize;
 use serde_yaml_ng::Mapping;
@@ -59,15 +59,13 @@ pub async fn restart_core() -> CmdResult {
 /// Ensure Mihomo core and IPC are ready for frontend/runtime operations
 #[tauri::command]
 pub async fn ensure_mihomo_core_ready() -> CmdResult {
-    mihomo_runtime_guard::ensure_mihomo_core_ready()
-        .await
-        .stringify_err()
+    mihomo_runtime_guard::ensure_mihomo_core_ready().await.stringify_err()
 }
 
 /// 测试URL延迟
 #[tauri::command]
 pub async fn test_delay(url: String) -> CmdResult<u32> {
-    let result = match runtime::test_delay(url.into()).await {
+    let result = match runtime::test_delay(normalize_latency_test_url(&url)).await {
         Ok(delay) => delay,
         Err(e) => {
             clash_verge_logging::logging!(error, clash_verge_logging::Type::Cmd, "{}", e);

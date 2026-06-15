@@ -17,14 +17,21 @@
 | Phase 2 | 规则解析与基础匹配 | 完成 | `DOMAIN` / `IP-CIDR` / 端口 / `NETWORK` / `MATCH` 等已 Rust 化 |
 | Phase 2.5 | 规则校验单一路径 | 完成 | 运行时与配置注入规则都先过 Rust rule engine |
 | Phase 3 | `GEOIP` / `GEOSITE` 本地匹配 | 完成 | 支持本地 MMDB / `GeoIP.dat` / `GeoSite.dat` 数据加载 |
+| Phase 4A | `IP-ASN` / `SRC-IP-ASN` 本地匹配 | 完成 | PR #15；支持本地 ASN MMDB，缺数据 fail-soft |
+| Phase 4B | `RULE-SET` 本地规则集加载 | 完成 | PR #16；第一版支持本地 file provider |
+| Phase 4C | 进程 / UID / DSCP / inbound 元数据规则 | 完成 | PR #17-#25；已完成 exact/regex process、UID、DSCP、`IN-TYPE` / `IN-USER` / `IN-NAME` |
+| Phase 4D | wildcard / logical / sub-rule 规则 | 完成 | PR #27-#31；`PROCESS-*WILDCARD`、`AND` / `OR` / `NOT` / `SUB-RULE` 与 rule explain |
+| Phase 5 | 控制器外围逻辑 Rust 化 | 完成 | PR #31-#37；rule explain、config diff、diagnostics summary、latency planner、node selection planner |
 
-## 下一阶段推荐顺序
+## 已完成阶段详情
 
 ### A. `IP-ASN` / `SRC-IP-ASN` 本地匹配
 
-**优先级：最高。复杂度：低。**
+**状态：已完成（PR #15）。**
 
-这是下一步最简单的实现，因为当前代码已经具备三块基础：
+**原优先级：最高。复杂度：低。**
+
+这是 Phase 4 中最简单的实现，因为当时代码已经具备三块基础：
 
 - `maxminddb` 依赖已经存在。
 - `src-tauri/src/core/ip_intelligence.rs` 已有 `GeoLite2-ASN.mmdb` 查询逻辑。
@@ -121,7 +128,9 @@ struct IpInfoAsn {
 
 ### B. `RULE-SET` 本地规则集加载
 
-**优先级：第二。复杂度：中。**
+**状态：已完成（PR #16）。**
+
+**原优先级：第二。复杂度：中。**
 
 这一步比 ASN 稍复杂，因为它不只是查一个数据库，而是要加载、缓存、解析一组外部规则文件。
 
@@ -243,33 +252,44 @@ behavior=ipcidr:
 
 #### Phase 4：补齐规则引擎外部数据类型
 
-推荐顺序：
+当前进度：
 
-1. `IP-ASN` / `SRC-IP-ASN`
-2. `RULE-SET`
-3. `PROCESS-NAME`
-4. `PROCESS-PATH`
-5. `PROCESS-NAME-REGEX`
-6. `UID`
-7. `DSCP`
-8. `IN-TYPE` / `IN-USER` / `IN-NAME`
+1. `IP-ASN` / `SRC-IP-ASN`：已完成（PR #15）。
+2. `RULE-SET`：已完成（PR #16）。
+3. `PROCESS-NAME`：已完成（PR #17）。
+4. `PROCESS-PATH`：已完成（PR #18）。
+5. `PROCESS-NAME-REGEX`：已完成（PR #19）。
+6. `PROCESS-PATH-REGEX`：已完成（PR #20）。
+7. `UID`：已完成（PR #21）。
+8. `DSCP`：已完成（PR #22）。
+9. `IN-TYPE` / `IN-USER` / `IN-NAME`：已完成（PR #23-#25）。
+10. `PROCESS-NAME-WILDCARD` / `PROCESS-PATH-WILDCARD`：已完成（PR #27）。
+11. `AND` / `OR` / `NOT` / `SUB-RULE`：已完成（PR #31）。
 
 说明：
 
 - ASN 与 RULE-SET 仍属于“数据查表 + 规则复用”，风险低。
 - PROCESS/UID/IN-* 开始涉及 OS、进程权限、入口监听器上下文，复杂度会明显上升。
+- 当前 Rust 侧只消费 `ConnectionMeta` 已提供的 process / uid / dscp / inbound metadata；不负责 OS 级进程发现或 inbound runtime 采集。
+- Phase 4 外部数据类规则已闭环；Phase 5 已继续把控制器外围逻辑迁入 Rust。
 
 #### Phase 5：控制器外围逻辑 Rust 化
 
-候选：
+当前进度：
 
-- 规则预览 / 规则解释器。
-- 配置 diff / explain。
-- runtime diagnostics 聚合。
-- latency test 调度层。
-- 节点选择策略的外层编排。
+1. 规则预览 / 规则解释器：已完成（PR #31）。
+2. 配置 diff / explain：已完成（PR #33）。
+3. runtime diagnostics 聚合：已完成（PR #34）。
+4. latency test 调度层：已完成（PR #35）。
+5. 节点选择策略的外层编排：已完成 Rust plan / explain 层（PR #37）。
 
 这类逻辑不碰真实转发链路，适合继续迁。
+
+Phase 5 的删除边界：
+
+- Rust 已接管的控制器外围能力，不再保留前端或 Go 侧同类预览 / explain / 规划兜底入口。
+- Go `mihomo/` 中的 rule matching、`URLTest`、provider health check、tunnel scheduler 仍属于真实 runtime / forwarding 数据来源；在 Rust 尚未接管 runtime 前不能删除。
+- 每次迁完一个外围能力，应同步删除旧 wrapper / fallback，并在测试里固定调用 Rust Tauri command。
 
 #### Phase 6：DNS 解析迁移
 
@@ -330,22 +350,21 @@ behavior=ipcidr:
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，下一张实现 PR 建议直接做：
+按当前状态，Phase 5 已完成，下一张实现 PR 建议进入 Phase 6 的最小安全入口：
 
 ```text
-feat: add local IP-ASN and SRC-IP-ASN rule matching
+feat: add Rust DNS config explain / probe planner
 ```
 
 范围只包含：
 
-- `AsnData` 本地 MMDB 加载。
-- `IP-ASN` / `SRC-IP-ASN` 解析为 typed rule。
-- rule engine 匹配接入 ASN 查询。
-- focused tests。
+- 读取 runtime YAML 中的 DNS 配置，输出 Rust 侧结构化 explain。
+- 校验 `nameserver` / `fallback` / `proxy-server-nameserver` / `nameserver-policy` 等控制面配置。
+- 规划 DNS probe / health check 输入，但不接管真实 resolver。
+- focused tests：正常配置、缺失 nameserver、policy 解析、fake-ip / redir-host 模式解释。
 
 不包含：
 
-- RULE-SET。
-- 远程 ASN 数据下载。
-- Go sidecar 改造。
-- DNS runtime。
+- DNS resolver runtime。
+- 协议栈 / TUN / tunnel。
+- Go sidecar 替换。

@@ -42,6 +42,25 @@ export async function getDnsRuntimeStatus() {
   return invoke<DnsRuntimeStatus>('get_dns_runtime_status')
 }
 
+export type RuntimeDiagnosticLevel = 'ok' | 'unknown' | 'warning' | 'danger'
+
+export interface RuntimeDiagnosticCheck {
+  name: string
+  level: RuntimeDiagnosticLevel
+  message: string
+}
+
+export interface RuntimeDiagnosticsSummary {
+  healthy: boolean
+  level: RuntimeDiagnosticLevel
+  explanation: string
+  checks: RuntimeDiagnosticCheck[]
+}
+
+export async function getRuntimeDiagnosticsSummary() {
+  return invoke<RuntimeDiagnosticsSummary>('get_runtime_diagnostics_summary')
+}
+
 export interface DnsLeakServer {
   ip: string
   hostname: string | null

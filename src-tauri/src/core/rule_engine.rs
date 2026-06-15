@@ -1,9 +1,13 @@
 use anyhow::{Context, Result, bail};
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
+use std::{collections::HashSet, net::IpAddr};
 
 use super::rule_geodata::RuleGeoData;
+
+mod provider;
+
+pub use provider::{RuleProviderConfig, RuleSetData, SubRuleData};
 
 // ---------------------------------------------------------------------------
 // Connection metadata — the "packet header" we match rules against
@@ -28,6 +32,26 @@ pub struct ConnectionMeta {
     pub in_port: u16,
     #[serde(default)]
     pub network: NetworkType,
+    #[serde(default, alias = "process", alias = "processName")]
+    pub process_name: String,
+    #[serde(default, alias = "processPath", alias = "exe_path", alias = "exePath")]
+    pub process_path: String,
+    #[serde(default)]
+    pub uid: u32,
+    #[serde(default)]
+    pub dscp: u8,
+    #[serde(
+        default,
+        alias = "type",
+        alias = "inType",
+        alias = "inbound_type",
+        alias = "inboundType"
+    )]
+    pub in_type: String,
+    #[serde(default, alias = "inUser", alias = "inbound_user", alias = "inboundUser")]
+    pub in_user: String,
+    #[serde(default, alias = "inName", alias = "inbound_name", alias = "inboundName")]
+    pub in_name: String,
 }
 
 fn deser_opt_ip<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<IpAddr>, D::Error> {
@@ -58,6 +82,29 @@ pub struct RuleMatchResult {
     pub rule_raw: Option<String>,
     pub target: Option<String>,
     pub rule_type: Option<String>,
+    pub outcome: String,
+    pub explanation: String,
+    pub trace: Vec<RuleTraceStep>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuleTraceStep {
+    pub rule_index: usize,
+    pub rule_raw: String,
+    pub rule_type: String,
+    pub matched: bool,
+    pub target: Option<String>,
+    pub detail: Option<RuleTraceDetail>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuleTraceDetail {
+    pub reference_type: String,
+    pub name: String,
+    pub condition_matched: Option<bool>,
+    pub matched_rule_raw: Option<String>,
+    pub matched_rule_type: Option<String>,
+    pub matched_target: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -118,11 +165,67 @@ enum ParsedRule {
         code: String,
         target: String,
     },
-    // Rule types that require external data — we can parse but not match locally.
-    ExternalData {
-        rule_type: String,
-        payload: String,
+    IpAsn {
+        asn: u32,
+        is_src: bool,
         target: String,
+    },
+    RuleSet {
+        name: String,
+        target: String,
+    },
+    ProcessName {
+        name: String,
+        target: String,
+    },
+    ProcessPath {
+        path: String,
+        target: String,
+    },
+    ProcessNameRegex {
+        regex: Regex,
+        target: String,
+    },
+    ProcessPathRegex {
+        regex: Regex,
+        target: String,
+    },
+    ProcessNameWildcard {
+        pattern: String,
+        target: String,
+    },
+    ProcessPathWildcard {
+        pattern: String,
+        target: String,
+    },
+    Uid {
+        ranges: Vec<(u32, u32)>,
+        target: String,
+    },
+    Dscp {
+        ranges: Vec<(u8, u8)>,
+        target: String,
+    },
+    InType {
+        types: Vec<String>,
+        target: String,
+    },
+    InUser {
+        users: Vec<String>,
+        target: String,
+    },
+    InName {
+        names: Vec<String>,
+        target: String,
+    },
+    Logical {
+        op: LogicalOp,
+        rules: Vec<ParsedRule>,
+        target: String,
+    },
+    SubRule {
+        condition: Box<ParsedRule>,
+        name: String,
     },
 }
 
@@ -133,6 +236,13 @@ enum PortKind {
     In,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum LogicalOp {
+    And,
+    Or,
+    Not,
+}
+
 // ---------------------------------------------------------------------------
 // Rule engine
 // ---------------------------------------------------------------------------
@@ -140,36 +250,120 @@ enum PortKind {
 pub struct RuleEngine {
     rules: Vec<(ParsedRule, String)>, // (parsed, raw_string)
     geo_data: RuleGeoData,
+    rule_sets: RuleSetData,
+    sub_rules: SubRuleData,
 }
 
 impl RuleEngine {
     pub fn from_rules(raw_rules: &[&str]) -> Result<Self> {
-        Self::from_rules_with_geo_data(raw_rules, RuleGeoData::empty())
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::empty(),
+            RuleSetData::empty(),
+            SubRuleData::empty(),
+        )
     }
 
     pub fn from_rules_with_default_geo_data(raw_rules: &[&str]) -> Result<Self> {
-        Self::from_rules_with_geo_data(raw_rules, RuleGeoData::load_default())
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::load_default(),
+            RuleSetData::empty(),
+            SubRuleData::empty(),
+        )
+    }
+
+    pub fn from_rules_with_default_geo_data_and_rule_sets(raw_rules: &[&str], rule_sets: RuleSetData) -> Result<Self> {
+        Self::from_rules_with_default_geo_data_rule_sets_and_sub_rules(raw_rules, rule_sets, SubRuleData::empty())
+    }
+
+    pub fn from_rules_with_default_geo_data_rule_sets_and_sub_rules(
+        raw_rules: &[&str],
+        rule_sets: RuleSetData,
+        sub_rules: SubRuleData,
+    ) -> Result<Self> {
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::load_default(),
+            rule_sets,
+            sub_rules,
+        )
     }
 
     pub fn from_rules_with_geo_data(raw_rules: &[&str], geo_data: RuleGeoData) -> Result<Self> {
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            geo_data,
+            RuleSetData::empty(),
+            SubRuleData::empty(),
+        )
+    }
+
+    pub fn from_rules_with_rule_sets(raw_rules: &[&str], rule_sets: RuleSetData) -> Result<Self> {
+        Self::from_rules_with_geo_data_rule_sets_and_sub_rules(
+            raw_rules,
+            RuleGeoData::empty(),
+            rule_sets,
+            SubRuleData::empty(),
+        )
+    }
+
+    fn from_rules_with_geo_data_rule_sets_and_sub_rules(
+        raw_rules: &[&str],
+        geo_data: RuleGeoData,
+        rule_sets: RuleSetData,
+        sub_rules: SubRuleData,
+    ) -> Result<Self> {
         let mut rules = Vec::with_capacity(raw_rules.len());
         for &raw in raw_rules {
             let parsed = parse_rule(raw)?;
             rules.push((parsed, raw.to_owned()));
         }
-        Ok(Self { rules, geo_data })
+        Ok(Self {
+            rules,
+            geo_data,
+            rule_sets,
+            sub_rules,
+        })
     }
 
     pub fn match_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
+        self.match_connection_impl(meta, false)
+    }
+
+    pub fn explain_connection(&self, meta: &ConnectionMeta) -> RuleMatchResult {
+        self.match_connection_impl(meta, true)
+    }
+
+    fn match_connection_impl(&self, meta: &ConnectionMeta, include_trace: bool) -> RuleMatchResult {
         let host = meta.host.to_ascii_lowercase();
+        let mut trace = include_trace.then(|| Vec::with_capacity(self.rules.len()));
         for (i, (rule, raw)) in self.rules.iter().enumerate() {
-            if let Some(target) = rule_matches(rule, meta, &host, &self.geo_data) {
+            let target = rule_matches(rule, meta, &host, &self.geo_data, &self.rule_sets, &self.sub_rules);
+            if let Some(trace) = trace.as_mut() {
+                trace.push(rule_trace_step(
+                    i,
+                    rule,
+                    raw,
+                    meta,
+                    &host,
+                    target,
+                    &self.geo_data,
+                    &self.rule_sets,
+                    &self.sub_rules,
+                ));
+            }
+            if let Some(target) = target {
+                let rule_type = rule_type_name(rule);
                 return RuleMatchResult {
                     matched: true,
                     rule_index: Some(i),
                     rule_raw: Some(raw.clone()),
                     target: Some(target.to_owned()),
-                    rule_type: Some(rule_type_name(rule).to_owned()),
+                    rule_type: Some(rule_type.to_owned()),
+                    outcome: "matched".to_owned(),
+                    explanation: format!("matched rule #{i} ({rule_type}) -> {target}"),
+                    trace: trace.unwrap_or_default(),
                 };
             }
         }
@@ -179,6 +373,9 @@ impl RuleEngine {
             rule_raw: None,
             target: None,
             rule_type: None,
+            outcome: "fallthrough".to_owned(),
+            explanation: "no rules matched; fallthrough without target".to_owned(),
+            trace: trace.unwrap_or_default(),
         }
     }
 }
@@ -224,17 +421,34 @@ pub fn validate_rule_spec(rule_type: &str, payload: &str, target: &str) -> RuleV
 // ---------------------------------------------------------------------------
 
 fn parse_rule(raw: &str) -> Result<ParsedRule> {
-    let parts = parse_rule_payload(raw)?;
+    parse_rule_with_target(raw, true)
+}
+
+fn parse_logic_child_rule(raw: &str) -> Result<ParsedRule> {
+    let rule = parse_rule_with_target(raw, false)?;
+    match rule {
+        ParsedRule::Match { .. } | ParsedRule::SubRule { .. } => {
+            bail!("unsupported rule type [{raw}] on logic rule");
+        }
+        _ => Ok(rule),
+    }
+}
+
+fn parse_rule_with_target(raw: &str, need_target: bool) -> Result<ParsedRule> {
+    let parts = parse_rule_payload(raw, need_target)?;
     let rule_type_upper = parts.rule_type.to_ascii_uppercase();
 
     if rule_type_upper == "MATCH" {
+        if !need_target {
+            bail!("MATCH is not supported inside logic rules");
+        }
         if parts.target.is_empty() {
             bail!("MATCH rule requires a target policy");
         }
         return Ok(ParsedRule::Match { target: parts.target });
     }
 
-    if parts.payload.is_empty() || parts.target.is_empty() {
+    if parts.payload.is_empty() || (need_target && parts.target.is_empty()) {
         bail!("rule must have at least TYPE,PAYLOAD,TARGET");
     }
 
@@ -346,28 +560,88 @@ fn parse_rule(raw: &str) -> Result<ParsedRule> {
             code: payload.to_ascii_lowercase(),
             target,
         }),
-        // Types that require external data — validate format but don't match locally
-        "IP-ASN"
-        | "SRC-IP-ASN"
-        | "RULE-SET"
-        | "IN-TYPE"
-        | "IN-USER"
-        | "IN-NAME"
-        | "DSCP"
-        | "UID"
-        | "PROCESS-NAME"
-        | "PROCESS-PATH"
-        | "PROCESS-NAME-REGEX"
-        | "PROCESS-PATH-REGEX"
-        | "PROCESS-NAME-WILDCARD"
-        | "PROCESS-PATH-WILDCARD"
-        | "AND"
-        | "OR"
-        | "NOT"
-        | "SUB-RULE" => Ok(ParsedRule::ExternalData {
-            rule_type: rule_type.to_ascii_uppercase(),
-            payload: payload.to_owned(),
+        "IP-ASN" => Ok(ParsedRule::IpAsn {
+            asn: parse_asn(payload)?,
+            is_src,
             target,
+        }),
+        "SRC-IP-ASN" => Ok(ParsedRule::IpAsn {
+            asn: parse_asn(payload)?,
+            is_src: true,
+            target,
+        }),
+        "RULE-SET" => Ok(ParsedRule::RuleSet {
+            name: payload.to_owned(),
+            target,
+        }),
+        "PROCESS-NAME" => Ok(ParsedRule::ProcessName {
+            name: payload.to_owned(),
+            target,
+        }),
+        "PROCESS-PATH" => Ok(ParsedRule::ProcessPath {
+            path: payload.to_owned(),
+            target,
+        }),
+        "PROCESS-NAME-REGEX" => Ok(ParsedRule::ProcessNameRegex {
+            regex: RegexBuilder::new(payload)
+                .case_insensitive(true)
+                .build()
+                .context("invalid PROCESS-NAME-REGEX pattern")?,
+            target,
+        }),
+        "PROCESS-PATH-REGEX" => Ok(ParsedRule::ProcessPathRegex {
+            regex: RegexBuilder::new(payload)
+                .case_insensitive(true)
+                .build()
+                .context("invalid PROCESS-PATH-REGEX pattern")?,
+            target,
+        }),
+        "PROCESS-NAME-WILDCARD" => Ok(ParsedRule::ProcessNameWildcard {
+            pattern: payload.to_ascii_lowercase(),
+            target,
+        }),
+        "PROCESS-PATH-WILDCARD" => Ok(ParsedRule::ProcessPathWildcard {
+            pattern: payload.to_ascii_lowercase(),
+            target,
+        }),
+        "UID" => Ok(ParsedRule::Uid {
+            ranges: parse_uid_ranges(payload)?,
+            target,
+        }),
+        "DSCP" => Ok(ParsedRule::Dscp {
+            ranges: parse_dscp_ranges(payload)?,
+            target,
+        }),
+        "IN-TYPE" => Ok(ParsedRule::InType {
+            types: parse_in_types(payload)?,
+            target,
+        }),
+        "IN-USER" => Ok(ParsedRule::InUser {
+            users: parse_slash_list(payload, "IN-USER")?,
+            target,
+        }),
+        "IN-NAME" => Ok(ParsedRule::InName {
+            names: parse_slash_list(payload, "IN-NAME")?,
+            target,
+        }),
+        "AND" => Ok(ParsedRule::Logical {
+            op: LogicalOp::And,
+            rules: parse_logical_rules(payload, LogicalOp::And)?,
+            target,
+        }),
+        "OR" => Ok(ParsedRule::Logical {
+            op: LogicalOp::Or,
+            rules: parse_logical_rules(payload, LogicalOp::Or)?,
+            target,
+        }),
+        "NOT" => Ok(ParsedRule::Logical {
+            op: LogicalOp::Not,
+            rules: parse_logical_rules(payload, LogicalOp::Not)?,
+            target,
+        }),
+        "SUB-RULE" => Ok(ParsedRule::SubRule {
+            condition: Box::new(parse_sub_rule_condition(payload)?),
+            name: target,
         }),
         _ => bail!("unsupported rule type: {}", parts.rule_type),
     }
@@ -380,7 +654,7 @@ struct RuleParts {
     params: Vec<String>,
 }
 
-fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
+fn parse_rule_payload(raw: &str, need_target: bool) -> Result<RuleParts> {
     let items: Vec<String> = raw.split(',').map(|s| s.trim().to_owned()).collect();
     if items.is_empty() || items[0].is_empty() {
         bail!("empty rule");
@@ -397,20 +671,29 @@ fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
                 target = items[1].clone();
             }
             "NOT" | "OR" | "AND" | "SUB-RULE" | "DOMAIN-REGEX" | "PROCESS-NAME-REGEX" | "PROCESS-PATH-REGEX" => {
-                if let Some(last) = items.last() {
-                    target = last.clone();
-                }
-                if items.len() > 2 {
+                if need_target {
+                    if let Some(last) = items.last() {
+                        target = last.clone();
+                    }
+                    if items.len() > 2 {
+                        payload = items[1..items.len() - 1].join(",");
+                    }
+                } else {
                     payload = items[1..items.len() - 1].join(",");
+                    if let Some(last) = items.last() {
+                        payload.push_str(if payload.is_empty() { "" } else { "," });
+                        payload.push_str(last);
+                    }
                 }
             }
             _ => {
                 payload = items[1].clone();
-                if items.len() > 2 {
+                if need_target && items.len() > 2 {
                     target = items[2].clone();
                 }
-                if items.len() > 3 {
-                    params = items[3..].to_vec();
+                let param_start = if need_target { 3 } else { 2 };
+                if items.len() > param_start {
+                    params = items[param_start..].to_vec();
                 }
             }
         }
@@ -422,6 +705,99 @@ fn parse_rule_payload(raw: &str) -> Result<RuleParts> {
         target,
         params,
     })
+}
+
+fn parse_logical_rules(payload: &str, op: LogicalOp) -> Result<Vec<ParsedRule>> {
+    let rules = logical_rule_segments(payload)?
+        .into_iter()
+        .map(|segment| parse_logic_child_rule(segment))
+        .collect::<Result<Vec<_>>>()?;
+    if rules.is_empty() {
+        bail!("logic rule payload must contain at least one rule");
+    }
+    if matches!(op, LogicalOp::Not) && rules.len() != 1 {
+        bail!("NOT rule must contain one rule");
+    }
+    Ok(rules)
+}
+
+fn parse_sub_rule_condition(payload: &str) -> Result<ParsedRule> {
+    let payload = payload.trim();
+    if payload.starts_with('(')
+        && payload.ends_with(')')
+        && let Some(inner) = unwrap_single_parenthesized_rule(payload)?
+    {
+        parse_logic_child_rule(inner)
+    } else {
+        parse_logic_child_rule(payload)
+    }
+}
+
+fn logical_rule_segments(payload: &str) -> Result<Vec<&str>> {
+    let payload = payload.trim();
+    if payload.is_empty() {
+        bail!("logic rule payload cannot be empty");
+    }
+    if let Some(inner) = unwrap_single_parenthesized_rule(payload)? {
+        let inner_segments = direct_parenthesized_segments(inner)?;
+        if !inner_segments.is_empty() {
+            return Ok(inner_segments);
+        }
+    }
+    direct_parenthesized_segments(payload)
+}
+
+fn unwrap_single_parenthesized_rule(payload: &str) -> Result<Option<&str>> {
+    let ranges = parenthesized_ranges(payload)?;
+    Ok(if ranges.len() == 1 && ranges[0] == (0, payload.len() - 1) {
+        Some(&payload[1..payload.len() - 1])
+    } else {
+        None
+    })
+}
+
+fn direct_parenthesized_segments(payload: &str) -> Result<Vec<&str>> {
+    parenthesized_ranges(payload)?
+        .into_iter()
+        .map(|(start, end)| Ok(&payload[start + 1..end]))
+        .collect()
+}
+
+fn parenthesized_ranges(payload: &str) -> Result<Vec<(usize, usize)>> {
+    let mut ranges = Vec::new();
+    let mut depth = 0usize;
+    let mut start = None;
+    for (idx, byte) in payload.bytes().enumerate() {
+        match byte {
+            b'(' => {
+                if depth == 0 {
+                    start = Some(idx);
+                }
+                depth += 1;
+            }
+            b')' => {
+                if depth == 0 {
+                    bail!("logic rule payload has unmatched ')'");
+                }
+                depth -= 1;
+                if depth == 0 {
+                    let Some(range_start) = start.take() else {
+                        bail!("logic rule payload has invalid parentheses");
+                    };
+                    ranges.push((range_start, idx));
+                }
+            }
+            b',' | b' ' | b'\t' | b'\r' | b'\n' if depth == 0 => {}
+            _ if depth == 0 => {
+                bail!("logic rule payload must wrap each child rule in parentheses");
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        bail!("logic rule payload has unmatched '('");
+    }
+    Ok(ranges)
 }
 
 fn parse_params(params: &[&str]) -> (bool, bool) {
@@ -463,6 +839,156 @@ fn parse_ip_suffix(s: &str) -> Result<(Vec<u8>, u8)> {
     Ok((addr_bytes, bits))
 }
 
+fn parse_asn(s: &str) -> Result<u32> {
+    s.parse().context("IP-ASN payload must be a numeric ASN")
+}
+
+fn parse_uid_ranges(s: &str) -> Result<Vec<(u32, u32)>> {
+    let s = s.trim();
+    if s.is_empty() || s == "*" {
+        bail!("UID payload must contain at least one numeric UID or UID range");
+    }
+
+    let parts = s.replace(',', "/");
+    let parts = parts
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .collect::<Vec<_>>();
+    if parts.is_empty() {
+        bail!("UID payload must contain at least one numeric UID or UID range");
+    }
+    if parts.len() > 28 {
+        bail!("UID supports at most 28 ranges");
+    }
+
+    parts
+        .into_iter()
+        .map(|part| {
+            let part = part.trim();
+            if let Some((start_s, end_s)) = part.split_once('-') {
+                let start = parse_uid_value(start_s)?;
+                let end = parse_uid_value(end_s)?;
+                Ok(if start <= end { (start, end) } else { (end, start) })
+            } else {
+                let uid = parse_uid_value(part)?;
+                Ok((uid, uid))
+            }
+        })
+        .collect()
+}
+
+fn parse_uid_value(s: &str) -> Result<u32> {
+    s.trim_matches([' ', '[', ']'])
+        .parse()
+        .context("UID payload must be numeric")
+}
+
+fn parse_dscp_ranges(s: &str) -> Result<Vec<(u8, u8)>> {
+    let s = s.trim();
+    if s.is_empty() || s == "*" {
+        return Ok(Vec::new());
+    }
+
+    let parts = s.replace(',', "/");
+    let parts = parts
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .collect::<Vec<_>>();
+    if parts.len() > 28 {
+        bail!("DSCP supports at most 28 ranges");
+    }
+
+    parts
+        .into_iter()
+        .map(|part| {
+            let part = part.trim();
+            if let Some((start_s, end_s)) = part.split_once('-') {
+                let start = parse_dscp_value(start_s)?;
+                let end = parse_dscp_value(end_s)?;
+                Ok(if start <= end { (start, end) } else { (end, start) })
+            } else {
+                let dscp = parse_dscp_value(part)?;
+                Ok((dscp, dscp))
+            }
+        })
+        .collect()
+}
+
+fn parse_dscp_value(s: &str) -> Result<u8> {
+    let dscp: u8 = s
+        .trim_matches([' ', '[', ']'])
+        .parse()
+        .context("DSCP payload must be numeric")?;
+    if dscp > 63 {
+        bail!("DSCP cannot exceed 63");
+    }
+    Ok(dscp)
+}
+
+fn parse_in_types(s: &str) -> Result<Vec<String>> {
+    let mut types = Vec::new();
+    for part in s.split('/') {
+        let in_type = part.trim();
+        if in_type.is_empty() {
+            bail!("IN-TYPE payload cannot contain empty types");
+        }
+        let upper = in_type.to_ascii_uppercase();
+        if upper == "SOCKS" {
+            types.push("SOCKS4".to_owned());
+            types.push("SOCKS5".to_owned());
+        } else if is_supported_in_type(&upper) {
+            types.push(upper);
+        } else {
+            bail!("unknown IN-TYPE: {in_type}");
+        }
+    }
+    if types.is_empty() {
+        bail!("IN-TYPE payload cannot be empty");
+    }
+    Ok(types)
+}
+
+fn is_supported_in_type(in_type: &str) -> bool {
+    matches!(
+        in_type,
+        "HTTP"
+            | "HTTPS"
+            | "SOCKS4"
+            | "SOCKS5"
+            | "SHADOWSOCKS"
+            | "SNELL"
+            | "VMESS"
+            | "VLESS"
+            | "REDIR"
+            | "TPROXY"
+            | "TROJAN"
+            | "TUNNEL"
+            | "TUN"
+            | "TUIC"
+            | "HYSTERIA2"
+            | "ANYTLS"
+            | "MIERU"
+            | "SUDOKU"
+            | "TRUSTTUNNEL"
+            | "INNER"
+    )
+}
+
+fn parse_slash_list(s: &str, rule_type: &str) -> Result<Vec<String>> {
+    let mut values = Vec::new();
+    for part in s.split('/') {
+        let value = part.trim();
+        if value.is_empty() {
+            bail!("{rule_type} payload cannot contain empty values");
+        }
+        values.push(value.to_owned());
+    }
+    if values.is_empty() {
+        bail!("{rule_type} payload cannot be empty");
+    }
+    Ok(values)
+}
+
 fn parse_port_ranges(s: &str) -> Result<Vec<(u16, u16)>> {
     let mut ranges = Vec::new();
     for part in s.split('/') {
@@ -493,7 +1019,29 @@ fn rule_matches<'a>(
     rule: &'a ParsedRule,
     meta: &ConnectionMeta,
     host_lower: &str,
-    geo_data: &RuleGeoData,
+    geo_data: &'a RuleGeoData,
+    rule_sets: &'a RuleSetData,
+    sub_rules: &'a SubRuleData,
+) -> Option<&'a str> {
+    rule_matches_inner(
+        rule,
+        meta,
+        host_lower,
+        geo_data,
+        rule_sets,
+        sub_rules,
+        &mut HashSet::new(),
+    )
+}
+
+fn rule_matches_inner<'a>(
+    rule: &'a ParsedRule,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    geo_data: &'a RuleGeoData,
+    rule_sets: &'a RuleSetData,
+    sub_rules: &'a SubRuleData,
+    visited_sub_rules: &mut HashSet<String>,
 ) -> Option<&'a str> {
     match rule {
         ParsedRule::Domain { domain, target } => {
@@ -602,8 +1150,228 @@ fn rule_matches<'a>(
                 None
             }
         }
-        // External data rules cannot be matched locally
-        ParsedRule::ExternalData { .. } => None,
+        ParsedRule::IpAsn { asn, is_src, target } => {
+            let ip = if *is_src { meta.src_ip } else { meta.dst_ip };
+            ip.and_then(|ip| {
+                if geo_data.asn_matches(*asn, ip) {
+                    Some(target.as_str())
+                } else {
+                    None
+                }
+            })
+        }
+        ParsedRule::RuleSet { name, target } => {
+            if rule_sets.matches(name, meta) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessName { name, target } => {
+            if !meta.process_name.is_empty() && meta.process_name.eq_ignore_ascii_case(name) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessPath { path, target } => {
+            if !meta.process_path.is_empty() && meta.process_path.eq_ignore_ascii_case(path) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessNameRegex { regex, target } => {
+            if !meta.process_name.is_empty() && regex.is_match(&meta.process_name) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessPathRegex { regex, target } => {
+            if !meta.process_path.is_empty() && regex.is_match(&meta.process_path) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessNameWildcard { pattern, target } => {
+            if !meta.process_name.is_empty() && wildcard_match(pattern, &meta.process_name.to_ascii_lowercase()) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::ProcessPathWildcard { pattern, target } => {
+            if !meta.process_path.is_empty() && wildcard_match(pattern, &meta.process_path.to_ascii_lowercase()) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::Uid { ranges, target } => {
+            if meta.uid != 0 && ranges.iter().any(|(start, end)| meta.uid >= *start && meta.uid <= *end) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::Dscp { ranges, target } => {
+            if ranges.is_empty()
+                || ranges
+                    .iter()
+                    .any(|(start, end)| meta.dscp >= *start && meta.dscp <= *end)
+            {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::InType { types, target } => {
+            let in_type = meta.in_type.to_ascii_uppercase();
+            if !in_type.is_empty() && types.iter().any(|rule_type| rule_type == &in_type) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::InUser { users, target } => {
+            if !meta.in_user.is_empty() && users.iter().any(|user| user == &meta.in_user) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::InName { names, target } => {
+            if !meta.in_name.is_empty() && names.iter().any(|name| name == &meta.in_name) {
+                Some(target.as_str())
+            } else {
+                None
+            }
+        }
+        ParsedRule::Logical { op, rules, target } => {
+            let matched = match op {
+                LogicalOp::And => rules.iter().all(|rule| {
+                    rule_matches_inner(
+                        rule,
+                        meta,
+                        host_lower,
+                        geo_data,
+                        rule_sets,
+                        sub_rules,
+                        visited_sub_rules,
+                    )
+                    .is_some()
+                }),
+                LogicalOp::Or => rules.iter().any(|rule| {
+                    rule_matches_inner(
+                        rule,
+                        meta,
+                        host_lower,
+                        geo_data,
+                        rule_sets,
+                        sub_rules,
+                        visited_sub_rules,
+                    )
+                    .is_some()
+                }),
+                LogicalOp::Not => rules.first().is_some_and(|rule| {
+                    rule_matches_inner(
+                        rule,
+                        meta,
+                        host_lower,
+                        geo_data,
+                        rule_sets,
+                        sub_rules,
+                        visited_sub_rules,
+                    )
+                    .is_none()
+                }),
+            };
+            matched.then_some(target.as_str())
+        }
+        ParsedRule::SubRule { condition, name } => rule_matches_inner(
+            condition,
+            meta,
+            host_lower,
+            geo_data,
+            rule_sets,
+            sub_rules,
+            visited_sub_rules,
+        )
+        .and_then(|_| sub_rules.match_named(name, meta, host_lower, geo_data, rule_sets, visited_sub_rules)),
+    }
+}
+
+fn rule_trace_step(
+    rule_index: usize,
+    rule: &ParsedRule,
+    raw: &str,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    target: Option<&str>,
+    geo_data: &RuleGeoData,
+    rule_sets: &RuleSetData,
+    sub_rules: &SubRuleData,
+) -> RuleTraceStep {
+    RuleTraceStep {
+        rule_index,
+        rule_raw: raw.to_owned(),
+        rule_type: rule_type_name(rule).to_owned(),
+        matched: target.is_some(),
+        target: target.map(str::to_owned),
+        detail: rule_trace_detail(rule, meta, host_lower, geo_data, rule_sets, sub_rules),
+    }
+}
+
+fn rule_trace_detail(
+    rule: &ParsedRule,
+    meta: &ConnectionMeta,
+    host_lower: &str,
+    geo_data: &RuleGeoData,
+    rule_sets: &RuleSetData,
+    sub_rules: &SubRuleData,
+) -> Option<RuleTraceDetail> {
+    match rule {
+        ParsedRule::RuleSet { name, .. } => {
+            let inner = rule_sets.explain(name, meta);
+            Some(RuleTraceDetail {
+                reference_type: "rule_set".to_owned(),
+                name: name.clone(),
+                condition_matched: None,
+                matched_rule_raw: inner.as_ref().and_then(|result| result.rule_raw.clone()),
+                matched_rule_type: inner.as_ref().and_then(|result| result.rule_type.clone()),
+                matched_target: inner.as_ref().and_then(|result| result.target.clone()),
+            })
+        }
+        ParsedRule::SubRule { condition, name } => {
+            let mut condition_visited = HashSet::new();
+            let condition_matched = rule_matches_inner(
+                condition,
+                meta,
+                host_lower,
+                geo_data,
+                rule_sets,
+                sub_rules,
+                &mut condition_visited,
+            )
+            .is_some();
+            let sub_match = if condition_matched {
+                let mut sub_rule_visited = HashSet::new();
+                sub_rules.explain_match_named(name, meta, host_lower, geo_data, rule_sets, &mut sub_rule_visited)
+            } else {
+                None
+            };
+            Some(RuleTraceDetail {
+                reference_type: "sub_rule".to_owned(),
+                name: name.clone(),
+                condition_matched: Some(condition_matched),
+                matched_rule_raw: sub_match.as_ref().map(|result| result.rule_raw.clone()),
+                matched_rule_type: sub_match.as_ref().map(|result| result.rule_type.clone()),
+                matched_target: sub_match.as_ref().map(|result| result.target.clone()),
+            })
+        }
+        _ => None,
     }
 }
 
@@ -635,7 +1403,24 @@ fn rule_type_name(rule: &ParsedRule) -> &str {
         ParsedRule::GeoIp { is_src: true, .. } => "SRC-GEOIP",
         ParsedRule::GeoIp { .. } => "GEOIP",
         ParsedRule::GeoSite { .. } => "GEOSITE",
-        ParsedRule::ExternalData { rule_type, .. } => rule_type,
+        ParsedRule::IpAsn { is_src: true, .. } => "SRC-IP-ASN",
+        ParsedRule::IpAsn { .. } => "IP-ASN",
+        ParsedRule::RuleSet { .. } => "RULE-SET",
+        ParsedRule::ProcessName { .. } => "PROCESS-NAME",
+        ParsedRule::ProcessPath { .. } => "PROCESS-PATH",
+        ParsedRule::ProcessNameRegex { .. } => "PROCESS-NAME-REGEX",
+        ParsedRule::ProcessPathRegex { .. } => "PROCESS-PATH-REGEX",
+        ParsedRule::ProcessNameWildcard { .. } => "PROCESS-NAME-WILDCARD",
+        ParsedRule::ProcessPathWildcard { .. } => "PROCESS-PATH-WILDCARD",
+        ParsedRule::Uid { .. } => "UID",
+        ParsedRule::Dscp { .. } => "DSCP",
+        ParsedRule::InType { .. } => "IN-TYPE",
+        ParsedRule::InUser { .. } => "IN-USER",
+        ParsedRule::InName { .. } => "IN-NAME",
+        ParsedRule::Logical { op: LogicalOp::And, .. } => "AND",
+        ParsedRule::Logical { op: LogicalOp::Or, .. } => "OR",
+        ParsedRule::Logical { op: LogicalOp::Not, .. } => "NOT",
+        ParsedRule::SubRule { .. } => "SUB-RULE",
     }
 }
 
@@ -762,193 +1547,4 @@ fn wildcard_match(pattern: &str, text: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::rule_geodata::{GeoIpData, GeoSiteData, GeoSiteDomainType, RuleGeoData};
-    use std::collections::HashMap;
-
-    fn meta_domain(host: &str) -> ConnectionMeta {
-        ConnectionMeta {
-            host: host.to_owned(),
-            ..Default::default()
-        }
-    }
-
-    fn meta_ip(dst: &str, port: u16) -> ConnectionMeta {
-        ConnectionMeta {
-            dst_ip: Some(dst.parse().unwrap()),
-            dst_port: port,
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn domain_exact_match() {
-        let engine = RuleEngine::from_rules(&["DOMAIN,google.com,Proxy", "MATCH,DIRECT"]).unwrap();
-        let r = engine.match_connection(&meta_domain("google.com"));
-        assert!(r.matched);
-        assert_eq!(r.target.as_deref(), Some("Proxy"));
-        assert_eq!(r.rule_type.as_deref(), Some("DOMAIN"));
-    }
-
-    #[test]
-    fn domain_suffix_match() {
-        let engine = RuleEngine::from_rules(&["DOMAIN-SUFFIX,google.com,Proxy", "MATCH,DIRECT"]).unwrap();
-        assert!(engine.match_connection(&meta_domain("www.google.com")).matched);
-        assert!(engine.match_connection(&meta_domain("google.com")).matched);
-        let r = engine.match_connection(&meta_domain("notgoogle.com"));
-        assert_eq!(r.target.as_deref(), Some("DIRECT"));
-    }
-
-    #[test]
-    fn domain_keyword_match() {
-        let engine = RuleEngine::from_rules(&["DOMAIN-KEYWORD,goog,Proxy", "MATCH,DIRECT"]).unwrap();
-        assert!(engine.match_connection(&meta_domain("www.google.com")).matched);
-        let r = engine.match_connection(&meta_domain("www.google.com"));
-        assert_eq!(r.target.as_deref(), Some("Proxy"));
-    }
-
-    #[test]
-    fn domain_regex_match() {
-        let engine = RuleEngine::from_rules(&["DOMAIN-REGEX,^(www\\.)?google\\.com$,Proxy", "MATCH,DIRECT"]).unwrap();
-        assert!(engine.match_connection(&meta_domain("google.com")).matched);
-        assert!(engine.match_connection(&meta_domain("www.google.com")).matched);
-        let r = engine.match_connection(&meta_domain("mail.google.com"));
-        assert_eq!(r.target.as_deref(), Some("DIRECT"));
-    }
-
-    #[test]
-    fn ip_cidr_match() {
-        let engine = RuleEngine::from_rules(&["IP-CIDR,10.0.0.0/8,Direct", "MATCH,Proxy"]).unwrap();
-        let r = engine.match_connection(&meta_ip("10.1.2.3", 80));
-        assert_eq!(r.target.as_deref(), Some("Direct"));
-
-        let r = engine.match_connection(&meta_ip("192.168.1.1", 80));
-        assert_eq!(r.target.as_deref(), Some("Proxy"));
-    }
-
-    #[test]
-    fn port_range_match() {
-        let engine = RuleEngine::from_rules(&["DST-PORT,80/443/8000-9000,Web", "MATCH,DIRECT"]).unwrap();
-        assert_eq!(
-            engine.match_connection(&meta_ip("1.2.3.4", 443)).target.as_deref(),
-            Some("Web")
-        );
-        assert_eq!(
-            engine.match_connection(&meta_ip("1.2.3.4", 8500)).target.as_deref(),
-            Some("Web")
-        );
-        assert_eq!(
-            engine.match_connection(&meta_ip("1.2.3.4", 22)).target.as_deref(),
-            Some("DIRECT")
-        );
-    }
-
-    #[test]
-    fn network_match() {
-        let engine = RuleEngine::from_rules(&["NETWORK,udp,UdpProxy", "MATCH,DIRECT"]).unwrap();
-        let mut m = meta_domain("example.com");
-        m.network = NetworkType::Udp;
-        assert_eq!(engine.match_connection(&m).target.as_deref(), Some("UdpProxy"));
-    }
-
-    #[test]
-    fn wildcard_match_cases() {
-        assert!(wildcard_match("*.google.com", "www.google.com"));
-        assert!(wildcard_match("*.google.com", "mail.google.com"));
-        assert!(!wildcard_match("*.google.com", "google.com"));
-        assert!(wildcard_match("google.*", "google.com"));
-        assert!(wildcard_match("g?ogle.com", "google.com"));
-    }
-
-    #[test]
-    fn validate_rule_catches_errors() {
-        assert!(validate_rule("DOMAIN,google.com,Proxy").valid);
-        assert!(validate_rule("IP-CIDR,10.0.0.0/8,Direct").valid);
-        assert!(validate_rule("MATCH,DIRECT").valid);
-
-        assert!(!validate_rule("DOMAIN").valid);
-        assert!(!validate_rule("IP-CIDR,not-a-cidr,Direct").valid);
-        assert!(!validate_rule("IP-SUFFIX,1.2.3.4/40,Direct").valid);
-        assert!(!validate_rule("DST-PORT,notaport,Direct").valid);
-        assert!(!validate_rule("UNKNOWN-TYPE,foo,bar").valid);
-    }
-
-    #[test]
-    fn geoip_falls_through_without_geodata() {
-        let v = validate_rule("GEOIP,CN,DIRECT,no-resolve");
-        assert!(v.valid);
-        let engine = RuleEngine::from_rules(&["GEOIP,CN,DIRECT,no-resolve", "MATCH,Proxy"]).unwrap();
-        let r = engine.match_connection(&meta_ip("1.2.3.4", 80));
-        assert_eq!(r.target.as_deref(), Some("Proxy"));
-    }
-
-    #[test]
-    fn geoip_matches_with_geodata() {
-        let geoip = GeoIpData::from_cidr_map(HashMap::from([(
-            "cn".to_string(),
-            vec![("203.0.113.0".parse().unwrap(), 24)],
-        )]));
-        let geo_data = RuleGeoData::from_parts(Some(geoip), None);
-        let engine =
-            RuleEngine::from_rules_with_geo_data(&["GEOIP,CN,DIRECT,no-resolve", "MATCH,Proxy"], geo_data).unwrap();
-
-        assert_eq!(
-            engine.match_connection(&meta_ip("203.0.113.10", 80)).target.as_deref(),
-            Some("DIRECT")
-        );
-        assert_eq!(
-            engine.match_connection(&meta_ip("198.51.100.10", 80)).target.as_deref(),
-            Some("Proxy")
-        );
-    }
-
-    #[test]
-    fn geosite_matches_with_geodata() {
-        let geosite = GeoSiteData::from_site_map(HashMap::from([(
-            "cn".to_string(),
-            vec![(GeoSiteDomainType::Domain, "example.cn".to_string())],
-        )]))
-        .unwrap();
-        let geo_data = RuleGeoData::from_parts(None, Some(geosite));
-        let engine = RuleEngine::from_rules_with_geo_data(&["GEOSITE,CN,DIRECT", "MATCH,Proxy"], geo_data).unwrap();
-
-        assert_eq!(
-            engine
-                .match_connection(&meta_domain("www.example.cn"))
-                .target
-                .as_deref(),
-            Some("DIRECT")
-        );
-        assert_eq!(
-            engine
-                .match_connection(&meta_domain("www.example.com"))
-                .target
-                .as_deref(),
-            Some("Proxy")
-        );
-    }
-
-    #[test]
-    fn geoip_lan_matches_without_external_data() {
-        let engine = RuleEngine::from_rules(&["GEOIP,LAN,DIRECT", "MATCH,Proxy"]).unwrap();
-        assert_eq!(
-            engine.match_connection(&meta_ip("192.168.1.1", 80)).target.as_deref(),
-            Some("DIRECT")
-        );
-    }
-
-    #[test]
-    fn cidr_v6() {
-        let engine = RuleEngine::from_rules(&["IP-CIDR6,fd00::/8,Local", "MATCH,Proxy"]).unwrap();
-        let mut m = ConnectionMeta::default();
-        m.dst_ip = Some("fd12:3456::1".parse().unwrap());
-        assert_eq!(engine.match_connection(&m).target.as_deref(), Some("Local"));
-    }
-
-    #[test]
-    fn domain_regex_payload_with_comma() {
-        let engine = RuleEngine::from_rules(&["DOMAIN-REGEX,^(foo|bar).example\\.com$,Proxy", "MATCH,DIRECT"]).unwrap();
-        assert!(engine.match_connection(&meta_domain("foo.example.com")).matched);
-    }
-}
+mod tests;

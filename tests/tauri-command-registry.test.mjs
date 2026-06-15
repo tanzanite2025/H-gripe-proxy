@@ -18,7 +18,7 @@ test('TLS fingerprint clear command is implemented and registered', () => {
 })
 
 test('clear logs command is implemented and registered', () => {
-  const frontend = read('src/services/cmds.ts')
+  const frontend = read('src/services/cmds/runtime.ts')
   const commandModule = read('src-tauri/src/cmd/clash.rs')
   const registry = read('src-tauri/src/lib.rs')
 
@@ -27,13 +27,25 @@ test('clear logs command is implemented and registered', () => {
   assert.match(registry, /cmd::clear_logs/)
 })
 
-test('proxy delay helper uses the registered mihomo plugin command', () => {
-  const frontend = read('src/services/cmds.ts')
-  const plugin = read('crates/tauri-plugin-mihomo/src/lib.rs')
+test('latency planning uses the Rust command path', () => {
+  const runtimeCmds = read('src/services/cmds/runtime.ts')
+  const delayManager = read('src/services/delay.ts')
+  const commandModule = read('src-tauri/src/cmd/latency_test.rs')
+  const registry = read('src-tauri/src/lib.rs')
 
-  assert.doesNotMatch(frontend, /clash_api_get_proxy_delay/)
-  assert.match(frontend, /invoke<\{\s*delay: number\s*\}>\(\s*'plugin:mihomo\|delay_proxy_by_name'/)
-  assert.match(frontend, /proxyName:\s*name/)
-  assert.match(frontend, /\btestUrl\b/)
-  assert.match(plugin, /commands::delay_proxy_by_name/)
+  assert.doesNotMatch(runtimeCmds, /cmdGetProxyDelay/)
+  assert.match(runtimeCmds, /invoke<LatencyTestPlan>\('plan_latency_test'/)
+  assert.match(delayManager, /planLatencyTest\(\{/)
+  assert.match(commandModule, /#\[tauri::command\][\s\S]*pub async fn plan_latency_test\(/)
+  assert.match(registry, /cmd::plan_latency_test/)
+})
+
+test('node selection planning command is implemented and registered', () => {
+  const frontend = read('src/services/proxy-runtime-selection.ts')
+  const commandModule = read('src-tauri/src/cmd/node_selection.rs')
+  const registry = read('src-tauri/src/lib.rs')
+
+  assert.match(frontend, /invoke<NodeSelectionPlan>\('plan_node_selection'/)
+  assert.match(commandModule, /#\[tauri::command\][\s\S]*pub async fn plan_node_selection\(/)
+  assert.match(registry, /cmd::plan_node_selection/)
 })

@@ -167,6 +167,14 @@ target/release/bundle/nsis/
 
 ---
 
+## Go → Rust Migration
+
+迁移路线图和实时进度统一维护在 [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md)。
+
+README 只保留迁移入口和原则：优先把“不碰真实转发链路”的控制、校验、解释、诊断和调度逻辑迁入 Tauri Rust 后端；Mihomo Go sidecar 在对应 runtime 未迁移前继续负责真实转发、协议栈、TUN、tunnel 和 DNS runtime。
+
+---
+
 ## 项目结构 / Project Structure
 
 ```
@@ -241,5 +249,5 @@ the Free Software Foundation, either version 3 of the License, or
 
 ---
 
-**最后更新** / Last Updated: 2026-06-08  
+**最后更新** / Last Updated: 2026-06-14  
 **维护者** / Maintainer: tanzanite2025

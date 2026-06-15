@@ -1,7 +1,5 @@
-use crate::{
-    multipath::{
-        MultipathConfig, MultipathManager, NodePool, NodeStats, PathNode, PoolType, SessionBinding, SlicingStrategy,
-    },
+use crate::multipath::{
+    MultipathConfig, MultipathManager, NodePool, NodeStats, PathNode, PoolType, SessionBinding, SlicingStrategy,
 };
 use anyhow::Result;
 use std::collections::HashMap;

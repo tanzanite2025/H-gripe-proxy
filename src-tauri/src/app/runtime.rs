@@ -1,13 +1,14 @@
-use crate::core::clash_mode::ClashMode;
 use crate::config::Config;
-use crate::core::{
-    CoreManager, handle, manager::CLASH_LOGGER, stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress,
-    tray::Tray,
-};
 use crate::config::IVerge;
+use crate::core::clash_mode::ClashMode;
+use crate::core::{
+    CoreManager, handle, manager::CLASH_LOGGER,
+    stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress, tray::Tray,
+};
 use bytes::BytesMut;
 use clash_verge_logging::{Type, logging};
 use compact_str::CompactString;
+use once_cell::sync::Lazy;
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::env;
@@ -15,7 +16,6 @@ use std::sync::Arc;
 use tauri::Emitter as _;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
 use tokio::fs;
-use once_cell::sync::Lazy;
 
 #[allow(clippy::expect_used)]
 static TLS_CONFIG: Lazy<Arc<rustls::ClientConfig>> = Lazy::new(|| {
@@ -48,7 +48,11 @@ pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
 
             crate::process::AsyncHandler::spawn(move || async {
                 if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
-                    logging!(error, Type::Core, "Failed to close connections after clash mode change: {err}");
+                    logging!(
+                        error,
+                        Type::Core,
+                        "Failed to close connections after clash mode change: {err}"
+                    );
                 }
             });
             Ok(())
@@ -313,14 +317,20 @@ pub async fn start_core() -> anyhow::Result<()> {
 }
 
 pub async fn stop_core() -> anyhow::Result<()> {
-    clash_verge_logging::logging_error!(clash_verge_logging::Type::Core, Config::profiles().await.data_arc().save_file().await);
+    clash_verge_logging::logging_error!(
+        clash_verge_logging::Type::Core,
+        Config::profiles().await.data_arc().save_file().await
+    );
     CoreManager::global().stop_core().await?;
     handle::Handle::refresh_clash();
     Ok(())
 }
 
 pub async fn restart_core() -> anyhow::Result<()> {
-    clash_verge_logging::logging_error!(clash_verge_logging::Type::Core, Config::profiles().await.data_arc().save_file().await);
+    clash_verge_logging::logging_error!(
+        clash_verge_logging::Type::Core,
+        Config::profiles().await.data_arc().save_file().await
+    );
     CoreManager::global().restart_core().await?;
     handle::Handle::refresh_clash();
     Ok(())

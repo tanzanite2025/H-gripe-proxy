@@ -37,9 +37,7 @@ impl NotificationSystem {
             FrontendEvent::NoticeMessage { status, message } => {
                 ("verge://notice-message", serde_json::to_value((status, message)))
             }
-            FrontendEvent::SubscriptionUpdate { event } => {
-                ("verge://subscription-update", serde_json::to_value(event))
-            }
+            FrontendEvent::SubscriptionUpdate { event } => ("verge://subscription-update", serde_json::to_value(event)),
             FrontendEvent::ProfileChanged { current_profile_id } => ("profile-changed", Ok(json!(current_profile_id))),
             FrontendEvent::TimerUpdated { profile_index } => ("verge://timer-updated", Ok(json!(profile_index))),
         }

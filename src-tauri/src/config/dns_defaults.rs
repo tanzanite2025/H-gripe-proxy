@@ -11,8 +11,5 @@ pub const FOREIGN_DOT_NAMESERVERS: &[&str] = &["tls://1.1.1.1:853"];
 pub const ENCRYPTED_BOOTSTRAP_NAMESERVERS: &[&str] = &["https://1.1.1.1/dns-query"];
 
 pub fn value_sequence(values: &[&str]) -> Vec<Value> {
-    values
-        .iter()
-        .map(|value| Value::String((*value).into()))
-        .collect()
+    values.iter().map(|value| Value::String((*value).into())).collect()
 }
