@@ -346,6 +346,25 @@ impl PrfItem {
         desc: Option<&String>,
         option: Option<&PrfOption>,
     ) -> Result<Self> {
+        Self::from_fetched_payload_inner(url, fetched, name, desc, option, true).await
+    }
+
+    pub(crate) async fn from_fetched_payload_compatibility_update(
+        url: &str,
+        fetched: FetchedSubscriptionPayload,
+        option: Option<&PrfOption>,
+    ) -> Result<Self> {
+        Self::from_fetched_payload_inner(url, fetched, None, None, option, false).await
+    }
+
+    async fn from_fetched_payload_inner(
+        url: &str,
+        fetched: FetchedSubscriptionPayload,
+        name: Option<&String>,
+        desc: Option<&String>,
+        option: Option<&PrfOption>,
+        create_missing_auxiliary_items: bool,
+    ) -> Result<Self> {
         let url = fix_dirty_url(url)?;
         let allow_auto_update = option.map(|o| o.allow_auto_update.unwrap_or(true));
         let update_interval = option.and_then(|o| o.update_interval);
@@ -448,22 +467,22 @@ impl PrfItem {
         parse_clash_yaml_subscription(data, Some(content_type.as_str()))
             .map_err(|err| anyhow!("{err} (status {status_code}, content-type {content_type})"))?;
 
-        if merge.is_none() {
+        if create_missing_auxiliary_items && merge.is_none() {
             let merge_item = &mut Self::from_merge(None)?;
             profiles::profiles_append_item_safe(merge_item).await?;
             merge = merge_item.uid.clone();
         }
-        if script.is_none() {
+        if create_missing_auxiliary_items && script.is_none() {
             let script_item = &mut Self::from_script(None)?;
             profiles::profiles_append_item_safe(script_item).await?;
             script = script_item.uid.clone();
         }
-        if proxies.is_none() {
+        if create_missing_auxiliary_items && proxies.is_none() {
             let proxies_item = &mut Self::from_proxies()?;
             profiles::profiles_append_item_safe(proxies_item).await?;
             proxies = proxies_item.uid.clone();
         }
-        if groups.is_none() {
+        if create_missing_auxiliary_items && groups.is_none() {
             let groups_item = &mut Self::from_groups()?;
             profiles::profiles_append_item_safe(groups_item).await?;
             groups = groups_item.uid.clone();
@@ -642,4 +661,46 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
     }
 
     Ok(url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::subscription::{fetch::ResponseMetadata, transport::TransportKind};
+    use reqwest::header::{HeaderMap, HeaderValue};
+
+    #[tokio::test]
+    async fn compatibility_update_materializes_without_creating_auxiliary_refs() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "subscription-userinfo",
+            HeaderValue::from_static("upload=1; download=2; total=3; expire=4"),
+        );
+        let fetched = FetchedSubscriptionPayload {
+            body: "proxies: []\nproxy-groups: []\nrules: []\n".into(),
+            headers,
+            metadata: ResponseMetadata {
+                status_code: 200,
+                content_type: Some("text/yaml".into()),
+                content_length: 37,
+                transport: TransportKind::Direct,
+            },
+        };
+
+        let item = PrfItem::from_fetched_payload_compatibility_update("https://example.com/sub.yaml", fetched, None)
+            .await
+            .expect("compatibility profile");
+
+        assert_eq!(item.url.as_deref(), Some("https://example.com/sub.yaml"));
+        assert_eq!(
+            item.file_data.as_deref(),
+            Some("proxies: []\nproxy-groups: []\nrules: []\n")
+        );
+        assert_eq!(item.extra.as_ref().map(|extra| extra.total), Some(3));
+        let option = item.option.as_ref().expect("option projection");
+        assert!(option.merge.is_none());
+        assert!(option.script.is_none());
+        assert!(option.proxies.is_none());
+        assert!(option.groups.is_none());
+    }
 }
