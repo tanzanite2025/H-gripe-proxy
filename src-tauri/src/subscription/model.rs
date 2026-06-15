@@ -1,4 +1,7 @@
-use crate::{subscription::format::SubscriptionFormat, utils::help};
+use crate::{
+    subscription::{format::SubscriptionFormat, transport::TransportKind},
+    utils::help,
+};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
@@ -29,12 +32,20 @@ pub enum UpdateFinalStatus {
     Failed,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionStageRecord {
+    pub stage: UpdateStage,
+    pub changed_at: i64,
+    pub transport: Option<TransportKind>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SubscriptionUpdateAttempt {
     pub attempt_id: String,
     pub source_id: String,
     pub trigger: UpdateTrigger,
     pub started_at: i64,
+    pub stage_history: Vec<SubscriptionStageRecord>,
 }
 
 impl SubscriptionUpdateAttempt {
@@ -44,7 +55,16 @@ impl SubscriptionUpdateAttempt {
             source_id: source_id.into(),
             trigger,
             started_at: Local::now().timestamp_millis(),
+            stage_history: Vec::new(),
         }
+    }
+
+    pub fn record_stage_changed(&mut self, stage: UpdateStage, transport: Option<TransportKind>) {
+        self.stage_history.push(SubscriptionStageRecord {
+            stage,
+            changed_at: Local::now().timestamp_millis(),
+            transport,
+        });
     }
 }
 
@@ -67,11 +87,13 @@ pub struct SubscriptionAttemptRecord {
     pub finished_at: i64,
     pub final_status: UpdateFinalStatus,
     pub stage: UpdateStage,
-    pub transport: Option<crate::subscription::transport::TransportKind>,
+    pub transport: Option<TransportKind>,
     pub artifact_version: Option<String>,
     pub error: Option<String>,
     pub runtime_activated: bool,
     pub active_artifact_unchanged: bool,
+    #[serde(default)]
+    pub stage_history: Vec<SubscriptionStageRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,4 +108,22 @@ pub struct SubscriptionSourceState {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SubscriptionStateDocument {
     pub sources: Vec<SubscriptionSourceState>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_attempt_records_stage_changes_in_order() {
+        let mut attempt = SubscriptionUpdateAttempt::new("source-a", UpdateTrigger::Automatic);
+
+        attempt.record_stage_changed(UpdateStage::ResolveTransportPlan, None);
+        attempt.record_stage_changed(UpdateStage::FetchPayload, Some(TransportKind::LocalProxy));
+
+        assert_eq!(attempt.stage_history.len(), 2);
+        assert_eq!(attempt.stage_history[0].stage, UpdateStage::ResolveTransportPlan);
+        assert_eq!(attempt.stage_history[1].stage, UpdateStage::FetchPayload);
+        assert_eq!(attempt.stage_history[1].transport, Some(TransportKind::LocalProxy));
+    }
 }
