@@ -16,6 +16,7 @@ pub enum FrontendEvent<'a> {
     ProfileChanged { current_profile_id: &'a String },
     TimerUpdated { profile_index: &'a String },
     ConnectionMetrics { payload: ConnectionMetricsEventPayload },
+    CoreLog { payload: serde_json::Value },
 }
 
 #[derive(Debug)]
@@ -42,9 +43,10 @@ impl NotificationSystem {
             FrontendEvent::SubscriptionUpdate { event } => ("verge://subscription-update", serde_json::to_value(event)),
             FrontendEvent::ProfileChanged { current_profile_id } => ("profile-changed", Ok(json!(current_profile_id))),
             FrontendEvent::TimerUpdated { profile_index } => ("verge://timer-updated", Ok(json!(profile_index))),
-            FrontendEvent::ConnectionMetrics { snapshot } => {
-                ("verge://connection-metrics", serde_json::to_value(snapshot))
+            FrontendEvent::ConnectionMetrics { payload } => {
+                ("verge://connection-metrics", serde_json::to_value(payload))
             }
+            FrontendEvent::CoreLog { payload } => ("verge://core-log", Ok(payload)),
         }
     }
 

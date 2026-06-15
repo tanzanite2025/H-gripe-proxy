@@ -1,4 +1,4 @@
-import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import {
   BaseConfig,
   BufferPoolStats,
@@ -10,7 +10,6 @@ import {
   EngineStats,
   Groups,
   HotReloadStatus,
-  LogLevel,
   MihomoVersion,
   PerfStats,
   Proxies,
@@ -505,13 +504,6 @@ export async function upgradeGeo(): Promise<void> {
 }
 
 /**
- * 清除 Rust 侧中所有的 WebSocket 连接
- */
-export async function clearAllWsConnections(): Promise<void> {
-  await invoke<void>("plugin:mihomo|clear_all_ws_connections");
-}
-
-/**
  * 获取引擎统计（活跃连接数、追踪连接数）
  */
 export async function getEngineStats(): Promise<EngineStats> {
@@ -583,113 +575,4 @@ export async function getHotReloadStatus(): Promise<HotReloadStatus> {
  */
 export async function getXdpStatus(): Promise<XDPStatus> {
   return await invoke<XDPStatus>("plugin:mihomo|get_xdp_status");
-}
-
-export interface MessageKind<T, D> {
-  type: T;
-  data: D;
-}
-
-export interface CloseFrame {
-  code: number;
-  reason: string;
-}
-
-export type Message =
-  | MessageKind<"Text", string>
-  | MessageKind<"Binary", number[]>
-  | MessageKind<"Ping", number[]>
-  | MessageKind<"Pong", number[]>
-  | MessageKind<"Close", CloseFrame | null>;
-
-export class MihomoWebSocket {
-  id: number;
-  private readonly listeners: Set<(arg: Message) => void>;
-  private static instances = new Set<MihomoWebSocket>();
-
-  constructor(id: number, listeners: Set<(arg: Message) => void>) {
-    this.id = id;
-    this.listeners = listeners;
-  }
-
-  /**
-   * 创建一个新的 WebSocket 连接，用于 Mihomo 的日志监控
-   * @returns WebSocket 实例
-   */
-  static async connect_logs(level: LogLevel): Promise<MihomoWebSocket> {
-    const listeners: Set<(arg: Message) => void> = new Set();
-    const onMessage = new Channel<Message>();
-    onMessage.onmessage = (message: Message): void => {
-      listeners.forEach((l) => {
-        l(message);
-      });
-    };
-    const id = await invoke<number>("plugin:mihomo|ws_logs", {
-      level,
-      onMessage,
-    });
-    const instance = new MihomoWebSocket(id, listeners);
-    MihomoWebSocket.instances.add(instance);
-    return instance;
-  }
-
-  /**
-   * 添加处理 WebSocket 连接后接受的数据的回调函数
-   * @param cb 回调函数
-   */
-  addListener(cb: (arg: Message) => void): () => void {
-    this.listeners.add(cb);
-    return () => {
-      this.listeners.delete(cb);
-    };
-  }
-
-  // /**
-  //  * 发送消息到 WebSocket 连接
-  //  * @param message 发送的消息
-  //  */
-  // async send(message: Message | string | number[]): Promise<void> {
-  //   let m: Message;
-  //   if (typeof message === "string") {
-  //     m = { type: "Text", data: message };
-  //   } else if (typeof message === "object" && "type" in message) {
-  //     m = message;
-  //   } else if (Array.isArray(message)) {
-  //     m = { type: "Binary", data: message };
-  //   } else {
-  //     throw new Error(
-  //       "invalid `message` type, expected a `{ type: string, data: any }` object, a string or a numeric array",
-  //     );
-  //   }
-  //   await invoke("plugin:mihomo|ws_send", { id: this.id, message: m });
-  // }
-
-  /**
-   * 关闭 WebSocket 连接
-   * @param forceTimeout 强制关闭 WebSocket 连接等待的时间，单位: 毫秒, 默认为 0
-   */
-  async close(): Promise<void> {
-    try {
-      await invoke("plugin:mihomo|ws_disconnect", {
-        id: this.id,
-        forceTimeout: 0,
-      });
-      this.listeners.clear();
-    } catch (ignore) {
-      // ignore
-    } finally {
-      MihomoWebSocket.instances.delete(this);
-    }
-  }
-
-  /**
-   * 清理全部的 websocket 连接资源
-   */
-  static async cleanupAll() {
-    await Promise.all(
-      Array.from(MihomoWebSocket.instances).map((instance) => instance.close()),
-    );
-    this.instances.clear();
-    await clearAllWsConnections();
-  }
 }

@@ -225,6 +225,8 @@ mod app_init {
             cmd::apply_dns_config,
             cmd::get_clash_logs,
             cmd::clear_logs,
+            cmd::log_monitor_start,
+            cmd::log_monitor_stop,
             cmd::get_geo_data_update_time,
             cmd::get_verge_config,
             cmd::patch_verge_config,

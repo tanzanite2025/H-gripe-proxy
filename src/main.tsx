@@ -8,7 +8,6 @@ import { ComposeContextProvider } from 'foxact/compose-context-provider'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
-import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
 import { BaseErrorBoundary } from './components/base'
 import { FALLBACK_LANGUAGE, initializeLanguage } from './services/i18n'
@@ -135,8 +134,4 @@ window.addEventListener('error', (event) => {
 
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[main.tsx] Unhandled promise rejection:', event.reason)
-})
-
-window.addEventListener('beforeunload', () => {
-  MihomoWebSocket.cleanupAll()
 })

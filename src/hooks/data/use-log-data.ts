@@ -1,11 +1,11 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import { useEffect, useRef } from 'react'
-import { MihomoWebSocket, type LogLevel } from 'tauri-plugin-mihomo-api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { LogLevel } from 'tauri-plugin-mihomo-api'
 
-import { useMihomoWsSubscription } from '@/hooks/network'
 import { useClashLog } from '@/hooks/system'
 import { getClashLogs } from '@/services/cmds'
+import { subscribeCoreLogs } from '@/services/log-monitor'
 import { normalizeCoreLogLevel } from '@/utils/log-level'
 
 import { useClash } from './use-clash'
@@ -13,6 +13,7 @@ import { useClash } from './use-clash'
 
 const MAX_LOG_NUM = 1000
 const FLUSH_DELAY_MS = 50
+const LOG_QUERY_KEY = 'rust-core-logs'
 type LogType = ILogItem['type']
 
 const DEFAULT_LOG_TYPES: LogType[] = ['debug', 'info', 'warning', 'error']
@@ -50,6 +51,19 @@ const appendLogs = (
   return base.slice(dropFromBase).concat(incoming)
 }
 
+const normalizeLogItem = (payload: unknown): ILogItem | null => {
+  if (!payload || typeof payload !== 'object') return null
+  const candidate = payload as Partial<ILogItem>
+  if (typeof candidate.type !== 'string' || typeof candidate.payload !== 'string') {
+    return null
+  }
+  return {
+    type: candidate.type,
+    payload: candidate.payload,
+    time: candidate.time,
+  }
+}
+
 export const useLogData = () => {
   const queryClient = useQueryClient()
   const { clash } = useClash()
@@ -60,104 +74,91 @@ export const useLogData = () => {
     : clashLog.logLevel
   const allowedTypes = LOG_LEVEL_FILTERS[logLevel] ?? DEFAULT_LOG_TYPES
   const hasLoadedInitialLogsRef = useRef(false)
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const subscriptionCacheKey = enableLog ? LOG_QUERY_KEY : null
 
-  const { response, refresh, subscriptionCacheKey } = useMihomoWsSubscription<
-    ILogItem[]
-  >({
-    storageKey: 'mihomo_logs_date',
-    buildSubscriptKey: (date) => (enableLog ? `getClashLog-${date}` : null),
-    fallbackData: [],
-    connect: () => MihomoWebSocket.connect_logs(logLevel),
-    setupHandlers: ({ next, scheduleReconnect, isMounted }) => {
-      let flushTimer: ReturnType<typeof setTimeout> | null = null
-      const buffer: ILogItem[] = []
-      let flushTimeStr: string | null = null
-
-      const clearFlushTimer = () => {
-        if (flushTimer) {
-          clearTimeout(flushTimer)
-          flushTimer = null
-        }
-      }
-
-      const flush = () => {
-        if (!buffer.length || !isMounted()) {
-          flushTimer = null
-          return
-        }
-        const pendingLogs = buffer.splice(0, buffer.length)
-        flushTimeStr = null
-        next(null, (current) => appendLogs(current, pendingLogs))
-        flushTimer = null
-      }
-
-      return {
-        handleMessage: (data) => {
-          if (data.startsWith('Websocket error')) {
-            next(data)
-            void scheduleReconnect()
-            return
-          }
-
-          try {
-            const parsed = JSON.parse(data) as ILogItem
-            if (
-              allowedTypes.length > 0 &&
-              !allowedTypes.includes(parsed.type)
-            ) {
-              return
-            }
-            if (flushTimeStr === null) {
-              flushTimeStr = dayjs().format('MM-DD HH:mm:ss')
-            }
-            parsed.time = flushTimeStr
-            buffer.push(parsed)
-            if (buffer.length > MAX_LOG_NUM) {
-              buffer.splice(0, buffer.length - MAX_LOG_NUM)
-            }
-            if (!flushTimer) {
-              flushTimer = setTimeout(flush, FLUSH_DELAY_MS)
-            }
-          } catch (error) {
-            next(error)
-          }
-        },
-        async onConnected() {
-          if (hasLoadedInitialLogsRef.current) {
-            return
-          }
-          const logs = await getClashLogs()
-          hasLoadedInitialLogsRef.current = true
-          if (isMounted()) {
-            next(null, (current) => {
-              if (!current || current.length === 0) {
-                return clampLogs(filterLogsByLevel(logs, allowedTypes))
-              }
-              return current
-            })
-          }
-        },
-        cleanup: clearFlushTimer,
-      }
-    },
+  const response = useQuery<ILogItem[]>({
+    queryKey: [LOG_QUERY_KEY],
+    queryFn: () => Promise.resolve([]),
+    initialData: [],
+    enabled: false,
   })
 
-  const previousLogLevelRef = useRef<LogLevel | undefined>(logLevel)
+  const setLogs = useCallback(
+    (updater: ILogItem[] | ((current?: ILogItem[]) => ILogItem[])) => {
+      queryClient.setQueryData<ILogItem[]>([LOG_QUERY_KEY], updater)
+    },
+    [queryClient],
+  )
 
   useEffect(() => {
-    if (!logLevel) {
-      previousLogLevelRef.current = logLevel ?? undefined
+    if (!enableLog || allowedTypes.length === 0) {
+      setLogs([])
       return
     }
 
-    if (previousLogLevelRef.current === logLevel) {
-      return
+    let mounted = true
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    const buffer: ILogItem[] = []
+    let flushTimeStr: string | null = null
+
+    const clearFlushTimer = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer)
+        flushTimer = null
+      }
     }
 
-    previousLogLevelRef.current = logLevel
-    hasLoadedInitialLogsRef.current = false
-    refresh()
-  }, [logLevel, refresh])
+    const flush = () => {
+      if (!buffer.length || !mounted) {
+        flushTimer = null
+        return
+      }
+      const pendingLogs = buffer.splice(0, buffer.length)
+      flushTimeStr = null
+      setLogs((current) => appendLogs(current, pendingLogs))
+      flushTimer = null
+    }
+
+    const loadInitialLogs = async () => {
+      if (hasLoadedInitialLogsRef.current) return
+      const logs = await getClashLogs()
+      hasLoadedInitialLogsRef.current = true
+      if (!mounted) return
+      setLogs((current) => {
+        if (!current || current.length === 0) {
+          return clampLogs(filterLogsByLevel(logs, allowedTypes))
+        }
+        return current
+      })
+    }
+
+    void loadInitialLogs()
+
+    const unsubscribe = subscribeCoreLogs(logLevel, (payload) => {
+      const parsed = normalizeLogItem(payload)
+      if (!parsed || !allowedTypes.includes(parsed.type)) {
+        return
+      }
+      if (flushTimeStr === null) {
+        flushTimeStr = dayjs().format('MM-DD HH:mm:ss')
+      }
+      parsed.time = flushTimeStr
+      buffer.push(parsed)
+      if (buffer.length > MAX_LOG_NUM) {
+        buffer.splice(0, buffer.length - MAX_LOG_NUM)
+      }
+      if (!flushTimer) {
+        flushTimer = setTimeout(flush, FLUSH_DELAY_MS)
+      }
+    })
+
+    return () => {
+      mounted = false
+      clearFlushTimer()
+      unsubscribe()
+    }
+  }, [allowedTypes, enableLog, logLevel, refreshVersion, setLogs])
 
   const refreshGetClashLog = (clear = false) => {
     if (clear) {
@@ -166,7 +167,7 @@ export const useLogData = () => {
       }
     } else {
       hasLoadedInitialLogsRef.current = false
-      refresh()
+      setRefreshVersion((version) => version + 1)
     }
   }
 

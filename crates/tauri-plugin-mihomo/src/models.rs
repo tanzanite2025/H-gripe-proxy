@@ -40,7 +40,7 @@ impl Display for Protocol {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename_all = "camelCase")]
 #[serde(rename_all(serialize = "camelCase", deserialize = "kebab-case"))]
 pub struct BaseConfig {

@@ -225,10 +225,6 @@ export declare function upgradeUi(): Promise<void>;
  */
 export declare function upgradeGeo(): Promise<void>;
 /**
- * 清除 Rust 侧中所有的 WebSocket 连接
- */
-export declare function clearAllWsConnections(): Promise<void>;
-/**
  * 获取引擎统计（活跃连接数、追踪连接数）
  */
 export declare function getEngineStats(): Promise<EngineStats>;
@@ -268,37 +264,3 @@ export declare function getHotReloadStatus(): Promise<HotReloadStatus>;
  * 获取 XDP 状态
  */
 export declare function getXdpStatus(): Promise<XDPStatus>;
-export interface MessageKind<T, D> {
-    type: T;
-    data: D;
-}
-export interface CloseFrame {
-    code: number;
-    reason: string;
-}
-export type Message = MessageKind<"Text", string> | MessageKind<"Binary", number[]> | MessageKind<"Ping", number[]> | MessageKind<"Pong", number[]> | MessageKind<"Close", CloseFrame | null>;
-export declare class MihomoWebSocket {
-    id: number;
-    private readonly listeners;
-    private static instances;
-    constructor(id: number, listeners: Set<(arg: Message) => void>);
-    /**
-     * 创建一个新的 WebSocket 连接，用于 Mihomo 的日志监控
-     * @returns WebSocket 实例
-     */
-    static connect_logs(level: LogLevel): Promise<MihomoWebSocket>;
-    /**
-     * 添加处理 WebSocket 连接后接受的数据的回调函数
-     * @param cb 回调函数
-     */
-    addListener(cb: (arg: Message) => void): () => void;
-    /**
-     * 关闭 WebSocket 连接
-     * @param forceTimeout 强制关闭 WebSocket 连接等待的时间，单位: 毫秒, 默认为 0
-     */
-    close(): Promise<void>;
-    /**
-     * 清理全部的 websocket 连接资源
-     */
-    static cleanupAll(): Promise<void>;
-}
