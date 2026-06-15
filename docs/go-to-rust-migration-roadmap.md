@@ -22,6 +22,8 @@
 | Phase 4C | 进程 / UID / DSCP / inbound 元数据规则 | 完成 | PR #17-#25；已完成 exact/regex process、UID、DSCP、`IN-TYPE` / `IN-USER` / `IN-NAME` |
 | Phase 4D | wildcard / logical / sub-rule 规则 | 完成 | PR #27-#31；`PROCESS-*WILDCARD`、`AND` / `OR` / `NOT` / `SUB-RULE` 与 rule explain |
 | Phase 5 | 控制器外围逻辑 Rust 化 | 完成 | PR #31-#37；rule explain、config diff、diagnostics summary、latency planner、node selection planner |
+| Phase 6A | DNS 控制面 explain / probe planner | 完成 | PR #45；只做 DNS 配置解释和 probe plan，不接管 Go DNS runtime |
+| Phase 6B | 订阅更新控制面 / artifact pipeline | 进行中 | PR #46-#60；已完成 source/transport/fetch/decode/artifact/state/event/executor/publish validation，runtime activation 仍走 legacy path |
 
 ## 已完成阶段详情
 
@@ -291,20 +293,92 @@ Phase 5 的删除边界：
 - Go `mihomo/` 中的 rule matching、`URLTest`、provider health check、tunnel scheduler 仍属于真实 runtime / forwarding 数据来源；在 Rust 尚未接管 runtime 前不能删除。
 - 每次迁完一个外围能力，应同步删除旧 wrapper / fallback，并在测试里固定调用 Rust Tauri command。
 
-#### Phase 6：DNS 解析迁移
+#### Phase 6：DNS 与订阅更新控制面迁移
+
+##### Phase 6A：DNS 解析迁移
+
+当前进度：
+
+1. Rust DNS config explain / probe planner：已完成（PR #45）。
+2. Rust DNS resolver runtime：未开始。
+
+已完成范围：
+
+- 读取 runtime YAML 中的 DNS 配置，输出结构化 explain。
+- 校验 / 解释 `nameserver`、`fallback`、`proxy-server-nameserver`、`nameserver-policy`、`enhanced-mode`、`fake-ip-range` 等控制面信息。
+- 规划 DNS probe / health check 输入。
+
+仍未迁移：
+
+- DNS resolver runtime。
+- fake-ip 缓存、fallback-filter、nameserver-policy 的真实运行时行为。
+- Go sidecar 的真实 DNS 解析链路。
 
 候选技术：
 
 - `hickory-resolver`
 - `hickory-proto`
 
-建议拆成三步：
+后续仍建议拆成三步：
 
-1. Rust DNS 配置校验与 explain。
-2. Rust DNS probe / health check。
-3. Rust DNS resolver runtime。
+1. Rust DNS 配置校验与 explain：已完成。
+2. Rust DNS probe / health check planner：已完成控制面 planner，真实 health check 可继续补。
+3. Rust DNS resolver runtime：最后做。
 
 不要一上来替换 Go 的 DNS runtime，否则会同时碰缓存、fake-ip、fallback-filter、nameserver-policy。
+
+##### Phase 6B：订阅更新 pipeline 迁移
+
+当前进度：**约 75%（截至 PR #60）**。
+
+已完成：
+
+1. Payload format detection：已完成（PR #46）。
+2. Clash YAML artifact materialization：已完成（PR #47）。
+3. Update attempt stage history：已完成（PR #48）。
+4. Subscription state reader：已完成（PR #50）。
+5. Artifact diagnostics / metadata / content / summary readers：已完成（PR #51-#54）。
+6. Artifact cleanup / retention：已完成（PR #55）。
+7. Update event timeline：已完成（PR #56）。
+8. Transport plan explain：已完成（PR #57）。
+9. Legacy profile → typed `SubscriptionSource` read-only view：已完成（PR #58）。
+10. `SubscriptionUpdateExecutor` state machine：已完成（PR #59）。
+11. Runtime candidate validation + `PublishArtifact` / `active_artifact_version` 切换：已完成（PR #60）。
+
+当前 pipeline 形态：
+
+```text
+ResolveSource
+  -> ResolveTransportPlan
+  -> FetchPayload
+  -> DecodePayload
+  -> MaterializeArtifact
+  -> GenerateRuntimeConfigCandidate
+  -> ValidateRuntimeCandidate
+  -> profiles_draft_update_item_safe(...)   # legacy compatibility write
+  -> PublishArtifact
+  -> ActivateRuntime                        # still existing legacy activation
+  -> EmitFinalResult
+```
+
+仍未迁移 / 下一步：
+
+1. **PR C：让成功路径消费 active artifact**
+   - 从 `active_artifact_version` 读取 `normalized.yaml` 生成运行时候选。
+   - 将 legacy profile 文件写回降级为兼容视图 / UI 同步，而不是 runtime candidate 的主来源。
+   - 保持 `profiles.yaml` 读写兼容，不删除用户现有 profile。
+2. 拆出 `subscription::activate` 或等价模块。
+   - 将 publish / activate / rollback 边界从 `app::subscription` 移出。
+   - `app::subscription` 最终只负责命令入口和 legacy 兼容通知。
+3. 前端从 `profiles.updated` 推断逐步切到 `subscriptions/state.yaml` / typed events。
+4. 删除或弱化 `PrfItem::from_fetched_payload(...)` 在订阅 update 成功路径里的主导地位。
+
+当前不能删除的 legacy 边界：
+
+- `profiles.yaml` 仍是用户 profile/source 兼容入口。
+- `profiles_draft_update_item_safe(...)` 仍会写 legacy profile file。
+- `CoreManager::update_config_without_restart_with_force(...)` 仍是 runtime activation 入口。
+- Go sidecar 仍负责真实 runtime / forwarding。
 
 #### Phase 7：连接统计 / 流量监控
 
@@ -350,21 +424,22 @@ Phase 5 的删除边界：
 
 ## 推荐的下一个实际开发 PR
 
-按当前状态，Phase 5 已完成，下一张实现 PR 建议进入 Phase 6 的最小安全入口：
+按当前状态，DNS 控制面入口和订阅 PR A/B 已完成。下一张实现 PR 建议继续订阅 pipeline：
 
 ```text
-feat: add Rust DNS config explain / probe planner
+feat: consume active subscription artifact in update success path
 ```
 
 范围只包含：
 
-- 读取 runtime YAML 中的 DNS 配置，输出 Rust 侧结构化 explain。
-- 校验 `nameserver` / `fallback` / `proxy-server-nameserver` / `nameserver-policy` 等控制面配置。
-- 规划 DNS probe / health check 输入，但不接管真实 resolver。
-- focused tests：正常配置、缺失 nameserver、policy 解析、fake-ip / redir-host 模式解释。
+- 从 `subscriptions/state.yaml` 的 `active_artifact_version` 读取已发布 artifact。
+- 以 active artifact 的 `normalized.yaml` 作为 runtime candidate 输入。
+- 保留 legacy profile writeback 作为兼容层。
+- focused tests：active artifact lookup、missing artifact fail-safe、activation failure keeps previous active artifact、legacy profile compatibility。
 
 不包含：
 
 - DNS resolver runtime。
 - 协议栈 / TUN / tunnel。
 - Go sidecar 替换。
+- 删除 `PrfItem` / `profiles.yaml`。
