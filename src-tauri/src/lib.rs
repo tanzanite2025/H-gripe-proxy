@@ -255,6 +255,8 @@ mod app_init {
             cmd::save_china_rules_file,
             cmd::save_profile_file,
             cmd::get_next_update_time,
+            cmd::get_subscription_state,
+            cmd::get_subscription_source_state,
             cmd::script_validate_notice,
             cmd::validate_script_file,
             cmd::create_local_backup,

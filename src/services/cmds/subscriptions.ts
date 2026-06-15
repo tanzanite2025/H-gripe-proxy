@@ -1,0 +1,16 @@
+import { invoke } from '@tauri-apps/api/core'
+
+import type {
+  SubscriptionSourceState,
+  SubscriptionStateDocument,
+} from '@/types/subscription-update'
+
+export async function getSubscriptionState() {
+  return invoke<SubscriptionStateDocument>('get_subscription_state')
+}
+
+export async function getSubscriptionSourceState(sourceId: string) {
+  return invoke<SubscriptionSourceState | null>('get_subscription_source_state', {
+    sourceId,
+  })
+}
