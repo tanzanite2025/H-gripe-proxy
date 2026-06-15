@@ -2,13 +2,13 @@ use crate::{
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
     core::{CoreManager, handle, mihomo_runtime_guard, validate::ValidationOutcome},
     subscription::{
+        artifact::build_clash_yaml_artifact_candidate,
         control_plane::{
             fetch_subscription_update_via_control_plane, subscription_update_uses_dedicated_control_plane,
         },
         fetch::fetch_remote_profile,
-        format::parse_clash_yaml_subscription,
         model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
-        persist::{build_artifact_record, build_finished_attempt_record, persist_artifact, persist_attempt_result},
+        persist::{build_finished_attempt_record, persist_artifact_candidate, persist_attempt_result},
         transport::{TransportKind, TransportPlan, apply_transport_to_option, transport_kind_from_option},
     },
     utils::help::{mask_err, mask_url},
@@ -302,10 +302,9 @@ async fn perform_profile_update(
 
         handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::DecodePayload, Some(transport));
 
-        let raw_body = fetched.body.clone();
-        let format_detection =
-            match parse_clash_yaml_subscription(raw_body.as_str(), fetched.metadata.content_type.as_deref()) {
-                Ok((_, detection)) => detection,
+        let artifact_candidate =
+            match build_clash_yaml_artifact_candidate(&fetched, chrono::Local::now().timestamp_millis()) {
+                Ok(candidate) => candidate,
                 Err(err) => {
                     logging!(
                         warn,
@@ -325,14 +324,9 @@ async fn perform_profile_update(
 
         handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::MaterializeArtifact, Some(transport));
 
-        let artifact = build_artifact_record(
-            raw_body.as_str(),
-            chrono::Local::now().timestamp_millis(),
-            fetched.metadata.content_type.clone(),
-            Some(format_detection.format),
-        );
+        let artifact = artifact_candidate.record.clone();
 
-        if let Err(err) = persist_artifact(uid.as_str(), &artifact, raw_body.as_str()).await {
+        if let Err(err) = persist_artifact_candidate(uid.as_str(), &artifact_candidate).await {
             return Err(ProfileUpdateFailure {
                 attempt: attempt.clone(),
                 stage: UpdateStage::MaterializeArtifact,
