@@ -16,6 +16,32 @@ use tokio::fs;
 
 const ARTIFACT_DIAGNOSTICS_FILE: &str = "diagnostics.yaml";
 const ARTIFACT_METADATA_FILE: &str = "metadata.yaml";
+const ARTIFACT_NORMALIZED_FILE: &str = "normalized.yaml";
+const ARTIFACT_RAW_FILE: &str = "raw.body";
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubscriptionArtifactContentKind {
+    RawBody,
+    NormalizedYaml,
+}
+
+impl SubscriptionArtifactContentKind {
+    fn file_name(self) -> &'static str {
+        match self {
+            Self::RawBody => ARTIFACT_RAW_FILE,
+            Self::NormalizedYaml => ARTIFACT_NORMALIZED_FILE,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionArtifactContent {
+    pub source_id: String,
+    pub version: String,
+    pub content_kind: SubscriptionArtifactContentKind,
+    pub content: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubscriptionArtifactMetadata {
@@ -92,6 +118,28 @@ pub async fn read_subscription_artifact_metadata(
     let metadata: SubscriptionArtifactMetadata = help::read_yaml(&path).await?;
     validate_artifact_metadata_source(source_id, &metadata)?;
     Ok(Some(metadata))
+}
+
+pub async fn read_subscription_artifact_content(
+    source_id: &str,
+    version: &str,
+    content_kind: SubscriptionArtifactContentKind,
+) -> Result<Option<SubscriptionArtifactContent>> {
+    ensure_safe_subscription_artifact_path(source_id, version)?;
+
+    let path = dirs::subscription_artifact_version_dir(source_id, version)?
+        .join(content_kind.file_name());
+    if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+        return Ok(None);
+    }
+
+    let content = tokio::fs::read_to_string(&path).await?;
+    Ok(Some(SubscriptionArtifactContent {
+        source_id: source_id.into(),
+        version: version.into(),
+        content_kind,
+        content: content.into(),
+    }))
 }
 
 pub async fn list_subscription_artifact_metadata(
@@ -331,6 +379,15 @@ mod tests {
         assert!(!is_safe_subscription_artifact_path_segment(".."));
         assert!(!is_safe_subscription_artifact_path_segment("../source-a"));
         assert!(!is_safe_subscription_artifact_path_segment("source\\a"));
+    }
+
+    #[test]
+    fn maps_artifact_content_kinds_to_files() {
+        assert_eq!(SubscriptionArtifactContentKind::RawBody.file_name(), "raw.body");
+        assert_eq!(
+            SubscriptionArtifactContentKind::NormalizedYaml.file_name(),
+            "normalized.yaml"
+        );
     }
 
     #[test]

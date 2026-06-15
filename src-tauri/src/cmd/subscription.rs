@@ -3,9 +3,11 @@ use crate::subscription::{
     artifact::SubscriptionArtifactDiagnostics,
     model::{SubscriptionSourceState, SubscriptionStateDocument},
     persist::{
+        SubscriptionArtifactContent, SubscriptionArtifactContentKind,
         SubscriptionArtifactMetadata, list_subscription_artifact_metadata,
-        read_subscription_artifact_diagnostics, read_subscription_artifact_metadata,
-        read_subscription_source_state, read_subscription_state_document,
+        read_subscription_artifact_content, read_subscription_artifact_diagnostics,
+        read_subscription_artifact_metadata, read_subscription_source_state,
+        read_subscription_state_document,
     },
 };
 
@@ -39,6 +41,21 @@ pub async fn get_subscription_artifact_metadata(
     read_subscription_artifact_metadata(source_id.as_str(), version.as_str())
         .await
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_subscription_artifact_content(
+    source_id: String,
+    version: String,
+    content_kind: SubscriptionArtifactContentKind,
+) -> CmdResult<Option<SubscriptionArtifactContent>> {
+    read_subscription_artifact_content(
+        source_id.as_str(),
+        version.as_str(),
+        content_kind,
+    )
+    .await
+    .stringify_err()
 }
 
 #[tauri::command]
