@@ -3,8 +3,8 @@ use crate::{
         artifact::{SubscriptionArtifactCandidate, SubscriptionArtifactDiagnostics},
         events::{SubscriptionEvent, events_from_attempt_record},
         model::{
-            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState, SubscriptionStageRecord,
-            SubscriptionStateDocument, UpdateFinalStatus,
+            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceConfig, SubscriptionSourceState,
+            SubscriptionStageRecord, SubscriptionStateDocument, UpdateFinalStatus,
         },
     },
     utils::{dirs, help},
@@ -426,6 +426,16 @@ pub async fn restore_subscription_active_artifact(
     save_state_document(&state).await
 }
 
+pub async fn persist_subscription_source_config(
+    source_id: &String,
+    source_config: &SubscriptionSourceConfig,
+) -> Result<()> {
+    let mut state = load_state_document().await?;
+    let source_state = ensure_subscription_source_state(&mut state, source_id);
+    source_state.source_config = Some(source_config.clone());
+    save_state_document(&state).await
+}
+
 pub async fn persist_attempt_result(
     source_id: &String,
     artifact: Option<&SubscriptionArtifactRecord>,
@@ -463,6 +473,7 @@ fn ensure_subscription_source_state<'a>(
 
     state.sources.push(SubscriptionSourceState {
         source_id: source_id.clone(),
+        source_config: None,
         active_artifact_version: None,
         latest_artifact: None,
         latest_attempt: None,
@@ -547,6 +558,7 @@ mod tests {
         let state = SubscriptionStateDocument {
             sources: vec![SubscriptionSourceState {
                 source_id: "source-a".into(),
+                source_config: None,
                 active_artifact_version: Some("artifact-a".into()),
                 latest_artifact: None,
                 latest_attempt: None,

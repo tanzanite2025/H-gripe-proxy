@@ -1,4 +1,5 @@
 use crate::{
+    config::PrfOption,
     subscription::{format::SubscriptionFormat, transport::TransportKind},
     utils::help,
 };
@@ -33,6 +34,14 @@ pub enum UpdateStage {
 pub enum UpdateFinalStatus {
     Succeeded,
     Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionSourceConfig {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub option: Option<PrfOption>,
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +111,8 @@ pub struct SubscriptionAttemptRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubscriptionSourceState {
     pub source_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_config: Option<SubscriptionSourceConfig>,
     pub active_artifact_version: Option<String>,
     pub latest_artifact: Option<SubscriptionArtifactRecord>,
     pub latest_attempt: Option<SubscriptionAttemptRecord>,

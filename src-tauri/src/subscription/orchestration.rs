@@ -3,10 +3,13 @@ use crate::{
     core::{handle, validate::ValidationOutcome},
     subscription::{
         executor::{SubscriptionUpdateExecutor, SubscriptionUpdateFailure},
-        model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
+        model::{
+            SubscriptionArtifactRecord, SubscriptionSourceConfig, SubscriptionUpdateAttempt, UpdateFinalStatus,
+            UpdateStage, UpdateTrigger,
+        },
         persist::{
             SubscriptionArtifactPublishResult, build_finished_attempt_record, persist_attempt_result,
-            publish_subscription_artifact, restore_subscription_active_artifact,
+            persist_subscription_source_config, publish_subscription_artifact, restore_subscription_active_artifact,
         },
         runtime_candidate::{
             SubscriptionRuntimeProfileProjection, activate_subscription_active_artifact_runtime,
@@ -17,6 +20,7 @@ use crate::{
     utils::help::mask_url,
 };
 use anyhow::{Result, anyhow, bail};
+use chrono::Local;
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
 use tokio::fs;
@@ -51,13 +55,21 @@ pub async fn update_subscription_profile(
         uid
     );
 
-    let Some((url, opt)) = should_update_profile(uid, ignore_auto_update).await? else {
+    let Some(source_config) = resolve_subscription_source_config(uid, ignore_auto_update).await? else {
         return Ok(());
     };
 
     let rollback_snapshot = snapshot_profile_update(uid).await?;
 
-    let mut update_execution = match perform_profile_update(uid, &url, opt.as_ref(), option, is_manual_trigger).await {
+    let mut update_execution = match perform_profile_update(
+        uid,
+        &source_config.url,
+        source_config.option.as_ref(),
+        option,
+        is_manual_trigger,
+    )
+    .await
+    {
         Ok(execution) => execution,
         Err(failure) => {
             logging!(
@@ -196,7 +208,10 @@ pub async fn update_subscription_profile(
     Ok(())
 }
 
-async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<(String, Option<PrfOption>)>> {
+async fn resolve_subscription_source_config(
+    uid: &String,
+    ignore_auto_update: bool,
+) -> Result<Option<SubscriptionSourceConfig>> {
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
     let item = profiles.get_item(uid)?;
@@ -225,17 +240,21 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
         );
         Ok(None)
     } else {
+        let source_config = SubscriptionSourceConfig {
+            url: item.url.clone().ok_or_else(|| anyhow!("Profile URL is None"))?,
+            option: item.option.clone(),
+            updated_at: Local::now().timestamp_millis(),
+        };
+
         logging!(
             info,
             Type::Config,
             "[Subscription Update] {} target URL: {}",
             uid,
-            mask_url(item.url.as_ref().ok_or_else(|| anyhow!("Profile URL is None"))?)
+            mask_url(&source_config.url)
         );
-        Ok(Some((
-            item.url.clone().ok_or_else(|| anyhow!("Profile URL is None"))?,
-            item.option.clone(),
-        )))
+        persist_subscription_source_config(uid, &source_config).await?;
+        Ok(Some(source_config))
     }
 }
 
