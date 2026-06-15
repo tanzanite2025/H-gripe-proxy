@@ -38,7 +38,13 @@
     "password": "密碼",
     "retryAttempts": "重試次數",
     "downloaded": "下載量",
-    "uploaded": "上傳量"
+    "uploaded": "上傳量",
+    "artifact": "產物",
+    "error": "錯誤",
+    "stage": "階段",
+    "status": "狀態",
+    "time": "時間",
+    "transport": "鏈路"
   },
   "statuses": {
     "enabled": "已啟用",

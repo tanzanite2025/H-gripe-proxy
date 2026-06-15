@@ -38,7 +38,13 @@
     "password": "Password",
     "retryAttempts": "Retry attempts",
     "downloaded": "Downloaded",
-    "uploaded": "Uploaded"
+    "uploaded": "Uploaded",
+    "artifact": "Artifact",
+    "error": "Error",
+    "stage": "Stage",
+    "status": "Status",
+    "time": "Time",
+    "transport": "Transport"
   },
   "statuses": {
     "enabled": "Enabled",

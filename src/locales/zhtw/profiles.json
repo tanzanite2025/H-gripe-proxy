@@ -54,6 +54,9 @@
           "fetchPayload": "抓取訂閱內容",
           "decodePayload": "識別訂閱格式",
           "materializeArtifact": "解析訂閱內容",
+          "generateRuntimeConfigCandidate": "生成執行階段候選設定",
+          "validateRuntimeCandidate": "驗證執行階段候選設定",
+          "publishArtifact": "發布產物",
           "activateRuntime": "啟用執行階段",
           "emitFinalResult": "提交最終結果"
         },
@@ -79,6 +82,7 @@
       "home": "首 頁",
       "select": "使用",
       "shareQrCode": "Share QR Code",
+      "updateHistory": "更新歷史",
       "editInfo": "編輯資訊",
       "editFile": "編輯檔案",
       "editProxies": "編輯節點",
@@ -110,6 +114,25 @@
         "noSchedule": "沒有排程",
         "unknown": "未知",
         "autoUpdateDisabled": "自動更新已停用"
+      },
+      "subscriptionStatus": {
+        "active": "目前啟用",
+        "attemptStarted": "更新已開始\n嘗試: {{attempt}}\n時間: {{time}}",
+        "failedAt": "失敗: {{stage}}",
+        "updated": "已更新",
+        "updating": "更新中"
+      },
+      "updateHistory": {
+        "title": "{{name}} 更新歷史",
+        "latestAttempt": "最近一次更新時間線",
+        "noEvents": "暫無更新事件記錄。",
+        "artifacts": "產物和診斷",
+        "noArtifacts": "暫無產物記錄。",
+        "attemptStarted": "開始更新",
+        "active": "目前啟用",
+        "rawBody": "原始內容",
+        "normalizedYaml": "標準化 YAML",
+        "diagnostics": "診斷"
       }
     }
   },
