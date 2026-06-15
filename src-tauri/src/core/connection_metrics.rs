@@ -39,6 +39,14 @@ pub struct ConnectionMetricsSnapshot {
     pub stale: bool,
 }
 
+/// Combined payload emitted as a Tauri event: computed metrics + raw connections.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionMetricsEventPayload {
+    pub metrics: ConnectionMetricsSnapshot,
+    pub raw: serde_json::Value,
+}
+
 struct PreviousState {
     upload_by_id: HashMap<String, u64>,
     download_by_id: HashMap<String, u64>,

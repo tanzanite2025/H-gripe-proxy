@@ -30,6 +30,11 @@ export interface ConnectionMetricsSnapshot {
   stale: boolean
 }
 
+export interface ConnectionMetricsEventPayload {
+  metrics: ConnectionMetricsSnapshot
+  raw: IConnections
+}
+
 export async function connectionMonitorStart(): Promise<void> {
   await invoke('connection_monitor_start')
 }
@@ -53,9 +58,9 @@ export async function resetConnectionMetrics(): Promise<void> {
 }
 
 export function onConnectionMetrics(
-  handler: (snapshot: ConnectionMetricsSnapshot) => void,
+  handler: (payload: ConnectionMetricsEventPayload) => void,
 ): Promise<UnlistenFn> {
-  return listen<ConnectionMetricsSnapshot>(
+  return listen<ConnectionMetricsEventPayload>(
     'verge://connection-metrics',
     (event) => handler(event.payload),
   )
