@@ -56,6 +56,14 @@ export interface SubscriptionArtifactSummary {
   is_active: boolean
 }
 
+export interface SubscriptionArtifactCleanupResult {
+  source_id: string
+  retain_count: number
+  removed_versions: string[]
+  kept_versions: string[]
+  active_version_preserved: boolean
+}
+
 export type SubscriptionArtifactContentKind = 'raw_body' | 'normalized_yaml'
 
 export interface SubscriptionArtifactContent {

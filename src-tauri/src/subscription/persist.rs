@@ -231,6 +231,93 @@ pub async fn list_subscription_artifact_summaries(
     Ok(summaries)
 }
 
+const DEFAULT_ARTIFACT_RETENTION: usize = 10;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionArtifactCleanupResult {
+    pub source_id: String,
+    pub retain_count: usize,
+    pub removed_versions: Vec<String>,
+    pub kept_versions: Vec<String>,
+    pub active_version_preserved: bool,
+}
+
+pub async fn cleanup_subscription_artifacts(
+    source_id: &str,
+    retain_count: Option<usize>,
+) -> Result<SubscriptionArtifactCleanupResult> {
+    if !is_safe_subscription_artifact_path_segment(source_id) {
+        anyhow::bail!("invalid subscription artifact path segment");
+    }
+
+    let retain = retain_count.unwrap_or(DEFAULT_ARTIFACT_RETENTION);
+    if retain == 0 {
+        anyhow::bail!("retain_count must be at least 1");
+    }
+
+    let active_version = read_subscription_source_state(source_id)
+        .await?
+        .and_then(|source_state| source_state.active_artifact_version);
+    let artifacts = list_subscription_artifact_metadata(source_id).await?;
+    let kept_versions =
+        retained_artifact_versions(&artifacts, retain, active_version.as_deref());
+    let mut removed_versions = Vec::new();
+
+    for item in artifacts {
+        let version = item.artifact.version;
+        if kept_versions.iter().any(|kept| kept == &version) {
+            continue;
+        }
+
+        ensure_safe_subscription_artifact_path(source_id, version.as_str())?;
+        let dir = dirs::subscription_artifact_version_dir(source_id, version.as_str())?;
+        if tokio::fs::try_exists(&dir).await.unwrap_or(false) {
+            fs::remove_dir_all(&dir).await?;
+        }
+        removed_versions.push(version);
+    }
+
+    let active_version_preserved = active_version
+        .as_deref()
+        .is_some_and(|active| {
+            kept_versions
+                .iter()
+                .any(|kept| kept.as_str() == active)
+        });
+
+    Ok(SubscriptionArtifactCleanupResult {
+        source_id: source_id.into(),
+        retain_count: retain,
+        removed_versions,
+        kept_versions,
+        active_version_preserved,
+    })
+}
+
+pub fn retained_artifact_versions(
+    artifacts: &[SubscriptionArtifactMetadata],
+    retain_count: usize,
+    active_version: Option<&str>,
+) -> Vec<String> {
+    let mut versions: Vec<String> = artifacts
+        .iter()
+        .take(retain_count)
+        .map(|item| item.artifact.version.clone())
+        .collect();
+
+    if let Some(active_version) = active_version {
+        if artifacts
+            .iter()
+            .any(|item| item.artifact.version == active_version)
+            && !versions.iter().any(|version| version.as_str() == active_version)
+        {
+            versions.push(active_version.into());
+        }
+    }
+
+    versions
+}
+
 pub fn sort_artifact_metadata_newest_first(artifacts: &mut [SubscriptionArtifactMetadata]) {
     artifacts.sort_by(|left, right| {
         right
@@ -480,6 +567,37 @@ mod tests {
         assert_eq!(artifacts[0].artifact.version, "artifact-c");
         assert_eq!(artifacts[1].artifact.version, "artifact-b");
         assert_eq!(artifacts[2].artifact.version, "artifact-a");
+    }
+
+    #[test]
+    fn retains_newest_artifacts_for_cleanup() {
+        let artifacts = vec![
+            artifact_metadata("source-a", "artifact-c", 300),
+            artifact_metadata("source-a", "artifact-b", 200),
+            artifact_metadata("source-a", "artifact-a", 100),
+        ];
+
+        let retained = retained_artifact_versions(&artifacts, 2, None);
+
+        assert_eq!(artifact_versions(&retained), vec!["artifact-c", "artifact-b"]);
+    }
+
+    #[test]
+    fn retains_active_artifact_even_when_old() {
+        let artifacts = vec![
+            artifact_metadata("source-a", "artifact-c", 300),
+            artifact_metadata("source-a", "artifact-b", 200),
+            artifact_metadata("source-a", "artifact-a", 100),
+        ];
+
+        let retained =
+            retained_artifact_versions(&artifacts, 1, Some("artifact-a"));
+
+        assert_eq!(artifact_versions(&retained), vec!["artifact-c", "artifact-a"]);
+    }
+
+    fn artifact_versions(versions: &[String]) -> Vec<&str> {
+        versions.iter().map(String::as_str).collect()
     }
 
     fn artifact_metadata(
