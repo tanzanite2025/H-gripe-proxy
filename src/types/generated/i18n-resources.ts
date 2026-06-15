@@ -460,6 +460,7 @@ export interface TranslationResources {
             failedWithTransport: string
             stages: {
               activateRuntime: string
+              decodePayload: string
               emitFinalResult: string
               fetchPayload: string
               materializeArtifact: string

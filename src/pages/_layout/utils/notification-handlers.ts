@@ -36,18 +36,31 @@ const getSubscriptionStageLabel = (
 ) => {
   switch (stage) {
     case 'resolve_source':
-      return t('profiles.page.feedback.subscriptionUpdate.stages.resolveSource', {
-        defaultValue: 'Resolve source',
-      })
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.stages.resolveSource',
+        {
+          defaultValue: 'Resolve source',
+        },
+      )
     case 'resolve_transport_plan':
       return t(
         'profiles.page.feedback.subscriptionUpdate.stages.resolveTransportPlan',
         { defaultValue: 'Resolve transport plan' },
       )
     case 'fetch_payload':
-      return t('profiles.page.feedback.subscriptionUpdate.stages.fetchPayload', {
-        defaultValue: 'Fetch payload',
-      })
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.stages.fetchPayload',
+        {
+          defaultValue: 'Fetch payload',
+        },
+      )
+    case 'decode_payload':
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.stages.decodePayload',
+        {
+          defaultValue: 'Decode payload',
+        },
+      )
     case 'materialize_artifact':
       return t(
         'profiles.page.feedback.subscriptionUpdate.stages.materializeArtifact',
@@ -76,9 +89,12 @@ const getSubscriptionTransportLabel = (
         defaultValue: 'Direct connection',
       })
     case 'local_proxy':
-      return t('profiles.page.feedback.subscriptionUpdate.transports.localProxy', {
-        defaultValue: 'Clash proxy',
-      })
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.transports.localProxy',
+        {
+          defaultValue: 'Clash proxy',
+        },
+      )
     case 'system_proxy':
       return t(
         'profiles.page.feedback.subscriptionUpdate.transports.systemProxy',

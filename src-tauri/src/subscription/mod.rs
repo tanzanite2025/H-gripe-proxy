@@ -1,6 +1,7 @@
 pub mod control_plane;
 pub mod events;
 pub mod fetch;
+pub mod format;
 pub mod model;
 pub mod persist;
 pub mod transport;

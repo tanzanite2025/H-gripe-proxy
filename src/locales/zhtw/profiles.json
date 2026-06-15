@@ -52,6 +52,7 @@
           "resolveSource": "解析訂閱來源",
           "resolveTransportPlan": "規劃更新鏈路",
           "fetchPayload": "抓取訂閱內容",
+          "decodePayload": "識別訂閱格式",
           "materializeArtifact": "解析訂閱內容",
           "activateRuntime": "啟用執行階段",
           "emitFinalResult": "提交最終結果"

@@ -4,6 +4,7 @@ export type SubscriptionUpdateStage =
   | 'resolve_source'
   | 'resolve_transport_plan'
   | 'fetch_payload'
+  | 'decode_payload'
   | 'materialize_artifact'
   | 'activate_runtime'
   | 'emit_final_result'
