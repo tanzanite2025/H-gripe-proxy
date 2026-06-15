@@ -5,6 +5,10 @@ fn main() {
 
 use anyhow::Error;
 
+#[cfg(target_os = "macos")]
+#[path = "../macos_service_identity.rs"]
+mod macos_service_identity;
+
 #[cfg(unix)]
 fn env_u32(key: &str) -> Option<u32> {
     std::env::var(key).ok()?.parse().ok()
@@ -38,6 +42,7 @@ fn resolve_service_group_name() -> String {
 
 #[cfg(target_os = "macos")]
 fn main() -> Result<(), Error> {
+    use macos_service_identity as identity;
     use std::env;
     use std::fs::File;
     use std::io::Write;
@@ -45,18 +50,21 @@ fn main() -> Result<(), Error> {
 
     let debug = env::args().any(|arg| arg == "--debug");
     let _ = uninstall_old_service();
+    let _ = uninstall_legacy_service(debug);
 
     let service_binary_path = env::current_exe()
         .unwrap()
-        .with_file_name("clash-verge-service");
+        .with_file_name(identity::SERVICE_EXECUTABLE_NAME);
 
     if !service_binary_path.exists() {
-        return Err(anyhow::anyhow!("clash-verge-service binary not found"));
+        return Err(anyhow::anyhow!(
+            "{} binary not found",
+            identity::SERVICE_EXECUTABLE_NAME
+        ));
     }
 
     // 定义 bundle 路径
-    let bundle_path =
-        "/Library/PrivilegedHelperTools/io.github.clash-verge-rev.clash-verge-rev.service.bundle";
+    let bundle_path = identity::service_bundle_path();
     let contents_path = format!("{}/Contents", bundle_path);
     let macos_path = format!("{}/MacOS", contents_path);
 
@@ -65,13 +73,18 @@ fn main() -> Result<(), Error> {
         .map_err(|e| anyhow::anyhow!("Failed to create bundle directories: {}", e))?;
 
     // 复制二进制文件到 bundle 的 MacOS 目录
-    let target_binary_path = format!("{}/clash-verge-service", macos_path);
+    let target_binary_path = format!("{}/{}", macos_path, identity::SERVICE_EXECUTABLE_NAME);
     std::fs::copy(&service_binary_path, &target_binary_path)
         .map_err(|e| anyhow::anyhow!("Failed to copy service file: {}", e))?;
 
     // 创建并写入 Info.plist
     let info_plist_path = format!("{}/Info.plist", contents_path);
-    let info_plist_content = include_str!("../../resources/info.plist.tmpl");
+    let info_plist_content = format!(
+        include_str!("../../resources/info.plist.tmpl"),
+        service_display_name = identity::SERVICE_DISPLAY_NAME,
+        service_bundle_id = identity::SERVICE_BUNDLE_ID,
+        service_executable_name = identity::SERVICE_EXECUTABLE_NAME,
+    );
 
     std::fs::write(&info_plist_path, info_plist_content)
         .map_err(|e| anyhow::anyhow!("Failed to write Info.plist: {}", e))?;
@@ -84,12 +97,14 @@ fn main() -> Result<(), Error> {
     }
 
     // 创建并写入 launchd plist
-    let plist_file =
-        "/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist";
-    let plist_file = Path::new(plist_file);
+    let plist_file_path = identity::service_plist_path();
+    let plist_file = Path::new(&plist_file_path);
 
     let launchd_plist_content = format!(
         include_str!("../../resources/launchd.plist.tmpl"),
+        app_bundle_id = identity::APP_BUNDLE_ID,
+        service_bundle_id = identity::SERVICE_BUNDLE_ID,
+        service_binary_path = identity::service_binary_path(),
         group_name = resolve_service_group_name()
     );
 
@@ -111,18 +126,12 @@ fn main() -> Result<(), Error> {
     let _ = run_command("chown", &["root:wheel", &target_binary_path], debug);
 
     // 设置 bundle 目录及其内容的权限
-    let _ = run_command("chmod", &["755", bundle_path], debug);
-    let _ = run_command("chown", &["-R", "root:wheel", bundle_path], debug);
+    let _ = run_command("chmod", &["755", &bundle_path], debug);
+    let _ = run_command("chown", &["-R", "root:wheel", &bundle_path], debug);
 
     // 加载和启动服务
-    let _ = run_command(
-        "launchctl",
-        &[
-            "enable",
-            "system/io.github.clash-verge-rev.clash-verge-rev.service",
-        ],
-        debug,
-    );
+    let service_target = identity::launchctl_system_target();
+    let _ = run_command("launchctl", &["enable", service_target.as_str()], debug);
     let _ = run_command(
         "launchctl",
         &["bootout", "system", plist_file.to_str().unwrap()],
@@ -133,11 +142,7 @@ fn main() -> Result<(), Error> {
         &["bootstrap", "system", plist_file.to_str().unwrap()],
         debug,
     );
-    let _ = run_command(
-        "launchctl",
-        &["start", "io.github.clash-verge-rev.clash-verge-rev.service"],
-        debug,
-    );
+    let _ = run_command("launchctl", &["start", identity::SERVICE_BUNDLE_ID], debug);
 
     Ok(())
 }
@@ -267,29 +272,57 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(target_os = "macos")]
 pub fn uninstall_old_service() -> Result<(), Error> {
+    use macos_service_identity as identity;
     use std::path::Path;
 
-    let target_binary_path = "/Library/PrivilegedHelperTools/io.github.clashverge.helper";
-    let plist_file = "/Library/LaunchDaemons/io.github.clashverge.helper.plist";
+    let target_binary_path = identity::legacy_helper_binary_path();
+    let plist_file = identity::legacy_helper_plist_path();
+    let system_target = identity::legacy_helper_system_target();
 
     // Stop and unload service
-    run_command("launchctl", &["stop", "io.github.clashverge.helper"], false)?;
-    run_command("launchctl", &["bootout", "system", plist_file], false)?;
+    run_command("launchctl", &["stop", identity::LEGACY_HELPER_ID], false)?;
+    run_command("launchctl", &["bootout", "system", plist_file.as_str()], false)?;
     run_command(
         "launchctl",
-        &["disable", "system/io.github.clashverge.helper"],
+        &["disable", system_target.as_str()],
         false,
     )?;
 
     // Remove files
-    if Path::new(plist_file).exists() {
-        std::fs::remove_file(plist_file)
+    if Path::new(&plist_file).exists() {
+        std::fs::remove_file(&plist_file)
             .map_err(|e| anyhow::anyhow!("Failed to remove plist file: {}", e))?;
     }
 
-    if Path::new(target_binary_path).exists() {
-        std::fs::remove_file(target_binary_path)
+    if Path::new(&target_binary_path).exists() {
+        std::fs::remove_file(&target_binary_path)
             .map_err(|e| anyhow::anyhow!("Failed to remove service binary: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn uninstall_legacy_service(debug: bool) -> Result<(), Error> {
+    use macos_service_identity as identity;
+    use std::path::Path;
+
+    let bundle_path = identity::legacy_service_bundle_path();
+    let plist_file = identity::legacy_service_plist_path();
+    let system_target = identity::legacy_launchctl_system_target();
+
+    let _ = run_command("launchctl", &["stop", identity::LEGACY_SERVICE_BUNDLE_ID], debug);
+    let _ = run_command("launchctl", &["disable", system_target.as_str()], debug);
+    let _ = run_command("launchctl", &["bootout", "system", plist_file.as_str()], debug);
+
+    if Path::new(&plist_file).exists() {
+        std::fs::remove_file(&plist_file)
+            .map_err(|e| anyhow::anyhow!("Failed to remove legacy plist file: {}", e))?;
+    }
+
+    if Path::new(&bundle_path).exists() {
+        std::fs::remove_dir_all(&bundle_path)
+            .map_err(|e| anyhow::anyhow!("Failed to remove legacy bundle directory: {}", e))?;
     }
 
     Ok(())
