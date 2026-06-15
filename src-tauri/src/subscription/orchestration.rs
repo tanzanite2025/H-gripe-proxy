@@ -130,7 +130,7 @@ pub async fn update_subscription_profile(
                         stage: UpdateStage::ActivateRuntime,
                         transport: Some(update_execution.transport),
                         artifact: Some(update_execution.artifact.clone()),
-                        error: message.clone(),
+                        error: message.clone().into(),
                     },
                     true,
                 )
@@ -153,7 +153,7 @@ pub async fn update_subscription_profile(
                         stage: UpdateStage::ActivateRuntime,
                         transport: Some(update_execution.transport),
                         artifact: Some(update_execution.artifact.clone()),
-                        error: message.clone(),
+                        error: message.clone().into(),
                     },
                     true,
                 )

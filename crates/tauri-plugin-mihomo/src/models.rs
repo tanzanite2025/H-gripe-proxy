@@ -40,7 +40,7 @@ impl Display for Protocol {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename_all = "camelCase")]
 #[serde(rename_all(serialize = "camelCase", deserialize = "kebab-case"))]
 pub struct BaseConfig {
@@ -329,7 +329,7 @@ pub struct BrutalOption {
     pub down: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
