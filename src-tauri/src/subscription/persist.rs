@@ -442,6 +442,14 @@ pub async fn persist_subscription_source_config(
     save_state_document(&state).await
 }
 
+pub async fn remove_subscription_source_state(source_id: &String) -> Result<()> {
+    let mut state = load_state_document().await?;
+    state
+        .sources
+        .retain(|source_state| source_state.source_id.as_str() != source_id.as_str());
+    save_state_document(&state).await
+}
+
 pub async fn persist_attempt_result(
     source_id: &String,
     artifact: Option<&SubscriptionArtifactRecord>,

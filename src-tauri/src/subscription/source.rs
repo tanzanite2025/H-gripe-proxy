@@ -1,6 +1,10 @@
 use crate::{
     config::{Config, PrfItem},
-    subscription::transport::{TransportKind, transport_kind_from_option},
+    subscription::{
+        model::{SubscriptionSourceConfig, SubscriptionSourceState},
+        persist::read_subscription_state_document,
+        transport::{TransportKind, transport_kind_from_option},
+    },
 };
 use anyhow::Result;
 use serde::Serialize;
@@ -23,18 +27,24 @@ pub struct SubscriptionSource {
 }
 
 pub async fn list_subscription_sources() -> Result<Vec<SubscriptionSource>> {
+    let state = read_subscription_state_document().await?;
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
     let current_source_id = profiles.get_current().map(String::as_str);
-    let sources = profiles
-        .get_items()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| subscription_source_from_profile_item(item, current_source_id))
-                .collect()
+    let sources = state
+        .sources
+        .iter()
+        .filter_map(|source_state| {
+            let source_config = source_state.source_config.as_ref()?;
+            let profile_item = profiles.get_item(source_state.source_id.as_str()).ok();
+            Some(subscription_source_from_state(
+                source_state,
+                source_config,
+                profile_item,
+                current_source_id,
+            ))
         })
-        .unwrap_or_default();
+        .collect();
 
     Ok(sources)
 }
@@ -46,25 +56,27 @@ pub async fn get_subscription_source(source_id: &str) -> Result<Option<Subscript
         .find(|source| source.source_id.as_str() == source_id))
 }
 
-pub fn subscription_source_from_profile_item(
-    item: &PrfItem,
+pub fn subscription_source_from_state(
+    source_state: &SubscriptionSourceState,
+    source_config: &SubscriptionSourceConfig,
+    profile_item: Option<&PrfItem>,
     current_source_id: Option<&str>,
-) -> Option<SubscriptionSource> {
-    if !item.itype.as_deref().is_some_and(|item_type| item_type == "remote") {
-        return None;
-    }
-
-    let source_id = item.uid.clone()?;
-    let option = item.option.as_ref();
+) -> SubscriptionSource {
+    let source_id = source_state.source_id.clone();
+    let option = source_config.option.as_ref();
     let is_current = current_source_id == Some(source_id.as_str());
 
-    Some(SubscriptionSource {
+    SubscriptionSource {
         source_id,
-        name: item.name.clone(),
-        url: item.url.clone(),
-        home: item.home.clone(),
-        description: item.desc.clone(),
-        updated: item.updated,
+        name: profile_item.and_then(|item| item.name.clone()),
+        url: Some(source_config.url.clone()),
+        home: profile_item.and_then(|item| item.home.clone()),
+        description: profile_item.and_then(|item| item.desc.clone()),
+        updated: source_state
+            .latest_success
+            .as_ref()
+            .map(|attempt| (attempt.finished_at / 1000) as usize)
+            .or_else(|| Some((source_config.updated_at / 1000) as usize)),
         update_interval: option.and_then(|option| option.update_interval),
         allow_auto_update: option.and_then(|option| option.allow_auto_update).unwrap_or(true),
         preferred_transport: transport_kind_from_option(option),
@@ -73,7 +85,7 @@ pub fn subscription_source_from_profile_item(
             .and_then(|option| option.danger_accept_invalid_certs)
             .unwrap_or(false),
         is_current,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -82,14 +94,18 @@ mod tests {
     use crate::config::PrfOption;
 
     #[test]
-    fn maps_remote_profile_to_subscription_source() {
-        let item = PrfItem {
-            uid: Some("source-a".into()),
-            itype: Some("remote".into()),
-            name: Some("Source A".into()),
-            url: Some("https://example.com/sub.yaml".into()),
-            desc: Some("primary subscription".into()),
-            updated: Some(123),
+    fn maps_state_source_config_to_subscription_source() {
+        let source_state = SubscriptionSourceState {
+            source_id: "source-a".into(),
+            source_config: None,
+            active_artifact_version: None,
+            latest_artifact: None,
+            latest_attempt: None,
+            latest_success: None,
+        };
+        let source_config = SubscriptionSourceConfig {
+            url: "https://example.com/sub.yaml".into(),
+            updated_at: 123000,
             option: Some(PrfOption {
                 self_proxy: Some(true),
                 update_interval: Some(24),
@@ -98,13 +114,19 @@ mod tests {
                 danger_accept_invalid_certs: Some(true),
                 ..PrfOption::default()
             }),
+        };
+        let item = PrfItem {
+            name: Some("Source A".into()),
+            desc: Some("primary subscription".into()),
             ..PrfItem::default()
         };
 
-        let source = subscription_source_from_profile_item(&item, Some("source-a")).expect("source");
+        let source = subscription_source_from_state(&source_state, &source_config, Some(&item), Some("source-a"));
 
         assert_eq!(source.source_id, "source-a");
         assert_eq!(source.name.as_deref(), Some("Source A"));
+        assert_eq!(source.url.as_deref(), Some("https://example.com/sub.yaml"));
+        assert_eq!(source.updated, Some(123));
         assert_eq!(source.preferred_transport, TransportKind::LocalProxy);
         assert_eq!(source.update_interval, Some(24));
         assert!(!source.allow_auto_update);
@@ -114,18 +136,28 @@ mod tests {
     }
 
     #[test]
-    fn skips_non_remote_or_unidentified_profiles() {
-        let local = PrfItem {
-            uid: Some("local-a".into()),
-            itype: Some("local".into()),
-            ..PrfItem::default()
+    fn maps_state_source_without_profile_metadata() {
+        let source_state = SubscriptionSourceState {
+            source_id: "source-a".into(),
+            source_config: None,
+            active_artifact_version: None,
+            latest_artifact: None,
+            latest_attempt: None,
+            latest_success: None,
         };
-        let missing_uid = PrfItem {
-            itype: Some("remote".into()),
-            ..PrfItem::default()
+        let source_config = SubscriptionSourceConfig {
+            url: "https://example.com/sub.yaml".into(),
+            updated_at: 123000,
+            option: None,
         };
 
-        assert!(subscription_source_from_profile_item(&local, None).is_none());
-        assert!(subscription_source_from_profile_item(&missing_uid, None).is_none());
+        let source = subscription_source_from_state(&source_state, &source_config, None, None);
+
+        assert_eq!(source.source_id, "source-a");
+        assert!(source.name.is_none());
+        assert_eq!(source.url.as_deref(), Some("https://example.com/sub.yaml"));
+        assert!(source.allow_auto_update);
+        assert_eq!(source.preferred_transport, TransportKind::Direct);
+        assert!(!source.is_current);
     }
 }
