@@ -6,6 +6,19 @@
 
 这份文档只定义清理边界和执行顺序，不直接修改代码。
 
+## 当前阶段更新
+
+截至 2026-06-15，以下事项已经落地或主体完成：
+
+- `src-tauri` 对 `sysproxy`、`clash-verge-logger`、`clash-verge-service-ipc` 的依赖已切为 workspace 本地 crate
+- `scripts/prebuild.mjs` 的 sidecar / service bundle / geodata / loopback / SimpleSC 资源链路已改为本地受控
+- macOS service identity 已集中，现役身份与 legacy cleanup 已分边界
+- Windows installer 的 legacy cleanup 已从主安装/卸载流程中抽离
+- Linux / macOS 的兼容迁移职责已开始按平台边界收束
+- `src-tauri/src/utils/dirs.rs` 中跨平台共享的 legacy path migration 已集中为配置化边界
+
+因此，本文档里部分阶段描述更适合作为“迁移记录与后续删除窗口”，而不是当前实现状态。
+
 ## 核心原则
 
 1. **先脱离品牌和供应链，再处理兼容痕迹**。
