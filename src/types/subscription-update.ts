@@ -24,6 +24,21 @@ export interface SubscriptionTransportPlan {
   note?: string | null
 }
 
+export interface SubscriptionSource {
+  source_id: string
+  name?: string | null
+  url?: string | null
+  home?: string | null
+  description?: string | null
+  updated?: number | null
+  update_interval?: number | null
+  allow_auto_update: boolean
+  preferred_transport: SubscriptionUpdateTransportKind
+  timeout_seconds?: number | null
+  danger_accept_invalid_certs: boolean
+  is_current: boolean
+}
+
 export type SubscriptionUpdateFinalStatus = 'succeeded' | 'failed'
 
 export type SubscriptionFormat =

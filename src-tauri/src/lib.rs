@@ -256,6 +256,8 @@ mod app_init {
             cmd::save_profile_file,
             cmd::get_next_update_time,
             cmd::get_subscription_state,
+            cmd::list_subscription_sources,
+            cmd::get_subscription_source,
             cmd::get_subscription_source_state,
             cmd::get_subscription_source_update_events,
             cmd::plan_subscription_update_transport,

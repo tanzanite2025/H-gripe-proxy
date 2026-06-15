@@ -7,6 +7,7 @@ import type {
   SubscriptionArtifactDiagnostics,
   SubscriptionArtifactMetadata,
   SubscriptionArtifactSummary,
+  SubscriptionSource,
   SubscriptionSourceState,
   SubscriptionStateDocument,
   SubscriptionTransportPlan,
@@ -15,6 +16,16 @@ import type {
 
 export async function getSubscriptionState() {
   return invoke<SubscriptionStateDocument>('get_subscription_state')
+}
+
+export async function listSubscriptionSources() {
+  return invoke<SubscriptionSource[]>('list_subscription_sources')
+}
+
+export async function getSubscriptionSource(sourceId: string) {
+  return invoke<SubscriptionSource | null>('get_subscription_source', {
+    sourceId,
+  })
 }
 
 export async function getSubscriptionSourceState(sourceId: string) {
