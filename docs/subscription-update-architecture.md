@@ -449,6 +449,7 @@ Implemented:
 
 - Replace string notice handling with typed subscription event handling. **Partially done: subscription notices now share structured stage/transport labels, profile cards render live and persisted status from subscription state/events, and subscription event queries invalidate from typed events.**
 - Add update history and stage-specific diagnostics UI. **Partially done: profile context menus expose an update-history dialog with the latest structured attempt timeline plus raw body / normalized YAML / diagnostics artifact previews.**
+- Add UI tests for stage-specific fetch / parse / validation / activation failures. **Done: `SubscriptionUpdateHistoryDialog` has Vitest coverage for these structured failure stages.**
 
 ### Phase 6: Remove Legacy Coupling
 
@@ -487,8 +488,8 @@ The redesign is complete when:
 
 ## Recommended Next Implementation Slice
 
-The next highest-leverage slice is Phase 5 test coverage and any remaining diagnostics deep links.
+The next highest-leverage slice is Phase 6: remove legacy coupling once the team is comfortable with the Phase 5 UI.
 
-1. Add UI tests for stage-specific fetch / parse / validation / activation failures.
-2. Extend diagnostics previews into file/open-location deep links if needed.
-3. Then begin Phase 6 once UI coverage is in place.
+1. Stop relying on `PrfItem` as the source-of-truth for subscription runtime activation.
+2. Move any remaining legacy compatibility writes behind explicit migration/rollback boundaries.
+3. Extend diagnostics previews into file/open-location deep links if needed.
