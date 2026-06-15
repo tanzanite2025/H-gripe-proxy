@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react'
 
 import { type ProxyChainItem } from '../proxy-chain-types'
-import type { ProxyChainCopy } from './proxy-chain-copy'
+
 import {
   clearProxyChainSelection,
   connectProxyChain,
   disconnectProxyChain,
 } from './proxy-chain-connection-runtime'
+import type { ProxyChainCopy } from './proxy-chain-copy'
 
 interface UseProxyChainConnectionOptions {
   isConnected: boolean

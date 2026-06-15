@@ -1,5 +1,6 @@
 import { filterSort } from '../use-filter-sort'
 import type { HeadState } from '../use-head-state'
+
 import type { ProxyItem } from './types'
 
 const normalizeName = (value?: string | null) => value?.trim() || ''

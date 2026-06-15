@@ -18,6 +18,7 @@ import {
   splitList,
 } from '../../shared'
 import { getProfileTitle } from '../shared'
+
 import { SettingSwitchCard } from './setting-switch-card'
 
 interface ProfileCardProps {

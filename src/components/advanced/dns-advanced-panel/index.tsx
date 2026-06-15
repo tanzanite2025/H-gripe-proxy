@@ -3,16 +3,16 @@ import { useState, type ReactNode } from 'react'
 
 import { Switch } from '@/components/base'
 import { DnsLeakProtectionCard } from '@/components/setting/dns-leak-protection-card'
+import { DnsRoutingCard } from '@/components/setting/dns-routing-card'
 import {
   buildDnsRuntimeViewModel,
   formatDnsLeakProtectionLabel,
   formatDnsRoutingModeLabel,
 } from '@/components/setting/dns-runtime-view-model'
-import { DnsRoutingCard } from '@/components/setting/dns-routing-card'
 import { DnsStatsCard } from '@/components/setting/dns-stats-card'
+import { Tab, Tabs } from '@/components/tailwind'
 import { Alert } from '@/components/tailwind/Alert'
 import { Chip } from '@/components/tailwind/Chip'
-import { Tab, Tabs } from '@/components/tailwind'
 import type { DnsRuntimeStatus } from '@/services/cmds'
 import type { AdvancedDnsConfig } from '@/services/coordinator'
 import { showNotice } from '@/services/notice-service'

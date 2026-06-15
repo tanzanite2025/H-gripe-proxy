@@ -13,8 +13,8 @@ import { saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { MonacoEditorInstance } from '@/types/monaco'
 
-import { ProxyVisualizationPane } from './proxy-visualization-pane'
 import { ProxiesYamlEditorPane } from './proxies-yaml-editor-pane'
+import { ProxyVisualizationPane } from './proxy-visualization-pane'
 import type { ProxiesEditorViewerProps } from './types'
 import { useProxiesEditorState } from './use-proxies-editor-state'
 

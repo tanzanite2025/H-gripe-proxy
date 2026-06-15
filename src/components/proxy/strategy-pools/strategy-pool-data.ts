@@ -10,6 +10,7 @@ import {
 } from '@/services/proxy-display'
 
 import { parseGroupsYaml } from '../../profile/groups-editor-viewer/utils/group-helpers'
+
 import {
   buildNextStrategyPoolName,
   buildStrategyPoolGroupRef,

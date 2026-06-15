@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
@@ -37,6 +36,7 @@ export function useProfileActivation({
   mutateLogs,
 }: UseProfileActivationParams) {
   const [activatings, setActivatings] = useState<string[]>([])
+  const activeProfileId = profiles?.current
 
   const switchingProfileRef = useRef<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -44,8 +44,8 @@ export function useProfileActivation({
   const pendingRequestRef = useRef<Promise<unknown> | null>(null)
 
   const getCurrentActivatings = useCallback(
-    () => [...new Set([profiles?.current ?? ''])].filter(Boolean),
-    [profiles?.current],
+    () => [...new Set([activeProfileId ?? ''])].filter(Boolean),
+    [activeProfileId],
   )
 
   const handleProfileInterrupt = useCallback(
@@ -121,7 +121,7 @@ export function useProfileActivation({
 
   const activateProfile = useCallback(
     async (profile: string, notifySuccess: boolean) => {
-      if (profiles?.current === profile && !notifySuccess) {
+      if (activeProfileId === profile && !notifySuccess) {
         debugLog(`[Profile] ${profile} is already current, skipping switch`)
         return
       }
@@ -244,7 +244,7 @@ export function useProfileActivation({
       handleProfileInterrupt,
       mutateLogs,
       patchProfiles,
-      profiles,
+      activeProfileId,
       refreshRuleProviders,
       refreshRules,
     ],
@@ -257,14 +257,14 @@ export function useProfileActivation({
         return
       }
 
-      if (!force && profile === profiles?.current) {
+      if (!force && profile === activeProfileId) {
         debugProfileSwitch('ALREADY_CURRENT_IGNORED', profile)
         return
       }
 
       await activateProfile(profile, true)
     },
-    [activateProfile, profiles?.current],
+    [activateProfile, activeProfileId],
   )
 
   useEffect(() => {

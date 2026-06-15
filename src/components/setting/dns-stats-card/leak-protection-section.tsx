@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle, Shield } from 'lucide-react'
 import { Chip } from '@/components/tailwind/Chip'
 
 import type { DnsRuntimeViewModel } from '../dns-runtime-view-model'
+
 import { DnsChipRow, DnsSectionHeading } from './shared'
 
 interface LeakProtectionSectionProps {

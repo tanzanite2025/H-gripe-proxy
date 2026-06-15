@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { ConnectionColumnManager } from '../connection-column-manager'
 import { getConnectionViewSpec } from '../connection-page-model'
 import { ConnectionTableUI } from '../connection-table-ui'
+
 import { buildConnectionBaseColumns } from './columns'
 import { getConnectionCellValue, reconcileColumnOrder } from './helpers'
 import { RelativeTimeCell } from './relative-time-cell'

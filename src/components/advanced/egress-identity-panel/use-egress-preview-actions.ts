@@ -1,7 +1,6 @@
 import { useState } from 'react'
 
-import { showNotice } from '@/services/notice-service'
-
+import type { CoordinatorStatus } from '@/services/coordinator'
 import {
   egressIdentityAssignMatch,
   egressIdentityClearAssignment,
@@ -9,7 +8,9 @@ import {
   type EgressPreviewRequest,
   type ResolvedEgressIdentity,
 } from '@/services/egress-identity'
-import type { CoordinatorStatus } from '@/services/coordinator'
+import { showNotice } from '@/services/notice-service'
+
+
 import {
   emptyEgressIdentityPreviewForm,
   splitList,

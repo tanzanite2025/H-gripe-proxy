@@ -48,18 +48,21 @@ export function useStrategyPoolEditor(options: UseStrategyPoolEditorOptions) {
     })
   }, [proxiesData?.records, searchText, selectedNames])
 
-  const toggleSelected = useCallback((name: string, checked?: boolean) => {
-    setSelectedNames((prev) => {
-      const exists = prev.includes(name)
-      const nextChecked = checked ?? !exists
+  const toggleSelected = useCallback(
+    (name: string, checked?: boolean) => {
+      setSelectedNames((prev) => {
+        const exists = prev.includes(name)
+        const nextChecked = checked ?? !exists
 
-      if (nextChecked) {
-        return exists ? prev : [...prev, name]
-      }
+        if (nextChecked) {
+          return exists ? prev : [...prev, name]
+        }
 
-      return prev.filter((item) => item !== name)
-    })
-  }, [])
+        return prev.filter((item) => item !== name)
+      })
+    },
+    [setSelectedNames],
+  )
 
   return {
     candidateOptions,

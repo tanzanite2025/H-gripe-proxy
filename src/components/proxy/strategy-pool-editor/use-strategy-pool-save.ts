@@ -6,6 +6,7 @@ import { saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 import type { StrategyPoolGroupRef } from '../strategy-pools/types'
+
 import { buildStrategyGroupYaml, cloneGroupConfig } from './group-config'
 import { loadEditableStrategyGroup } from './strategy-group-loader'
 

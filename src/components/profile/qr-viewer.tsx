@@ -23,11 +23,17 @@ interface Props {
 }
 
 const DEFAULT_DOWNLOAD_NAME = 'profile-share-qr'
+const INVALID_FILE_NAME_CHARS = '<>:"/\\|?*'
 
 const sanitizeFileName = (value?: string) => {
   const normalized = (value ?? '')
     .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .split('')
+    .map((char) => {
+      const code = char.charCodeAt(0)
+      return code <= 31 || INVALID_FILE_NAME_CHARS.includes(char) ? '-' : char
+    })
+    .join('')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')

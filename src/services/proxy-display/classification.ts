@@ -1,14 +1,14 @@
-import type {
-  ProxyDisplayGroupKind,
-  ProxyDisplaySplit,
-  ProxyDisplayTargetKind,
-} from './types'
 import {
   isBuiltinPolicyName,
   isHiddenProxyName,
   normalizeName,
   normalizeType,
 } from './names'
+import type {
+  ProxyDisplayGroupKind,
+  ProxyDisplaySplit,
+  ProxyDisplayTargetKind,
+} from './types'
 
 const STRATEGY_GROUP_TYPES = new Set(['urltest', 'loadbalance'])
 const AUXILIARY_GROUP_TYPES = new Set(['fallback'])

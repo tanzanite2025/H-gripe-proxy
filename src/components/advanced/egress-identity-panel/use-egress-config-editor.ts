@@ -1,12 +1,12 @@
 import { getRecommendedAdvancedConfig } from '@/services/coordinator'
-import { showNotice } from '@/services/notice-service'
-
 import type {
   AppEgressRule,
   EgressIdentityConfig,
   EgressIdentityProfile,
   ShortcutEgressRule,
 } from '@/services/coordinator'
+import { showNotice } from '@/services/notice-service'
+
 import {
   buildProfileId,
   starterAppRule,
@@ -19,7 +19,7 @@ interface UseEgressConfigEditorParams {
   onChange: (config: EgressIdentityConfig) => void
 }
 
-export function useEgressConfigEditor({
+export function createEgressConfigEditor({
   config,
   onChange,
 }: UseEgressConfigEditorParams) {

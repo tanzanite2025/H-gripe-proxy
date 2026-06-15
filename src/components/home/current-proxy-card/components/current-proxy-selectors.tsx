@@ -4,6 +4,7 @@ import type {
   ProxyGroupOption,
   ProxyOption,
 } from '../hooks/current-proxy-data/shared'
+
 import { CurrentProxyGroupSelect } from './current-proxy-group-select'
 import { CurrentProxyProxySelect } from './current-proxy-proxy-select'
 

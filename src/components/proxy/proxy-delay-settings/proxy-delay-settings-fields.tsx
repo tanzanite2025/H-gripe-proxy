@@ -3,8 +3,8 @@ import type { ChangeEvent } from 'react'
 
 import { Box, InputAdornment, TextField } from '@/components/tailwind'
 
-import type { ProxyDelaySettingsCopy } from './use-proxy-delay-settings-copy'
 import type { DelaySettingsFormState } from './shared'
+import type { ProxyDelaySettingsCopy } from './use-proxy-delay-settings-copy'
 
 interface ProxyDelaySettingsFieldsProps {
   copy: ProxyDelaySettingsCopy

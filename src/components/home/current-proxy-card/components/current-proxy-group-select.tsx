@@ -1,6 +1,7 @@
 import { MenuItem, Select } from '@/components/tailwind/Select'
 
 import type { ProxyGroupOption } from '../hooks/current-proxy-data/shared'
+
 import { CURRENT_PROXY_SELECT_CLASSNAME } from './current-proxy-select-styles'
 
 interface CurrentProxyGroupSelectProps {

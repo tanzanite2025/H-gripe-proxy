@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import type { IRenderItem } from '../render-list/types'
+
 import { ProxyRenderProxyCard } from './proxy-render-proxy-card'
 
 interface ProxyRenderProxyGridProps {

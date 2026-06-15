@@ -2,8 +2,8 @@ import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
-import type { BackupRow } from './types'
 import { BACKUP_DATE_FORMAT, BACKUP_FILENAME_PATTERN } from './constants'
+import type { BackupRow } from './types'
 
 dayjs.extend(customParseFormat)
 dayjs.extend(relativeTime)

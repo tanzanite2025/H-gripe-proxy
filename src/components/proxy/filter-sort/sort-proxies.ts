@@ -1,5 +1,5 @@
-import { resolveDelayTimeout } from '@/services/delay-config'
 import delayManager from '@/services/delay'
+import { resolveDelayTimeout } from '@/services/delay-config'
 
 import type { ProxySortType } from './types'
 

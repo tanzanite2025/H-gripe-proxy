@@ -1,8 +1,9 @@
-import { resolveDelayTimeout } from '@/services/delay-config'
 import delayManager from '@/services/delay'
+import { resolveDelayTimeout } from '@/services/delay-config'
 import { buildProxyDisplayOptionsFromNames } from '@/services/proxy-display'
 
 import { categorizeDelay } from '../../utils/proxy-selection'
+
 import {
   KIND_WEIGHT,
   type ProxyOption,

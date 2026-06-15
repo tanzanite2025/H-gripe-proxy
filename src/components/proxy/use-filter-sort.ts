@@ -4,8 +4,8 @@ import { useVerge } from '@/hooks/system'
 
 import { filterProxies } from './filter-sort/filter-proxies'
 import { sortProxies } from './filter-sort/sort-proxies'
-import { useGroupDelayRefresh } from './filter-sort/use-group-delay-refresh'
 import type { ProxySearchState, ProxySortType } from './filter-sort/types'
+import { useGroupDelayRefresh } from './filter-sort/use-group-delay-refresh'
 
 export type { ProxySearchState, ProxySortType }
 

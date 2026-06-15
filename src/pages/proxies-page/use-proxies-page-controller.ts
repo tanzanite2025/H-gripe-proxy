@@ -1,9 +1,8 @@
+import { useLockFn } from 'ahooks'
 import { useEffect, useState } from 'react'
 
 import { clearProxyChainRuntimeConfig } from '@/components/proxy/proxy-chain-runtime'
 import { loadProxyChainRuntimeExitNode } from '@/components/proxy/proxy-chain-types'
-import { useLockFn } from 'ahooks'
-
 import { getRuntimeProxyChainConfig } from '@/services/cmds'
 import { debugLog } from '@/utils/misc'
 

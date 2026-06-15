@@ -17,8 +17,8 @@ import { useClashLog, useVerge } from '@/hooks/system'
 import { openLogsDir } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
-import { CORE_LOG_LEVEL_OPTIONS, normalizeCoreLogLevel } from '@/utils/log-level'
 import { cn } from '@/utils/cn'
+import { CORE_LOG_LEVEL_OPTIONS, normalizeCoreLogLevel } from '@/utils/log-level'
 
 const APP_LOG_LEVEL_OPTIONS = [
   'trace',
@@ -68,19 +68,24 @@ export function LogSettingsPanel() {
   const { verge, patchVerge } = useVerge()
   const { clash, patchClash } = useClash()
   const [, setClashLog] = useClashLog()
+  const coreLogLevel = clash?.['log-level']
+  const appLogLevel = verge?.app_log_level
+  const appLogMaxSize = verge?.app_log_max_size
+  const appLogMaxCount = verge?.app_log_max_count
+  const autoLogClean = verge?.auto_log_clean
   const [values, setValues] = useState(() =>
     createLogSettingsValues(verge, clash),
   )
 
   useEffect(() => {
-    setValues(createLogSettingsValues(verge, clash))
-  }, [
-    clash?.['log-level'],
-    verge?.app_log_level,
-    verge?.app_log_max_size,
-    verge?.app_log_max_count,
-    verge?.auto_log_clean,
-  ])
+    setValues({
+      appLogLevel: appLogLevel ?? 'warn',
+      appLogMaxCount: appLogMaxCount ?? 8,
+      appLogMaxSize: appLogMaxSize ?? 128,
+      autoLogClean: autoLogClean || 0,
+      coreLogLevel: normalizeCoreLogLevel(coreLogLevel),
+    })
+  }, [appLogLevel, appLogMaxCount, appLogMaxSize, autoLogClean, coreLogLevel])
 
   const onSave = useLockFn(async () => {
     try {

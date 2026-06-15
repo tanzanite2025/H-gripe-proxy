@@ -1,5 +1,5 @@
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 import { useTranslation } from 'react-i18next'
+import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { Button } from '@/components/tailwind/Button'
 import {

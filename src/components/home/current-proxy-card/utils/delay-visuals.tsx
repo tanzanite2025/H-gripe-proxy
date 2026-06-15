@@ -8,8 +8,8 @@ import {
 } from 'lucide-react'
 import type { ReactElement } from 'react'
 
-import { resolveDelayTimeout } from '@/services/delay-config'
 import delayManager from '@/services/delay'
+import { resolveDelayTimeout } from '@/services/delay-config'
 
 const ERROR_DELAY_THRESHOLD = 1e5
 

@@ -1,10 +1,10 @@
 import { Card } from '@/components/tailwind/Card'
+import type { IpReputation } from '@/services/ip-reputation/model'
 import {
   getIpTypeText,
   getRiskLevelColor,
   getRiskLevelText,
 } from '@/services/ip-reputation/presentation'
-import type { IpReputation } from '@/services/ip-reputation/model'
 
 import { getFraudScoreColor, getIpTypeBadgeClass } from './shared'
 

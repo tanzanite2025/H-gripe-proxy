@@ -1,8 +1,9 @@
 import { readProfileFile } from '@/services/cmds'
 
+import { parseGroupsYaml } from '../../profile/groups-editor-viewer/utils/group-helpers'
 import { filterStrategyPoolMemberNames } from '../strategy-pools/strategy-pool-rules'
 import type { StrategyPoolGroupRef } from '../strategy-pools/types'
-import { parseGroupsYaml } from '../../profile/groups-editor-viewer/utils/group-helpers'
+
 import {
   buildFallbackGroupConfig,
   cloneGroupConfig,

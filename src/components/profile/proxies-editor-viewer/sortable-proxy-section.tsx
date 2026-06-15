@@ -10,6 +10,7 @@ import { SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useMemo } from 'react'
 
 import { ProxyItem } from '../proxy-item'
+
 import type { SortableProxySectionProps } from './types'
 
 export function SortableProxySection({

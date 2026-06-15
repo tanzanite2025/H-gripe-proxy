@@ -1,7 +1,7 @@
-import type { ResidentialExitSectionProps } from './residential-exit-section'
 import type { ProxyChainDialogsProps } from './proxy-chain-dialogs'
 import type { ProxyChainGridProps } from './proxy-chain-grid'
 import type { ProxyChainToolbarProps } from './proxy-chain-toolbar'
+import type { ResidentialExitSectionProps } from './residential-exit-section'
 
 interface BuildProxyChainViewModelOptions {
   bare: boolean

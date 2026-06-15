@@ -8,6 +8,7 @@ import {
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 
 import type { ProxyChainItem } from '../proxy-chain-types'
+
 import { SortableChainItem } from './sortable-chain-item'
 
 export interface ProxyChainGridProps {

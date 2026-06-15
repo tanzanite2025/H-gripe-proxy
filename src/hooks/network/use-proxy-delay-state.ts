@@ -2,9 +2,9 @@ import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import { useVerge } from '@/hooks/system'
-import { resolveDisplayDelayUpdate } from '@/services/delay-display'
-import { resolveVergeDelayTimeout } from '@/services/delay-config'
 import delayManager, { type DelayUpdate } from '@/services/delay'
+import { resolveVergeDelayTimeout } from '@/services/delay-config'
+import { resolveDisplayDelayUpdate } from '@/services/delay-display'
 
 const PRESET_PROXY_NAMES = [
   'DIRECT',

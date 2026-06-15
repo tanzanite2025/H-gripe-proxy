@@ -4,15 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 
 import { isProxyChainConnected } from '../proxy-chain-types'
+
 import { buildProxyChainViewModel } from './build-proxy-chain-view-model'
 import { buildProxyChainCopy } from './proxy-chain-copy'
-import { useProxyChainConnection } from './use-proxy-chain-connection'
+import type { ProxyChainProps } from './types'
 import { useProxyChainConfigLoader } from './use-proxy-chain-config-loader'
+import { useProxyChainConnection } from './use-proxy-chain-connection'
 import { useProxyChainDelayUpdater } from './use-proxy-chain-delay-updater'
 import { useProxyChainDnd } from './use-proxy-chain-dnd'
 import { useProxyChainLengthDirtyMarker } from './use-proxy-chain-length-dirty-marker'
 import { useResidentialPoolState } from './use-residential-pool-state'
-import type { ProxyChainProps } from './types'
 
 export const useProxyChainController = ({
   proxyChain,
