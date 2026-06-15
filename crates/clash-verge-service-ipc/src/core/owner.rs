@@ -45,21 +45,14 @@ impl Drop for ServiceOwnerGuard {
             let _ = std::fs::remove_file(self.paths.owner_lock_path());
         }
 
-        info!(
-            "Released service owner lock: {:?}",
-            self.paths.owner_lock_path()
-        );
+        info!("Released service owner lock: {:?}", self.paths.owner_lock_path());
     }
 }
 
 pub async fn acquire_service_owner() -> Result<Option<ServiceOwnerGuard>> {
     let paths = service_paths();
-    std::fs::create_dir_all(paths.runtime_dir()).with_context(|| {
-        format!(
-            "failed to create runtime directory {:?}",
-            paths.runtime_dir()
-        )
-    })?;
+    std::fs::create_dir_all(paths.runtime_dir())
+        .with_context(|| format!("failed to create runtime directory {:?}", paths.runtime_dir()))?;
 
     if let Some(guard) = try_acquire_owner_once(&paths)? {
         info!("Acquired service owner lock: {:?}", paths.owner_lock_path());
@@ -88,10 +81,7 @@ pub async fn acquire_service_owner() -> Result<Option<ServiceOwnerGuard>> {
 
     for attempt in 1..=OWNER_REACQUIRE_ATTEMPTS {
         if let Some(guard) = try_acquire_owner_once(&paths)? {
-            info!(
-                "Acquired service owner lock after cleanup on attempt {}",
-                attempt
-            );
+            info!("Acquired service owner lock after cleanup on attempt {}", attempt);
             return Ok(Some(guard));
         }
 
@@ -116,12 +106,7 @@ fn try_acquire_owner_once(paths: &ServicePaths) -> Result<Option<ServiceOwnerGua
             .open(paths.owner_lock_path())
             .with_context(|| format!("failed to open owner lock {:?}", paths.owner_lock_path()))?;
 
-        let result = unsafe {
-            platform_lib::flock(
-                file.as_raw_fd(),
-                platform_lib::LOCK_EX | platform_lib::LOCK_NB,
-            )
-        };
+        let result = unsafe { platform_lib::flock(file.as_raw_fd(), platform_lib::LOCK_EX | platform_lib::LOCK_NB) };
 
         if result == 0 {
             return ServiceOwnerGuard::new(file, paths.clone()).map(Some);
@@ -149,8 +134,7 @@ fn try_acquire_owner_once(paths: &ServicePaths) -> Result<Option<ServiceOwnerGua
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(None),
             Err(error) => {
-                return Err(error)
-                    .with_context(|| format!("failed to create {:?}", paths.owner_lock_path()));
+                return Err(error).with_context(|| format!("failed to create {:?}", paths.owner_lock_path()));
             }
         };
 

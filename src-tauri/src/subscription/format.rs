@@ -166,10 +166,7 @@ fn has_any_key(mapping: &Mapping, keys: &[&str]) -> bool {
 }
 
 fn yaml_top_level_keys(mapping: &Mapping) -> Vec<String> {
-    mapping
-        .keys()
-        .filter_map(|key| key.as_str().map(Into::into))
-        .collect()
+    mapping.keys().filter_map(|key| key.as_str().map(Into::into)).collect()
 }
 
 fn looks_like_html_payload(data: &str) -> bool {

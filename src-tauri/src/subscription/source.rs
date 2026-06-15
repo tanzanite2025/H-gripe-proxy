@@ -66,9 +66,7 @@ pub fn subscription_source_from_profile_item(
         description: item.desc.clone(),
         updated: item.updated,
         update_interval: option.and_then(|option| option.update_interval),
-        allow_auto_update: option
-            .and_then(|option| option.allow_auto_update)
-            .unwrap_or(true),
+        allow_auto_update: option.and_then(|option| option.allow_auto_update).unwrap_or(true),
         preferred_transport: transport_kind_from_option(option),
         timeout_seconds: option.and_then(|option| option.timeout_seconds),
         danger_accept_invalid_certs: option
@@ -103,8 +101,7 @@ mod tests {
             ..PrfItem::default()
         };
 
-        let source =
-            subscription_source_from_profile_item(&item, Some("source-a")).expect("source");
+        let source = subscription_source_from_profile_item(&item, Some("source-a")).expect("source");
 
         assert_eq!(source.source_id, "source-a");
         assert_eq!(source.name.as_deref(), Some("Source A"));

@@ -37,11 +37,7 @@ fn cleanup_legacy_bundle_service(debug: bool, run_command: CommandRunner) -> Res
     let plist_file = identity::legacy_service_plist_path();
     let system_target = identity::legacy_launchctl_system_target();
 
-    let _ = run_command(
-        "launchctl",
-        &["stop", identity::LEGACY_SERVICE_BUNDLE_ID],
-        debug,
-    );
+    let _ = run_command("launchctl", &["stop", identity::LEGACY_SERVICE_BUNDLE_ID], debug);
     let _ = run_command("launchctl", &["disable", system_target.as_str()], debug);
     let _ = run_command("launchctl", &["bootout", "system", plist_file.as_str()], debug);
 
@@ -53,8 +49,7 @@ fn cleanup_legacy_bundle_service(debug: bool, run_command: CommandRunner) -> Res
 
 fn remove_file_if_exists(path: &str, label: &str) -> Result<(), Error> {
     if Path::new(path).exists() {
-        std::fs::remove_file(path)
-            .map_err(|e| anyhow::anyhow!("Failed to remove {label}: {}", e))?;
+        std::fs::remove_file(path).map_err(|e| anyhow::anyhow!("Failed to remove {label}: {}", e))?;
     }
 
     Ok(())
@@ -62,8 +57,7 @@ fn remove_file_if_exists(path: &str, label: &str) -> Result<(), Error> {
 
 fn remove_dir_if_exists(path: &str, label: &str) -> Result<(), Error> {
     if Path::new(path).exists() {
-        std::fs::remove_dir_all(path)
-            .map_err(|e| anyhow::anyhow!("Failed to remove {label}: {}", e))?;
+        std::fs::remove_dir_all(path).map_err(|e| anyhow::anyhow!("Failed to remove {label}: {}", e))?;
     }
 
     Ok(())

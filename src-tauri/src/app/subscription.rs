@@ -1,18 +1,16 @@
 use crate::{
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
-    core::{CoreManager, handle, validate::ValidationOutcome},
+    core::{handle, validate::ValidationOutcome},
     subscription::{
         executor::{SubscriptionUpdateExecutor, SubscriptionUpdateFailure},
-        model::{
-            SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus,
-            UpdateStage, UpdateTrigger,
-        },
+        model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
         persist::{
-            SubscriptionArtifactPublishResult, build_finished_attempt_record,
-            persist_attempt_result, publish_subscription_artifact,
-            restore_subscription_active_artifact,
+            SubscriptionArtifactPublishResult, build_finished_attempt_record, persist_attempt_result,
+            publish_subscription_artifact, restore_subscription_active_artifact,
         },
-        runtime_candidate::validate_subscription_runtime_candidate,
+        runtime_candidate::{
+            activate_subscription_active_artifact_runtime, validate_subscription_artifact_runtime_candidate,
+        },
         transport::TransportKind,
     },
     utils::help::mask_url,
@@ -79,15 +77,9 @@ async fn persist_finished_subscription_attempt(
     }
 }
 
-async fn restore_published_subscription_artifact(
-    source_id: &String,
-    publish: &SubscriptionArtifactPublishResult,
-) {
-    if let Err(err) = restore_subscription_active_artifact(
-        source_id,
-        publish.previous_active_artifact_version.clone(),
-    )
-    .await
+async fn restore_published_subscription_artifact(source_id: &String, publish: &SubscriptionArtifactPublishResult) {
+    if let Err(err) =
+        restore_subscription_active_artifact(source_id, publish.previous_active_artifact_version.clone()).await
     {
         logging!(
             warn,
@@ -217,20 +209,14 @@ async fn perform_profile_update(
     } else {
         UpdateTrigger::Automatic
     };
-    let mut update = SubscriptionUpdateExecutor::new(
-        uid.clone(),
-        url.clone(),
-        opt.cloned(),
-        option.cloned(),
-        trigger,
-    )
-    .execute(
-        handle::Handle::notify_subscription_attempt_started,
-        |attempt, stage, transport| {
-            handle::Handle::notify_subscription_stage_changed(attempt, stage, transport);
-        },
-    )
-    .await?;
+    let mut update = SubscriptionUpdateExecutor::new(uid.clone(), url.clone(), opt.cloned(), option.cloned(), trigger)
+        .execute(
+            handle::Handle::notify_subscription_attempt_started,
+            |attempt, stage, transport| {
+                handle::Handle::notify_subscription_stage_changed(attempt, stage, transport);
+            },
+        )
+        .await?;
     let mut item = update.legacy_profile_item;
 
     if is_current {
@@ -245,7 +231,7 @@ async fn perform_profile_update(
             Some(update.transport),
         );
 
-        match validate_subscription_runtime_candidate(uid, &item).await {
+        match validate_subscription_artifact_runtime_candidate(uid, &update.artifact.version, &item).await {
             Ok(outcome) if outcome.is_valid() => {}
             Ok(outcome) => {
                 return Err(SubscriptionUpdateFailure {
@@ -262,8 +248,7 @@ async fn perform_profile_update(
                     stage: UpdateStage::ValidateRuntimeCandidate,
                     transport: Some(update.transport),
                     artifact: Some(update.artifact),
-                    error: format!("failed to validate subscription runtime candidate: {err}")
-                        .into(),
+                    error: format!("failed to validate subscription runtime candidate: {err}").into(),
                 });
             }
         }
@@ -326,71 +311,60 @@ pub async fn update_profile(
 
     let rollback_snapshot = snapshot_profile_update(uid).await?;
 
-    let mut update_execution =
-        match perform_profile_update(uid, &url, opt.as_ref(), option, is_manual_trigger).await {
-            Ok(execution) => execution,
-            Err(failure) => {
-                logging!(
-                    error,
-                    Type::Config,
-                    "[Subscription Update] update failed at {:?}: {}",
-                    failure.stage,
-                    failure.error
-                );
+    let mut update_execution = match perform_profile_update(uid, &url, opt.as_ref(), option, is_manual_trigger).await {
+        Ok(execution) => execution,
+        Err(failure) => {
+            logging!(
+                error,
+                Type::Config,
+                "[Subscription Update] update failed at {:?}: {}",
+                failure.stage,
+                failure.error
+            );
 
-                if let Some(rollback_snapshot) = &rollback_snapshot {
-                    restore_profile_update_snapshot(rollback_snapshot).await?;
-                }
-
-                let artifact_version = failure
-                    .artifact
-                    .as_ref()
-                    .map(|artifact| artifact.version.clone());
-                let error_message = failure.error.clone();
-
-                handle::Handle::notify_subscription_update_failed(
-                    &failure.attempt,
-                    failure.stage,
-                    failure.transport,
-                    artifact_version,
-                    error_message.clone(),
-                    true,
-                );
-                persist_finished_subscription_attempt(
-                    uid,
-                    &failure.attempt,
-                    UpdateFinalStatus::Failed,
-                    failure.stage,
-                    failure.transport,
-                    failure.artifact.as_ref(),
-                    Some(error_message.clone()),
-                    false,
-                    true,
-                )
-                .await;
-
-                bail!("failed to update profile: {error_message}");
+            if let Some(rollback_snapshot) = &rollback_snapshot {
+                restore_profile_update_snapshot(rollback_snapshot).await?;
             }
-        };
+
+            let artifact_version = failure.artifact.as_ref().map(|artifact| artifact.version.clone());
+            let error_message = failure.error.clone();
+
+            handle::Handle::notify_subscription_update_failed(
+                &failure.attempt,
+                failure.stage,
+                failure.transport,
+                artifact_version,
+                error_message.clone(),
+                true,
+            );
+            persist_finished_subscription_attempt(
+                uid,
+                &failure.attempt,
+                UpdateFinalStatus::Failed,
+                failure.stage,
+                failure.transport,
+                failure.artifact.as_ref(),
+                Some(error_message.clone()),
+                false,
+                true,
+            )
+            .await;
+
+            bail!("failed to update profile: {error_message}");
+        }
+    };
 
     let should_refresh = update_execution.is_current && auto_refresh;
 
     if should_refresh {
-        record_and_notify_subscription_stage(
-            &mut update_execution.attempt,
-            UpdateStage::ActivateRuntime,
-            None,
-        );
+        record_and_notify_subscription_stage(&mut update_execution.attempt, UpdateStage::ActivateRuntime, None);
         logging!(
             info,
             Type::Config,
             "[Subscription Update] applying updated profile to runtime"
         );
 
-        match CoreManager::global()
-            .update_config_without_restart_with_force(is_manual_trigger)
-            .await
-        {
+        match activate_subscription_active_artifact_runtime(uid, is_manual_trigger).await {
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[Subscription Update] update succeeded");
                 handle::Handle::notify_subscription_update_succeeded(

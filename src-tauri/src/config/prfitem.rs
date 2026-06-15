@@ -445,11 +445,8 @@ impl PrfItem {
             );
         }
 
-        parse_clash_yaml_subscription(data, Some(content_type.as_str())).map_err(|err| {
-            anyhow!(
-                "{err} (status {status_code}, content-type {content_type})"
-            )
-        })?;
+        parse_clash_yaml_subscription(data, Some(content_type.as_str()))
+            .map_err(|err| anyhow!("{err} (status {status_code}, content-type {content_type})"))?;
 
         if merge.is_none() {
             let merge_item = &mut Self::from_merge(None)?;

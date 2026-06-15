@@ -7,9 +7,7 @@ pub enum AuthStatus {
     Authorized,
 }
 
-pub fn ipc_request_context_to_auth_context(
-    ctx: &RequestContext,
-) -> Result<AuthStatus, KodeBridgeError> {
+pub fn ipc_request_context_to_auth_context(ctx: &RequestContext) -> Result<AuthStatus, KodeBridgeError> {
     let headers = &ctx.headers;
     match headers.get("X-IPC-Magic") {
         Some(token) if token == IPC_AUTH_EXPECT => Ok(AuthStatus::Authorized),

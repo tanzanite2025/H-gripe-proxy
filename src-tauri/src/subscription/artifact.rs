@@ -129,8 +129,7 @@ proxy-groups: []
             Some("application/yaml"),
         );
 
-        let candidate =
-            build_clash_yaml_artifact_candidate(&fetched, 123).expect("candidate should build");
+        let candidate = build_clash_yaml_artifact_candidate(&fetched, 123).expect("candidate should build");
 
         assert_eq!(candidate.record.detected_format, Some(SubscriptionFormat::ClashYaml));
         assert!(candidate.record.version.starts_with("123-"));

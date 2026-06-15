@@ -56,8 +56,8 @@ Status after PR #60:
 | Typed executor/state machine | Done | `SubscriptionUpdateExecutor` owns source → transport → fetch retry → decode → materialize → legacy item generation. |
 | Runtime candidate validation | Done | Current subscription updates validate a generated runtime candidate before committing the legacy profile write. |
 | Artifact publish pointer | Done | `PublishArtifact` cuts `active_artifact_version` after validation and rolls it back if legacy activation later fails. |
-| Active artifact consumption | Next | Runtime generation still primarily consumes the legacy profile file; PR C should make the success path consume the active artifact. |
-| Runtime activation replacement | Not started | `CoreManager::update_config_without_restart_with_force(...)` remains the activation boundary. |
+| Active artifact consumption | Done | Current subscription updates validate candidate artifacts and activate runtime from `active_artifact_version` / `normalized.yaml`; legacy files remain compatibility views. |
+| Runtime activation replacement | In progress | The success path now feeds `CoreManager::update_config_without_restart_with_force(...)` through an active-artifact-backed runtime source; the CoreManager boundary itself remains. |
 | Legacy storage removal | Not started | `PrfItem` / `profiles.yaml` remain compatibility and source-definition storage. |
 
 ## Architecture Principles
@@ -437,13 +437,13 @@ The current `IProfileItem` UI can remain initially, but update status should com
 
 ### Phase 4.5: Consume Active Artifact
 
-Next implementation slice:
+Implemented:
 
 - Read `active_artifact_version` from `subscriptions/state.yaml`.
 - Load `subscriptions/artifacts/<source_id>/<version>/normalized.yaml`.
 - Generate the runtime candidate from the active artifact rather than from the just-written legacy profile file.
 - Keep `profiles.yaml` / profile files in sync as compatibility views.
-- Preserve rollback behavior: activation failure must leave the previous active artifact pointer in place.
+- Preserve rollback behavior: activation failure leaves the previous active artifact pointer in place.
 
 ### Phase 5: UI Migration
 
@@ -487,22 +487,9 @@ The redesign is complete when:
 
 ## Recommended Next Implementation Slice
 
-The next highest-leverage slice is PR C: consume active artifacts in the update success path.
+The next highest-leverage slice is Phase 5: migrate frontend status rendering to structured subscription events.
 
-1. Add an artifact-backed runtime source helper:
-   - input: `source_id`
-   - read: `active_artifact_version`
-   - load: `subscriptions/artifacts/<source_id>/<version>/normalized.yaml`
-2. Generate runtime candidates from the active artifact, not from freshly written legacy profile content.
-3. Keep legacy `PrfItem` / profile files synchronized only for compatibility.
-4. Preserve rollback semantics:
-   - validation failure: do not publish
-   - activation failure: restore previous active artifact pointer
-   - legacy profile restore remains until `PrfItem` is no longer a write-path dependency
-5. Add focused tests for:
-   - active artifact lookup success
-   - missing state / missing artifact fail-safe
-   - activation failure preserving old active artifact
-   - legacy profile compatibility write still happening during transition
-
-This should move subscription update migration from artifact-first state tracking to artifact-first runtime consumption without deleting legacy storage yet.
+1. Render per-profile update status from `subscriptions/state.yaml` / structured events.
+2. Surface last success, last failed stage, artifact version, and diagnostics links.
+3. Replace compatibility string notice interpretation in `notification-handlers.ts`.
+4. Add UI tests for stage-specific fetch / parse / validation / activation failures.

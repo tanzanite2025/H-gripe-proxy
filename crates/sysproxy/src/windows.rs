@@ -5,11 +5,11 @@ use windows::{
     Win32::{
         NetworkManagement::Rras::{ERROR_BUFFER_TOO_SMALL, RASENTRYNAMEW, RasEnumEntriesW},
         Networking::WinInet::{
-            INTERNET_OPTION_PER_CONNECTION_OPTION, INTERNET_OPTION_PROXY_SETTINGS_CHANGED,
-            INTERNET_OPTION_REFRESH, INTERNET_PER_CONN_AUTOCONFIG_URL, INTERNET_PER_CONN_FLAGS,
-            INTERNET_PER_CONN_OPTION_LISTW, INTERNET_PER_CONN_OPTIONW, INTERNET_PER_CONN_OPTIONW_0,
-            INTERNET_PER_CONN_PROXY_BYPASS, INTERNET_PER_CONN_PROXY_SERVER, InternetSetOptionW,
-            PROXY_TYPE_AUTO_DETECT, PROXY_TYPE_AUTO_PROXY_URL, PROXY_TYPE_DIRECT, PROXY_TYPE_PROXY,
+            INTERNET_OPTION_PER_CONNECTION_OPTION, INTERNET_OPTION_PROXY_SETTINGS_CHANGED, INTERNET_OPTION_REFRESH,
+            INTERNET_PER_CONN_AUTOCONFIG_URL, INTERNET_PER_CONN_FLAGS, INTERNET_PER_CONN_OPTION_LISTW,
+            INTERNET_PER_CONN_OPTIONW, INTERNET_PER_CONN_OPTIONW_0, INTERNET_PER_CONN_PROXY_BYPASS,
+            INTERNET_PER_CONN_PROXY_SERVER, InternetSetOptionW, PROXY_TYPE_AUTO_DETECT, PROXY_TYPE_AUTO_PROXY_URL,
+            PROXY_TYPE_DIRECT, PROXY_TYPE_PROXY,
         },
         System::Memory::{GetProcessHeap, HEAP_NONE, HEAP_ZERO_MEMORY, HeapAlloc, HeapFree},
     },
@@ -181,9 +181,7 @@ impl Sysproxy {
         let hkcu = RegKey::predef(enums::HKEY_CURRENT_USER);
         let cur_var = hkcu.open_subkey_with_flags(SUB_KEY, enums::KEY_QUERY_VALUE)?;
         let enable = cur_var.get_value::<u32, _>("ProxyEnable").unwrap_or(0u32) == 1u32;
-        let proxy_server = cur_var
-            .get_value::<String, _>("ProxyServer")
-            .unwrap_or_default();
+        let proxy_server = cur_var.get_value::<String, _>("ProxyServer").unwrap_or_default();
 
         // 预设默认值
         let mut host = String::new();
@@ -289,15 +287,8 @@ fn get_ras_connections() -> Result<Vec<String>> {
     let mut buffer_size = 0u32;
     let mut entry_count = 0u32;
 
-    let result_code = unsafe {
-        RasEnumEntriesW(
-            PCWSTR::null(),
-            PCWSTR::null(),
-            None,
-            &mut buffer_size,
-            &mut entry_count,
-        )
-    };
+    let result_code =
+        unsafe { RasEnumEntriesW(PCWSTR::null(), PCWSTR::null(), None, &mut buffer_size, &mut entry_count) };
     log::debug!("get allocate buffer size result code: {result_code}");
 
     if result_code == ERROR_BUFFER_TOO_SMALL {
@@ -347,11 +338,7 @@ unsafe fn enumerate_ras_entries(buffer_size: u32) -> Result<Vec<String>> {
             let len = name_arr.iter().position(|&x| x == 0).unwrap_or(0);
             connections.push(String::from_utf16_lossy(&name_arr[..len]));
         }
-        log::debug!(
-            "找到 {} 个拨号连接/VPN, {:?}",
-            connections.len(),
-            connections
-        );
+        log::debug!("找到 {} 个拨号连接/VPN, {:?}", connections.len(), connections);
     }
 
     unsafe { HeapFree(heap, HEAP_NONE, Some(buffer_ptr))? };

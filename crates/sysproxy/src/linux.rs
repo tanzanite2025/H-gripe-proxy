@@ -106,9 +106,7 @@ impl Sysproxy {
                 Ok(bypass)
             }
             _ => {
-                let bypass = gsettings()
-                    .args(["get", CMD_KEY, "ignore-hosts"])
-                    .output()?;
+                let bypass = gsettings().args(["get", CMD_KEY, "ignore-hosts"]).output()?;
                 let bypass = from_utf8(&bypass.stdout)
                     .map_err(|_| Error::ParseStr("bypass".into()))?
                     .trim();
@@ -478,10 +476,7 @@ fn strip_str(text: &str) -> &str {
 #[inline]
 fn parse_url(schema: &str) -> Option<(String, u16)> {
     let url = Url::parse(schema.trim()).ok()?;
-    Some((
-        url.host_str()?.to_string(),
-        url.port_or_known_default().unwrap_or(0u16),
-    ))
+    Some((url.host_str()?.to_string(), url.port_or_known_default().unwrap_or(0u16)))
 }
 
 #[inline]
@@ -499,9 +494,8 @@ fn parse_kde_proxy(schema: &str, service: &str) -> Result<(String, u16)> {
         _ => ("http", 80),
     };
 
-    let parse = |candidate: &str| {
-        parse_url(candidate).map(|(host, port)| (host, if port == 0 { default_port } else { port }))
-    };
+    let parse =
+        |candidate: &str| parse_url(candidate).map(|(host, port)| (host, if port == 0 { default_port } else { port }));
 
     if let Some(result) = parse(schema) {
         return Ok(result);
@@ -617,9 +611,7 @@ impl Autoproxy {
                 let mode = from_utf8(&mode.stdout)
                     .map_err(|_| Error::ParseStr("mode".into()))?
                     .trim();
-                let url = gsettings()
-                    .args(["get", CMD_KEY, "autoconfig-url"])
-                    .output()?;
+                let url = gsettings().args(["get", CMD_KEY, "autoconfig-url"]).output()?;
                 let url: &str = from_utf8(&url.stdout)
                     .map_err(|_| Error::ParseStr("url".into()))?
                     .trim();

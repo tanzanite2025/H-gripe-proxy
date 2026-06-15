@@ -15,8 +15,7 @@ use crate::{
     core::structure::{JsonConvert, Response},
 };
 
-static CLIENT_CONFIG: Lazy<Arc<RwLock<Option<IpcConfig>>>> =
-    Lazy::new(|| Arc::new(RwLock::new(None)));
+static CLIENT_CONFIG: Lazy<Arc<RwLock<Option<IpcConfig>>>> = Lazy::new(|| Arc::new(RwLock::new(None)));
 
 static IPC_AUTH_HEADER_KEY: &str = "X-IPC-Magic";
 

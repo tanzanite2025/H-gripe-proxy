@@ -67,7 +67,6 @@ pub fn service_lifecycle_state() -> ServiceLifecycleState {
 }
 
 fn service_lifecycle_state_cell() -> &'static AtomicU8 {
-    static SERVICE_STATE: Lazy<AtomicU8> =
-        Lazy::new(|| AtomicU8::new(ServiceLifecycleState::Starting as u8));
+    static SERVICE_STATE: Lazy<AtomicU8> = Lazy::new(|| AtomicU8::new(ServiceLifecycleState::Starting as u8));
     &SERVICE_STATE
 }

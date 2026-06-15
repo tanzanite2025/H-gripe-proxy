@@ -6,8 +6,7 @@ use std::{
     str::from_utf8,
 };
 use system_configuration::{
-    core_foundation::dictionary::CFDictionary, dynamic_store::SCDynamicStore,
-    preferences::SCPreferences,
+    core_foundation::dictionary::CFDictionary, dynamic_store::SCDynamicStore, preferences::SCPreferences,
 };
 use system_configuration::{
     core_foundation::{array::CFArray, base::TCFType},
@@ -140,10 +139,7 @@ impl Sysproxy {
     }
 
     #[inline]
-    pub fn get_http(
-        service: &CFString,
-        cfd: Option<&CFDictionary<CFString, CFType>>,
-    ) -> Result<Sysproxy> {
+    pub fn get_http(service: &CFString, cfd: Option<&CFDictionary<CFString, CFType>>) -> Result<Sysproxy> {
         let cfd = match cfd {
             Some(s) => s,
             None => &get_proxies_dict_from_service_uuid(service)?,
@@ -152,10 +148,7 @@ impl Sysproxy {
     }
 
     #[inline]
-    pub fn get_https(
-        service: &CFString,
-        cfd: Option<&CFDictionary<CFString, CFType>>,
-    ) -> Result<Sysproxy> {
+    pub fn get_https(service: &CFString, cfd: Option<&CFDictionary<CFString, CFType>>) -> Result<Sysproxy> {
         let cfd = match cfd {
             Some(s) => s,
             None => &get_proxies_dict_from_service_uuid(service)?,
@@ -164,10 +157,7 @@ impl Sysproxy {
     }
 
     #[inline]
-    pub fn get_socks(
-        service: &CFString,
-        cfd: Option<&CFDictionary<CFString, CFType>>,
-    ) -> Result<Sysproxy> {
+    pub fn get_socks(service: &CFString, cfd: Option<&CFDictionary<CFString, CFType>>) -> Result<Sysproxy> {
         let cfd = match cfd {
             Some(s) => s,
             None => &get_proxies_dict_from_service_uuid(service)?,
@@ -176,10 +166,7 @@ impl Sysproxy {
     }
 
     #[inline]
-    pub fn get_bypass(
-        service: &CFString,
-        cfd: Option<&CFDictionary<CFString, CFType>>,
-    ) -> Result<String> {
+    pub fn get_bypass(service: &CFString, cfd: Option<&CFDictionary<CFString, CFType>>) -> Result<String> {
         let cfd = match cfd {
             Some(s) => s,
             None => &get_proxies_dict_from_service_uuid(service)?,
@@ -239,11 +226,7 @@ impl Autoproxy {
         let service = get_active_network_service()?.to_string();
         let service = service.as_str();
         let enable = if self.enable { "on" } else { "off" };
-        let url = if self.url.is_empty() {
-            "\"\""
-        } else {
-            &self.url
-        };
+        let url = if self.url.is_empty() { "\"\"" } else { &self.url };
         run_networksetup(&["-setautoproxyurl", service, url])?;
         run_networksetup(&["-setautoproxystate", service, enable])?;
 
@@ -334,10 +317,7 @@ fn get_active_network_service_uuid() -> Result<CFString> {
     Err(Error::NetworkInterface)
 }
 
-fn parse_proxies_from_dict(
-    cfd: &CFDictionary<CFString, CFType>,
-    proxy_type: ProxyType,
-) -> Result<Sysproxy> {
+fn parse_proxies_from_dict(cfd: &CFDictionary<CFString, CFType>, proxy_type: ProxyType) -> Result<Sysproxy> {
     let enable = read_bool_flag(cfd, proxy_type.as_enable());
     let port = read_port(cfd, proxy_type.as_port());
     let host = read_host(cfd, proxy_type.as_host());
@@ -368,9 +348,7 @@ fn parse_proxyauto_from_dict(cfd: &CFDictionary<CFString, CFType>) -> Result<Aut
 }
 
 fn parse_bypass_from_dict(cfd: &CFDictionary<CFString, CFType>) -> Result<Vec<String>> {
-    let Some(bypass_list_raw) =
-        get_proxy_value(cfd, "ExceptionsList").and_then(|x| x.downcast::<CFArray>())
-    else {
+    let Some(bypass_list_raw) = get_proxy_value(cfd, "ExceptionsList").and_then(|x| x.downcast::<CFArray>()) else {
         return Ok(Vec::new());
     };
 
@@ -385,10 +363,7 @@ fn parse_bypass_from_dict(cfd: &CFDictionary<CFString, CFType>) -> Result<Vec<St
     Ok(bypass_list)
 }
 
-fn get_proxy_value<'a>(
-    dict: &'a CFDictionary<CFString, CFType>,
-    key: &'static str,
-) -> Option<ItemRef<'a, CFType>> {
+fn get_proxy_value<'a>(dict: &'a CFDictionary<CFString, CFType>, key: &'static str) -> Option<ItemRef<'a, CFType>> {
     let cf_key = CFString::from_static_string(key);
     dict.find(&cf_key)
 }
@@ -444,10 +419,7 @@ fn get_service_id_by_display_name(scp: &SCPreferences, name: &CFString) -> Optio
     None
 }
 
-fn get_autoproxies_by_service_uuid(
-    store: &SCDynamicStore,
-    service_uuid: &CFString,
-) -> Result<Autoproxy> {
+fn get_autoproxies_by_service_uuid(store: &SCDynamicStore, service_uuid: &CFString) -> Result<Autoproxy> {
     let proxy_key = CFString::new(&format!("Setup:/Network/Service/{}/Proxies", service_uuid));
 
     let proxies_cf_type = store
@@ -464,15 +436,9 @@ fn get_autoproxies_by_service_uuid(
     parse_proxyauto_from_dict(&proxies_dict)
 }
 
-fn get_proxies_by_service_uuid(
-    scp: &SCPreferences,
-    service_uuid: &CFString,
-) -> Result<CFDictionary<CFString, CFType>> {
+fn get_proxies_by_service_uuid(scp: &SCPreferences, service_uuid: &CFString) -> Result<CFDictionary<CFString, CFType>> {
     unsafe {
-        let service_ref = SCNetworkServiceCopy(
-            scp.as_concrete_TypeRef(),
-            service_uuid.as_concrete_TypeRef(),
-        );
+        let service_ref = SCNetworkServiceCopy(scp.as_concrete_TypeRef(), service_uuid.as_concrete_TypeRef());
         if service_ref.is_null() {
             return Err(Error::SCPreferences);
         }
@@ -502,12 +468,9 @@ fn get_proxies_by_service_uuid(
     }
 }
 
-pub fn get_proxies_dict_from_service_uuid(
-    service: &CFString,
-) -> Result<CFDictionary<CFString, CFType>> {
+pub fn get_proxies_dict_from_service_uuid(service: &CFString) -> Result<CFDictionary<CFString, CFType>> {
     let scp = SCPreferences::default(&CFString::new("sysproxy-rs"));
-    let service_uuid =
-        get_service_id_by_display_name(&scp, service).ok_or(Error::NetworkInterface)?;
+    let service_uuid = get_service_id_by_display_name(&scp, service).ok_or(Error::NetworkInterface)?;
     get_proxies_by_service_uuid(&scp, &service_uuid)
 }
 
@@ -562,10 +525,7 @@ fn parse_proxy_negative_port_zeroed() {
             CFString::from_static_string("HTTPProxy"),
             CFString::from_static_string("localhost").as_CFType(),
         ),
-        (
-            CFString::from_static_string("HTTPPort"),
-            CFNumber::from(-1).as_CFType(),
-        ),
+        (CFString::from_static_string("HTTPPort"), CFNumber::from(-1).as_CFType()),
     ]);
     let proxy = parse_proxies_from_dict(&dict, ProxyType::Http).unwrap();
     assert!(!proxy.enable);

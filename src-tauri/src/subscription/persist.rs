@@ -1,10 +1,10 @@
 use crate::{
     subscription::{
         artifact::{SubscriptionArtifactCandidate, SubscriptionArtifactDiagnostics},
-        events::{events_from_attempt_record, SubscriptionEvent},
+        events::{SubscriptionEvent, events_from_attempt_record},
         model::{
-            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState,
-            SubscriptionStageRecord, SubscriptionStateDocument, UpdateFinalStatus,
+            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState, SubscriptionStageRecord,
+            SubscriptionStateDocument, UpdateFinalStatus,
         },
     },
     utils::{dirs, help},
@@ -92,16 +92,12 @@ pub fn find_subscription_source_state(
         .cloned()
 }
 
-pub async fn read_subscription_source_state(
-    source_id: &str,
-) -> Result<Option<SubscriptionSourceState>> {
+pub async fn read_subscription_source_state(source_id: &str) -> Result<Option<SubscriptionSourceState>> {
     let state = read_subscription_state_document().await?;
     Ok(find_subscription_source_state(&state, source_id))
 }
 
-pub async fn read_subscription_source_update_events(
-    source_id: &str,
-) -> Result<Vec<SubscriptionEvent>> {
+pub async fn read_subscription_source_update_events(source_id: &str) -> Result<Vec<SubscriptionEvent>> {
     if !is_safe_subscription_artifact_path_segment(source_id) {
         anyhow::bail!("invalid subscription artifact path segment");
     }
@@ -117,11 +113,7 @@ pub async fn read_subscription_source_update_events(
 }
 
 pub fn is_safe_subscription_artifact_path_segment(value: &str) -> bool {
-    !value.is_empty()
-        && value != "."
-        && value != ".."
-        && !value.contains('/')
-        && !value.contains('\\')
+    !value.is_empty() && value != "." && value != ".." && !value.contains('/') && !value.contains('\\')
 }
 
 pub async fn read_subscription_artifact_diagnostics(
@@ -130,8 +122,7 @@ pub async fn read_subscription_artifact_diagnostics(
 ) -> Result<Option<SubscriptionArtifactDiagnostics>> {
     ensure_safe_subscription_artifact_path(source_id, version)?;
 
-    let path = dirs::subscription_artifact_version_dir(source_id, version)?
-        .join(ARTIFACT_DIAGNOSTICS_FILE);
+    let path = dirs::subscription_artifact_version_dir(source_id, version)?.join(ARTIFACT_DIAGNOSTICS_FILE);
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
         return Ok(None);
     }
@@ -145,8 +136,7 @@ pub async fn read_subscription_artifact_metadata(
 ) -> Result<Option<SubscriptionArtifactMetadata>> {
     ensure_safe_subscription_artifact_path(source_id, version)?;
 
-    let path = dirs::subscription_artifact_version_dir(source_id, version)?
-        .join(ARTIFACT_METADATA_FILE);
+    let path = dirs::subscription_artifact_version_dir(source_id, version)?.join(ARTIFACT_METADATA_FILE);
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
         return Ok(None);
     }
@@ -163,8 +153,7 @@ pub async fn read_subscription_artifact_content(
 ) -> Result<Option<SubscriptionArtifactContent>> {
     ensure_safe_subscription_artifact_path(source_id, version)?;
 
-    let path = dirs::subscription_artifact_version_dir(source_id, version)?
-        .join(content_kind.file_name());
+    let path = dirs::subscription_artifact_version_dir(source_id, version)?.join(content_kind.file_name());
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
         return Ok(None);
     }
@@ -178,9 +167,7 @@ pub async fn read_subscription_artifact_content(
     }))
 }
 
-pub async fn list_subscription_artifact_metadata(
-    source_id: &str,
-) -> Result<Vec<SubscriptionArtifactMetadata>> {
+pub async fn list_subscription_artifact_metadata(source_id: &str) -> Result<Vec<SubscriptionArtifactMetadata>> {
     if !is_safe_subscription_artifact_path_segment(source_id) {
         anyhow::bail!("invalid subscription artifact path segment");
     }
@@ -216,9 +203,7 @@ pub async fn list_subscription_artifact_metadata(
     Ok(artifacts)
 }
 
-pub async fn list_subscription_artifact_summaries(
-    source_id: &str,
-) -> Result<Vec<SubscriptionArtifactSummary>> {
+pub async fn list_subscription_artifact_summaries(source_id: &str) -> Result<Vec<SubscriptionArtifactSummary>> {
     if !is_safe_subscription_artifact_path_segment(source_id) {
         anyhow::bail!("invalid subscription artifact path segment");
     }
@@ -285,8 +270,7 @@ pub async fn cleanup_subscription_artifacts(
         .await?
         .and_then(|source_state| source_state.active_artifact_version);
     let artifacts = list_subscription_artifact_metadata(source_id).await?;
-    let kept_versions =
-        retained_artifact_versions(&artifacts, retain, active_version.as_deref());
+    let kept_versions = retained_artifact_versions(&artifacts, retain, active_version.as_deref());
     let mut removed_versions = Vec::new();
 
     for item in artifacts {
@@ -305,11 +289,7 @@ pub async fn cleanup_subscription_artifacts(
 
     let active_version_preserved = active_version
         .as_deref()
-        .is_some_and(|active| {
-            kept_versions
-                .iter()
-                .any(|kept| kept.as_str() == active)
-        });
+        .is_some_and(|active| kept_versions.iter().any(|kept| kept.as_str() == active));
 
     Ok(SubscriptionArtifactCleanupResult {
         source_id: source_id.into(),
@@ -355,19 +335,13 @@ pub fn sort_artifact_metadata_newest_first(artifacts: &mut [SubscriptionArtifact
 }
 
 fn ensure_safe_subscription_artifact_path(source_id: &str, version: &str) -> Result<()> {
-    if !is_safe_subscription_artifact_path_segment(source_id)
-        || !is_safe_subscription_artifact_path_segment(version)
-    {
+    if !is_safe_subscription_artifact_path_segment(source_id) || !is_safe_subscription_artifact_path_segment(version) {
         anyhow::bail!("invalid subscription artifact path segment");
     }
     Ok(())
 }
 
-fn validate_artifact_metadata(
-    source_id: &str,
-    version: &str,
-    metadata: &SubscriptionArtifactMetadata,
-) -> Result<()> {
+fn validate_artifact_metadata(source_id: &str, version: &str, metadata: &SubscriptionArtifactMetadata) -> Result<()> {
     if metadata.source_id != source_id {
         anyhow::bail!("subscription artifact metadata source mismatch");
     }
@@ -388,16 +362,12 @@ async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
     help::save_yaml(&path, state, Some("# Subscription State for Clash Verge Optimized")).await
 }
 
-pub async fn persist_artifact_candidate(
-    source_id: &str,
-    candidate: &SubscriptionArtifactCandidate,
-) -> Result<()> {
+pub async fn persist_artifact_candidate(source_id: &str, candidate: &SubscriptionArtifactCandidate) -> Result<()> {
     let dir = dirs::subscription_artifact_version_dir(source_id, candidate.record.version.as_str())?;
     fs::create_dir_all(&dir).await?;
 
     fs::write(dir.join("raw.body"), candidate.raw_body.as_bytes()).await?;
-    fs::write(dir.join("normalized.yaml"), candidate.normalized_yaml.as_bytes())
-        .await?;
+    fs::write(dir.join("normalized.yaml"), candidate.normalized_yaml.as_bytes()).await?;
 
     let diagnostics_path = dir.join(ARTIFACT_DIAGNOSTICS_FILE);
     help::save_yaml(
@@ -584,8 +554,7 @@ mod tests {
             }],
         };
 
-        let found =
-            find_subscription_source_state(&state, "source-a").expect("source should exist");
+        let found = find_subscription_source_state(&state, "source-a").expect("source should exist");
 
         assert_eq!(found.source_id, "source-a");
         assert_eq!(found.active_artifact_version.as_deref(), Some("artifact-a"));
@@ -621,9 +590,7 @@ mod tests {
         assert!(validate_artifact_metadata("source-a", "artifact-b", &metadata).is_err());
 
         let unsafe_version = artifact_metadata("source-a", "../artifact-a", 100);
-        assert!(
-            validate_artifact_metadata("source-a", "../artifact-a", &unsafe_version).is_err()
-        );
+        assert!(validate_artifact_metadata("source-a", "../artifact-a", &unsafe_version).is_err());
     }
 
     #[test]
@@ -662,8 +629,7 @@ mod tests {
             artifact_metadata("source-a", "artifact-a", 100),
         ];
 
-        let retained =
-            retained_artifact_versions(&artifacts, 1, Some("artifact-a"));
+        let retained = retained_artifact_versions(&artifacts, 1, Some("artifact-a"));
 
         assert_eq!(artifact_versions(&retained), vec!["artifact-c", "artifact-a"]);
     }
@@ -672,11 +638,7 @@ mod tests {
         versions.iter().map(String::as_str).collect()
     }
 
-    fn artifact_metadata(
-        source_id: &str,
-        version: &str,
-        fetched_at: i64,
-    ) -> SubscriptionArtifactMetadata {
+    fn artifact_metadata(source_id: &str, version: &str, fetched_at: i64) -> SubscriptionArtifactMetadata {
         SubscriptionArtifactMetadata {
             source_id: source_id.into(),
             artifact: SubscriptionArtifactRecord {

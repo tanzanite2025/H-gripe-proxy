@@ -88,10 +88,8 @@ impl TransportPlan {
             });
         }
 
-        let (ordered_candidates, note) = collapse_equivalent_local_core_candidates(
-            ordered_candidates,
-            dedicated_control_plane,
-        );
+        let (ordered_candidates, note) =
+            collapse_equivalent_local_core_candidates(ordered_candidates, dedicated_control_plane);
         let preferred_transport = if note.is_some() {
             Some(TransportKind::LocalProxy)
         } else {
@@ -99,10 +97,7 @@ impl TransportPlan {
         };
 
         Self {
-            ordered_candidates: prioritize_transport_candidates(
-                ordered_candidates,
-                preferred_transport,
-            ),
+            ordered_candidates: prioritize_transport_candidates(ordered_candidates, preferred_transport),
             note,
         }
     }
@@ -115,9 +110,7 @@ async fn local_proxy_port() -> Option<u16> {
     }
 }
 
-pub async fn plan_subscription_update_transport_for_source(
-    source_id: &str,
-) -> Result<TransportPlan> {
+pub async fn plan_subscription_update_transport_for_source(source_id: &str) -> Result<TransportPlan> {
     let preferred_transport = {
         let profiles = Config::profiles().await;
         let profiles = profiles.latest_arc();
@@ -247,8 +240,7 @@ mod tests {
             },
         ];
 
-        let reordered =
-            prioritize_transport_candidates(ordered_candidates, Some(TransportKind::LocalProxy));
+        let reordered = prioritize_transport_candidates(ordered_candidates, Some(TransportKind::LocalProxy));
 
         assert_eq!(
             reordered.iter().map(|candidate| candidate.kind).collect::<Vec<_>>(),
@@ -280,22 +272,14 @@ mod tests {
                 TransportKind::LocalProxy
             ]
         );
-        assert!(
-            plan.ordered_candidates[0]
-                .reason
-                .contains("System proxy is enabled")
-        );
+        assert!(plan.ordered_candidates[0].reason.contains("System proxy is enabled"));
         assert!(plan.note.is_none());
     }
 
     #[test]
     fn transport_plan_collapses_equivalent_direct_and_local_candidates() {
-        let plan = TransportPlan::from_subscription_update_environment(
-            Some(TransportKind::Direct),
-            Some(7890),
-            None,
-            true,
-        );
+        let plan =
+            TransportPlan::from_subscription_update_environment(Some(TransportKind::Direct), Some(7890), None, true);
 
         assert_eq!(
             plan.ordered_candidates
@@ -325,8 +309,7 @@ mod tests {
             },
         ];
 
-        let reordered =
-            prioritize_transport_candidates(ordered_candidates, Some(TransportKind::SystemProxy));
+        let reordered = prioritize_transport_candidates(ordered_candidates, Some(TransportKind::SystemProxy));
 
         assert_eq!(
             reordered.iter().map(|candidate| candidate.kind).collect::<Vec<_>>(),
@@ -351,8 +334,7 @@ mod tests {
             },
         ];
 
-        let (collapsed, note) =
-            collapse_equivalent_local_core_candidates(ordered_candidates, true);
+        let (collapsed, note) = collapse_equivalent_local_core_candidates(ordered_candidates, true);
 
         assert!(note.is_some());
         assert_eq!(
@@ -375,8 +357,7 @@ mod tests {
             },
         ];
 
-        let (collapsed, note) =
-            collapse_equivalent_local_core_candidates(ordered_candidates.clone(), false);
+        let (collapsed, note) = collapse_equivalent_local_core_candidates(ordered_candidates.clone(), false);
 
         assert!(note.is_none());
         assert_eq!(

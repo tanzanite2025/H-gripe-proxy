@@ -105,9 +105,7 @@ pub async fn stop_ipc_server() -> Result<()> {
     Ok(())
 }
 
-pub async fn run_ipc_supervisor_until_shutdown(
-    shutdown: impl Future<Output = ()>,
-) -> AnyResult<()> {
+pub async fn run_ipc_supervisor_until_shutdown(shutdown: impl Future<Output = ()>) -> AnyResult<()> {
     set_service_lifecycle_state(ServiceLifecycleState::Starting);
     info!("Starting IPC server...");
 
@@ -214,12 +212,7 @@ async fn make_ipc_dir() -> Result<()> {
             unsafe {
                 if platform_lib::chown(c_path.as_ptr(), platform_lib::uid_t::MAX, gid) != 0 {
                     let err = std::io::Error::last_os_error();
-                    log::warn!(
-                        "Failed to chown directory {:?} to gid {}: {}",
-                        dir_path,
-                        gid,
-                        err
-                    );
+                    log::warn!("Failed to chown directory {:?} to gid {}: {}", dir_path, gid, err);
                 }
             }
         }
@@ -273,10 +266,7 @@ async fn cleanup_stale_ipc_socket() -> Result<()> {
         .await
         {
             Ok(Ok(_stream)) => {
-                warn!(
-                    "IPC socket {:?} is reachable; leaving it in place",
-                    socket_path
-                );
+                warn!("IPC socket {:?} is reachable; leaving it in place", socket_path);
             }
             _ => {
                 info!("Cleaning up stale IPC socket: {:?}", socket_path);
@@ -372,9 +362,7 @@ fn create_ipc_router() -> Result<Router> {
             ipc_request_context_to_auth_context(&ctx)?;
             match service_status_snapshot().await {
                 Ok(status) => ok_json(status),
-                Err(error) => {
-                    service_unavailable(format!("Failed to collect service status: {}", error))
-                }
+                Err(error) => service_unavailable(format!("Failed to collect service status: {}", error)),
             }
         })
         .post(IpcCommand::StartClash.as_ref(), |ctx| async move {
@@ -382,22 +370,14 @@ fn create_ipc_router() -> Result<Router> {
             ipc_request_context_to_auth_context(&ctx)?;
             match ctx.json::<ClashConfig>() {
                 Ok(start_clash) => {
-                    match CORE_MANAGER
-                        .lock()
-                        .await
-                        .start_core(start_clash.clone())
-                        .await
-                    {
+                    match CORE_MANAGER.lock().await.start_core(start_clash.clone()).await {
                         Ok(_) => info!("Core started successfully"),
                         Err(e) => {
                             return service_unavailable(format!("Failed to start core: {}", e));
                         }
                     }
                     if let Err(e) = persist_core_started(&start_clash).await {
-                        return service_unavailable(format!(
-                            "Failed to persist desired state: {}",
-                            e
-                        ));
+                        return service_unavailable(format!("Failed to persist desired state: {}", e));
                     }
                     ok_empty("Core started successfully")
                 }
@@ -438,10 +418,7 @@ fn create_ipc_router() -> Result<Router> {
                         }
                     };
                     if let Err(e) = persist_writer_config(&writer_config).await {
-                        return service_unavailable(format!(
-                            "Failed to persist writer config: {}",
-                            e
-                        ));
+                        return service_unavailable(format!("Failed to persist writer config: {}", e));
                     }
                     ok_empty("Update Writer successfully")
                 }
@@ -477,8 +454,5 @@ fn json_response<T: Serialize>(
         message: message.into(),
         data,
     };
-    Ok(HttpResponse::builder()
-        .status(status)
-        .json(&json_value)?
-        .build())
+    Ok(HttpResponse::builder().status(status).json(&json_value)?.build())
 }
