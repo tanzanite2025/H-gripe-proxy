@@ -1,12 +1,16 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
     AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
-    AppRuntimePlanRequest, AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
+    AppRuntimePlanRequest, AppRuntimeSessionFinishRequest, AppRuntimeSessionRecord, AppRuntimeSessionStartReport,
+    AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
     delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
     diagnose_app_runtime as build_app_runtime_diagnostics, explain_app_runtime_plan as build_app_runtime_plan,
+    finish_app_runtime_session as finish_app_runtime_session_record,
+    list_app_runtime_sessions as list_app_runtime_session_records,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
+    start_app_runtime_session as start_app_runtime_session_record,
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
     upsert_node_pool as upsert_node_pool_record, upsert_security_profile as upsert_security_profile_record,
@@ -89,4 +93,21 @@ pub async fn project_app_runtime_plan_to_mihomo(
 pub async fn diagnose_app_runtime(request: AppRuntimePlanRequest) -> CmdResult<AppRuntimeDiagnosticsReport> {
     let state = read_app_runtime_state_document().await.stringify_err()?;
     build_app_runtime_diagnostics(&state, request).stringify_err()
+}
+
+#[tauri::command]
+pub async fn list_app_runtime_sessions(app_id: Option<String>) -> CmdResult<Vec<AppRuntimeSessionRecord>> {
+    list_app_runtime_session_records(app_id.map(Into::into))
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn start_app_runtime_session(request: AppRuntimePlanRequest) -> CmdResult<AppRuntimeSessionStartReport> {
+    start_app_runtime_session_record(request).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn finish_app_runtime_session(request: AppRuntimeSessionFinishRequest) -> CmdResult<AppRuntimeSessionRecord> {
+    finish_app_runtime_session_record(request).await.stringify_err()
 }

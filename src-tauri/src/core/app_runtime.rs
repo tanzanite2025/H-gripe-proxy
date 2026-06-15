@@ -21,6 +21,8 @@ pub struct AppRuntimeStateDocument {
     pub security_profiles: Vec<SecurityProfile>,
     #[serde(default)]
     pub policy_bindings: Vec<AppPolicyBinding>,
+    #[serde(default)]
+    pub sessions: Vec<AppRuntimeSessionRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -198,7 +200,7 @@ pub struct AppRuntimePlanRequest {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AppRuntimePlanStatus {
     Ready,
@@ -254,7 +256,7 @@ pub struct SecurityProfilePlanView {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum RuntimeProjectionStatus {
     PlanningOnly,
@@ -324,7 +326,7 @@ struct MihomoYamlPatch {
     rules: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AppRuntimeDiagnosticStatus {
     Healthy,
@@ -372,13 +374,57 @@ pub struct AppRuntimeDiagnosticCheck {
     pub details: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDiagnosticsSummary {
     pub passed: usize,
     pub warnings: usize,
     pub failed: usize,
     pub skipped: usize,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeSessionStatus {
+    Planned,
+    Blocked,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionRecord {
+    pub session_id: String,
+    pub app_id: String,
+    pub status: AppRuntimeSessionStatus,
+    pub plan_status: AppRuntimePlanStatus,
+    pub diagnostics_status: AppRuntimeDiagnosticStatus,
+    pub diagnostics_summary: AppRuntimeDiagnosticsSummary,
+    pub reason: String,
+    pub started_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<i64>,
+    pub projected_rules: Vec<String>,
+    pub projected_proxy_groups: Vec<String>,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionStartReport {
+    pub session: AppRuntimeSessionRecord,
+    pub diagnostics: AppRuntimeDiagnosticsReport,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionFinishRequest {
+    pub session_id: String,
+    pub status: AppRuntimeSessionStatus,
+    #[serde(default)]
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -547,6 +593,67 @@ pub async fn delete_app_policy_binding(binding_id: &str) -> Result<AppRuntimeSta
         Ok(())
     })
     .await
+}
+
+pub async fn list_app_runtime_sessions(app_id: Option<String>) -> Result<Vec<AppRuntimeSessionRecord>> {
+    let state = read_app_runtime_state_document().await?;
+    let app_id = app_id
+        .as_deref()
+        .map(|value| normalize_id(value, "app_id"))
+        .transpose()?;
+    let mut sessions: Vec<_> = state
+        .sessions
+        .into_iter()
+        .filter(|session| app_id.as_ref().is_none_or(|app_id| &session.app_id == app_id))
+        .collect();
+    sessions.sort_by(|left, right| {
+        right
+            .started_at
+            .cmp(&left.started_at)
+            .then_with(|| right.session_id.cmp(&left.session_id))
+    });
+    Ok(sessions)
+}
+
+pub async fn start_app_runtime_session(request: AppRuntimePlanRequest) -> Result<AppRuntimeSessionStartReport> {
+    let app_id = normalize_id(&request.app_id, "app_id")?;
+    let session_id = runtime_session_id(&app_id, request.session_id.as_deref())?;
+    let request = AppRuntimePlanRequest {
+        app_id,
+        session_id: Some(session_id.clone()),
+    };
+
+    let mut state = read_app_runtime_state_document().await?;
+    let diagnostics = diagnose_app_runtime(&state, request)?;
+    let session = session_record_from_diagnostics(session_id, &diagnostics);
+    upsert_by(&mut state.sessions, session.clone(), |stored| stored.session_id.clone());
+    save_app_runtime_state_document(&state).await?;
+
+    Ok(AppRuntimeSessionStartReport { session, diagnostics })
+}
+
+pub async fn finish_app_runtime_session(request: AppRuntimeSessionFinishRequest) -> Result<AppRuntimeSessionRecord> {
+    let session_id = normalize_id(&request.session_id, "session_id")?;
+    if matches!(request.status, AppRuntimeSessionStatus::Planned) {
+        bail!("finished app runtime session status cannot be planned");
+    }
+
+    let mut state = read_app_runtime_state_document().await?;
+    let Some(session) = state
+        .sessions
+        .iter_mut()
+        .find(|session| session.session_id == session_id)
+    else {
+        bail!("app runtime session `{session_id}` was not found");
+    };
+    session.status = request.status;
+    session.ended_at = Some(now_millis());
+    if let Some(reason) = request.reason.as_ref().filter(|reason| !reason.trim().is_empty()) {
+        session.reason = reason.trim().into();
+    }
+    let session = session.clone();
+    save_app_runtime_state_document(&state).await?;
+    Ok(session)
 }
 
 pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRuntimePlanRequest) -> AppRuntimePlan {
@@ -836,6 +943,52 @@ fn upsert_by<T>(items: &mut Vec<T>, item: T, key: impl Fn(&T) -> String) {
         *stored = item;
     } else {
         items.push(item);
+    }
+}
+
+fn runtime_session_id(app_id: &str, requested_session_id: Option<&str>) -> Result<String> {
+    if let Some(session_id) = requested_session_id.filter(|session_id| !session_id.trim().is_empty()) {
+        return normalize_id(session_id, "session_id");
+    }
+    Ok(format!("{app_id}-{}", now_millis()).into())
+}
+
+fn session_record_from_diagnostics(
+    session_id: String,
+    diagnostics: &AppRuntimeDiagnosticsReport,
+) -> AppRuntimeSessionRecord {
+    let status = if diagnostics.status == AppRuntimeDiagnosticStatus::Blocked
+        || diagnostics.plan.status == AppRuntimePlanStatus::Rejected
+    {
+        AppRuntimeSessionStatus::Blocked
+    } else {
+        AppRuntimeSessionStatus::Planned
+    };
+
+    AppRuntimeSessionRecord {
+        session_id,
+        app_id: diagnostics.app_id.clone(),
+        status,
+        plan_status: diagnostics.plan.status,
+        diagnostics_status: diagnostics.status,
+        diagnostics_summary: diagnostics.summary.clone(),
+        reason: diagnostics.reason.clone(),
+        started_at: now_millis(),
+        ended_at: None,
+        projected_rules: diagnostics
+            .mihomo_projection
+            .rules
+            .iter()
+            .map(|rule| rule.rule.clone())
+            .collect(),
+        projected_proxy_groups: diagnostics
+            .mihomo_projection
+            .proxy_groups
+            .iter()
+            .map(|group| group.name.clone())
+            .collect(),
+        facts: diagnostics.facts.clone(),
+        warnings: diagnostics.warnings.clone(),
     }
 }
 
@@ -1530,6 +1683,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
         };
 
         let plan = explain_app_runtime_plan(
@@ -1566,6 +1720,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: Vec::new(),
+            sessions: Vec::new(),
         };
 
         let plan = explain_app_runtime_plan(
@@ -1599,6 +1754,7 @@ mod tests {
             dns_profiles: Vec::new(),
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
         };
 
         let plan = explain_app_runtime_plan(
@@ -1626,6 +1782,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
         };
 
         let report = diagnose_app_runtime(
@@ -1661,6 +1818,7 @@ mod tests {
             dns_profiles: Vec::new(),
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![binding],
+            sessions: Vec::new(),
         };
 
         let report = diagnose_app_runtime(
@@ -1695,6 +1853,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
         };
 
         let report = diagnose_app_runtime(
@@ -1717,6 +1876,62 @@ mod tests {
     }
 
     #[test]
+    fn session_record_snapshots_diagnostics_without_runtime_mutation() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
+        };
+
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        let session = session_record_from_diagnostics("session-a".into(), &report);
+
+        assert_eq!(session.session_id, "session-a");
+        assert_eq!(session.status, AppRuntimeSessionStatus::Planned);
+        assert_eq!(session.plan_status, AppRuntimePlanStatus::Ready);
+        assert_eq!(session.diagnostics_status, AppRuntimeDiagnosticStatus::Healthy);
+        assert_eq!(session.projected_rules, vec!["PROCESS-NAME,browser.exe,app-browser"]);
+        assert_eq!(session.projected_proxy_groups, vec!["app-browser"]);
+        assert!(session.ended_at.is_none());
+    }
+
+    #[test]
+    fn session_record_marks_blocked_diagnostics_as_blocked() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: Vec::new(),
+            sessions: Vec::new(),
+        };
+
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        let session = session_record_from_diagnostics("session-a".into(), &report);
+
+        assert_eq!(session.status, AppRuntimeSessionStatus::Blocked);
+        assert_eq!(session.plan_status, AppRuntimePlanStatus::Rejected);
+        assert_eq!(session.diagnostics_status, AppRuntimeDiagnosticStatus::Blocked);
+    }
+
+    #[test]
     fn mihomo_projection_emits_process_rule_proxy_group_and_yaml_patch() {
         let state = AppRuntimeStateDocument {
             apps: vec![sample_app()],
@@ -1724,6 +1939,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
         };
 
         let projection = project_app_runtime_plan_to_mihomo(
@@ -1762,6 +1978,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![binding],
+            sessions: Vec::new(),
         };
 
         let projection = project_app_runtime_plan_to_mihomo(
@@ -1791,6 +2008,7 @@ mod tests {
             dns_profiles: vec![sample_dns_profile()],
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
         };
 
         let projection = project_app_runtime_plan_to_mihomo(

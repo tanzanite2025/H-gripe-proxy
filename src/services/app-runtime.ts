@@ -109,6 +109,7 @@ export interface AppRuntimeStateDocument {
   dnsProfiles: DnsProfile[]
   securityProfiles: SecurityProfile[]
   policyBindings: AppPolicyBinding[]
+  sessions: AppRuntimeSessionRecord[]
 }
 
 export interface AppRuntimePlanRequest {
@@ -248,6 +249,39 @@ export interface AppRuntimeDiagnosticsReport {
   warnings: string[]
 }
 
+export type AppRuntimeSessionStatus =
+  | 'planned'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+
+export interface AppRuntimeSessionRecord {
+  sessionId: string
+  appId: string
+  status: AppRuntimeSessionStatus
+  planStatus: 'ready' | 'rejected'
+  diagnosticsStatus: AppRuntimeDiagnosticStatus
+  diagnosticsSummary: AppRuntimeDiagnosticsSummary
+  reason: string
+  startedAt: number
+  endedAt?: number
+  projectedRules: string[]
+  projectedProxyGroups: string[]
+  facts: string[]
+  warnings: string[]
+}
+
+export interface AppRuntimeSessionStartReport {
+  session: AppRuntimeSessionRecord
+  diagnostics: AppRuntimeDiagnosticsReport
+}
+
+export interface AppRuntimeSessionFinishRequest {
+  sessionId: string
+  status: Exclude<AppRuntimeSessionStatus, 'planned'>
+  reason?: string
+}
+
 export async function getAppRuntimeState(): Promise<AppRuntimeStateDocument> {
   return invoke('get_app_runtime_state')
 }
@@ -328,4 +362,22 @@ export async function diagnoseAppRuntime(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeDiagnosticsReport> {
   return invoke('diagnose_app_runtime', { request })
+}
+
+export async function listAppRuntimeSessions(
+  appId?: string,
+): Promise<AppRuntimeSessionRecord[]> {
+  return invoke('list_app_runtime_sessions', { appId })
+}
+
+export async function startAppRuntimeSession(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeSessionStartReport> {
+  return invoke('start_app_runtime_session', { request })
+}
+
+export async function finishAppRuntimeSession(
+  request: AppRuntimeSessionFinishRequest,
+): Promise<AppRuntimeSessionRecord> {
+  return invoke('finish_app_runtime_session', { request })
 }
