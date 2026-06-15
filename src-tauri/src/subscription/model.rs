@@ -21,6 +21,9 @@ pub enum UpdateStage {
     FetchPayload,
     DecodePayload,
     MaterializeArtifact,
+    GenerateRuntimeConfigCandidate,
+    ValidateRuntimeCandidate,
+    PublishArtifact,
     ActivateRuntime,
     EmitFinalResult,
 }

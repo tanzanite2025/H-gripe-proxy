@@ -7,7 +7,12 @@ use crate::{
             SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus,
             UpdateStage, UpdateTrigger,
         },
-        persist::{build_finished_attempt_record, persist_attempt_result},
+        persist::{
+            SubscriptionArtifactPublishResult, build_finished_attempt_record,
+            persist_attempt_result, publish_subscription_artifact,
+            restore_subscription_active_artifact,
+        },
+        runtime_candidate::validate_subscription_runtime_candidate,
         transport::TransportKind,
     },
     utils::help::mask_url,
@@ -36,6 +41,7 @@ struct ProfileUpdateExecution {
     is_current: bool,
     transport: TransportKind,
     artifact: SubscriptionArtifactRecord,
+    publish: SubscriptionArtifactPublishResult,
 }
 
 type ProfileUpdateFailure = SubscriptionUpdateFailure;
@@ -67,6 +73,26 @@ async fn persist_finished_subscription_attempt(
             warn,
             Type::Config,
             "Warning: [Subscription Update] failed to persist subscription attempt state for {}: {}",
+            source_id,
+            err
+        );
+    }
+}
+
+async fn restore_published_subscription_artifact(
+    source_id: &String,
+    publish: &SubscriptionArtifactPublishResult,
+) {
+    if let Err(err) = restore_subscription_active_artifact(
+        source_id,
+        publish.previous_active_artifact_version.clone(),
+    )
+    .await
+    {
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: [Subscription Update] failed to restore active artifact for {} after activation failure: {}",
             source_id,
             err
         );
@@ -191,7 +217,7 @@ async fn perform_profile_update(
     } else {
         UpdateTrigger::Automatic
     };
-    let update = SubscriptionUpdateExecutor::new(
+    let mut update = SubscriptionUpdateExecutor::new(
         uid.clone(),
         url.clone(),
         opt.cloned(),
@@ -207,6 +233,42 @@ async fn perform_profile_update(
     .await?;
     let mut item = update.legacy_profile_item;
 
+    if is_current {
+        record_and_notify_subscription_stage(
+            &mut update.attempt,
+            UpdateStage::GenerateRuntimeConfigCandidate,
+            Some(update.transport),
+        );
+        record_and_notify_subscription_stage(
+            &mut update.attempt,
+            UpdateStage::ValidateRuntimeCandidate,
+            Some(update.transport),
+        );
+
+        match validate_subscription_runtime_candidate(uid, &item).await {
+            Ok(outcome) if outcome.is_valid() => {}
+            Ok(outcome) => {
+                return Err(SubscriptionUpdateFailure {
+                    attempt: update.attempt,
+                    stage: UpdateStage::ValidateRuntimeCandidate,
+                    transport: Some(update.transport),
+                    artifact: Some(update.artifact),
+                    error: outcome.to_string().into(),
+                });
+            }
+            Err(err) => {
+                return Err(SubscriptionUpdateFailure {
+                    attempt: update.attempt,
+                    stage: UpdateStage::ValidateRuntimeCandidate,
+                    transport: Some(update.transport),
+                    artifact: Some(update.artifact),
+                    error: format!("failed to validate subscription runtime candidate: {err}")
+                        .into(),
+                });
+            }
+        }
+    }
+
     if let Err(err) = profiles_draft_update_item_safe(uid, &mut item).await {
         return Err(SubscriptionUpdateFailure {
             attempt: update.attempt,
@@ -217,11 +279,30 @@ async fn perform_profile_update(
         });
     }
 
+    record_and_notify_subscription_stage(
+        &mut update.attempt,
+        UpdateStage::PublishArtifact,
+        Some(update.transport),
+    );
+    let publish = match publish_subscription_artifact(uid, &update.artifact).await {
+        Ok(publish) => publish,
+        Err(err) => {
+            return Err(SubscriptionUpdateFailure {
+                attempt: update.attempt,
+                stage: UpdateStage::PublishArtifact,
+                transport: Some(update.transport),
+                artifact: Some(update.artifact),
+                error: format!("failed to publish subscription artifact: {err}").into(),
+            });
+        }
+    };
+
     Ok(ProfileUpdateExecution {
         attempt: update.attempt,
         is_current,
         transport: update.transport,
         artifact: update.artifact,
+        publish,
     })
 }
 
@@ -347,7 +428,7 @@ pub async fn update_profile(
                     UpdateStage::EmitFinalResult,
                     update_execution.artifact.version.clone(),
                     false,
-                    true,
+                    false,
                 );
                 persist_finished_subscription_attempt(
                     uid,
@@ -358,7 +439,7 @@ pub async fn update_profile(
                     Some(&update_execution.artifact),
                     None,
                     false,
-                    true,
+                    false,
                 )
                 .await;
             }
@@ -373,6 +454,7 @@ pub async fn update_profile(
                 if let Some(rollback_snapshot) = &rollback_snapshot {
                     restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
+                restore_published_subscription_artifact(uid, &update_execution.publish).await;
                 handle::Handle::notify_subscription_update_failed(
                     &update_execution.attempt,
                     UpdateStage::ActivateRuntime,
@@ -406,6 +488,7 @@ pub async fn update_profile(
                 if let Some(rollback_snapshot) = &rollback_snapshot {
                     restore_profile_update_snapshot(rollback_snapshot).await?;
                 }
+                restore_published_subscription_artifact(uid, &update_execution.publish).await;
                 handle::Handle::notify_subscription_update_failed(
                     &update_execution.attempt,
                     UpdateStage::ActivateRuntime,
@@ -437,7 +520,7 @@ pub async fn update_profile(
             UpdateStage::EmitFinalResult,
             update_execution.artifact.version.clone(),
             false,
-            true,
+            false,
         );
         persist_finished_subscription_attempt(
             uid,
@@ -448,7 +531,7 @@ pub async fn update_profile(
             Some(&update_execution.artifact),
             None,
             false,
-            true,
+            false,
         )
         .await;
     }

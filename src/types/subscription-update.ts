@@ -6,6 +6,9 @@ export type SubscriptionUpdateStage =
   | 'fetch_payload'
   | 'decode_payload'
   | 'materialize_artifact'
+  | 'generate_runtime_config_candidate'
+  | 'validate_runtime_candidate'
+  | 'publish_artifact'
   | 'activate_runtime'
   | 'emit_final_result'
 

@@ -60,6 +60,14 @@ pub struct SubscriptionArtifactSummary {
     pub is_active: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionArtifactPublishResult {
+    pub source_id: String,
+    pub artifact_version: String,
+    pub previous_active_artifact_version: Option<String>,
+    pub published_at: i64,
+}
+
 async fn load_state_document() -> Result<SubscriptionStateDocument> {
     let path = dirs::subscription_state_path()?;
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
@@ -407,33 +415,54 @@ pub async fn persist_artifact_candidate(
     help::save_yaml(&metadata_path, &metadata, Some("# Subscription Artifact Metadata")).await
 }
 
+pub async fn publish_subscription_artifact(
+    source_id: &String,
+    artifact: &SubscriptionArtifactRecord,
+) -> Result<SubscriptionArtifactPublishResult> {
+    if read_subscription_artifact_metadata(source_id.as_str(), artifact.version.as_str())
+        .await?
+        .is_none()
+    {
+        anyhow::bail!(
+            "subscription artifact metadata is missing for version {}",
+            artifact.version
+        );
+    }
+
+    let mut state = load_state_document().await?;
+    let source_state = ensure_subscription_source_state(&mut state, source_id);
+    let previous_active_artifact_version = source_state.active_artifact_version.clone();
+
+    source_state.latest_artifact = Some(artifact.clone());
+    source_state.active_artifact_version = Some(artifact.version.clone());
+
+    save_state_document(&state).await?;
+
+    Ok(SubscriptionArtifactPublishResult {
+        source_id: source_id.clone(),
+        artifact_version: artifact.version.clone(),
+        previous_active_artifact_version,
+        published_at: Local::now().timestamp_millis(),
+    })
+}
+
+pub async fn restore_subscription_active_artifact(
+    source_id: &String,
+    active_artifact_version: Option<String>,
+) -> Result<()> {
+    let mut state = load_state_document().await?;
+    let source_state = ensure_subscription_source_state(&mut state, source_id);
+    source_state.active_artifact_version = active_artifact_version;
+    save_state_document(&state).await
+}
+
 pub async fn persist_attempt_result(
     source_id: &String,
     artifact: Option<&SubscriptionArtifactRecord>,
     attempt: &SubscriptionAttemptRecord,
 ) -> Result<()> {
     let mut state = load_state_document().await?;
-
-    let source_state = match state
-        .sources
-        .iter_mut()
-        .find(|source_state| source_state.source_id == *source_id)
-    {
-        Some(existing) => existing,
-        None => {
-            state.sources.push(SubscriptionSourceState {
-                source_id: source_id.clone(),
-                active_artifact_version: None,
-                latest_artifact: None,
-                latest_attempt: None,
-                latest_success: None,
-            });
-            state
-                .sources
-                .last_mut()
-                .expect("just inserted subscription source state")
-        }
-    };
+    let source_state = ensure_subscription_source_state(&mut state, source_id);
 
     if let Some(artifact) = artifact {
         source_state.latest_artifact = Some(artifact.clone());
@@ -448,6 +477,31 @@ pub async fn persist_attempt_result(
     }
 
     save_state_document(&state).await
+}
+
+fn ensure_subscription_source_state<'a>(
+    state: &'a mut SubscriptionStateDocument,
+    source_id: &String,
+) -> &'a mut SubscriptionSourceState {
+    if let Some(index) = state
+        .sources
+        .iter()
+        .position(|source_state| source_state.source_id == *source_id)
+    {
+        return &mut state.sources[index];
+    }
+
+    state.sources.push(SubscriptionSourceState {
+        source_id: source_id.clone(),
+        active_artifact_version: None,
+        latest_artifact: None,
+        latest_attempt: None,
+        latest_success: None,
+    });
+    state
+        .sources
+        .last_mut()
+        .expect("just inserted subscription source state")
 }
 
 pub fn build_finished_attempt_record(

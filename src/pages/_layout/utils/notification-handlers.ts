@@ -66,6 +66,21 @@ const getSubscriptionStageLabel = (
         'profiles.page.feedback.subscriptionUpdate.stages.materializeArtifact',
         { defaultValue: 'Materialize artifact' },
       )
+    case 'generate_runtime_config_candidate':
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.stages.generateRuntimeConfigCandidate',
+        { defaultValue: 'Generate runtime candidate' },
+      )
+    case 'validate_runtime_candidate':
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.stages.validateRuntimeCandidate',
+        { defaultValue: 'Validate runtime candidate' },
+      )
+    case 'publish_artifact':
+      return t(
+        'profiles.page.feedback.subscriptionUpdate.stages.publishArtifact',
+        { defaultValue: 'Publish artifact' },
+      )
     case 'activate_runtime':
       return t(
         'profiles.page.feedback.subscriptionUpdate.stages.activateRuntime',
