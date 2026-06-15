@@ -12,13 +12,6 @@ const MIHOMO_WS_STREAM_BUFFER_SIZE: usize = 8;
 /// 断开 Mihomo WebSocket 连接时使用的关闭码（RFC 6455 标准正常关闭）。
 const MIHOMO_WS_STREAM_CLOSE_CODE: u64 = 1000;
 
-/// `/traffic` 即时速率事件（字节/秒）。
-#[derive(Debug, Clone, Copy)]
-pub struct TrafficSpeedEvent {
-    pub up: u64,
-    pub down: u64,
-}
-
 /// `/connections` 连接快照事件。
 #[derive(Debug)]
 pub struct ConnectionSnapshotEvent {
@@ -52,37 +45,6 @@ pub struct MihomoWsEventStream<T> {
     last_valid_event_at: Instant,
 }
 
-#[derive(Deserialize)]
-struct TrafficPayload {
-    up: u64,
-    down: u64,
-}
-
-fn parse_traffic_event(data: Value) -> Option<InternalWsEvent<TrafficSpeedEvent>> {
-    if let Ok(payload) = serde_json::from_value::<TrafficPayload>(data.clone()) {
-        return Some(InternalWsEvent::Data(TrafficSpeedEvent {
-            up: payload.up,
-            down: payload.down,
-        }));
-    }
-
-    if let Ok(ws_message) = WebSocketMessage::deserialize(&data) {
-        match ws_message {
-            WebSocketMessage::Text(text) => {
-                let payload = serde_json::from_str::<TrafficPayload>(&text).ok()?;
-                Some(InternalWsEvent::Data(TrafficSpeedEvent {
-                    up: payload.up,
-                    down: payload.down,
-                }))
-            }
-            WebSocketMessage::Close(_) => Some(InternalWsEvent::Closed),
-            _ => None,
-        }
-    } else {
-        None
-    }
-}
-
 fn parse_connections_event(data: Value) -> Option<InternalWsEvent<ConnectionSnapshotEvent>> {
     if let Ok(payload) = serde_json::from_value::<Connections>(data.clone()) {
         return Some(InternalWsEvent::Data(ConnectionSnapshotEvent { snapshot: payload }));
@@ -111,30 +73,6 @@ fn try_send_internal_event<T>(message_tx: &mpsc::Sender<InternalWsEvent<T>>, eve
             tokio::sync::mpsc::error::TrySendError::Closed(_) => {}
         }
     }
-}
-
-/// 建立 `/traffic` WebSocket 订阅（通用流）。
-pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeedEvent>> {
-    // 使用有界 mpsc 通道承接回调事件，限制消息积压上限。
-    let (message_tx, message_rx) = mpsc::channel::<InternalWsEvent<TrafficSpeedEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
-    // 建立 Mihomo `/traffic` WebSocket 订阅。
-    let connection_id = handle::Handle::mihomo()
-        .await
-        .ws_traffic({
-            let message_tx = message_tx.clone();
-            move |message| {
-                if let Some(event) = parse_traffic_event(message) {
-                    try_send_internal_event(&message_tx, event);
-                }
-            }
-        })
-        .await?;
-    drop(message_tx);
-    Ok(MihomoWsEventStream {
-        connection_id,
-        receiver: message_rx,
-        last_valid_event_at: Instant::now(),
-    })
 }
 
 /// 建立 `/connections` WebSocket 订阅（通用流）。
