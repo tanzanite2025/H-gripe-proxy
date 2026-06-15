@@ -1,30 +1,11 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { MihomoWebSocket, Traffic } from 'tauri-plugin-mihomo-api'
 
-import { useMihomoWsSubscription } from '@/hooks/network'
 import { useTrafficMonitorEnhanced } from '@/hooks/network'
+import { subscribeMetrics } from '@/services/connection-metrics'
 
-const FALLBACK_TRAFFIC: Traffic = { up: 0, down: 0 }
-const DUPLICATE_TRAFFIC_WINDOW_MS = 50
-
-let lastTrafficSignature = ''
-let lastTrafficTimestamp = 0
-
-const shouldSkipDuplicateTraffic = (traffic: Traffic) => {
-  const now = Date.now()
-  const signature = `${traffic.up}:${traffic.down}`
-
-  if (
-    signature === lastTrafficSignature &&
-    now - lastTrafficTimestamp <= DUPLICATE_TRAFFIC_WINDOW_MS
-  ) {
-    return true
-  }
-
-  lastTrafficSignature = signature
-  lastTrafficTimestamp = now
-  return false
-}
+const FALLBACK_TRAFFIC: ITrafficItem = { up: 0, down: 0 }
+const QUERY_KEY = 'rust-traffic-speed'
 
 export const useTrafficData = (options?: { enabled?: boolean }) => {
   const enabled = options?.enabled ?? true
@@ -32,39 +13,32 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
   const {
     graphData: { appendData },
   } = useTrafficMonitorEnhanced({ subscribe: false, enabled })
-  const { response, refresh } = useMihomoWsSubscription<ITrafficItem>({
-    storageKey: 'mihomo_traffic_date',
-    buildSubscriptKey: (date) => `getClashTraffic-${date}`,
-    fallbackData: FALLBACK_TRAFFIC,
-    connect: () => MihomoWebSocket.connect_traffic(),
-    throttleMs: 200,
-    setupHandlers: ({ next, scheduleReconnect }) => ({
-      handleMessage: (data) => {
-        if (data.startsWith('Websocket error')) {
-          next(data, FALLBACK_TRAFFIC)
-          void scheduleReconnect()
-          return
-        }
 
-        try {
-          const parsed = JSON.parse(data) as Traffic
-          if (shouldSkipDuplicateTraffic(parsed)) {
-            return
-          }
-          next(null, parsed)
-        } catch (error) {
-          next(error, FALLBACK_TRAFFIC)
-        }
-      },
-    }),
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!enabled) return
+
+    return subscribeMetrics((payload) => {
+      const traffic: ITrafficItem = {
+        up: payload.metrics.traffic.uploadSpeed,
+        down: payload.metrics.traffic.downloadSpeed,
+      }
+      queryClient.setQueryData<ITrafficItem>([QUERY_KEY], traffic)
+      appendData(traffic)
+    })
+  }, [queryClient, enabled, appendData])
+
+  const response = useQuery<ITrafficItem>({
+    queryKey: [QUERY_KEY],
+    queryFn: () => FALLBACK_TRAFFIC,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   })
 
-  const trafficData = response.data
-  useEffect(() => {
-    if (enabled && trafficData) {
-      appendData(trafficData)
-    }
-  }, [enabled, trafficData, appendData])
+  const refresh = () => {
+    queryClient.setQueryData<ITrafficItem>([QUERY_KEY], FALLBACK_TRAFFIC)
+  }
 
   return { response, refreshGetClashTraffic: refresh }
 }

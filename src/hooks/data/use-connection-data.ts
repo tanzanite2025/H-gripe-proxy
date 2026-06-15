@@ -1,10 +1,8 @@
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect } from 'react'
 
 import {
-  connectionMonitorStart,
-  connectionMonitorStop,
-  onConnectionMetrics,
+  subscribeMetrics,
   type ConnectionMetricsEventPayload,
 } from '@/services/connection-metrics'
 
@@ -25,45 +23,18 @@ export interface ConnectionMonitorData {
   closedConnections: IConnectionsItem[]
 }
 
-// ── shared monitor lifecycle (ref-counted) ──────────────────────────
-
-let monitorRefCount = 0
-let cleanupMonitor: (() => void) | null = null
-
-function acquireMonitor(queryClient: QueryClient) {
-  monitorRefCount++
-  if (monitorRefCount === 1) {
-    void connectionMonitorStart()
-    const unlistenPromise = onConnectionMetrics((payload) => {
-      queryClient.setQueryData<ConnectionMonitorData>(
-        [QUERY_KEY],
-        (prev = initConnData) => mergeFromRustEvent(payload, prev),
-      )
-    })
-    cleanupMonitor = () => {
-      void unlistenPromise.then((fn) => fn())
-      void connectionMonitorStop()
-    }
-  }
-}
-
-function releaseMonitor() {
-  monitorRefCount--
-  if (monitorRefCount <= 0) {
-    monitorRefCount = 0
-    cleanupMonitor?.()
-    cleanupMonitor = null
-  }
-}
-
 // ── hook ─────────────────────────────────────────────────────────────
 
 export const useConnectionData = () => {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    acquireMonitor(queryClient)
-    return () => releaseMonitor()
+    return subscribeMetrics((payload) => {
+      queryClient.setQueryData<ConnectionMonitorData>(
+        [QUERY_KEY],
+        (prev = initConnData) => mergeFromRustEvent(payload, prev),
+      )
+    })
   }, [queryClient])
 
   const response = useQuery<ConnectionMonitorData>({
@@ -83,7 +54,9 @@ export const useConnectionData = () => {
   }, [queryClient])
 
   const refresh = useCallback(() => {
-    void connectionMonitorStop().then(() => connectionMonitorStart())
+    void import('@/services/connection-metrics').then(({ resetConnectionMetrics }) =>
+      resetConnectionMetrics(),
+    )
   }, [])
 
   return {
