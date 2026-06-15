@@ -250,6 +250,8 @@ const SERVICE_SHA256 = {
 
 目标：让 legacy 痕迹可控，而不是散落在代码里。
 
+`src-tauri` 这层 Tauri 配置兼容边界已单独收口到 `src-tauri/compatibility-boundaries.md`，作为 `tauri.conf.json`、`tauri.linux.conf.json`、Linux deep-link 注册和 scheme 解析的唯一说明入口。
+
 建议新增注释规范：
 
 ```rust

@@ -39,6 +39,7 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
 }
 
 fn extract_subscription_info(link_parsed: &Url) -> Option<(std::string::String, Option<String>)> {
+    // Compatibility boundary is documented in `src-tauri/compatibility-boundaries.md`.
     if !matches!(link_parsed.scheme(), "clash" | "clash-verge") {
         return None;
     }

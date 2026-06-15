@@ -536,6 +536,7 @@ pub const fn init_scheme() -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
+// Compatibility boundary is documented in `src-tauri/compatibility-boundaries.md`.
 const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clash-verge"];
 
 pub async fn startup_script() -> Result<()> {
