@@ -1,9 +1,9 @@
 use crate::{
     subscription::{
-        format::SubscriptionFormat,
+        artifact::SubscriptionArtifactCandidate,
         model::{
-            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState, SubscriptionStateDocument,
-            UpdateFinalStatus,
+            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState,
+            SubscriptionStateDocument, UpdateFinalStatus,
         },
     },
     utils::{dirs, help},
@@ -11,7 +11,6 @@ use crate::{
 use anyhow::Result;
 use chrono::Local;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use smartstring::alias::String;
 use tokio::fs;
 
@@ -19,26 +18,6 @@ use tokio::fs;
 struct PersistedArtifactMetadata<'a> {
     source_id: &'a str,
     artifact: &'a SubscriptionArtifactRecord,
-}
-
-pub fn build_artifact_record(
-    raw_body: &str,
-    fetched_at: i64,
-    content_type: Option<String>,
-    detected_format: Option<SubscriptionFormat>,
-) -> SubscriptionArtifactRecord {
-    let content_hash: String = hex::encode(Sha256::digest(raw_body.as_bytes())).into();
-    let suffix_len = content_hash.len().min(12);
-    let version = format!("{fetched_at}-{}", &content_hash[..suffix_len]).into();
-
-    SubscriptionArtifactRecord {
-        version,
-        content_hash,
-        fetched_at,
-        content_length: raw_body.len(),
-        content_type,
-        detected_format,
-    }
 }
 
 async fn load_state_document() -> Result<SubscriptionStateDocument> {
@@ -58,13 +37,29 @@ async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
     help::save_yaml(&path, state, Some("# Subscription State for Clash Verge Optimized")).await
 }
 
-pub async fn persist_artifact(source_id: &str, artifact: &SubscriptionArtifactRecord, raw_body: &str) -> Result<()> {
-    let dir = dirs::subscription_artifact_version_dir(source_id, artifact.version.as_str())?;
+pub async fn persist_artifact_candidate(
+    source_id: &str,
+    candidate: &SubscriptionArtifactCandidate,
+) -> Result<()> {
+    let dir = dirs::subscription_artifact_version_dir(source_id, candidate.record.version.as_str())?;
     fs::create_dir_all(&dir).await?;
 
-    fs::write(dir.join("raw.body"), raw_body.as_bytes()).await?;
+    fs::write(dir.join("raw.body"), candidate.raw_body.as_bytes()).await?;
+    fs::write(dir.join("normalized.yaml"), candidate.normalized_yaml.as_bytes())
+        .await?;
 
-    let metadata = PersistedArtifactMetadata { source_id, artifact };
+    let diagnostics_path = dir.join("diagnostics.yaml");
+    help::save_yaml(
+        &diagnostics_path,
+        &candidate.diagnostics,
+        Some("# Subscription Artifact Diagnostics"),
+    )
+    .await?;
+
+    let metadata = PersistedArtifactMetadata {
+        source_id,
+        artifact: &candidate.record,
+    };
     let metadata_path = dir.join("metadata.yaml");
     help::save_yaml(&metadata_path, &metadata, Some("# Subscription Artifact Metadata")).await
 }
