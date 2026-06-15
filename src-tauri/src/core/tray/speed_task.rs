@@ -1,32 +1,28 @@
-use crate::core::handle;
+use crate::core::{connection_metrics, connection_monitor, handle};
 use crate::process::AsyncHandler;
-use crate::utils::{connections_stream, tray_speed};
+use crate::utils::tray_speed;
 use crate::{Type, logging};
 use parking_lot::Mutex;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::async_runtime::JoinHandle;
-use tauri_plugin_mihomo::models::ConnectionId;
 
-/// 托盘速率流异常后的重连间隔。
-const TRAY_SPEED_RETRY_DELAY: Duration = Duration::from_secs(1);
-/// 托盘速率流运行时的空闲轮询间隔。
-const TRAY_SPEED_IDLE_POLL_INTERVAL: Duration = Duration::from_millis(200);
-/// 托盘速率流在此时间内收不到有效数据时，触发重连并降级到 0/0。
+/// 托盘速率流在此时间内收不到统一指标更新时，降级到 0/0。
 const TRAY_SPEED_STALE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// macOS 托盘速率任务控制器。
 #[derive(Clone)]
 pub struct TraySpeedController {
     speed_task: Arc<Mutex<Option<JoinHandle<()>>>>,
-    speed_connection_id: Arc<Mutex<Option<ConnectionId>>>,
+    monitor_acquired: Arc<AtomicBool>,
 }
 
 impl Default for TraySpeedController {
     fn default() -> Self {
         Self {
             speed_task: Arc::new(Mutex::new(None)),
-            speed_connection_id: Arc::new(Mutex::new(None)),
+            monitor_acquired: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -44,7 +40,7 @@ impl TraySpeedController {
         }
     }
 
-    /// 启动托盘速率采集后台任务（基于 `/traffic` WebSocket 流）。
+    /// 启动托盘速率采集后台任务（基于 Rust 统一连接指标流）。
     fn start_task(&self) {
         if handle::Handle::global().is_exiting() {
             return;
@@ -61,8 +57,13 @@ impl TraySpeedController {
             return;
         }
 
-        let speed_connection_id = Arc::clone(&self.speed_connection_id);
+        connection_monitor::global().start();
+        self.monitor_acquired.store(true, Ordering::SeqCst);
+
+        let monitor_acquired = Arc::clone(&self.monitor_acquired);
         let task = AsyncHandler::spawn(move || async move {
+            let mut metrics_rx = connection_metrics::subscribe_connection_metrics();
+
             loop {
                 if handle::Handle::global().is_exiting() {
                     break;
@@ -73,54 +74,28 @@ impl TraySpeedController {
                     break;
                 }
 
-                let stream_connect_result = connections_stream::connect_traffic_stream().await;
-                let mut speed_stream = match stream_connect_result {
-                    Ok(stream) => stream,
-                    Err(err) => {
-                        logging!(debug, Type::Tray, "托盘速率流连接失败，稍后重试: {err}");
-                        Self::apply_tray_speed(0, 0);
-                        tokio::time::sleep(TRAY_SPEED_RETRY_DELAY).await;
-                        continue;
-                    }
-                };
-
-                Self::set_speed_connection_id(&speed_connection_id, Some(speed_stream.connection_id));
-
-                loop {
-                    let next_state = speed_stream
-                        .next_event(TRAY_SPEED_IDLE_POLL_INTERVAL, TRAY_SPEED_STALE_TIMEOUT, || {
-                            handle::Handle::global().is_exiting()
-                        })
-                        .await;
-
-                    match next_state {
-                        connections_stream::StreamConsumeState::Event(speed_event) => {
-                            Self::apply_tray_speed(speed_event.up, speed_event.down);
-                        }
-                        connections_stream::StreamConsumeState::Stale => {
-                            logging!(debug, Type::Tray, "托盘速率流长时间未收到有效数据，触发重连");
+                match tokio::time::timeout(TRAY_SPEED_STALE_TIMEOUT, metrics_rx.changed()).await {
+                    Ok(Ok(())) => {
+                        let snapshot = metrics_rx.borrow().clone();
+                        if snapshot.stale {
                             Self::apply_tray_speed(0, 0);
-                            break;
-                        }
-                        connections_stream::StreamConsumeState::Closed
-                        | connections_stream::StreamConsumeState::ExitRequested => {
-                            break;
+                        } else {
+                            Self::apply_tray_speed(snapshot.traffic.upload_speed, snapshot.traffic.download_speed);
                         }
                     }
+                    Ok(Err(_)) => {
+                        Self::apply_tray_speed(0, 0);
+                        break;
+                    }
+                    Err(_) => {
+                        Self::apply_tray_speed(0, 0);
+                    }
                 }
-
-                Self::disconnect_speed_connection(&speed_connection_id).await;
-
-                if handle::Handle::global().is_exiting() || !Self::has_main_tray() {
-                    break;
-                }
-
-                // Stale 分支在内层 loop 中已重置为 0/0；此处兜底 Closed 分支（流被远端关闭）。
-                Self::apply_tray_speed(0, 0);
-                tokio::time::sleep(TRAY_SPEED_RETRY_DELAY).await;
             }
 
-            Self::set_speed_connection_id(&speed_connection_id, None);
+            if monitor_acquired.swap(false, Ordering::SeqCst) {
+                connection_monitor::global().stop();
+            }
         });
 
         *guard = Some(task);
@@ -128,20 +103,17 @@ impl TraySpeedController {
 
     /// 停止托盘速率采集后台任务并清除速率显示。
     fn stop_task(&self) {
-        // 取出任务句柄，与 speed_connection_id 一同传入清理任务。
         let task = self.speed_task.lock().take();
-        let speed_connection_id = Arc::clone(&self.speed_connection_id);
+        let monitor_acquired = Arc::clone(&self.monitor_acquired);
 
         AsyncHandler::spawn(move || async move {
-            // 关键步骤：先等待 abort 完成，再断开 WebSocket 连接。
-            // 若直接 abort 后立即 disconnect，任务可能已通过 take 取走 connection_id
-            // 但尚未完成断开，导致 connection_id 丢失、连接泄漏。
-            // await task handle 可保证原任务已退出，connection_id 不再被占用。
             if let Some(task) = task {
                 task.abort();
                 let _ = task.await;
             }
-            Self::disconnect_speed_connection(&speed_connection_id).await;
+            if monitor_acquired.swap(false, Ordering::SeqCst) {
+                connection_monitor::global().stop();
+            }
         });
 
         let app_handle = handle::Handle::app_handle();
@@ -159,23 +131,6 @@ impl TraySpeedController {
 
     fn has_main_tray() -> bool {
         handle::Handle::app_handle().tray_by_id("main").is_some()
-    }
-
-    fn set_speed_connection_id(
-        speed_connection_id: &Arc<Mutex<Option<ConnectionId>>>,
-        connection_id: Option<ConnectionId>,
-    ) {
-        *speed_connection_id.lock() = connection_id;
-    }
-
-    fn take_speed_connection_id(speed_connection_id: &Arc<Mutex<Option<ConnectionId>>>) -> Option<ConnectionId> {
-        speed_connection_id.lock().take()
-    }
-
-    async fn disconnect_speed_connection(speed_connection_id: &Arc<Mutex<Option<ConnectionId>>>) {
-        if let Some(connection_id) = Self::take_speed_connection_id(speed_connection_id) {
-            connections_stream::disconnect_connection(connection_id).await;
-        }
     }
 
     fn apply_tray_speed(up: u64, down: u64) {

@@ -18,6 +18,7 @@ const MONITOR_STALE_TIMEOUT: Duration = Duration::from_secs(8);
 pub struct ConnectionMonitorController {
     task: Arc<Mutex<Option<JoinHandle<()>>>>,
     connection_id: Arc<Mutex<Option<ConnectionId>>>,
+    refs: Arc<Mutex<usize>>,
 }
 
 impl Default for ConnectionMonitorController {
@@ -25,6 +26,7 @@ impl Default for ConnectionMonitorController {
         Self {
             task: Arc::new(Mutex::new(None)),
             connection_id: Arc::new(Mutex::new(None)),
+            refs: Arc::new(Mutex::new(0)),
         }
     }
 }
@@ -38,6 +40,8 @@ impl ConnectionMonitorController {
         if handle::Handle::global().is_exiting() {
             return;
         }
+
+        *self.refs.lock() += 1;
 
         let mut guard = self.task.lock();
         if guard.as_ref().is_some_and(|t| !t.inner().is_finished()) {
@@ -107,6 +111,19 @@ impl ConnectionMonitorController {
     }
 
     pub fn stop(&self) {
+        let should_stop = {
+            let mut refs = self.refs.lock();
+            if *refs == 0 {
+                return;
+            }
+            *refs -= 1;
+            *refs == 0
+        };
+
+        if !should_stop {
+            return;
+        }
+
         let task = self.task.lock().take();
         let conn_id = Arc::clone(&self.connection_id);
 

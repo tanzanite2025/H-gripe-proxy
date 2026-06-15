@@ -6,10 +6,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri_plugin_mihomo::models::{Connection, Connections};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, watch};
 
 /// Per-connection speed snapshot computed from two consecutive Mihomo snapshots.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionSpeed {
     pub id: String,
@@ -192,6 +192,15 @@ fn count_closed(prev: &PreviousState, current: &[Connection]) -> usize {
 static CONNECTION_METRICS_AGGREGATOR: Lazy<Arc<ConnectionMetricsAggregator>> =
     Lazy::new(|| ConnectionMetricsAggregator::new(5));
 
+static CONNECTION_METRICS_WATCH: Lazy<watch::Sender<ConnectionMetricsSnapshot>> = Lazy::new(|| {
+    let (tx, _rx) = watch::channel(ConnectionMetricsSnapshot::default());
+    tx
+});
+
+pub fn subscribe_connection_metrics() -> watch::Receiver<ConnectionMetricsSnapshot> {
+    CONNECTION_METRICS_WATCH.subscribe()
+}
+
 pub async fn refresh_connection_metrics_snapshot() -> Result<ConnectionMetricsSnapshot> {
     if *CoreManager::global().get_running_mode() == RunningMode::NotRunning {
         CONNECTION_METRICS_AGGREGATOR.reset().await;
@@ -205,7 +214,9 @@ pub async fn refresh_connection_metrics_snapshot() -> Result<ConnectionMetricsSn
 
 pub async fn ingest_connection_metrics_snapshot(payload: &Connections) -> ConnectionMetricsSnapshot {
     CONNECTION_METRICS_AGGREGATOR.ingest(payload).await;
-    CONNECTION_METRICS_AGGREGATOR.snapshot().await
+    let snapshot = CONNECTION_METRICS_AGGREGATOR.snapshot().await;
+    let _ = CONNECTION_METRICS_WATCH.send(snapshot.clone());
+    snapshot
 }
 
 pub async fn get_connection_metrics_snapshot() -> ConnectionMetricsSnapshot {
@@ -214,6 +225,7 @@ pub async fn get_connection_metrics_snapshot() -> ConnectionMetricsSnapshot {
 
 pub async fn reset_connection_metrics() {
     CONNECTION_METRICS_AGGREGATOR.reset().await;
+    let _ = CONNECTION_METRICS_WATCH.send(ConnectionMetricsSnapshot::default());
 }
 
 #[cfg(test)]
