@@ -9,7 +9,8 @@ use crate::{
         },
         persist::{
             SubscriptionArtifactPublishResult, build_finished_attempt_record, persist_attempt_result,
-            persist_subscription_source_config, publish_subscription_artifact, restore_subscription_active_artifact,
+            persist_subscription_source_config, publish_subscription_artifact, read_subscription_source_config,
+            restore_subscription_active_artifact,
         },
         runtime_candidate::{
             SubscriptionRuntimeProfileProjection, activate_subscription_active_artifact_runtime,
@@ -212,6 +213,27 @@ async fn resolve_subscription_source_config(
     uid: &String,
     ignore_auto_update: bool,
 ) -> Result<Option<SubscriptionSourceConfig>> {
+    let should_update = sync_legacy_profile_source_config_projection(uid, ignore_auto_update).await?;
+    if !should_update {
+        return Ok(None);
+    }
+
+    let Some(source_config) = read_subscription_source_config(uid.as_str()).await? else {
+        bail!("subscription source config projection is missing after legacy sync");
+    };
+
+    logging!(
+        info,
+        Type::Config,
+        "[Subscription Update] {} target URL: {}",
+        uid,
+        mask_url(&source_config.url)
+    );
+
+    Ok(Some(source_config))
+}
+
+async fn sync_legacy_profile_source_config_projection(uid: &String, ignore_auto_update: bool) -> Result<bool> {
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
     let item = profiles.get_item(uid)?;
@@ -223,7 +245,7 @@ async fn resolve_subscription_source_config(
             Type::Config,
             "[Subscription Update] {uid} is not a remote subscription, skip update"
         );
-        Ok(None)
+        Ok(false)
     } else if item.url.is_none() {
         logging!(
             warn,
@@ -238,7 +260,7 @@ async fn resolve_subscription_source_config(
             "[Subscription Update] {} has auto update disabled, skip update",
             uid
         );
-        Ok(None)
+        Ok(false)
     } else {
         let source_config = SubscriptionSourceConfig {
             url: item.url.clone().ok_or_else(|| anyhow!("Profile URL is None"))?,
@@ -246,15 +268,8 @@ async fn resolve_subscription_source_config(
             updated_at: Local::now().timestamp_millis(),
         };
 
-        logging!(
-            info,
-            Type::Config,
-            "[Subscription Update] {} target URL: {}",
-            uid,
-            mask_url(&source_config.url)
-        );
         persist_subscription_source_config(uid, &source_config).await?;
-        Ok(Some(source_config))
+        Ok(true)
     }
 }
 
