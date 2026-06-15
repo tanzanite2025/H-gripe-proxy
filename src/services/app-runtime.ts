@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
+import type { DnsResolverPlan } from './dns-api'
+
 export type AppProcessMatcherKind =
   | 'process_name'
   | 'process_path'
@@ -66,6 +68,15 @@ export interface NodePool {
   updatedAt: number
 }
 
+export interface DnsProfile {
+  profileId: string
+  name: string
+  configYaml: string
+  testDomain?: string
+  tags: string[]
+  updatedAt: number
+}
+
 export interface AppPolicyBinding {
   bindingId: string
   appId: string
@@ -80,6 +91,7 @@ export interface AppPolicyBinding {
 export interface AppRuntimeStateDocument {
   apps: AppRegistryEntry[]
   nodePools: NodePool[]
+  dnsProfiles: DnsProfile[]
   policyBindings: AppPolicyBinding[]
 }
 
@@ -98,6 +110,14 @@ export interface NodePoolPlanView {
   candidates: NodePoolCandidate[]
 }
 
+export interface DnsProfilePlanView {
+  profileId: string
+  name: string
+  testDomain?: string | null
+  tags: string[]
+  resolverPlan: DnsResolverPlan
+}
+
 export interface RuntimeProjectionPlan {
   status: 'planningOnly'
   backend: string
@@ -113,6 +133,7 @@ export interface AppRuntimePlan {
   app?: AppRegistryEntry
   policyBinding?: AppPolicyBinding
   nodePool?: NodePoolPlanView
+  dnsProfile?: DnsProfilePlanView
   routingIntent?: AppRoutingIntent
   projection: RuntimeProjectionPlan
   facts: string[]
@@ -145,6 +166,18 @@ export async function deleteNodePool(
   poolId: string,
 ): Promise<AppRuntimeStateDocument> {
   return invoke('delete_node_pool', { poolId })
+}
+
+export async function upsertDnsProfile(
+  dnsProfile: DnsProfile,
+): Promise<AppRuntimeStateDocument> {
+  return invoke('upsert_dns_profile', { dnsProfile })
+}
+
+export async function deleteDnsProfile(
+  profileId: string,
+): Promise<AppRuntimeStateDocument> {
+  return invoke('delete_dns_profile', { profileId })
 }
 
 export async function upsertAppPolicyBinding(

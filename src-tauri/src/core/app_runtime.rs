@@ -1,4 +1,7 @@
-use crate::utils::{dirs, help};
+use crate::{
+    core::dns_runtime::{DnsResolverPlan, build_dns_resolver_plan},
+    utils::{dirs, help},
+};
 use anyhow::{Result, bail};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
@@ -12,6 +15,8 @@ pub struct AppRuntimeStateDocument {
     pub apps: Vec<AppRegistryEntry>,
     #[serde(default)]
     pub node_pools: Vec<NodePool>,
+    #[serde(default)]
+    pub dns_profiles: Vec<DnsProfile>,
     #[serde(default)]
     pub policy_bindings: Vec<AppPolicyBinding>,
 }
@@ -115,6 +120,20 @@ pub struct NodePoolCandidate {
     pub priority: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsProfile {
+    pub profile_id: String,
+    pub name: String,
+    pub config_yaml: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test_domain: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AppRoutingIntent {
@@ -168,6 +187,7 @@ pub struct AppRuntimePlan {
     pub app: Option<AppRegistryEntry>,
     pub policy_binding: Option<AppPolicyBinding>,
     pub node_pool: Option<NodePoolPlanView>,
+    pub dns_profile: Option<DnsProfilePlanView>,
     pub routing_intent: Option<AppRoutingIntent>,
     pub projection: RuntimeProjectionPlan,
     pub facts: Vec<String>,
@@ -184,6 +204,16 @@ pub struct NodePoolPlanView {
     pub tags: Vec<String>,
     pub constraints: NodePoolHealthConstraints,
     pub candidates: Vec<NodePoolCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsProfilePlanView {
+    pub profile_id: String,
+    pub name: String,
+    pub test_domain: Option<String>,
+    pub tags: Vec<String>,
+    pub resolver_plan: DnsResolverPlan,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -255,6 +285,33 @@ pub async fn delete_node_pool(pool_id: &str) -> Result<AppRuntimeStateDocument> 
     .await
 }
 
+pub async fn upsert_dns_profile(mut dns_profile: DnsProfile) -> Result<AppRuntimeStateDocument> {
+    validate_dns_profile(&dns_profile)?;
+    dns_profile.updated_at = now_millis();
+    update_state_document(|state| {
+        upsert_by(&mut state.dns_profiles, dns_profile, |profile| {
+            profile.profile_id.clone()
+        });
+        Ok(())
+    })
+    .await
+}
+
+pub async fn delete_dns_profile(profile_id: &str) -> Result<AppRuntimeStateDocument> {
+    let profile_id = normalize_id(profile_id, "profile_id")?;
+    update_state_document(|state| {
+        state.dns_profiles.retain(|profile| profile.profile_id != profile_id);
+        for binding in &mut state.policy_bindings {
+            if binding.dns_profile_id.as_deref() == Some(profile_id.as_str()) {
+                binding.dns_profile_id = None;
+                binding.updated_at = now_millis();
+            }
+        }
+        Ok(())
+    })
+    .await
+}
+
 pub async fn upsert_app_policy_binding(mut binding: AppPolicyBinding) -> Result<AppRuntimeStateDocument> {
     validate_policy_binding(&binding)?;
     binding.updated_at = now_millis();
@@ -266,6 +323,14 @@ pub async fn upsert_app_policy_binding(mut binding: AppPolicyBinding) -> Result<
             && state.node_pools.iter().all(|pool| &pool.pool_id != pool_id)
         {
             bail!("policy binding references missing node_pool_id `{pool_id}`");
+        }
+        if let Some(profile_id) = binding.dns_profile_id.as_ref()
+            && state
+                .dns_profiles
+                .iter()
+                .all(|profile| &profile.profile_id != profile_id)
+        {
+            bail!("policy binding references missing dns_profile_id `{profile_id}`");
         }
         upsert_by(&mut state.policy_bindings, binding, |stored| stored.binding_id.clone());
         Ok(())
@@ -290,12 +355,13 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
         mutates_runtime: false,
         outputs: vec![
             "app_policy_runtime_plan".into(),
+            "dns_resolver_plan_projection".into(),
             "future_mihomo_rules_projection".into(),
             "future_proxy_group_projection".into(),
         ],
     };
     let facts = vec![
-        "Rust AppRuntimeStateDocument is the only source of app/pool/policy facts".into(),
+        "Rust AppRuntimeStateDocument is the only source of app/pool/dns-profile/policy facts".into(),
         "first slice only explains a runtime plan and does not mutate Mihomo runtime".into(),
     ];
 
@@ -308,6 +374,7 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
             app: None,
             policy_binding: None,
             node_pool: None,
+            dns_profile: None,
             routing_intent: None,
             projection,
             facts,
@@ -329,6 +396,7 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
             app: Some(app),
             policy_binding: None,
             node_pool: None,
+            dns_profile: None,
             routing_intent: None,
             projection,
             facts,
@@ -342,9 +410,24 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
         .and_then(|pool_id| state.node_pools.iter().find(|pool| &pool.pool_id == pool_id))
         .cloned();
     let mut warnings = Vec::new();
+    let dns_profile = binding
+        .dns_profile_id
+        .as_ref()
+        .and_then(|profile_id| {
+            state
+                .dns_profiles
+                .iter()
+                .find(|profile| &profile.profile_id == profile_id)
+        })
+        .cloned();
 
     if requires_node_pool(binding.routing_intent) && node_pool.is_none() {
         warnings.push(format!("routing intent `{:?}` has no node pool", binding.routing_intent).into());
+    }
+    if let Some(profile_id) = binding.dns_profile_id.as_ref()
+        && dns_profile.is_none()
+    {
+        warnings.push(format!("policy binding references missing dns_profile_id `{profile_id}`").into());
     }
 
     AppRuntimePlan {
@@ -355,6 +438,13 @@ pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRun
         app: Some(app),
         policy_binding: Some(binding.clone()),
         node_pool: node_pool.map(node_pool_plan_view),
+        dns_profile: dns_profile.and_then(|profile| match dns_profile_plan_view(profile) {
+            Ok(plan) => Some(plan),
+            Err(error) => {
+                warnings.push(format!("dns profile plan failed: {error}").into());
+                None
+            }
+        }),
         routing_intent: Some(binding.routing_intent),
         projection,
         facts,
@@ -403,11 +493,22 @@ fn validate_node_pool(node_pool: &NodePool) -> Result<()> {
     Ok(())
 }
 
+fn validate_dns_profile(dns_profile: &DnsProfile) -> Result<()> {
+    normalize_id(&dns_profile.profile_id, "profile_id")?;
+    ensure_non_empty(&dns_profile.name, "name")?;
+    ensure_non_empty(&dns_profile.config_yaml, "config_yaml")?;
+    build_dns_resolver_plan(&dns_profile.config_yaml)?;
+    Ok(())
+}
+
 fn validate_policy_binding(binding: &AppPolicyBinding) -> Result<()> {
     normalize_id(&binding.binding_id, "binding_id")?;
     normalize_id(&binding.app_id, "app_id")?;
     if let Some(pool_id) = binding.node_pool_id.as_ref() {
         normalize_id(pool_id, "node_pool_id")?;
+    }
+    if let Some(profile_id) = binding.dns_profile_id.as_ref() {
+        normalize_id(profile_id, "dns_profile_id")?;
     }
     Ok(())
 }
@@ -475,6 +576,17 @@ fn node_pool_plan_view(node_pool: NodePool) -> NodePoolPlanView {
     }
 }
 
+fn dns_profile_plan_view(dns_profile: DnsProfile) -> Result<DnsProfilePlanView> {
+    let resolver_plan = build_dns_resolver_plan(&dns_profile.config_yaml)?;
+    Ok(DnsProfilePlanView {
+        profile_id: dns_profile.profile_id,
+        name: dns_profile.name,
+        test_domain: dns_profile.test_domain,
+        tags: dns_profile.tags,
+        resolver_plan,
+    })
+}
+
 fn plan_reason(app: &AppRegistryEntry, binding: &AppPolicyBinding, node_pool: Option<&NodePool>) -> String {
     match (binding.routing_intent, node_pool) {
         (AppRoutingIntent::Direct, _) => format!("app `{}` will use direct routing intent", app.app_id).into(),
@@ -512,6 +624,7 @@ mod tests {
         let state = AppRuntimeStateDocument {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
             policy_bindings: vec![sample_binding()],
         };
 
@@ -526,6 +639,12 @@ mod tests {
         assert_eq!(plan.status, AppRuntimePlanStatus::Ready);
         assert_eq!(plan.routing_intent, Some(AppRoutingIntent::Proxy));
         assert_eq!(plan.node_pool.as_ref().map(|pool| pool.candidate_count), Some(1));
+        assert_eq!(
+            plan.dns_profile
+                .as_ref()
+                .map(|profile| profile.resolver_plan.nameservers.len()),
+            Some(1)
+        );
         assert!(!plan.projection.mutates_runtime);
     }
 
@@ -534,6 +653,7 @@ mod tests {
         let state = AppRuntimeStateDocument {
             apps: vec![sample_app()],
             node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
             policy_bindings: Vec::new(),
         };
 
@@ -558,6 +678,32 @@ mod tests {
         });
 
         assert!(validate_app(&app).is_err());
+    }
+
+    #[test]
+    fn plan_warns_when_binding_references_missing_dns_profile() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: Vec::new(),
+            policy_bindings: vec![sample_binding()],
+        };
+
+        let plan = explain_app_runtime_plan(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: None,
+            },
+        );
+
+        assert_eq!(plan.status, AppRuntimePlanStatus::Ready);
+        assert!(plan.dns_profile.is_none());
+        assert!(
+            plan.warnings
+                .iter()
+                .any(|warning| warning.contains("missing dns_profile_id `default`"))
+        );
     }
 
     fn sample_app() -> AppRegistryEntry {
@@ -601,6 +747,23 @@ mod tests {
                 tags: vec!["stable".into()],
                 priority: Some(1),
             }],
+            updated_at: 1,
+        }
+    }
+
+    fn sample_dns_profile() -> DnsProfile {
+        DnsProfile {
+            profile_id: "default".into(),
+            name: "Default DNS".into(),
+            config_yaml: r#"
+dns:
+  enable: true
+  nameserver:
+    - 1.1.1.1
+"#
+            .into(),
+            test_domain: Some("example.com".into()),
+            tags: vec!["default".into()],
             updated_at: 1,
         }
     }
