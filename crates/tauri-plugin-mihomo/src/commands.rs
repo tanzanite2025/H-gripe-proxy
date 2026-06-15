@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tauri::{State, async_runtime::RwLock, command, ipc::Channel};
+use tauri::{State, async_runtime::RwLock, command};
 
 use crate::{Result, mihomo::Mihomo, models::*};
 
@@ -289,46 +289,6 @@ pub(crate) async fn upgrade_ui(state: State<'_, RwLock<Mihomo>>) -> Result<()> {
 #[command]
 pub(crate) async fn upgrade_geo(state: State<'_, RwLock<Mihomo>>) -> Result<()> {
     state.read().await.upgrade_geo().await
-}
-
-// mihomo websocket
-#[command]
-pub(crate) async fn ws_logs(
-    state: State<'_, RwLock<Mihomo>>,
-    level: LogLevel,
-    on_message: Channel<serde_json::Value>,
-) -> Result<ConnectionId> {
-    state
-        .read()
-        .await
-        .ws_logs(level, move |data| {
-            let _ = on_message.send(data);
-        })
-        .await
-}
-
-// mihomo 的 websocket 应该只读取数据，没必要发送数据
-// #[command]
-// pub(crate) async fn ws_send(
-//     state: State<'_, RwLock<Mihomo>>,
-//     id: u32,
-//     message: WebSocketMessage,
-// ) -> Result<()> {
-//     state.read().await.send(id, message).await
-// }
-
-#[command]
-pub(crate) async fn ws_disconnect(
-    state: State<'_, RwLock<Mihomo>>,
-    id: ConnectionId,
-    force_timeout: Option<u64>,
-) -> Result<()> {
-    state.read().await.disconnect(id, force_timeout).await
-}
-
-#[command]
-pub(crate) async fn clear_all_ws_connections(state: State<'_, RwLock<Mihomo>>) -> Result<()> {
-    state.write().await.clear_all_ws_connections().await
 }
 
 // engine api

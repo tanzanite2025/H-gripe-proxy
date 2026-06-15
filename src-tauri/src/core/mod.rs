@@ -20,6 +20,7 @@ pub mod identity_consistency;
 pub mod ip_intelligence;
 pub mod ip_reputation;
 pub mod latency_test;
+pub mod log_monitor;
 pub mod logger;
 pub mod manager;
 pub mod mihomo_runtime_guard;

@@ -224,6 +224,10 @@ impl Handle {
         Self::send_event(FrontendEvent::ConnectionMetrics { payload });
     }
 
+    pub fn send_core_log(payload: serde_json::Value) {
+        Self::send_event(FrontendEvent::CoreLog { payload });
+    }
+
     fn send_event(event: FrontendEvent) {
         let handle = Self::global();
         if handle.is_exiting() {

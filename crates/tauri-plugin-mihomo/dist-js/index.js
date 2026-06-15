@@ -1,4 +1,4 @@
-import { Channel, invoke as invoke$1 } from '@tauri-apps/api/core';
+import { invoke as invoke$1 } from '@tauri-apps/api/core';
 
 let pendingMihomoRecovery = null;
 function formatInvokeError(error) {
@@ -388,12 +388,6 @@ async function upgradeGeo() {
     await invoke("plugin:mihomo|upgrade_geo");
 }
 /**
- * 清除 Rust 侧中所有的 WebSocket 连接
- */
-async function clearAllWsConnections() {
-    await invoke("plugin:mihomo|clear_all_ws_connections");
-}
-/**
  * 获取引擎统计（活跃连接数、追踪连接数）
  */
 async function getEngineStats() {
@@ -453,88 +447,4 @@ async function getHotReloadStatus() {
 async function getXdpStatus() {
     return await invoke("plugin:mihomo|get_xdp_status");
 }
-class MihomoWebSocket {
-    constructor(id, listeners) {
-        this.id = id;
-        this.listeners = listeners;
-    }
-    /**
-     * 创建一个新的 WebSocket 连接，用于 Mihomo 的日志监控
-     * @returns WebSocket 实例
-     */
-    static async connect_logs(level) {
-        const listeners = new Set();
-        const onMessage = new Channel();
-        onMessage.onmessage = (message) => {
-            listeners.forEach((l) => {
-                l(message);
-            });
-        };
-        const id = await invoke("plugin:mihomo|ws_logs", {
-            level,
-            onMessage,
-        });
-        const instance = new MihomoWebSocket(id, listeners);
-        MihomoWebSocket.instances.add(instance);
-        return instance;
-    }
-    /**
-     * 添加处理 WebSocket 连接后接受的数据的回调函数
-     * @param cb 回调函数
-     */
-    addListener(cb) {
-        this.listeners.add(cb);
-        return () => {
-            this.listeners.delete(cb);
-        };
-    }
-    // /**
-    //  * 发送消息到 WebSocket 连接
-    //  * @param message 发送的消息
-    //  */
-    // async send(message: Message | string | number[]): Promise<void> {
-    //   let m: Message;
-    //   if (typeof message === "string") {
-    //     m = { type: "Text", data: message };
-    //   } else if (typeof message === "object" && "type" in message) {
-    //     m = message;
-    //   } else if (Array.isArray(message)) {
-    //     m = { type: "Binary", data: message };
-    //   } else {
-    //     throw new Error(
-    //       "invalid `message` type, expected a `{ type: string, data: any }` object, a string or a numeric array",
-    //     );
-    //   }
-    //   await invoke("plugin:mihomo|ws_send", { id: this.id, message: m });
-    // }
-    /**
-     * 关闭 WebSocket 连接
-     * @param forceTimeout 强制关闭 WebSocket 连接等待的时间，单位: 毫秒, 默认为 0
-     */
-    async close() {
-        try {
-            await invoke("plugin:mihomo|ws_disconnect", {
-                id: this.id,
-                forceTimeout: 0,
-            });
-            this.listeners.clear();
-        }
-        catch (ignore) {
-            // ignore
-        }
-        finally {
-            MihomoWebSocket.instances.delete(this);
-        }
-    }
-    /**
-     * 清理全部的 websocket 连接资源
-     */
-    static async cleanupAll() {
-        await Promise.all(Array.from(MihomoWebSocket.instances).map((instance) => instance.close()));
-        this.instances.clear();
-        await clearAllWsConnections();
-    }
-}
-MihomoWebSocket.instances = new Set();
-
-export { MihomoWebSocket, clearAllWsConnections, closeAllConnections, closeConnection, createRule, delayGroup, delayProxyByName, deleteRule, deleteSubRuleBySource, disableRules, dnsWarmup, flushDNS, flushFakeIp, forceTlsRotation, getBaseConfig, getBufferPoolStats, getConnections, getDnsMetrics, getEgressStatus, getEngineStats, getGroupByName, getGroups, getHotReloadStatus, getPerfStats, getProxies, getProxyByName, getProxyProviderByName, getProxyProviders, getRuleProviders, getRuleTraffic, getRules, getSubRules, getTlsFingerprintStats, getTopConnections, getVersion, getXdpStatus, healthcheckNodeInProvider, healthcheckProxyProvider, patchBaseConfig, reloadConfig, restart, selectNodeForGroup, unfixedProxy, updateController, updateGeo, updateProxyProvider, updateRuleProvider, updateSecret, upgradeCore, upgradeGeo, upgradeUi };
+export { closeAllConnections, closeConnection, createRule, delayGroup, delayProxyByName, deleteRule, deleteSubRuleBySource, disableRules, dnsWarmup, flushDNS, flushFakeIp, forceTlsRotation, getBaseConfig, getBufferPoolStats, getConnections, getDnsMetrics, getEgressStatus, getEngineStats, getGroupByName, getGroups, getHotReloadStatus, getPerfStats, getProxies, getProxyByName, getProxyProviderByName, getProxyProviders, getRuleProviders, getRuleTraffic, getRules, getSubRules, getTlsFingerprintStats, getTopConnections, getVersion, getXdpStatus, healthcheckNodeInProvider, healthcheckProxyProvider, patchBaseConfig, reloadConfig, restart, selectNodeForGroup, unfixedProxy, updateController, updateGeo, updateProxyProvider, updateRuleProvider, updateSecret, upgradeCore, upgradeGeo, upgradeUi };

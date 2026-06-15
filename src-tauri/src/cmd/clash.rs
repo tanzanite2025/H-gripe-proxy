@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::time::UNIX_EPOCH;
+use tauri_plugin_mihomo::models::LogLevel;
 
 /// 复制Clash环境变量
 #[tauri::command]
@@ -89,6 +90,18 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 #[tauri::command]
 pub async fn clear_logs() -> CmdResult {
     runtime::clear_clash_logs().await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn log_monitor_start(level: LogLevel) -> CmdResult {
+    crate::core::log_monitor::global().start(level);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn log_monitor_stop() -> CmdResult {
+    crate::core::log_monitor::global().stop();
     Ok(())
 }
 

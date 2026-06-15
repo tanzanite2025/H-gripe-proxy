@@ -143,10 +143,6 @@ impl Builder {
                 commands::upgrade_core,
                 commands::upgrade_ui,
                 commands::upgrade_geo,
-                // ws
-                commands::ws_logs,
-                commands::ws_disconnect,
-                commands::clear_all_ws_connections,
                 // engine
                 commands::get_engine_stats,
                 commands::get_top_connections,
