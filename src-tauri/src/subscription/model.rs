@@ -1,4 +1,4 @@
-use crate::utils::help;
+use crate::{subscription::format::SubscriptionFormat, utils::help};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
@@ -16,6 +16,7 @@ pub enum UpdateStage {
     ResolveSource,
     ResolveTransportPlan,
     FetchPayload,
+    DecodePayload,
     MaterializeArtifact,
     ActivateRuntime,
     EmitFinalResult,
@@ -54,6 +55,8 @@ pub struct SubscriptionArtifactRecord {
     pub fetched_at: i64,
     pub content_length: usize,
     pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_format: Option<SubscriptionFormat>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

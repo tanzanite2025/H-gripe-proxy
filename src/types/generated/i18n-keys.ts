@@ -188,6 +188,7 @@ export const translationKeys = [
   'profiles.page.feedback.subscriptionUpdate.stages.resolveSource',
   'profiles.page.feedback.subscriptionUpdate.stages.resolveTransportPlan',
   'profiles.page.feedback.subscriptionUpdate.stages.fetchPayload',
+  'profiles.page.feedback.subscriptionUpdate.stages.decodePayload',
   'profiles.page.feedback.subscriptionUpdate.stages.materializeArtifact',
   'profiles.page.feedback.subscriptionUpdate.stages.activateRuntime',
   'profiles.page.feedback.subscriptionUpdate.stages.emitFinalResult',

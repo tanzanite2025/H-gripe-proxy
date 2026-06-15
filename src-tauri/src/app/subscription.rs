@@ -6,6 +6,7 @@ use crate::{
             fetch_subscription_update_via_control_plane, subscription_update_uses_dedicated_control_plane,
         },
         fetch::fetch_remote_profile,
+        format::parse_clash_yaml_subscription,
         model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateFinalStatus, UpdateStage, UpdateTrigger},
         persist::{build_artifact_record, build_finished_attempt_record, persist_artifact, persist_attempt_result},
         transport::{TransportKind, TransportPlan, apply_transport_to_option, transport_kind_from_option},
@@ -299,13 +300,36 @@ async fn perform_profile_update(
             }
         };
 
-        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::MaterializeArtifact, Some(transport));
+        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::DecodePayload, Some(transport));
 
         let raw_body = fetched.body.clone();
+        let format_detection =
+            match parse_clash_yaml_subscription(raw_body.as_str(), fetched.metadata.content_type.as_deref()) {
+                Ok((_, detection)) => detection,
+                Err(err) => {
+                    logging!(
+                        warn,
+                        Type::Config,
+                        "Warning: [Subscription Update] {} returned an unsupported payload format: {}",
+                        transport.label(),
+                        format_subscription_update_error(&err)
+                    );
+                    log_profile_update_fetch_error("decode payload", &err);
+                    last_stage = UpdateStage::DecodePayload;
+                    last_transport = Some(transport);
+                    last_artifact = None;
+                    last_err = Some(err);
+                    continue;
+                }
+            };
+
+        handle::Handle::notify_subscription_stage_changed(&attempt, UpdateStage::MaterializeArtifact, Some(transport));
+
         let artifact = build_artifact_record(
             raw_body.as_str(),
             chrono::Local::now().timestamp_millis(),
             fetched.metadata.content_type.clone(),
+            Some(format_detection.format),
         );
 
         if let Err(err) = persist_artifact(uid.as_str(), &artifact, raw_body.as_str()).await {

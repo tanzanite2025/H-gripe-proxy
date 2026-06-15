@@ -1,7 +1,10 @@
 use crate::{
-    subscription::model::{
-        SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState, SubscriptionStateDocument,
-        UpdateFinalStatus,
+    subscription::{
+        format::SubscriptionFormat,
+        model::{
+            SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState, SubscriptionStateDocument,
+            UpdateFinalStatus,
+        },
     },
     utils::{dirs, help},
 };
@@ -22,6 +25,7 @@ pub fn build_artifact_record(
     raw_body: &str,
     fetched_at: i64,
     content_type: Option<String>,
+    detected_format: Option<SubscriptionFormat>,
 ) -> SubscriptionArtifactRecord {
     let content_hash: String = hex::encode(Sha256::digest(raw_body.as_bytes())).into();
     let suffix_len = content_hash.len().min(12);
@@ -33,6 +37,7 @@ pub fn build_artifact_record(
         fetched_at,
         content_length: raw_body.len(),
         content_type,
+        detected_format,
     }
 }
 

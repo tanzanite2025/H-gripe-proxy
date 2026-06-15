@@ -52,6 +52,7 @@
           "resolveSource": "解析订阅源",
           "resolveTransportPlan": "规划更新链路",
           "fetchPayload": "抓取订阅内容",
+          "decodePayload": "识别订阅格式",
           "materializeArtifact": "解析订阅内容",
           "activateRuntime": "激活运行时",
           "emitFinalResult": "提交最终结果"

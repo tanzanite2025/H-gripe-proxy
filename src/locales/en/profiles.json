@@ -52,6 +52,7 @@
           "resolveSource": "Resolve source",
           "resolveTransportPlan": "Resolve transport plan",
           "fetchPayload": "Fetch payload",
+          "decodePayload": "Decode payload",
           "materializeArtifact": "Materialize artifact",
           "activateRuntime": "Activate runtime",
           "emitFinalResult": "Emit final result"
