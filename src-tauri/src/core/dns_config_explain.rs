@@ -1,5 +1,5 @@
-use super::dns_runtime::{plan_dns_server_probe_target, DnsServerProbeTarget};
-use anyhow::{anyhow, Context as _, Result};
+use super::dns_runtime::{DnsServerProbeTarget, plan_dns_server_probe_target};
+use anyhow::{Context as _, Result, anyhow};
 use serde::Serialize;
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeSet;
@@ -78,10 +78,7 @@ pub struct DnsConfigProbeSkipped {
     pub reason: String,
 }
 
-pub fn explain_dns_config(
-    yaml: &str,
-    test_domain: Option<&str>,
-) -> Result<DnsConfigExplainReport> {
+pub fn explain_dns_config(yaml: &str, test_domain: Option<&str>) -> Result<DnsConfigExplainReport> {
     let value: Value = serde_yaml_ng::from_str(yaml).context("YAML syntax error")?;
     let root = value
         .as_mapping()
@@ -212,11 +209,7 @@ fn optional_string(dns: &Mapping, key: &str, warnings: &mut Vec<String>) -> Opti
     })
 }
 
-fn validate_enhanced_mode(
-    mode: Option<&str>,
-    fake_ip_range: &Option<String>,
-    warnings: &mut Vec<String>,
-) {
+fn validate_enhanced_mode(mode: Option<&str>, fake_ip_range: &Option<String>, warnings: &mut Vec<String>) {
     let Some(mode) = mode else {
         return;
     };
@@ -277,10 +270,7 @@ fn build_nameserver_policy_section(
     summarize_server_section(key, servers)
 }
 
-fn summarize_server_section(
-    key: &str,
-    servers: Vec<DnsConfigServerExplain>,
-) -> DnsConfigServerSection {
+fn summarize_server_section(key: &str, servers: Vec<DnsConfigServerExplain>) -> DnsConfigServerSection {
     let probeable_count = servers.iter().filter(|server| server.probeable).count();
     let server_count = servers.len();
 
@@ -370,10 +360,7 @@ fn fallback_filter_keys(dns: &Mapping, warnings: &mut Vec<String>) -> Vec<String
     map.keys().filter_map(value_key).collect()
 }
 
-fn build_probe_plan(
-    server_sections: &[DnsConfigServerSection],
-    test_domain: String,
-) -> DnsConfigProbePlan {
+fn build_probe_plan(server_sections: &[DnsConfigServerSection], test_domain: String) -> DnsConfigProbePlan {
     let mut seen = BTreeSet::new();
     let mut targets = Vec::new();
     let mut skipped = Vec::new();
@@ -417,10 +404,7 @@ fn build_probe_plan(
     }
 }
 
-fn warn_for_missing_nameservers(
-    server_sections: &[DnsConfigServerSection],
-    warnings: &mut Vec<String>,
-) {
+fn warn_for_missing_nameservers(server_sections: &[DnsConfigServerSection], warnings: &mut Vec<String>) {
     let has_nameserver = server_sections
         .iter()
         .find(|section| section.key == "nameserver")
@@ -472,8 +456,20 @@ dns:
         assert_eq!(report.probe_plan.status, DnsConfigProbePlanStatus::Ready);
         assert_eq!(report.probe_plan.test_domain, "example.com");
         assert_eq!(report.probe_plan.target_count, 2);
-        assert!(report.probe_plan.targets.iter().any(|target| target.protocol_name == "Doh"));
-        assert!(report.probe_plan.targets.iter().any(|target| target.protocol_name == "Dot"));
+        assert!(
+            report
+                .probe_plan
+                .targets
+                .iter()
+                .any(|target| target.protocol_name == "Doh")
+        );
+        assert!(
+            report
+                .probe_plan
+                .targets
+                .iter()
+                .any(|target| target.protocol_name == "Dot")
+        );
     }
 
     #[test]
@@ -527,7 +523,10 @@ dns:
 
         assert!(report.valid);
         assert_eq!(report.probe_plan.status, DnsConfigProbePlanStatus::Skipped);
-        assert_eq!(report.explanation, "dns config is missing; no Rust DNS probes can be planned");
+        assert_eq!(
+            report.explanation,
+            "dns config is missing; no Rust DNS probes can be planned"
+        );
     }
 
     #[test]

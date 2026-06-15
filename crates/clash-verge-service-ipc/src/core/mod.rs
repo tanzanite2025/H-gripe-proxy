@@ -2,9 +2,7 @@ pub mod command;
 pub use command::IpcCommand;
 
 pub mod structure;
-pub use structure::{
-    ClashConfig, CoreConfig, ServiceLifecycleState, ServiceStatusSnapshot, WriterConfig,
-};
+pub use structure::{ClashConfig, CoreConfig, ServiceLifecycleState, ServiceStatusSnapshot, WriterConfig};
 
 pub mod paths;
 pub use paths::{ServicePaths, service_paths};
@@ -34,8 +32,8 @@ mod status;
 
 #[cfg(feature = "standalone")]
 pub use desired::{
-    DesiredState, load_desired_state, persist_core_started, persist_core_stopped,
-    persist_writer_config, restore_desired_state,
+    DesiredState, load_desired_state, persist_core_started, persist_core_stopped, persist_writer_config,
+    restore_desired_state,
 };
 #[cfg(all(feature = "standalone", feature = "test"))]
 pub use manager::{CoreWatchdogTestConfig, set_core_watchdog_config_for_tests};

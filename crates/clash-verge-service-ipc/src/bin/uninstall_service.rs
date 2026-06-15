@@ -6,11 +6,11 @@ fn main() {
 use anyhow::Error;
 
 #[cfg(target_os = "macos")]
-#[path = "../macos_service_identity.rs"]
-mod macos_service_identity;
-#[cfg(target_os = "macos")]
 #[path = "../macos_legacy_migration.rs"]
 mod macos_legacy_migration;
+#[cfg(target_os = "macos")]
+#[path = "../macos_service_identity.rs"]
+mod macos_service_identity;
 
 #[cfg(target_os = "macos")]
 fn main() -> Result<(), Error> {
@@ -29,17 +29,12 @@ fn main() -> Result<(), Error> {
 
     // 停止并卸载服务
     let _ = run_command("launchctl", &["stop", service_id], debug);
-    let _ = run_command(
-        "launchctl",
-        &["disable", system_target.as_str()],
-        debug,
-    );
+    let _ = run_command("launchctl", &["disable", system_target.as_str()], debug);
     let _ = run_command("launchctl", &["bootout", "system", plist_file.as_str()], debug);
 
     // 删除文件
     if Path::new(&plist_file).exists() {
-        std::fs::remove_file(&plist_file)
-            .map_err(|e| anyhow::anyhow!("Failed to remove plist file: {}", e))?;
+        std::fs::remove_file(&plist_file).map_err(|e| anyhow::anyhow!("Failed to remove plist file: {}", e))?;
     }
 
     // 删除整个 bundle 目录
@@ -59,22 +54,13 @@ fn main() -> Result<(), Error> {
     let debug = env::args().any(|arg| arg == "--debug");
 
     // Stop and disable service
-    let _ = run_command(
-        "systemctl",
-        &["stop", &format!("{}.service", SERVICE_NAME)],
-        debug,
-    );
-    let _ = run_command(
-        "systemctl",
-        &["disable", &format!("{}.service", SERVICE_NAME)],
-        debug,
-    );
+    let _ = run_command("systemctl", &["stop", &format!("{}.service", SERVICE_NAME)], debug);
+    let _ = run_command("systemctl", &["disable", &format!("{}.service", SERVICE_NAME)], debug);
 
     // Remove service file
     let unit_file = format!("/etc/systemd/system/{}.service", SERVICE_NAME);
     if std::path::Path::new(&unit_file).exists() {
-        std::fs::remove_file(&unit_file)
-            .map_err(|e| anyhow::anyhow!("Failed to remove service file: {}", e))?;
+        std::fs::remove_file(&unit_file).map_err(|e| anyhow::anyhow!("Failed to remove service file: {}", e))?;
     }
 
     // Reload systemd

@@ -28,21 +28,13 @@ pub async fn load_desired_state() -> Result<DesiredState> {
             return Ok(DesiredState::default());
         }
         Err(error) => {
-            return Err(error).with_context(|| {
-                format!(
-                    "failed to read desired state {:?}",
-                    paths.desired_state_path()
-                )
-            });
+            return Err(error)
+                .with_context(|| format!("failed to read desired state {:?}", paths.desired_state_path()));
         }
     };
 
-    serde_json::from_slice(&content).with_context(|| {
-        format!(
-            "failed to parse desired state {:?}",
-            paths.desired_state_path()
-        )
-    })
+    serde_json::from_slice(&content)
+        .with_context(|| format!("failed to parse desired state {:?}", paths.desired_state_path()))
 }
 
 pub async fn persist_core_started(config: &ClashConfig) -> Result<DesiredState> {
@@ -90,10 +82,7 @@ pub async fn restore_desired_state() -> Result<()> {
         return Ok(());
     };
 
-    info!(
-        "Restoring core from desired state generation {}",
-        state.generation
-    );
+    info!("Restoring core from desired state generation {}", state.generation);
     CORE_MANAGER.lock().await.start_core(config).await
 }
 
@@ -122,12 +111,7 @@ async fn write_desired_state(state: &DesiredState) -> Result<()> {
         .with_context(|| format!("failed to write desired state temp file {:?}", temp_path))?;
     tokio::fs::rename(&temp_path, paths.desired_state_path())
         .await
-        .with_context(|| {
-            format!(
-                "failed to move desired state into {:?}",
-                paths.desired_state_path()
-            )
-        })?;
+        .with_context(|| format!("failed to move desired state into {:?}", paths.desired_state_path()))?;
 
     Ok(())
 }

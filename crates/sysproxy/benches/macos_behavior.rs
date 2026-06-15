@@ -15,30 +15,22 @@ fn bench_get_system_proxy(c: &mut Criterion) {
 fn bench_get_http(c: &mut Criterion) {
     let service = get_valid_service();
 
-    c.bench_function("get_http", |b| {
-        b.iter(|| Sysproxy::get_http(&service, None))
-    });
+    c.bench_function("get_http", |b| b.iter(|| Sysproxy::get_http(&service, None)));
 }
 
 fn bench_get_https(c: &mut Criterion) {
     let service = get_valid_service();
-    c.bench_function("get_https", |b| {
-        b.iter(|| Sysproxy::get_https(&service, None))
-    });
+    c.bench_function("get_https", |b| b.iter(|| Sysproxy::get_https(&service, None)));
 }
 
 fn bench_get_socks(c: &mut Criterion) {
     let service = get_valid_service();
-    c.bench_function("get_socks", |b| {
-        b.iter(|| Sysproxy::get_socks(&service, None))
-    });
+    c.bench_function("get_socks", |b| b.iter(|| Sysproxy::get_socks(&service, None)));
 }
 
 fn bench_get_bypass(c: &mut Criterion) {
     let service = get_valid_service();
-    c.bench_function("get_bypass", |b| {
-        b.iter(|| Sysproxy::get_bypass(&service, None))
-    });
+    c.bench_function("get_bypass", |b| b.iter(|| Sysproxy::get_bypass(&service, None)));
 }
 
 fn bench_has_permission(c: &mut Criterion) {

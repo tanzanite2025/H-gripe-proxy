@@ -4,19 +4,12 @@ use crate::{
     subscription::{
         artifact::build_clash_yaml_artifact_candidate,
         control_plane::{
-            fetch_subscription_update_via_control_plane,
-            subscription_update_uses_dedicated_control_plane,
+            fetch_subscription_update_via_control_plane, subscription_update_uses_dedicated_control_plane,
         },
         fetch::fetch_remote_profile,
-        model::{
-            SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateStage,
-            UpdateTrigger,
-        },
+        model::{SubscriptionArtifactRecord, SubscriptionUpdateAttempt, UpdateStage, UpdateTrigger},
         persist::persist_artifact_candidate,
-        transport::{
-            TransportKind, TransportPlan, apply_transport_to_option,
-            transport_kind_from_option,
-        },
+        transport::{TransportKind, TransportPlan, apply_transport_to_option, transport_kind_from_option},
     },
     utils::help::mask_err,
 };
@@ -92,15 +85,9 @@ impl SubscriptionUpdateExecutor {
 
         let mut attempt = SubscriptionUpdateAttempt::new(self.source_id.clone(), self.trigger);
         on_attempt_started(&attempt);
-        record_stage(
-            &mut attempt,
-            UpdateStage::ResolveSource,
-            None,
-            &mut on_stage_changed,
-        );
+        record_stage(&mut attempt, UpdateStage::ResolveSource, None, &mut on_stage_changed);
 
-        let merged_option =
-            PrfOption::merge(self.source_option.as_ref(), self.request_option.as_ref());
+        let merged_option = PrfOption::merge(self.source_option.as_ref(), self.request_option.as_ref());
         let persisted_option = self.source_option.clone();
         record_stage(
             &mut attempt,
@@ -110,10 +97,7 @@ impl SubscriptionUpdateExecutor {
         );
 
         let transport_plan =
-            TransportPlan::for_subscription_update(Some(transport_kind_from_option(
-                merged_option.as_ref(),
-            )))
-            .await;
+            TransportPlan::for_subscription_update(Some(transport_kind_from_option(merged_option.as_ref()))).await;
         if let Some(note) = transport_plan.note.as_ref() {
             logging!(
                 info,
@@ -158,11 +142,8 @@ impl SubscriptionUpdateExecutor {
                 &mut on_stage_changed,
             );
 
-            let fetched = match if use_dedicated_control_plane
-                && matches!(transport, TransportKind::LocalProxy)
-            {
-                fetch_subscription_update_via_control_plane(self.url.as_str(), &attempt_option)
-                    .await
+            let fetched = match if use_dedicated_control_plane && matches!(transport, TransportKind::LocalProxy) {
+                fetch_subscription_update_via_control_plane(self.url.as_str(), &attempt_option).await
             } else {
                 fetch_remote_profile(self.url.as_str(), Some(&attempt_option)).await
             } {
@@ -193,29 +174,27 @@ impl SubscriptionUpdateExecutor {
                 &mut on_stage_changed,
             );
 
-            let artifact_candidate = match build_clash_yaml_artifact_candidate(
-                &fetched,
-                chrono::Local::now().timestamp_millis(),
-            ) {
-                Ok(candidate) => candidate,
-                Err(err) => {
-                    logging!(
-                        warn,
-                        Type::Config,
-                        "Warning: [Subscription Update] {} returned an unsupported payload format: {}",
-                        transport.label(),
-                        format_subscription_update_error(&err)
-                    );
-                    log_subscription_update_error("decode payload", &err);
-                    last_failure = Some(TransportAttemptFailure {
-                        stage: UpdateStage::DecodePayload,
-                        transport: Some(transport),
-                        artifact: None,
-                        error: err,
-                    });
-                    continue;
-                }
-            };
+            let artifact_candidate =
+                match build_clash_yaml_artifact_candidate(&fetched, chrono::Local::now().timestamp_millis()) {
+                    Ok(candidate) => candidate,
+                    Err(err) => {
+                        logging!(
+                            warn,
+                            Type::Config,
+                            "Warning: [Subscription Update] {} returned an unsupported payload format: {}",
+                            transport.label(),
+                            format_subscription_update_error(&err)
+                        );
+                        log_subscription_update_error("decode payload", &err);
+                        last_failure = Some(TransportAttemptFailure {
+                            stage: UpdateStage::DecodePayload,
+                            transport: Some(transport),
+                            artifact: None,
+                            error: err,
+                        });
+                        continue;
+                    }
+                };
 
             record_stage(
                 &mut attempt,
@@ -225,9 +204,7 @@ impl SubscriptionUpdateExecutor {
             );
 
             let artifact = artifact_candidate.record.clone();
-            if let Err(err) =
-                persist_artifact_candidate(self.source_id.as_str(), &artifact_candidate).await
-            {
+            if let Err(err) = persist_artifact_candidate(self.source_id.as_str(), &artifact_candidate).await {
                 return Err(SubscriptionUpdateFailure {
                     attempt,
                     stage: UpdateStage::MaterializeArtifact,
@@ -237,34 +214,29 @@ impl SubscriptionUpdateExecutor {
                 });
             }
 
-            let legacy_profile_item = match PrfItem::from_fetched_payload(
-                self.url.as_str(),
-                fetched,
-                None,
-                None,
-                persisted_option.as_ref(),
-            )
-            .await
-            {
-                Ok(item) => item,
-                Err(err) => {
-                    logging!(
-                        warn,
-                        Type::Config,
-                        "Warning: [Subscription Update] {} returned an invalid payload: {}",
-                        transport.label(),
-                        format_subscription_update_error(&err)
-                    );
-                    log_subscription_update_error("materialize artifact", &err);
-                    last_failure = Some(TransportAttemptFailure {
-                        stage: UpdateStage::MaterializeArtifact,
-                        transport: Some(transport),
-                        artifact: Some(artifact),
-                        error: err,
-                    });
-                    continue;
-                }
-            };
+            let legacy_profile_item =
+                match PrfItem::from_fetched_payload(self.url.as_str(), fetched, None, None, persisted_option.as_ref())
+                    .await
+                {
+                    Ok(item) => item,
+                    Err(err) => {
+                        logging!(
+                            warn,
+                            Type::Config,
+                            "Warning: [Subscription Update] {} returned an invalid payload: {}",
+                            transport.label(),
+                            format_subscription_update_error(&err)
+                        );
+                        log_subscription_update_error("materialize artifact", &err);
+                        last_failure = Some(TransportAttemptFailure {
+                            stage: UpdateStage::MaterializeArtifact,
+                            transport: Some(transport),
+                            artifact: Some(artifact),
+                            error: err,
+                        });
+                        continue;
+                    }
+                };
 
             logging!(
                 info,
@@ -336,10 +308,7 @@ pub fn format_subscription_update_error(err: &anyhow::Error) -> String {
         .into()
 }
 
-pub fn append_subscription_update_note(
-    message: impl Into<std::string::String>,
-    note: Option<&String>,
-) -> String {
+pub fn append_subscription_update_note(message: impl Into<std::string::String>, note: Option<&String>) -> String {
     let mut message = message.into();
 
     if let Some(note) = note.map(|note| note.trim()).filter(|note| !note.is_empty()) {
@@ -378,10 +347,7 @@ mod tests {
 
         assert_eq!(attempt.stage_history.len(), 1);
         assert_eq!(attempt.stage_history[0].stage, UpdateStage::FetchPayload);
-        assert_eq!(
-            observed,
-            vec![(UpdateStage::FetchPayload, Some(TransportKind::Direct))]
-        );
+        assert_eq!(observed, vec![(UpdateStage::FetchPayload, Some(TransportKind::Direct))]);
     }
 
     #[test]

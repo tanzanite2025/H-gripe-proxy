@@ -1,9 +1,7 @@
 use crate::WriterConfig;
 use crate::core::ClashConfig;
 use crate::core::logger::{get_writer, set_or_update_writer};
-use crate::core::runtime::{
-    CoreRuntimeRecord, remove_core_runtime_record, write_core_runtime_record,
-};
+use crate::core::runtime::{CoreRuntimeRecord, remove_core_runtime_record, write_core_runtime_record};
 use crate::core::state::set_service_lifecycle_state;
 use crate::core::structure::ServiceLifecycleState;
 use anyhow::{Result, anyhow};
@@ -139,8 +137,7 @@ pub struct CoreWatchdogTestConfig {
 }
 
 #[cfg(feature = "test")]
-static WATCHDOG_CONFIG_OVERRIDE: Lazy<StdMutex<Option<WatchdogConfig>>> =
-    Lazy::new(|| StdMutex::new(None));
+static WATCHDOG_CONFIG_OVERRIDE: Lazy<StdMutex<Option<WatchdogConfig>>> = Lazy::new(|| StdMutex::new(None));
 
 #[cfg(feature = "test")]
 pub fn set_core_watchdog_config_for_tests(config: Option<CoreWatchdogTestConfig>) {
@@ -208,11 +205,7 @@ fn log_core_exit(status: &std::process::ExitStatus, uptime: Duration) -> String 
         error!("Core terminated by signal: {}", sig);
     }
 
-    format!(
-        "{} (code: {:?})",
-        exit_info.diagnosis(),
-        exit_info.exit_code
-    )
+    format!("{} (code: {:?})", exit_info.diagnosis(), exit_info.exit_code)
 }
 
 fn unix_timestamp_secs() -> u64 {
@@ -230,11 +223,7 @@ fn non_zero_u64(value: u64) -> Option<u64> {
     (value != 0).then_some(value)
 }
 
-async fn write_runtime_record_for_config(
-    pid: Option<u32>,
-    config: &ClashConfig,
-    context: &'static str,
-) {
+async fn write_runtime_record_for_config(pid: Option<u32>, config: &ClashConfig, context: &'static str) {
     if let Some(pid) = pid
         && let Err(error) = write_core_runtime_record(&CoreRuntimeRecord {
             pid,
@@ -292,15 +281,12 @@ impl CoreManager {
 
         let args = core_args(&config);
 
-        let child_guard =
-            run_with_logging(&config.core_config.core_path, &args, &config.log_config).await?;
+        let child_guard = run_with_logging(&config.core_config.core_path, &args, &config.log_config).await?;
         let child_pid = child_guard.id();
 
         *self.core_start_time.lock().await = Some(Instant::now());
-        self.core_started_at
-            .store(unix_timestamp_secs(), Ordering::Relaxed);
-        self.running_pid
-            .store(child_pid.unwrap_or_default(), Ordering::Relaxed);
+        self.core_started_at.store(unix_timestamp_secs(), Ordering::Relaxed);
+        self.running_pid.store(child_pid.unwrap_or_default(), Ordering::Relaxed);
         *self.running_config.lock().await = Some(config.clone());
 
         write_runtime_record_for_config(child_pid, &config, "after start").await;
@@ -381,11 +367,7 @@ impl CoreManager {
                     }
                 };
 
-                let uptime = start_time_arc
-                    .lock()
-                    .await
-                    .map(|t| t.elapsed())
-                    .unwrap_or_default();
+                let uptime = start_time_arc.lock().await.map(|t| t.elapsed()).unwrap_or_default();
                 let exit_reason = log_core_exit(&status, uptime);
                 *last_exit_reason_arc.lock().await = Some(exit_reason);
                 set_service_lifecycle_state(ServiceLifecycleState::RecoveringCore);
@@ -396,8 +378,7 @@ impl CoreManager {
                 remove_core_runtime_record().await;
 
                 let now = Instant::now();
-                restart_timestamps
-                    .retain(|t| now.duration_since(*t) < watchdog_config.restart_window);
+                restart_timestamps.retain(|t| now.duration_since(*t) < watchdog_config.restart_window);
                 if restart_timestamps.is_empty() {
                     consecutive_attempt = 0;
                 }
@@ -428,9 +409,7 @@ impl CoreManager {
                     }
 
                     let args = core_args(&config);
-                    match run_with_logging(&config.core_config.core_path, &args, &config.log_config)
-                        .await
-                    {
+                    match run_with_logging(&config.core_config.core_path, &args, &config.log_config).await {
                         Ok(new_guard) => {
                             let new_pid = new_guard.id();
                             running_pid_arc.store(new_pid.unwrap_or_default(), Ordering::Relaxed);
@@ -439,14 +418,10 @@ impl CoreManager {
                             started_at_arc.store(now_secs, Ordering::Relaxed);
                             restart_count_arc.fetch_add(1, Ordering::Relaxed);
                             last_recovery_at_arc.store(now_secs, Ordering::Relaxed);
-                            write_runtime_record_for_config(new_pid, &config, "after restart")
-                                .await;
+                            write_runtime_record_for_config(new_pid, &config, "after restart").await;
 
                             consecutive_attempt += 1;
-                            info!(
-                                "Core restarted successfully (attempt #{})",
-                                consecutive_attempt
-                            );
+                            info!("Core restarted successfully (attempt #{})", consecutive_attempt);
                             set_service_lifecycle_state(ServiceLifecycleState::Running);
                             child_guard = Some(new_guard);
                             continue 'watchdog;
@@ -455,9 +430,7 @@ impl CoreManager {
                             error!("Failed to restart core: {}", error);
                             consecutive_attempt += 1;
                             let now = Instant::now();
-                            restart_timestamps.retain(|t| {
-                                now.duration_since(*t) < watchdog_config.restart_window
-                            });
+                            restart_timestamps.retain(|t| now.duration_since(*t) < watchdog_config.restart_window);
                             restart_timestamps.push(now);
                         }
                     }
@@ -552,11 +525,7 @@ impl CoreManager {
     }
 }
 
-pub async fn run_with_logging(
-    bin_path: &str,
-    args: &[String],
-    writer_config: &WriterConfig,
-) -> Result<ChildGuard> {
+pub async fn run_with_logging(bin_path: &str, args: &[String], writer_config: &WriterConfig) -> Result<ChildGuard> {
     set_or_update_writer(writer_config).await?;
 
     #[cfg(not(unix))]
@@ -639,7 +608,6 @@ pub async fn run_with_logging(
     Ok(child_guard)
 }
 
-pub static CORE_MANAGER: Lazy<Arc<Mutex<CoreManager>>> =
-    Lazy::new(|| Arc::new(Mutex::new(CoreManager::new())));
+pub static CORE_MANAGER: Lazy<Arc<Mutex<CoreManager>>> = Lazy::new(|| Arc::new(Mutex::new(CoreManager::new())));
 
 pub static LOGGER_MANAGER: Lazy<Arc<AsyncLogger>> = Lazy::new(|| Arc::new(AsyncLogger::new()));

@@ -85,10 +85,7 @@ fn persistent_state_dir() -> PathBuf {
         }
 
         if let Some(home) = std::env::var_os("HOME") {
-            return PathBuf::from(home)
-                .join(".local")
-                .join("state")
-                .join(SERVICE_NAME);
+            return PathBuf::from(home).join(".local").join("state").join(SERVICE_NAME);
         }
 
         PathBuf::from("/var/lib").join(SERVICE_NAME)

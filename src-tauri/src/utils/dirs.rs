@@ -133,10 +133,7 @@ pub fn release_app_home_dir() -> Result<PathBuf> {
     )
 }
 
-fn app_home_dir_with_legacy_migration(
-    app_id: &str,
-    migration: &LegacyPathMigrationConfig,
-) -> Result<PathBuf> {
+fn app_home_dir_with_legacy_migration(app_id: &str, migration: &LegacyPathMigrationConfig) -> Result<PathBuf> {
     use tauri::utils::platform::current_exe;
 
     let flag = PORTABLE_FLAG.get().unwrap_or(&false);

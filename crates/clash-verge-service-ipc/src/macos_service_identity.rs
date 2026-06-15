@@ -26,10 +26,7 @@ pub fn legacy_service_plist_path() -> String {
 }
 
 pub fn service_binary_path() -> String {
-    format!(
-        "{}/Contents/MacOS/{SERVICE_EXECUTABLE_NAME}",
-        service_bundle_path()
-    )
+    format!("{}/Contents/MacOS/{SERVICE_EXECUTABLE_NAME}", service_bundle_path())
 }
 
 pub fn launchctl_system_target() -> String {

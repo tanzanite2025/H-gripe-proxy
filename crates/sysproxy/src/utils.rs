@@ -37,12 +37,8 @@ pub fn ipv4_cidr_to_wildcard(cidr: &str) -> Result<Vec<String>> {
             break;
         }
 
-        let s = start[i]
-            .parse::<u16>()
-            .map_err(|_| Error::ParseStr(cidr.into()))?;
-        let e = end[i]
-            .parse::<u16>()
-            .map_err(|_| Error::ParseStr(cidr.into()))?;
+        let s = start[i].parse::<u16>().map_err(|_| Error::ParseStr(cidr.into()))?;
+        let e = end[i].parse::<u16>().map_err(|_| Error::ParseStr(cidr.into()))?;
 
         for j in s..e + 1 {
             let mut builder = each.clone();

@@ -6,11 +6,11 @@ fn main() {
 use anyhow::Error;
 
 #[cfg(target_os = "macos")]
-#[path = "../macos_service_identity.rs"]
-mod macos_service_identity;
-#[cfg(target_os = "macos")]
 #[path = "../macos_legacy_migration.rs"]
 mod macos_legacy_migration;
+#[cfg(target_os = "macos")]
+#[path = "../macos_service_identity.rs"]
+mod macos_service_identity;
 
 #[cfg(unix)]
 fn env_u32(key: &str) -> Option<u32> {
@@ -71,8 +71,7 @@ fn main() -> Result<(), Error> {
     let macos_path = format!("{}/MacOS", contents_path);
 
     // 创建 bundle 目录结构
-    std::fs::create_dir_all(&macos_path)
-        .map_err(|e| anyhow::anyhow!("Failed to create bundle directories: {}", e))?;
+    std::fs::create_dir_all(&macos_path).map_err(|e| anyhow::anyhow!("Failed to create bundle directories: {}", e))?;
 
     // 复制二进制文件到 bundle 的 MacOS 目录
     let target_binary_path = format!("{}/{}", macos_path, identity::SERVICE_EXECUTABLE_NAME);
@@ -94,8 +93,7 @@ fn main() -> Result<(), Error> {
     // 创建 LaunchDaemons 目录（如果不存在）
     let plist_dir = Path::new("/Library/LaunchDaemons");
     if !plist_dir.exists() {
-        std::fs::create_dir(plist_dir)
-            .map_err(|e| anyhow::anyhow!("Failed to create plist directory: {}", e))?;
+        std::fs::create_dir(plist_dir).map_err(|e| anyhow::anyhow!("Failed to create plist directory: {}", e))?;
     }
 
     // 创建并写入 launchd plist
@@ -117,11 +115,7 @@ fn main() -> Result<(), Error> {
     // 设置权限
     // 设置 LaunchDaemons plist 权限
     let _ = run_command("chmod", &["644", plist_file.to_str().unwrap()], debug);
-    let _ = run_command(
-        "chown",
-        &["root:wheel", plist_file.to_str().unwrap()],
-        debug,
-    );
+    let _ = run_command("chown", &["root:wheel", plist_file.to_str().unwrap()], debug);
 
     // 设置二进制文件权限
     let _ = run_command("chmod", &["544", &target_binary_path], debug);
@@ -134,11 +128,7 @@ fn main() -> Result<(), Error> {
     // 加载和启动服务
     let service_target = identity::launchctl_system_target();
     let _ = run_command("launchctl", &["enable", service_target.as_str()], debug);
-    let _ = run_command(
-        "launchctl",
-        &["bootout", "system", plist_file.to_str().unwrap()],
-        debug,
-    );
+    let _ = run_command("launchctl", &["bootout", "system", plist_file.to_str().unwrap()], debug);
     let _ = run_command(
         "launchctl",
         &["bootstrap", "system", plist_file.to_str().unwrap()],
@@ -159,9 +149,7 @@ fn main() -> Result<(), Error> {
 
     let debug = env::args().any(|arg| arg == "--debug");
 
-    let service_binary_path = env::current_exe()
-        .unwrap()
-        .with_file_name("clash-verge-service");
+    let service_binary_path = env::current_exe().unwrap().with_file_name("clash-verge-service");
 
     if !service_binary_path.exists() {
         return Err(anyhow::anyhow!("clash-verge-service binary not found"));
@@ -176,11 +164,7 @@ fn main() -> Result<(), Error> {
     match status_output.status.code() {
         Some(0) => return Ok(()), // Service is running
         Some(1) | Some(2) | Some(3) => {
-            run_command(
-                "systemctl",
-                &["start", &format!("{}.service", SERVICE_NAME)],
-                debug,
-            )?;
+            run_command("systemctl", &["start", &format!("{}.service", SERVICE_NAME)], debug)?;
             return Ok(());
         }
         Some(4) => {} // Service not found, continue with installation
@@ -212,10 +196,7 @@ fn main() -> Result<(), Error> {
 #[cfg(windows)]
 fn main() -> anyhow::Result<()> {
     use platform_lib::{
-        service::{
-            ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState,
-            ServiceType,
-        },
+        service::{ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState, ServiceType},
         service_manager::{ServiceManager, ServiceManagerAccess},
     };
     use std::env;
@@ -229,10 +210,7 @@ fn main() -> anyhow::Result<()> {
         && let Ok(status) = service.query_status()
     {
         match status.current_state {
-            ServiceState::StopPending
-            | ServiceState::Stopped
-            | ServiceState::PausePending
-            | ServiceState::Paused => {
+            ServiceState::StopPending | ServiceState::Stopped | ServiceState::PausePending | ServiceState::Paused => {
                 service.start(&Vec::<&OsStr>::new())?;
             }
             _ => {}
@@ -241,9 +219,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let service_binary_path = env::current_exe()
-        .unwrap()
-        .with_file_name("clash-verge-service.exe");
+    let service_binary_path = env::current_exe().unwrap().with_file_name("clash-verge-service.exe");
 
     if !service_binary_path.exists() {
         eprintln!("clash-verge-service.exe not found");

@@ -35,11 +35,7 @@ pub fn level_filter_to_string(log_level: &LevelFilter) -> Cow<'static, str> {
     }
 }
 
-pub fn console_format(
-    w: &mut dyn Write,
-    now: &mut DeferredNow,
-    record: &Record,
-) -> std::io::Result<()> {
+pub fn console_format(w: &mut dyn Write, now: &mut DeferredNow, record: &Record) -> std::io::Result<()> {
     let current_thread = thread::current();
     let thread_name = current_thread.name().unwrap_or("unnamed");
 
@@ -60,22 +56,10 @@ pub fn console_format(
     #[cfg(feature = "color")]
     let thread_name = Color::Cyan.paint(thread_name);
 
-    write!(
-        w,
-        "{} {} {} {} {}",
-        now,
-        level,
-        module_line,
-        thread_name,
-        record.args(),
-    )
+    write!(w, "{} {} {} {} {}", now, level, module_line, thread_name, record.args(),)
 }
 
-pub fn file_format_with_level(
-    w: &mut dyn Write,
-    now: &mut DeferredNow,
-    record: &Record,
-) -> std::io::Result<()> {
+pub fn file_format_with_level(w: &mut dyn Write, now: &mut DeferredNow, record: &Record) -> std::io::Result<()> {
     write!(
         w,
         "[{}] {} {}",
@@ -85,17 +69,8 @@ pub fn file_format_with_level(
     )
 }
 
-pub fn file_format_without_level(
-    w: &mut dyn Write,
-    now: &mut DeferredNow,
-    record: &Record,
-) -> std::io::Result<()> {
-    write!(
-        w,
-        "[{}] {}",
-        now.format("%Y-%m-%d %H:%M:%S%.3f"),
-        record.args(),
-    )
+pub fn file_format_without_level(w: &mut dyn Write, now: &mut DeferredNow, record: &Record) -> std::io::Result<()> {
+    write!(w, "[{}] {}", now.format("%Y-%m-%d %H:%M:%S%.3f"), record.args(),)
 }
 
 const LOGS_QUEUE_LEN: usize = 100;

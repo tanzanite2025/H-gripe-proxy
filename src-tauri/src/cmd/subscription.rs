@@ -4,20 +4,19 @@ use crate::subscription::{
     events::SubscriptionEvent,
     model::{SubscriptionSourceState, SubscriptionStateDocument},
     persist::{
-        cleanup_subscription_artifacts, list_subscription_artifact_metadata,
+        SubscriptionArtifactCleanupResult, SubscriptionArtifactContent, SubscriptionArtifactContentKind,
+        SubscriptionArtifactMetadata, SubscriptionArtifactSummary, cleanup_subscription_artifacts,
+        list_subscription_artifact_metadata,
         list_subscription_artifact_summaries as list_subscription_artifact_summary_records,
         read_subscription_artifact_content, read_subscription_artifact_diagnostics,
-        read_subscription_artifact_metadata, read_subscription_source_state,
-        read_subscription_source_update_events, read_subscription_state_document,
-        SubscriptionArtifactCleanupResult, SubscriptionArtifactContent,
-        SubscriptionArtifactContentKind, SubscriptionArtifactMetadata,
-        SubscriptionArtifactSummary,
+        read_subscription_artifact_metadata, read_subscription_source_state, read_subscription_source_update_events,
+        read_subscription_state_document,
     },
     source::{
-        get_subscription_source as get_subscription_source_record,
-        list_subscription_sources as list_subscription_source_records, SubscriptionSource,
+        SubscriptionSource, get_subscription_source as get_subscription_source_record,
+        list_subscription_sources as list_subscription_source_records,
     },
-    transport::{plan_subscription_update_transport_for_source, TransportPlan},
+    transport::{TransportPlan, plan_subscription_update_transport_for_source},
 };
 
 #[tauri::command]
@@ -31,34 +30,24 @@ pub async fn list_subscription_sources() -> CmdResult<Vec<SubscriptionSource>> {
 }
 
 #[tauri::command]
-pub async fn get_subscription_source(
-    source_id: String,
-) -> CmdResult<Option<SubscriptionSource>> {
-    get_subscription_source_record(source_id.as_str())
-        .await
-        .stringify_err()
+pub async fn get_subscription_source(source_id: String) -> CmdResult<Option<SubscriptionSource>> {
+    get_subscription_source_record(source_id.as_str()).await.stringify_err()
 }
 
 #[tauri::command]
-pub async fn get_subscription_source_state(
-    source_id: String,
-) -> CmdResult<Option<SubscriptionSourceState>> {
+pub async fn get_subscription_source_state(source_id: String) -> CmdResult<Option<SubscriptionSourceState>> {
     read_subscription_source_state(source_id.as_str()).await.stringify_err()
 }
 
 #[tauri::command]
-pub async fn get_subscription_source_update_events(
-    source_id: String,
-) -> CmdResult<Vec<SubscriptionEvent>> {
+pub async fn get_subscription_source_update_events(source_id: String) -> CmdResult<Vec<SubscriptionEvent>> {
     read_subscription_source_update_events(source_id.as_str())
         .await
         .stringify_err()
 }
 
 #[tauri::command]
-pub async fn plan_subscription_update_transport(
-    source_id: String,
-) -> CmdResult<TransportPlan> {
+pub async fn plan_subscription_update_transport(source_id: String) -> CmdResult<TransportPlan> {
     plan_subscription_update_transport_for_source(source_id.as_str())
         .await
         .stringify_err()
@@ -90,28 +79,20 @@ pub async fn get_subscription_artifact_content(
     version: String,
     content_kind: SubscriptionArtifactContentKind,
 ) -> CmdResult<Option<SubscriptionArtifactContent>> {
-    read_subscription_artifact_content(
-        source_id.as_str(),
-        version.as_str(),
-        content_kind,
-    )
-    .await
-    .stringify_err()
+    read_subscription_artifact_content(source_id.as_str(), version.as_str(), content_kind)
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]
-pub async fn list_subscription_artifacts(
-    source_id: String,
-) -> CmdResult<Vec<SubscriptionArtifactMetadata>> {
+pub async fn list_subscription_artifacts(source_id: String) -> CmdResult<Vec<SubscriptionArtifactMetadata>> {
     list_subscription_artifact_metadata(source_id.as_str())
         .await
         .stringify_err()
 }
 
 #[tauri::command]
-pub async fn list_subscription_artifact_summaries(
-    source_id: String,
-) -> CmdResult<Vec<SubscriptionArtifactSummary>> {
+pub async fn list_subscription_artifact_summaries(source_id: String) -> CmdResult<Vec<SubscriptionArtifactSummary>> {
     list_subscription_artifact_summary_records(source_id.as_str())
         .await
         .stringify_err()
