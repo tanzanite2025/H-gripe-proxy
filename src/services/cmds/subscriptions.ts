@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import type {
+  SubscriptionArtifactCleanupResult,
   SubscriptionArtifactContent,
   SubscriptionArtifactContentKind,
   SubscriptionArtifactDiagnostics,
@@ -61,5 +62,15 @@ export async function listSubscriptionArtifactSummaries(sourceId: string) {
   return invoke<SubscriptionArtifactSummary[]>(
     'list_subscription_artifact_summaries',
     { sourceId },
+  )
+}
+
+export async function cleanupSubscriptionArtifactsByRetention(
+  sourceId: string,
+  retainCount?: number,
+) {
+  return invoke<SubscriptionArtifactCleanupResult>(
+    'cleanup_subscription_artifacts_by_retention',
+    { sourceId, retainCount },
   )
 }

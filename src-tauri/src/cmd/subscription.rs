@@ -3,13 +3,14 @@ use crate::subscription::{
     artifact::SubscriptionArtifactDiagnostics,
     model::{SubscriptionSourceState, SubscriptionStateDocument},
     persist::{
-        SubscriptionArtifactContent, SubscriptionArtifactContentKind,
-        SubscriptionArtifactMetadata, SubscriptionArtifactSummary,
-        list_subscription_artifact_metadata,
+        cleanup_subscription_artifacts, list_subscription_artifact_metadata,
         list_subscription_artifact_summaries as list_subscription_artifact_summary_records,
         read_subscription_artifact_content, read_subscription_artifact_diagnostics,
         read_subscription_artifact_metadata, read_subscription_source_state,
         read_subscription_state_document,
+        SubscriptionArtifactCleanupResult, SubscriptionArtifactContent,
+        SubscriptionArtifactContentKind, SubscriptionArtifactMetadata,
+        SubscriptionArtifactSummary,
     },
 };
 
@@ -74,6 +75,16 @@ pub async fn list_subscription_artifact_summaries(
     source_id: String,
 ) -> CmdResult<Vec<SubscriptionArtifactSummary>> {
     list_subscription_artifact_summary_records(source_id.as_str())
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn cleanup_subscription_artifacts_by_retention(
+    source_id: String,
+    retain_count: Option<usize>,
+) -> CmdResult<SubscriptionArtifactCleanupResult> {
+    cleanup_subscription_artifacts(source_id.as_str(), retain_count)
         .await
         .stringify_err()
 }
