@@ -6,6 +6,7 @@ export * from './cmds/runtime'
 export * from './cmds/system'
 export * from './cmds/backups'
 export * from './cmds/security-policy'
+export * from './cmds/subscriptions'
 export {
   type DnsConfigExplainReport,
   type DnsConfigProbePlan,

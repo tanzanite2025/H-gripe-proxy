@@ -29,6 +29,28 @@ async fn load_state_document() -> Result<SubscriptionStateDocument> {
     help::read_yaml(&path).await
 }
 
+pub async fn read_subscription_state_document() -> Result<SubscriptionStateDocument> {
+    load_state_document().await
+}
+
+pub fn find_subscription_source_state(
+    state: &SubscriptionStateDocument,
+    source_id: &str,
+) -> Option<SubscriptionSourceState> {
+    state
+        .sources
+        .iter()
+        .find(|source_state| source_state.source_id == source_id)
+        .cloned()
+}
+
+pub async fn read_subscription_source_state(
+    source_id: &str,
+) -> Result<Option<SubscriptionSourceState>> {
+    let state = read_subscription_state_document().await?;
+    Ok(find_subscription_source_state(&state, source_id))
+}
+
 async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
     let subscriptions_dir = dirs::subscriptions_dir()?;
     fs::create_dir_all(&subscriptions_dir).await?;
@@ -173,5 +195,25 @@ mod tests {
         assert_eq!(record.stage_history.len(), 2);
         assert_eq!(record.stage_history[0].stage, UpdateStage::FetchPayload);
         assert_eq!(record.stage_history[1].stage, UpdateStage::EmitFinalResult);
+    }
+
+    #[test]
+    fn finds_subscription_source_state_by_source_id() {
+        let state = SubscriptionStateDocument {
+            sources: vec![SubscriptionSourceState {
+                source_id: "source-a".into(),
+                active_artifact_version: Some("artifact-a".into()),
+                latest_artifact: None,
+                latest_attempt: None,
+                latest_success: None,
+            }],
+        };
+
+        let found =
+            find_subscription_source_state(&state, "source-a").expect("source should exist");
+
+        assert_eq!(found.source_id, "source-a");
+        assert_eq!(found.active_artifact_version.as_deref(), Some("artifact-a"));
+        assert!(find_subscription_source_state(&state, "source-b").is_none());
     }
 }
