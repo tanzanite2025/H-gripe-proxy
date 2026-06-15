@@ -4,7 +4,7 @@ use crate::subscription::{
     model::SubscriptionArtifactRecord,
 };
 use anyhow::{Result, bail};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use smartstring::alias::String;
 
@@ -16,14 +16,14 @@ pub struct SubscriptionArtifactCandidate {
     pub diagnostics: SubscriptionArtifactDiagnostics,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionArtifactDiagnostics {
     pub format_detection: SubscriptionFormatDetection,
     pub response: SubscriptionResponseDiagnostics,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionResponseDiagnostics {
     pub status_code: u16,

@@ -1,6 +1,6 @@
 use crate::{
     subscription::{
-        artifact::SubscriptionArtifactCandidate,
+        artifact::{SubscriptionArtifactCandidate, SubscriptionArtifactDiagnostics},
         model::{
             SubscriptionArtifactRecord, SubscriptionAttemptRecord, SubscriptionSourceState,
             SubscriptionStageRecord, SubscriptionStateDocument, UpdateFinalStatus,
@@ -13,6 +13,8 @@ use chrono::Local;
 use serde::Serialize;
 use smartstring::alias::String;
 use tokio::fs;
+
+const ARTIFACT_DIAGNOSTICS_FILE: &str = "diagnostics.yaml";
 
 #[derive(Debug, Clone, Serialize)]
 struct PersistedArtifactMetadata<'a> {
@@ -51,6 +53,33 @@ pub async fn read_subscription_source_state(
     Ok(find_subscription_source_state(&state, source_id))
 }
 
+pub fn is_safe_subscription_artifact_path_segment(value: &str) -> bool {
+    !value.is_empty()
+        && value != "."
+        && value != ".."
+        && !value.contains('/')
+        && !value.contains('\\')
+}
+
+pub async fn read_subscription_artifact_diagnostics(
+    source_id: &str,
+    version: &str,
+) -> Result<Option<SubscriptionArtifactDiagnostics>> {
+    if !is_safe_subscription_artifact_path_segment(source_id)
+        || !is_safe_subscription_artifact_path_segment(version)
+    {
+        anyhow::bail!("invalid subscription artifact path segment");
+    }
+
+    let path = dirs::subscription_artifact_version_dir(source_id, version)?
+        .join(ARTIFACT_DIAGNOSTICS_FILE);
+    if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+        return Ok(None);
+    }
+
+    help::read_yaml(&path).await.map(Some)
+}
+
 async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
     let subscriptions_dir = dirs::subscriptions_dir()?;
     fs::create_dir_all(&subscriptions_dir).await?;
@@ -70,7 +99,7 @@ pub async fn persist_artifact_candidate(
     fs::write(dir.join("normalized.yaml"), candidate.normalized_yaml.as_bytes())
         .await?;
 
-    let diagnostics_path = dir.join("diagnostics.yaml");
+    let diagnostics_path = dir.join(ARTIFACT_DIAGNOSTICS_FILE);
     help::save_yaml(
         &diagnostics_path,
         &candidate.diagnostics,
@@ -215,5 +244,16 @@ mod tests {
         assert_eq!(found.source_id, "source-a");
         assert_eq!(found.active_artifact_version.as_deref(), Some("artifact-a"));
         assert!(find_subscription_source_state(&state, "source-b").is_none());
+    }
+
+    #[test]
+    fn validates_subscription_artifact_path_segments() {
+        assert!(is_safe_subscription_artifact_path_segment("source-a"));
+        assert!(is_safe_subscription_artifact_path_segment("1234567890-abcdef"));
+        assert!(!is_safe_subscription_artifact_path_segment(""));
+        assert!(!is_safe_subscription_artifact_path_segment("."));
+        assert!(!is_safe_subscription_artifact_path_segment(".."));
+        assert!(!is_safe_subscription_artifact_path_segment("../source-a"));
+        assert!(!is_safe_subscription_artifact_path_segment("source\\a"));
     }
 }
