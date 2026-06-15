@@ -97,6 +97,12 @@ pub async fn read_subscription_source_state(source_id: &str) -> Result<Option<Su
     Ok(find_subscription_source_state(&state, source_id))
 }
 
+pub async fn read_subscription_source_config(source_id: &str) -> Result<Option<SubscriptionSourceConfig>> {
+    Ok(read_subscription_source_state(source_id)
+        .await?
+        .and_then(|source_state| source_state.source_config))
+}
+
 pub async fn read_subscription_source_update_events(source_id: &str) -> Result<Vec<SubscriptionEvent>> {
     if !is_safe_subscription_artifact_path_segment(source_id) {
         anyhow::bail!("invalid subscription artifact path segment");

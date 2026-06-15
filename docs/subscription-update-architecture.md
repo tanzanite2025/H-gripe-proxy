@@ -455,7 +455,7 @@ Implemented:
 
 - Reduce `PrfItem` to a UI projection or compatibility wrapper. **Partially done: runtime activation now consumes an explicit subscription runtime projection plus the active artifact, while legacy `PrfItem` materialization is kept as a compatibility projection.**
 - Remove retry and notification logic from `app::subscription`. **Done for current update flow: `app::subscription` is now a thin command entrypoint; top-level update orchestration, final notifications, attempt persistence, stage notifications, and compatibility rollback helpers live in `subscription::orchestration`.**
-- Make subscription pipeline the only update path. **Partially done: subscription updates use the pipeline artifact as the activation input; the pipeline now persists a `source_config` projection in subscription state before fetch, and legacy compatibility writes are committed after artifact publish with active-artifact rollback on failure.**
+- Make subscription pipeline the only update path. **Partially done: subscription updates use the pipeline artifact as the activation input; the pipeline now syncs legacy profile settings into `source_config`, reads the actual fetch config back from subscription state, and commits legacy compatibility writes after artifact publish with active-artifact rollback on failure.**
 
 ## Testing Strategy
 
@@ -490,5 +490,5 @@ The redesign is complete when:
 
 The next highest-leverage slice is Phase 6: remove legacy coupling once the team is comfortable with the Phase 5 UI.
 
-1. Promote subscription source config reads to prefer `subscriptions/state.yaml` once the migration path is proven.
+1. Move subscription source edit commands to write `subscriptions/state.yaml` directly.
 2. Promote diagnostics previews into file/open-location deep links if needed.
