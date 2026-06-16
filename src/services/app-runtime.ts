@@ -299,6 +299,31 @@ export interface AppRuntimeSessionObservationRecord {
   warnings: string[]
 }
 
+export interface AppRuntimeSessionEvaluationSummary {
+  observationCount: number
+  matchedObservations: number
+  mismatchObservations: number
+  unattributedObservations: number
+  staleObservations: number
+  attributionCandidateCount: number
+  uploadTotal: number
+  downloadTotal: number
+  maxActiveConnections: number
+  observedChains: string[]
+  observedHosts: string[]
+  matchedBy: string[]
+}
+
+export interface AppRuntimeSessionEvaluationReport {
+  sessionId: string
+  appId: string
+  status: AppRuntimeDiagnosticStatus
+  reason: string
+  summary: AppRuntimeSessionEvaluationSummary
+  facts: string[]
+  warnings: string[]
+}
+
 export interface AppRuntimeSessionRecord {
   sessionId: string
   appId: string
@@ -431,4 +456,10 @@ export async function recordAppRuntimeSessionObservation(
   sessionId: string,
 ): Promise<AppRuntimeSessionRecord> {
   return invoke('record_app_runtime_session_observation', { sessionId })
+}
+
+export async function evaluateAppRuntimeSession(
+  sessionId: string,
+): Promise<AppRuntimeSessionEvaluationReport> {
+  return invoke('evaluate_app_runtime_session', { sessionId })
 }

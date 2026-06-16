@@ -287,6 +287,7 @@ mod app_init {
             cmd::start_app_runtime_session,
             cmd::finish_app_runtime_session,
             cmd::record_app_runtime_session_observation,
+            cmd::evaluate_app_runtime_session,
             cmd::script_validate_notice,
             cmd::validate_script_file,
             cmd::create_local_backup,
