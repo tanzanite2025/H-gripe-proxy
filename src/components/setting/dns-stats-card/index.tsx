@@ -1,8 +1,10 @@
 import { RefreshCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
 import type { DnsRuntimeStatus } from '@/services/cmds'
+import type { DnsResolverRuntimeProbeReport } from '@/services/dns-api'
 
 import { buildDnsRuntimeViewModel } from '../dns-runtime-view-model'
 
@@ -13,6 +15,7 @@ import { RuntimeAlignmentSection } from './runtime-alignment-section'
 import { RuntimeOptionsSection } from './runtime-options-section'
 import { RuntimeOverrideSection } from './runtime-override-section'
 import { RuntimeProbeSection } from './runtime-probe-section'
+import { RuntimeReadinessSection } from './runtime-readiness-section'
 import { RuntimeSummarySection } from './runtime-summary-section'
 import { DnsCardState, DnsDivider } from './shared'
 
@@ -29,6 +32,13 @@ export const DnsStatsCard = ({
   runtimeStatusPending,
   onRefresh,
 }: Props) => {
+  const [runtimeProbeReport, setRuntimeProbeReport] =
+    useState<DnsResolverRuntimeProbeReport | null>(null)
+
+  useEffect(() => {
+    setRuntimeProbeReport(null)
+  }, [runtimeStatus])
+
   if (runtimeStatusPending && !runtimeStatus) {
     return (
       <DnsCardState
@@ -87,7 +97,13 @@ export const DnsStatsCard = ({
         <DnsDivider />
         <LeakProtectionSection runtimeView={runtimeView} />
         <DnsDivider />
-        <RuntimeProbeSection runtimeStatus={runtimeStatus} />
+        <RuntimeProbeSection
+          runtimeStatus={runtimeStatus}
+          report={runtimeProbeReport}
+          onReportChange={setRuntimeProbeReport}
+        />
+        <DnsDivider />
+        <RuntimeReadinessSection probeReport={runtimeProbeReport} />
         <DnsDivider />
         <PerformanceMetricsSection />
       </div>

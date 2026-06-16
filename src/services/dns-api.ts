@@ -226,6 +226,43 @@ export interface DnsResolverRuntimeProbeReport {
   warnings: string[]
 }
 
+export type DnsDefaultRuntimeReadinessStatus =
+  | 'ready'
+  | 'degraded'
+  | 'blocked'
+
+export type DnsDefaultRuntimeReadinessCheckStatus =
+  | 'passed'
+  | 'warning'
+  | 'failed'
+  | 'skipped'
+
+export interface DnsDefaultRuntimeReadinessCheck {
+  checkId: string
+  status: DnsDefaultRuntimeReadinessCheckStatus
+  message: string
+  details: string[]
+}
+
+export interface DnsDefaultRuntimeReadinessSummary {
+  passed: number
+  warnings: number
+  failed: number
+  skipped: number
+}
+
+export interface DnsDefaultRuntimeReadinessReport {
+  status: DnsDefaultRuntimeReadinessStatus
+  reason: string
+  plan: DnsResolverPlan
+  probeSummary?: DnsResolverRuntimeProbeSummary | null
+  checks: DnsDefaultRuntimeReadinessCheck[]
+  summary: DnsDefaultRuntimeReadinessSummary
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -419,6 +456,24 @@ export async function dnsControlledRuntimeProbe(
     )
   } catch (err) {
     console.error('DNS controlled runtime probe failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeReadiness(
+  yaml?: string,
+  probeReport?: DnsResolverRuntimeProbeReport | null,
+): Promise<DnsDefaultRuntimeReadinessReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeReadinessReport>(
+      'dns_default_runtime_readiness',
+      {
+        yaml,
+        probeReport,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime readiness failed:', err)
     throw err
   }
 }

@@ -14,6 +14,8 @@ import { DnsChipRow, DnsSectionHeading, DnsTextRow } from './shared'
 
 interface RuntimeProbeSectionProps {
   runtimeStatus: DnsRuntimeStatus
+  report: DnsResolverRuntimeProbeReport | null
+  onReportChange: (report: DnsResolverRuntimeProbeReport) => void
 }
 
 const CONTROLLED_PROBE_DOMAIN = 'example.com'
@@ -42,10 +44,9 @@ function buildRuntimeProbeYaml(runtimeStatus: DnsRuntimeStatus) {
 
 export function RuntimeProbeSection({
   runtimeStatus,
+  report,
+  onReportChange,
 }: RuntimeProbeSectionProps) {
-  const [report, setReport] = useState<DnsResolverRuntimeProbeReport | null>(
-    null,
-  )
   const [pending, setPending] = useState(false)
   const { nameservers, yaml: probeYaml } = useMemo(
     () => buildRuntimeProbeYaml(runtimeStatus),
@@ -64,7 +65,7 @@ export function RuntimeProbeSection({
         probeYaml,
         CONTROLLED_PROBE_DOMAIN,
       )
-      setReport(nextReport)
+      onReportChange(nextReport)
       showNotice.success('DNS Rust 受控探测已完成')
     } catch (error) {
       showNotice.error(error)
