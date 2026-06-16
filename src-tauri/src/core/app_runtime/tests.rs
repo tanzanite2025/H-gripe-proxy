@@ -1,4 +1,5 @@
 use super::*;
+use crate::core::connection_metrics::{self, ConnectionAttributionCandidate, ConnectionMetricsSnapshot};
 use std::collections::BTreeMap;
 
 #[test]
