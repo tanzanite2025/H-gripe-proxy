@@ -333,6 +333,7 @@ export function AppRuntimePlanningPanel() {
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
   const [bulkJson, setBulkJson] = useState('')
+  const [overviewFilter, setOverviewFilter] = useState('')
   const [resourcePending, setResourcePending] = useState(false)
 
   const selectedApp = useMemo(
@@ -407,6 +408,19 @@ export function AppRuntimePlanningPanel() {
         const sessions = state.sessions.filter(
           (session) => session.appId === app.appId,
         )
+        const issues = [
+          !binding ? 'missing binding' : '',
+          binding?.enabled === false ? 'binding disabled' : '',
+          binding?.nodePoolId && !nodePool
+            ? `missing node pool: ${binding.nodePoolId}`
+            : '',
+          binding?.dnsProfileId && !dnsProfile
+            ? `missing DNS profile: ${binding.dnsProfileId}`
+            : '',
+          binding?.securityProfileId && !securityProfile
+            ? `missing security profile: ${binding.securityProfileId}`
+            : '',
+        ].filter(Boolean)
         return {
           app,
           binding,
@@ -415,10 +429,34 @@ export function AppRuntimePlanningPanel() {
           securityProfile,
           sessions,
           openSessions: sessions.filter((session) => !session.endedAt).length,
+          issues,
         }
       }),
     [state],
   )
+
+  const filteredOverviewRows = useMemo(() => {
+    const query = overviewFilter.trim().toLowerCase()
+    if (!query) {
+      return overviewRows
+    }
+    return overviewRows.filter((row) =>
+      [
+        row.app.appId,
+        row.app.name,
+        row.binding?.bindingId ?? '',
+        row.binding?.routingIntent ?? '',
+        row.nodePool?.name ?? row.binding?.nodePoolId ?? '',
+        row.dnsProfile?.name ?? row.binding?.dnsProfileId ?? '',
+        row.securityProfile?.name ?? row.binding?.securityProfileId ?? '',
+        ...row.app.tags,
+        ...row.issues,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query),
+    )
+  }, [overviewFilter, overviewRows])
 
   const resources = useMemo(
     () => collectionFor(state, resourceKind),
@@ -829,8 +867,37 @@ export function AppRuntimePlanningPanel() {
               </div>
             </div>
 
+            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <TextField
+                fullWidth
+                size="small"
+                label="过滤应用 / 绑定 / profile / issue"
+                value={overviewFilter}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => setOverviewFilter(event.target.value)}
+              />
+              <div className="flex flex-wrap items-end gap-2">
+                <Chip
+                  size="small"
+                  color={
+                    overviewRows.some((row) => row.issues.length > 0)
+                      ? 'warning'
+                      : 'success'
+                  }
+                  label={`Issues: ${
+                    overviewRows.filter((row) => row.issues.length > 0).length
+                  }`}
+                />
+                <Chip
+                  size="small"
+                  label={`Showing: ${filteredOverviewRows.length}/${overviewRows.length}`}
+                />
+              </div>
+            </div>
+
             <div className="grid gap-2">
-              {overviewRows.map((row) => (
+              {filteredOverviewRows.map((row) => (
                 <div
                   key={row.app.appId}
                   className="grid gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_auto]"
@@ -874,6 +941,18 @@ export function AppRuntimePlanningPanel() {
                       <span className="text-muted-foreground">Sessions: </span>
                       {row.sessions.length} total / {row.openSessions} open
                     </div>
+                    {row.issues.length > 0 ? (
+                      <div className="sm:col-span-2">
+                        <span className="text-muted-foreground">Issues: </span>
+                        <span className="text-warning">
+                          {row.issues.join('；')}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="sm:col-span-2 text-success">
+                        State references resolved
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-end">
@@ -891,6 +970,11 @@ export function AppRuntimePlanningPanel() {
                   </div>
                 </div>
               ))}
+              {filteredOverviewRows.length === 0 ? (
+                <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  没有匹配当前过滤条件的应用。
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
