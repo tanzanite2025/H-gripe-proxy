@@ -4,13 +4,14 @@ use crate::core::dns_config_explain::{
     plan_dns_probe as build_dns_probe_plan,
 };
 use crate::core::dns_runtime::{
-    DnsDefaultRuntimeReadinessReport, DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan,
-    DnsResolverRuntimeProbeReport, DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind,
-    DnsServerProviderRegistration, build_dns_resolver_plan as build_resolver_plan,
-    dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
-    dns_default_runtime_readiness as build_dns_default_runtime_readiness, dns_health_check as build_dns_health_check,
-    dns_query as build_dns_query, dns_runtime_query as run_dns_runtime_query, list_dns_server_provider_registrations,
-    probe_dns_server_provider,
+    DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport, DnsHealthCheckResult, DnsProtocol,
+    DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport, DnsResolverRuntimeQueryReport,
+    DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
+    build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    dns_default_runtime_readiness as build_dns_default_runtime_readiness,
+    dns_default_runtime_shadow_evidence as build_dns_default_runtime_shadow_evidence,
+    dns_health_check as build_dns_health_check, dns_query as build_dns_query,
+    dns_runtime_query as run_dns_runtime_query, list_dns_server_provider_registrations, probe_dns_server_provider,
 };
 use log::error;
 
@@ -133,6 +134,16 @@ pub async fn dns_default_runtime_readiness(
     probe_report: Option<DnsResolverRuntimeProbeReport>,
 ) -> CmdResult<DnsDefaultRuntimeReadinessReport> {
     build_dns_default_runtime_readiness(yaml, probe_report)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_shadow_evidence(
+    yaml: Option<String>,
+    domain: Option<String>,
+) -> CmdResult<DnsDefaultRuntimeShadowEvidenceReport> {
+    build_dns_default_runtime_shadow_evidence(yaml, domain)
         .await
         .stringify_err()
 }

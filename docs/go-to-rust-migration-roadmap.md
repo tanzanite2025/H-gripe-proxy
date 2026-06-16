@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime shadow/evidence 前置） | PR #82/#84-#91/#95-#132 与后续 Batch J/K；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate 已进入 Rust 单一路径；下一步评估默认 DNS shadow/evidence |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime opt-in switch 前置） | PR #82/#84-#91/#95-#132 与后续 Batch J/K/L；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence 已进入 Rust 单一路径；下一步评估默认 DNS opt-in switch guard |
 
 ## 已完成阶段详情
 
@@ -515,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path / active marker rollback / explicit runtime apply guard / runtime apply audit 与 observed verification / default DNS runtime readiness gate，并完成 app-runtime backend 第二轮拆分**。
+当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path / active marker rollback / explicit runtime apply guard / runtime apply audit 与 observed verification / default DNS runtime readiness gate / shadow evidence，并完成 app-runtime backend 第二轮拆分**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -674,7 +674,7 @@ AppRegistry
 
 ## 加速执行策略
 
-前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#132 与后续 Batch J/K 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板与后端 app-runtime 第二轮拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard、active artifact marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification 与默认 DNS runtime readiness gate。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：先做默认 DNS runtime shadow evidence，再评估是否进入更高风险的默认 DNS runtime 切换、TUN / protocol runtime 边界。
+前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#132 与后续 Batch J/K/L 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板与后端 app-runtime 第二轮拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard、active artifact marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate 与 shadow evidence。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：再评估是否进入更高风险的默认 DNS runtime opt-in switch、TUN / protocol runtime 边界。
 
 ### 可以加快做的部分
 
@@ -712,9 +712,9 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard、Batch J runtime apply audit / observed verification、Batch K default DNS runtime readiness gate 都已经完成或正在本批次落地：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback、显式 runtime candidate apply、runtime apply audit、只读运行态验证与默认 DNS runtime readiness/blocker 评估。
+从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard、Batch J runtime apply audit / observed verification、Batch K default DNS runtime readiness gate、Batch L default DNS runtime shadow evidence 都已经完成或正在本批次落地：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback、显式 runtime candidate apply、runtime apply audit、只读运行态验证、默认 DNS runtime readiness/blocker 与 shadow evidence 评估。
 
-下一步仍不应直接切默认 DNS runtime、TUN 或协议栈替换；这些会扩大到真实数据面。更稳妥的下一批是 **Batch L：Default DNS runtime shadow evidence**：在不改变用户默认解析路径的前提下，对同一 test domain / nameserver set 记录 Rust resolver 与现有 Mihomo/系统路径的 shadow evidence，再决定是否进入 opt-in runtime switch。
+下一步仍不应直接切 TUN 或协议栈替换；这些会扩大到真实数据面。默认 DNS runtime 若继续推进，建议先做 **Batch M：Default DNS runtime opt-in switch guard**：只允许 readiness=ready 且 shadow evidence 已采集的用户显式 opt-in switch，并保留 rollback guard。
 
 ### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
@@ -899,7 +899,7 @@ feat(dns-runtime): add default resolver readiness gate
 - DNS runtime stats UI 新增默认 DNS runtime readiness 面板；可复用同页最新 controlled probe report 作为健康证据。
 - 继续保持只读：不修改 DNS config、不写 active profile、不 reload Mihomo、不切默认 DNS runtime。
 
-### Batch L：Default DNS runtime shadow evidence（下一批，小步做）
+### Batch L：Default DNS runtime shadow evidence（本批次，小步做）
 
 Batch K 只回答“是否具备 readiness”。下一批仍不直接切默认 DNS runtime，而是收集 shadow evidence：同一 test domain / nameserver set 同时走 Rust resolver 与现有 runtime/系统可见路径，比较结果、延迟和失败归因。
 
@@ -920,3 +920,33 @@ feat(dns-runtime): add default resolver shadow evidence
 - 不启用 Rust default DNS resolver。
 - 不替换 fake-ip cache / fallback-filter / nameserver-policy。
 - 不碰 TUN、transparent proxy、adapter outbound/inbound 或协议栈。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_shadow_evidence` command，默认只读当前 runtime DNS config，也可显式传入 YAML。
+- Shadow report 复用 Batch K readiness gate；若 readiness 不是 ready，明确返回 blocked，表示 shadow evidence 不能证明可切换默认 runtime。
+- 对同一 test domain 采集 Rust resolver query report 与系统 resolver query result，输出 IP match、latency delta、attempted Rust target 与 mismatch reason。
+- DNS runtime stats UI 新增 shadow evidence 面板，只展示 evidence / diff / blocker，不提供启用默认 DNS runtime 按钮。
+- 继续保持只读：不修改 DNS config、不写 active profile、不 reload Mihomo、不切默认 DNS runtime。
+
+### Batch M：Default DNS runtime opt-in switch guard（下一批，需谨慎）
+
+Batch K/L 已提供 readiness 与 shadow evidence。若继续向默认 DNS runtime 迁移推进，下一批仍不应自动切换，而是做显式 opt-in switch guard：
+
+```text
+feat(dns-runtime): add default resolver opt-in switch guard
+```
+
+建议边界：
+
+- switch 必须由用户显式触发，不能由页面加载、readiness 自动触发或后台任务触发。
+- preflight 必须要求 readiness=ready，且最近 shadow evidence 不 blocked / incomplete。
+- runtime mutation 必须有审计记录和 rollback marker，且能恢复到 switch 前 DNS runtime。
+- 仍不声称 fake-ip / fallback-filter / nameserver-policy 已完全 Rust 接管；这些 blocker 存在时必须拒绝 switch。
+- UI 必须把 switch 放在危险/实验区域，展示 readiness、shadow evidence、rollback strategy 与不可接管 feature。
+
+不包含：
+
+- 不碰 TUN、transparent proxy、adapter outbound/inbound 或协议栈。
+- 不替换 fake-ip cache / fallback-filter / nameserver-policy 的实际 runtime 行为。
+- 不做自动 rollout 或默认启用。

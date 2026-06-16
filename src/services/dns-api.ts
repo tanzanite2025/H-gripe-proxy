@@ -263,6 +263,31 @@ export interface DnsDefaultRuntimeReadinessReport {
   facts: string[]
 }
 
+export type DnsDefaultRuntimeShadowEvidenceStatus =
+  | 'matched'
+  | 'mismatched'
+  | 'blocked'
+  | 'incomplete'
+
+export interface DnsDefaultRuntimeShadowQueryEvidence {
+  domain: string
+  rustReport: DnsResolverRuntimeQueryReport
+  systemResult: DnsQueryResult
+  ipMatch: boolean
+  latencyDeltaMs: number
+  mismatchReason?: string | null
+}
+
+export interface DnsDefaultRuntimeShadowEvidenceReport {
+  status: DnsDefaultRuntimeShadowEvidenceStatus
+  reason: string
+  readiness: DnsDefaultRuntimeReadinessReport
+  query: DnsDefaultRuntimeShadowQueryEvidence
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -474,6 +499,24 @@ export async function dnsDefaultRuntimeReadiness(
     )
   } catch (err) {
     console.error('DNS default runtime readiness failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeShadowEvidence(
+  yaml?: string,
+  domain?: string,
+): Promise<DnsDefaultRuntimeShadowEvidenceReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeShadowEvidenceReport>(
+      'dns_default_runtime_shadow_evidence',
+      {
+        yaml,
+        domain,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime shadow evidence failed:', err)
     throw err
   }
 }
