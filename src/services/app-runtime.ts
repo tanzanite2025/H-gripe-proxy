@@ -1,6 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 
-import type { DnsResolverPlan } from './dns-api'
+import type {
+  DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
+  DnsDefaultRuntimeExpandedControlPlaneCompletionStatus,
+  DnsResolverPlan,
+} from './dns-api'
 
 export type AppProcessMatcherKind =
   | 'process_name'
@@ -123,6 +127,52 @@ export interface AppRuntimeActiveProjectionRecord {
   activationKind: string
   mutatesRuntime: boolean
   rollback: AppRuntimeProjectionRollbackMetadata
+}
+
+export type AppRuntimeDnsHandoffStatus =
+  | 'accepted'
+  | 'watching'
+  | 'rollbackRecommended'
+  | 'blocked'
+
+export interface AppRuntimeDnsHandoffRecord {
+  handoffId: string
+  action: string
+  dnsCompletionStatus: DnsDefaultRuntimeExpandedControlPlaneCompletionStatus
+  dnsControlPlaneComplete: boolean
+  dnsHandoffReady: boolean
+  dnsManifestPath?: string | null
+  appRuntimeAcceptsHandoff: boolean
+  appRuntimeFollowupScope: string
+  nextAppRuntimeStep: string
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  createdAt: number
+}
+
+export interface AppRuntimeDnsHandoffReport {
+  status: AppRuntimeDnsHandoffStatus
+  reason: string
+  dnsCompletion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport
+  handoffRecord: AppRuntimeDnsHandoffRecord
+  handoffRecordPath?: string | null
+  handoffRecordPersisted: boolean
+  appRuntimeAcceptsHandoff: boolean
+  nextAppRuntimeStep: string
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
 }
 
 export interface AppRuntimeProjectionRollbackMetadata {
@@ -535,6 +585,10 @@ export async function getAppRuntimeState(): Promise<AppRuntimeStateDocument> {
 
 export async function buildAppRuntimeDemoSeed(): Promise<AppRuntimeStateDocument> {
   return invoke('build_app_runtime_demo_seed')
+}
+
+export async function acceptAppRuntimeDnsHandoff(): Promise<AppRuntimeDnsHandoffReport> {
+  return invoke('accept_app_runtime_dns_handoff')
 }
 
 export async function upsertAppRegistryEntry(

@@ -1,5 +1,12 @@
 use super::*;
 use crate::core::connection_metrics::{self, ConnectionAttributionCandidate, ConnectionMetricsSnapshot};
+use crate::core::dns_runtime::{
+    DnsDefaultRuntimeActiveState, DnsDefaultRuntimeExpandedHoldPolicyStatus,
+    DnsDefaultRuntimeExpandedPostExecutionVerificationStatus, DnsDefaultRuntimeExpandedReverifyRecord,
+    DnsDefaultRuntimeExpandedStabilityGateStatus, build_dns_default_runtime_expanded_control_plane_completion_report,
+    build_dns_default_runtime_expanded_lifecycle_closeout_report,
+    build_dns_default_runtime_expanded_reverify_history_report,
+};
 use std::collections::BTreeMap;
 
 #[test]
@@ -60,6 +67,43 @@ fn demo_seed_builds_ready_app_runtime_plan() {
     assert_eq!(state.dns_profiles.len(), 1);
     assert_eq!(state.security_profiles.len(), 1);
     assert_eq!(state.policy_bindings.len(), 1);
+}
+
+#[test]
+fn app_runtime_dns_handoff_accepts_completed_dns_control_plane() {
+    let history = build_dns_default_runtime_expanded_reverify_history_report(
+        vec![sample_dns_reverify_record(100), sample_dns_reverify_record(200)],
+        Vec::new(),
+    );
+    let closeout = build_dns_default_runtime_expanded_lifecycle_closeout_report(
+        history,
+        Some(sample_dns_active_state()),
+        Vec::new(),
+    );
+    let dns_completion = build_dns_default_runtime_expanded_control_plane_completion_report(
+        closeout,
+        true,
+        Some("dns-handoff.yaml".into()),
+        Vec::new(),
+        300,
+    );
+
+    let report = build_app_runtime_dns_handoff_report(
+        dns_completion,
+        Some("app-runtime-handoff.yaml".into()),
+        true,
+        Vec::new(),
+        400,
+    );
+
+    assert_eq!(report.status, AppRuntimeDnsHandoffStatus::Accepted);
+    assert!(report.app_runtime_accepts_handoff);
+    assert!(report.handoff_record_persisted);
+    assert!(!report.phase8_allowed);
+    assert!(!report.promotion_allowed);
+    assert!(!report.auto_rollout);
+    assert!(!report.auto_rollback);
+    assert!(!report.mutates_runtime);
 }
 
 #[test]
@@ -1223,5 +1267,35 @@ fn sample_binding() -> AppPolicyBinding {
         routing_intent: AppRoutingIntent::Proxy,
         enabled: true,
         updated_at: 1,
+    }
+}
+
+fn sample_dns_reverify_record(created_at_epoch_seconds: u64) -> DnsDefaultRuntimeExpandedReverifyRecord {
+    DnsDefaultRuntimeExpandedReverifyRecord {
+        event_id: format!("reverify-{created_at_epoch_seconds}"),
+        action: "defaultDnsRuntimeExpandedReverify".into(),
+        active_execution_event_id: Some("execution-1".into()),
+        hold_status: DnsDefaultRuntimeExpandedHoldPolicyStatus::Ready,
+        stability_status: DnsDefaultRuntimeExpandedStabilityGateStatus::Ready,
+        post_execution_status: DnsDefaultRuntimeExpandedPostExecutionVerificationStatus::Verified,
+        active_age_seconds: Some(600),
+        keep_active_allowed: true,
+        next_verification_required: false,
+        rollback_recommended: false,
+        next_verification_after_epoch_seconds: None,
+        hold_expires_at_epoch_seconds: Some(created_at_epoch_seconds + 3_600),
+        created_at_epoch_seconds,
+    }
+}
+
+fn sample_dns_active_state() -> DnsDefaultRuntimeActiveState {
+    DnsDefaultRuntimeActiveState {
+        active_runtime: "fake-ip".into(),
+        previous_runtime: "normal".into(),
+        state: "expandedActiveProfileReloaded".into(),
+        execution_event_id: "execution-1".into(),
+        activated_at_epoch_seconds: 100,
+        rollback_marker_path: None,
+        audit_record_path: Some("audit.yaml".into()),
     }
 }

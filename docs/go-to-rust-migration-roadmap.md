@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded control-plane completion） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-Z、Batch AA（本批次，合并 snapshot/completion/handoff manifest/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime DNS handoff intake） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AA、Batch AB（本批次，合并 app-runtime intake/diagnostics/UI/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1400,3 +1400,39 @@ feat(dns-runtime): add expanded control-plane completion
 - 新增 handoff manifest report 与持久化路径。
 - Report 输出 DNS control-plane completion、handoff ready、phase8 allowed boundary、next control-plane step。
 - DNS runtime stats UI 新增 Control-plane completion 显式按钮与汇总面板。
+
+### Batch AB：App runtime DNS handoff intake / diagnostics bridge（本批次，跨主线合并）
+
+在 DNS expanded control-plane completion 后，本批次转回应用编排主线，并把接收 DNS handoff、app-runtime 交接记录、聚合诊断 UI、roadmap checkpoint 合并在一个 PR 内，避免继续在 DNS 线做微小 closeout。
+
+```text
+feat(app-runtime): accept DNS expanded handoff
+```
+
+合并范围：
+
+- Intake：新增 `accept_app_runtime_dns_handoff` command，消费 DNS expanded control-plane completion。
+- Record：持久化 `app-runtime/dns-handoffs/<event>/handoff.yaml`，形成 app-runtime 侧交接记录。
+- Diagnostics bridge：App runtime 聚合诊断摘要新增 DNS handoff intake 状态与可重试 action。
+- UI：高级页应用编排面板新增“接收 DNS handoff”按钮与交接结果面板。
+
+建议边界：
+
+- Handoff intake 不触发新的 DNS reverify。
+- Handoff intake 不应用 Mihomo projection、不 reload Mihomo、不启动应用。
+- `phase8Allowed=false`、`promotionAllowed=false`、`autoRollout=false`、`autoRollback=false`、`mutatesRuntime=false`、`reloadMihomo=false` 必须保持。
+- DNS completion 未 complete 时，app-runtime 只记录 watching/rollback/blocker 状态。
+
+不包含：
+
+- 不自动生成 app projection artifact。
+- 不自动 activation / runtime apply。
+- 不触碰 TUN、transparent proxy、adapter outbound/inbound 或 protocol runtime。
+- 不开始 Phase 8。
+
+已落地范围：
+
+- 新增 app-runtime DNS handoff report / record types。
+- 新增 `accept_app_runtime_dns_handoff` command。
+- UI 聚合诊断新增 DNS handoff intake 状态、动作与结果面板。
+- Rust 单元测试覆盖 app-runtime 接收 completed DNS control-plane handoff。

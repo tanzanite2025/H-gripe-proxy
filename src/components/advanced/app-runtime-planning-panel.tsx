@@ -8,6 +8,7 @@ import { Chip } from '@/components/tailwind/Chip'
 import { Select } from '@/components/tailwind/Select'
 import {
   activateAppRuntimeProjectionArtifact,
+  acceptAppRuntimeDnsHandoff,
   applyAppRuntimeProjectionArtifactToRuntime,
   buildAppRuntimeDemoSeed,
   buildAppRuntimeProjectionArtifact,
@@ -32,6 +33,7 @@ import {
   upsertSecurityProfile,
   verifyAppRuntimeProjectionRuntimeApply,
   verifyAppRuntimeSessionLeak,
+  type AppRuntimeDnsHandoffReport,
   type AppPolicyBinding,
   type AppProcessMatcherKind,
   type AppRegistryEntry,
@@ -78,6 +80,7 @@ import {
   resourceNameFor,
   selectAppLabel,
   sortSessions,
+  statusColor,
   templateFor,
   upsertSession,
   type FinishableSessionStatus,
@@ -95,6 +98,7 @@ export function AppRuntimePlanningPanel() {
   const [planning, setPlanning] = useState(false)
   const [sessionPending, setSessionPending] = useState(false)
   const [dnsProbePending, setDnsProbePending] = useState(false)
+  const [dnsHandoffPending, setDnsHandoffPending] = useState(false)
   const [artifactPending, setArtifactPending] = useState(false)
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
@@ -122,6 +126,8 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeSessionLeakReport | null>(null)
   const [dnsProbeReport, setDnsProbeReport] =
     useState<DnsResolverRuntimeProbeReport | null>(null)
+  const [dnsHandoffReport, setDnsHandoffReport] =
+    useState<AppRuntimeDnsHandoffReport | null>(null)
   const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
@@ -436,9 +442,18 @@ export function AppRuntimePlanningPanel() {
             : 'Projection remains planning-only.'
           : 'Generate projection through planning diagnostics.',
       },
+      {
+        key: 'dns-handoff',
+        label: 'DNS handoff intake',
+        status: dnsHandoffReport?.status ?? 'skipped',
+        detail: dnsHandoffReport
+          ? `${dnsHandoffReport.nextAppRuntimeStep}; phase8=${String(dnsHandoffReport.phase8Allowed)}`
+          : 'Accept DNS expanded control-plane completion before next app-runtime follow-up.',
+      },
     ]
   }, [
     diagnostics,
+    dnsHandoffReport,
     dnsProbeReport,
     projection,
     selectedApp,
@@ -542,6 +557,29 @@ export function AppRuntimePlanningPanel() {
       })
     }
 
+    if (!dnsHandoffReport) {
+      actions.push({
+        key: 'dns-handoff-accept',
+        scope: 'DNS handoff',
+        status: 'skipped',
+        message: 'DNS expanded handoff not accepted',
+        detail:
+          'Accept the DNS control-plane completion manifest before app-runtime follow-up.',
+        action: 'accept-dns-handoff',
+        actionLabel: '接收',
+      })
+    } else if (dnsHandoffReport.status !== 'accepted') {
+      actions.push({
+        key: 'dns-handoff-status',
+        scope: 'DNS handoff',
+        status: dnsHandoffReport.status,
+        message: dnsHandoffReport.reason,
+        detail: dnsHandoffReport.blockers.join('；') || dnsHandoffReport.nextAppRuntimeStep,
+        action: 'accept-dns-handoff',
+        actionLabel: '重试',
+      })
+    }
+
     if (actions.length === 0) {
       actions.push({
         key: 'no-actions',
@@ -556,6 +594,7 @@ export function AppRuntimePlanningPanel() {
     return actions
   }, [
     diagnostics,
+    dnsHandoffReport,
     dnsProbeReport,
     projection?.mutatesRuntime,
     selectedApp,
@@ -664,6 +703,19 @@ export function AppRuntimePlanningPanel() {
 
     if (selectedDnsProfile) {
       await handleProbeSelectedDnsProfile()
+    }
+  })
+
+  const acceptDnsHandoff = useLockFn(async () => {
+    setDnsHandoffPending(true)
+    try {
+      const report = await acceptAppRuntimeDnsHandoff()
+      setDnsHandoffReport(report)
+      showNotice.success('App runtime DNS handoff intake 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setDnsHandoffPending(false)
     }
   })
 
@@ -843,6 +895,11 @@ export function AppRuntimePlanningPanel() {
 
     if (action.action === 'run-dns-probe') {
       void handleProbeSelectedDnsProfile()
+      return
+    }
+
+    if (action.action === 'accept-dns-handoff') {
+      void acceptDnsHandoff()
     }
   }
 
@@ -1492,15 +1549,25 @@ export function AppRuntimePlanningPanel() {
               与诊断摘要；不会启动应用或修改 Mihomo runtime。
             </div>
           </div>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<RefreshCw className="h-4 w-4" />}
-            onClick={() => void loadState()}
-            disabled={loading}
-          >
-            {loading ? '刷新中...' : '刷新状态'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => void acceptDnsHandoff()}
+              disabled={dnsHandoffPending}
+            >
+              {dnsHandoffPending ? '接收中...' : '接收 DNS handoff'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<RefreshCw className="h-4 w-4" />}
+              onClick={() => void loadState()}
+              disabled={loading}
+            >
+              {loading ? '刷新中...' : '刷新状态'}
+            </Button>
+          </div>
         </div>
 
         <AppRuntimeOverviewPanel
@@ -1519,6 +1586,55 @@ export function AppRuntimePlanningPanel() {
             dnsWarnings={dnsProbeReport?.warnings ?? []}
             onActionClick={handleAggregateDiagnosticAction}
           />
+        ) : null}
+
+        {dnsHandoffReport ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">
+                  DNS handoff intake
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  接收 DNS expanded control-plane completion manifest，并保持
+                  phase8Allowed=false。
+                </div>
+              </div>
+              <Chip
+                size="small"
+                color={statusColor(dnsHandoffReport.status)}
+                label={dnsHandoffReport.status}
+              />
+            </div>
+            <div className="grid gap-2 text-xs lg:grid-cols-2">
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Reason</div>
+                <div className="mt-1 text-muted-foreground">
+                  {dnsHandoffReport.reason}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Record</div>
+                <div className="mt-1 truncate text-muted-foreground">
+                  {dnsHandoffReport.handoffRecordPath ?? '未持久化'}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Next step</div>
+                <div className="mt-1 text-muted-foreground">
+                  {dnsHandoffReport.nextAppRuntimeStep}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Boundary</div>
+                <div className="mt-1 text-muted-foreground">
+                  accepts={String(dnsHandoffReport.appRuntimeAcceptsHandoff)} ·
+                  phase8={String(dnsHandoffReport.phase8Allowed)} · mutates=
+                  {String(dnsHandoffReport.mutatesRuntime)}
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
 
         <AppRuntimeSecurityProfileForm
