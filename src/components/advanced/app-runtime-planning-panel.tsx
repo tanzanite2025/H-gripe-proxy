@@ -7,6 +7,7 @@ import { Card } from '@/components/tailwind/Card'
 import { Chip } from '@/components/tailwind/Chip'
 import { Select } from '@/components/tailwind/Select'
 import {
+  buildAppRuntimeProjectionArtifact,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
   deleteDnsProfile,
@@ -32,6 +33,7 @@ import {
   type AppRuntimeDiagnosticsReport,
   type AppRuntimeMihomoProjection,
   type AppRuntimePlan,
+  type AppRuntimeProjectionArtifact,
   type AppRuntimeSessionEvaluationReport,
   type AppRuntimeSessionLeakReport,
   type AppRuntimeStateDocument,
@@ -85,11 +87,14 @@ export function AppRuntimePlanningPanel() {
   const [planning, setPlanning] = useState(false)
   const [sessionPending, setSessionPending] = useState(false)
   const [dnsProbePending, setDnsProbePending] = useState(false)
+  const [artifactPending, setArtifactPending] = useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
   const [projection, setProjection] =
     useState<AppRuntimeMihomoProjection | null>(null)
   const [diagnostics, setDiagnostics] =
     useState<AppRuntimeDiagnosticsReport | null>(null)
+  const [projectionArtifact, setProjectionArtifact] =
+    useState<AppRuntimeProjectionArtifact | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [evaluation, setEvaluation] =
     useState<AppRuntimeSessionEvaluationReport | null>(null)
@@ -542,6 +547,7 @@ export function AppRuntimePlanningPanel() {
     setEvaluation(null)
     setLeakReport(null)
     setDnsProbeReport(null)
+    setProjectionArtifact(null)
   }
 
   const loadState = useLockFn(async () => {
@@ -576,6 +582,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(nextProjection)
       setDiagnostics(nextDiagnostics)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用运行时规划诊断已完成')
     } catch (error) {
       showNotice.error(error)
@@ -613,6 +620,28 @@ export function AppRuntimePlanningPanel() {
 
     if (selectedDnsProfile) {
       await handleProbeSelectedDnsProfile()
+    }
+  })
+
+  const buildProjectionArtifact = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    setArtifactPending(true)
+    try {
+      const artifact = await buildAppRuntimeProjectionArtifact({
+        appId: selectedAppId,
+      })
+      setProjectionArtifact(artifact)
+      setPlan(artifact.plan)
+      setProjection(artifact.projection)
+      setDiagnostics(artifact.diagnostics)
+      showNotice.success('应用运行时 projection artifact dry-run 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setArtifactPending(false)
     }
   })
 
@@ -680,6 +709,7 @@ export function AppRuntimePlanningPanel() {
       setEvaluation(null)
       setLeakReport(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用运行时 session 已开始记录')
     } catch (error) {
       showNotice.error(error)
@@ -812,6 +842,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setDiagnostics(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用注册信息已保存')
     } catch (error) {
       showNotice.error(error)
@@ -871,6 +902,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setDiagnostics(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('节点池已保存')
     } catch (error) {
       showNotice.error(error)
@@ -916,6 +948,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setDiagnostics(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('DNS profile 已保存')
     } catch (error) {
       showNotice.error(error)
@@ -975,6 +1008,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setDiagnostics(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('Security profile 已保存')
     } catch (error) {
       showNotice.error(error)
@@ -1008,6 +1042,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setDiagnostics(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用策略绑定已保存')
     } catch (error) {
       showNotice.error(error)
@@ -1072,6 +1107,7 @@ export function AppRuntimePlanningPanel() {
       setState(nextState)
       setSelectedResourceId(nextResourceId)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用编排资源已保存')
     } catch (error) {
       showNotice.error(error)
@@ -1114,6 +1150,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setDiagnostics(null)
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用编排资源已删除')
     } catch (error) {
       showNotice.error(error)
@@ -1164,6 +1201,7 @@ export function AppRuntimePlanningPanel() {
       setState(nextState)
       setSelectedAppId((current) => current || nextState.apps[0]?.appId || '')
       setDnsProbeReport(null)
+      setProjectionArtifact(null)
       showNotice.success('应用编排配置已导入')
     } catch (error) {
       showNotice.error(error)
@@ -1407,6 +1445,15 @@ export function AppRuntimePlanningPanel() {
               >
                 {planning || dnsProbePending ? '检查中...' : '运行 readiness'}
               </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Route className="h-4 w-4" />}
+                onClick={() => void buildProjectionArtifact()}
+                disabled={!selectedAppId || artifactPending}
+              >
+                {artifactPending ? '生成中...' : '生成 artifact'}
+              </Button>
             </div>
           </div>
         )}
@@ -1522,6 +1569,7 @@ export function AppRuntimePlanningPanel() {
           diagnostics={diagnostics}
           plan={plan}
           projection={projection}
+          projectionArtifact={projectionArtifact}
         />
       </div>
     </Card>

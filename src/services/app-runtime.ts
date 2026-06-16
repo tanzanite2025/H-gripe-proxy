@@ -249,6 +249,37 @@ export interface AppRuntimeDiagnosticsReport {
   warnings: string[]
 }
 
+export type AppRuntimeProjectionActivationMode = 'staged'
+
+export interface AppRuntimeProjectionValidationReport {
+  status: AppRuntimeDiagnosticStatus
+  reason: string
+  checks: AppRuntimeDiagnosticCheck[]
+  summary: AppRuntimeDiagnosticsSummary
+  facts: string[]
+  warnings: string[]
+}
+
+export interface AppRuntimeProjectionArtifact {
+  artifactId: string
+  appId: string
+  sessionId?: string
+  bindingId?: string
+  nodePoolId?: string
+  dnsProfileId?: string
+  securityProfileId?: string
+  generatedAt: number
+  activationMode: AppRuntimeProjectionActivationMode
+  mutatesRuntime: boolean
+  checksum: string
+  plan: AppRuntimePlan
+  projection: AppRuntimeMihomoProjection
+  diagnostics: AppRuntimeDiagnosticsReport
+  validation: AppRuntimeProjectionValidationReport
+  facts: string[]
+  warnings: string[]
+}
+
 export type AppRuntimeSessionStatus =
   | 'planned'
   | 'blocked'
@@ -473,6 +504,12 @@ export async function diagnoseAppRuntime(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeDiagnosticsReport> {
   return invoke('diagnose_app_runtime', { request })
+}
+
+export async function buildAppRuntimeProjectionArtifact(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeProjectionArtifact> {
+  return invoke('build_app_runtime_projection_artifact', { request })
 }
 
 export async function listAppRuntimeSessions(
