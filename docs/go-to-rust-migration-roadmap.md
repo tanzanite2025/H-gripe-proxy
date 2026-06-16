@@ -613,11 +613,48 @@ AppRegistry
 - 不要在 Rust state 之外新增 app / node pool 的临时事实源。
 - 不要让前端直接生成 app 级 Mihomo 规则作为长期方案。
 
-## 推荐的下一个实际开发 PR
+## 加速执行策略
+
+现在 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细：同一个 app-runtime 面板被拆成 planning、session observation、finish action 等多个小 PR。后续应把**同一风险等级、同一事实源、同一 UI surface** 的工作合并成更大的批次，减少 PR / CI / review 往返。
+
+### 可以加快做的部分
+
+这些能力都停留在 Rust 控制面、state、diagnostics 或 frontend surface，不直接碰真实流量转发，可合并成较大的功能 PR：
+
+| 优先级 | 可加速方向 | 建议合并方式 | 原因 |
+| --- | --- | --- | --- |
+| P0 | App runtime CRUD 管理面 | 一个 PR 内完成 app / node pool / DNS profile / security profile / binding 的基础 CRUD UI | 后端 upsert/delete command 和 TypeScript service 已存在，主要是 UI 表单与 state refresh |
+| P0 | App diagnostics 串联 DNS probe | 一个 PR 内把 DNS profile → `DnsResolverPlan` → controlled probe summary 接到 app diagnostics | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
+| P1 | App runtime demo / seed import-export | 一个 PR 内提供示例 state JSON 导入、导出、清空入口 | 可加快手动验证和后续 UI 评审，不影响 runtime |
+| P1 | 文档与 UI 文案整理 | 随功能 PR 一起更新，不再每个小按钮单独开文档 PR | 降低 PR 数量，避免路线图频繁小改 |
+| P2 | Session observability 展示增强 | 合并 observation timeline、evaluation detail、leak check detail 到一个 PR | 都读同一 `AppRuntimeSessionRecord`，风险边界一致 |
+
+### 不应加速硬推的部分
+
+这些能力会进入真实 runtime / OS 网络边界，应继续小步、强验证：
+
+| 高风险方向 | 为什么不能快 |
+| --- | --- |
+| 默认 DNS resolver runtime 切换 | 会同时影响 cache、fake-ip、fallback-filter、nameserver-policy 和用户默认解析路径 |
+| TUN / transparent proxy / tunnel | 涉及系统网络接管、权限、平台差异和回滚复杂度 |
+| 自研 outbound / inbound 协议栈 | 会替换 Mihomo 核心数据面，是最大风险块 |
+| 强 per-app network isolation / sandbox | 依赖 OS 网络隔离能力，不能只靠 control-plane 文案声明完成 |
+| 前端直接写 Mihomo app rules | 会破坏 Rust `AppRuntimeStateDocument -> RuntimePlan -> projection` 单一事实链 |
+
+### 新 PR 节奏
+
+后续开发默认按这个节奏推进：
+
+1. **控制面 / UI / diagnostics：合并成中等 PR。** 同一页面、同一 state、同一风险边界的改动尽量一次完成。
+2. **真实 runtime：继续拆小 PR。** 任何会改变默认 DNS、TUN、adapter、protocol 或 active forwarding 的改动都必须单独 PR。
+3. **文档不再跟每个小切片同步。** 路线图只在一个批次完成后更新，PR 描述记录本批次边界即可。
+4. **每个加速 PR 仍必须保留边界声明。** PR body 写清楚 `mutatesRuntime=false` / opt-in / plan-only，不用小 PR 换安全感。
+
+## 推荐的下一个实际开发批次
 
 从提交记录看，原先推荐的主线 A 首批控制面切片、session 观测闭环，以及主线 B DNS controlled runtime probe 都已经完成。下一阶段应继续保持 planning-only / opt-in 边界，避免把 app 编排、DNS runtime 和真实转发一次性绑死。
 
-### 主线 A：应用级代理编排 CRUD / 管理面
+### Batch A：应用级代理编排 CRUD / 管理面
 
 当前已经有 planning / diagnostics / session 面板。下一步应补齐 Rust state 的可视化 CRUD 管理面，但仍不修改真实 runtime：
 
@@ -630,6 +667,7 @@ feat(app-runtime): add app orchestration CRUD surface
 - 应用、节点池、DNS profile、security profile、policy binding 的 CRUD UI。
 - 与现有“应用编排”planning panel 共用同一个 `AppRuntimeStateDocument`。
 - 保存后立即复用现有 `diagnoseAppRuntime` / `projectAppRuntimePlanToMihomo` 做 explain。
+- 增加 import / export JSON，方便快速构造 app orchestration 测试数据。
 - 清楚标注 projection `mutatesRuntime=false`。
 
 不包含：
@@ -640,7 +678,7 @@ feat(app-runtime): add app orchestration CRUD surface
 - 前端绕过 Rust state 直接写 Mihomo rules。
 - 把 leak verification 文案写成真实出口探测或强隔离保证。
 
-### 主线 B：DNS profile probe 与 app diagnostics 关联
+### Batch B：DNS profile probe 与 app diagnostics 关联
 
 DNS controlled runtime probe 已存在，下一刀应把 probe 结果与 app DNS profile diagnostics 关联，不替换默认 DNS：
 
@@ -662,4 +700,4 @@ feat(app-runtime): include DNS profile probe summary in diagnostics
 - 默认 DNS resolver runtime 切换。
 - fake-ip / fallback-filter / nameserver-policy 真实执行。
 
-主线 A 和主线 B 可以继续并行推进：A 让 Rust-owned app/pool/policy 可见可管，B 把 DNS runtime 的 opt-in 可验证性接入 app diagnostics。二者仍通过 `RuntimePlan` / `DnsResolverPlan` 对接，避免日后重复建模。
+Batch A 和 Batch B 可以继续并行推进：A 让 Rust-owned app/pool/policy 可见可管，B 把 DNS runtime 的 opt-in 可验证性接入 app diagnostics。二者仍通过 `RuntimePlan` / `DnsResolverPlan` 对接，避免日后重复建模。
