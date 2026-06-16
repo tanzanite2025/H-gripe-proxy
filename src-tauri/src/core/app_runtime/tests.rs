@@ -71,36 +71,72 @@ fn demo_seed_builds_ready_app_runtime_plan() {
 
 #[test]
 fn app_runtime_dns_handoff_accepts_completed_dns_control_plane() {
-    let history = build_dns_default_runtime_expanded_reverify_history_report(
-        vec![sample_dns_reverify_record(100), sample_dns_reverify_record(200)],
-        Vec::new(),
-    );
-    let closeout = build_dns_default_runtime_expanded_lifecycle_closeout_report(
-        history,
-        Some(sample_dns_active_state()),
-        Vec::new(),
-    );
-    let dns_completion = build_dns_default_runtime_expanded_control_plane_completion_report(
-        closeout,
-        true,
-        Some("dns-handoff.yaml".into()),
-        Vec::new(),
-        300,
-    );
-
-    let report = build_app_runtime_dns_handoff_report(
-        dns_completion,
-        Some("app-runtime-handoff.yaml".into()),
-        true,
-        Vec::new(),
-        400,
-    );
+    let report = sample_accepted_dns_handoff();
 
     assert_eq!(report.status, AppRuntimeDnsHandoffStatus::Accepted);
     assert!(report.app_runtime_accepts_handoff);
     assert!(report.handoff_record_persisted);
     assert!(!report.phase8_allowed);
     assert!(!report.promotion_allowed);
+    assert!(!report.auto_rollout);
+    assert!(!report.auto_rollback);
+    assert!(!report.mutates_runtime);
+}
+
+#[test]
+fn app_runtime_control_plane_completion_combines_handoff_artifact_and_preflight() {
+    let dns_handoff = sample_accepted_dns_handoff();
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
+        active_projection: None,
+    };
+    let mut artifact = build_app_runtime_projection_artifact(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    )
+    .unwrap();
+    artifact.storage_path = Some("artifact.yaml".into());
+    let preflight = AppRuntimeProjectionActivationPreflightReport {
+        status: AppRuntimeDiagnosticStatus::Healthy,
+        reason: "ready".into(),
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: Some("browser".into()),
+        checksum: Some(artifact.checksum.clone()),
+        storage_path: Some("artifact.yaml".into()),
+        activation_mode: Some(AppRuntimeProjectionActivationMode::Staged),
+        mutates_runtime: Some(false),
+        checks: Vec::new(),
+        summary: AppRuntimeDiagnosticsSummary {
+            passed: 1,
+            warnings: 0,
+            failed: 0,
+            skipped: 0,
+        },
+        facts: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    let report = build_app_runtime_control_plane_completion_report(
+        dns_handoff,
+        artifact,
+        Some("artifact.yaml".into()),
+        true,
+        preflight,
+    );
+
+    assert_eq!(report.status, AppRuntimeControlPlaneCompletionStatus::Ready);
+    assert!(report.ready_for_staged_activation);
+    assert!(!report.runtime_apply_allowed);
+    assert!(!report.phase8_allowed);
     assert!(!report.auto_rollout);
     assert!(!report.auto_rollback);
     assert!(!report.mutates_runtime);
@@ -1268,6 +1304,33 @@ fn sample_binding() -> AppPolicyBinding {
         enabled: true,
         updated_at: 1,
     }
+}
+
+fn sample_accepted_dns_handoff() -> AppRuntimeDnsHandoffReport {
+    let history = build_dns_default_runtime_expanded_reverify_history_report(
+        vec![sample_dns_reverify_record(100), sample_dns_reverify_record(200)],
+        Vec::new(),
+    );
+    let closeout = build_dns_default_runtime_expanded_lifecycle_closeout_report(
+        history,
+        Some(sample_dns_active_state()),
+        Vec::new(),
+    );
+    let dns_completion = build_dns_default_runtime_expanded_control_plane_completion_report(
+        closeout,
+        true,
+        Some("dns-handoff.yaml".into()),
+        Vec::new(),
+        300,
+    );
+
+    build_app_runtime_dns_handoff_report(
+        dns_completion,
+        Some("app-runtime-handoff.yaml".into()),
+        true,
+        Vec::new(),
+        400,
+    )
 }
 
 fn sample_dns_reverify_record(created_at_epoch_seconds: u64) -> DnsDefaultRuntimeExpandedReverifyRecord {

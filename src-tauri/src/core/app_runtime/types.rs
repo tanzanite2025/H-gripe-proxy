@@ -36,6 +36,14 @@ pub enum AppRuntimeDnsHandoffStatus {
     Blocked,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeControlPlaneCompletionStatus {
+    Ready,
+    Degraded,
+    Blocked,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDnsHandoffRecord {
@@ -75,6 +83,32 @@ pub struct AppRuntimeDnsHandoffReport {
     pub auto_rollback: bool,
     pub mutates_runtime: bool,
     pub reload_mihomo: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeControlPlaneCompletionReport {
+    pub status: AppRuntimeControlPlaneCompletionStatus,
+    pub reason: String,
+    pub app_id: String,
+    pub dns_handoff: AppRuntimeDnsHandoffReport,
+    pub projection_artifact: AppRuntimeProjectionArtifact,
+    pub projection_artifact_path: Option<String>,
+    pub projection_artifact_persisted: bool,
+    pub activation_preflight: AppRuntimeProjectionActivationPreflightReport,
+    pub ready_for_staged_activation: bool,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,

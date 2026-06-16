@@ -22,6 +22,7 @@ export interface AggregateDiagnosticAction {
     | 'run-diagnostics'
     | 'run-dns-probe'
     | 'accept-dns-handoff'
+    | 'complete-control-plane'
 }
 
 interface AppRuntimeAggregateDiagnosticsPanelProps {

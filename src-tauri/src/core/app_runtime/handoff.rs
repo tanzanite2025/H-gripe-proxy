@@ -11,6 +11,30 @@ pub async fn accept_app_runtime_dns_handoff() -> Result<AppRuntimeDnsHandoffRepo
     persist_app_runtime_dns_handoff_report(dns_completion).await
 }
 
+pub async fn complete_app_runtime_control_plane(
+    request: AppRuntimePlanRequest,
+) -> Result<AppRuntimeControlPlaneCompletionReport> {
+    let dns_handoff = accept_app_runtime_dns_handoff().await?;
+    let state = read_app_runtime_state_document().await?;
+    let mut projection_artifact = build_app_runtime_projection_artifact(&state, request)?;
+    let projection_artifact_path = persist_app_runtime_projection_artifact(&projection_artifact).await?;
+    projection_artifact.storage_path = Some(projection_artifact_path.clone());
+    let activation_preflight =
+        preflight_app_runtime_projection_activation(AppRuntimeProjectionActivationPreflightRequest {
+            artifact_id: projection_artifact.artifact_id.clone(),
+            expected_checksum: Some(projection_artifact.checksum.clone()),
+        })
+        .await?;
+
+    Ok(build_app_runtime_control_plane_completion_report(
+        dns_handoff,
+        projection_artifact,
+        Some(projection_artifact_path),
+        true,
+        activation_preflight,
+    ))
+}
+
 pub fn build_app_runtime_dns_handoff_report(
     dns_completion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
     handoff_record_path: Option<String>,
@@ -90,6 +114,89 @@ pub fn build_app_runtime_dns_handoff_report(
     }
 }
 
+pub fn build_app_runtime_control_plane_completion_report(
+    dns_handoff: AppRuntimeDnsHandoffReport,
+    projection_artifact: AppRuntimeProjectionArtifact,
+    projection_artifact_path: Option<String>,
+    projection_artifact_persisted: bool,
+    activation_preflight: AppRuntimeProjectionActivationPreflightReport,
+) -> AppRuntimeControlPlaneCompletionReport {
+    let mut blockers = Vec::new();
+    if dns_handoff.status != AppRuntimeDnsHandoffStatus::Accepted {
+        blockers.push("app-runtime control-plane completion requires accepted DNS handoff".into());
+    }
+    if !projection_artifact_persisted {
+        blockers.push("app-runtime projection artifact was not persisted".into());
+    }
+    if projection_artifact.validation.status == AppRuntimeDiagnosticStatus::Blocked {
+        blockers.push("app-runtime projection artifact validation is blocked".into());
+    }
+    if activation_preflight.status == AppRuntimeDiagnosticStatus::Blocked {
+        blockers.push("app-runtime staged activation preflight is blocked".into());
+    }
+    if projection_artifact.mutates_runtime {
+        blockers.push("app-runtime projection artifact must remain planning-only".into());
+    }
+    blockers.extend(dns_handoff.blockers.iter().cloned());
+
+    let ready_for_staged_activation = blockers.is_empty()
+        && activation_preflight.status == AppRuntimeDiagnosticStatus::Healthy
+        && projection_artifact.validation.status == AppRuntimeDiagnosticStatus::Healthy;
+    let status = if !blockers.is_empty() {
+        AppRuntimeControlPlaneCompletionStatus::Blocked
+    } else if activation_preflight.status == AppRuntimeDiagnosticStatus::Degraded
+        || projection_artifact.validation.status == AppRuntimeDiagnosticStatus::Degraded
+    {
+        AppRuntimeControlPlaneCompletionStatus::Degraded
+    } else {
+        AppRuntimeControlPlaneCompletionStatus::Ready
+    };
+    let mut warnings = projection_artifact.warnings.clone();
+    warnings.extend(activation_preflight.warnings.iter().cloned());
+    warnings.extend(dns_handoff.warnings.iter().cloned());
+    warnings.push("App runtime control-plane completion stops before runtime apply".into());
+    warnings.sort();
+    warnings.dedup();
+    let facts = vec![
+        "app-runtime control-plane completion consumes DNS handoff intake".into(),
+        "app-runtime control-plane completion persists a projection artifact".into(),
+        "app-runtime control-plane completion runs staged activation preflight".into(),
+        "app-runtime control-plane completion does not apply runtime or reload Mihomo".into(),
+    ];
+    let next_app_runtime_step = if ready_for_staged_activation {
+        "userMayTriggerStagedActivationMarkerBeforeRuntimeApply"
+    } else if status == AppRuntimeControlPlaneCompletionStatus::Degraded {
+        "reviewWarningsBeforeStagedActivationMarker"
+    } else {
+        "resolveControlPlaneCompletionBlockers"
+    }
+    .into();
+
+    AppRuntimeControlPlaneCompletionReport {
+        status,
+        reason: app_runtime_control_plane_completion_reason(status, &blockers),
+        app_id: projection_artifact.app_id.clone(),
+        dns_handoff,
+        projection_artifact,
+        projection_artifact_path,
+        projection_artifact_persisted,
+        activation_preflight,
+        ready_for_staged_activation,
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
 async fn persist_app_runtime_dns_handoff_report(
     dns_completion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
 ) -> Result<AppRuntimeDnsHandoffReport> {
@@ -155,5 +262,23 @@ fn app_runtime_dns_handoff_reason(status: AppRuntimeDnsHandoffStatus, blockers: 
             .first()
             .cloned()
             .unwrap_or_else(|| "app runtime DNS handoff is blocked".into()),
+    }
+}
+
+fn app_runtime_control_plane_completion_reason(
+    status: AppRuntimeControlPlaneCompletionStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        AppRuntimeControlPlaneCompletionStatus::Ready => {
+            "app runtime control-plane completion is ready for staged activation".into()
+        }
+        AppRuntimeControlPlaneCompletionStatus::Degraded => {
+            "app runtime control-plane completion is ready with warnings".into()
+        }
+        AppRuntimeControlPlaneCompletionStatus::Blocked => blockers
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "app runtime control-plane completion is blocked".into()),
     }
 }

@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime DNS handoff intake） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AA、Batch AB（本批次，合并 app-runtime intake/diagnostics/UI/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime control-plane completion） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AB、Batch AC（本批次，合并 DNS handoff + projection artifact + staged preflight + UI/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1436,3 +1436,35 @@ feat(app-runtime): accept DNS expanded handoff
 - 新增 `accept_app_runtime_dns_handoff` command。
 - UI 聚合诊断新增 DNS handoff intake 状态、动作与结果面板。
 - Rust 单元测试覆盖 app-runtime 接收 completed DNS control-plane handoff。
+
+### Batch AC：App runtime control-plane completion bundle（本批次，继续加大）
+
+在 Batch AB 接收 DNS handoff 之后，本批次继续把 app-runtime 主线后续多步合并为一个 control-plane completion bundle：一次命令完成 DNS handoff intake、应用规划诊断、Mihomo projection artifact 持久化、staged activation preflight、聚合诊断与 UI 面板更新。
+
+```text
+complete_app_runtime_control_plane(appId)
+  -> accept_app_runtime_dns_handoff()
+  -> diagnose_app_runtime(appId)
+  -> build + persist AppRuntimeProjectionArtifact
+  -> preflight_app_runtime_projection_activation(artifactId, checksum)
+  -> ready | degraded | blocked
+```
+
+合并范围：
+
+- Command：新增 `complete_app_runtime_control_plane`，串联 DNS handoff、projection artifact 与 staged preflight。
+- Report：新增 `AppRuntimeControlPlaneCompletionReport`，输出 `readyForStagedActivation`、artifact path、preflight status、next step 与 blockers。
+- UI：高级页新增“完成 control-plane”按钮、聚合诊断状态与 completion 结果面板。
+- Tests：覆盖 accepted DNS handoff + artifact + staged preflight 的 ready 汇总。
+
+强边界：
+
+- 不执行 `activate_app_runtime_projection_artifact`。
+- 不执行 `apply_app_runtime_projection_artifact_to_runtime`。
+- 不 reload Mihomo，不写 active runtime apply marker。
+- `runtimeApplyAllowed=false`、`phase8Allowed=false`、`promotionAllowed=false`、`autoRollout=false`、`autoRollback=false`。
+
+不包含：
+
+- 不接管 adapter / tunnel / transparent proxy。
+- 不进入 Phase 8。
