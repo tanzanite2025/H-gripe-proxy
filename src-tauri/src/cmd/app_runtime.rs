@@ -1,7 +1,8 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
     AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
-    AppRuntimePlanRequest, AppRuntimeProjectionArtifact, AppRuntimeSessionEvaluationReport,
+    AppRuntimePlanRequest, AppRuntimeProjectionActivationPreflightReport,
+    AppRuntimeProjectionActivationPreflightRequest, AppRuntimeProjectionArtifact, AppRuntimeSessionEvaluationReport,
     AppRuntimeSessionFinishRequest, AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport,
     AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
     build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
@@ -14,6 +15,7 @@ use crate::core::app_runtime::{
     finish_app_runtime_session as finish_app_runtime_session_record,
     list_app_runtime_sessions as list_app_runtime_session_records,
     persist_app_runtime_projection_artifact as persist_app_runtime_projection_artifact_record,
+    preflight_app_runtime_projection_activation as preflight_app_runtime_projection_activation_record,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
     record_app_runtime_session_observation as record_app_runtime_session_observation_record,
     start_app_runtime_session as start_app_runtime_session_record,
@@ -114,6 +116,15 @@ pub async fn build_app_runtime_projection_artifact(
             .stringify_err()?,
     );
     Ok(artifact)
+}
+
+#[tauri::command]
+pub async fn preflight_app_runtime_projection_activation(
+    request: AppRuntimeProjectionActivationPreflightRequest,
+) -> CmdResult<AppRuntimeProjectionActivationPreflightReport> {
+    preflight_app_runtime_projection_activation_record(request)
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]

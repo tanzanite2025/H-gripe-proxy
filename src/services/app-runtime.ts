@@ -281,6 +281,26 @@ export interface AppRuntimeProjectionArtifact {
   warnings: string[]
 }
 
+export interface AppRuntimeProjectionActivationPreflightRequest {
+  artifactId: string
+  expectedChecksum?: string
+}
+
+export interface AppRuntimeProjectionActivationPreflightReport {
+  status: AppRuntimeDiagnosticStatus
+  reason: string
+  artifactId: string
+  appId?: string
+  checksum?: string
+  storagePath?: string
+  activationMode?: AppRuntimeProjectionActivationMode
+  mutatesRuntime?: boolean
+  checks: AppRuntimeDiagnosticCheck[]
+  summary: AppRuntimeDiagnosticsSummary
+  facts: string[]
+  warnings: string[]
+}
+
 export type AppRuntimeSessionStatus =
   | 'planned'
   | 'blocked'
@@ -511,6 +531,12 @@ export async function buildAppRuntimeProjectionArtifact(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeProjectionArtifact> {
   return invoke('build_app_runtime_projection_artifact', { request })
+}
+
+export async function preflightAppRuntimeProjectionActivation(
+  request: AppRuntimeProjectionActivationPreflightRequest,
+): Promise<AppRuntimeProjectionActivationPreflightReport> {
+  return invoke('preflight_app_runtime_projection_activation', { request })
 }
 
 export async function listAppRuntimeSessions(

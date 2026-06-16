@@ -1,10 +1,12 @@
 import { Boxes } from 'lucide-react'
 
+import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 import type {
   AppRuntimeDiagnosticsReport,
   AppRuntimeMihomoProjection,
   AppRuntimePlan,
+  AppRuntimeProjectionActivationPreflightReport,
   AppRuntimeProjectionArtifact,
 } from '@/services/app-runtime'
 
@@ -15,6 +17,9 @@ interface AppRuntimePlanningResultPanelProps {
   plan: AppRuntimePlan | null
   projection: AppRuntimeMihomoProjection | null
   projectionArtifact: AppRuntimeProjectionArtifact | null
+  activationPreflight: AppRuntimeProjectionActivationPreflightReport | null
+  activationPreflightPending: boolean
+  onPreflightActivation: () => void
 }
 
 export function AppRuntimePlanningResultPanel({
@@ -22,6 +27,9 @@ export function AppRuntimePlanningResultPanel({
   plan,
   projection,
   projectionArtifact,
+  activationPreflight,
+  activationPreflightPending,
+  onPreflightActivation,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
     return null
@@ -62,18 +70,32 @@ export function AppRuntimePlanningResultPanel({
 
       {projectionArtifact ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">Projection artifact</span>
-            <Chip
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Projection artifact</span>
+              <Chip
+                size="small"
+                color={statusColor(projectionArtifact.validation.status)}
+                label={projectionArtifact.validation.status}
+              />
+              <Chip
+                size="small"
+                color={projectionArtifact.mutatesRuntime ? 'error' : 'success'}
+                label={`activation: ${projectionArtifact.activationMode}`}
+              />
+            </div>
+            <Button
               size="small"
-              color={statusColor(projectionArtifact.validation.status)}
-              label={projectionArtifact.validation.status}
-            />
-            <Chip
-              size="small"
-              color={projectionArtifact.mutatesRuntime ? 'error' : 'success'}
-              label={`activation: ${projectionArtifact.activationMode}`}
-            />
+              variant="outlined"
+              onClick={onPreflightActivation}
+              disabled={
+                activationPreflightPending || !projectionArtifact.storagePath
+              }
+            >
+              {activationPreflightPending
+                ? 'Preflight 中...'
+                : 'Activation preflight'}
+            </Button>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div>ID: {projectionArtifact.artifactId}</div>
@@ -101,6 +123,34 @@ export function AppRuntimePlanningResultPanel({
               </div>
             ))}
           </div>
+          {activationPreflight ? (
+            <div className="space-y-2 rounded-md border border-border bg-background/50 p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Activation preflight</span>
+                <Chip
+                  size="small"
+                  color={statusColor(activationPreflight.status)}
+                  label={activationPreflight.status}
+                />
+                <span>{activationPreflight.reason}</span>
+              </div>
+              <div className="space-y-1">
+                {activationPreflight.checks.map((check) => (
+                  <div
+                    key={check.checkId}
+                    className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-2 py-1"
+                  >
+                    <span>{check.message}</span>
+                    <Chip
+                      size="small"
+                      color={statusColor(check.status)}
+                      label={check.status}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
