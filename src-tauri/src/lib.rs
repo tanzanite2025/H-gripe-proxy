@@ -330,6 +330,7 @@ mod app_init {
             cmd::dns_default_runtime_limited_opt_in_execution,
             cmd::dns_default_runtime_rollback_drill,
             cmd::dns_default_runtime_post_execution_observed_verification,
+            cmd::dns_default_runtime_expanded_opt_in_execution_gate,
             cmd::dns_default_runtime_limited_rollback,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,

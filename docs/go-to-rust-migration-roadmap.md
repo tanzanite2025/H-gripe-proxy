@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime execution 后验证前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-Q（PR #136-#140、本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification 与 rollback drill 已进入 Rust 单一路径；下一步评估是否允许更大范围 opt-in execution |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expansion gate 前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142、本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate 已进入 Rust 单一路径；下一步评估 TUN / protocol runtime 边界 |
 
 ## 已完成阶段详情
 
@@ -714,7 +714,7 @@ AppRegistry
 
 从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard、Batch J runtime apply audit / observed verification、Batch K default DNS runtime readiness gate、Batch L default DNS runtime shadow evidence、Batch M default DNS runtime opt-in switch guard、Batch N default DNS runtime opt-in executor preflight、Batch O default DNS runtime opt-in execution guard、Batch P default DNS runtime limited opt-in execution（PR #140）都已完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback、显式 runtime candidate apply、runtime apply audit、只读运行态验证、默认 DNS runtime readiness/blocker、shadow evidence、opt-in switch guard、executor preflight、execution guard 与 limited execution 评估。
 
-下一步仍不应直接切 TUN 或协议栈替换；这些会扩大到真实数据面。默认 DNS runtime 若继续推进，应基于 **Batch Q：Default DNS runtime post-execution observed verification** 的执行后 observed verification、rollback drill 与 failure audit 结果，评估是否允许更大范围 opt-in execution。
+下一步仍不应直接切 TUN 或协议栈替换；这些会扩大到真实数据面。默认 DNS runtime 若继续推进，应基于 **Batch R：Default DNS runtime expanded opt-in gate** 的 gate 结果，评估是否允许进入更真实的数据面迁移边界。
 
 ### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
@@ -1086,3 +1086,33 @@ feat(dns-runtime): add post execution observed verification
 - 新增 `dns_default_runtime_rollback_drill` command，只生成 rollback drill report，不执行 rollback。
 - Verification report 输出 failure audit、rollback drill readiness、`mutatesRuntime=false`、`reloadMihomo=false` 与 blockers/warnings/facts。
 - DNS runtime stats UI 新增 post-execution verification 面板，可显式触发 observed verification 与 rollback drill。
+
+### Batch R：Default DNS runtime expanded opt-in gate（本批次，只评估是否允许扩大）
+
+Batch Q 已补齐执行后 observed verification、rollback drill 与 failure audit。下一批如果继续推进，仍不应直接 rollout，而应先把“是否允许更大范围 opt-in execution”变成 Rust-owned gate：
+
+```text
+feat(dns-runtime): add expanded opt-in execution gate
+```
+
+建议边界：
+
+- 只消费 Batch Q post-execution verification / failure audit / rollback drill 结果。
+- 只有 post-execution verified、failure audit 不 required、rollback drill ready 且用户显式 opt-in 时才允许后续扩大。
+- Gate report 必须明确 candidate scope、`expansionAllowed`、`userTriggerRequired`、`autoRollout=false`。
+- UI 只能由用户点击触发 gate，不随页面打开自动运行。
+
+不包含：
+
+- 不自动 rollout。
+- 不执行新的 runtime mutation。
+- 不自动 rollback。
+- 不写 active profile、不 reload Mihomo。
+- 不碰 TUN、transparent proxy、adapter outbound/inbound 或协议栈。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_opt_in_execution_gate` command，复用 Batch Q observed verification 结果。
+- Gate 仅在 verified / no failure audit / rollback drill ready / explicit opt-in 全部满足时返回 `expansionAllowed=true`。
+- Report 输出 candidate scope、blockers、facts、`mutatesRuntime=false`、`executed=false`、`reloadMihomo=false`、`autoRollout=false`。
+- DNS runtime stats UI 在 post-execution 面板新增 expanded gate 按钮与结果展示。

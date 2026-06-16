@@ -403,6 +403,9 @@ export type DnsDefaultRuntimePostExecutionVerificationStatus =
   | 'failed'
   | 'blocked'
 export type DnsDefaultRuntimeRollbackDrillStatus = 'ready' | 'blocked'
+export type DnsDefaultRuntimeExpandedOptInExecutionGateStatus =
+  | 'ready'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -494,6 +497,34 @@ export interface DnsDefaultRuntimePostExecutionObservedVerificationReport {
   rollbackDrill: DnsDefaultRuntimeRollbackDrillReport
   failureAudit: DnsDefaultRuntimePostExecutionFailureAudit
   mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedOptInExecutionScope {
+  name: string
+  description: string
+  maxActiveRuntime: string
+  allowedExecutionMode: string
+  requiresUserTrigger: boolean
+  requiresPostExecutionVerification: boolean
+  requiresRollbackDrill: boolean
+}
+
+export interface DnsDefaultRuntimeExpandedOptInExecutionGateReport {
+  status: DnsDefaultRuntimeExpandedOptInExecutionGateStatus
+  reason: string
+  postExecution: DnsDefaultRuntimePostExecutionObservedVerificationReport
+  candidateScope: DnsDefaultRuntimeExpandedOptInExecutionScope
+  expansionAllowed: boolean
+  userTriggerRequired: boolean
+  rollbackDrillRequired: boolean
+  failureAuditRequired: boolean
+  autoRollout: boolean
+  mutatesRuntime: boolean
+  executed: boolean
   reloadMihomo: boolean
   blockers: string[]
   warnings: string[]
@@ -842,6 +873,29 @@ export async function dnsDefaultRuntimePostExecutionObservedVerification(
   } catch (err) {
     console.error(
       'DNS default runtime post-execution observed verification failed:',
+      err,
+    )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedOptInExecutionGate(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeExpandedOptInExecutionGateReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedOptInExecutionGateReport>(
+      'dns_default_runtime_expanded_opt_in_execution_gate',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime expanded opt-in execution gate failed:',
       err,
     )
     throw err
