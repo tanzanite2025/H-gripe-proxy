@@ -10,6 +10,7 @@ import {
   dnsDefaultRuntimeExpandedOptInExecutionPreflight,
   dnsDefaultRuntimeExpandedHoldPolicy,
   dnsDefaultRuntimeExpandedPostExecutionObservedVerification,
+  dnsDefaultRuntimeExpandedReverify,
   dnsDefaultRuntimeExpandedRollback,
   dnsDefaultRuntimeExpandedRollbackDrill,
   dnsDefaultRuntimeExpandedStabilityGate,
@@ -22,6 +23,7 @@ import {
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus,
   type DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport,
+  type DnsDefaultRuntimeExpandedReverifyReport,
   type DnsDefaultRuntimeExpandedRollbackDrillReport,
   type DnsDefaultRuntimeExpandedRollbackReport,
   type DnsDefaultRuntimeExpandedRollbackStatus,
@@ -135,6 +137,8 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeExpandedStabilityGateReport | null>(null)
   const [expandedHoldPolicyReport, setExpandedHoldPolicyReport] =
     useState<DnsDefaultRuntimeExpandedHoldPolicyReport | null>(null)
+  const [expandedReverifyReport, setExpandedReverifyReport] =
+    useState<DnsDefaultRuntimeExpandedReverifyReport | null>(null)
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
@@ -147,6 +151,7 @@ export function RuntimePostExecutionSection() {
     | 'expandedDrill'
     | 'expandedStability'
     | 'expandedHold'
+    | 'expandedReverify'
     | 'rollback'
     | null
   >(null)
@@ -328,6 +333,31 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedReverify = useLockFn(async () => {
+    setPending('expandedReverify')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedReverify(
+        undefined,
+        POST_EXECUTION_DOMAIN,
+        true,
+      )
+      setExpandedReverifyReport(nextReport)
+      setExpandedHoldPolicyReport(nextReport.holdPolicy)
+      setExpandedStabilityGateReport(nextReport.holdPolicy.stabilityGate)
+      setExpandedPostExecutionReport(
+        nextReport.holdPolicy.stabilityGate.postExecution,
+      )
+      setExpandedDrillReport(
+        nextReport.holdPolicy.stabilityGate.postExecution.rollbackDrill,
+      )
+      showNotice.success('默认 DNS runtime expanded reverify 已记录')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -416,6 +446,16 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedReverify}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedReverify'
+              ? '记录中...'
+              : 'Expanded reverify'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -434,7 +474,8 @@ export function RuntimePostExecutionSection() {
         Expanded verify / drill 只读取 Batch T active state 与 audit
         metadata，生成 failure audit，不自动回滚。Expanded stability 只决定当前 session
         是否可保持 active，不做长期默认推广。Expanded hold 再加最小/最大观察窗口，
-        超窗只建议显式 rollback。
+        超窗只建议显式 rollback。Expanded reverify 将一次显式 hold-window
+        评估持久化为 audit record，方便重复验证。
       </div>
 
       {verificationReport ? (
@@ -503,6 +544,89 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedReverifyReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded reverify"
+              chipLabel={expandedReverifyReport.status}
+              chipColor={
+                expandedReverifyReport.status === 'recorded'
+                  ? 'success'
+                  : expandedReverifyReport.status === 'blocked'
+                    ? 'error'
+                    : 'warning'
+              }
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedReverifyReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedReverifyReport.reason}
+            />
+            <DnsTextRow
+              label="Record"
+              value={
+                expandedReverifyReport.reverifyPersisted
+                  ? '已持久化'
+                  : '未持久化'
+              }
+            />
+            <DnsTextRow
+              label="Path"
+              value={expandedReverifyReport.reverifyRecordPath ?? '未生成'}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedReverifyReport.reverifyRecordPath ?? undefined}
+            />
+            <DnsTextRow
+              label="Hold status"
+              value={expandedReverifyReport.reverifyRecord.holdStatus}
+            />
+            <DnsTextRow
+              label="Post status"
+              value={expandedReverifyReport.reverifyRecord.postExecutionStatus}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedReverifyReport.keepActiveAllowed
+                  ? 'success'
+                  : 'warning'
+              }
+              label={`keepActive=${String(expandedReverifyReport.keepActiveAllowed)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedReverifyReport.nextVerificationRequired
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`reverify=${String(expandedReverifyReport.nextVerificationRequired)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedReverifyReport.rollbackRecommended
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`rollbackRecommended=${String(expandedReverifyReport.rollbackRecommended)}`}
+            />
+          </div>
+
+          {expandedReverifyReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Expanded reverify blockers:{' '}
+              {expandedReverifyReport.blockers.join('；')}
             </div>
           ) : null}
         </div>

@@ -432,6 +432,10 @@ export type DnsDefaultRuntimeExpandedHoldPolicyStatus =
   | 'holding'
   | 'rollbackRecommended'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedReverifyStatus =
+  | 'recorded'
+  | 'rollbackRecommended'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -694,6 +698,42 @@ export interface DnsDefaultRuntimeExpandedHoldPolicyReport {
   rollbackRecommended: boolean
   promotionAllowed: boolean
   recommendedAction: string
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedReverifyRecord {
+  eventId: string
+  action: string
+  activeExecutionEventId?: string | null
+  holdStatus: DnsDefaultRuntimeExpandedHoldPolicyStatus
+  stabilityStatus: DnsDefaultRuntimeExpandedStabilityGateStatus
+  postExecutionStatus: DnsDefaultRuntimeExpandedPostExecutionVerificationStatus
+  activeAgeSeconds?: number | null
+  keepActiveAllowed: boolean
+  nextVerificationRequired: boolean
+  rollbackRecommended: boolean
+  nextVerificationAfterEpochSeconds?: number | null
+  holdExpiresAtEpochSeconds?: number | null
+  createdAtEpochSeconds: number
+}
+
+export interface DnsDefaultRuntimeExpandedReverifyReport {
+  status: DnsDefaultRuntimeExpandedReverifyStatus
+  reason: string
+  holdPolicy: DnsDefaultRuntimeExpandedHoldPolicyReport
+  reverifyRecord: DnsDefaultRuntimeExpandedReverifyRecord
+  reverifyRecordPath?: string | null
+  reverifyPersisted: boolean
+  keepActiveAllowed: boolean
+  nextVerificationRequired: boolean
+  rollbackRecommended: boolean
   userTriggerRequired: boolean
   autoRollout: boolean
   autoRollback: boolean
@@ -1200,6 +1240,26 @@ export async function dnsDefaultRuntimeExpandedHoldPolicy(
     )
   } catch (err) {
     console.error('DNS default runtime expanded hold policy failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedReverify(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeExpandedReverifyReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedReverifyReport>(
+      'dns_default_runtime_expanded_reverify',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime expanded reverify failed:', err)
     throw err
   }
 }
