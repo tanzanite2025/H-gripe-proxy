@@ -27,6 +27,31 @@ pub struct AppRuntimeStateDocument {
     pub policy_bindings: Vec<AppPolicyBinding>,
     #[serde(default)]
     pub sessions: Vec<AppRuntimeSessionRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_projection: Option<AppRuntimeActiveProjectionRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeActiveProjectionRecord {
+    pub artifact_id: String,
+    pub app_id: String,
+    pub checksum: String,
+    pub storage_path: String,
+    pub activated_at: i64,
+    pub activation_kind: String,
+    pub mutates_runtime: bool,
+    pub rollback: AppRuntimeProjectionRollbackMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRollbackMetadata {
+    pub previous_artifact_id: Option<String>,
+    pub previous_checksum: Option<String>,
+    pub previous_storage_path: Option<String>,
+    pub captured_at: i64,
+    pub rollback_strategy: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1168,6 +1193,40 @@ pub async fn preflight_app_runtime_projection_activation(
         storage_path,
         raw_yaml.as_str(),
     ))
+}
+
+pub async fn activate_app_runtime_projection_artifact(
+    request: AppRuntimeProjectionActivationPreflightRequest,
+) -> Result<AppRuntimeStateDocument> {
+    let artifact = read_persisted_app_runtime_projection_artifact(&request.artifact_id).await?;
+    validate_app_runtime_projection_artifact_activation_request(&artifact, &request)?;
+    let storage_path = artifact.storage_path.clone().unwrap_or_else(|| {
+        app_runtime_projection_artifact_path(&artifact.artifact_id)
+            .map(|path| path.to_string_lossy().to_string().into())
+            .unwrap_or_default()
+    });
+    update_state_document(|state| {
+        let previous = state.active_projection.clone();
+        let activated_at = now_millis();
+        state.active_projection = Some(AppRuntimeActiveProjectionRecord {
+            artifact_id: artifact.artifact_id.clone(),
+            app_id: artifact.app_id.clone(),
+            checksum: artifact.checksum.clone(),
+            storage_path,
+            activated_at,
+            activation_kind: "state_marker".into(),
+            mutates_runtime: false,
+            rollback: AppRuntimeProjectionRollbackMetadata {
+                previous_artifact_id: previous.as_ref().map(|item| item.artifact_id.clone()),
+                previous_checksum: previous.as_ref().map(|item| item.checksum.clone()),
+                previous_storage_path: previous.as_ref().map(|item| item.storage_path.clone()),
+                captured_at: activated_at,
+                rollback_strategy: "restore_previous_active_projection_marker".into(),
+            },
+        });
+        Ok(())
+    })
+    .await
 }
 
 pub fn diagnose_app_runtime(
@@ -2652,6 +2711,46 @@ fn safe_app_runtime_artifact_segment(value: &str) -> String {
     }
 }
 
+async fn read_persisted_app_runtime_projection_artifact(artifact_id: &str) -> Result<AppRuntimeProjectionArtifact> {
+    let path = app_runtime_projection_artifact_path(artifact_id)?;
+    if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+        bail!("projection artifact `{artifact_id}` was not found");
+    }
+    help::read_yaml(&path).await
+}
+
+fn validate_app_runtime_projection_artifact_activation_request(
+    artifact: &AppRuntimeProjectionArtifact,
+    request: &AppRuntimeProjectionActivationPreflightRequest,
+) -> Result<()> {
+    if artifact.artifact_id != request.artifact_id {
+        bail!(
+            "persisted artifact id `{}` does not match requested `{}`",
+            artifact.artifact_id,
+            request.artifact_id
+        );
+    }
+    if let Some(expected_checksum) = request.expected_checksum.as_ref()
+        && artifact.checksum != *expected_checksum
+    {
+        bail!(
+            "persisted artifact checksum `{}` does not match expected `{}`",
+            artifact.checksum,
+            expected_checksum
+        );
+    }
+    if artifact.activation_mode != AppRuntimeProjectionActivationMode::Staged {
+        bail!("only staged projection artifacts can be marked active");
+    }
+    if artifact.mutates_runtime {
+        bail!("projection artifact mutates runtime and cannot be marked active by the state marker gate");
+    }
+    if artifact.validation.status == AppRuntimeDiagnosticStatus::Blocked {
+        bail!("projection artifact validation is blocked");
+    }
+    Ok(())
+}
+
 fn app_runtime_activation_preflight_missing_artifact_report(
     request: AppRuntimeProjectionActivationPreflightRequest,
     storage_path: String,
@@ -3274,6 +3373,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let plan = explain_app_runtime_plan(
@@ -3311,6 +3411,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: Vec::new(),
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let plan = explain_app_runtime_plan(
@@ -3345,6 +3446,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let plan = explain_app_runtime_plan(
@@ -3373,6 +3475,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let report = diagnose_app_runtime(
@@ -3409,6 +3512,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![binding],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let report = diagnose_app_runtime(
@@ -3444,6 +3548,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let report = diagnose_app_runtime(
@@ -3474,6 +3579,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let report = diagnose_app_runtime(
@@ -3504,6 +3610,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: Vec::new(),
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let report = diagnose_app_runtime(
@@ -3530,6 +3637,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
         let report = diagnose_app_runtime(
             &state,
@@ -3589,6 +3697,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
         let report = diagnose_app_runtime(
             &state,
@@ -3654,6 +3763,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
         let report = diagnose_app_runtime(
             &state,
@@ -3712,6 +3822,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
         let report = diagnose_app_runtime(
             &state,
@@ -3845,6 +3956,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![binding],
             sessions: Vec::new(),
+            active_projection: None,
         };
         let session = planned_session(&state);
 
@@ -3881,6 +3993,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let projection = project_app_runtime_plan_to_mihomo(
@@ -3920,6 +4033,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![binding],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let projection = project_app_runtime_plan_to_mihomo(
@@ -3950,6 +4064,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         };
 
         let projection = project_app_runtime_plan_to_mihomo(
@@ -4007,6 +4122,7 @@ mod tests {
             security_profiles: vec![sample_security_profile()],
             policy_bindings: vec![sample_binding()],
             sessions: Vec::new(),
+            active_projection: None,
         }
     }
 

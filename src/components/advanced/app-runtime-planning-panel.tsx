@@ -7,6 +7,7 @@ import { Card } from '@/components/tailwind/Card'
 import { Chip } from '@/components/tailwind/Chip'
 import { Select } from '@/components/tailwind/Select'
 import {
+  activateAppRuntimeProjectionArtifact,
   buildAppRuntimeProjectionArtifact,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
@@ -92,6 +93,7 @@ export function AppRuntimePlanningPanel() {
   const [artifactPending, setArtifactPending] = useState(false)
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
+  const [activateMarkerPending, setActivateMarkerPending] = useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
   const [projection, setProjection] =
     useState<AppRuntimeMihomoProjection | null>(null)
@@ -679,6 +681,28 @@ export function AppRuntimePlanningPanel() {
       showNotice.error(error)
     } finally {
       setActivationPreflightPending(false)
+    }
+  })
+
+  const markProjectionArtifactActive = useLockFn(async () => {
+    if (!projectionArtifact) {
+      return
+    }
+
+    setActivateMarkerPending(true)
+    try {
+      const nextState = await activateAppRuntimeProjectionArtifact({
+        artifactId: projectionArtifact.artifactId,
+        expectedChecksum: projectionArtifact.checksum,
+      })
+      setState(nextState)
+      showNotice.success(
+        '已标记 active projection artifact（未 reload Mihomo）',
+      )
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setActivateMarkerPending(false)
     }
   })
 
@@ -1609,7 +1633,10 @@ export function AppRuntimePlanningPanel() {
           projectionArtifact={projectionArtifact}
           activationPreflight={activationPreflight}
           activationPreflightPending={activationPreflightPending}
+          activeProjection={state.activeProjection ?? null}
+          activateMarkerPending={activateMarkerPending}
           onPreflightActivation={() => void preflightProjectionActivation()}
+          onMarkActive={() => void markProjectionArtifactActive()}
         />
       </div>
     </Card>
