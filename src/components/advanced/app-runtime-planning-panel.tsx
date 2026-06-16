@@ -37,6 +37,7 @@ import {
   upsertSecurityProfile,
   verifyAppRuntimeSessionLeak,
   type AppPolicyBinding,
+  type AppProcessMatcherKind,
   type AppRegistryEntry,
   type AppRoutingIntent,
   type AppRuntimeDiagnosticsReport,
@@ -151,6 +152,14 @@ const routingIntentOptions = [
 const enabledOptions = [
   { value: 'true', label: 'enabled' },
   { value: 'false', label: 'disabled' },
+]
+
+const processMatcherKindOptions = [
+  { value: 'process_name', label: 'process_name' },
+  { value: 'process_path', label: 'process_path' },
+  { value: 'process_name_regex', label: 'process_name_regex' },
+  { value: 'process_path_regex', label: 'process_path_regex' },
+  { value: 'bundle_id', label: 'bundle_id' },
 ]
 
 const newResourceValue = '__new__'
@@ -348,6 +357,15 @@ export function AppRuntimePlanningPanel() {
   const [resourceJson, setResourceJson] = useState('')
   const [bulkJson, setBulkJson] = useState('')
   const [overviewFilter, setOverviewFilter] = useState('')
+  const [appDraft, setAppDraft] = useState({
+    name: '',
+    executablePath: '',
+    bundleId: '',
+    workingDirectory: '',
+    matcherKind: 'process_name' as AppProcessMatcherKind,
+    matcherPattern: '',
+    tags: '',
+  })
   const [bindingDraft, setBindingDraft] = useState({
     nodePoolId: '',
     dnsProfileId: '',
@@ -716,6 +734,51 @@ export function AppRuntimePlanningPanel() {
     },
   )
 
+  const handleSaveAppDraft = useLockFn(async () => {
+    if (!selectedApp) {
+      return
+    }
+
+    setResourcePending(true)
+    try {
+      const processMatchers = appDraft.matcherPattern.trim()
+        ? [
+            {
+              kind: appDraft.matcherKind,
+              pattern: appDraft.matcherPattern.trim(),
+            },
+          ]
+        : selectedApp.processMatchers
+      const nextApp: AppRegistryEntry = {
+        ...selectedApp,
+        name: appDraft.name.trim() || selectedApp.name,
+        executablePath: appDraft.executablePath.trim() || undefined,
+        bundleId: appDraft.bundleId.trim() || undefined,
+        workingDirectory: appDraft.workingDirectory.trim() || undefined,
+        processMatchers,
+        tags: appDraft.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        updatedAt: now(),
+      }
+      const nextState = await upsertAppRegistryEntry(nextApp)
+      setState(nextState)
+      setSelectedAppId(nextApp.appId)
+      setResourceKind('apps')
+      setSelectedResourceId(nextApp.appId)
+      setPlan(null)
+      setProjection(null)
+      setDiagnostics(null)
+      setDnsProbeReport(null)
+      showNotice.success('应用注册信息已保存')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
   const handleSaveBindingDraft = useLockFn(async () => {
     if (!selectedAppId) {
       return
@@ -910,6 +973,19 @@ export function AppRuntimePlanningPanel() {
   }, [loadState])
 
   useEffect(() => {
+    const firstMatcher = selectedApp?.processMatchers[0]
+    setAppDraft({
+      name: selectedApp?.name ?? '',
+      executablePath: selectedApp?.executablePath ?? '',
+      bundleId: selectedApp?.bundleId ?? '',
+      workingDirectory: selectedApp?.workingDirectory ?? '',
+      matcherKind: firstMatcher?.kind ?? 'process_name',
+      matcherPattern: firstMatcher?.pattern ?? '',
+      tags: selectedApp?.tags.join(', ') ?? '',
+    })
+  }, [selectedApp])
+
+  useEffect(() => {
     setBindingDraft({
       nodePoolId: selectedBinding?.nodePoolId ?? '',
       dnsProfileId: selectedBinding?.dnsProfileId ?? '',
@@ -1072,6 +1148,132 @@ export function AppRuntimePlanningPanel() {
                   没有匹配当前过滤条件的应用。
                 </div>
               ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {selectedApp ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <div className="text-sm font-semibold">App registry 快速表单</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                常用应用注册字段可直接通过表单保存；高级字段仍可用 JSON editor。
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <TextField
+                fullWidth
+                size="small"
+                label="Name"
+                value={appDraft.name}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    name: event.target.value,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Executable path"
+                value={appDraft.executablePath}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    executablePath: event.target.value,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Bundle ID"
+                value={appDraft.bundleId}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    bundleId: event.target.value,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Working directory"
+                value={appDraft.workingDirectory}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    workingDirectory: event.target.value,
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="Matcher kind"
+                value={appDraft.matcherKind}
+                options={processMatcherKindOptions}
+                onChange={(value: string | number) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    matcherKind: String(value) as AppProcessMatcherKind,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Matcher pattern"
+                value={appDraft.matcherPattern}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    matcherPattern: event.target.value,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Tags"
+                value={appDraft.tags}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setAppDraft((draft) => ({
+                    ...draft,
+                    tags: event.target.value,
+                  }))
+                }}
+                helperText="逗号分隔。"
+              />
+              <div className="flex items-end">
+                <Button
+                  size="small"
+                  startIcon={<Save className="h-4 w-4" />}
+                  onClick={() => void handleSaveAppDraft()}
+                  disabled={resourcePending}
+                >
+                  保存 app
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              App ID: {selectedApp.appId}
             </div>
           </div>
         ) : null}
