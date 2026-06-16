@@ -1,12 +1,11 @@
 import { useLockFn } from 'ahooks'
 import { Activity, Boxes, RefreshCw, Route, Save } from 'lucide-react'
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
 import { Chip } from '@/components/tailwind/Chip'
 import { Select } from '@/components/tailwind/Select'
-import { TextField } from '@/components/tailwind/TextField'
 import {
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
@@ -47,6 +46,7 @@ import {
 import { showNotice } from '@/services/notice-service'
 
 import { AppRuntimeAggregateDiagnosticsPanel } from './app-runtime-aggregate-diagnostics-panel'
+import { AppRuntimeAppRegistryForm } from './app-runtime-app-registry-form'
 import { AppRuntimeDnsProfileForm } from './app-runtime-dns-profile-form'
 import { AppRuntimeNodePoolForm } from './app-runtime-node-pool-form'
 import { AppRuntimeOverviewPanel } from './app-runtime-overview-panel'
@@ -61,7 +61,6 @@ import {
   newResourceValue,
   now,
   parseJsonObject,
-  processMatcherKindOptions,
   resourceIdFor,
   resourceNameFor,
   routingIntentOptions,
@@ -1270,131 +1269,13 @@ export function AppRuntimePlanningPanel() {
           onSave={() => void handleSaveNodePoolDraft()}
         />
 
-        {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">App registry 快速表单</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                常用应用注册字段可直接通过表单保存；高级字段仍可用 JSON editor。
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <TextField
-                fullWidth
-                size="small"
-                label="Name"
-                value={appDraft.name}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    name: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Executable path"
-                value={appDraft.executablePath}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    executablePath: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Bundle ID"
-                value={appDraft.bundleId}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    bundleId: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Working directory"
-                value={appDraft.workingDirectory}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    workingDirectory: event.target.value,
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="Matcher kind"
-                value={appDraft.matcherKind}
-                options={processMatcherKindOptions}
-                onChange={(value: string | number) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    matcherKind: String(value) as AppProcessMatcherKind,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Matcher pattern"
-                value={appDraft.matcherPattern}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    matcherPattern: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Tags"
-                value={appDraft.tags}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setAppDraft((draft) => ({
-                    ...draft,
-                    tags: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔。"
-              />
-              <div className="flex items-end">
-                <Button
-                  size="small"
-                  startIcon={<Save className="h-4 w-4" />}
-                  onClick={() => void handleSaveAppDraft()}
-                  disabled={resourcePending}
-                >
-                  保存 app
-                </Button>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              App ID: {selectedApp.appId}
-            </div>
-          </div>
-        ) : null}
+        <AppRuntimeAppRegistryForm
+          selectedApp={selectedApp}
+          draft={appDraft}
+          pending={resourcePending}
+          setDraft={setAppDraft}
+          onSave={() => void handleSaveAppDraft()}
+        />
 
         {selectedApp ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
