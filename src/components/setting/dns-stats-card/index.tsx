@@ -16,6 +16,7 @@ import { RuntimeOptionsSection } from './runtime-options-section'
 import { RuntimeOverrideSection } from './runtime-override-section'
 import { RuntimeProbeSection } from './runtime-probe-section'
 import { RuntimeReadinessSection } from './runtime-readiness-section'
+import { RuntimeShadowSection } from './runtime-shadow-section'
 import { RuntimeSummarySection } from './runtime-summary-section'
 import { DnsCardState, DnsDivider } from './shared'
 
@@ -104,6 +105,8 @@ export const DnsStatsCard = ({
         />
         <DnsDivider />
         <RuntimeReadinessSection probeReport={runtimeProbeReport} />
+        <DnsDivider />
+        <RuntimeShadowSection />
         <DnsDivider />
         <PerformanceMetricsSection />
       </div>
