@@ -1,9 +1,9 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
     AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
-    AppRuntimePlanRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest, AppRuntimeSessionRecord,
-    AppRuntimeSessionStartReport, AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
-    delete_app_policy_binding as delete_app_policy_binding_record,
+    AppRuntimePlanRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest,
+    AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStateDocument,
+    DnsProfile, NodePool, SecurityProfile, delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
     diagnose_app_runtime as build_app_runtime_diagnostics,
@@ -17,6 +17,7 @@ use crate::core::app_runtime::{
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
     upsert_node_pool as upsert_node_pool_record, upsert_security_profile as upsert_security_profile_record,
+    verify_app_runtime_session_leak as verify_app_runtime_session_leak_record,
 };
 
 #[tauri::command]
@@ -125,6 +126,13 @@ pub async fn record_app_runtime_session_observation(session_id: String) -> CmdRe
 #[tauri::command]
 pub async fn evaluate_app_runtime_session(session_id: String) -> CmdResult<AppRuntimeSessionEvaluationReport> {
     evaluate_app_runtime_session_record(session_id.as_str())
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn verify_app_runtime_session_leak(session_id: String) -> CmdResult<AppRuntimeSessionLeakReport> {
+    verify_app_runtime_session_leak_record(session_id.as_str())
         .await
         .stringify_err()
 }
