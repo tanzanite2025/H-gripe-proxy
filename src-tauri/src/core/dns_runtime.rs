@@ -2128,6 +2128,18 @@ dns:
         assert!(!expanded_post_execution.failure_audit.required);
         assert!(!expanded_post_execution.mutates_runtime);
         assert!(!expanded_post_execution.reload_mihomo);
+
+        let stability_gate = build_dns_default_runtime_expanded_stability_gate_report(expanded_post_execution, true);
+
+        assert_eq!(
+            stability_gate.status,
+            DnsDefaultRuntimeExpandedStabilityGateStatus::Ready
+        );
+        assert!(stability_gate.keep_active_allowed);
+        assert!(!stability_gate.rollback_recommended);
+        assert!(!stability_gate.promotion_allowed);
+        assert!(!stability_gate.auto_rollout);
+        assert!(!stability_gate.auto_rollback);
     }
 
     #[test]

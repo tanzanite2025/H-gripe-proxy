@@ -11,6 +11,7 @@ import {
   dnsDefaultRuntimeExpandedPostExecutionObservedVerification,
   dnsDefaultRuntimeExpandedRollback,
   dnsDefaultRuntimeExpandedRollbackDrill,
+  dnsDefaultRuntimeExpandedStabilityGate,
   dnsDefaultRuntimePostExecutionObservedVerification,
   dnsDefaultRuntimeRollbackDrill,
   type DnsDefaultRuntimeExpandedOptInExecutionReport,
@@ -23,6 +24,7 @@ import {
   type DnsDefaultRuntimeExpandedRollbackDrillReport,
   type DnsDefaultRuntimeExpandedRollbackReport,
   type DnsDefaultRuntimeExpandedRollbackStatus,
+  type DnsDefaultRuntimeExpandedStabilityGateReport,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
   type DnsDefaultRuntimePostExecutionVerificationStatus,
   type DnsDefaultRuntimeRollbackDrillReport,
@@ -127,6 +129,8 @@ export function RuntimePostExecutionSection() {
     )
   const [expandedDrillReport, setExpandedDrillReport] =
     useState<DnsDefaultRuntimeExpandedRollbackDrillReport | null>(null)
+  const [expandedStabilityGateReport, setExpandedStabilityGateReport] =
+    useState<DnsDefaultRuntimeExpandedStabilityGateReport | null>(null)
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
@@ -137,6 +141,7 @@ export function RuntimePostExecutionSection() {
     | 'execute'
     | 'expandedVerify'
     | 'expandedDrill'
+    | 'expandedStability'
     | 'rollback'
     | null
   >(null)
@@ -277,6 +282,25 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedStabilityGate = useLockFn(async () => {
+    setPending('expandedStability')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedStabilityGate(
+        undefined,
+        POST_EXECUTION_DOMAIN,
+        true,
+      )
+      setExpandedStabilityGateReport(nextReport)
+      setExpandedPostExecutionReport(nextReport.postExecution)
+      setExpandedDrillReport(nextReport.postExecution.rollbackDrill)
+      showNotice.success('默认 DNS runtime expanded stability gate 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -347,6 +371,16 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedStabilityGate}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedStability'
+              ? '评估中...'
+              : 'Expanded stability'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -363,7 +397,8 @@ export function RuntimePostExecutionSection() {
         候选预检记录；Expanded execute 需要用户显式点击，才会通过现有 Mihomo config
         reload 路径应用 DNS config，并可由 Expanded rollback 恢复。
         Expanded verify / drill 只读取 Batch T active state 与 audit
-        metadata，生成 failure audit，不自动回滚。
+        metadata，生成 failure audit，不自动回滚。Expanded stability 只决定当前 session
+        是否可保持 active，不做长期默认推广。
       </div>
 
       {verificationReport ? (
@@ -432,6 +467,75 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedStabilityGateReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded stability"
+              chipLabel={expandedStabilityGateReport.status}
+              chipColor={
+                expandedStabilityGateReport.status === 'ready'
+                  ? 'success'
+                  : 'error'
+              }
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedStabilityGateReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedStabilityGateReport.reason}
+            />
+            <DnsTextRow
+              label="Recommended"
+              value={expandedStabilityGateReport.recommendedAction}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedStabilityGateReport.recommendedAction}
+            />
+            <DnsTextRow
+              label="Promotion"
+              value={
+                expandedStabilityGateReport.promotionAllowed
+                  ? '允许推广'
+                  : '不允许长期默认'
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedStabilityGateReport.keepActiveAllowed
+                  ? 'success'
+                  : 'warning'
+              }
+              label={`keepActive=${String(expandedStabilityGateReport.keepActiveAllowed)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedStabilityGateReport.rollbackRecommended
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`rollbackRecommended=${String(expandedStabilityGateReport.rollbackRecommended)}`}
+            />
+            <Chip
+              size="small"
+              color="default"
+              label={`autoRollout=${String(expandedStabilityGateReport.autoRollout)}`}
+            />
+          </div>
+
+          {expandedStabilityGateReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Expanded stability blockers:{' '}
+              {expandedStabilityGateReport.blockers.join('；')}
             </div>
           ) : null}
         </div>
