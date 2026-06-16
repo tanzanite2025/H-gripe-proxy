@@ -98,26 +98,7 @@ fn app_runtime_control_plane_completion_combines_handoff_artifact_and_preflight(
 
 #[test]
 fn app_runtime_staged_activation_lifecycle_marks_ready_without_runtime_apply() {
-    let report = sample_control_plane_completion_report();
-    let artifact = &report.projection_artifact;
-    let active_projection = AppRuntimeActiveProjectionRecord {
-        artifact_id: artifact.artifact_id.clone(),
-        app_id: artifact.app_id.clone(),
-        checksum: artifact.checksum.clone(),
-        storage_path: "artifact.yaml".into(),
-        activated_at: 500,
-        activation_kind: "state_marker".into(),
-        mutates_runtime: false,
-        rollback: AppRuntimeProjectionRollbackMetadata {
-            previous_artifact_id: None,
-            previous_checksum: None,
-            previous_storage_path: None,
-            captured_at: 500,
-            rollback_strategy: "restore_previous_active_projection_marker".into(),
-        },
-    };
-
-    let lifecycle = build_app_runtime_staged_activation_lifecycle_report(report, Some(active_projection), true);
+    let lifecycle = sample_staged_activation_lifecycle_report();
 
     assert_eq!(lifecycle.status, AppRuntimeStagedActivationLifecycleStatus::Ready);
     assert!(lifecycle.marker_activated);
@@ -125,6 +106,28 @@ fn app_runtime_staged_activation_lifecycle_marks_ready_without_runtime_apply() {
     assert!(lifecycle.rollback_boundary_available);
     assert!(!lifecycle.runtime_apply_allowed);
     assert!(!lifecycle.reload_mihomo);
+}
+
+#[test]
+fn app_runtime_staged_activation_closeout_persists_boundary_without_runtime_apply() {
+    let lifecycle = sample_staged_activation_lifecycle_report();
+    let closeout = build_app_runtime_staged_activation_closeout_report(
+        lifecycle,
+        Some("runtime-apply-boundary.yaml".into()),
+        true,
+        Vec::new(),
+        600,
+    );
+
+    assert_eq!(closeout.status, AppRuntimeStagedActivationCloseoutStatus::Complete);
+    assert!(closeout.closeout_complete);
+    assert!(closeout.boundary_manifest_persisted);
+    assert!(closeout.boundary_manifest.active_marker_matches_artifact);
+    assert!(closeout.boundary_manifest.rollback_boundary_available);
+    assert!(!closeout.runtime_apply_allowed);
+    assert!(!closeout.boundary_manifest.runtime_apply_allowed);
+    assert!(!closeout.phase8_allowed);
+    assert!(!closeout.reload_mihomo);
 }
 
 #[test]
@@ -1366,6 +1369,29 @@ fn sample_control_plane_completion_report() -> AppRuntimeControlPlaneCompletionR
         true,
         preflight,
     )
+}
+
+fn sample_staged_activation_lifecycle_report() -> AppRuntimeStagedActivationLifecycleReport {
+    let report = sample_control_plane_completion_report();
+    let artifact = &report.projection_artifact;
+    let active_projection = AppRuntimeActiveProjectionRecord {
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: artifact.app_id.clone(),
+        checksum: artifact.checksum.clone(),
+        storage_path: "artifact.yaml".into(),
+        activated_at: 500,
+        activation_kind: "state_marker".into(),
+        mutates_runtime: false,
+        rollback: AppRuntimeProjectionRollbackMetadata {
+            previous_artifact_id: None,
+            previous_checksum: None,
+            previous_storage_path: None,
+            captured_at: 500,
+            rollback_strategy: "restore_previous_active_projection_marker".into(),
+        },
+    };
+
+    build_app_runtime_staged_activation_lifecycle_report(report, Some(active_projection), true)
 }
 
 fn sample_dns_reverify_record(created_at_epoch_seconds: u64) -> DnsDefaultRuntimeExpandedReverifyRecord {

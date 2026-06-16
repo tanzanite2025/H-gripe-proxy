@@ -145,6 +145,11 @@ export type AppRuntimeStagedActivationLifecycleStatus =
   | 'degraded'
   | 'blocked'
 
+export type AppRuntimeStagedActivationCloseoutStatus =
+  | 'complete'
+  | 'degraded'
+  | 'blocked'
+
 export interface AppRuntimeDnsHandoffRecord {
   handoffId: string
   action: string
@@ -219,6 +224,47 @@ export interface AppRuntimeStagedActivationLifecycleReport {
   activeMarkerMatchesArtifact: boolean
   rollbackBoundaryAvailable: boolean
   rollbackStrategy?: string | null
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface AppRuntimeRuntimeApplyBoundaryManifest {
+  manifestId: string
+  appId: string
+  artifactId: string
+  checksum: string
+  activeMarkerMatchesArtifact: boolean
+  rollbackBoundaryAvailable: boolean
+  rollbackStrategy?: string | null
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  createdAt: number
+}
+
+export interface AppRuntimeStagedActivationCloseoutReport {
+  status: AppRuntimeStagedActivationCloseoutStatus
+  reason: string
+  lifecycle: AppRuntimeStagedActivationLifecycleReport
+  boundaryManifest: AppRuntimeRuntimeApplyBoundaryManifest
+  boundaryManifestPath?: string | null
+  boundaryManifestPersisted: boolean
+  closeoutComplete: boolean
   runtimeApplyAllowed: boolean
   phase8Allowed: boolean
   promotionAllowed: boolean
@@ -659,6 +705,12 @@ export async function completeAppRuntimeStagedActivationLifecycle(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeStagedActivationLifecycleReport> {
   return invoke('complete_app_runtime_staged_activation_lifecycle', { request })
+}
+
+export async function closeoutAppRuntimeStagedActivationLifecycle(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeStagedActivationCloseoutReport> {
+  return invoke('closeout_app_runtime_staged_activation_lifecycle', { request })
 }
 
 export async function upsertAppRegistryEntry(

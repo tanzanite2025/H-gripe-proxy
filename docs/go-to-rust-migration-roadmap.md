@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime staged activation lifecycle） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AC、Batch AD（本批次，合并 control-plane completion + staged marker activation + rollback boundary + UI/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime staged closeout boundary） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（本批次，合并 staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1498,3 +1498,35 @@ complete_app_runtime_staged_activation_lifecycle(appId)
 
 - 不调用 `apply_app_runtime_projection_artifact_to_runtime`。
 - 不进入 TUN / protocol runtime / Phase 8。
+
+### Batch AE：App runtime staged closeout / runtime-apply boundary manifest（本批次，继续加大）
+
+在 Batch AD 已完成 staged marker activation 后，本批次继续把 staged lifecycle closeout、active marker audit、rollback readiness、runtime-apply boundary manifest 与 UI 汇总合并为一个收口动作。
+
+```text
+closeout_app_runtime_staged_activation_lifecycle(appId)
+  -> complete_app_runtime_staged_activation_lifecycle(appId)
+  -> verify marker matches artifact/checksum
+  -> verify rollback boundary exists
+  -> persist app-runtime/staged-closeout/<manifest>/runtime-apply-boundary.yaml
+  -> holdAtRuntimeApplyBoundaryUntilExplicitUserDecision
+```
+
+合并范围：
+
+- Command：新增 `closeout_app_runtime_staged_activation_lifecycle`，串联 staged lifecycle 并持久化 runtime-apply boundary manifest。
+- Manifest：新增 `AppRuntimeRuntimeApplyBoundaryManifest`，记录 active marker、rollback strategy、boundary flags 与 next step。
+- Report：新增 `AppRuntimeStagedActivationCloseoutReport`，输出 closeout complete、manifest path、blockers/warnings。
+- UI：高级页新增“收口 runtime boundary”按钮、聚合诊断状态与 closeout 面板。
+- Tests：覆盖 marker match、rollback boundary、manifest persisted、runtime apply 仍关闭。
+
+强边界：
+
+- `runtimeApplyAllowed=false`、`phase8Allowed=false`、`promotionAllowed=false`。
+- 不自动 rollout / rollback。
+- 不调用 runtime apply，不 reload Mihomo。
+
+不包含：
+
+- 不把 staged projection 应用到真实 runtime profile。
+- 不进入 adapter / tunnel / protocol runtime。
