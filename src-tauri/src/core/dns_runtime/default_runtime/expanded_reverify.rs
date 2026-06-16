@@ -1,10 +1,22 @@
 use super::*;
 
+const EXPANDED_REVERIFY_STABLE_RECORDS_REQUIRED: usize = 2;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum DnsDefaultRuntimeExpandedReverifyStatus {
     Recorded,
     RollbackRecommended,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DnsDefaultRuntimeExpandedReverifyHistoryStatus {
+    Ready,
+    Watching,
+    RollbackRecommended,
+    Empty,
     Blocked,
 }
 
@@ -48,6 +60,37 @@ pub struct DnsDefaultRuntimeExpandedReverifyReport {
     pub facts: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsDefaultRuntimeExpandedReverifyHistoryReport {
+    pub status: DnsDefaultRuntimeExpandedReverifyHistoryStatus,
+    pub reason: String,
+    pub records: Vec<DnsDefaultRuntimeExpandedReverifyRecord>,
+    pub latest_record: Option<DnsDefaultRuntimeExpandedReverifyRecord>,
+    pub record_count: usize,
+    pub recorded_count: usize,
+    pub rollback_recommended_count: usize,
+    pub blocked_count: usize,
+    pub keep_active_count: usize,
+    pub next_verification_required_count: usize,
+    pub stable_streak: usize,
+    pub required_stable_records: usize,
+    pub first_record_at_epoch_seconds: Option<u64>,
+    pub latest_record_at_epoch_seconds: Option<u64>,
+    pub closeout_ready: bool,
+    pub rollback_recommended: bool,
+    pub promotion_allowed: bool,
+    pub recommended_action: String,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
 pub async fn dns_default_runtime_expanded_reverify(
     yaml: Option<String>,
     domain: Option<String>,
@@ -55,6 +98,13 @@ pub async fn dns_default_runtime_expanded_reverify(
 ) -> Result<DnsDefaultRuntimeExpandedReverifyReport> {
     let hold_policy = dns_default_runtime_expanded_hold_policy(yaml, domain, explicit_opt_in).await?;
     Ok(persist_dns_default_runtime_expanded_reverify_report(hold_policy).await)
+}
+
+pub async fn dns_default_runtime_expanded_reverify_history() -> Result<DnsDefaultRuntimeExpandedReverifyHistoryReport> {
+    let (records, errors) = read_dns_default_runtime_expanded_reverify_records().await;
+    Ok(build_dns_default_runtime_expanded_reverify_history_report(
+        records, errors,
+    ))
 }
 
 pub fn build_dns_default_runtime_expanded_reverify_report(
@@ -185,6 +235,159 @@ fn default_runtime_expanded_reverify_record_path(event_id: &str) -> Result<std::
         .join("reverify.yaml"))
 }
 
+pub fn build_dns_default_runtime_expanded_reverify_history_report(
+    mut records: Vec<DnsDefaultRuntimeExpandedReverifyRecord>,
+    read_errors: Vec<String>,
+) -> DnsDefaultRuntimeExpandedReverifyHistoryReport {
+    records.sort_by_key(|record| record.created_at_epoch_seconds);
+    let latest_record = records.last().cloned();
+    let record_count = records.len();
+    let recorded_count = records
+        .iter()
+        .filter(|record| record.keep_active_allowed && !record.rollback_recommended)
+        .count();
+    let rollback_recommended_count = records.iter().filter(|record| record.rollback_recommended).count();
+    let blocked_count = records
+        .iter()
+        .filter(|record| !record.keep_active_allowed && !record.rollback_recommended)
+        .count();
+    let keep_active_count = records.iter().filter(|record| record.keep_active_allowed).count();
+    let next_verification_required_count = records
+        .iter()
+        .filter(|record| record.next_verification_required)
+        .count();
+    let stable_streak = records
+        .iter()
+        .rev()
+        .take_while(|record| {
+            record.keep_active_allowed && !record.next_verification_required && !record.rollback_recommended
+        })
+        .count();
+    let first_record_at_epoch_seconds = records.first().map(|record| record.created_at_epoch_seconds);
+    let latest_record_at_epoch_seconds = latest_record.as_ref().map(|record| record.created_at_epoch_seconds);
+    let rollback_recommended = rollback_recommended_count > 0
+        || latest_record
+            .as_ref()
+            .map(|record| record.rollback_recommended)
+            .unwrap_or(false);
+    let mut blockers = read_errors;
+    let status = if !blockers.is_empty() {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Blocked
+    } else if record_count == 0 {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Empty
+    } else if rollback_recommended {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::RollbackRecommended
+    } else if stable_streak >= EXPANDED_REVERIFY_STABLE_RECORDS_REQUIRED {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Ready
+    } else {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Watching
+    };
+    if status == DnsDefaultRuntimeExpandedReverifyHistoryStatus::Empty {
+        blockers.push("expanded reverify history is empty".into());
+    }
+    let closeout_ready = status == DnsDefaultRuntimeExpandedReverifyHistoryStatus::Ready;
+    let recommended_action = match status {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Ready => "closeCurrentExpandedRuntimeObservationWindow",
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Watching => {
+            "continueExplicitExpandedReverifyUntilStableThreshold"
+        }
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::RollbackRecommended => {
+            "runExplicitExpandedRollbackBeforeContinuing"
+        }
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Empty => "runExpandedReverifyBeforeHistorySummary",
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Blocked => "fixExpandedReverifyHistoryBeforeContinuing",
+    }
+    .into();
+    let mut warnings = Vec::new();
+    if status == DnsDefaultRuntimeExpandedReverifyHistoryStatus::Watching {
+        warnings.push(format!(
+            "stable reverify streak is {stable_streak}/{EXPANDED_REVERIFY_STABLE_RECORDS_REQUIRED}"
+        ));
+    }
+    if closeout_ready {
+        warnings
+            .push("history closeout remains session-scoped and does not promote Rust DNS as permanent default".into());
+    }
+    let facts = vec![
+        "expanded reverify history only reads persisted reverify audit records".into(),
+        "expanded reverify history summarizes repeated explicit user-triggered checks".into(),
+        "expanded reverify history never auto-rolls out or auto-rolls back".into(),
+        "expanded reverify history does not mutate runtime or reload Mihomo".into(),
+    ];
+
+    DnsDefaultRuntimeExpandedReverifyHistoryReport {
+        status,
+        reason: default_runtime_expanded_reverify_history_reason(status, &blockers),
+        records,
+        latest_record,
+        record_count,
+        recorded_count,
+        rollback_recommended_count,
+        blocked_count,
+        keep_active_count,
+        next_verification_required_count,
+        stable_streak,
+        required_stable_records: EXPANDED_REVERIFY_STABLE_RECORDS_REQUIRED,
+        first_record_at_epoch_seconds,
+        latest_record_at_epoch_seconds,
+        closeout_ready,
+        rollback_recommended,
+        promotion_allowed: false,
+        recommended_action,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
+async fn read_dns_default_runtime_expanded_reverify_records()
+-> (Vec<DnsDefaultRuntimeExpandedReverifyRecord>, Vec<String>) {
+    let mut records = Vec::new();
+    let mut errors = Vec::new();
+    let dir = match default_runtime_state_dir() {
+        Ok(dir) => dir.join("expanded-reverify"),
+        Err(error) => {
+            errors.push(format!("failed to resolve expanded reverify directory: {error}"));
+            return (records, errors);
+        }
+    };
+    let mut entries = match fs::read_dir(&dir).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (records, errors),
+        Err(error) => {
+            errors.push(format!("failed to read expanded reverify directory: {error}"));
+            return (records, errors);
+        }
+    };
+    loop {
+        let entry = match entries.next_entry().await {
+            Ok(Some(entry)) => entry,
+            Ok(None) => break,
+            Err(error) => {
+                errors.push(format!("failed to read expanded reverify entry: {error}"));
+                break;
+            }
+        };
+        let path = entry.path().join("reverify.yaml");
+        let path_label = path.to_string_lossy().to_string();
+        if let Some(record) = read_default_runtime_guard_yaml::<DnsDefaultRuntimeExpandedReverifyRecord>(
+            Some(path_label.as_str()),
+            "expanded reverify record",
+            &mut errors,
+        )
+        .await
+        {
+            records.push(record);
+        }
+    }
+    (records, errors)
+}
+
 fn default_runtime_expanded_reverify_reason(
     status: DnsDefaultRuntimeExpandedReverifyStatus,
     blockers: &[String],
@@ -200,5 +403,29 @@ fn default_runtime_expanded_reverify_reason(
             .first()
             .cloned()
             .unwrap_or_else(|| "expanded default DNS runtime reverify is blocked".into()),
+    }
+}
+
+fn default_runtime_expanded_reverify_history_reason(
+    status: DnsDefaultRuntimeExpandedReverifyHistoryStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Ready => {
+            "expanded default DNS runtime reverify history reached the stable threshold".into()
+        }
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Watching => {
+            "expanded default DNS runtime needs more explicit reverify records".into()
+        }
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::RollbackRecommended => {
+            "expanded default DNS runtime history recommends explicit rollback".into()
+        }
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Empty => {
+            "expanded default DNS runtime reverify history is empty".into()
+        }
+        DnsDefaultRuntimeExpandedReverifyHistoryStatus::Blocked => blockers
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "expanded default DNS runtime reverify history is blocked".into()),
     }
 }

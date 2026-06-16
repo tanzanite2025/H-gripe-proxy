@@ -2178,6 +2178,24 @@ dns:
         assert!(!reverify.rollback_recommended);
         assert!(!reverify.auto_rollout);
         assert!(!reverify.auto_rollback);
+
+        let mut second_record = reverify.reverify_record.clone();
+        second_record.event_id = "dns-default-runtime-expanded-reverify-second".into();
+        second_record.created_at_epoch_seconds = hold_started_at.saturating_add(600);
+        second_record.active_age_seconds = Some(600);
+        let history = build_dns_default_runtime_expanded_reverify_history_report(
+            vec![reverify.reverify_record, second_record],
+            Vec::new(),
+        );
+
+        assert_eq!(history.status, DnsDefaultRuntimeExpandedReverifyHistoryStatus::Ready);
+        assert_eq!(history.record_count, 2);
+        assert_eq!(history.stable_streak, 2);
+        assert!(history.closeout_ready);
+        assert!(!history.rollback_recommended);
+        assert!(!history.promotion_allowed);
+        assert!(!history.auto_rollout);
+        assert!(!history.auto_rollback);
     }
 
     #[test]
