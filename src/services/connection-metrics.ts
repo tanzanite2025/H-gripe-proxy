@@ -14,6 +14,18 @@ export interface ConnectionSpeed {
   curDownload: number
 }
 
+export interface ConnectionAttributionCandidate {
+  id: string
+  process: string
+  processPath: string
+  host: string
+  rule: string
+  rulePayload: string
+  chains: string[]
+  upload: number
+  download: number
+}
+
 export interface TrafficSnapshot {
   uploadTotal: number
   downloadTotal: number
@@ -27,6 +39,7 @@ export interface TrafficSnapshot {
 export interface ConnectionMetricsSnapshot {
   traffic: TrafficSnapshot
   speeds: ConnectionSpeed[]
+  attributionCandidates: ConnectionAttributionCandidate[]
   stale: boolean
 }
 

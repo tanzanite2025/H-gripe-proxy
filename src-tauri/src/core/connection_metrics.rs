@@ -17,6 +17,21 @@ pub struct ConnectionSpeed {
     pub cur_download: u64,
 }
 
+/// Sanitized per-connection metadata used by app-runtime attribution planning.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionAttributionCandidate {
+    pub id: String,
+    pub process: String,
+    pub process_path: String,
+    pub host: String,
+    pub rule: String,
+    pub rule_payload: String,
+    pub chains: Vec<String>,
+    pub upload: u64,
+    pub download: u64,
+}
+
 /// Aggregated traffic totals at a point in time.
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +51,7 @@ pub struct TrafficSnapshot {
 pub struct ConnectionMetricsSnapshot {
     pub traffic: TrafficSnapshot,
     pub speeds: Vec<ConnectionSpeed>,
+    pub attribution_candidates: Vec<ConnectionAttributionCandidate>,
     pub stale: bool,
 }
 
@@ -130,6 +146,7 @@ impl ConnectionMetricsAggregator {
         let snapshot = ConnectionMetricsSnapshot {
             traffic,
             speeds,
+            attribution_candidates: connections.iter().map(connection_attribution_candidate).collect(),
             stale: false,
         };
 
@@ -162,6 +179,7 @@ impl ConnectionMetricsAggregator {
             .unwrap_or_else(|| ConnectionMetricsSnapshot {
                 traffic: TrafficSnapshot::default(),
                 speeds: Vec::new(),
+                attribution_candidates: Vec::new(),
                 stale: true,
             });
 
@@ -187,6 +205,20 @@ fn count_closed(prev: &PreviousState, current: &[Connection]) -> usize {
         .keys()
         .filter(|id| !current_ids.contains(id.as_str()))
         .count()
+}
+
+fn connection_attribution_candidate(conn: &Connection) -> ConnectionAttributionCandidate {
+    ConnectionAttributionCandidate {
+        id: conn.id.clone(),
+        process: conn.metadata.process.clone(),
+        process_path: conn.metadata.process_path.clone(),
+        host: conn.metadata.host.clone(),
+        rule: conn.rule.clone(),
+        rule_payload: conn.rule_payload.clone(),
+        chains: conn.chains.clone(),
+        upload: conn.upload,
+        download: conn.download,
+    }
 }
 
 static CONNECTION_METRICS_AGGREGATOR: Lazy<Arc<ConnectionMetricsAggregator>> =
@@ -294,6 +326,9 @@ mod tests {
         assert_eq!(snap.traffic.download_speed, 0);
         assert_eq!(snap.speeds.len(), 1);
         assert_eq!(snap.speeds[0].cur_upload, 0);
+        assert_eq!(snap.attribution_candidates.len(), 1);
+        assert_eq!(snap.attribution_candidates[0].id, "a");
+        assert_eq!(snap.attribution_candidates[0].chains, vec!["DIRECT".to_string()]);
         assert!(!snap.stale);
     }
 

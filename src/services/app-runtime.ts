@@ -273,6 +273,19 @@ export interface AppRuntimeSessionTrafficObservation {
   stale: boolean
 }
 
+export interface AppRuntimeSessionAttributionCandidate {
+  connectionId: string
+  process: string
+  processPath: string
+  host: string
+  rule: string
+  rulePayload: string
+  chains: string[]
+  upload: number
+  download: number
+  matchedBy: string[]
+}
+
 export interface AppRuntimeSessionObservationRecord {
   observationId: string
   sessionId: string
@@ -281,6 +294,7 @@ export interface AppRuntimeSessionObservationRecord {
   attributionStatus: AppRuntimeSessionAttributionStatus
   traffic: AppRuntimeSessionTrafficObservation
   connectionSpeedCount: number
+  attributionCandidates: AppRuntimeSessionAttributionCandidate[]
   facts: string[]
   warnings: string[]
 }
