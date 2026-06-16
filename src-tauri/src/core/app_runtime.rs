@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Result, bail};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest as _, Sha256};
 use smartstring::alias::String;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -286,6 +287,45 @@ pub struct AppRuntimeMihomoProjection {
     pub rules: Vec<MihomoRuleProjection>,
     pub dns: Option<MihomoDnsProjection>,
     pub yaml_patch: String,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeProjectionActivationMode {
+    Staged,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionArtifact {
+    pub artifact_id: String,
+    pub app_id: String,
+    pub session_id: Option<String>,
+    pub binding_id: Option<String>,
+    pub node_pool_id: Option<String>,
+    pub dns_profile_id: Option<String>,
+    pub security_profile_id: Option<String>,
+    pub generated_at: i64,
+    pub activation_mode: AppRuntimeProjectionActivationMode,
+    pub mutates_runtime: bool,
+    pub checksum: String,
+    pub plan: AppRuntimePlan,
+    pub projection: AppRuntimeMihomoProjection,
+    pub diagnostics: AppRuntimeDiagnosticsReport,
+    pub validation: AppRuntimeProjectionValidationReport,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionValidationReport {
+    pub status: AppRuntimeDiagnosticStatus,
+    pub reason: String,
+    pub checks: Vec<AppRuntimeDiagnosticCheck>,
+    pub summary: AppRuntimeDiagnosticsSummary,
     pub facts: Vec<String>,
     pub warnings: Vec<String>,
 }
@@ -592,7 +632,6 @@ pub async fn read_app_runtime_state_document() -> Result<AppRuntimeStateDocument
     if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
         return Ok(AppRuntimeStateDocument::default());
     }
-
     help::read_yaml(&path).await
 }
 
@@ -1023,6 +1062,47 @@ pub fn project_app_runtime_plan_to_mihomo(
         rules,
         dns,
         yaml_patch,
+        facts,
+        warnings,
+    })
+}
+
+pub fn build_app_runtime_projection_artifact(
+    state: &AppRuntimeStateDocument,
+    request: AppRuntimePlanRequest,
+) -> Result<AppRuntimeProjectionArtifact> {
+    let diagnostics = diagnose_app_runtime(state, request)?;
+    let plan = diagnostics.plan.clone();
+    let projection = diagnostics.mihomo_projection.clone();
+    let validation = validate_app_runtime_projection_artifact(&plan, &projection, &diagnostics);
+    let checksum = app_runtime_projection_checksum(&projection);
+    let binding = plan.policy_binding.as_ref();
+    let generated_at = Local::now().timestamp_millis();
+    let artifact_id = format!("app-runtime-{}-{}", plan.app_id, &checksum[..12]);
+    let mut facts = plan.facts.clone();
+    facts.push("Projection artifact is generated from Rust AppRuntimeStateDocument and RuntimePlan".into());
+    facts.push("Artifact activation is staged; this command does not reload or mutate Mihomo runtime".into());
+    let mut warnings = projection.warnings.clone();
+    warnings.extend(validation.warnings.iter().cloned());
+    warnings.sort();
+    warnings.dedup();
+
+    Ok(AppRuntimeProjectionArtifact {
+        artifact_id: artifact_id.into(),
+        app_id: plan.app_id.clone(),
+        session_id: plan.session_id.clone(),
+        binding_id: binding.map(|item| item.binding_id.clone()),
+        node_pool_id: binding.and_then(|item| item.node_pool_id.clone()),
+        dns_profile_id: binding.and_then(|item| item.dns_profile_id.clone()),
+        security_profile_id: binding.and_then(|item| item.security_profile_id.clone()),
+        generated_at,
+        activation_mode: AppRuntimeProjectionActivationMode::Staged,
+        mutates_runtime: false,
+        checksum: checksum.into(),
+        plan,
+        projection,
+        diagnostics,
+        validation,
         facts,
         warnings,
     })
@@ -2372,6 +2452,170 @@ fn diagnostic_check(
     }
 }
 
+fn validate_app_runtime_projection_artifact(
+    plan: &AppRuntimePlan,
+    projection: &AppRuntimeMihomoProjection,
+    diagnostics: &AppRuntimeDiagnosticsReport,
+) -> AppRuntimeProjectionValidationReport {
+    let mut checks = Vec::new();
+
+    checks.push(diagnostic_check(
+        "artifact_plan_ready",
+        AppRuntimeDiagnosticCategory::Projection,
+        if plan.status == AppRuntimePlanStatus::Ready {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        },
+        if plan.status == AppRuntimePlanStatus::Ready {
+            format!("runtime plan for `{}` is ready", plan.app_id).into()
+        } else {
+            format!("runtime plan for `{}` is rejected", plan.app_id).into()
+        },
+        vec![plan.reason.clone()],
+    ));
+
+    checks.push(diagnostic_check(
+        "artifact_diagnostics_gate",
+        AppRuntimeDiagnosticCategory::Projection,
+        match diagnostics.status {
+            AppRuntimeDiagnosticStatus::Healthy => AppRuntimeDiagnosticCheckStatus::Passed,
+            AppRuntimeDiagnosticStatus::Degraded => AppRuntimeDiagnosticCheckStatus::Warning,
+            AppRuntimeDiagnosticStatus::Blocked => AppRuntimeDiagnosticCheckStatus::Failed,
+        },
+        "projection artifact reuses app-runtime diagnostics gate".into(),
+        vec![diagnostics.reason.clone()],
+    ));
+
+    checks.push(diagnostic_check(
+        "artifact_yaml_patch_parse",
+        AppRuntimeDiagnosticCategory::Projection,
+        yaml_patch_validation_status(plan, projection),
+        yaml_patch_validation_message(plan, projection),
+        yaml_patch_validation_details(projection),
+    ));
+
+    checks.push(diagnostic_check(
+        "artifact_rule_projection",
+        AppRuntimeDiagnosticCategory::Projection,
+        if plan.status == AppRuntimePlanStatus::Ready && projection.rules.is_empty() {
+            AppRuntimeDiagnosticCheckStatus::Warning
+        } else if plan.status == AppRuntimePlanStatus::Ready {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Skipped
+        },
+        if projection.rules.is_empty() {
+            "projection has no Mihomo-compatible app rule".into()
+        } else {
+            format!("projection contains {} Mihomo rule(s)", projection.rules.len()).into()
+        },
+        projection.rules.iter().map(|rule| rule.rule.clone()).collect(),
+    ));
+
+    checks.push(diagnostic_check(
+        "artifact_runtime_boundary",
+        AppRuntimeDiagnosticCategory::RuntimeBoundary,
+        if projection.mutates_runtime {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        },
+        "projection artifact is staged and does not mutate Mihomo runtime".into(),
+        vec!["activationMode=staged".into(), "mutatesRuntime=false".into()],
+    ));
+
+    let summary = diagnostics_summary(&checks);
+    let status = diagnostics_status(&summary);
+    let reason = diagnostics_reason(status, &summary);
+    let warnings = projection_artifact_validation_warnings(&checks);
+    let facts = vec![
+        "Projection artifact validation is dry-run only".into(),
+        "Active profile switch and Mihomo reload are outside this gate".into(),
+    ];
+
+    AppRuntimeProjectionValidationReport {
+        status,
+        reason,
+        checks,
+        summary,
+        facts,
+        warnings,
+    }
+}
+
+fn app_runtime_projection_checksum(projection: &AppRuntimeMihomoProjection) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(projection.app_id.as_bytes());
+    if let Some(session_id) = projection.session_id.as_ref() {
+        hasher.update(session_id.as_bytes());
+    }
+    hasher.update(projection.yaml_patch.as_bytes());
+    for rule in &projection.rules {
+        hasher.update(rule.rule.as_bytes());
+    }
+    for group in &projection.proxy_groups {
+        hasher.update(group.name.as_bytes());
+        hasher.update(group.group_type.as_bytes());
+        for proxy in &group.proxies {
+            hasher.update(proxy.as_bytes());
+        }
+    }
+    format!("{:x}", hasher.finalize()).into()
+}
+
+fn yaml_patch_validation_status(
+    plan: &AppRuntimePlan,
+    projection: &AppRuntimeMihomoProjection,
+) -> AppRuntimeDiagnosticCheckStatus {
+    if projection.yaml_patch.trim().is_empty() {
+        return if plan.status == AppRuntimePlanStatus::Ready {
+            AppRuntimeDiagnosticCheckStatus::Warning
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Skipped
+        };
+    }
+
+    match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&projection.yaml_patch) {
+        Ok(_) => AppRuntimeDiagnosticCheckStatus::Passed,
+        Err(_) => AppRuntimeDiagnosticCheckStatus::Failed,
+    }
+}
+
+fn yaml_patch_validation_message(plan: &AppRuntimePlan, projection: &AppRuntimeMihomoProjection) -> String {
+    if projection.yaml_patch.trim().is_empty() {
+        return if plan.status == AppRuntimePlanStatus::Ready {
+            "ready plan produced an empty YAML patch".into()
+        } else {
+            "YAML patch parse skipped for rejected plan".into()
+        };
+    }
+
+    match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&projection.yaml_patch) {
+        Ok(_) => "projection YAML patch parses successfully".into(),
+        Err(error) => format!("projection YAML patch failed to parse: {error}").into(),
+    }
+}
+
+fn yaml_patch_validation_details(projection: &AppRuntimeMihomoProjection) -> Vec<String> {
+    if projection.yaml_patch.trim().is_empty() {
+        return Vec::new();
+    }
+
+    vec![format!("checksum={}", app_runtime_projection_checksum(projection)).into()]
+}
+
+fn projection_artifact_validation_warnings(checks: &[AppRuntimeDiagnosticCheck]) -> Vec<String> {
+    checks
+        .iter()
+        .filter(|check| {
+            check.status == AppRuntimeDiagnosticCheckStatus::Warning
+                || check.status == AppRuntimeDiagnosticCheckStatus::Failed
+        })
+        .map(|check| check.message.clone())
+        .collect()
+}
+
 fn diagnostic_severity(status: AppRuntimeDiagnosticCheckStatus) -> AppRuntimeDiagnosticSeverity {
     match status {
         AppRuntimeDiagnosticCheckStatus::Passed | AppRuntimeDiagnosticCheckStatus::Skipped => {
@@ -3357,6 +3601,34 @@ mod tests {
                 .warnings
                 .iter()
                 .any(|warning| warning.contains("cannot be projected to a Mihomo rule"))
+        );
+    }
+
+    #[test]
+    fn projection_artifact_is_staged_and_validates_yaml_patch() {
+        let artifact = build_app_runtime_projection_artifact(
+            &sample_state(),
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(artifact.activation_mode, AppRuntimeProjectionActivationMode::Staged);
+        assert!(!artifact.mutates_runtime);
+        assert_eq!(artifact.validation.status, AppRuntimeDiagnosticStatus::Healthy);
+        assert_eq!(artifact.validation.summary.failed, 0);
+        assert_eq!(artifact.projection.rules.len(), 1);
+        assert!(artifact.artifact_id.starts_with("app-runtime-browser-"));
+        assert_eq!(artifact.checksum.len(), 64);
+        assert!(
+            artifact
+                .validation
+                .checks
+                .iter()
+                .any(|check| check.check_id == "artifact_yaml_patch_parse"
+                    && check.status == AppRuntimeDiagnosticCheckStatus::Passed)
         );
     }
 

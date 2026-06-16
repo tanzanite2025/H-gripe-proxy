@@ -5,6 +5,7 @@ import type {
   AppRuntimeDiagnosticsReport,
   AppRuntimeMihomoProjection,
   AppRuntimePlan,
+  AppRuntimeProjectionArtifact,
 } from '@/services/app-runtime'
 
 import { statusColor } from './app-runtime-planning-utils'
@@ -13,12 +14,14 @@ interface AppRuntimePlanningResultPanelProps {
   diagnostics: AppRuntimeDiagnosticsReport | null
   plan: AppRuntimePlan | null
   projection: AppRuntimeMihomoProjection | null
+  projectionArtifact: AppRuntimeProjectionArtifact | null
 }
 
 export function AppRuntimePlanningResultPanel({
   diagnostics,
   plan,
   projection,
+  projectionArtifact,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
     return null
@@ -56,6 +59,45 @@ export function AppRuntimePlanningResultPanel({
       </div>
 
       <div className="text-sm font-medium">{diagnostics.reason}</div>
+
+      {projectionArtifact ? (
+        <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">Projection artifact</span>
+            <Chip
+              size="small"
+              color={statusColor(projectionArtifact.validation.status)}
+              label={projectionArtifact.validation.status}
+            />
+            <Chip
+              size="small"
+              color={projectionArtifact.mutatesRuntime ? 'error' : 'success'}
+              label={`activation: ${projectionArtifact.activationMode}`}
+            />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div>ID: {projectionArtifact.artifactId}</div>
+            <div>Checksum: {projectionArtifact.checksum.slice(0, 12)}</div>
+            <div>Binding: {projectionArtifact.bindingId || '-'}</div>
+            <div>{projectionArtifact.validation.reason}</div>
+          </div>
+          <div className="space-y-1">
+            {projectionArtifact.validation.checks.map((check) => (
+              <div
+                key={check.checkId}
+                className="flex items-center justify-between gap-3 rounded-md bg-background/60 px-2 py-1"
+              >
+                <span>{check.message}</span>
+                <Chip
+                  size="small"
+                  color={statusColor(check.status)}
+                  label={check.status}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {diagnostics.checks.length > 0 ? (
         <div className="space-y-1">

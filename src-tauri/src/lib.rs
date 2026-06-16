@@ -283,6 +283,7 @@ mod app_init {
             cmd::explain_app_runtime_plan,
             cmd::project_app_runtime_plan_to_mihomo,
             cmd::diagnose_app_runtime,
+            cmd::build_app_runtime_projection_artifact,
             cmd::list_app_runtime_sessions,
             cmd::start_app_runtime_session,
             cmd::finish_app_runtime_session,

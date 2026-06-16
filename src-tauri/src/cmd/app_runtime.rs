@@ -1,9 +1,11 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
     AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
-    AppRuntimePlanRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest,
-    AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStateDocument,
-    DnsProfile, NodePool, SecurityProfile, delete_app_policy_binding as delete_app_policy_binding_record,
+    AppRuntimePlanRequest, AppRuntimeProjectionArtifact, AppRuntimeSessionEvaluationReport,
+    AppRuntimeSessionFinishRequest, AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport,
+    AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
+    build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
+    delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
     diagnose_app_runtime as build_app_runtime_diagnostics,
@@ -97,6 +99,14 @@ pub async fn project_app_runtime_plan_to_mihomo(
 pub async fn diagnose_app_runtime(request: AppRuntimePlanRequest) -> CmdResult<AppRuntimeDiagnosticsReport> {
     let state = read_app_runtime_state_document().await.stringify_err()?;
     build_app_runtime_diagnostics(&state, request).stringify_err()
+}
+
+#[tauri::command]
+pub async fn build_app_runtime_projection_artifact(
+    request: AppRuntimePlanRequest,
+) -> CmdResult<AppRuntimeProjectionArtifact> {
+    let state = read_app_runtime_state_document().await.stringify_err()?;
+    build_app_runtime_projection_artifact_record(&state, request).stringify_err()
 }
 
 #[tauri::command]
