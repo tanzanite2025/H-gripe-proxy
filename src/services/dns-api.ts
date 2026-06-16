@@ -312,6 +312,52 @@ export interface DnsDefaultRuntimeOptInSwitchGuardReport {
   facts: string[]
 }
 
+export type DnsDefaultRuntimeExecutorPreflightStatus = 'ready' | 'blocked'
+
+export interface DnsDefaultRuntimeMutationDiff {
+  previousRuntime: string
+  candidateRuntime: string
+  runtimeOwnerBefore: string
+  runtimeOwnerAfter: string
+  nameserverTargets: string[]
+  planOnlyFeatures: string[]
+}
+
+export interface DnsDefaultRuntimeExecutorAuditRecord {
+  eventId: string
+  action: string
+  dryRun: boolean
+  createdAtEpochSeconds: number
+  guardStatus: DnsDefaultRuntimeOptInSwitchGuardStatus
+  readinessStatus: DnsDefaultRuntimeReadinessStatus
+  shadowStatus: DnsDefaultRuntimeShadowEvidenceStatus
+}
+
+export interface DnsDefaultRuntimeExecutorRollbackMarker {
+  required: boolean
+  prepared: boolean
+  strategy: string
+  restoresRuntime: boolean
+  previousRuntime: string
+  candidateRuntime: string
+}
+
+export interface DnsDefaultRuntimeOptInExecutorPreflightReport {
+  status: DnsDefaultRuntimeExecutorPreflightStatus
+  reason: string
+  guard: DnsDefaultRuntimeOptInSwitchGuardReport
+  mutationDiff: DnsDefaultRuntimeMutationDiff
+  auditRecord: DnsDefaultRuntimeExecutorAuditRecord
+  rollbackMarker: DnsDefaultRuntimeExecutorRollbackMarker
+  dryRun: boolean
+  wouldMutateRuntime: boolean
+  executed: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -561,6 +607,29 @@ export async function dnsDefaultRuntimeOptInSwitchGuard(
     )
   } catch (err) {
     console.error('DNS default runtime opt-in switch guard failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeOptInExecutorPreflight(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeOptInExecutorPreflightReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeOptInExecutorPreflightReport>(
+      'dns_default_runtime_opt_in_executor_preflight',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime opt-in executor preflight failed:',
+      err,
+    )
     throw err
   }
 }

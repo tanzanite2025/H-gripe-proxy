@@ -12,6 +12,7 @@ import { LeakProtectionSection } from './leak-protection-section'
 import { PerformanceMetricsSection } from './performance-metrics-section'
 import { RoutingSection } from './routing-section'
 import { RuntimeAlignmentSection } from './runtime-alignment-section'
+import { RuntimeExecutorPreflightSection } from './runtime-executor-preflight-section'
 import { RuntimeOptionsSection } from './runtime-options-section'
 import { RuntimeOverrideSection } from './runtime-override-section'
 import { RuntimeProbeSection } from './runtime-probe-section'
@@ -110,6 +111,8 @@ export const DnsStatsCard = ({
         <RuntimeShadowSection />
         <DnsDivider />
         <RuntimeSwitchGuardSection />
+        <DnsDivider />
+        <RuntimeExecutorPreflightSection />
         <DnsDivider />
         <PerformanceMetricsSection />
       </div>
