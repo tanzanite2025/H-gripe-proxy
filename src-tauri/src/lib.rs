@@ -327,6 +327,8 @@ mod app_init {
             cmd::dns_default_runtime_opt_in_switch_guard,
             cmd::dns_default_runtime_opt_in_executor_preflight,
             cmd::dns_default_runtime_opt_in_execution_guard,
+            cmd::dns_default_runtime_limited_opt_in_execution,
+            cmd::dns_default_runtime_limited_rollback,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,
             cmd::anti_probe_generate_token,

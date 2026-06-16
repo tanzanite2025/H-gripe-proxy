@@ -14,6 +14,7 @@ import { RoutingSection } from './routing-section'
 import { RuntimeAlignmentSection } from './runtime-alignment-section'
 import { RuntimeExecutionGuardSection } from './runtime-execution-guard-section'
 import { RuntimeExecutorPreflightSection } from './runtime-executor-preflight-section'
+import { RuntimeLimitedExecutionSection } from './runtime-limited-execution-section'
 import { RuntimeOptionsSection } from './runtime-options-section'
 import { RuntimeOverrideSection } from './runtime-override-section'
 import { RuntimeProbeSection } from './runtime-probe-section'
@@ -116,6 +117,8 @@ export const DnsStatsCard = ({
         <RuntimeExecutorPreflightSection />
         <DnsDivider />
         <RuntimeExecutionGuardSection />
+        <DnsDivider />
+        <RuntimeLimitedExecutionSection />
         <DnsDivider />
         <PerformanceMetricsSection />
       </div>

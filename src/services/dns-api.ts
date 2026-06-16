@@ -396,6 +396,64 @@ export interface DnsDefaultRuntimeOptInExecutionGuardReport {
   facts: string[]
 }
 
+export type DnsDefaultRuntimeLimitedExecutionStatus = 'executed' | 'blocked'
+export type DnsDefaultRuntimeLimitedRollbackStatus = 'restored' | 'blocked'
+
+export interface DnsDefaultRuntimeExecutionRecord {
+  eventId: string
+  action: string
+  status: string
+  guardEventId: string
+  previousRuntime: string
+  candidateRuntime: string
+  createdAtEpochSeconds: number
+  metadataVerified: boolean
+  error?: string | null
+}
+
+export interface DnsDefaultRuntimeActiveState {
+  activeRuntime: string
+  previousRuntime: string
+  state: string
+  executionEventId: string
+  activatedAtEpochSeconds: number
+  rollbackMarkerPath?: string | null
+  auditRecordPath?: string | null
+}
+
+export interface DnsDefaultRuntimeLimitedOptInExecutionReport {
+  status: DnsDefaultRuntimeLimitedExecutionStatus
+  reason: string
+  guard: DnsDefaultRuntimeOptInExecutionGuardReport
+  executionRecord: DnsDefaultRuntimeExecutionRecord
+  activeState?: DnsDefaultRuntimeActiveState | null
+  activeStatePath?: string | null
+  executionRecordPath?: string | null
+  metadataVerified: boolean
+  rollbackAvailable: boolean
+  mutatesRuntime: boolean
+  executed: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeLimitedRollbackReport {
+  status: DnsDefaultRuntimeLimitedRollbackStatus
+  reason: string
+  previousState?: DnsDefaultRuntimeActiveState | null
+  restoredState?: DnsDefaultRuntimeActiveState | null
+  rollbackRecord: DnsDefaultRuntimeExecutionRecord
+  activeStatePath?: string | null
+  rollbackRecordPath?: string | null
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -688,6 +746,37 @@ export async function dnsDefaultRuntimeOptInExecutionGuard(
     )
   } catch (err) {
     console.error('DNS default runtime opt-in execution guard failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeLimitedOptInExecution(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeLimitedOptInExecutionReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeLimitedOptInExecutionReport>(
+      'dns_default_runtime_limited_opt_in_execution',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime limited opt-in execution failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeLimitedRollback(): Promise<DnsDefaultRuntimeLimitedRollbackReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeLimitedRollbackReport>(
+      'dns_default_runtime_limited_rollback',
+    )
+  } catch (err) {
+    console.error('DNS default runtime limited rollback failed:', err)
     throw err
   }
 }
