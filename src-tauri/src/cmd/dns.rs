@@ -4,17 +4,18 @@ use crate::core::dns_config_explain::{
     plan_dns_probe as build_dns_probe_plan,
 };
 use crate::core::dns_runtime::{
-    DnsDefaultRuntimeExpandedOptInExecutionGateReport, DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
-    DnsDefaultRuntimeExpandedOptInExecutionReport, DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport,
-    DnsDefaultRuntimeExpandedRollbackDrillReport, DnsDefaultRuntimeExpandedRollbackReport,
-    DnsDefaultRuntimeExpandedStabilityGateReport, DnsDefaultRuntimeLimitedOptInExecutionReport,
-    DnsDefaultRuntimeLimitedRollbackReport, DnsDefaultRuntimeOptInExecutionGuardReport,
-    DnsDefaultRuntimeOptInExecutorPreflightReport, DnsDefaultRuntimeOptInSwitchGuardReport,
-    DnsDefaultRuntimePostExecutionObservedVerificationReport, DnsDefaultRuntimeReadinessReport,
-    DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport, DnsHealthCheckResult, DnsProtocol,
-    DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport, DnsResolverRuntimeQueryReport,
-    DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
+    DnsDefaultRuntimeExpandedHoldPolicyReport, DnsDefaultRuntimeExpandedOptInExecutionGateReport,
+    DnsDefaultRuntimeExpandedOptInExecutionPreflightReport, DnsDefaultRuntimeExpandedOptInExecutionReport,
+    DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport, DnsDefaultRuntimeExpandedRollbackDrillReport,
+    DnsDefaultRuntimeExpandedRollbackReport, DnsDefaultRuntimeExpandedStabilityGateReport,
+    DnsDefaultRuntimeLimitedOptInExecutionReport, DnsDefaultRuntimeLimitedRollbackReport,
+    DnsDefaultRuntimeOptInExecutionGuardReport, DnsDefaultRuntimeOptInExecutorPreflightReport,
+    DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimePostExecutionObservedVerificationReport,
+    DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
+    DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    dns_default_runtime_expanded_hold_policy as build_dns_default_runtime_expanded_hold_policy,
     dns_default_runtime_expanded_opt_in_execution as build_dns_default_runtime_expanded_opt_in_execution,
     dns_default_runtime_expanded_opt_in_execution_gate as build_dns_default_runtime_expanded_opt_in_execution_gate,
     dns_default_runtime_expanded_opt_in_execution_preflight as build_dns_default_runtime_expanded_opt_in_execution_preflight,
@@ -290,6 +291,17 @@ pub async fn dns_default_runtime_expanded_stability_gate(
     explicit_opt_in: bool,
 ) -> CmdResult<DnsDefaultRuntimeExpandedStabilityGateReport> {
     build_dns_default_runtime_expanded_stability_gate(yaml, domain, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_expanded_hold_policy(
+    yaml: Option<String>,
+    domain: Option<String>,
+    explicit_opt_in: bool,
+) -> CmdResult<DnsDefaultRuntimeExpandedHoldPolicyReport> {
+    build_dns_default_runtime_expanded_hold_policy(yaml, domain, explicit_opt_in)
         .await
         .stringify_err()
 }

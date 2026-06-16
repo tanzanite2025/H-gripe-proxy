@@ -2140,6 +2140,24 @@ dns:
         assert!(!stability_gate.promotion_allowed);
         assert!(!stability_gate.auto_rollout);
         assert!(!stability_gate.auto_rollback);
+
+        let hold_started_at = stability_gate
+            .post_execution
+            .active_state
+            .as_ref()
+            .map(|state| state.activated_at_epoch_seconds)
+            .unwrap();
+        let hold_policy =
+            build_dns_default_runtime_expanded_hold_policy_report(stability_gate, hold_started_at.saturating_add(300));
+
+        assert_eq!(hold_policy.status, DnsDefaultRuntimeExpandedHoldPolicyStatus::Ready);
+        assert_eq!(hold_policy.active_age_seconds, Some(300));
+        assert!(hold_policy.keep_active_allowed);
+        assert!(!hold_policy.next_verification_required);
+        assert!(!hold_policy.rollback_recommended);
+        assert!(!hold_policy.promotion_allowed);
+        assert!(!hold_policy.auto_rollout);
+        assert!(!hold_policy.auto_rollback);
     }
 
     #[test]

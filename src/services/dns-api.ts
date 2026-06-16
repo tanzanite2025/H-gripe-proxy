@@ -427,6 +427,11 @@ export type DnsDefaultRuntimeExpandedRollbackDrillStatus =
 export type DnsDefaultRuntimeExpandedStabilityGateStatus =
   | 'ready'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedHoldPolicyStatus =
+  | 'ready'
+  | 'holding'
+  | 'rollbackRecommended'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -661,6 +666,31 @@ export interface DnsDefaultRuntimeExpandedStabilityGateReport {
   reason: string
   postExecution: DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport
   keepActiveAllowed: boolean
+  rollbackRecommended: boolean
+  promotionAllowed: boolean
+  recommendedAction: string
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedHoldPolicyReport {
+  status: DnsDefaultRuntimeExpandedHoldPolicyStatus
+  reason: string
+  stabilityGate: DnsDefaultRuntimeExpandedStabilityGateReport
+  activeAgeSeconds?: number | null
+  minimumHoldSeconds: number
+  maximumHoldSeconds: number
+  holdStartedAtEpochSeconds?: number | null
+  nextVerificationAfterEpochSeconds?: number | null
+  holdExpiresAtEpochSeconds?: number | null
+  keepActiveAllowed: boolean
+  nextVerificationRequired: boolean
   rollbackRecommended: boolean
   promotionAllowed: boolean
   recommendedAction: string
@@ -1150,6 +1180,26 @@ export async function dnsDefaultRuntimeExpandedStabilityGate(
     )
   } catch (err) {
     console.error('DNS default runtime expanded stability gate failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedHoldPolicy(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeExpandedHoldPolicyReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedHoldPolicyReport>(
+      'dns_default_runtime_expanded_hold_policy',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime expanded hold policy failed:', err)
     throw err
   }
 }
