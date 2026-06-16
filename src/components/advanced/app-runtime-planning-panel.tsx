@@ -581,6 +581,77 @@ export function AppRuntimePlanningPanel() {
     )
   }, [overviewFilter, overviewRows])
 
+  const selectedOverviewRow = useMemo(
+    () => overviewRows.find((row) => row.app.appId === selectedAppId) ?? null,
+    [overviewRows, selectedAppId],
+  )
+
+  const aggregateDiagnostics = useMemo(() => {
+    if (!selectedApp) {
+      return []
+    }
+
+    const dnsProbeStatus = !selectedDnsProfile
+      ? 'skipped'
+      : dnsProbeReport
+        ? dnsProbeReport.summary.failedTargets > 0
+          ? 'failed'
+          : dnsProbeReport.warnings.length > 0
+            ? 'warning'
+            : 'passed'
+        : 'skipped'
+
+    return [
+      {
+        key: 'state',
+        label: 'State references',
+        status: selectedOverviewRow?.issues.length ? 'failed' : 'passed',
+        detail: selectedOverviewRow?.issues.length
+          ? selectedOverviewRow.issues.join('；')
+          : 'App / binding / node / DNS / security references resolved.',
+      },
+      {
+        key: 'diagnostics',
+        label: 'Planning diagnostics',
+        status: diagnostics?.status ?? 'skipped',
+        detail: diagnostics
+          ? `${diagnostics.summary.failed} failed / ${diagnostics.summary.warnings} warnings / ${diagnostics.summary.passed} passed`
+          : 'Run planning diagnostics to populate Rust checks.',
+      },
+      {
+        key: 'dns-probe',
+        label: 'DNS controlled probe',
+        status: dnsProbeStatus,
+        detail: !selectedDnsProfile
+          ? 'No DNS profile bound.'
+          : dnsProbeReport
+            ? `${dnsProbeReport.summary.healthyTargets}/${dnsProbeReport.summary.runtimeSupportedTargets} runtime-supported targets healthy.`
+            : 'Probe is opt-in; run it before treating DNS runtime health as known.',
+      },
+      {
+        key: 'runtime-boundary',
+        label: 'Runtime boundary',
+        status: projection
+          ? projection.mutatesRuntime
+            ? 'failed'
+            : 'passed'
+          : 'skipped',
+        detail: projection
+          ? projection.mutatesRuntime
+            ? 'Projection reports runtime mutation.'
+            : 'Projection remains planning-only.'
+          : 'Generate projection through planning diagnostics.',
+      },
+    ]
+  }, [
+    diagnostics,
+    dnsProbeReport,
+    projection,
+    selectedApp,
+    selectedDnsProfile,
+    selectedOverviewRow,
+  ])
+
   const resources = useMemo(
     () => collectionFor(state, resourceKind),
     [resourceKind, state],
@@ -2214,6 +2285,43 @@ export function AppRuntimePlanningPanel() {
                   .map((matcher) => `${matcher.kind}:${matcher.pattern}`)
                   .join(' / ')
               : '该应用尚未配置 process matcher。'}
+          </div>
+        ) : null}
+
+        {selectedApp ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <div className="text-sm font-semibold">聚合诊断摘要</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                把 overview state issue、planning diagnostics、DNS controlled
+                probe 和 runtime boundary 放在同一视图，避免分散查状态。
+              </div>
+            </div>
+
+            <div className="grid gap-2 lg:grid-cols-2">
+              {aggregateDiagnostics.map((item) => (
+                <div
+                  key={item.key}
+                  className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{item.label}</span>
+                    <Chip
+                      size="small"
+                      color={statusColor(item.status)}
+                      label={item.status}
+                    />
+                  </div>
+                  <div className="text-muted-foreground">{item.detail}</div>
+                </div>
+              ))}
+            </div>
+
+            {dnsProbeReport?.warnings.length ? (
+              <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                DNS probe warnings: {dnsProbeReport.warnings.join('；')}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
