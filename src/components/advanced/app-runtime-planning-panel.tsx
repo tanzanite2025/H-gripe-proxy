@@ -72,6 +72,7 @@ import {
   type RuntimeResourceKind,
 } from './app-runtime-planning-utils'
 import { AppRuntimeResourceManagerPanel } from './app-runtime-resource-manager-panel'
+import { AppRuntimeSecurityProfileForm } from './app-runtime-security-profile-form'
 import { AppRuntimeSessionPanel } from './app-runtime-session-panel'
 
 export function AppRuntimePlanningPanel() {
@@ -1240,135 +1241,14 @@ export function AppRuntimePlanningPanel() {
           />
         ) : null}
 
-        {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">
-                Security profile 快速表单
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                编辑当前 app 绑定的 security profile 约束；仍只影响 diagnostics
-                / planning。
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <TextField
-                fullWidth
-                size="small"
-                label="Profile ID"
-                value={securityProfileDraft.profileId}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    profileId: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Name"
-                value={securityProfileDraft.name}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    name: event.target.value,
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="Require node pool"
-                value={securityProfileDraft.requireNodePool}
-                options={enabledOptions}
-                onChange={(value: string | number) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    requireNodePool: String(value),
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="Require DNS profile"
-                value={securityProfileDraft.requireDnsProfile}
-                options={enabledOptions}
-                onChange={(value: string | number) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    requireDnsProfile: String(value),
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Min runtime-supported nameservers"
-                value={securityProfileDraft.minRuntimeSupportedNameservers}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    minRuntimeSupportedNameservers: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Allowed routing intents"
-                value={securityProfileDraft.allowedRoutingIntents}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    allowedRoutingIntents: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔，例如 proxy, fallback。"
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Tags"
-                value={securityProfileDraft.tags}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setSecurityProfileDraft((draft) => ({
-                    ...draft,
-                    tags: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔。"
-              />
-              <div className="flex items-end">
-                <Button
-                  size="small"
-                  startIcon={<Save className="h-4 w-4" />}
-                  onClick={() => void handleSaveSecurityProfileDraft()}
-                  disabled={resourcePending}
-                >
-                  保存 security profile
-                </Button>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              当前绑定:{' '}
-              {selectedBinding?.securityProfileId || '未绑定 security profile'}
-            </div>
-          </div>
-        ) : null}
+        <AppRuntimeSecurityProfileForm
+          selectedApp={selectedApp}
+          selectedBinding={selectedBinding}
+          draft={securityProfileDraft}
+          pending={resourcePending}
+          setDraft={setSecurityProfileDraft}
+          onSave={() => void handleSaveSecurityProfileDraft()}
+        />
 
         {selectedApp ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
