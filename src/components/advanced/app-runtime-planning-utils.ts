@@ -16,6 +16,7 @@ export const emptyState: AppRuntimeStateDocument = {
   securityProfiles: [],
   policyBindings: [],
   sessions: [],
+  runtimeApplyAudits: [],
   activeProjection: undefined,
 }
 

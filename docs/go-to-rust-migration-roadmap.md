@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime apply audit / observed runtime verification） | PR #82/#84-#91/#95-#132；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback 与显式 opt-in runtime candidate apply guard 已进入 Rust 单一路径；下一步补 runtime apply audit / observed runtime verification |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime readiness gate 前置评估） | PR #82/#84-#91/#95-#132 与后续 Batch J；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification 已进入 Rust 单一路径；下一步评估默认 DNS runtime gate |
 
 ## 已完成阶段详情
 
@@ -515,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path / active marker rollback / explicit runtime apply guard，并完成 app-runtime backend 第二轮拆分（截至 PR #132）**。
+当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path / active marker rollback / explicit runtime apply guard / runtime apply audit 与 observed verification，并完成 app-runtime backend 第二轮拆分**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -674,7 +674,7 @@ AppRegistry
 
 ## 加速执行策略
 
-前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#132 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板与后端 app-runtime 第二轮拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard、active artifact marker、marker rollback 与显式 opt-in runtime candidate apply guard。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：先补齐 runtime apply audit / observed runtime verification，再评估更高风险的 DNS / TUN / protocol runtime 边界。
+前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#132 与后续 Batch J 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板与后端 app-runtime 第二轮拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard、active artifact marker、marker rollback、显式 opt-in runtime candidate apply guard 与 runtime apply audit / observed verification。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：先做默认 DNS runtime readiness gate，再评估是否进入更高风险的默认 DNS runtime 切换、TUN / protocol runtime 边界。
 
 ### 可以加快做的部分
 
@@ -712,9 +712,9 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard 都已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback 与显式 runtime candidate apply。
+从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard、Batch J runtime apply audit / observed verification 都已经完成或正在本批次落地：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback、显式 runtime candidate apply、runtime apply audit 与只读运行态验证。
 
-下一步不应直接跳到默认 DNS runtime、TUN 或协议栈替换；这些会扩大到真实数据面。更稳妥的下一批是 **Batch J：Runtime apply audit / observed runtime verification**：把 Batch I 的 opt-in runtime mutation 变成可审计、可观测、可复核的闭环，再决定是否进入更高风险 runtime 边界。
+下一步不应直接切默认 DNS runtime、TUN 或协议栈替换；这些会扩大到真实数据面。更稳妥的下一批是 **Batch K：Default DNS runtime readiness gate**：先只做默认 DNS runtime readiness / blocker 报告，复用现有 `DnsResolverPlan`、controlled probe 与健康归因，不改变用户默认解析路径。
 
 ### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
@@ -819,7 +819,7 @@ feat(app-runtime): add explicit runtime candidate apply guard
 - rollback 遇到 runtime-mutating marker 时先恢复 runtime，再恢复 runtime apply 前的 marker-only state。
 - UI 增加显式 `应用 runtime` 按钮；只有当前 active artifact 且未 mutatesRuntime 时可触发。
 
-### Batch J：Runtime apply audit / observed runtime verification（下一批，小步做）
+### Batch J：Runtime apply audit / observed runtime verification（本批次，小步做）
 
 Batch I 已允许显式 opt-in runtime mutation，但当前闭环仍主要停留在“命令成功 / active marker 已变更”。下一批应补齐 audit 与 observed verification，避免进入 DNS/TUN/protocol 前缺少运行态证据：
 
@@ -855,3 +855,38 @@ feat(app-runtime): add runtime apply audit verification
 - UI 能展示 active projection 的 latest apply audit 与 observed verification。
 - verification 缺少 runtime evidence 时 fail-soft 返回 degraded / blocked，不 panic、不自动修复。
 - rollback 后 audit 状态可区分 active / rolled back / superseded。
+
+已落地范围：
+
+- `AppRuntimeStateDocument.runtimeApplyAudits` 记录 runtime apply audit。
+- apply 成功后记录 artifact/checksum/activation kind、validation outcome、candidate profile item、proxy-group/rule count、previous marker 与 rollback strategy。
+- 新增 `list_app_runtime_projection_runtime_apply_audits` 读取审计记录。
+- 新增 `verify_app_runtime_projection_runtime_apply`，只读当前 runtime config，检查 active marker、latest audit、runtime config availability、projected proxy-groups 与 rules 是否可观察。
+- verification 结果写回 latest audit 的最近验证状态 / reason / timestamp。
+- rollback runtime-mutating marker 时把对应 active audit 标记为 `rolledBack`；后续新 apply 可把旧 active audit 标记为 `superseded`。
+- UI 在 projection artifact 面板展示 latest apply audit，并提供显式 `验证 runtime` 按钮展示 observed verification summary。
+
+### Batch K：Default DNS runtime readiness gate（下一批，评估后再做）
+
+Batch J 之后，app-runtime 的 opt-in runtime mutation 已有审计和只读运行态证据。下一步可以开始评估默认 DNS runtime 切换，但首批仍应是 readiness / preflight gate，而不是直接替换 Go DNS runtime：
+
+```text
+feat(dns-runtime): add default resolver readiness gate
+```
+
+建议边界：
+
+- 只从现有 `DnsResolverPlan` / controlled probe / health summary 出发，不新增第二套 DNS 配置事实源。
+- 新增默认 DNS runtime readiness report，汇总：
+  - 当前 profile DNS 配置是否能生成 Rust resolver plan。
+  - nameserver / fallback / proxy-server-nameserver 的 runtime-supported 覆盖率。
+  - controlled probe 最近健康状态与失败归因。
+  - fake-ip / fallback-filter / nameserver-policy 仍未接管的 blocker。
+- UI 只展示 readiness / blocker，不自动切默认 DNS runtime。
+- 不改变用户默认解析路径，不写 active profile，不 reload Mihomo。
+
+不包含：
+
+- 不真正启用 Rust default DNS resolver。
+- 不接管 fake-ip cache / fallback-filter / nameserver-policy。
+- 不碰 TUN、transparent proxy、adapter outbound/inbound 或协议栈。

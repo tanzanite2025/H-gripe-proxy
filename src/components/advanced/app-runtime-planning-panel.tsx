@@ -29,6 +29,7 @@ import {
   upsertDnsProfile,
   upsertNodePool,
   upsertSecurityProfile,
+  verifyAppRuntimeProjectionRuntimeApply,
   verifyAppRuntimeSessionLeak,
   type AppPolicyBinding,
   type AppProcessMatcherKind,
@@ -39,6 +40,7 @@ import {
   type AppRuntimePlan,
   type AppRuntimeProjectionActivationPreflightReport,
   type AppRuntimeProjectionArtifact,
+  type AppRuntimeProjectionRuntimeVerificationReport,
   type AppRuntimeSessionEvaluationReport,
   type AppRuntimeSessionLeakReport,
   type AppRuntimeStateDocument,
@@ -97,6 +99,8 @@ export function AppRuntimePlanningPanel() {
     useState(false)
   const [activateMarkerPending, setActivateMarkerPending] = useState(false)
   const [runtimeApplyPending, setRuntimeApplyPending] = useState(false)
+  const [runtimeVerificationPending, setRuntimeVerificationPending] =
+    useState(false)
   const [activationRollbackPending, setActivationRollbackPending] =
     useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
@@ -108,6 +112,8 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeProjectionArtifact | null>(null)
   const [activationPreflight, setActivationPreflight] =
     useState<AppRuntimeProjectionActivationPreflightReport | null>(null)
+  const [runtimeVerification, setRuntimeVerification] =
+    useState<AppRuntimeProjectionRuntimeVerificationReport | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [evaluation, setEvaluation] =
     useState<AppRuntimeSessionEvaluationReport | null>(null)
@@ -174,8 +180,26 @@ export function AppRuntimePlanningPanel() {
   useEffect(() => {
     if (!projectionArtifact) {
       setActivationPreflight(null)
+      setRuntimeVerification(null)
     }
   }, [projectionArtifact])
+
+  const latestRuntimeApplyAudit = useMemo(() => {
+    if (!projectionArtifact) {
+      return null
+    }
+    return (
+      [
+        ...state.runtimeApplyAudits.filter(
+          (audit) => audit.artifactId === projectionArtifact.artifactId,
+        ),
+      ].sort(
+          (left, right) =>
+            right.appliedAt - left.appliedAt ||
+            right.auditId.localeCompare(left.auditId),
+        )[0] ?? null
+    )
+  }, [projectionArtifact, state.runtimeApplyAudits])
 
   const appOptions = useMemo(
     () =>
@@ -743,11 +767,36 @@ export function AppRuntimePlanningPanel() {
         force: true,
       })
       setState(nextState)
+      setRuntimeVerification(null)
       showNotice.success('已显式应用 projection runtime candidate')
     } catch (error) {
       showNotice.error(error)
     } finally {
       setRuntimeApplyPending(false)
+    }
+  })
+
+  const verifyProjectionRuntimeApply = useLockFn(async () => {
+    if (!projectionArtifact) {
+      return
+    }
+
+    setRuntimeVerificationPending(true)
+    try {
+      const report = await verifyAppRuntimeProjectionRuntimeApply({
+        artifactId: projectionArtifact.artifactId,
+      })
+      setRuntimeVerification(report)
+      setState(await getAppRuntimeState())
+      showNotice.success(
+        report.status === 'healthy'
+          ? 'runtime apply 运行态验证已通过'
+          : 'runtime apply 运行态验证已完成',
+      )
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setRuntimeVerificationPending(false)
     }
   })
 
@@ -1679,12 +1728,16 @@ export function AppRuntimePlanningPanel() {
           activationPreflight={activationPreflight}
           activationPreflightPending={activationPreflightPending}
           activeProjection={state.activeProjection ?? null}
+          latestRuntimeApplyAudit={latestRuntimeApplyAudit}
+          runtimeVerification={runtimeVerification}
           activateMarkerPending={activateMarkerPending}
           runtimeApplyPending={runtimeApplyPending}
+          runtimeVerificationPending={runtimeVerificationPending}
           activationRollbackPending={activationRollbackPending}
           onPreflightActivation={() => void preflightProjectionActivation()}
           onMarkActive={() => void markProjectionArtifactActive()}
           onApplyRuntime={() => void applyProjectionArtifactToRuntime()}
+          onVerifyRuntime={() => void verifyProjectionRuntimeApply()}
           onRollbackActivation={() => void rollbackProjectionActivation()}
         />
       </div>

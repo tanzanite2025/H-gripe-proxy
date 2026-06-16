@@ -287,6 +287,8 @@ mod app_init {
             cmd::preflight_app_runtime_projection_activation,
             cmd::activate_app_runtime_projection_artifact,
             cmd::apply_app_runtime_projection_artifact_to_runtime,
+            cmd::list_app_runtime_projection_runtime_apply_audits,
+            cmd::verify_app_runtime_projection_runtime_apply,
             cmd::rollback_app_runtime_projection_activation,
             cmd::list_app_runtime_sessions,
             cmd::start_app_runtime_session,

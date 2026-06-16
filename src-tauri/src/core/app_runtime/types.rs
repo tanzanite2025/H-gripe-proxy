@@ -18,6 +18,8 @@ pub struct AppRuntimeStateDocument {
     pub policy_bindings: Vec<AppPolicyBinding>,
     #[serde(default)]
     pub sessions: Vec<AppRuntimeSessionRecord>,
+    #[serde(default)]
+    pub runtime_apply_audits: Vec<AppRuntimeProjectionRuntimeApplyAuditRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_projection: Option<AppRuntimeActiveProjectionRecord>,
 }
@@ -361,6 +363,80 @@ pub struct AppRuntimeProjectionRuntimeApplyRequest {
     pub expected_checksum: Option<String>,
     #[serde(default = "default_runtime_apply_force")]
     pub force: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeVerificationRequest {
+    pub artifact_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeApplyAuditRecord {
+    pub audit_id: String,
+    pub artifact_id: String,
+    pub app_id: String,
+    pub checksum: String,
+    pub activation_kind: String,
+    pub applied_at: i64,
+    pub validation_outcome: String,
+    pub candidate_summary: AppRuntimeProjectionRuntimeApplyCandidateSummary,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_marker: Option<AppRuntimeProjectionRuntimeApplyMarkerSnapshot>,
+    pub rollback_strategy: String,
+    pub status: AppRuntimeProjectionRuntimeApplyAuditStatus,
+    pub status_updated_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_verification_status: Option<AppRuntimeDiagnosticStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_verification_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_verification_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeApplyCandidateSummary {
+    pub profile_item_uid: String,
+    pub profile_item_file: String,
+    pub proxy_group_count: usize,
+    pub rule_count: usize,
+    pub dns_profile_projected: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeApplyMarkerSnapshot {
+    pub artifact_id: String,
+    pub checksum: String,
+    pub storage_path: String,
+    pub activation_kind: String,
+    pub mutates_runtime: bool,
+    pub activated_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeProjectionRuntimeApplyAuditStatus {
+    Active,
+    RolledBack,
+    Superseded,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeVerificationReport {
+    pub status: AppRuntimeDiagnosticStatus,
+    pub reason: String,
+    pub artifact_id: Option<String>,
+    pub checksum: Option<String>,
+    pub audit_id: Option<String>,
+    pub observed_at: i64,
+    pub checks: Vec<AppRuntimeDiagnosticCheck>,
+    pub summary: AppRuntimeDiagnosticsSummary,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

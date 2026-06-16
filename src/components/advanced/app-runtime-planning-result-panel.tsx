@@ -9,6 +9,8 @@ import type {
   AppRuntimePlan,
   AppRuntimeProjectionActivationPreflightReport,
   AppRuntimeProjectionArtifact,
+  AppRuntimeProjectionRuntimeApplyAuditRecord,
+  AppRuntimeProjectionRuntimeVerificationReport,
 } from '@/services/app-runtime'
 
 import { statusColor } from './app-runtime-planning-utils'
@@ -21,12 +23,16 @@ interface AppRuntimePlanningResultPanelProps {
   activationPreflight: AppRuntimeProjectionActivationPreflightReport | null
   activationPreflightPending: boolean
   activeProjection: AppRuntimeActiveProjectionRecord | null
+  latestRuntimeApplyAudit: AppRuntimeProjectionRuntimeApplyAuditRecord | null
+  runtimeVerification: AppRuntimeProjectionRuntimeVerificationReport | null
   activateMarkerPending: boolean
   runtimeApplyPending: boolean
+  runtimeVerificationPending: boolean
   activationRollbackPending: boolean
   onPreflightActivation: () => void
   onMarkActive: () => void
   onApplyRuntime: () => void
+  onVerifyRuntime: () => void
   onRollbackActivation: () => void
 }
 
@@ -38,12 +44,16 @@ export function AppRuntimePlanningResultPanel({
   activationPreflight,
   activationPreflightPending,
   activeProjection,
+  latestRuntimeApplyAudit,
+  runtimeVerification,
   activateMarkerPending,
   runtimeApplyPending,
+  runtimeVerificationPending,
   activationRollbackPending,
   onPreflightActivation,
   onMarkActive,
   onApplyRuntime,
+  onVerifyRuntime,
   onRollbackActivation,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
@@ -135,6 +145,19 @@ export function AppRuntimePlanningResultPanel({
             >
               {runtimeApplyPending ? '应用中...' : '显式应用 runtime'}
             </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={onVerifyRuntime}
+              disabled={
+                runtimeVerificationPending ||
+                activeProjection?.artifactId !==
+                  projectionArtifact.artifactId ||
+                !(activeProjection?.mutatesRuntime ?? false)
+              }
+            >
+              {runtimeVerificationPending ? '验证中...' : '验证 runtime'}
+            </Button>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div>ID: {projectionArtifact.artifactId}</div>
@@ -187,6 +210,68 @@ export function AppRuntimePlanningResultPanel({
                     />
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : null}
+          {latestRuntimeApplyAudit ? (
+            <div className="space-y-1 rounded-md border border-border bg-background/50 p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Runtime apply audit</span>
+                <Chip
+                  size="small"
+                  color={statusColor(latestRuntimeApplyAudit.status)}
+                  label={latestRuntimeApplyAudit.status}
+                />
+                {latestRuntimeApplyAudit.latestVerificationStatus ? (
+                  <Chip
+                    size="small"
+                    color={statusColor(
+                      latestRuntimeApplyAudit.latestVerificationStatus,
+                    )}
+                    label={`verified: ${latestRuntimeApplyAudit.latestVerificationStatus}`}
+                  />
+                ) : null}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div>Audit: {latestRuntimeApplyAudit.auditId}</div>
+                <div>
+                  Candidate:{' '}
+                  {latestRuntimeApplyAudit.candidateSummary.profileItemUid}
+                </div>
+                <div>
+                  Groups:{' '}
+                  {latestRuntimeApplyAudit.candidateSummary.proxyGroupCount}
+                </div>
+                <div>Rules: {latestRuntimeApplyAudit.candidateSummary.ruleCount}</div>
+              </div>
+              <div className="text-muted-foreground">
+                Validation: {latestRuntimeApplyAudit.validationOutcome}
+              </div>
+              <div className="text-muted-foreground">
+                Rollback: {latestRuntimeApplyAudit.rollbackStrategy}
+              </div>
+            </div>
+          ) : null}
+          {runtimeVerification ? (
+            <div className="space-y-1 rounded-md border border-border bg-background/50 p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">
+                  Observed runtime verification
+                </span>
+                <Chip
+                  size="small"
+                  color={statusColor(runtimeVerification.status)}
+                  label={runtimeVerification.status}
+                />
+              </div>
+              <div className="text-muted-foreground">
+                {runtimeVerification.reason}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-4">
+                <div>Passed: {runtimeVerification.summary.passed}</div>
+                <div>Warnings: {runtimeVerification.summary.warnings}</div>
+                <div>Failed: {runtimeVerification.summary.failed}</div>
+                <div>Skipped: {runtimeVerification.summary.skipped}</div>
               </div>
             </div>
           ) : null}

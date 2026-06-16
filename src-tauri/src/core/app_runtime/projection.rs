@@ -230,6 +230,7 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
     }
 
     let candidate = write_app_runtime_projection_runtime_merge_candidate(&artifact).await?;
+    let candidate_summary = app_runtime_projection_runtime_apply_candidate_summary(&artifact, &candidate);
     let result = async {
         let profiles = Config::profiles().await;
         profiles.edit_draft(|profiles| attach_app_runtime_runtime_merge_candidate(profiles, &candidate))?;
@@ -240,16 +241,28 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
         if !outcome.is_valid() {
             bail!("app runtime projection candidate failed runtime validation: {outcome}");
         }
+        let validation_outcome: String = outcome.to_string().into();
+        let applied_at = now_millis();
+        let audit = app_runtime_projection_runtime_apply_audit_record(
+            &artifact,
+            "runtime_profile_merge",
+            previous.as_ref(),
+            &candidate_summary,
+            validation_outcome,
+            applied_at,
+        );
 
         update_state_document(|state| {
             ensure_active_projection_unchanged(state.active_projection.as_ref(), previous.as_ref())?;
+            mark_runtime_apply_audits_superseded(&mut state.runtime_apply_audits, &audit, applied_at);
             state.active_projection = Some(app_runtime_active_projection_record_from_artifact_with_runtime(
                 &artifact,
                 "runtime_profile_merge",
                 previous.as_ref(),
-                now_millis(),
+                applied_at,
                 true,
             ));
+            state.runtime_apply_audits.push(audit);
             Ok(())
         })
         .await
@@ -266,6 +279,60 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
     }
 
     result
+}
+
+pub async fn list_app_runtime_projection_runtime_apply_audits(
+    artifact_id: Option<String>,
+) -> Result<Vec<AppRuntimeProjectionRuntimeApplyAuditRecord>> {
+    let mut audits: Vec<_> = read_app_runtime_state_document()
+        .await?
+        .runtime_apply_audits
+        .into_iter()
+        .filter(|audit| {
+            artifact_id
+                .as_ref()
+                .is_none_or(|artifact_id| &audit.artifact_id == artifact_id)
+        })
+        .collect();
+    audits.sort_by(|left, right| {
+        right
+            .applied_at
+            .cmp(&left.applied_at)
+            .then_with(|| right.audit_id.cmp(&left.audit_id))
+    });
+    Ok(audits)
+}
+
+pub async fn verify_app_runtime_projection_runtime_apply(
+    request: AppRuntimeProjectionRuntimeVerificationRequest,
+) -> Result<AppRuntimeProjectionRuntimeVerificationReport> {
+    let state = read_app_runtime_state_document().await?;
+    let artifact_id = request.artifact_id.or_else(|| {
+        state
+            .active_projection
+            .as_ref()
+            .map(|active| active.artifact_id.clone())
+    });
+    let report = app_runtime_projection_runtime_verification_report(&state, artifact_id.as_ref()).await?;
+    if let Some(audit_id) = report.audit_id.as_ref() {
+        let status = report.status;
+        let reason = report.reason.clone();
+        let observed_at = report.observed_at;
+        update_state_document(|state| {
+            if let Some(audit) = state
+                .runtime_apply_audits
+                .iter_mut()
+                .find(|audit| &audit.audit_id == audit_id)
+            {
+                audit.latest_verification_status = Some(status);
+                audit.latest_verification_reason = Some(reason);
+                audit.latest_verification_at = Some(observed_at);
+            }
+            Ok(())
+        })
+        .await?;
+    }
+    Ok(report)
 }
 
 pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeStateDocument> {
@@ -318,6 +385,9 @@ pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeSt
 
     update_state_document(|state| {
         ensure_active_projection_unchanged(state.active_projection.as_ref(), Some(&current))?;
+        if current.mutates_runtime {
+            mark_runtime_apply_audits_rolled_back(&mut state.runtime_apply_audits, &current, now_millis());
+        }
         state.active_projection = restored;
         Ok(())
     })
@@ -612,6 +682,389 @@ pub(super) async fn cleanup_app_runtime_projection_runtime_merge_candidate(
     candidate: &AppRuntimeRuntimeMergeCandidate,
 ) {
     let _ = fs::remove_file(&candidate.path).await;
+}
+
+pub(super) fn app_runtime_projection_runtime_apply_candidate_summary(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+    candidate: &AppRuntimeRuntimeMergeCandidate,
+) -> AppRuntimeProjectionRuntimeApplyCandidateSummary {
+    AppRuntimeProjectionRuntimeApplyCandidateSummary {
+        profile_item_uid: candidate.uid.clone(),
+        profile_item_file: candidate.file.clone(),
+        proxy_group_count: artifact.projection.proxy_groups.len(),
+        rule_count: artifact.projection.rules.len(),
+        dns_profile_projected: artifact.projection.dns.is_some(),
+    }
+}
+
+pub(super) fn app_runtime_projection_runtime_apply_audit_record(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+    activation_kind: &str,
+    previous: Option<&AppRuntimeActiveProjectionRecord>,
+    candidate_summary: &AppRuntimeProjectionRuntimeApplyCandidateSummary,
+    validation_outcome: String,
+    applied_at: i64,
+) -> AppRuntimeProjectionRuntimeApplyAuditRecord {
+    AppRuntimeProjectionRuntimeApplyAuditRecord {
+        audit_id: format!(
+            "runtime-apply-{}-{}",
+            safe_app_runtime_artifact_segment(&artifact.artifact_id),
+            applied_at
+        )
+        .into(),
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: artifact.app_id.clone(),
+        checksum: artifact.checksum.clone(),
+        activation_kind: activation_kind.into(),
+        applied_at,
+        validation_outcome,
+        candidate_summary: candidate_summary.clone(),
+        previous_marker: previous.map(app_runtime_projection_runtime_apply_marker_snapshot),
+        rollback_strategy: "restore_runtime_from_profile_and_previous_marker".into(),
+        status: AppRuntimeProjectionRuntimeApplyAuditStatus::Active,
+        status_updated_at: applied_at,
+        latest_verification_status: None,
+        latest_verification_reason: None,
+        latest_verification_at: None,
+    }
+}
+
+pub(super) fn app_runtime_projection_runtime_apply_marker_snapshot(
+    marker: &AppRuntimeActiveProjectionRecord,
+) -> AppRuntimeProjectionRuntimeApplyMarkerSnapshot {
+    AppRuntimeProjectionRuntimeApplyMarkerSnapshot {
+        artifact_id: marker.artifact_id.clone(),
+        checksum: marker.checksum.clone(),
+        storage_path: marker.storage_path.clone(),
+        activation_kind: marker.activation_kind.clone(),
+        mutates_runtime: marker.mutates_runtime,
+        activated_at: marker.activated_at,
+    }
+}
+
+pub(super) fn mark_runtime_apply_audits_superseded(
+    audits: &mut [AppRuntimeProjectionRuntimeApplyAuditRecord],
+    next_audit: &AppRuntimeProjectionRuntimeApplyAuditRecord,
+    updated_at: i64,
+) {
+    for audit in audits
+        .iter_mut()
+        .filter(|audit| audit.status == AppRuntimeProjectionRuntimeApplyAuditStatus::Active)
+    {
+        if audit.audit_id != next_audit.audit_id {
+            audit.status = AppRuntimeProjectionRuntimeApplyAuditStatus::Superseded;
+            audit.status_updated_at = updated_at;
+        }
+    }
+}
+
+pub(super) fn mark_runtime_apply_audits_rolled_back(
+    audits: &mut [AppRuntimeProjectionRuntimeApplyAuditRecord],
+    marker: &AppRuntimeActiveProjectionRecord,
+    updated_at: i64,
+) {
+    for audit in audits.iter_mut().filter(|audit| {
+        audit.status == AppRuntimeProjectionRuntimeApplyAuditStatus::Active
+            && audit.artifact_id == marker.artifact_id
+            && audit.checksum == marker.checksum
+    }) {
+        audit.status = AppRuntimeProjectionRuntimeApplyAuditStatus::RolledBack;
+        audit.status_updated_at = updated_at;
+    }
+}
+
+pub(super) async fn app_runtime_projection_runtime_verification_report(
+    state: &AppRuntimeStateDocument,
+    artifact_id: Option<&String>,
+) -> Result<AppRuntimeProjectionRuntimeVerificationReport> {
+    let observed_at = now_millis();
+    let mut checks = Vec::new();
+    let mut facts = vec!["runtime apply verification is read-only and does not reload Mihomo".into()];
+    let mut warnings = Vec::new();
+    let active = state.active_projection.as_ref();
+    let audit = latest_runtime_apply_audit(state, artifact_id);
+    let artifact = match artifact_id {
+        Some(artifact_id) => Some(read_persisted_app_runtime_projection_artifact(artifact_id).await?),
+        None => None,
+    };
+
+    checks.push(runtime_verification_active_marker_check(active, artifact_id));
+    checks.push(runtime_verification_audit_check(audit));
+
+    let runtime_config = Config::runtime().await.latest_arc().config.clone();
+    checks.push(runtime_verification_runtime_config_check(runtime_config.as_ref()));
+
+    if let Some(artifact) = artifact.as_ref() {
+        facts.push(
+            format!(
+                "artifact projects {} proxy group(s) and {} rule(s)",
+                artifact.projection.proxy_groups.len(),
+                artifact.projection.rules.len()
+            )
+            .into(),
+        );
+        if let Some(runtime_config) = runtime_config.as_ref() {
+            checks.push(runtime_verification_proxy_groups_check(
+                runtime_config,
+                &artifact.projection.proxy_groups,
+            ));
+            checks.push(runtime_verification_rules_check(
+                runtime_config,
+                &artifact.projection.rules,
+            ));
+        }
+    }
+
+    let summary = diagnostics_summary(&checks);
+    let status = diagnostics_status(&summary);
+    let reason = runtime_verification_reason(status, &summary);
+    warnings.extend(runtime_verification_warnings(&checks));
+
+    Ok(AppRuntimeProjectionRuntimeVerificationReport {
+        status,
+        reason,
+        artifact_id: artifact_id.cloned(),
+        checksum: active.map(|active| active.checksum.clone()),
+        audit_id: audit.map(|audit| audit.audit_id.clone()),
+        observed_at,
+        checks,
+        summary,
+        facts,
+        warnings,
+    })
+}
+
+pub(super) fn latest_runtime_apply_audit<'a>(
+    state: &'a AppRuntimeStateDocument,
+    artifact_id: Option<&String>,
+) -> Option<&'a AppRuntimeProjectionRuntimeApplyAuditRecord> {
+    state
+        .runtime_apply_audits
+        .iter()
+        .filter(|audit| artifact_id.is_none_or(|artifact_id| &audit.artifact_id == artifact_id))
+        .max_by(|left, right| {
+            left.applied_at
+                .cmp(&right.applied_at)
+                .then_with(|| left.audit_id.cmp(&right.audit_id))
+        })
+}
+
+pub(super) fn runtime_verification_active_marker_check(
+    active: Option<&AppRuntimeActiveProjectionRecord>,
+    artifact_id: Option<&String>,
+) -> AppRuntimeDiagnosticCheck {
+    match active {
+        Some(active)
+            if artifact_id.is_none_or(|artifact_id| &active.artifact_id == artifact_id) && active.mutates_runtime =>
+        {
+            diagnostic_check(
+                "runtime_apply_active_marker",
+                AppRuntimeDiagnosticCategory::RuntimeBoundary,
+                AppRuntimeDiagnosticCheckStatus::Passed,
+                "active projection marker records a runtime mutation".into(),
+                vec![format!("activationKind={}", active.activation_kind).into()],
+            )
+        }
+        Some(active) if artifact_id.is_some_and(|artifact_id| &active.artifact_id != artifact_id) => diagnostic_check(
+            "runtime_apply_active_marker",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "active projection marker does not match requested artifact".into(),
+            vec![format!("activeArtifactId={}", active.artifact_id).into()],
+        ),
+        Some(_) => diagnostic_check(
+            "runtime_apply_active_marker",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Warning,
+            "active projection marker has not mutated runtime".into(),
+            Vec::new(),
+        ),
+        None => diagnostic_check(
+            "runtime_apply_active_marker",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "no active projection marker is available for runtime verification".into(),
+            Vec::new(),
+        ),
+    }
+}
+
+pub(super) fn runtime_verification_audit_check(
+    audit: Option<&AppRuntimeProjectionRuntimeApplyAuditRecord>,
+) -> AppRuntimeDiagnosticCheck {
+    match audit {
+        Some(audit) if audit.status == AppRuntimeProjectionRuntimeApplyAuditStatus::Active => diagnostic_check(
+            "runtime_apply_audit_active",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Passed,
+            "latest runtime apply audit is active".into(),
+            vec![format!("auditId={}", audit.audit_id).into()],
+        ),
+        Some(audit) => diagnostic_check(
+            "runtime_apply_audit_active",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Warning,
+            "latest runtime apply audit is not active".into(),
+            vec![format!("status={:?}", audit.status).into()],
+        ),
+        None => diagnostic_check(
+            "runtime_apply_audit_active",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "no runtime apply audit exists for this artifact".into(),
+            Vec::new(),
+        ),
+    }
+}
+
+pub(super) fn runtime_verification_runtime_config_check(runtime_config: Option<&Mapping>) -> AppRuntimeDiagnosticCheck {
+    if runtime_config.is_some() {
+        diagnostic_check(
+            "runtime_apply_runtime_config",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Passed,
+            "runtime config is available for read-only verification".into(),
+            Vec::new(),
+        )
+    } else {
+        diagnostic_check(
+            "runtime_apply_runtime_config",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "runtime config is not available for read-only verification".into(),
+            Vec::new(),
+        )
+    }
+}
+
+pub(super) fn runtime_verification_proxy_groups_check(
+    runtime_config: &Mapping,
+    proxy_groups: &[MihomoProxyGroupProjection],
+) -> AppRuntimeDiagnosticCheck {
+    if proxy_groups.is_empty() {
+        return diagnostic_check(
+            "runtime_apply_proxy_groups_observed",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Skipped,
+            "projection contains no proxy groups to verify".into(),
+            Vec::new(),
+        );
+    }
+    let observed = runtime_config
+        .get("proxy-groups")
+        .and_then(Value::as_sequence)
+        .map(|groups| {
+            proxy_groups
+                .iter()
+                .filter(|group| runtime_proxy_group_observed(groups, &group.name))
+                .count()
+        })
+        .unwrap_or(0);
+    if observed == proxy_groups.len() {
+        diagnostic_check(
+            "runtime_apply_proxy_groups_observed",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Passed,
+            "all projected proxy groups are observable in runtime config".into(),
+            vec![format!("observed={observed}/{}", proxy_groups.len()).into()],
+        )
+    } else {
+        diagnostic_check(
+            "runtime_apply_proxy_groups_observed",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "some projected proxy groups are missing from runtime config".into(),
+            vec![format!("observed={observed}/{}", proxy_groups.len()).into()],
+        )
+    }
+}
+
+pub(super) fn runtime_verification_rules_check(
+    runtime_config: &Mapping,
+    rules: &[MihomoRuleProjection],
+) -> AppRuntimeDiagnosticCheck {
+    if rules.is_empty() {
+        return diagnostic_check(
+            "runtime_apply_rules_observed",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Skipped,
+            "projection contains no rules to verify".into(),
+            Vec::new(),
+        );
+    }
+    let observed = runtime_config
+        .get("rules")
+        .and_then(Value::as_sequence)
+        .map(|runtime_rules| {
+            rules
+                .iter()
+                .filter(|rule| runtime_rule_observed(runtime_rules, &rule.rule))
+                .count()
+        })
+        .unwrap_or(0);
+    if observed == rules.len() {
+        diagnostic_check(
+            "runtime_apply_rules_observed",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Passed,
+            "all projected rules are observable in runtime config".into(),
+            vec![format!("observed={observed}/{}", rules.len()).into()],
+        )
+    } else {
+        diagnostic_check(
+            "runtime_apply_rules_observed",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "some projected rules are missing from runtime config".into(),
+            vec![format!("observed={observed}/{}", rules.len()).into()],
+        )
+    }
+}
+
+pub(super) fn runtime_proxy_group_observed(groups: &[Value], name: &str) -> bool {
+    groups.iter().any(|group| {
+        group
+            .as_mapping()
+            .and_then(|mapping| mapping.get("name"))
+            .and_then(Value::as_str)
+            == Some(name)
+    })
+}
+
+pub(super) fn runtime_rule_observed(rules: &[Value], expected: &str) -> bool {
+    rules.iter().any(|rule| rule.as_str() == Some(expected))
+}
+
+pub(super) fn runtime_verification_reason(
+    status: AppRuntimeDiagnosticStatus,
+    summary: &AppRuntimeDiagnosticsSummary,
+) -> String {
+    match status {
+        AppRuntimeDiagnosticStatus::Healthy => "runtime apply evidence is observable".into(),
+        AppRuntimeDiagnosticStatus::Degraded => format!(
+            "runtime apply evidence is partially observable: {} warning(s), {} passed",
+            summary.warnings, summary.passed
+        )
+        .into(),
+        AppRuntimeDiagnosticStatus::Blocked => format!(
+            "runtime apply evidence is incomplete: {} failed check(s)",
+            summary.failed
+        )
+        .into(),
+    }
+}
+
+pub(super) fn runtime_verification_warnings(checks: &[AppRuntimeDiagnosticCheck]) -> Vec<String> {
+    checks
+        .iter()
+        .filter(|check| {
+            matches!(
+                check.status,
+                AppRuntimeDiagnosticCheckStatus::Warning | AppRuntimeDiagnosticCheckStatus::Failed
+            )
+        })
+        .map(|check| check.message.clone())
+        .collect()
 }
 
 pub(super) fn app_runtime_activation_preflight_missing_artifact_report(

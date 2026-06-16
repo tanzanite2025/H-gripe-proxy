@@ -110,6 +110,7 @@ export interface AppRuntimeStateDocument {
   securityProfiles: SecurityProfile[]
   policyBindings: AppPolicyBinding[]
   sessions: AppRuntimeSessionRecord[]
+  runtimeApplyAudits: AppRuntimeProjectionRuntimeApplyAuditRecord[]
   activeProjection?: AppRuntimeActiveProjectionRecord
 }
 
@@ -310,6 +311,63 @@ export interface AppRuntimeProjectionRuntimeApplyRequest {
   artifactId: string
   expectedChecksum?: string
   force?: boolean
+}
+
+export interface AppRuntimeProjectionRuntimeVerificationRequest {
+  artifactId?: string
+}
+
+export type AppRuntimeProjectionRuntimeApplyAuditStatus =
+  | 'active'
+  | 'rolledBack'
+  | 'superseded'
+
+export interface AppRuntimeProjectionRuntimeApplyCandidateSummary {
+  profileItemUid: string
+  profileItemFile: string
+  proxyGroupCount: number
+  ruleCount: number
+  dnsProfileProjected: boolean
+}
+
+export interface AppRuntimeProjectionRuntimeApplyMarkerSnapshot {
+  artifactId: string
+  checksum: string
+  storagePath: string
+  activationKind: string
+  mutatesRuntime: boolean
+  activatedAt: number
+}
+
+export interface AppRuntimeProjectionRuntimeApplyAuditRecord {
+  auditId: string
+  artifactId: string
+  appId: string
+  checksum: string
+  activationKind: string
+  appliedAt: number
+  validationOutcome: string
+  candidateSummary: AppRuntimeProjectionRuntimeApplyCandidateSummary
+  previousMarker?: AppRuntimeProjectionRuntimeApplyMarkerSnapshot
+  rollbackStrategy: string
+  status: AppRuntimeProjectionRuntimeApplyAuditStatus
+  statusUpdatedAt: number
+  latestVerificationStatus?: AppRuntimeDiagnosticStatus
+  latestVerificationReason?: string
+  latestVerificationAt?: number
+}
+
+export interface AppRuntimeProjectionRuntimeVerificationReport {
+  status: AppRuntimeDiagnosticStatus
+  reason: string
+  artifactId?: string
+  checksum?: string
+  auditId?: string
+  observedAt: number
+  checks: AppRuntimeDiagnosticCheck[]
+  summary: AppRuntimeDiagnosticsSummary
+  facts: string[]
+  warnings: string[]
 }
 
 export interface AppRuntimeProjectionActivationPreflightReport {
@@ -575,6 +633,20 @@ export async function applyAppRuntimeProjectionArtifactToRuntime(
   request: AppRuntimeProjectionRuntimeApplyRequest,
 ): Promise<AppRuntimeStateDocument> {
   return invoke('apply_app_runtime_projection_artifact_to_runtime', { request })
+}
+
+export async function listAppRuntimeProjectionRuntimeApplyAudits(
+  artifactId?: string,
+): Promise<AppRuntimeProjectionRuntimeApplyAuditRecord[]> {
+  return invoke('list_app_runtime_projection_runtime_apply_audits', {
+    artifactId,
+  })
+}
+
+export async function verifyAppRuntimeProjectionRuntimeApply(
+  request: AppRuntimeProjectionRuntimeVerificationRequest,
+): Promise<AppRuntimeProjectionRuntimeVerificationReport> {
+  return invoke('verify_app_runtime_projection_runtime_apply', { request })
 }
 
 export async function rollbackAppRuntimeProjectionActivation(): Promise<AppRuntimeStateDocument> {
