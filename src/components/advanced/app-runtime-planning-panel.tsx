@@ -38,6 +38,7 @@ import {
   verifyAppRuntimeSessionLeak,
   type AppPolicyBinding,
   type AppRegistryEntry,
+  type AppRoutingIntent,
   type AppRuntimeDiagnosticsReport,
   type AppRuntimeMihomoProjection,
   type AppRuntimePlan,
@@ -137,6 +138,19 @@ const resourceKindOptions = [
   { value: 'dnsProfiles', label: 'DNS profiles' },
   { value: 'securityProfiles', label: 'Security profiles' },
   { value: 'policyBindings', label: 'Policy bindings' },
+]
+
+const routingIntentOptions = [
+  { value: 'direct', label: 'direct' },
+  { value: 'proxy', label: 'proxy' },
+  { value: 'reject', label: 'reject' },
+  { value: 'auto', label: 'auto' },
+  { value: 'fallback', label: 'fallback' },
+]
+
+const enabledOptions = [
+  { value: 'true', label: 'enabled' },
+  { value: 'false', label: 'disabled' },
 ]
 
 const newResourceValue = '__new__'
@@ -334,6 +348,13 @@ export function AppRuntimePlanningPanel() {
   const [resourceJson, setResourceJson] = useState('')
   const [bulkJson, setBulkJson] = useState('')
   const [overviewFilter, setOverviewFilter] = useState('')
+  const [bindingDraft, setBindingDraft] = useState({
+    nodePoolId: '',
+    dnsProfileId: '',
+    securityProfileId: '',
+    routingIntent: 'proxy' as AppRoutingIntent,
+    enabled: 'true',
+  })
   const [resourcePending, setResourcePending] = useState(false)
 
   const selectedApp = useMemo(
@@ -348,6 +369,39 @@ export function AppRuntimePlanningPanel() {
         label: selectAppLabel(app),
       })),
     [state.apps],
+  )
+
+  const optionalNodePoolOptions = useMemo(
+    () => [
+      { value: '', label: '不绑定 node pool' },
+      ...state.nodePools.map((nodePool) => ({
+        value: nodePool.poolId,
+        label: `${nodePool.name} (${nodePool.poolId})`,
+      })),
+    ],
+    [state.nodePools],
+  )
+
+  const optionalDnsProfileOptions = useMemo(
+    () => [
+      { value: '', label: '不绑定 DNS profile' },
+      ...state.dnsProfiles.map((profile) => ({
+        value: profile.profileId,
+        label: `${profile.name} (${profile.profileId})`,
+      })),
+    ],
+    [state.dnsProfiles],
+  )
+
+  const optionalSecurityProfileOptions = useMemo(
+    () => [
+      { value: '', label: '不绑定 security profile' },
+      ...state.securityProfiles.map((profile) => ({
+        value: profile.profileId,
+        label: `${profile.name} (${profile.profileId})`,
+      })),
+    ],
+    [state.securityProfiles],
   )
 
   const appSessions = useMemo(
@@ -662,6 +716,39 @@ export function AppRuntimePlanningPanel() {
     },
   )
 
+  const handleSaveBindingDraft = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    setResourcePending(true)
+    try {
+      const bindingId = selectedBinding?.bindingId || `binding-${selectedAppId}`
+      const nextState = await upsertAppPolicyBinding({
+        bindingId,
+        appId: selectedAppId,
+        nodePoolId: bindingDraft.nodePoolId || undefined,
+        dnsProfileId: bindingDraft.dnsProfileId || undefined,
+        securityProfileId: bindingDraft.securityProfileId || undefined,
+        routingIntent: bindingDraft.routingIntent,
+        enabled: bindingDraft.enabled === 'true',
+        updatedAt: now(),
+      })
+      setState(nextState)
+      setResourceKind('policyBindings')
+      setSelectedResourceId(bindingId)
+      setPlan(null)
+      setProjection(null)
+      setDiagnostics(null)
+      setDnsProbeReport(null)
+      showNotice.success('应用策略绑定已保存')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
   const handleSaveResource = useLockFn(async () => {
     setResourcePending(true)
     try {
@@ -823,6 +910,16 @@ export function AppRuntimePlanningPanel() {
   }, [loadState])
 
   useEffect(() => {
+    setBindingDraft({
+      nodePoolId: selectedBinding?.nodePoolId ?? '',
+      dnsProfileId: selectedBinding?.dnsProfileId ?? '',
+      securityProfileId: selectedBinding?.securityProfileId ?? '',
+      routingIntent: selectedBinding?.routingIntent ?? 'proxy',
+      enabled: selectedBinding?.enabled === false ? 'false' : 'true',
+    })
+  }, [selectedBinding])
+
+  useEffect(() => {
     const resource =
       selectedResourceId === newResourceValue
         ? templateFor(resourceKind, selectedAppId)
@@ -975,6 +1072,103 @@ export function AppRuntimePlanningPanel() {
                   没有匹配当前过滤条件的应用。
                 </div>
               ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {selectedApp ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <div className="text-sm font-semibold">
+                Policy binding 快速表单
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                常用绑定字段可直接通过表单保存；底层仍写入 Rust
+                AppRuntimeStateDocument。
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Select
+                fullWidth
+                size="small"
+                label="Node pool"
+                value={bindingDraft.nodePoolId}
+                options={optionalNodePoolOptions}
+                onChange={(value: string | number) => {
+                  setBindingDraft((draft) => ({
+                    ...draft,
+                    nodePoolId: String(value),
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="DNS profile"
+                value={bindingDraft.dnsProfileId}
+                options={optionalDnsProfileOptions}
+                onChange={(value: string | number) => {
+                  setBindingDraft((draft) => ({
+                    ...draft,
+                    dnsProfileId: String(value),
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="Security profile"
+                value={bindingDraft.securityProfileId}
+                options={optionalSecurityProfileOptions}
+                onChange={(value: string | number) => {
+                  setBindingDraft((draft) => ({
+                    ...draft,
+                    securityProfileId: String(value),
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="Routing intent"
+                value={bindingDraft.routingIntent}
+                options={routingIntentOptions}
+                onChange={(value: string | number) => {
+                  setBindingDraft((draft) => ({
+                    ...draft,
+                    routingIntent: String(value) as AppRoutingIntent,
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="Binding status"
+                value={bindingDraft.enabled}
+                options={enabledOptions}
+                onChange={(value: string | number) => {
+                  setBindingDraft((draft) => ({
+                    ...draft,
+                    enabled: String(value),
+                  }))
+                }}
+              />
+              <div className="flex items-end">
+                <Button
+                  size="small"
+                  startIcon={<Save className="h-4 w-4" />}
+                  onClick={() => void handleSaveBindingDraft()}
+                  disabled={resourcePending}
+                >
+                  保存 binding
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Binding ID:{' '}
+              {selectedBinding?.bindingId || `binding-${selectedAppId}`}
             </div>
           </div>
         ) : null}
