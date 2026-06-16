@@ -515,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session / CRUD / form / observability / readiness UI path（截至 PR #122）**。
+当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path（截至 PR #125）**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -524,8 +524,9 @@ AppRegistry
   -> AppPolicyBinding
   -> NodePool / DnsProfile / SecurityProfile
   -> RuntimePlan
-  -> Mihomo config projection now
-  -> Rust runtime execution later
+  -> staged AppRuntimeProjectionArtifact now
+  -> controlled activation gate later
+  -> Rust runtime execution after that
 ```
 
 已完成：
@@ -589,6 +590,18 @@ AppRegistry
     - 新增 selected-app readiness action，串联 `diagnoseAppRuntime` + `projectAppRuntimePlanToMihomo`，并在绑定 DNS profile 时 opt-in 运行 `dns_controlled_runtime_probe`。
     - readiness 只填充现有 diagnostics / projection / DNS probe UI state，不修改 Mihomo runtime，不启动或隔离第三方应用。
 
+13. **Runtime projection artifact gate（PR #124）**
+    - 新增 `AppRuntimeProjectionArtifact` 与 `build_app_runtime_projection_artifact` command。
+    - Artifact 从 Rust `AppRuntimeStateDocument -> RuntimePlan -> AppRuntimeMihomoProjection -> diagnostics` 生成，包含 app / binding / node pool / DNS / security 引用、checksum、generatedAt、validation report。
+    - 明确 `activationMode=staged`、`mutatesRuntime=false`；validation 复用 diagnostics gate，并额外检查 YAML patch parse、rule projection、runtime boundary。
+    - 前端新增 `生成 artifact` 动作与 artifact status / checksum / validation checks 展示，不切 active profile，不 reload Mihomo。
+
+14. **Projection artifact 持久化（PR #125）**
+    - Tauri command 生成 artifact 后写入 `app-runtime/artifacts/<artifact-id>/artifact.yaml`，并返回 `storagePath`。
+    - 新增 app-runtime artifact 目录 helper 与 safe path segment，避免 app/artifact id 直接成为任意 filesystem path。
+    - UI 展示 artifact 存储路径，使候选执行产物可审计、可 review，再进入后续 controlled activation。
+    - 仍不执行 runtime activation；持久化 artifact 只是把 execution candidate 固化为 Rust-owned audit record。
+
 删除边界：
 
 - 不新增前端直接操作 Mihomo proxy-group 的 app 级旁路。
@@ -637,7 +650,7 @@ AppRegistry
 
 ## 加速执行策略
 
-前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#122 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，并完成主面板拆分。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：把 Rust-owned plan 稳定推进到 **可验证、可回滚的 runtime projection artifact**。
+前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#125 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：从持久化 artifact 进入 controlled activation preflight / guard。
 
 ### 可以加快做的部分
 
@@ -645,11 +658,12 @@ AppRegistry
 
 | 优先级 | 可加速方向 | 建议合并方式 | 原因 |
 | --- | --- | --- | --- |
-| P0 | Runtime projection artifact / diff / validation gate | 下一批应集中做成一个 Rust control-plane PR | 这是从 planning-only 走向 runtime bridge 的主线；先产出可验证 artifact，不直接切 active runtime |
+| P0 | Runtime projection artifact / diff / validation gate | 已完成 staged artifact + 持久化（PR #124/#125） | 已从 planning-only 推进到可审计 execution candidate；仍未切 active runtime |
+| P0 | Controlled activation preflight / guard | 下一批应做成小 PR | 只允许从持久化 artifact 出发，先做 preflight/guard，不直接扩大到 TUN/DNS/protocol runtime |
 | P0 | App diagnostics 串联 DNS probe / readiness | 已完成聚合诊断动作和 readiness action（PR #111-#112/#121-#122） | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
 | P1 | App runtime CRUD / form 管理面 | 已完成 JSON CRUD、import/export 与常用字段表单（PR #100/#106-#110） | 后续只补必要字段，避免继续做零散 UI |
 | P1 | 面板结构维护 | 已完成主面板拆分（PR #113-#120） | 后续功能必须落在已拆分组件中，避免重新形成巨型文件 |
-| P2 | Demo / seed import-export | 可在 artifact gate 后再做 | 只有当 artifact / validation chain 稳定后，样例数据才真正服务主线验证 |
+| P2 | Demo / seed import-export | 可在 activation preflight 后再做 | 只有当 artifact / validation / preflight chain 稳定后，样例数据才真正服务主线验证 |
 
 ### 不应加速硬推的部分
 
@@ -674,31 +688,33 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，Batch D / E 和结构拆分已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，并可一键 readiness。下一步不应继续追加零散 UI，而应把 `RuntimePlan -> Mihomo projection` 变成 Rust 可验证 artifact，为后续 controlled activation 做准备。
+从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate 都已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，并可生成/持久化 staged projection artifact。下一步不应继续追加零散 UI，而应进入 **controlled activation preflight / guard**：只从已持久化 artifact 出发，先验证 activation 条件和回滚边界，再考虑显式 opt-in runtime mutation。
 
-### Batch F：Runtime projection artifact / diff / validation gate
+### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
-建议 PR：
+已完成 PR：
 
 ```text
 feat(app-runtime): add projection artifact validation gate
+feat(app-runtime): persist projection artifacts
 ```
 
-目标：把当前只显示在 UI 的 `yamlPatch` 升级为 Rust-owned、可审计、可验证、可回滚的 projection artifact，但仍不自动修改 Mihomo runtime。
+结果：把原本只显示在 UI 的 `yamlPatch` 升级为 Rust-owned、可审计、可验证的 staged projection artifact，并持久化到 app-runtime artifact 目录；仍不自动修改 Mihomo runtime。
 
-建议范围：
+已落地范围：
 
-- 新增 Rust command：对 selected app 或全量 app-runtime state 生成 `AppRuntimeProjectionArtifact`。
-- Artifact 至少包含：
+- 新增 Rust command：对 selected app 生成 `AppRuntimeProjectionArtifact`。
+- Artifact 包含：
   - app id / binding id / referenced node pool / DNS profile / security profile。
-  - `RuntimePlan` summary、projection checksum/version、生成时间。
-  - YAML patch 或结构化 patch。
+  - `RuntimePlan`、`AppRuntimeMihomoProjection`、projection checksum、生成时间。
   - `mutatesRuntime=false` / `activationMode=staged` 边界字段。
-- 复用现有 Rust 校验链路，对 projection 合成后的候选配置做 dry-run validation：
-  - config schema validation。
-  - rule engine validation / explain。
-  - DNS explain / controlled probe summary 引用（probe 仍 opt-in，不自动访问外部 DNS）。
-- UI 展示 artifact readiness、diff summary、validation blockers，并允许 export artifact 供 review。
+- 复用现有 Rust diagnostics gate，并新增 artifact-level dry-run validation：
+  - diagnostics gate。
+  - YAML patch parse。
+  - rule projection。
+  - `mutatesRuntime=false` runtime boundary。
+- Tauri command 生成后持久化到 `app-runtime/artifacts/<artifact-id>/artifact.yaml`，返回 `storagePath`。
+- UI 展示 artifact readiness、checksum、activation mode、validation blockers 与 storage path。
 
 不包含：
 
@@ -708,9 +724,9 @@ feat(app-runtime): add projection artifact validation gate
 - 不迁默认 DNS resolver runtime。
 - 不碰 TUN / transparent proxy / tunnel / adapter outbound/inbound / protocol runtime。
 
-### Batch G：Controlled activation gate（Batch F 之后，小步做）
+### Batch G：Controlled activation gate（下一步，小步做）
 
-只有当 Batch F 的 artifact / validation chain 稳定后，才进入 controlled activation：
+Batch F 已经把 artifact / validation / audit record 串起来。下一步进入 controlled activation，但首批只做 preflight / guard：
 
 ```text
 feat(app-runtime): add opt-in projection activation gate
@@ -719,8 +735,10 @@ feat(app-runtime): add opt-in projection activation gate
 建议边界：
 
 - activation 必须从 Rust artifact 出发，不能从前端临时 YAML 出发。
+- activation 必须先读取已持久化 artifact，并校验 checksum / validation status / `mutatesRuntime=false` 边界。
 - activation 必须走现有 profile / artifact / validation 单一路径，并保留 rollback metadata。
 - 首版只做显式用户触发，不随页面打开或 readiness 自动执行。
 - 首版只桥接到现有 Mihomo runtime；不声称 Rust 已经接管协议栈或强 per-app isolation。
+- 若 preflight 发现 active profile、runtime candidate 写入、rollback metadata 或 validation hook 不完整，应先返回 blocker，不应直接调用 Mihomo reload。
 
-Batch F 是当前最符合大方向的下一步：它把 app-runtime 从“能规划/能诊断”推进到“能生成可验证执行产物”，但仍把高风险 runtime mutation 留到下一批小 PR。
+Batch G 的目标不是“一步实现 per-app runtime isolation”，而是建立受控激活门：只有 Rust-owned artifact 通过 preflight，才允许后续显式 opt-in activation PR 进入真实 runtime mutation。
