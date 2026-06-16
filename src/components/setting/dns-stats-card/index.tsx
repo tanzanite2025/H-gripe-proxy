@@ -18,6 +18,7 @@ import { RuntimeProbeSection } from './runtime-probe-section'
 import { RuntimeReadinessSection } from './runtime-readiness-section'
 import { RuntimeShadowSection } from './runtime-shadow-section'
 import { RuntimeSummarySection } from './runtime-summary-section'
+import { RuntimeSwitchGuardSection } from './runtime-switch-guard-section'
 import { DnsCardState, DnsDivider } from './shared'
 
 interface Props {
@@ -107,6 +108,8 @@ export const DnsStatsCard = ({
         <RuntimeReadinessSection probeReport={runtimeProbeReport} />
         <DnsDivider />
         <RuntimeShadowSection />
+        <DnsDivider />
+        <RuntimeSwitchGuardSection />
         <DnsDivider />
         <PerformanceMetricsSection />
       </div>

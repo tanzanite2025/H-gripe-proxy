@@ -288,6 +288,30 @@ export interface DnsDefaultRuntimeShadowEvidenceReport {
   facts: string[]
 }
 
+export type DnsDefaultRuntimeOptInSwitchGuardStatus = 'ready' | 'blocked'
+
+export interface DnsDefaultRuntimeRollbackPlan {
+  required: boolean
+  supported: boolean
+  strategy: string
+  previousRuntime: string
+  candidateRuntime: string
+}
+
+export interface DnsDefaultRuntimeOptInSwitchGuardReport {
+  status: DnsDefaultRuntimeOptInSwitchGuardStatus
+  reason: string
+  readiness: DnsDefaultRuntimeReadinessReport
+  shadowEvidence: DnsDefaultRuntimeShadowEvidenceReport
+  rollbackPlan: DnsDefaultRuntimeRollbackPlan
+  explicitOptIn: boolean
+  mutatesRuntime: boolean
+  activationMode: string
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -517,6 +541,26 @@ export async function dnsDefaultRuntimeShadowEvidence(
     )
   } catch (err) {
     console.error('DNS default runtime shadow evidence failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeOptInSwitchGuard(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeOptInSwitchGuardReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeOptInSwitchGuardReport>(
+      'dns_default_runtime_opt_in_switch_guard',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime opt-in switch guard failed:', err)
     throw err
   }
 }

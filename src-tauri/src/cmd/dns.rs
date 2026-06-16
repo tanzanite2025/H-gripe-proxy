@@ -4,10 +4,11 @@ use crate::core::dns_config_explain::{
     plan_dns_probe as build_dns_probe_plan,
 };
 use crate::core::dns_runtime::{
-    DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport, DnsHealthCheckResult, DnsProtocol,
-    DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport, DnsResolverRuntimeQueryReport,
-    DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
+    DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
+    DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    dns_default_runtime_opt_in_switch_guard as build_dns_default_runtime_opt_in_switch_guard,
     dns_default_runtime_readiness as build_dns_default_runtime_readiness,
     dns_default_runtime_shadow_evidence as build_dns_default_runtime_shadow_evidence,
     dns_health_check as build_dns_health_check, dns_query as build_dns_query,
@@ -144,6 +145,17 @@ pub async fn dns_default_runtime_shadow_evidence(
     domain: Option<String>,
 ) -> CmdResult<DnsDefaultRuntimeShadowEvidenceReport> {
     build_dns_default_runtime_shadow_evidence(yaml, domain)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_opt_in_switch_guard(
+    yaml: Option<String>,
+    domain: Option<String>,
+    explicit_opt_in: bool,
+) -> CmdResult<DnsDefaultRuntimeOptInSwitchGuardReport> {
+    build_dns_default_runtime_opt_in_switch_guard(yaml, domain, explicit_opt_in)
         .await
         .stringify_err()
 }
