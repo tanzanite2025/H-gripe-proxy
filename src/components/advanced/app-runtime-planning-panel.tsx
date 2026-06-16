@@ -12,6 +12,7 @@ import {
   applyAppRuntimeProjectionArtifactToRuntime,
   buildAppRuntimeDemoSeed,
   buildAppRuntimeProjectionArtifact,
+  closeoutAppRuntimeStagedActivationLifecycle,
   completeAppRuntimeControlPlane,
   completeAppRuntimeStagedActivationLifecycle,
   deleteAppPolicyBinding,
@@ -37,6 +38,7 @@ import {
   verifyAppRuntimeSessionLeak,
   type AppRuntimeControlPlaneCompletionReport,
   type AppRuntimeDnsHandoffReport,
+  type AppRuntimeStagedActivationCloseoutReport,
   type AppRuntimeStagedActivationLifecycleReport,
   type AppPolicyBinding,
   type AppProcessMatcherKind,
@@ -107,6 +109,8 @@ export function AppRuntimePlanningPanel() {
     useState(false)
   const [stagedActivationLifecyclePending, setStagedActivationLifecyclePending] =
     useState(false)
+  const [stagedActivationCloseoutPending, setStagedActivationCloseoutPending] =
+    useState(false)
   const [artifactPending, setArtifactPending] = useState(false)
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
@@ -140,6 +144,8 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeControlPlaneCompletionReport | null>(null)
   const [stagedActivationLifecycleReport, setStagedActivationLifecycleReport] =
     useState<AppRuntimeStagedActivationLifecycleReport | null>(null)
+  const [stagedActivationCloseoutReport, setStagedActivationCloseoutReport] =
+    useState<AppRuntimeStagedActivationCloseoutReport | null>(null)
   const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
@@ -478,6 +484,14 @@ export function AppRuntimePlanningPanel() {
           ? `${stagedActivationLifecycleReport.nextAppRuntimeStep}; marker=${String(stagedActivationLifecycleReport.markerActivated)}`
           : 'Complete control-plane and activate the staged marker in one explicit step.',
       },
+      {
+        key: 'staged-activation-closeout',
+        label: 'Runtime-apply boundary closeout',
+        status: stagedActivationCloseoutReport?.status ?? 'skipped',
+        detail: stagedActivationCloseoutReport
+          ? `${stagedActivationCloseoutReport.nextAppRuntimeStep}; manifest=${String(stagedActivationCloseoutReport.boundaryManifestPersisted)}`
+          : 'Close out staged activation with a persisted runtime-apply boundary manifest.',
+      },
     ]
   }, [
     controlPlaneCompletionReport,
@@ -488,6 +502,7 @@ export function AppRuntimePlanningPanel() {
     selectedApp,
     selectedDnsProfile,
     selectedOverviewRow,
+    stagedActivationCloseoutReport,
     stagedActivationLifecycleReport,
   ])
 
@@ -660,6 +675,31 @@ export function AppRuntimePlanningPanel() {
       })
     }
 
+    if (!stagedActivationCloseoutReport) {
+      actions.push({
+        key: 'staged-activation-closeout-run',
+        scope: 'Closeout',
+        status: 'skipped',
+        message: 'Runtime-apply boundary closeout not run',
+        detail:
+          'Persist the staged activation closeout manifest before any runtime-apply discussion.',
+        action: 'closeout-staged-activation',
+        actionLabel: '收口',
+      })
+    } else if (stagedActivationCloseoutReport.status === 'blocked') {
+      actions.push({
+        key: 'staged-activation-closeout-blocked',
+        scope: 'Closeout',
+        status: 'blocked',
+        message: stagedActivationCloseoutReport.reason,
+        detail:
+          stagedActivationCloseoutReport.blockers.join('；') ||
+          stagedActivationCloseoutReport.nextAppRuntimeStep,
+        action: 'closeout-staged-activation',
+        actionLabel: '重试',
+      })
+    }
+
     if (actions.length === 0) {
       actions.push({
         key: 'no-actions',
@@ -681,6 +721,7 @@ export function AppRuntimePlanningPanel() {
     selectedApp,
     selectedDnsProfile,
     selectedOverviewRow,
+    stagedActivationCloseoutReport,
     stagedActivationLifecycleReport,
   ])
 
@@ -850,6 +891,42 @@ export function AppRuntimePlanningPanel() {
       showNotice.error(error)
     } finally {
       setStagedActivationLifecyclePending(false)
+    }
+  })
+
+  const closeoutStagedActivation = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    setStagedActivationCloseoutPending(true)
+    try {
+      const report = await closeoutAppRuntimeStagedActivationLifecycle({
+        appId: selectedAppId,
+      })
+      setStagedActivationCloseoutReport(report)
+      setStagedActivationLifecycleReport(report.lifecycle)
+      setControlPlaneCompletionReport(report.lifecycle.controlPlaneCompletion)
+      setDnsHandoffReport(report.lifecycle.controlPlaneCompletion.dnsHandoff)
+      setProjectionArtifact(
+        report.lifecycle.controlPlaneCompletion.projectionArtifact,
+      )
+      setActivationPreflight(
+        report.lifecycle.controlPlaneCompletion.activationPreflight,
+      )
+      setPlan(report.lifecycle.controlPlaneCompletion.projectionArtifact.plan)
+      setProjection(
+        report.lifecycle.controlPlaneCompletion.projectionArtifact.projection,
+      )
+      setDiagnostics(
+        report.lifecycle.controlPlaneCompletion.projectionArtifact.diagnostics,
+      )
+      setState(await getAppRuntimeState())
+      showNotice.success('App runtime runtime-apply boundary closeout 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setStagedActivationCloseoutPending(false)
     }
   })
 
@@ -1044,6 +1121,11 @@ export function AppRuntimePlanningPanel() {
 
     if (action.action === 'complete-staged-activation-lifecycle') {
       void completeStagedActivationLifecycle()
+      return
+    }
+
+    if (action.action === 'closeout-staged-activation') {
+      void closeoutStagedActivation()
     }
   }
 
@@ -1725,6 +1807,16 @@ export function AppRuntimePlanningPanel() {
             <Button
               size="small"
               variant="outlined"
+              onClick={() => void closeoutStagedActivation()}
+              disabled={!selectedAppId || stagedActivationCloseoutPending}
+            >
+              {stagedActivationCloseoutPending
+                ? '收口中...'
+                : '收口 runtime boundary'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
               startIcon={<RefreshCw className="h-4 w-4" />}
               onClick={() => void loadState()}
               disabled={loading}
@@ -1905,6 +1997,62 @@ export function AppRuntimePlanningPanel() {
                   · runtimeApply=
                   {String(stagedActivationLifecycleReport.runtimeApplyAllowed)} ·
                   reload={String(stagedActivationLifecycleReport.reloadMihomo)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {stagedActivationCloseoutReport ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">
+                  App runtime runtime-apply boundary closeout
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  收口 staged activation，并持久化 runtime-apply boundary
+                  manifest；仍不自动应用 runtime。
+                </div>
+              </div>
+              <Chip
+                size="small"
+                color={statusColor(stagedActivationCloseoutReport.status)}
+                label={stagedActivationCloseoutReport.status}
+              />
+            </div>
+            <div className="grid gap-2 text-xs lg:grid-cols-2">
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Boundary manifest</div>
+                <div className="mt-1 truncate text-muted-foreground">
+                  {stagedActivationCloseoutReport.boundaryManifestPath ??
+                    '未持久化'}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Closeout</div>
+                <div className="mt-1 text-muted-foreground">
+                  complete=
+                  {String(stagedActivationCloseoutReport.closeoutComplete)} ·
+                  persisted=
+                  {String(
+                    stagedActivationCloseoutReport.boundaryManifestPersisted,
+                  )}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Next step</div>
+                <div className="mt-1 text-muted-foreground">
+                  {stagedActivationCloseoutReport.nextAppRuntimeStep}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Boundary flags</div>
+                <div className="mt-1 text-muted-foreground">
+                  runtimeApply=
+                  {String(stagedActivationCloseoutReport.runtimeApplyAllowed)} ·
+                  phase8={String(stagedActivationCloseoutReport.phase8Allowed)} ·
+                  reload={String(stagedActivationCloseoutReport.reloadMihomo)}
                 </div>
               </div>
             </div>

@@ -24,6 +24,7 @@ export interface AggregateDiagnosticAction {
     | 'accept-dns-handoff'
     | 'complete-control-plane'
     | 'complete-staged-activation-lifecycle'
+    | 'closeout-staged-activation'
 }
 
 interface AppRuntimeAggregateDiagnosticsPanelProps {

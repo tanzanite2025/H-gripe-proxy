@@ -52,6 +52,14 @@ pub enum AppRuntimeStagedActivationLifecycleStatus {
     Blocked,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeStagedActivationCloseoutStatus {
+    Complete,
+    Degraded,
+    Blocked,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDnsHandoffRecord {
@@ -134,6 +142,51 @@ pub struct AppRuntimeStagedActivationLifecycleReport {
     pub active_marker_matches_artifact: bool,
     pub rollback_boundary_available: bool,
     pub rollback_strategy: Option<String>,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeRuntimeApplyBoundaryManifest {
+    pub manifest_id: String,
+    pub app_id: String,
+    pub artifact_id: String,
+    pub checksum: String,
+    pub active_marker_matches_artifact: bool,
+    pub rollback_boundary_available: bool,
+    pub rollback_strategy: Option<String>,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeStagedActivationCloseoutReport {
+    pub status: AppRuntimeStagedActivationCloseoutStatus,
+    pub reason: String,
+    pub lifecycle: AppRuntimeStagedActivationLifecycleReport,
+    pub boundary_manifest: AppRuntimeRuntimeApplyBoundaryManifest,
+    pub boundary_manifest_path: Option<String>,
+    pub boundary_manifest_persisted: bool,
+    pub closeout_complete: bool,
     pub runtime_apply_allowed: bool,
     pub phase8_allowed: bool,
     pub promotion_allowed: bool,

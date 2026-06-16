@@ -60,6 +60,13 @@ pub async fn complete_app_runtime_staged_activation_lifecycle(
     ))
 }
 
+pub async fn closeout_app_runtime_staged_activation_lifecycle(
+    request: AppRuntimePlanRequest,
+) -> Result<AppRuntimeStagedActivationCloseoutReport> {
+    let lifecycle = complete_app_runtime_staged_activation_lifecycle(request).await?;
+    persist_app_runtime_staged_activation_closeout_report(lifecycle).await
+}
+
 pub fn build_app_runtime_dns_handoff_report(
     dns_completion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
     handoff_record_path: Option<String>,
@@ -133,6 +140,92 @@ pub fn build_app_runtime_dns_handoff_report(
         auto_rollback: false,
         mutates_runtime: false,
         reload_mihomo: false,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
+pub fn build_app_runtime_staged_activation_closeout_report(
+    lifecycle: AppRuntimeStagedActivationLifecycleReport,
+    boundary_manifest_path: Option<String>,
+    boundary_manifest_persisted: bool,
+    mut persist_errors: Vec<String>,
+    created_at: i64,
+) -> AppRuntimeStagedActivationCloseoutReport {
+    let artifact = &lifecycle.control_plane_completion.projection_artifact;
+    let next_app_runtime_step: String = if lifecycle.status == AppRuntimeStagedActivationLifecycleStatus::Ready {
+        "holdAtRuntimeApplyBoundaryUntilExplicitUserDecision"
+    } else {
+        "resolveStagedLifecycleBeforeRuntimeApplyBoundary"
+    }
+    .into();
+    let boundary_manifest = AppRuntimeRuntimeApplyBoundaryManifest {
+        manifest_id: format!("app-runtime-boundary-{created_at}").into(),
+        app_id: artifact.app_id.clone(),
+        artifact_id: artifact.artifact_id.clone(),
+        checksum: artifact.checksum.clone(),
+        active_marker_matches_artifact: lifecycle.active_marker_matches_artifact,
+        rollback_boundary_available: lifecycle.rollback_boundary_available,
+        rollback_strategy: lifecycle.rollback_strategy.clone(),
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step: next_app_runtime_step.clone(),
+        created_at,
+    };
+    let mut blockers = lifecycle.blockers.clone();
+    if lifecycle.status == AppRuntimeStagedActivationLifecycleStatus::Blocked {
+        blockers.push("staged activation closeout requires ready lifecycle".into());
+    }
+    if !lifecycle.active_marker_matches_artifact {
+        blockers.push("staged activation closeout requires active marker to match artifact".into());
+    }
+    if !lifecycle.rollback_boundary_available {
+        blockers.push("staged activation closeout requires rollback boundary".into());
+    }
+    if !boundary_manifest_persisted {
+        blockers.append(&mut persist_errors);
+    }
+    let status = if !blockers.is_empty() {
+        AppRuntimeStagedActivationCloseoutStatus::Blocked
+    } else if lifecycle.status == AppRuntimeStagedActivationLifecycleStatus::Degraded {
+        AppRuntimeStagedActivationCloseoutStatus::Degraded
+    } else {
+        AppRuntimeStagedActivationCloseoutStatus::Complete
+    };
+    let mut warnings = lifecycle.warnings.clone();
+    warnings.push("Closeout manifest is a boundary marker; it does not allow automatic runtime apply".into());
+    warnings.sort();
+    warnings.dedup();
+    let facts = vec![
+        "app-runtime staged activation closeout consumes staged lifecycle".into(),
+        "app-runtime staged activation closeout persists runtime-apply boundary manifest".into(),
+        "runtime apply remains explicit and disabled by default".into(),
+        "app-runtime staged activation closeout does not reload Mihomo".into(),
+    ];
+
+    AppRuntimeStagedActivationCloseoutReport {
+        status,
+        reason: app_runtime_staged_activation_closeout_reason(status, &blockers),
+        lifecycle,
+        boundary_manifest,
+        boundary_manifest_path,
+        boundary_manifest_persisted,
+        closeout_complete: status == AppRuntimeStagedActivationCloseoutStatus::Complete,
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step,
         blockers,
         warnings,
         facts,
@@ -215,6 +308,39 @@ pub fn build_app_runtime_staged_activation_lifecycle_report(
         warnings,
         facts,
     }
+}
+
+async fn persist_app_runtime_staged_activation_closeout_report(
+    lifecycle: AppRuntimeStagedActivationLifecycleReport,
+) -> Result<AppRuntimeStagedActivationCloseoutReport> {
+    let created_at = now_millis();
+    let manifest_id = format!("app-runtime-boundary-{created_at}");
+    let path = app_runtime_staged_activation_closeout_path(&manifest_id)?;
+    let mut persist_errors = Vec::new();
+    if let Some(parent) = path.parent() {
+        if let Err(error) = fs::create_dir_all(parent).await {
+            persist_errors.push(format!("failed to create app-runtime staged closeout directory: {error}").into());
+        }
+    }
+    let report = build_app_runtime_staged_activation_closeout_report(
+        lifecycle,
+        Some(path.to_string_lossy().to_string().into()),
+        persist_errors.is_empty(),
+        persist_errors,
+        created_at,
+    );
+    if report.boundary_manifest_persisted {
+        if let Err(error) = help::save_yaml(&path, &report.boundary_manifest, None).await {
+            return Ok(build_app_runtime_staged_activation_closeout_report(
+                report.lifecycle,
+                Some(path.to_string_lossy().to_string().into()),
+                false,
+                vec![format!("failed to persist app-runtime staged closeout manifest: {error}").into()],
+                created_at,
+            ));
+        }
+    }
+    Ok(report)
 }
 
 pub fn build_app_runtime_control_plane_completion_report(
@@ -341,6 +467,14 @@ fn app_runtime_dns_handoff_path(handoff_id: &str) -> Result<std::path::PathBuf> 
         .join("handoff.yaml"))
 }
 
+fn app_runtime_staged_activation_closeout_path(manifest_id: &str) -> Result<std::path::PathBuf> {
+    let safe_segment = safe_app_runtime_handoff_segment(manifest_id);
+    Ok(dirs::app_runtime_dir()?
+        .join("staged-closeout")
+        .join(safe_segment)
+        .join("runtime-apply-boundary.yaml"))
+}
+
 fn safe_app_runtime_handoff_segment(input: &str) -> std::string::String {
     input
         .chars()
@@ -399,5 +533,23 @@ fn app_runtime_staged_activation_lifecycle_reason(
             .first()
             .cloned()
             .unwrap_or_else(|| "app runtime staged activation lifecycle is blocked".into()),
+    }
+}
+
+fn app_runtime_staged_activation_closeout_reason(
+    status: AppRuntimeStagedActivationCloseoutStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        AppRuntimeStagedActivationCloseoutStatus::Complete => {
+            "app runtime staged activation closeout completed at runtime-apply boundary".into()
+        }
+        AppRuntimeStagedActivationCloseoutStatus::Degraded => {
+            "app runtime staged activation closeout completed with warnings".into()
+        }
+        AppRuntimeStagedActivationCloseoutStatus::Blocked => blockers
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "app runtime staged activation closeout is blocked".into()),
     }
 }
