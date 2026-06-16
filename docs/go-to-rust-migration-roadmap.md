@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 完成（planning / session UI path） | PR #82/#84-#91/#95-#97；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning 与 session finish 操作已进入 Rust 单一路径 |
+| Phase 7.5 | 应用级代理编排控制面 | 完成（planning / session / readiness UI path） | PR #82/#84-#91/#95-#122；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作与 readiness 检查已进入 Rust 单一路径 |
 
 ## 已完成阶段详情
 
@@ -515,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session / CRUD / observability UI path（截至 PR #104）**。
+当前进度：**完成 planning / session / CRUD / form / observability / readiness UI path（截至 PR #122）**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -574,6 +574,21 @@ AppRegistry
    - PR #103/#104：提供 app → binding → node / DNS / security → session 的 overview matrix，并标出 missing binding、disabled binding、缺失 profile 引用等 state issue。
    - 这些加速批次仍只围绕 Rust `AppRuntimeStateDocument` / session reports / controlled probe，不切默认 DNS runtime，不注入或修改真实 Mihomo 转发。
 
+10. **App runtime form 管理面（PR #106-#110）**
+    - Policy binding、app registry、node pool、DNS profile、security profile 的高频字段已从 JSON editor 提升为表单。
+    - 保存仍走 Rust upsert command，表单不直接生成 Mihomo 规则，也不绕过 `AppRuntimeStateDocument`。
+
+11. **App runtime 面板结构拆分（PR #113-#120）**
+    - `app-runtime-planning-panel.tsx` 从约 2937 行拆到约 1453 行。
+    - 已拆出 utils、overview、aggregate diagnostics、session、resource manager、security/DNS/node/app/binding forms、planning result panel。
+    - 这是后续按中等批次继续推进的前置整理，不改变 Rust command / runtime boundary。
+
+12. **聚合诊断动作与 readiness 检查（PR #111-#112/#121-#122）**
+    - 聚合 overview state issue、planning diagnostics、DNS controlled probe、runtime boundary，并生成待处理动作。
+    - 待处理动作可定位 state issue 到 overview / resource editor，或触发现有 planning diagnostics / DNS controlled probe。
+    - 新增 selected-app readiness action，串联 `diagnoseAppRuntime` + `projectAppRuntimePlanToMihomo`，并在绑定 DNS profile 时 opt-in 运行 `dns_controlled_runtime_probe`。
+    - readiness 只填充现有 diagnostics / projection / DNS probe UI state，不修改 Mihomo runtime，不启动或隔离第三方应用。
+
 删除边界：
 
 - 不新增前端直接操作 Mihomo proxy-group 的 app 级旁路。
@@ -622,7 +637,7 @@ AppRegistry
 
 ## 加速执行策略
 
-现在 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细：同一个 app-runtime 面板被拆成 planning、session observation、finish action 等多个小 PR。后续应把**同一风险等级、同一事实源、同一 UI surface** 的工作合并成更大的批次，减少 PR / CI / review 往返。
+前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#122 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，并完成主面板拆分。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：把 Rust-owned plan 稳定推进到 **可验证、可回滚的 runtime projection artifact**。
 
 ### 可以加快做的部分
 
@@ -630,11 +645,11 @@ AppRegistry
 
 | 优先级 | 可加速方向 | 建议合并方式 | 原因 |
 | --- | --- | --- | --- |
-| P0 | App runtime CRUD 管理面 | 已完成基础 JSON CRUD（PR #100）；下一步改成常用字段表单 | 后端 upsert/delete command 和 TypeScript service 已存在，主要是 UI 表单与 state refresh |
-| P0 | App diagnostics 串联 DNS probe | 已完成绑定 DNS profile 的 controlled probe summary（PR #101）；下一步可沉入 diagnostics report | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
-| P1 | App runtime demo / seed import-export | 已完成批量 JSON import / export（PR #100）；下一步提供内置样例模板 | 可加快手动验证和后续 UI 评审，不影响 runtime |
-| P1 | 文档与 UI 文案整理 | 随功能 PR 一起更新，不再每个小按钮单独开文档 PR | 降低 PR 数量，避免路线图频繁小改 |
-| P2 | Session observability 展示增强 | 已完成 observation timeline、evaluation detail、leak check detail（PR #102） | 都读同一 `AppRuntimeSessionRecord`，风险边界一致 |
+| P0 | Runtime projection artifact / diff / validation gate | 下一批应集中做成一个 Rust control-plane PR | 这是从 planning-only 走向 runtime bridge 的主线；先产出可验证 artifact，不直接切 active runtime |
+| P0 | App diagnostics 串联 DNS probe / readiness | 已完成聚合诊断动作和 readiness action（PR #111-#112/#121-#122） | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
+| P1 | App runtime CRUD / form 管理面 | 已完成 JSON CRUD、import/export 与常用字段表单（PR #100/#106-#110） | 后续只补必要字段，避免继续做零散 UI |
+| P1 | 面板结构维护 | 已完成主面板拆分（PR #113-#120） | 后续功能必须落在已拆分组件中，避免重新形成巨型文件 |
+| P2 | Demo / seed import-export | 可在 artifact gate 后再做 | 只有当 artifact / validation chain 稳定后，样例数据才真正服务主线验证 |
 
 ### 不应加速硬推的部分
 
@@ -659,50 +674,53 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，Batch A / B / C 的基础 UI 加速已经完成：Rust-owned app-runtime state 可编辑、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链。下一阶段继续保持 planning-only / opt-in 边界，但 PR 粒度应按功能批次推进。
+从提交记录看，Batch D / E 和结构拆分已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，并可一键 readiness。下一步不应继续追加零散 UI，而应把 `RuntimePlan -> Mihomo projection` 变成 Rust 可验证 artifact，为后续 controlled activation 做准备。
 
-### Batch D：表单化 app-runtime 管理面
+### Batch F：Runtime projection artifact / diff / validation gate
 
-当前 CRUD 以 JSON editor 为主，适合快速验证模型；下一步应把高频字段改成表单，减少手写 JSON：
+建议 PR：
 
 ```text
-feat(app-runtime): add form editors for orchestration state
+feat(app-runtime): add projection artifact validation gate
 ```
+
+目标：把当前只显示在 UI 的 `yamlPatch` 升级为 Rust-owned、可审计、可验证、可回滚的 projection artifact，但仍不自动修改 Mihomo runtime。
 
 建议范围：
 
-- App：name、executable path、process matcher、tags。
-- Node pool：candidate node、protocol、region、health constraint。
-- DNS profile：test domain、nameserver YAML preview、tags。
-- Security profile：required profile toggles、allowed routing intent。
-- Policy binding：app / node pool / DNS / security 下拉选择与 enabled/routing intent。
-- 表单保存后仍走现有 Rust upsert/delete command，并立即刷新 overview / diagnostics。
+- 新增 Rust command：对 selected app 或全量 app-runtime state 生成 `AppRuntimeProjectionArtifact`。
+- Artifact 至少包含：
+  - app id / binding id / referenced node pool / DNS profile / security profile。
+  - `RuntimePlan` summary、projection checksum/version、生成时间。
+  - YAML patch 或结构化 patch。
+  - `mutatesRuntime=false` / `activationMode=staged` 边界字段。
+- 复用现有 Rust 校验链路，对 projection 合成后的候选配置做 dry-run validation：
+  - config schema validation。
+  - rule engine validation / explain。
+  - DNS explain / controlled probe summary 引用（probe 仍 opt-in，不自动访问外部 DNS）。
+- UI 展示 artifact readiness、diff summary、validation blockers，并允许 export artifact 供 review。
 
 不包含：
 
-- 真实启动 app。
-- 自动修改 Mihomo runtime。
-- 强隔离、TUN、adapter outbound/inbound。
+- 不切换 active profile。
+- 不调用 Mihomo reload / restart。
+- 不把 `yamlPatch` 直接写入用户配置作为事实源。
+- 不迁默认 DNS resolver runtime。
+- 不碰 TUN / transparent proxy / tunnel / adapter outbound/inbound / protocol runtime。
 
-### Batch E：diagnostics report 聚合增强
+### Batch G：Controlled activation gate（Batch F 之后，小步做）
 
-当前 DNS profile controlled probe 已接到 UI；下一步可以把 probe summary 和 overview issue 合并成更统一的 diagnostics report 展示：
+只有当 Batch F 的 artifact / validation chain 稳定后，才进入 controlled activation：
 
 ```text
-feat(app-runtime): aggregate probe and state issues in diagnostics
+feat(app-runtime): add opt-in projection activation gate
 ```
 
-建议范围：
+建议边界：
 
-- 在 app diagnostics 结果中展示 overview matrix 检出的 missing binding / missing profile references。
-- 将绑定 DNS profile 的 controlled probe summary 与现有 `diagnoseAppRuntime` checks 放在同一 diagnostics 区域。
-- 对 fake-ip / fallback-filter / nameserver-policy 继续输出 plan-only warning。
-- 保持 opt-in：probe 仍由用户触发，不在打开页面时自动访问外部 DNS。
+- activation 必须从 Rust artifact 出发，不能从前端临时 YAML 出发。
+- activation 必须走现有 profile / artifact / validation 单一路径，并保留 rollback metadata。
+- 首版只做显式用户触发，不随页面打开或 readiness 自动执行。
+- 首版只桥接到现有 Mihomo runtime；不声称 Rust 已经接管协议栈或强 per-app isolation。
 
-不包含：
-
-- 默认 DNS resolver runtime 切换。
-- live exit probe。
-- 声称强 per-app isolation。
-
-Batch D 和 Batch E 仍属于控制面 / diagnostics，可以中等 PR 推进；任何进入默认 DNS、TUN、adapter、protocol runtime 的改动继续拆小 PR。
+Batch F 是当前最符合大方向的下一步：它把 app-runtime 从“能规划/能诊断”推进到“能生成可验证执行产物”，但仍把高风险 runtime mutation 留到下一批小 PR。
