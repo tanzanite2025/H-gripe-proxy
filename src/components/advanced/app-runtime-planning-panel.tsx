@@ -385,6 +385,15 @@ export function AppRuntimePlanningPanel() {
     configYaml: '',
     tags: '',
   })
+  const [securityProfileDraft, setSecurityProfileDraft] = useState({
+    profileId: '',
+    name: '',
+    requireNodePool: 'true',
+    requireDnsProfile: 'false',
+    minRuntimeSupportedNameservers: '',
+    allowedRoutingIntents: 'proxy, fallback',
+    tags: '',
+  })
   const [bindingDraft, setBindingDraft] = useState({
     nodePoolId: '',
     dnsProfileId: '',
@@ -483,6 +492,21 @@ export function AppRuntimePlanningPanel() {
       state.nodePools.find((nodePool) => nodePool.poolId === nodePoolId) ?? null
     )
   }, [plan?.policyBinding?.nodePoolId, selectedBinding, state.nodePools])
+
+  const selectedSecurityProfile = useMemo(() => {
+    const securityProfileId =
+      plan?.policyBinding?.securityProfileId ??
+      selectedBinding?.securityProfileId
+    return (
+      state.securityProfiles.find(
+        (profile) => profile.profileId === securityProfileId,
+      ) ?? null
+    )
+  }, [
+    plan?.policyBinding?.securityProfileId,
+    selectedBinding,
+    state.securityProfiles,
+  ])
 
   const overviewRows = useMemo(
     () =>
@@ -910,6 +934,65 @@ export function AppRuntimePlanningPanel() {
     }
   })
 
+  const handleSaveSecurityProfileDraft = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    setResourcePending(true)
+    try {
+      const profileId =
+        securityProfileDraft.profileId.trim() || `security-${selectedAppId}`
+      const minRuntimeSupportedNameservers =
+        securityProfileDraft.minRuntimeSupportedNameservers.trim()
+          ? Number(securityProfileDraft.minRuntimeSupportedNameservers)
+          : undefined
+      const nextProfile: SecurityProfile = {
+        ...(selectedSecurityProfile ?? createSecurityProfileTemplate()),
+        profileId,
+        name:
+          securityProfileDraft.name.trim() ||
+          selectedSecurityProfile?.name ||
+          profileId,
+        controls: {
+          requireNodePool: securityProfileDraft.requireNodePool === 'true',
+          requireDnsProfile: securityProfileDraft.requireDnsProfile === 'true',
+          minRuntimeSupportedNameservers:
+            minRuntimeSupportedNameservers !== undefined &&
+            Number.isFinite(minRuntimeSupportedNameservers)
+              ? minRuntimeSupportedNameservers
+              : undefined,
+          allowedRoutingIntents: securityProfileDraft.allowedRoutingIntents
+            .split(',')
+            .map((intent) => intent.trim())
+            .filter(Boolean) as AppRoutingIntent[],
+        },
+        tags: securityProfileDraft.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        updatedAt: now(),
+      }
+      const nextState = await upsertSecurityProfile(nextProfile)
+      setState(nextState)
+      setResourceKind('securityProfiles')
+      setSelectedResourceId(nextProfile.profileId)
+      setBindingDraft((draft) => ({
+        ...draft,
+        securityProfileId: nextProfile.profileId,
+      }))
+      setPlan(null)
+      setProjection(null)
+      setDiagnostics(null)
+      setDnsProbeReport(null)
+      showNotice.success('Security profile 已保存')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
   const handleSaveBindingDraft = useLockFn(async () => {
     if (!selectedAppId) {
       return
@@ -1147,6 +1230,30 @@ export function AppRuntimePlanningPanel() {
   }, [selectedAppId, selectedDnsProfile])
 
   useEffect(() => {
+    setSecurityProfileDraft({
+      profileId:
+        selectedSecurityProfile?.profileId ??
+        (selectedAppId ? `security-${selectedAppId}` : ''),
+      name: selectedSecurityProfile?.name ?? '',
+      requireNodePool:
+        selectedSecurityProfile?.controls.requireNodePool === false
+          ? 'false'
+          : 'true',
+      requireDnsProfile:
+        selectedSecurityProfile?.controls.requireDnsProfile === true
+          ? 'true'
+          : 'false',
+      minRuntimeSupportedNameservers:
+        selectedSecurityProfile?.controls.minRuntimeSupportedNameservers?.toString() ??
+        '',
+      allowedRoutingIntents:
+        selectedSecurityProfile?.controls.allowedRoutingIntents.join(', ') ??
+        'proxy, fallback',
+      tags: selectedSecurityProfile?.tags.join(', ') ?? '',
+    })
+  }, [selectedAppId, selectedSecurityProfile])
+
+  useEffect(() => {
     setBindingDraft({
       nodePoolId: selectedBinding?.nodePoolId ?? '',
       dnsProfileId: selectedBinding?.dnsProfileId ?? '',
@@ -1309,6 +1416,136 @@ export function AppRuntimePlanningPanel() {
                   没有匹配当前过滤条件的应用。
                 </div>
               ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {selectedApp ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <div className="text-sm font-semibold">
+                Security profile 快速表单
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                编辑当前 app 绑定的 security profile 约束；仍只影响 diagnostics
+                / planning。
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <TextField
+                fullWidth
+                size="small"
+                label="Profile ID"
+                value={securityProfileDraft.profileId}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    profileId: event.target.value,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Name"
+                value={securityProfileDraft.name}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    name: event.target.value,
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="Require node pool"
+                value={securityProfileDraft.requireNodePool}
+                options={enabledOptions}
+                onChange={(value: string | number) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    requireNodePool: String(value),
+                  }))
+                }}
+              />
+              <Select
+                fullWidth
+                size="small"
+                label="Require DNS profile"
+                value={securityProfileDraft.requireDnsProfile}
+                options={enabledOptions}
+                onChange={(value: string | number) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    requireDnsProfile: String(value),
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Min runtime-supported nameservers"
+                value={securityProfileDraft.minRuntimeSupportedNameservers}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    minRuntimeSupportedNameservers: event.target.value,
+                  }))
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Allowed routing intents"
+                value={securityProfileDraft.allowedRoutingIntents}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    allowedRoutingIntents: event.target.value,
+                  }))
+                }}
+                helperText="逗号分隔，例如 proxy, fallback。"
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Tags"
+                value={securityProfileDraft.tags}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+                ) => {
+                  setSecurityProfileDraft((draft) => ({
+                    ...draft,
+                    tags: event.target.value,
+                  }))
+                }}
+                helperText="逗号分隔。"
+              />
+              <div className="flex items-end">
+                <Button
+                  size="small"
+                  startIcon={<Save className="h-4 w-4" />}
+                  onClick={() => void handleSaveSecurityProfileDraft()}
+                  disabled={resourcePending}
+                >
+                  保存 security profile
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              当前绑定:{' '}
+              {selectedBinding?.securityProfileId || '未绑定 security profile'}
             </div>
           </div>
         ) : null}
