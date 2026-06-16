@@ -13,6 +13,7 @@ import {
   buildAppRuntimeDemoSeed,
   buildAppRuntimeProjectionArtifact,
   completeAppRuntimeControlPlane,
+  completeAppRuntimeStagedActivationLifecycle,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
   deleteDnsProfile,
@@ -34,8 +35,9 @@ import {
   upsertSecurityProfile,
   verifyAppRuntimeProjectionRuntimeApply,
   verifyAppRuntimeSessionLeak,
-  type AppRuntimeDnsHandoffReport,
   type AppRuntimeControlPlaneCompletionReport,
+  type AppRuntimeDnsHandoffReport,
+  type AppRuntimeStagedActivationLifecycleReport,
   type AppPolicyBinding,
   type AppProcessMatcherKind,
   type AppRegistryEntry,
@@ -103,6 +105,8 @@ export function AppRuntimePlanningPanel() {
   const [dnsHandoffPending, setDnsHandoffPending] = useState(false)
   const [controlPlaneCompletionPending, setControlPlaneCompletionPending] =
     useState(false)
+  const [stagedActivationLifecyclePending, setStagedActivationLifecyclePending] =
+    useState(false)
   const [artifactPending, setArtifactPending] = useState(false)
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
@@ -134,6 +138,8 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeDnsHandoffReport | null>(null)
   const [controlPlaneCompletionReport, setControlPlaneCompletionReport] =
     useState<AppRuntimeControlPlaneCompletionReport | null>(null)
+  const [stagedActivationLifecycleReport, setStagedActivationLifecycleReport] =
+    useState<AppRuntimeStagedActivationLifecycleReport | null>(null)
   const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
@@ -464,6 +470,14 @@ export function AppRuntimePlanningPanel() {
           ? `${controlPlaneCompletionReport.nextAppRuntimeStep}; staged=${String(controlPlaneCompletionReport.readyForStagedActivation)}`
           : 'Complete DNS handoff, projection artifact, and staged activation preflight together.',
       },
+      {
+        key: 'staged-activation-lifecycle',
+        label: 'Staged activation lifecycle',
+        status: stagedActivationLifecycleReport?.status ?? 'skipped',
+        detail: stagedActivationLifecycleReport
+          ? `${stagedActivationLifecycleReport.nextAppRuntimeStep}; marker=${String(stagedActivationLifecycleReport.markerActivated)}`
+          : 'Complete control-plane and activate the staged marker in one explicit step.',
+      },
     ]
   }, [
     controlPlaneCompletionReport,
@@ -474,6 +488,7 @@ export function AppRuntimePlanningPanel() {
     selectedApp,
     selectedDnsProfile,
     selectedOverviewRow,
+    stagedActivationLifecycleReport,
   ])
 
   const aggregateDiagnosticActions = useMemo(() => {
@@ -620,6 +635,31 @@ export function AppRuntimePlanningPanel() {
       })
     }
 
+    if (!stagedActivationLifecycleReport) {
+      actions.push({
+        key: 'staged-activation-lifecycle-run',
+        scope: 'Staged activation',
+        status: 'skipped',
+        message: 'Staged activation lifecycle not run',
+        detail:
+          'Run the combined control-plane completion and staged marker activation bundle.',
+        action: 'complete-staged-activation-lifecycle',
+        actionLabel: '激活',
+      })
+    } else if (stagedActivationLifecycleReport.status === 'blocked') {
+      actions.push({
+        key: 'staged-activation-lifecycle-blocked',
+        scope: 'Staged activation',
+        status: 'blocked',
+        message: stagedActivationLifecycleReport.reason,
+        detail:
+          stagedActivationLifecycleReport.blockers.join('；') ||
+          stagedActivationLifecycleReport.nextAppRuntimeStep,
+        action: 'complete-staged-activation-lifecycle',
+        actionLabel: '重试',
+      })
+    }
+
     if (actions.length === 0) {
       actions.push({
         key: 'no-actions',
@@ -641,6 +681,7 @@ export function AppRuntimePlanningPanel() {
     selectedApp,
     selectedDnsProfile,
     selectedOverviewRow,
+    stagedActivationLifecycleReport,
   ])
 
   const resources = useMemo(
@@ -782,6 +823,33 @@ export function AppRuntimePlanningPanel() {
       showNotice.error(error)
     } finally {
       setControlPlaneCompletionPending(false)
+    }
+  })
+
+  const completeStagedActivationLifecycle = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    setStagedActivationLifecyclePending(true)
+    try {
+      const report = await completeAppRuntimeStagedActivationLifecycle({
+        appId: selectedAppId,
+      })
+      setStagedActivationLifecycleReport(report)
+      setControlPlaneCompletionReport(report.controlPlaneCompletion)
+      setDnsHandoffReport(report.controlPlaneCompletion.dnsHandoff)
+      setProjectionArtifact(report.controlPlaneCompletion.projectionArtifact)
+      setActivationPreflight(report.controlPlaneCompletion.activationPreflight)
+      setPlan(report.controlPlaneCompletion.projectionArtifact.plan)
+      setProjection(report.controlPlaneCompletion.projectionArtifact.projection)
+      setDiagnostics(report.controlPlaneCompletion.projectionArtifact.diagnostics)
+      setState(await getAppRuntimeState())
+      showNotice.success('App runtime staged activation lifecycle 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setStagedActivationLifecyclePending(false)
     }
   })
 
@@ -971,6 +1039,11 @@ export function AppRuntimePlanningPanel() {
 
     if (action.action === 'complete-control-plane') {
       void completeControlPlane()
+      return
+    }
+
+    if (action.action === 'complete-staged-activation-lifecycle') {
+      void completeStagedActivationLifecycle()
     }
   }
 
@@ -1642,6 +1715,16 @@ export function AppRuntimePlanningPanel() {
             <Button
               size="small"
               variant="outlined"
+              onClick={() => void completeStagedActivationLifecycle()}
+              disabled={!selectedAppId || stagedActivationLifecyclePending}
+            >
+              {stagedActivationLifecyclePending
+                ? '激活中...'
+                : '完成 staged lifecycle'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
               startIcon={<RefreshCw className="h-4 w-4" />}
               onClick={() => void loadState()}
               disabled={loading}
@@ -1767,6 +1850,61 @@ export function AppRuntimePlanningPanel() {
                   · runtimeApply=
                   {String(controlPlaneCompletionReport.runtimeApplyAllowed)} ·
                   phase8={String(controlPlaneCompletionReport.phase8Allowed)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {stagedActivationLifecycleReport ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">
+                  App runtime staged activation lifecycle
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  合并 control-plane completion 与 staged marker activation；
+                  runtime apply 仍保持关闭。
+                </div>
+              </div>
+              <Chip
+                size="small"
+                color={statusColor(stagedActivationLifecycleReport.status)}
+                label={stagedActivationLifecycleReport.status}
+              />
+            </div>
+            <div className="grid gap-2 text-xs lg:grid-cols-2">
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Marker</div>
+                <div className="mt-1 truncate text-muted-foreground">
+                  {stagedActivationLifecycleReport.activeProjection?.artifactId ??
+                    '未激活'}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Rollback boundary</div>
+                <div className="mt-1 text-muted-foreground">
+                  available=
+                  {String(
+                    stagedActivationLifecycleReport.rollbackBoundaryAvailable,
+                  )}{' '}
+                  · {stagedActivationLifecycleReport.rollbackStrategy ?? 'none'}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Next step</div>
+                <div className="mt-1 text-muted-foreground">
+                  {stagedActivationLifecycleReport.nextAppRuntimeStep}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Boundary</div>
+                <div className="mt-1 text-muted-foreground">
+                  marker={String(stagedActivationLifecycleReport.markerActivated)}
+                  · runtimeApply=
+                  {String(stagedActivationLifecycleReport.runtimeApplyAllowed)} ·
+                  reload={String(stagedActivationLifecycleReport.reloadMihomo)}
                 </div>
               </div>
             </div>

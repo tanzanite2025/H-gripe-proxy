@@ -140,6 +140,11 @@ export type AppRuntimeControlPlaneCompletionStatus =
   | 'degraded'
   | 'blocked'
 
+export type AppRuntimeStagedActivationLifecycleStatus =
+  | 'ready'
+  | 'degraded'
+  | 'blocked'
+
 export interface AppRuntimeDnsHandoffRecord {
   handoffId: string
   action: string
@@ -190,6 +195,30 @@ export interface AppRuntimeControlPlaneCompletionReport {
   projectionArtifactPersisted: boolean
   activationPreflight: AppRuntimeProjectionActivationPreflightReport
   readyForStagedActivation: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface AppRuntimeStagedActivationLifecycleReport {
+  status: AppRuntimeStagedActivationLifecycleStatus
+  reason: string
+  appId: string
+  controlPlaneCompletion: AppRuntimeControlPlaneCompletionReport
+  activeProjection?: AppRuntimeActiveProjectionRecord | null
+  markerActivated: boolean
+  activeMarkerMatchesArtifact: boolean
+  rollbackBoundaryAvailable: boolean
+  rollbackStrategy?: string | null
   runtimeApplyAllowed: boolean
   phase8Allowed: boolean
   promotionAllowed: boolean
@@ -624,6 +653,12 @@ export async function completeAppRuntimeControlPlane(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeControlPlaneCompletionReport> {
   return invoke('complete_app_runtime_control_plane', { request })
+}
+
+export async function completeAppRuntimeStagedActivationLifecycle(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeStagedActivationLifecycleReport> {
+  return invoke('complete_app_runtime_staged_activation_lifecycle', { request })
 }
 
 export async function upsertAppRegistryEntry(
