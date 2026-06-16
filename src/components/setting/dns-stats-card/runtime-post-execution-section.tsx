@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 import {
+  dnsDefaultRuntimeExpandedControlPlaneCompletion,
   dnsDefaultRuntimeExpandedOptInExecution,
   dnsDefaultRuntimeExpandedLifecycleCloseout,
   dnsDefaultRuntimeExpandedOptInExecutionGate,
@@ -31,6 +32,7 @@ import {
   type DnsDefaultRuntimeExpandedRollbackReport,
   type DnsDefaultRuntimeExpandedRollbackStatus,
   type DnsDefaultRuntimeExpandedHoldPolicyReport,
+  type DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
   type DnsDefaultRuntimeExpandedLifecycleCloseoutReport,
   type DnsDefaultRuntimeExpandedStabilityGateReport,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
@@ -147,6 +149,12 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeExpandedReverifyHistoryReport | null>(null)
   const [expandedLifecycleCloseoutReport, setExpandedLifecycleCloseoutReport] =
     useState<DnsDefaultRuntimeExpandedLifecycleCloseoutReport | null>(null)
+  const [
+    expandedControlPlaneCompletionReport,
+    setExpandedControlPlaneCompletionReport,
+  ] = useState<DnsDefaultRuntimeExpandedControlPlaneCompletionReport | null>(
+    null,
+  )
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
@@ -162,6 +170,7 @@ export function RuntimePostExecutionSection() {
     | 'expandedReverify'
     | 'expandedHistory'
     | 'expandedCloseout'
+    | 'expandedCompletion'
     | 'rollback'
     | null
   >(null)
@@ -395,6 +404,22 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedControlPlaneCompletion = useLockFn(async () => {
+    setPending('expandedCompletion')
+    try {
+      const nextReport =
+        await dnsDefaultRuntimeExpandedControlPlaneCompletion()
+      setExpandedControlPlaneCompletionReport(nextReport)
+      setExpandedLifecycleCloseoutReport(nextReport.closeout)
+      setExpandedReverifyHistoryReport(nextReport.closeout.history)
+      showNotice.success('默认 DNS runtime expanded control-plane completion 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -513,6 +538,16 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedControlPlaneCompletion}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedCompletion'
+              ? '完成中...'
+              : 'Control-plane completion'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -534,7 +569,8 @@ export function RuntimePostExecutionSection() {
         超窗只建议显式 rollback。Expanded reverify 将一次显式 hold-window
         评估持久化为 audit record，方便重复验证。Reverify history 汇总多次记录，
         给出 stable threshold / rollback trend / closeout 建议。Lifecycle closeout
-        合并 history 与 active state，给出下一控制面交接建议。
+        合并 history 与 active state，给出下一控制面交接建议。Control-plane
+        completion 会生成 handoff manifest，并明确 phase8Allowed=false。
       </div>
 
       {verificationReport ? (
@@ -603,6 +639,95 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedControlPlaneCompletionReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Control-plane completion"
+              chipLabel={expandedControlPlaneCompletionReport.status}
+              chipColor={
+                expandedControlPlaneCompletionReport.status === 'complete'
+                  ? 'success'
+                  : expandedControlPlaneCompletionReport.status === 'blocked'
+                    ? 'error'
+                    : 'warning'
+              }
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedControlPlaneCompletionReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedControlPlaneCompletionReport.reason}
+            />
+            <DnsTextRow
+              label="Manifest"
+              value={
+                expandedControlPlaneCompletionReport.handoffManifestPersisted
+                  ? '已持久化'
+                  : '未持久化'
+              }
+            />
+            <DnsTextRow
+              label="Path"
+              value={
+                expandedControlPlaneCompletionReport.handoffManifestPath ??
+                '未生成'
+              }
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={
+                expandedControlPlaneCompletionReport.handoffManifestPath ??
+                undefined
+              }
+            />
+            <DnsTextRow
+              label="Next step"
+              value={expandedControlPlaneCompletionReport.nextControlPlaneStep}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={
+                expandedControlPlaneCompletionReport.nextControlPlaneStep
+              }
+            />
+            <DnsTextRow
+              label="Stable records"
+              value={`${expandedControlPlaneCompletionReport.handoffManifest.stableStreak}/${expandedControlPlaneCompletionReport.handoffManifest.requiredStableRecords}`}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedControlPlaneCompletionReport.dnsControlPlaneComplete
+                  ? 'success'
+                  : 'warning'
+              }
+              label={`complete=${String(expandedControlPlaneCompletionReport.dnsControlPlaneComplete)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedControlPlaneCompletionReport.handoffReady
+                  ? 'success'
+                  : 'default'
+              }
+              label={`handoff=${String(expandedControlPlaneCompletionReport.handoffReady)}`}
+            />
+            <Chip
+              size="small"
+              color="default"
+              label={`phase8=${String(expandedControlPlaneCompletionReport.phase8Allowed)}`}
+            />
+          </div>
+
+          {expandedControlPlaneCompletionReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Control-plane completion blockers:{' '}
+              {expandedControlPlaneCompletionReport.blockers.join('；')}
             </div>
           ) : null}
         </div>

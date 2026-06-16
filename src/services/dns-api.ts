@@ -447,6 +447,11 @@ export type DnsDefaultRuntimeExpandedLifecycleCloseoutStatus =
   | 'watching'
   | 'rollbackRecommended'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedControlPlaneCompletionStatus =
+  | 'complete'
+  | 'watching'
+  | 'rollbackRecommended'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -795,6 +800,53 @@ export interface DnsDefaultRuntimeExpandedLifecycleCloseoutReport {
   promotionAllowed: boolean
   recommendedAction: string
   nextControlPlaneStep: string
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedHandoffManifest {
+  manifestId: string
+  action: string
+  closeoutStatus: DnsDefaultRuntimeExpandedLifecycleCloseoutStatus
+  historyStatus: DnsDefaultRuntimeExpandedReverifyHistoryStatus
+  activeExecutionEventId?: string | null
+  activeState?: string | null
+  historyRecordCount: number
+  stableStreak: number
+  requiredStableRecords: number
+  observationClosed: boolean
+  handoffReady: boolean
+  rollbackRecommended: boolean
+  nextControlPlaneStep: string
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  createdAtEpochSeconds: number
+}
+
+export interface DnsDefaultRuntimeExpandedControlPlaneCompletionReport {
+  status: DnsDefaultRuntimeExpandedControlPlaneCompletionStatus
+  reason: string
+  closeout: DnsDefaultRuntimeExpandedLifecycleCloseoutReport
+  handoffManifest: DnsDefaultRuntimeExpandedHandoffManifest
+  handoffManifestPath?: string | null
+  handoffManifestPersisted: boolean
+  dnsControlPlaneComplete: boolean
+  observationClosed: boolean
+  handoffReady: boolean
+  rollbackRecommended: boolean
+  nextControlPlaneStep: string
+  phase8Allowed: boolean
+  promotionAllowed: boolean
   userTriggerRequired: boolean
   autoRollout: boolean
   autoRollback: boolean
@@ -1344,6 +1396,20 @@ export async function dnsDefaultRuntimeExpandedLifecycleCloseout(): Promise<DnsD
   } catch (err) {
     console.error(
       'DNS default runtime expanded lifecycle closeout failed:',
+      err,
+    )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedControlPlaneCompletion(): Promise<DnsDefaultRuntimeExpandedControlPlaneCompletionReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedControlPlaneCompletionReport>(
+      'dns_default_runtime_expanded_control_plane_completion',
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime expanded control-plane completion failed:',
       err,
     )
     throw err
