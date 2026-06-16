@@ -50,6 +50,10 @@ import {
   type NodePool,
   type SecurityProfile,
 } from '@/services/app-runtime'
+import {
+  dnsControlledRuntimeProbe,
+  type DnsResolverRuntimeProbeReport,
+} from '@/services/dns-api'
 import { showNotice } from '@/services/notice-service'
 
 const emptyState: AppRuntimeStateDocument = {
@@ -295,6 +299,7 @@ export function AppRuntimePlanningPanel() {
   const [loading, setLoading] = useState(false)
   const [planning, setPlanning] = useState(false)
   const [sessionPending, setSessionPending] = useState(false)
+  const [dnsProbePending, setDnsProbePending] = useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
   const [projection, setProjection] =
     useState<AppRuntimeMihomoProjection | null>(null)
@@ -305,6 +310,8 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeSessionEvaluationReport | null>(null)
   const [leakReport, setLeakReport] =
     useState<AppRuntimeSessionLeakReport | null>(null)
+  const [dnsProbeReport, setDnsProbeReport] =
+    useState<DnsResolverRuntimeProbeReport | null>(null)
   const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
@@ -340,6 +347,25 @@ export function AppRuntimePlanningPanel() {
       null,
     [appSessions, selectedSessionId],
   )
+
+  const selectedBinding = useMemo(
+    () =>
+      state.policyBindings.find(
+        (binding) => binding.appId === selectedAppId && binding.enabled,
+      ) ??
+      state.policyBindings.find((binding) => binding.appId === selectedAppId) ??
+      null,
+    [selectedAppId, state.policyBindings],
+  )
+
+  const selectedDnsProfile = useMemo(() => {
+    const dnsProfileId =
+      plan?.policyBinding?.dnsProfileId ?? selectedBinding?.dnsProfileId
+    return (
+      state.dnsProfiles.find((profile) => profile.profileId === dnsProfileId) ??
+      null
+    )
+  }, [plan?.policyBinding?.dnsProfileId, selectedBinding, state.dnsProfiles])
 
   const resources = useMemo(
     () => collectionFor(state, resourceKind),
@@ -391,11 +417,32 @@ export function AppRuntimePlanningPanel() {
       setPlan(nextDiagnostics.plan)
       setProjection(nextProjection)
       setDiagnostics(nextDiagnostics)
+      setDnsProbeReport(null)
       showNotice.success('应用运行时规划诊断已完成')
     } catch (error) {
       showNotice.error(error)
     } finally {
       setPlanning(false)
+    }
+  })
+
+  const handleProbeSelectedDnsProfile = useLockFn(async () => {
+    if (!selectedDnsProfile) {
+      return
+    }
+
+    setDnsProbePending(true)
+    try {
+      const report = await dnsControlledRuntimeProbe(
+        selectedDnsProfile.configYaml,
+        selectedDnsProfile.testDomain || 'example.com',
+      )
+      setDnsProbeReport(report)
+      showNotice.success('应用绑定 DNS profile 受控探测已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setDnsProbePending(false)
     }
   })
 
@@ -417,6 +464,7 @@ export function AppRuntimePlanningPanel() {
       setProjection(null)
       setEvaluation(null)
       setLeakReport(null)
+      setDnsProbeReport(null)
       showNotice.success('应用运行时 session 已开始记录')
     } catch (error) {
       showNotice.error(error)
@@ -567,6 +615,7 @@ export function AppRuntimePlanningPanel() {
       }
       setState(nextState)
       setSelectedResourceId(nextResourceId)
+      setDnsProbeReport(null)
       showNotice.success('应用编排资源已保存')
     } catch (error) {
       showNotice.error(error)
@@ -608,6 +657,7 @@ export function AppRuntimePlanningPanel() {
       setPlan(null)
       setProjection(null)
       setDiagnostics(null)
+      setDnsProbeReport(null)
       showNotice.success('应用编排资源已删除')
     } catch (error) {
       showNotice.error(error)
@@ -657,6 +707,7 @@ export function AppRuntimePlanningPanel() {
       }
       setState(nextState)
       setSelectedAppId((current) => current || nextState.apps[0]?.appId || '')
+      setDnsProbeReport(null)
       showNotice.success('应用编排配置已导入')
     } catch (error) {
       showNotice.error(error)
@@ -854,6 +905,7 @@ export function AppRuntimePlanningPanel() {
                 setDiagnostics(null)
                 setEvaluation(null)
                 setLeakReport(null)
+                setDnsProbeReport(null)
               }}
             />
             <Button
@@ -874,6 +926,83 @@ export function AppRuntimePlanningPanel() {
                   .map((matcher) => `${matcher.kind}:${matcher.pattern}`)
                   .join(' / ')
               : '该应用尚未配置 process matcher。'}
+          </div>
+        ) : null}
+
+        {selectedApp ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold">
+                  绑定 DNS profile 受控探测
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  对当前 app policy 绑定的 DNS profile 运行 Rust controlled
+                  probe，只探测 runtime-supported nameserver，不切默认 DNS。
+                </div>
+              </div>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Activity className="h-4 w-4" />}
+                onClick={() => void handleProbeSelectedDnsProfile()}
+                disabled={!selectedDnsProfile || dnsProbePending}
+              >
+                {dnsProbePending ? '探测中...' : '探测绑定 DNS'}
+              </Button>
+            </div>
+
+            {selectedDnsProfile ? (
+              <div className="flex flex-wrap gap-2">
+                <Chip
+                  size="small"
+                  label={`Profile: ${selectedDnsProfile.name}`}
+                />
+                <Chip
+                  size="small"
+                  label={`Domain: ${selectedDnsProfile.testDomain || 'example.com'}`}
+                />
+              </div>
+            ) : (
+              <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                当前应用没有可探测的 DNS profile 绑定。
+              </div>
+            )}
+
+            {dnsProbeReport ? (
+              <div className="space-y-2">
+                <div className="grid gap-2 text-xs sm:grid-cols-4">
+                  <div>Total: {dnsProbeReport.summary.totalTargets}</div>
+                  <div>
+                    Supported: {dnsProbeReport.summary.runtimeSupportedTargets}
+                  </div>
+                  <div>Healthy: {dnsProbeReport.summary.healthyTargets}</div>
+                  <div>Failed: {dnsProbeReport.summary.failedTargets}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {dnsProbeReport.targets.map((target) => (
+                    <Chip
+                      key={`${target.server}-${target.protocol}`}
+                      size="small"
+                      color={
+                        target.healthy
+                          ? 'success'
+                          : target.runtimeSupported
+                            ? 'error'
+                            : 'warning'
+                      }
+                      label={`${target.server} · ${target.providerLabel ?? target.protocol}`}
+                      title={target.message}
+                    />
+                  ))}
+                </div>
+                {dnsProbeReport.warnings.length > 0 ? (
+                  <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    {dnsProbeReport.warnings.join('；')}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
