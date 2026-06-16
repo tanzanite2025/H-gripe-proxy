@@ -2,76 +2,58 @@
 
 > **重要声明 / Important Notice**
 > 
-> 📌 这是一个 **个人优化和定制版本** / This is a **personally optimized and customized version**
+> 📌 这是一个 **私有维护的 Rust 主导实现** / This is a **privately maintained Rust-led implementation**
 > 
 > - 当前维护仓库 / Maintained repository: [tanzanite2025/clash-verge-optimized](https://github.com/tanzanite2025/clash-verge-optimized)
-> - 遵循原项目 **GPLv3 开源协议** / Complies with the original project's **GPLv3 open-source license**
-> - 本版本针对 **UI优化**、**安全加固** 和 **功能增强** 进行了深度改进 / This version includes deep improvements for **UI optimization**, **security hardening**, and **feature enhancements**
+> - 授权信息以仓库内 [LICENSE](./LICENSE) 为准 / Licensing follows the repository-local [LICENSE](./LICENSE)
+> - 当前主线重点是 **Rust 控制面迁移**、**安全边界收紧** 和 **本仓库可复现打包链** / Current mainline focus: **Rust control-plane migration**, **security boundary hardening**, and **reproducible in-repo packaging**
 > - 发布页面 / Releases: [Clash Verge Optimized Releases](https://github.com/tanzanite2025/clash-verge-optimized/releases)
 
 ---
 
 ## 项目介绍 / Project Introduction
 
-Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/tauri) 构建的个人维护代理桌面应用。
+Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/tauri) 与 Rust 主导架构构建的私有维护代理桌面应用。
 
 当前仓库的真实职责边界是：
 
 - Rust / Tauri 桌面层负责配置、控制面、运行时协调、诊断、安全边界和平台集成
-- `mihomo/` 下的 Go 内核继续承担真实转发、协议栈、TUN、DNS runtime 等尚未迁入 Rust 的能力
-- 打包链默认只接受本仓库内受控的 sidecar / service / resources，不再依赖上游 latest 下载链
+- `mihomo/` 是本仓库内私有维护的 runtime kernel 组件；尚未 Rust 化的真实转发、协议栈、TUN、DNS runtime 等能力仍在该组件边界内
+- 打包链默认只接受本仓库内受控的 kernel binary / service / resources，不依赖外部 latest 下载链
 
-本仓库是 **个人深度优化版本**，在以下方面进行了全面改进：
+### 当前主线 / Current Mainline
 
-### 🎨 UI 优化
-- **一体化卡片式首页** — 系统信息、当前代理、代理模式、TUN 开关等整合为卡片布局
-- **无边框设计** — 卡片去除边框虚线，视觉更简洁统一
-- **底部抽屉式代理链** — 链式代理配置以全宽底部抽屉呈现，4列网格排列节点，支持拖拽排序
-- **住宅代理池集成** — 抽屉内直接配置住宅代理出口，无需切换页面
-- **顶部 TAB 栏优化** — 增大拖拽区域，缩小 TAB 间距
-- **弹窗居中补偿** — 对话框在 TAB 栏以下区域居中显示
+当前 README 只描述主线仍在维护、且已经落地的能力；更细的迁移批次记录见 [Go → Rust Migration](#go--rust-migration)。
 
-### 🔒 安全加固
-- **DevTools 构建门控** — 开发者工具仅在 Debug 构建中可用，Release 自动禁用
-- **Tauri 权限最小化** — 移除 shell:allow-execute/kill/spawn、fs:allow-write-file 等高危权限
-- **CSP 白名单收紧** — connect-src 仅允许本地控制平面，远程域名显式白名单
-- **WebDAV TLS 验证** — 不再默认接受无效证书
-- **ZIP 路径穿越防护** — 备份恢复时校验解压路径
-- **外部 URL 校验** — 仅允许 http/https 协议且含 host 的 URL 打开
-- **前端 plugin-fs/plugin-shell 移除** — 文件操作和进程管理全部走后端命令
+- **桌面控制面**：Tauri / Rust 后端承接配置校验、规则解释、诊断、订阅 artifact、连接/日志事件转发和 app-runtime 编排。
+- **Runtime kernel 边界**：`mihomo/` 作为仓库内私有 runtime kernel 组件，仍承载尚未迁入 Rust 的真实转发、协议栈、TUN、DNS runtime 与 adapter/tunnel runtime。
+- **安全边界**：Release 默认关闭 DevTools；高风险 shell / fs 权限从前端移走；外部 URL、备份恢复、WebDAV TLS 和 CSP 均走显式约束。
+- **可复现打包**：构建链优先使用仓库内受控 kernel binary / service / resources；修改 `mihomo/` 后必须重编并同步本地 kernel binary。
 
-### 🚀 功能增强
-- **链式代理 (Proxy Chain)** — 通过 dialer-proxy 构建多跳链式代理，支持拖拽排序、连接/断开
-- **住宅代理池 (Residential Pool)** — 支持 SOCKS5/HTTP/SS/VMess/Trojan 类型住宅代理，可配置为链式出口
-- **稳定出口策略 (Stable Egress)** — 基于 egress_identity 的出口身份管理，自动构建 VPS→住宅链式路由
-- **运行时规则管理** — 支持规则启用/禁用/软删除/创建，来源标记（profile/provider/runtime）
-- **URI 解析器** — 支持 ss/ssr/vmess/vless/trojan/trojan-go/anytls/hysteria/hysteria2/tuic/wireguard 等协议
-- **多路径 (Multipath)** — 多路径并发传输配置
-- **流量填充 (Traffic Padding)** — 流量混淆与填充对抗检测
-- **XDP 防探测 (Anti-Probe)** — Linux XDP 层面的主动探测防御
-- **IP 信誉度 (IP Reputation)** — 出口 IP 信誉度监控
-- **黑洞断路器 (Blackhole Breaker)** — 检测并绕过黑洞路由
-- **时区伪装 (Timezone Spoof)** — 出口时区一致性伪装
+### 已落地能力概览 / Implemented Capabilities
 
-### 🐛 Bug 修复
-- 修复链式代理切换页面自动弹出的问题
-- 修复代理组节点在链式模式下折叠的问题
-- 修复 Tab 栏拖拽区域不足的问题
-- 修复弹窗不在可视区域居中的问题
-- 统一 CmdResult 类型，消除 Result<T, String> 与 Result<T, SmartString> 混用
-- 移除 CoordinatorConfig 配置双源问题，统一为 AdvancedConfig 单一配置源
+- **配置与规则控制面**：schema 校验、rule parser、rule explain、config diff、diagnostics summary、latency / node selection planner。
+- **本地规则数据**：GEOIP、GEOSITE、IP-ASN、SRC-IP-ASN、RULE-SET、PROCESS、UID、DSCP、inbound metadata、logical/sub-rule。
+- **订阅与 profile pipeline**：远程 profile → immutable artifact → active marker → runtime 的单一事实链。
+- **App runtime 控制面**：应用注册、node pool、DNS/security profile、policy binding、Mihomo projection artifact、session observation/evaluation/leak planning。
+- **DNS default runtime 控制面**：readiness、shadow evidence、opt-in execution、post-execution verification、rollback drill、expanded closeout 与 handoff manifest。
+- **UI 入口**：高级页提供 app-runtime planning / diagnostics / projection / staged lifecycle / runtime-boundary closeout 面板。
 
-### 许可证声明
+### 下一阶段方向 / Next Direction
 
-本项目严格遵循原始项目的 **GPLv3 License**，符合开源协议要求。所有修改都以开源的方式进行。
+- 继续收口 app-runtime staged boundary 后的显式 runtime-apply 决策与审计。
+- 继续保持“先 control-plane、再 staged marker、最后显式 runtime apply”的迁移节奏。
+- 在 roadmap 明确允许前，不启动 Phase 8，不接管 TUN / protocol runtime / adapter runtime。
 
 ---
 
 ## 系统要求 / System Requirements
 
-- **Windows**: Windows 7 SP1 及以上版本 (x64/x86)
-- **Linux**: Ubuntu 20.04 及以上版本 (x64/arm64)
-- **macOS**: 11.0 及以上版本 (Intel/Apple Silicon)
+当前桌面层基于 Tauri 2。运行环境以 Tauri / WebView2 / 系统 WebKit 的实际支持矩阵为准；本仓库主线重点验证 Windows x64，Linux/macOS 仍保留跨平台构建目标。
+
+- **Windows**: x64；需要 Microsoft WebView2 Runtime
+- **Linux**: x64/arm64；需要系统 WebKitGTK / appindicator 等 Tauri 依赖
+- **macOS**: Intel / Apple Silicon；需要 macOS 11+
 
 ---
 
@@ -116,9 +98,9 @@ pnpm build:fast
 
 ### Mihomo 内核改动后的打包要求
 
-如果你修改了 `mihomo/` 下的 Go 内核源码，正式打包前需要先重编本地 sidecar。
+如果你修改了 `mihomo/` 下的 runtime kernel 源码，正式打包前需要先重编本地 kernel binary。
 仓库的 `scripts/prebuild.mjs` 会在打包前校验 `src-tauri/sidecar` 里的 `verge-mihomo` 是否比 `mihomo/` 源码更新。
-如果 sidecar 过旧，`pnpm build` 会直接拒绝继续，避免把旧内核打进安装包。
+如果 kernel binary 过旧，`pnpm build` 会直接拒绝继续，避免把旧内核打进安装包。
 
 Windows x64 示例：
 
@@ -131,7 +113,7 @@ $env:GOOS='windows'
 $env:GOAMD64='v2'
 go build -tags with_gvisor -trimpath -ldflags "-w -s -buildid=" -o bin/mihomo-windows-amd64-v2.exe
 
-# 2. 同步到 Tauri 打包 sidecar
+# 2. 同步到 Tauri 打包 kernel binary
 Set-Location ..
 Copy-Item .\mihomo\bin\mihomo-windows-amd64-v2.exe `
   .\src-tauri\sidecar\verge-mihomo-x86_64-pc-windows-msvc.exe -Force
@@ -176,7 +158,7 @@ target/release/bundle/nsis/
 
 迁移路线图和实时进度统一维护在 [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md)。
 
-README 只保留迁移入口、当前状态和边界原则：优先把“不碰真实转发链路”的控制、校验、解释、诊断和调度逻辑迁入 Tauri Rust 后端；Mihomo Go sidecar 在对应 runtime 未迁移前继续负责真实转发、协议栈、TUN、tunnel 和 DNS runtime。
+README 只保留迁移入口、当前状态和边界原则：优先把“不碰真实转发链路”的控制、校验、解释、诊断和调度逻辑迁入 Tauri Rust 后端；对应 runtime 未迁移前，真实转发、协议栈、TUN、tunnel 和 DNS runtime 仍停留在仓库内 runtime kernel 边界内。
 
 ### 当前迁移状态 / Current Status
 
@@ -209,14 +191,14 @@ DNS expanded completion
 - 不接管 adapter / tunnel / transparent proxy / protocol runtime
 - 不进入 Phase 8（TUN / protocol runtime）
 
-换句话说，Rust 当前已经能完成“计划、诊断、投影、预检、marker、边界 manifest”的闭环；真实转发链路仍由 `mihomo/` Go sidecar 承担，直到 roadmap 明确允许进入下一阶段。
+换句话说，Rust 当前已经能完成“计划、诊断、投影、预检、marker、边界 manifest”的闭环；真实转发链路仍停留在仓库内 runtime kernel 边界内，直到 roadmap 明确允许进入下一阶段。
 
 ---
 
 ## 项目结构 / Project Structure
 
 ```
-clashverge-clean/
+clash-verge-optimized/
 ├── src/                        # 前端源代码 (TypeScript/React/TailwindCSS)
 │   ├── components/
 │   │   ├── advanced/           # 高级配置面板（住宅代理池、安全策略等）
@@ -240,14 +222,14 @@ clashverge-clean/
 │   │   └── feat/               # 业务功能模块
 │   └── capabilities/           # Tauri 权限配置
 ├── crates/                     # Rust 库模块
-│   ├── tauri-plugin-mihomo/    # Mihomo 内核 Tauri 插件（含 Go 内核绑定）
+│   ├── tauri-plugin-mihomo/    # runtime kernel Tauri 插件
 │   ├── clash-verge-draft/      # 草稿配置管理
 │   ├── clash-verge-i18n/       # 国际化支持
 │   ├── clash-verge-limiter/    # 流量限速器
 │   ├── clash-verge-logging/    # 日志系统
 │   ├── clash-verge-signal/     # 信号处理
 │   └── clash-verge-xdp/        # XDP 防探测 (Linux)
-├── mihomo/                     # Mihomo Go 内核（含规则管理扩展）
+├── mihomo/                     # 仓库内私有 runtime kernel 组件
 ├── scripts/                    # 构建 & 工具脚本
 ├── Cargo.toml                  # Rust workspace 配置
 ├── package.json                # Node.js 依赖配置
@@ -256,12 +238,9 @@ clashverge-clean/
 
 ---
 
-## 致谢 / Credits
+## 项目归属 / Ownership
 
-- **原始项目**: [Clash Verge](https://github.com/zzzgydi/clash-verge) - 早期桌面形态与开源起点
-- **当前维护仓库**: [Clash Verge Optimized](https://github.com/tanzanite2025/clash-verge-optimized) - 当前个人维护与持续重构主体
-- **框架**: [Tauri](https://github.com/tauri-apps/tauri) - 跨平台应用框架
-- **内核**: [Tanzanite Mihomo Optimized Kernel](mihomo/) - 当前仓库内联维护的 Mihomo Go 内核
+本仓库是 tanzanite2025 私有维护的 Rust 主导实现。README 不再保留外部致谢式定位；当前说明只描述本仓库自己的架构、边界、构建链和迁移路线。
 
 ---
 
@@ -276,14 +255,7 @@ clashverge-clean/
 
 ## 许可证 / License
 
-本项目遵循 **GPLv3 License**，详见 [LICENSE](./LICENSE) 文件。
-
-```
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-```
+授权信息以仓库内 [LICENSE](./LICENSE) 文件为准。
 
 ---
 
