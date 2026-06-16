@@ -2158,6 +2158,26 @@ dns:
         assert!(!hold_policy.promotion_allowed);
         assert!(!hold_policy.auto_rollout);
         assert!(!hold_policy.auto_rollback);
+
+        let reverify = build_dns_default_runtime_expanded_reverify_report(
+            hold_policy,
+            true,
+            Some("reverify.yaml".into()),
+            Vec::new(),
+            hold_started_at.saturating_add(300),
+        );
+
+        assert_eq!(reverify.status, DnsDefaultRuntimeExpandedReverifyStatus::Recorded);
+        assert!(reverify.reverify_persisted);
+        assert_eq!(
+            reverify.reverify_record.hold_status,
+            DnsDefaultRuntimeExpandedHoldPolicyStatus::Ready
+        );
+        assert!(reverify.keep_active_allowed);
+        assert!(!reverify.next_verification_required);
+        assert!(!reverify.rollback_recommended);
+        assert!(!reverify.auto_rollout);
+        assert!(!reverify.auto_rollback);
     }
 
     #[test]
