@@ -384,6 +384,42 @@ export function AppRuntimePlanningPanel() {
     )
   }, [plan?.policyBinding?.dnsProfileId, selectedBinding, state.dnsProfiles])
 
+  const overviewRows = useMemo(
+    () =>
+      state.apps.map((app) => {
+        const binding =
+          state.policyBindings.find(
+            (item) => item.appId === app.appId && item.enabled,
+          ) ??
+          state.policyBindings.find((item) => item.appId === app.appId) ??
+          null
+        const nodePool =
+          state.nodePools.find((item) => item.poolId === binding?.nodePoolId) ??
+          null
+        const dnsProfile =
+          state.dnsProfiles.find(
+            (item) => item.profileId === binding?.dnsProfileId,
+          ) ?? null
+        const securityProfile =
+          state.securityProfiles.find(
+            (item) => item.profileId === binding?.securityProfileId,
+          ) ?? null
+        const sessions = state.sessions.filter(
+          (session) => session.appId === app.appId,
+        )
+        return {
+          app,
+          binding,
+          nodePool,
+          dnsProfile,
+          securityProfile,
+          sessions,
+          openSessions: sessions.filter((session) => !session.endedAt).length,
+        }
+      }),
+    [state],
+  )
+
   const resources = useMemo(
     () => collectionFor(state, resourceKind),
     [resourceKind, state],
@@ -402,6 +438,17 @@ export function AppRuntimePlanningPanel() {
     ],
     [resourceKind, resources],
   )
+
+  const selectAppForDiagnostics = (appId: string) => {
+    setSelectedAppId(appId)
+    setSelectedSessionId('')
+    setPlan(null)
+    setProjection(null)
+    setDiagnostics(null)
+    setEvaluation(null)
+    setLeakReport(null)
+    setDnsProbeReport(null)
+  }
 
   const loadState = useLockFn(async () => {
     setLoading(true)
@@ -772,6 +819,82 @@ export function AppRuntimePlanningPanel() {
           </Button>
         </div>
 
+        {overviewRows.length > 0 ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <div className="text-sm font-semibold">应用编排概览</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                汇总 Rust state 中的 app → policy binding → node / DNS /
+                security 关系，便于快速定位下一步诊断对象。
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {overviewRows.map((row) => (
+                <div
+                  key={row.app.appId}
+                  className="grid gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_auto]"
+                >
+                  <div className="space-y-1">
+                    <div className="font-semibold">{row.app.name}</div>
+                    <div className="text-muted-foreground">{row.app.appId}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {row.app.tags.slice(0, 4).map((tag) => (
+                        <Chip key={tag} size="small" label={tag} />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-1 sm:grid-cols-2">
+                    <div>
+                      <span className="text-muted-foreground">Routing: </span>
+                      {row.binding?.routingIntent ?? 'unbound'}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Binding: </span>
+                      {row.binding?.enabled === false
+                        ? 'disabled'
+                        : (row.binding?.bindingId ?? 'missing')}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Node pool: </span>
+                      {row.nodePool?.name ?? row.binding?.nodePoolId ?? '-'}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">DNS: </span>
+                      {row.dnsProfile?.name ?? row.binding?.dnsProfileId ?? '-'}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Security: </span>
+                      {row.securityProfile?.name ??
+                        row.binding?.securityProfileId ??
+                        '-'}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Sessions: </span>
+                      {row.sessions.length} total / {row.openSessions} open
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end">
+                    <Button
+                      size="small"
+                      variant={
+                        row.app.appId === selectedAppId
+                          ? 'contained'
+                          : 'outlined'
+                      }
+                      onClick={() => selectAppForDiagnostics(row.app.appId)}
+                    >
+                      {row.app.appId === selectedAppId ? '已选择' : '选择'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           <Chip
             size="small"
@@ -915,14 +1038,7 @@ export function AppRuntimePlanningPanel() {
               value={selectedAppId}
               options={appOptions}
               onChange={(value: string | number) => {
-                setSelectedAppId(String(value))
-                setSelectedSessionId('')
-                setPlan(null)
-                setProjection(null)
-                setDiagnostics(null)
-                setEvaluation(null)
-                setLeakReport(null)
-                setDnsProbeReport(null)
+                selectAppForDiagnostics(String(value))
               }}
             />
             <Button
