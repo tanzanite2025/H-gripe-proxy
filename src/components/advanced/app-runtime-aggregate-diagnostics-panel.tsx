@@ -1,3 +1,4 @@
+import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 
 import { statusColor } from './app-runtime-planning-utils'
@@ -15,18 +16,22 @@ export interface AggregateDiagnosticAction {
   status: string
   message: string
   detail: string
+  actionLabel?: string
+  action?: 'focus-state' | 'run-diagnostics' | 'run-dns-probe'
 }
 
 interface AppRuntimeAggregateDiagnosticsPanelProps {
   items: AggregateDiagnosticsItem[]
   actions: AggregateDiagnosticAction[]
   dnsWarnings: string[]
+  onActionClick?: (action: AggregateDiagnosticAction) => void
 }
 
 export function AppRuntimeAggregateDiagnosticsPanel({
   items,
   actions,
   dnsWarnings,
+  onActionClick,
 }: AppRuntimeAggregateDiagnosticsPanelProps) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-3">
@@ -70,7 +75,16 @@ export function AppRuntimeAggregateDiagnosticsPanel({
                 <div className="font-medium">{action.message}</div>
                 <div className="text-muted-foreground">{action.detail}</div>
               </div>
-              <div className="flex items-start justify-end">
+              <div className="flex items-start justify-end gap-2">
+                {action.action && action.actionLabel ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => onActionClick?.(action)}
+                  >
+                    {action.actionLabel}
+                  </Button>
+                ) : null}
                 <Chip
                   size="small"
                   color={statusColor(action.status)}

@@ -45,7 +45,10 @@ import {
 } from '@/services/dns-api'
 import { showNotice } from '@/services/notice-service'
 
-import { AppRuntimeAggregateDiagnosticsPanel } from './app-runtime-aggregate-diagnostics-panel'
+import {
+  AppRuntimeAggregateDiagnosticsPanel,
+  type AggregateDiagnosticAction,
+} from './app-runtime-aggregate-diagnostics-panel'
 import { AppRuntimeAppRegistryForm } from './app-runtime-app-registry-form'
 import { AppRuntimeDnsProfileForm } from './app-runtime-dns-profile-form'
 import { AppRuntimeNodePoolForm } from './app-runtime-node-pool-form'
@@ -399,13 +402,7 @@ export function AppRuntimePlanningPanel() {
       return []
     }
 
-    const actions: Array<{
-      key: string
-      scope: string
-      status: string
-      message: string
-      detail: string
-    }> = []
+    const actions: AggregateDiagnosticAction[] = []
 
     for (const issue of selectedOverviewRow?.issues ?? []) {
       actions.push({
@@ -414,6 +411,8 @@ export function AppRuntimePlanningPanel() {
         status: 'failed',
         message: issue,
         detail: 'Use the quick forms or JSON editor to repair this reference.',
+        action: 'focus-state',
+        actionLabel: '定位',
       })
     }
 
@@ -425,6 +424,8 @@ export function AppRuntimePlanningPanel() {
         message: 'Planning diagnostics not run',
         detail:
           'Run planning diagnostics before reviewing projection readiness.',
+        action: 'run-diagnostics',
+        actionLabel: '运行',
       })
     } else {
       for (const check of diagnostics.checks.filter(
@@ -448,6 +449,8 @@ export function AppRuntimePlanningPanel() {
         message: 'DNS controlled probe not run',
         detail:
           'Run the opt-in probe before treating DNS runtime health as known.',
+        action: 'run-dns-probe',
+        actionLabel: '探测',
       })
     }
 
@@ -461,6 +464,8 @@ export function AppRuntimePlanningPanel() {
           status: 'failed',
           message: `${target.server} · ${target.providerLabel ?? target.protocol}`,
           detail: target.message,
+          action: 'run-dns-probe',
+          actionLabel: '重试',
         })
       }
 
@@ -472,6 +477,8 @@ export function AppRuntimePlanningPanel() {
           message: warning,
           detail:
             'Probe warning remains informational unless promoted by policy.',
+          action: 'run-dns-probe',
+          actionLabel: '重试',
         })
       }
     }
@@ -596,6 +603,51 @@ export function AppRuntimePlanningPanel() {
       setDnsProbePending(false)
     }
   })
+
+  const focusStateAction = (message: string) => {
+    setOverviewFilter(message)
+
+    if (message === 'missing binding' || message === 'binding disabled') {
+      setResourceKind('policyBindings')
+      setSelectedResourceId(selectedBinding?.bindingId ?? newResourceValue)
+      return
+    }
+
+    if (message.startsWith('missing node pool: ')) {
+      setResourceKind('nodePools')
+      setSelectedResourceId(message.replace('missing node pool: ', ''))
+      return
+    }
+
+    if (message.startsWith('missing DNS profile: ')) {
+      setResourceKind('dnsProfiles')
+      setSelectedResourceId(message.replace('missing DNS profile: ', ''))
+      return
+    }
+
+    if (message.startsWith('missing security profile: ')) {
+      setResourceKind('securityProfiles')
+      setSelectedResourceId(message.replace('missing security profile: ', ''))
+    }
+  }
+
+  const handleAggregateDiagnosticAction = (
+    action: AggregateDiagnosticAction,
+  ) => {
+    if (action.action === 'focus-state') {
+      focusStateAction(action.message)
+      return
+    }
+
+    if (action.action === 'run-diagnostics') {
+      void runPlanningDiagnostics()
+      return
+    }
+
+    if (action.action === 'run-dns-probe') {
+      void handleProbeSelectedDnsProfile()
+    }
+  }
 
   const handleStartSession = useLockFn(async () => {
     if (!selectedAppId) {
@@ -1238,6 +1290,7 @@ export function AppRuntimePlanningPanel() {
             items={aggregateDiagnostics}
             actions={aggregateDiagnosticActions}
             dnsWarnings={dnsProbeReport?.warnings ?? []}
+            onActionClick={handleAggregateDiagnosticAction}
           />
         ) : null}
 
