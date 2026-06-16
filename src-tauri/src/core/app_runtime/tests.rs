@@ -85,53 +85,7 @@ fn app_runtime_dns_handoff_accepts_completed_dns_control_plane() {
 
 #[test]
 fn app_runtime_control_plane_completion_combines_handoff_artifact_and_preflight() {
-    let dns_handoff = sample_accepted_dns_handoff();
-    let state = AppRuntimeStateDocument {
-        apps: vec![sample_app()],
-        node_pools: vec![sample_pool()],
-        dns_profiles: vec![sample_dns_profile()],
-        security_profiles: vec![sample_security_profile()],
-        policy_bindings: vec![sample_binding()],
-        sessions: Vec::new(),
-        runtime_apply_audits: Vec::new(),
-        active_projection: None,
-    };
-    let mut artifact = build_app_runtime_projection_artifact(
-        &state,
-        AppRuntimePlanRequest {
-            app_id: "browser".into(),
-            session_id: None,
-        },
-    )
-    .unwrap();
-    artifact.storage_path = Some("artifact.yaml".into());
-    let preflight = AppRuntimeProjectionActivationPreflightReport {
-        status: AppRuntimeDiagnosticStatus::Healthy,
-        reason: "ready".into(),
-        artifact_id: artifact.artifact_id.clone(),
-        app_id: Some("browser".into()),
-        checksum: Some(artifact.checksum.clone()),
-        storage_path: Some("artifact.yaml".into()),
-        activation_mode: Some(AppRuntimeProjectionActivationMode::Staged),
-        mutates_runtime: Some(false),
-        checks: Vec::new(),
-        summary: AppRuntimeDiagnosticsSummary {
-            passed: 1,
-            warnings: 0,
-            failed: 0,
-            skipped: 0,
-        },
-        facts: Vec::new(),
-        warnings: Vec::new(),
-    };
-
-    let report = build_app_runtime_control_plane_completion_report(
-        dns_handoff,
-        artifact,
-        Some("artifact.yaml".into()),
-        true,
-        preflight,
-    );
+    let report = sample_control_plane_completion_report();
 
     assert_eq!(report.status, AppRuntimeControlPlaneCompletionStatus::Ready);
     assert!(report.ready_for_staged_activation);
@@ -140,6 +94,37 @@ fn app_runtime_control_plane_completion_combines_handoff_artifact_and_preflight(
     assert!(!report.auto_rollout);
     assert!(!report.auto_rollback);
     assert!(!report.mutates_runtime);
+}
+
+#[test]
+fn app_runtime_staged_activation_lifecycle_marks_ready_without_runtime_apply() {
+    let report = sample_control_plane_completion_report();
+    let artifact = &report.projection_artifact;
+    let active_projection = AppRuntimeActiveProjectionRecord {
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: artifact.app_id.clone(),
+        checksum: artifact.checksum.clone(),
+        storage_path: "artifact.yaml".into(),
+        activated_at: 500,
+        activation_kind: "state_marker".into(),
+        mutates_runtime: false,
+        rollback: AppRuntimeProjectionRollbackMetadata {
+            previous_artifact_id: None,
+            previous_checksum: None,
+            previous_storage_path: None,
+            captured_at: 500,
+            rollback_strategy: "restore_previous_active_projection_marker".into(),
+        },
+    };
+
+    let lifecycle = build_app_runtime_staged_activation_lifecycle_report(report, Some(active_projection), true);
+
+    assert_eq!(lifecycle.status, AppRuntimeStagedActivationLifecycleStatus::Ready);
+    assert!(lifecycle.marker_activated);
+    assert!(lifecycle.active_marker_matches_artifact);
+    assert!(lifecycle.rollback_boundary_available);
+    assert!(!lifecycle.runtime_apply_allowed);
+    assert!(!lifecycle.reload_mihomo);
 }
 
 #[test]
@@ -1330,6 +1315,56 @@ fn sample_accepted_dns_handoff() -> AppRuntimeDnsHandoffReport {
         true,
         Vec::new(),
         400,
+    )
+}
+
+fn sample_control_plane_completion_report() -> AppRuntimeControlPlaneCompletionReport {
+    let dns_handoff = sample_accepted_dns_handoff();
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
+        active_projection: None,
+    };
+    let mut artifact = build_app_runtime_projection_artifact(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    )
+    .unwrap();
+    artifact.storage_path = Some("artifact.yaml".into());
+    let preflight = AppRuntimeProjectionActivationPreflightReport {
+        status: AppRuntimeDiagnosticStatus::Healthy,
+        reason: "ready".into(),
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: Some("browser".into()),
+        checksum: Some(artifact.checksum.clone()),
+        storage_path: Some("artifact.yaml".into()),
+        activation_mode: Some(AppRuntimeProjectionActivationMode::Staged),
+        mutates_runtime: Some(false),
+        checks: Vec::new(),
+        summary: AppRuntimeDiagnosticsSummary {
+            passed: 1,
+            warnings: 0,
+            failed: 0,
+            skipped: 0,
+        },
+        facts: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    build_app_runtime_control_plane_completion_report(
+        dns_handoff,
+        artifact,
+        Some("artifact.yaml".into()),
+        true,
+        preflight,
     )
 }
 

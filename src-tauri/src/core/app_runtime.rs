@@ -7,7 +7,10 @@ mod projection;
 mod sessions;
 mod types;
 
-pub use handoff::{accept_app_runtime_dns_handoff, complete_app_runtime_control_plane};
+pub use handoff::{
+    accept_app_runtime_dns_handoff, complete_app_runtime_control_plane,
+    complete_app_runtime_staged_activation_lifecycle,
+};
 pub use projection::{
     activate_app_runtime_projection_artifact, apply_app_runtime_projection_artifact_to_runtime,
     build_app_runtime_projection_artifact, list_app_runtime_projection_runtime_apply_audits,

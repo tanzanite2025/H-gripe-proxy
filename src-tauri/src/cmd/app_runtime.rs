@@ -6,13 +6,15 @@ use crate::core::app_runtime::{
     AppRuntimeProjectionArtifact, AppRuntimeProjectionRuntimeApplyAuditRecord, AppRuntimeProjectionRuntimeApplyRequest,
     AppRuntimeProjectionRuntimeVerificationReport, AppRuntimeProjectionRuntimeVerificationRequest,
     AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest, AppRuntimeSessionLeakReport,
-    AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStateDocument, DnsProfile, NodePool,
-    SecurityProfile, accept_app_runtime_dns_handoff as accept_app_runtime_dns_handoff_record,
+    AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStagedActivationLifecycleReport,
+    AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
+    accept_app_runtime_dns_handoff as accept_app_runtime_dns_handoff_record,
     activate_app_runtime_projection_artifact as activate_app_runtime_projection_artifact_record,
     apply_app_runtime_projection_artifact_to_runtime as apply_app_runtime_projection_artifact_to_runtime_record,
     build_app_runtime_demo_seed_document,
     build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
     complete_app_runtime_control_plane as complete_app_runtime_control_plane_record,
+    complete_app_runtime_staged_activation_lifecycle as complete_app_runtime_staged_activation_lifecycle_record,
     delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
@@ -55,6 +57,15 @@ pub async fn complete_app_runtime_control_plane(
     request: AppRuntimePlanRequest,
 ) -> CmdResult<AppRuntimeControlPlaneCompletionReport> {
     complete_app_runtime_control_plane_record(request).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn complete_app_runtime_staged_activation_lifecycle(
+    request: AppRuntimePlanRequest,
+) -> CmdResult<AppRuntimeStagedActivationLifecycleReport> {
+    complete_app_runtime_staged_activation_lifecycle_record(request)
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]

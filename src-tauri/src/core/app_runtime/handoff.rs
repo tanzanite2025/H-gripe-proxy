@@ -35,6 +35,31 @@ pub async fn complete_app_runtime_control_plane(
     ))
 }
 
+pub async fn complete_app_runtime_staged_activation_lifecycle(
+    request: AppRuntimePlanRequest,
+) -> Result<AppRuntimeStagedActivationLifecycleReport> {
+    let control_plane_completion = complete_app_runtime_control_plane(request).await?;
+    if !control_plane_completion.ready_for_staged_activation {
+        return Ok(build_app_runtime_staged_activation_lifecycle_report(
+            control_plane_completion,
+            None,
+            false,
+        ));
+    }
+
+    let state = activate_app_runtime_projection_artifact(AppRuntimeProjectionActivationPreflightRequest {
+        artifact_id: control_plane_completion.projection_artifact.artifact_id.clone(),
+        expected_checksum: Some(control_plane_completion.projection_artifact.checksum.clone()),
+    })
+    .await?;
+
+    Ok(build_app_runtime_staged_activation_lifecycle_report(
+        control_plane_completion,
+        state.active_projection,
+        true,
+    ))
+}
+
 pub fn build_app_runtime_dns_handoff_report(
     dns_completion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
     handoff_record_path: Option<String>,
@@ -108,6 +133,84 @@ pub fn build_app_runtime_dns_handoff_report(
         auto_rollback: false,
         mutates_runtime: false,
         reload_mihomo: false,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
+pub fn build_app_runtime_staged_activation_lifecycle_report(
+    control_plane_completion: AppRuntimeControlPlaneCompletionReport,
+    active_projection: Option<AppRuntimeActiveProjectionRecord>,
+    marker_activated: bool,
+) -> AppRuntimeStagedActivationLifecycleReport {
+    let artifact = &control_plane_completion.projection_artifact;
+    let active_marker_matches_artifact = active_projection
+        .as_ref()
+        .is_some_and(|active| active.artifact_id == artifact.artifact_id && active.checksum == artifact.checksum);
+    let rollback_strategy = active_projection
+        .as_ref()
+        .map(|active| active.rollback.rollback_strategy.clone());
+    let rollback_boundary_available = active_projection.is_some();
+    let mut blockers = control_plane_completion.blockers.clone();
+    if control_plane_completion.status == AppRuntimeControlPlaneCompletionStatus::Blocked {
+        blockers.push("staged activation lifecycle requires completed app-runtime control plane".into());
+    }
+    if marker_activated && !active_marker_matches_artifact {
+        blockers.push("staged activation marker does not match generated projection artifact".into());
+    }
+    if active_projection.as_ref().is_some_and(|active| active.mutates_runtime) {
+        blockers.push("staged activation marker must not record runtime mutation".into());
+    }
+
+    let status = if !blockers.is_empty() {
+        AppRuntimeStagedActivationLifecycleStatus::Blocked
+    } else if marker_activated && active_marker_matches_artifact {
+        AppRuntimeStagedActivationLifecycleStatus::Ready
+    } else {
+        AppRuntimeStagedActivationLifecycleStatus::Degraded
+    };
+    let mut warnings = control_plane_completion.warnings.clone();
+    if !marker_activated {
+        warnings.push("Staged activation marker was skipped because completion is not ready".into());
+    }
+    warnings.push("Staged activation lifecycle does not perform runtime apply".into());
+    warnings.sort();
+    warnings.dedup();
+    let facts = vec![
+        "app-runtime staged activation lifecycle consumes control-plane completion".into(),
+        "staged activation marker records app-runtime state only".into(),
+        "staged activation lifecycle keeps runtimeApplyAllowed=false".into(),
+        "staged activation lifecycle does not reload Mihomo".into(),
+    ];
+    let next_app_runtime_step = if status == AppRuntimeStagedActivationLifecycleStatus::Ready {
+        "reviewStagedMarkerBeforeExplicitRuntimeApplyDecision"
+    } else if status == AppRuntimeStagedActivationLifecycleStatus::Degraded {
+        "rerunControlPlaneCompletionBeforeStagedActivation"
+    } else {
+        "resolveStagedActivationLifecycleBlockers"
+    }
+    .into();
+
+    AppRuntimeStagedActivationLifecycleReport {
+        status,
+        reason: app_runtime_staged_activation_lifecycle_reason(status, &blockers),
+        app_id: artifact.app_id.clone(),
+        control_plane_completion,
+        active_projection,
+        marker_activated,
+        active_marker_matches_artifact,
+        rollback_boundary_available,
+        rollback_strategy,
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step,
         blockers,
         warnings,
         facts,
@@ -280,5 +383,21 @@ fn app_runtime_control_plane_completion_reason(
             .first()
             .cloned()
             .unwrap_or_else(|| "app runtime control-plane completion is blocked".into()),
+    }
+}
+
+fn app_runtime_staged_activation_lifecycle_reason(
+    status: AppRuntimeStagedActivationLifecycleStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        AppRuntimeStagedActivationLifecycleStatus::Ready => "app runtime staged activation marker is ready".into(),
+        AppRuntimeStagedActivationLifecycleStatus::Degraded => {
+            "app runtime staged activation marker is waiting for a ready completion".into()
+        }
+        AppRuntimeStagedActivationLifecycleStatus::Blocked => blockers
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "app runtime staged activation lifecycle is blocked".into()),
     }
 }
