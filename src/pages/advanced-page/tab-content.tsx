@@ -1,3 +1,4 @@
+import { AppRuntimePlanningPanel } from '@/components/advanced/app-runtime-planning-panel'
 import { BlackholeBreakerPanel } from '@/components/advanced/blackhole-breaker-panel'
 import { EgressIdentityPanel } from '@/components/advanced/egress-identity-panel'
 import { EgressMonitorPanel } from '@/components/advanced/egress-monitor-panel'
@@ -44,10 +45,7 @@ export function AdvancedTabContent({
 
   return (
     <>
-      <AdvancedTabPanel
-        activeTab={activeTab}
-        tabId={ADVANCED_TAB_IDS.security}
-      >
+      <AdvancedTabPanel activeTab={activeTab} tabId={ADVANCED_TAB_IDS.security}>
         <div className="space-y-4">
           <SecurityConfigPanel
             config={config.security}
@@ -113,6 +111,13 @@ export function AdvancedTabContent({
             onRefreshStatus={onRefreshStatus}
           />
         </div>
+      </AdvancedTabPanel>
+
+      <AdvancedTabPanel
+        activeTab={activeTab}
+        tabId={ADVANCED_TAB_IDS.appRuntime}
+      >
+        <AppRuntimePlanningPanel />
       </AdvancedTabPanel>
 
       <AdvancedTabPanel
