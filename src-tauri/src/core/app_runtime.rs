@@ -1,5 +1,8 @@
 use crate::{
-    core::dns_runtime::{DnsResolverPlan, DnsResolverPlanStatus, build_dns_resolver_plan},
+    core::{
+        connection_metrics::{self, ConnectionMetricsSnapshot},
+        dns_runtime::{DnsResolverPlan, DnsResolverPlanStatus, build_dns_resolver_plan},
+    },
     utils::{dirs, help},
 };
 use anyhow::{Result, bail};
@@ -392,6 +395,47 @@ pub enum AppRuntimeSessionStatus {
     Failed,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeSessionObservationSource {
+    ConnectionMetricsSnapshot,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeSessionAttributionStatus {
+    Unattributed,
+    AppMatched,
+    AppMismatch,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionTrafficObservation {
+    pub upload_total: u64,
+    pub download_total: u64,
+    pub upload_speed: u64,
+    pub download_speed: u64,
+    pub active_connection_count: usize,
+    pub closed_since_last: usize,
+    pub memory: u32,
+    pub stale: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionObservationRecord {
+    pub observation_id: String,
+    pub session_id: String,
+    pub recorded_at: i64,
+    pub source: AppRuntimeSessionObservationSource,
+    pub attribution_status: AppRuntimeSessionAttributionStatus,
+    pub traffic: AppRuntimeSessionTrafficObservation,
+    pub connection_speed_count: usize,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeSessionRecord {
@@ -407,6 +451,8 @@ pub struct AppRuntimeSessionRecord {
     pub ended_at: Option<i64>,
     pub projected_rules: Vec<String>,
     pub projected_proxy_groups: Vec<String>,
+    #[serde(default)]
+    pub observations: Vec<AppRuntimeSessionObservationRecord>,
     pub facts: Vec<String>,
     pub warnings: Vec<String>,
 }
@@ -651,6 +697,25 @@ pub async fn finish_app_runtime_session(request: AppRuntimeSessionFinishRequest)
     if let Some(reason) = request.reason.as_ref().filter(|reason| !reason.trim().is_empty()) {
         session.reason = reason.trim().into();
     }
+    let session = session.clone();
+    save_app_runtime_state_document(&state).await?;
+    Ok(session)
+}
+
+pub async fn record_app_runtime_session_observation(session_id: &str) -> Result<AppRuntimeSessionRecord> {
+    let session_id = normalize_id(session_id, "session_id")?;
+    let metrics = connection_metrics::get_connection_metrics_snapshot().await;
+    let observation = session_observation_from_metrics(&session_id, &metrics);
+
+    let mut state = read_app_runtime_state_document().await?;
+    let Some(session) = state
+        .sessions
+        .iter_mut()
+        .find(|session| session.session_id == session_id)
+    else {
+        bail!("app runtime session `{session_id}` was not found");
+    };
+    session.observations.push(observation);
     let session = session.clone();
     save_app_runtime_state_document(&state).await?;
     Ok(session)
@@ -987,8 +1052,39 @@ fn session_record_from_diagnostics(
             .iter()
             .map(|group| group.name.clone())
             .collect(),
+        observations: Vec::new(),
         facts: diagnostics.facts.clone(),
         warnings: diagnostics.warnings.clone(),
+    }
+}
+
+fn session_observation_from_metrics(
+    session_id: &str,
+    metrics: &ConnectionMetricsSnapshot,
+) -> AppRuntimeSessionObservationRecord {
+    let recorded_at = now_millis();
+    AppRuntimeSessionObservationRecord {
+        observation_id: format!("{session_id}-{recorded_at}").into(),
+        session_id: session_id.into(),
+        recorded_at,
+        source: AppRuntimeSessionObservationSource::ConnectionMetricsSnapshot,
+        attribution_status: AppRuntimeSessionAttributionStatus::Unattributed,
+        traffic: AppRuntimeSessionTrafficObservation {
+            upload_total: metrics.traffic.upload_total,
+            download_total: metrics.traffic.download_total,
+            upload_speed: metrics.traffic.upload_speed,
+            download_speed: metrics.traffic.download_speed,
+            active_connection_count: metrics.traffic.active_connection_count,
+            closed_since_last: metrics.traffic.closed_since_last,
+            memory: metrics.traffic.memory,
+            stale: metrics.stale,
+        },
+        connection_speed_count: metrics.speeds.len(),
+        facts: vec![
+            "Observation snapshots reuse the Rust connection metrics path".into(),
+            "Current slice records session-level totals without claiming app-level socket attribution".into(),
+        ],
+        warnings: vec!["Per-app connection attribution is pending process/socket metadata correlation".into()],
     }
 }
 
@@ -1929,6 +2025,47 @@ mod tests {
         assert_eq!(session.status, AppRuntimeSessionStatus::Blocked);
         assert_eq!(session.plan_status, AppRuntimePlanStatus::Rejected);
         assert_eq!(session.diagnostics_status, AppRuntimeDiagnosticStatus::Blocked);
+    }
+
+    #[test]
+    fn session_observation_snapshots_connection_metrics_without_app_attribution() {
+        let metrics = ConnectionMetricsSnapshot {
+            traffic: connection_metrics::TrafficSnapshot {
+                upload_total: 100,
+                download_total: 200,
+                upload_speed: 10,
+                download_speed: 20,
+                active_connection_count: 2,
+                closed_since_last: 1,
+                memory: 42,
+            },
+            speeds: vec![connection_metrics::ConnectionSpeed {
+                id: "conn-a".into(),
+                cur_upload: 10,
+                cur_download: 20,
+            }],
+            stale: false,
+        };
+
+        let observation = session_observation_from_metrics("session-a", &metrics);
+
+        assert_eq!(observation.session_id, "session-a");
+        assert_eq!(
+            observation.source,
+            AppRuntimeSessionObservationSource::ConnectionMetricsSnapshot
+        );
+        assert_eq!(
+            observation.attribution_status,
+            AppRuntimeSessionAttributionStatus::Unattributed
+        );
+        assert_eq!(observation.traffic.active_connection_count, 2);
+        assert_eq!(observation.connection_speed_count, 1);
+        assert!(
+            observation
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("Per-app connection attribution is pending"))
+        );
     }
 
     #[test]
