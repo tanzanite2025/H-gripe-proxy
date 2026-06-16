@@ -5,14 +5,20 @@ import { useState } from 'react'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 import {
+  dnsDefaultRuntimeExpandedOptInExecution,
   dnsDefaultRuntimeExpandedOptInExecutionGate,
   dnsDefaultRuntimeExpandedOptInExecutionPreflight,
+  dnsDefaultRuntimeExpandedRollback,
   dnsDefaultRuntimePostExecutionObservedVerification,
   dnsDefaultRuntimeRollbackDrill,
+  type DnsDefaultRuntimeExpandedOptInExecutionReport,
+  type DnsDefaultRuntimeExpandedOptInExecutionStatus,
   type DnsDefaultRuntimeExpandedOptInExecutionGateReport,
   type DnsDefaultRuntimeExpandedOptInExecutionGateStatus,
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus,
+  type DnsDefaultRuntimeExpandedRollbackReport,
+  type DnsDefaultRuntimeExpandedRollbackStatus,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
   type DnsDefaultRuntimePostExecutionVerificationStatus,
   type DnsDefaultRuntimeRollbackDrillReport,
@@ -72,6 +78,30 @@ function expandedPreflightStatusColor(
   }
 }
 
+function expandedExecutionStatusColor(
+  status: DnsDefaultRuntimeExpandedOptInExecutionStatus,
+): DnsStatusColor {
+  switch (status) {
+    case 'executed':
+      return 'success'
+    case 'blocked':
+    case 'failed':
+      return 'error'
+  }
+}
+
+function expandedRollbackStatusColor(
+  status: DnsDefaultRuntimeExpandedRollbackStatus,
+): DnsStatusColor {
+  switch (status) {
+    case 'restored':
+      return 'success'
+    case 'blocked':
+    case 'failed':
+      return 'error'
+  }
+}
+
 export function RuntimePostExecutionSection() {
   const [verificationReport, setVerificationReport] =
     useState<DnsDefaultRuntimePostExecutionObservedVerificationReport | null>(
@@ -85,8 +115,12 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeExpandedOptInExecutionPreflightReport | null>(
       null,
     )
+  const [expandedExecutionReport, setExpandedExecutionReport] =
+    useState<DnsDefaultRuntimeExpandedOptInExecutionReport | null>(null)
+  const [expandedRollbackReport, setExpandedRollbackReport] =
+    useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
-    'verify' | 'drill' | 'gate' | 'preflight' | null
+    'verify' | 'drill' | 'gate' | 'preflight' | 'execute' | 'rollback' | null
   >(null)
 
   const handleVerify = useLockFn(async () => {
@@ -160,6 +194,40 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedExecution = useLockFn(async () => {
+    setPending('execute')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedOptInExecution(
+        undefined,
+        POST_EXECUTION_DOMAIN,
+        true,
+      )
+      setExpandedExecutionReport(nextReport)
+      setPreflightReport(nextReport.preflight)
+      setGateReport(nextReport.preflight.gate)
+      setVerificationReport(nextReport.preflight.gate.postExecution)
+      setDrillReport(nextReport.preflight.gate.postExecution.rollbackDrill)
+      showNotice.success('默认 DNS runtime expanded execution 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
+  const handleExpandedRollback = useLockFn(async () => {
+    setPending('rollback')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedRollback()
+      setExpandedRollbackReport(nextReport)
+      showNotice.success('默认 DNS runtime expanded rollback 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -201,6 +269,22 @@ export function RuntimePostExecutionSection() {
           >
             {pending === 'preflight' ? '预检中...' : 'Expanded preflight'}
           </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExpandedExecution}
+            disabled={pending !== null}
+          >
+            {pending === 'execute' ? '执行中...' : 'Expanded execute'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExpandedRollback}
+            disabled={pending !== null}
+          >
+            {pending === 'rollback' ? '回滚中...' : 'Expanded rollback'}
+          </Button>
         </div>
       </div>
 
@@ -208,8 +292,9 @@ export function RuntimePostExecutionSection() {
         Batch Q 只读取 Batch P active state、execution audit 与 rollback
         metadata；比较执行后 observed query 与执行前 shadow evidence，不自动
         rollout、不自动 rollback、不 reload Mihomo。Expanded gate / preflight
-        只判断是否允许后续更大范围显式 opt-in，并持久化下一批 active profile reload
-        候选预检记录；本批次仍不执行 rollout。
+        只判断是否允许后续更大范围显式 opt-in，并持久化 active profile reload
+        候选预检记录；Expanded execute 需要用户显式点击，才会通过现有 Mihomo config
+        reload 路径应用 DNS config，并可由 Expanded rollback 恢复。
       </div>
 
       {verificationReport ? (
@@ -278,6 +363,125 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedExecutionReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded execution"
+              chipLabel={expandedExecutionReport.status}
+              chipColor={expandedExecutionStatusColor(
+                expandedExecutionReport.status,
+              )}
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedExecutionReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedExecutionReport.reason}
+            />
+            <DnsTextRow
+              label="Apply DNS config"
+              value={
+                expandedExecutionReport.dnsConfigApplied
+                  ? '已应用并 reload'
+                  : expandedExecutionReport.dnsConfigApplyAttempted
+                    ? '已尝试但失败'
+                    : '未尝试'
+              }
+            />
+            <DnsTextRow
+              label="Active runtime"
+              value={
+                expandedExecutionReport.activeState?.activeRuntime ?? '未激活'
+              }
+            />
+            <DnsTextRow
+              label="Rollback"
+              value={
+                expandedExecutionReport.rollbackAvailable
+                  ? '可显式回滚'
+                  : '不可回滚'
+              }
+            />
+            <DnsTextRow
+              label="Execution record"
+              value={
+                expandedExecutionReport.executionRecordPath
+                  ? '已持久化'
+                  : '未持久化'
+              }
+              valueTitle={
+                expandedExecutionReport.executionRecordPath ?? undefined
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedExecutionReport.mutatesRuntime ? 'warning' : 'success'
+              }
+              label={`mutatesRuntime=${String(expandedExecutionReport.mutatesRuntime)}`}
+            />
+            <Chip
+              size="small"
+              color={expandedExecutionReport.reloadMihomo ? 'warning' : 'success'}
+              label={`reloadMihomo=${String(expandedExecutionReport.reloadMihomo)}`}
+            />
+          </div>
+
+          {expandedExecutionReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Execution blockers:{' '}
+              {expandedExecutionReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedRollbackReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded rollback"
+              chipLabel={expandedRollbackReport.status}
+              chipColor={expandedRollbackStatusColor(
+                expandedRollbackReport.status,
+              )}
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedRollbackReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedRollbackReport.reason}
+            />
+            <DnsTextRow
+              label="Restore DNS config"
+              value={
+                expandedRollbackReport.dnsConfigRestored
+                  ? '已恢复并 reload'
+                  : expandedRollbackReport.dnsConfigRestoreAttempted
+                    ? '已尝试但失败'
+                    : '未尝试'
+              }
+            />
+            <DnsTextRow
+              label="Restored runtime"
+              value={
+                expandedRollbackReport.restoredState?.activeRuntime ?? '未恢复'
+              }
+            />
+          </div>
+
+          {expandedRollbackReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Rollback blockers: {expandedRollbackReport.blockers.join('；')}
             </div>
           ) : null}
         </div>

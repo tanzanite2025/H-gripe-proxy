@@ -2,6 +2,7 @@ use super::*;
 
 mod execution_guard;
 mod executor_preflight;
+mod expanded_execution;
 mod expanded_gate;
 mod expanded_preflight;
 mod limited_execution;
@@ -13,6 +14,7 @@ mod switch_guard;
 
 pub use execution_guard::*;
 pub use executor_preflight::*;
+pub use expanded_execution::*;
 pub use expanded_gate::*;
 pub use expanded_preflight::*;
 pub use limited_execution::*;
