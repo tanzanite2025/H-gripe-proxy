@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded lifecycle closeout） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-X、Batch Y-Z（本批次，合并 history/trend/closeout/handoff 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded control-plane completion） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-Z、Batch AA（本批次，合并 snapshot/completion/handoff manifest/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1364,3 +1364,39 @@ feat(dns-runtime): add expanded lifecycle closeout
 - 新增 `dns_default_runtime_expanded_lifecycle_closeout` command。
 - Report 输出 history summary、active state、observation closed、handoff ready、rollback recommendation 与 next control-plane step。
 - DNS runtime stats UI 新增 Lifecycle closeout 显式按钮与汇总面板。
+
+### Batch AA：Default DNS runtime expanded control-plane completion（本批次，更大粒度 completion block）
+
+按“继续加大进度”的要求，本批次把 snapshot、completion gate、handoff manifest、roadmap checkpoint 合并在一个 PR 内，不再继续拆成多个小批次。目标是把 DNS default runtime expanded control-plane 从“可 closeout”推进到“可交接给下一控制面功能块”。
+
+```text
+feat(dns-runtime): add expanded control-plane completion
+```
+
+合并范围：
+
+- Completion：消费 Batch Z lifecycle closeout。
+- Snapshot：把 closeout status、history threshold、active execution、next control-plane step 汇总为 handoff manifest。
+- Manifest：持久化 `expanded-completion/<event>/handoff.yaml`，形成 Rust-owned 交接记录。
+- Checkpoint：明确 `dnsControlPlaneComplete=true` 只代表 DNS expanded control-plane 当前 session 完成，不代表数据面/协议栈迁移许可。
+
+建议边界：
+
+- Completion 不触发新的 reverify，不删除 active marker。
+- Handoff manifest 是 audit/control-plane artifact，不是 runtime mutation。
+- `phase8Allowed=false`、`promotionAllowed=false`、`autoRollout=false`、`autoRollback=false`、`mutatesRuntime=false`、`reloadMihomo=false` 必须保持。
+- Rollback trend 只输出 explicit rollback recommendation。
+
+不包含：
+
+- 不自动 rollback。
+- 不推广为长期默认。
+- 不触碰 TUN、transparent proxy、adapter outbound/inbound 或 protocol runtime。
+- 不开始 Phase 8。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_control_plane_completion` command。
+- 新增 handoff manifest report 与持久化路径。
+- Report 输出 DNS control-plane completion、handoff ready、phase8 allowed boundary、next control-plane step。
+- DNS runtime stats UI 新增 Control-plane completion 显式按钮与汇总面板。

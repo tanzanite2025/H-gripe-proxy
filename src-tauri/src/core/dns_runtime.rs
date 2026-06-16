@@ -2210,6 +2210,26 @@ dns:
         assert!(!closeout.promotion_allowed);
         assert!(!closeout.auto_rollout);
         assert!(!closeout.auto_rollback);
+
+        let completion = build_dns_default_runtime_expanded_control_plane_completion_report(
+            closeout,
+            true,
+            Some("handoff.yaml".into()),
+            Vec::new(),
+            hold_started_at.saturating_add(900),
+        );
+
+        assert_eq!(
+            completion.status,
+            DnsDefaultRuntimeExpandedControlPlaneCompletionStatus::Complete
+        );
+        assert!(completion.handoff_manifest_persisted);
+        assert!(completion.dns_control_plane_complete);
+        assert!(completion.handoff_ready);
+        assert!(!completion.phase8_allowed);
+        assert!(!completion.promotion_allowed);
+        assert!(!completion.auto_rollout);
+        assert!(!completion.auto_rollback);
     }
 
     #[test]
