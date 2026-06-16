@@ -17,6 +17,7 @@ import {
   evaluateAppRuntimeSession,
   finishAppRuntimeSession,
   getAppRuntimeState,
+  preflightAppRuntimeProjectionActivation,
   recordAppRuntimeSessionObservation,
   projectAppRuntimePlanToMihomo,
   startAppRuntimeSession,
@@ -33,6 +34,7 @@ import {
   type AppRuntimeDiagnosticsReport,
   type AppRuntimeMihomoProjection,
   type AppRuntimePlan,
+  type AppRuntimeProjectionActivationPreflightReport,
   type AppRuntimeProjectionArtifact,
   type AppRuntimeSessionEvaluationReport,
   type AppRuntimeSessionLeakReport,
@@ -88,6 +90,8 @@ export function AppRuntimePlanningPanel() {
   const [sessionPending, setSessionPending] = useState(false)
   const [dnsProbePending, setDnsProbePending] = useState(false)
   const [artifactPending, setArtifactPending] = useState(false)
+  const [activationPreflightPending, setActivationPreflightPending] =
+    useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
   const [projection, setProjection] =
     useState<AppRuntimeMihomoProjection | null>(null)
@@ -95,6 +99,8 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeDiagnosticsReport | null>(null)
   const [projectionArtifact, setProjectionArtifact] =
     useState<AppRuntimeProjectionArtifact | null>(null)
+  const [activationPreflight, setActivationPreflight] =
+    useState<AppRuntimeProjectionActivationPreflightReport | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [evaluation, setEvaluation] =
     useState<AppRuntimeSessionEvaluationReport | null>(null)
@@ -157,6 +163,12 @@ export function AppRuntimePlanningPanel() {
     () => state.apps.find((app) => app.appId === selectedAppId) ?? null,
     [selectedAppId, state.apps],
   )
+
+  useEffect(() => {
+    if (!projectionArtifact) {
+      setActivationPreflight(null)
+    }
+  }, [projectionArtifact])
 
   const appOptions = useMemo(
     () =>
@@ -634,6 +646,7 @@ export function AppRuntimePlanningPanel() {
         appId: selectedAppId,
       })
       setProjectionArtifact(artifact)
+      setActivationPreflight(null)
       setPlan(artifact.plan)
       setProjection(artifact.projection)
       setDiagnostics(artifact.diagnostics)
@@ -642,6 +655,30 @@ export function AppRuntimePlanningPanel() {
       showNotice.error(error)
     } finally {
       setArtifactPending(false)
+    }
+  })
+
+  const preflightProjectionActivation = useLockFn(async () => {
+    if (!projectionArtifact) {
+      return
+    }
+
+    setActivationPreflightPending(true)
+    try {
+      const report = await preflightAppRuntimeProjectionActivation({
+        artifactId: projectionArtifact.artifactId,
+        expectedChecksum: projectionArtifact.checksum,
+      })
+      setActivationPreflight(report)
+      showNotice.success(
+        report.status === 'blocked'
+          ? '受控激活 preflight 已完成：guard 阻止 runtime mutation'
+          : '受控激活 preflight 已完成',
+      )
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setActivationPreflightPending(false)
     }
   })
 
@@ -1570,6 +1607,9 @@ export function AppRuntimePlanningPanel() {
           plan={plan}
           projection={projection}
           projectionArtifact={projectionArtifact}
+          activationPreflight={activationPreflight}
+          activationPreflightPending={activationPreflightPending}
+          onPreflightActivation={() => void preflightProjectionActivation()}
         />
       </div>
     </Card>

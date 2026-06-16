@@ -331,6 +331,30 @@ pub struct AppRuntimeProjectionValidationReport {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionActivationPreflightRequest {
+    pub artifact_id: String,
+    pub expected_checksum: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionActivationPreflightReport {
+    pub status: AppRuntimeDiagnosticStatus,
+    pub reason: String,
+    pub artifact_id: String,
+    pub app_id: Option<String>,
+    pub checksum: Option<String>,
+    pub storage_path: Option<String>,
+    pub activation_mode: Option<AppRuntimeProjectionActivationMode>,
+    pub mutates_runtime: Option<bool>,
+    pub checks: Vec<AppRuntimeDiagnosticCheck>,
+    pub summary: AppRuntimeDiagnosticsSummary,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MihomoRuleProjection {
@@ -1121,6 +1145,29 @@ pub async fn persist_app_runtime_projection_artifact(artifact: &AppRuntimeProjec
     help::save_yaml(&path, &persisted_artifact, None).await?;
 
     Ok(storage_path)
+}
+
+pub async fn preflight_app_runtime_projection_activation(
+    request: AppRuntimeProjectionActivationPreflightRequest,
+) -> Result<AppRuntimeProjectionActivationPreflightReport> {
+    let path = app_runtime_projection_artifact_path(&request.artifact_id)?;
+    let storage_path: String = path.to_string_lossy().to_string().into();
+    let raw_yaml = match tokio::fs::read_to_string(&path).await {
+        Ok(raw_yaml) => raw_yaml,
+        Err(err) => {
+            return Ok(app_runtime_activation_preflight_missing_artifact_report(
+                request,
+                storage_path,
+                err.to_string().into(),
+            ));
+        }
+    };
+
+    Ok(app_runtime_activation_preflight_report_from_yaml(
+        &request,
+        storage_path,
+        raw_yaml.as_str(),
+    ))
 }
 
 pub fn diagnose_app_runtime(
@@ -2605,6 +2652,284 @@ fn safe_app_runtime_artifact_segment(value: &str) -> String {
     }
 }
 
+fn app_runtime_activation_preflight_missing_artifact_report(
+    request: AppRuntimeProjectionActivationPreflightRequest,
+    storage_path: String,
+    error: String,
+) -> AppRuntimeProjectionActivationPreflightReport {
+    let checks = vec![diagnostic_check(
+        "activation_artifact_exists",
+        AppRuntimeDiagnosticCategory::Projection,
+        AppRuntimeDiagnosticCheckStatus::Failed,
+        format!("projection artifact `{}` was not found", request.artifact_id).into(),
+        vec![storage_path.clone(), error],
+    )];
+    app_runtime_activation_preflight_report(request.artifact_id, None, None, Some(storage_path), None, None, checks)
+}
+
+fn app_runtime_activation_preflight_report_from_yaml(
+    request: &AppRuntimeProjectionActivationPreflightRequest,
+    storage_path: String,
+    raw_yaml: &str,
+) -> AppRuntimeProjectionActivationPreflightReport {
+    let mut checks = vec![diagnostic_check(
+        "activation_artifact_exists",
+        AppRuntimeDiagnosticCategory::Projection,
+        AppRuntimeDiagnosticCheckStatus::Passed,
+        format!("projection artifact `{}` is persisted", request.artifact_id).into(),
+        vec![storage_path.clone()],
+    )];
+    let parsed = match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(raw_yaml) {
+        Ok(value) => value,
+        Err(err) => {
+            checks.push(diagnostic_check(
+                "activation_artifact_parse",
+                AppRuntimeDiagnosticCategory::Projection,
+                AppRuntimeDiagnosticCheckStatus::Failed,
+                "projection artifact YAML could not be parsed".into(),
+                vec![err.to_string().into()],
+            ));
+            return app_runtime_activation_preflight_report(
+                request.artifact_id.clone(),
+                None,
+                None,
+                Some(storage_path),
+                None,
+                None,
+                checks,
+            );
+        }
+    };
+
+    checks.push(diagnostic_check(
+        "activation_artifact_parse",
+        AppRuntimeDiagnosticCategory::Projection,
+        AppRuntimeDiagnosticCheckStatus::Passed,
+        "projection artifact YAML is parseable".into(),
+        Vec::new(),
+    ));
+
+    let Some(mapping) = parsed.as_mapping() else {
+        checks.push(diagnostic_check(
+            "activation_artifact_shape",
+            AppRuntimeDiagnosticCategory::Projection,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "projection artifact YAML is not an object".into(),
+            Vec::new(),
+        ));
+        return app_runtime_activation_preflight_report(
+            request.artifact_id.clone(),
+            None,
+            None,
+            Some(storage_path),
+            None,
+            None,
+            checks,
+        );
+    };
+
+    let artifact_id = yaml_string_field(mapping, "artifactId").unwrap_or_else(|| request.artifact_id.clone());
+    let app_id = yaml_string_field(mapping, "appId");
+    let checksum = yaml_string_field(mapping, "checksum");
+    let activation_mode = yaml_string_field(mapping, "activationMode");
+    let mutates_runtime = yaml_bool_field(mapping, "mutatesRuntime");
+    let validation_status =
+        yaml_mapping_field(mapping, "validation").and_then(|validation| yaml_string_field(validation, "status"));
+
+    checks.push(diagnostic_check(
+        "activation_artifact_id_match",
+        AppRuntimeDiagnosticCategory::Projection,
+        if artifact_id == request.artifact_id {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        },
+        if artifact_id == request.artifact_id {
+            "persisted artifact id matches the requested artifact".into()
+        } else {
+            "persisted artifact id does not match the requested artifact".into()
+        },
+        vec![
+            format!("requested={}", request.artifact_id).into(),
+            format!("persisted={artifact_id}").into(),
+        ],
+    ));
+
+    checks.push(diagnostic_check(
+        "activation_checksum_match",
+        AppRuntimeDiagnosticCategory::Projection,
+        checksum_preflight_status(checksum.as_ref(), request.expected_checksum.as_ref()),
+        checksum_preflight_message(checksum.as_ref(), request.expected_checksum.as_ref()),
+        checksum_preflight_details(checksum.as_ref(), request.expected_checksum.as_ref()),
+    ));
+
+    checks.push(diagnostic_check(
+        "activation_validation_gate",
+        AppRuntimeDiagnosticCategory::Projection,
+        validation_status_preflight_status(validation_status.as_deref()),
+        validation_status_preflight_message(validation_status.as_deref()),
+        validation_status
+            .as_ref()
+            .map(|status| vec![format!("validation.status={status}").into()])
+            .unwrap_or_default(),
+    ));
+
+    let runtime_boundary_passed = activation_mode.as_deref() == Some("staged") && mutates_runtime == Some(false);
+    checks.push(diagnostic_check(
+        "activation_runtime_boundary",
+        AppRuntimeDiagnosticCategory::RuntimeBoundary,
+        if runtime_boundary_passed {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        } else {
+            AppRuntimeDiagnosticCheckStatus::Failed
+        },
+        "activation preflight requires staged artifact and mutatesRuntime=false".into(),
+        vec![
+            format!("activationMode={}", activation_mode.as_deref().unwrap_or("missing")).into(),
+            format!(
+                "mutatesRuntime={}",
+                mutates_runtime
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "missing".into())
+            )
+            .into(),
+        ],
+    ));
+
+    checks.push(diagnostic_check(
+        "activation_executor_guard",
+        AppRuntimeDiagnosticCategory::RuntimeBoundary,
+        AppRuntimeDiagnosticCheckStatus::Failed,
+        "controlled activation executor is not enabled in this preflight batch".into(),
+        vec![
+            "No Mihomo reload/restart was performed".into(),
+            "Next activation PR must add runtime apply and rollback metadata before this guard can pass".into(),
+        ],
+    ));
+
+    app_runtime_activation_preflight_report(
+        artifact_id,
+        app_id,
+        checksum,
+        Some(storage_path),
+        activation_mode.and_then(|mode| {
+            if mode == "staged" {
+                Some(AppRuntimeProjectionActivationMode::Staged)
+            } else {
+                None
+            }
+        }),
+        mutates_runtime,
+        checks,
+    )
+}
+
+fn app_runtime_activation_preflight_report(
+    artifact_id: String,
+    app_id: Option<String>,
+    checksum: Option<String>,
+    storage_path: Option<String>,
+    activation_mode: Option<AppRuntimeProjectionActivationMode>,
+    mutates_runtime: Option<bool>,
+    checks: Vec<AppRuntimeDiagnosticCheck>,
+) -> AppRuntimeProjectionActivationPreflightReport {
+    let summary = diagnostics_summary(&checks);
+    let status = diagnostics_status(&summary);
+    let reason = diagnostics_reason(status, &summary);
+    let warnings = projection_artifact_validation_warnings(&checks);
+    let facts = vec![
+        "Activation preflight reads a persisted Rust projection artifact".into(),
+        "This command never reloads, restarts, or mutates Mihomo runtime".into(),
+    ];
+
+    AppRuntimeProjectionActivationPreflightReport {
+        status,
+        reason,
+        artifact_id,
+        app_id,
+        checksum,
+        storage_path,
+        activation_mode,
+        mutates_runtime,
+        checks,
+        summary,
+        facts,
+        warnings,
+    }
+}
+
+fn yaml_value_for_key<'a>(mapping: &'a serde_yaml_ng::Mapping, key: &str) -> Option<&'a serde_yaml_ng::Value> {
+    mapping.get(&serde_yaml_ng::Value::String(std::string::String::from(key)))
+}
+
+fn yaml_string_field(mapping: &serde_yaml_ng::Mapping, key: &str) -> Option<String> {
+    yaml_value_for_key(mapping, key)
+        .and_then(serde_yaml_ng::Value::as_str)
+        .map(Into::into)
+}
+
+fn yaml_bool_field(mapping: &serde_yaml_ng::Mapping, key: &str) -> Option<bool> {
+    yaml_value_for_key(mapping, key).and_then(serde_yaml_ng::Value::as_bool)
+}
+
+fn yaml_mapping_field<'a>(mapping: &'a serde_yaml_ng::Mapping, key: &str) -> Option<&'a serde_yaml_ng::Mapping> {
+    yaml_value_for_key(mapping, key).and_then(serde_yaml_ng::Value::as_mapping)
+}
+
+fn checksum_preflight_status(
+    checksum: Option<&String>,
+    expected_checksum: Option<&String>,
+) -> AppRuntimeDiagnosticCheckStatus {
+    match (checksum, expected_checksum) {
+        (Some(checksum), Some(expected_checksum)) if checksum == expected_checksum => {
+            AppRuntimeDiagnosticCheckStatus::Passed
+        }
+        (Some(_), Some(_)) | (None, Some(_)) => AppRuntimeDiagnosticCheckStatus::Failed,
+        (_, None) => AppRuntimeDiagnosticCheckStatus::Warning,
+    }
+}
+
+fn checksum_preflight_message(checksum: Option<&String>, expected_checksum: Option<&String>) -> String {
+    match (checksum, expected_checksum) {
+        (Some(checksum), Some(expected_checksum)) if checksum == expected_checksum => {
+            "persisted artifact checksum matches the selected artifact".into()
+        }
+        (Some(_), Some(_)) => "persisted artifact checksum differs from the selected artifact".into(),
+        (None, Some(_)) => "persisted artifact is missing checksum".into(),
+        (_, None) => "selected artifact checksum was not provided for comparison".into(),
+    }
+}
+
+fn checksum_preflight_details(checksum: Option<&String>, expected_checksum: Option<&String>) -> Vec<String> {
+    vec![
+        format!("persisted={}", checksum.map(String::as_str).unwrap_or("missing")).into(),
+        format!(
+            "expected={}",
+            expected_checksum.map(String::as_str).unwrap_or("missing")
+        )
+        .into(),
+    ]
+}
+
+fn validation_status_preflight_status(status: Option<&str>) -> AppRuntimeDiagnosticCheckStatus {
+    match status {
+        Some("healthy") => AppRuntimeDiagnosticCheckStatus::Passed,
+        Some("degraded") => AppRuntimeDiagnosticCheckStatus::Warning,
+        Some("blocked") | None => AppRuntimeDiagnosticCheckStatus::Failed,
+        Some(_) => AppRuntimeDiagnosticCheckStatus::Failed,
+    }
+}
+
+fn validation_status_preflight_message(status: Option<&str>) -> String {
+    match status {
+        Some("healthy") => "artifact validation gate is healthy".into(),
+        Some("degraded") => "artifact validation gate is degraded".into(),
+        Some("blocked") => "artifact validation gate is blocked".into(),
+        Some(status) => format!("artifact validation gate has unknown status `{status}`").into(),
+        None => "artifact validation gate status is missing".into(),
+    }
+}
+
 fn yaml_patch_validation_status(
     plan: &AppRuntimePlan,
     projection: &AppRuntimeMihomoProjection,
@@ -3738,6 +4063,39 @@ mod tests {
             .find(|check| check.dimension == dimension)
             .map(|check| check.status)
             .expect("leak check dimension present")
+    }
+
+    #[test]
+    fn activation_preflight_blocks_before_runtime_mutation() {
+        let request = AppRuntimeProjectionActivationPreflightRequest {
+            artifact_id: "app-runtime-browser-abc123".into(),
+            expected_checksum: Some("checksum-a".into()),
+        };
+        let report = app_runtime_activation_preflight_report_from_yaml(
+            &request,
+            "app-runtime/artifacts/app-runtime-browser-abc123/artifact.yaml".into(),
+            r#"
+artifactId: app-runtime-browser-abc123
+appId: browser
+checksum: checksum-a
+activationMode: staged
+mutatesRuntime: false
+validation:
+  status: healthy
+"#,
+        );
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Blocked);
+        assert_eq!(report.app_id, Some("browser".into()));
+        assert_eq!(report.checksum, Some("checksum-a".into()));
+        assert!(report.summary.passed >= 5);
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|check| check.check_id == "activation_executor_guard"
+                    && check.status == AppRuntimeDiagnosticCheckStatus::Failed)
+        );
     }
 
     fn sample_app() -> AppRegistryEntry {
