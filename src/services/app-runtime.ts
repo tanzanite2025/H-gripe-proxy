@@ -565,6 +565,10 @@ export async function activateAppRuntimeProjectionArtifact(
   return invoke('activate_app_runtime_projection_artifact', { request })
 }
 
+export async function rollbackAppRuntimeProjectionActivation(): Promise<AppRuntimeStateDocument> {
+  return invoke('rollback_app_runtime_projection_activation')
+}
+
 export async function listAppRuntimeSessions(
   appId?: string,
 ): Promise<AppRuntimeSessionRecord[]> {

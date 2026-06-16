@@ -557,30 +557,72 @@ pub async fn activate_app_runtime_projection_artifact(
 ) -> Result<AppRuntimeStateDocument> {
     let artifact = read_persisted_app_runtime_projection_artifact(&request.artifact_id).await?;
     validate_app_runtime_projection_artifact_activation_request(&artifact, &request)?;
-    let storage_path = artifact.storage_path.clone().unwrap_or_else(|| {
-        app_runtime_projection_artifact_path(&artifact.artifact_id)
-            .map(|path| path.to_string_lossy().to_string().into())
-            .unwrap_or_default()
-    });
     update_state_document(|state| {
         let previous = state.active_projection.clone();
-        let activated_at = now_millis();
-        state.active_projection = Some(AppRuntimeActiveProjectionRecord {
-            artifact_id: artifact.artifact_id.clone(),
-            app_id: artifact.app_id.clone(),
-            checksum: artifact.checksum.clone(),
-            storage_path,
-            activated_at,
-            activation_kind: "state_marker".into(),
-            mutates_runtime: false,
-            rollback: AppRuntimeProjectionRollbackMetadata {
-                previous_artifact_id: previous.as_ref().map(|item| item.artifact_id.clone()),
-                previous_checksum: previous.as_ref().map(|item| item.checksum.clone()),
-                previous_storage_path: previous.as_ref().map(|item| item.storage_path.clone()),
-                captured_at: activated_at,
-                rollback_strategy: "restore_previous_active_projection_marker".into(),
-            },
-        });
+        state.active_projection = Some(app_runtime_active_projection_record_from_artifact(
+            &artifact,
+            "state_marker",
+            previous.as_ref(),
+            now_millis(),
+        ));
+        Ok(())
+    })
+    .await
+}
+
+pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeStateDocument> {
+    let current = read_app_runtime_state_document()
+        .await?
+        .active_projection
+        .ok_or_else(|| anyhow::anyhow!("no active projection marker is available for rollback"))?;
+    if current.mutates_runtime {
+        bail!("active projection marker mutates runtime and cannot be rolled back by the state marker gate");
+    }
+
+    let restored = match current.rollback.previous_artifact_id.as_ref() {
+        Some(previous_artifact_id) => {
+            let artifact = read_persisted_app_runtime_projection_artifact(previous_artifact_id).await?;
+            if current.rollback.previous_checksum.as_ref() != Some(&artifact.checksum) {
+                bail!(
+                    "rollback checksum for `{}` does not match persisted artifact",
+                    artifact.artifact_id
+                );
+            }
+            let storage_path = app_runtime_projection_artifact_storage_path(&artifact);
+            if current.rollback.previous_storage_path.as_ref() != Some(&storage_path) {
+                bail!(
+                    "rollback storage path for `{}` does not match persisted artifact",
+                    artifact.artifact_id
+                );
+            }
+            validate_app_runtime_projection_artifact_activation_request(
+                &artifact,
+                &AppRuntimeProjectionActivationPreflightRequest {
+                    artifact_id: artifact.artifact_id.clone(),
+                    expected_checksum: Some(artifact.checksum.clone()),
+                },
+            )?;
+            Some(app_runtime_active_projection_record_from_artifact(
+                &artifact,
+                "state_marker_rollback",
+                Some(&current),
+                now_millis(),
+            ))
+        }
+        None => None,
+    };
+
+    update_state_document(|state| {
+        let Some(active_projection) = state.active_projection.as_ref() else {
+            bail!("active projection marker changed before rollback could complete");
+        };
+        if active_projection.artifact_id != current.artifact_id
+            || active_projection.checksum != current.checksum
+            || active_projection.activated_at != current.activated_at
+        {
+            bail!("active projection marker changed before rollback could complete");
+        }
+        state.active_projection = restored;
         Ok(())
     })
     .await
@@ -2109,6 +2151,38 @@ fn validate_app_runtime_projection_artifact_activation_request(
         bail!("projection artifact validation is blocked");
     }
     Ok(())
+}
+
+fn app_runtime_projection_artifact_storage_path(artifact: &PersistedAppRuntimeProjectionArtifact) -> String {
+    artifact.storage_path.clone().unwrap_or_else(|| {
+        app_runtime_projection_artifact_path(&artifact.artifact_id)
+            .map(|path| path.to_string_lossy().to_string().into())
+            .unwrap_or_default()
+    })
+}
+
+fn app_runtime_active_projection_record_from_artifact(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+    activation_kind: &str,
+    previous: Option<&AppRuntimeActiveProjectionRecord>,
+    activated_at: i64,
+) -> AppRuntimeActiveProjectionRecord {
+    AppRuntimeActiveProjectionRecord {
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: artifact.app_id.clone(),
+        checksum: artifact.checksum.clone(),
+        storage_path: app_runtime_projection_artifact_storage_path(artifact),
+        activated_at,
+        activation_kind: activation_kind.into(),
+        mutates_runtime: false,
+        rollback: AppRuntimeProjectionRollbackMetadata {
+            previous_artifact_id: previous.map(|item| item.artifact_id.clone()),
+            previous_checksum: previous.map(|item| item.checksum.clone()),
+            previous_storage_path: previous.map(|item| item.storage_path.clone()),
+            captured_at: activated_at,
+            rollback_strategy: "restore_previous_active_projection_marker".into(),
+        },
+    }
 }
 
 fn app_runtime_activation_preflight_missing_artifact_report(

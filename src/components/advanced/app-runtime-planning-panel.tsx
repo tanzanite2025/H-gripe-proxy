@@ -21,6 +21,7 @@ import {
   preflightAppRuntimeProjectionActivation,
   recordAppRuntimeSessionObservation,
   projectAppRuntimePlanToMihomo,
+  rollbackAppRuntimeProjectionActivation,
   startAppRuntimeSession,
   upsertAppPolicyBinding,
   upsertAppRegistryEntry,
@@ -94,6 +95,8 @@ export function AppRuntimePlanningPanel() {
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
   const [activateMarkerPending, setActivateMarkerPending] = useState(false)
+  const [activationRollbackPending, setActivationRollbackPending] =
+    useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
   const [projection, setProjection] =
     useState<AppRuntimeMihomoProjection | null>(null)
@@ -703,6 +706,23 @@ export function AppRuntimePlanningPanel() {
       showNotice.error(error)
     } finally {
       setActivateMarkerPending(false)
+    }
+  })
+
+  const rollbackProjectionActivation = useLockFn(async () => {
+    if (!state.activeProjection) {
+      return
+    }
+
+    setActivationRollbackPending(true)
+    try {
+      const nextState = await rollbackAppRuntimeProjectionActivation()
+      setState(nextState)
+      showNotice.success('已回滚 active projection marker（未 reload Mihomo）')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setActivationRollbackPending(false)
     }
   })
 
@@ -1635,8 +1655,10 @@ export function AppRuntimePlanningPanel() {
           activationPreflightPending={activationPreflightPending}
           activeProjection={state.activeProjection ?? null}
           activateMarkerPending={activateMarkerPending}
+          activationRollbackPending={activationRollbackPending}
           onPreflightActivation={() => void preflightProjectionActivation()}
           onMarkActive={() => void markProjectionArtifactActive()}
+          onRollbackActivation={() => void rollbackProjectionActivation()}
         />
       </div>
     </Card>

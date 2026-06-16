@@ -851,6 +851,63 @@ validation:
     );
 }
 
+#[test]
+fn active_projection_rollback_marker_restores_previous_artifact_metadata() {
+    let previous_artifact = persisted_projection_artifact(
+        "projection-browser-previous",
+        "checksum-previous",
+        "app-runtime/artifacts/previous/artifact.yaml",
+    );
+    let previous = app_runtime_active_projection_record_from_artifact(&previous_artifact, "state_marker", None, 10);
+
+    let current_artifact = persisted_projection_artifact(
+        "projection-browser-current",
+        "checksum-current",
+        "app-runtime/artifacts/current/artifact.yaml",
+    );
+    let current =
+        app_runtime_active_projection_record_from_artifact(&current_artifact, "state_marker", Some(&previous), 20);
+
+    let restored = app_runtime_active_projection_record_from_artifact(
+        &previous_artifact,
+        "state_marker_rollback",
+        Some(&current),
+        30,
+    );
+
+    assert_eq!(restored.artifact_id, previous_artifact.artifact_id);
+    assert_eq!(restored.checksum, previous_artifact.checksum);
+    assert_eq!(restored.storage_path, "app-runtime/artifacts/previous/artifact.yaml");
+    assert_eq!(restored.activation_kind, "state_marker_rollback");
+    assert_eq!(
+        restored.rollback.previous_artifact_id,
+        Some(current_artifact.artifact_id)
+    );
+    assert_eq!(restored.rollback.previous_checksum, Some(current_artifact.checksum));
+    assert_eq!(
+        restored.rollback.previous_storage_path,
+        Some("app-runtime/artifacts/current/artifact.yaml".into())
+    );
+}
+
+fn persisted_projection_artifact(
+    artifact_id: &str,
+    checksum: &str,
+    storage_path: &str,
+) -> PersistedAppRuntimeProjectionArtifact {
+    PersistedAppRuntimeProjectionArtifact {
+        artifact_id: artifact_id.into(),
+        app_id: "browser".into(),
+        storage_path: Some(storage_path.into()),
+        activation_mode: AppRuntimeProjectionActivationMode::Staged,
+        mutates_runtime: false,
+        checksum: checksum.into(),
+        validation: PersistedAppRuntimeProjectionValidation {
+            status: AppRuntimeDiagnosticStatus::Healthy,
+        },
+    }
+}
+
 fn sample_app() -> AppRegistryEntry {
     AppRegistryEntry {
         app_id: "browser".into(),
