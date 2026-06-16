@@ -417,6 +417,13 @@ export type DnsDefaultRuntimeExpandedRollbackStatus =
   | 'restored'
   | 'blocked'
   | 'failed'
+export type DnsDefaultRuntimeExpandedPostExecutionVerificationStatus =
+  | 'verified'
+  | 'failed'
+  | 'blocked'
+export type DnsDefaultRuntimeExpandedRollbackDrillStatus =
+  | 'ready'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -607,6 +614,38 @@ export interface DnsDefaultRuntimeExpandedRollbackReport {
   rollbackRecordPath?: string | null
   dnsConfigRestoreAttempted: boolean
   dnsConfigRestored: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedRollbackDrillReport {
+  status: DnsDefaultRuntimeExpandedRollbackDrillStatus
+  reason: string
+  activeState?: DnsDefaultRuntimeActiveState | null
+  executionRecord?: DnsDefaultRuntimeExecutionRecord | null
+  preflightRecord?: DnsDefaultRuntimeExpandedOptInExecutionPreflightRecord | null
+  wouldRollback: boolean
+  wouldRestoreRuntime: string
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport {
+  status: DnsDefaultRuntimeExpandedPostExecutionVerificationStatus
+  reason: string
+  activeState?: DnsDefaultRuntimeActiveState | null
+  executionRecord?: DnsDefaultRuntimeExecutionRecord | null
+  preflightRecord?: DnsDefaultRuntimeExpandedOptInExecutionPreflightRecord | null
+  observedEvidence: DnsDefaultRuntimeShadowEvidenceReport
+  rollbackDrill: DnsDefaultRuntimeExpandedRollbackDrillReport
+  failureAudit: DnsDefaultRuntimePostExecutionFailureAudit
   mutatesRuntime: boolean
   reloadMihomo: boolean
   blockers: string[]
@@ -1038,6 +1077,38 @@ export async function dnsDefaultRuntimeExpandedRollback(): Promise<DnsDefaultRun
     )
   } catch (err) {
     console.error('DNS default runtime expanded rollback failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedRollbackDrill(): Promise<DnsDefaultRuntimeExpandedRollbackDrillReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedRollbackDrillReport>(
+      'dns_default_runtime_expanded_rollback_drill',
+    )
+  } catch (err) {
+    console.error('DNS default runtime expanded rollback drill failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedPostExecutionObservedVerification(
+  yaml?: string,
+  domain?: string,
+): Promise<DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport>(
+      'dns_default_runtime_expanded_post_execution_observed_verification',
+      {
+        yaml,
+        domain,
+      },
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime expanded post-execution observed verification failed:',
+      err,
+    )
     throw err
   }
 }

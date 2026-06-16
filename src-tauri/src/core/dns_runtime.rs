@@ -2080,6 +2080,54 @@ dns:
                 .map(|state| state.state.as_str()),
             Some("expandedActiveProfileReloaded")
         );
+
+        let expanded_drill = build_dns_default_runtime_expanded_rollback_drill_report(
+            expanded_execution.active_state.clone(),
+            Some(expanded_execution.execution_record.clone()),
+            Some(expanded_execution.preflight.preflight_record.clone()),
+            Vec::new(),
+        );
+
+        assert_eq!(
+            expanded_drill.status,
+            DnsDefaultRuntimeExpandedRollbackDrillStatus::Ready
+        );
+        assert!(!expanded_drill.auto_rollback);
+        assert_eq!(expanded_drill.would_restore_runtime, "mihomoManagedDefaultDns");
+
+        let expanded_plan = build_dns_resolver_plan(yaml).unwrap();
+        let expanded_probe = controller.probe(expanded_plan.clone(), "example.com".to_string()).await;
+        let expanded_readiness = build_dns_default_runtime_readiness_report(yaml, Some(expanded_probe)).unwrap();
+        let expanded_rust_report = controller.query(expanded_plan, "example.com".to_string()).await;
+        let expanded_system_result = DnsQueryResult {
+            domain: "example.com".to_string(),
+            ip: "93.184.216.34".to_string(),
+            latency: 18,
+            success: true,
+            error: None,
+            protocol: "System".to_string(),
+        };
+        let expanded_observed_evidence = build_dns_default_runtime_shadow_evidence_report(
+            expanded_readiness,
+            expanded_rust_report,
+            expanded_system_result,
+        );
+        let expanded_post_execution = build_dns_default_runtime_expanded_post_execution_observed_verification_report(
+            expanded_execution.active_state,
+            Some(expanded_execution.execution_record),
+            Some(expanded_execution.preflight.preflight_record),
+            expanded_observed_evidence,
+            expanded_drill,
+            Vec::new(),
+        );
+
+        assert_eq!(
+            expanded_post_execution.status,
+            DnsDefaultRuntimeExpandedPostExecutionVerificationStatus::Verified
+        );
+        assert!(!expanded_post_execution.failure_audit.required);
+        assert!(!expanded_post_execution.mutates_runtime);
+        assert!(!expanded_post_execution.reload_mihomo);
     }
 
     #[test]
