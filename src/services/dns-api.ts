@@ -358,6 +358,44 @@ export interface DnsDefaultRuntimeOptInExecutorPreflightReport {
   facts: string[]
 }
 
+export type DnsDefaultRuntimeExecutionGuardStatus = 'ready' | 'blocked'
+
+export interface DnsDefaultRuntimeExecutionSupersededState {
+  previousRuntime: string
+  candidateRuntime: string
+  state: string
+  supersededAtEpochSeconds: number
+  reason: string
+}
+
+export interface DnsDefaultRuntimeExecutionPersistence {
+  requested: boolean
+  prepared: boolean
+  auditRecordPath?: string | null
+  rollbackMarkerPath?: string | null
+  supersededStatePath?: string | null
+  auditPersisted: boolean
+  rollbackMarkerPersisted: boolean
+  supersededStatePersisted: boolean
+  errors: string[]
+}
+
+export interface DnsDefaultRuntimeOptInExecutionGuardReport {
+  status: DnsDefaultRuntimeExecutionGuardStatus
+  reason: string
+  preflight: DnsDefaultRuntimeOptInExecutorPreflightReport
+  persistence: DnsDefaultRuntimeExecutionPersistence
+  supersededState: DnsDefaultRuntimeExecutionSupersededState
+  executionAllowed: boolean
+  userTriggerRequired: boolean
+  mutatesRuntime: boolean
+  executed: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -630,6 +668,26 @@ export async function dnsDefaultRuntimeOptInExecutorPreflight(
       'DNS default runtime opt-in executor preflight failed:',
       err,
     )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeOptInExecutionGuard(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeOptInExecutionGuardReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeOptInExecutionGuardReport>(
+      'dns_default_runtime_opt_in_execution_guard',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime opt-in execution guard failed:', err)
     throw err
   }
 }
