@@ -1,5 +1,7 @@
 use crate::{
+    config::{Config, IProfiles, PrfItem, PrfOption, profiles::resolve_profile_file_path},
     core::{
+        CoreManager,
         connection_metrics::{self, ConnectionAttributionCandidate, ConnectionMetricsSnapshot},
         dns_runtime::{DnsResolverPlanStatus, build_dns_resolver_plan},
     },
@@ -12,9 +14,11 @@ pub use types::*;
 use anyhow::{Result, bail};
 use chrono::Local;
 use serde::Deserialize;
+use serde_yaml_ng::{Mapping, Value};
 use sha2::{Digest as _, Sha256};
 use smartstring::alias::String;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, path::PathBuf};
+use tokio::fs;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,7 +29,20 @@ struct PersistedAppRuntimeProjectionArtifact {
     activation_mode: AppRuntimeProjectionActivationMode,
     mutates_runtime: bool,
     checksum: String,
+    projection: PersistedAppRuntimeMihomoProjection,
     validation: PersistedAppRuntimeProjectionValidation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedAppRuntimeMihomoProjection {
+    #[serde(default)]
+    proxy_groups: Vec<MihomoProxyGroupProjection>,
+    #[serde(default)]
+    rules: Vec<MihomoRuleProjection>,
+    #[serde(default)]
+    dns: Option<MihomoDnsProjection>,
+    yaml_patch: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -570,14 +587,74 @@ pub async fn activate_app_runtime_projection_artifact(
     .await
 }
 
+pub async fn apply_app_runtime_projection_artifact_to_runtime(
+    request: AppRuntimeProjectionRuntimeApplyRequest,
+) -> Result<AppRuntimeStateDocument> {
+    let artifact = read_persisted_app_runtime_projection_artifact(&request.artifact_id).await?;
+    validate_app_runtime_projection_artifact_activation_request(
+        &artifact,
+        &AppRuntimeProjectionActivationPreflightRequest {
+            artifact_id: request.artifact_id.clone(),
+            expected_checksum: request.expected_checksum.clone(),
+        },
+    )?;
+    validate_app_runtime_projection_runtime_apply_candidate(&artifact)?;
+
+    let previous = read_app_runtime_state_document().await?.active_projection;
+    let active_projection = previous
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("projection artifact must be marked active before runtime apply"))?;
+    if active_projection.artifact_id != artifact.artifact_id || active_projection.checksum != artifact.checksum {
+        bail!("projection artifact must match the current active projection marker before runtime apply");
+    }
+    if active_projection.mutates_runtime {
+        bail!("active projection already mutates runtime; rollback it before applying another runtime candidate");
+    }
+
+    let candidate = write_app_runtime_projection_runtime_merge_candidate(&artifact).await?;
+    let result = async {
+        let profiles = Config::profiles().await;
+        profiles.edit_draft(|profiles| attach_app_runtime_runtime_merge_candidate(profiles, &candidate))?;
+
+        let outcome = CoreManager::global()
+            .update_config_without_restart_with_force(request.force)
+            .await?;
+        if !outcome.is_valid() {
+            bail!("app runtime projection candidate failed runtime validation: {outcome}");
+        }
+
+        update_state_document(|state| {
+            ensure_active_projection_unchanged(state.active_projection.as_ref(), previous.as_ref())?;
+            state.active_projection = Some(app_runtime_active_projection_record_from_artifact_with_runtime(
+                &artifact,
+                "runtime_profile_merge",
+                previous.as_ref(),
+                now_millis(),
+                true,
+            ));
+            Ok(())
+        })
+        .await
+    }
+    .await;
+
+    Config::profiles().await.discard();
+    cleanup_app_runtime_projection_runtime_merge_candidate(&candidate).await;
+
+    if result.is_err() {
+        let _ = CoreManager::global()
+            .update_config_without_restart_with_force(true)
+            .await;
+    }
+
+    result
+}
+
 pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeStateDocument> {
     let current = read_app_runtime_state_document()
         .await?
         .active_projection
         .ok_or_else(|| anyhow::anyhow!("no active projection marker is available for rollback"))?;
-    if current.mutates_runtime {
-        bail!("active projection marker mutates runtime and cannot be rolled back by the state marker gate");
-    }
 
     let restored = match current.rollback.previous_artifact_id.as_ref() {
         Some(previous_artifact_id) => {
@@ -612,16 +689,17 @@ pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeSt
         None => None,
     };
 
-    update_state_document(|state| {
-        let Some(active_projection) = state.active_projection.as_ref() else {
-            bail!("active projection marker changed before rollback could complete");
-        };
-        if active_projection.artifact_id != current.artifact_id
-            || active_projection.checksum != current.checksum
-            || active_projection.activated_at != current.activated_at
-        {
-            bail!("active projection marker changed before rollback could complete");
+    if current.mutates_runtime {
+        let outcome = CoreManager::global()
+            .update_config_without_restart_with_force(true)
+            .await?;
+        if !outcome.is_valid() {
+            bail!("failed to restore runtime while rolling back active projection: {outcome}");
         }
+    }
+
+    update_state_document(|state| {
+        ensure_active_projection_unchanged(state.active_projection.as_ref(), Some(&current))?;
         state.active_projection = restored;
         Ok(())
     })
@@ -2161,11 +2239,40 @@ fn app_runtime_projection_artifact_storage_path(artifact: &PersistedAppRuntimePr
     })
 }
 
+fn validate_app_runtime_projection_runtime_apply_candidate(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+) -> Result<()> {
+    if artifact.projection.proxy_groups.is_empty() && artifact.projection.rules.is_empty() {
+        bail!("projection artifact has no proxy groups or rules to apply");
+    }
+    if artifact.projection.dns.is_some() {
+        bail!("runtime apply guard does not mutate DNS runtime yet");
+    }
+    app_runtime_projection_runtime_merge_mapping(&artifact.projection.yaml_patch)?;
+    Ok(())
+}
+
 fn app_runtime_active_projection_record_from_artifact(
     artifact: &PersistedAppRuntimeProjectionArtifact,
     activation_kind: &str,
     previous: Option<&AppRuntimeActiveProjectionRecord>,
     activated_at: i64,
+) -> AppRuntimeActiveProjectionRecord {
+    app_runtime_active_projection_record_from_artifact_with_runtime(
+        artifact,
+        activation_kind,
+        previous,
+        activated_at,
+        false,
+    )
+}
+
+fn app_runtime_active_projection_record_from_artifact_with_runtime(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+    activation_kind: &str,
+    previous: Option<&AppRuntimeActiveProjectionRecord>,
+    activated_at: i64,
+    mutates_runtime: bool,
 ) -> AppRuntimeActiveProjectionRecord {
     AppRuntimeActiveProjectionRecord {
         artifact_id: artifact.artifact_id.clone(),
@@ -2174,15 +2281,153 @@ fn app_runtime_active_projection_record_from_artifact(
         storage_path: app_runtime_projection_artifact_storage_path(artifact),
         activated_at,
         activation_kind: activation_kind.into(),
-        mutates_runtime: false,
+        mutates_runtime,
         rollback: AppRuntimeProjectionRollbackMetadata {
             previous_artifact_id: previous.map(|item| item.artifact_id.clone()),
             previous_checksum: previous.map(|item| item.checksum.clone()),
             previous_storage_path: previous.map(|item| item.storage_path.clone()),
             captured_at: activated_at,
-            rollback_strategy: "restore_previous_active_projection_marker".into(),
+            rollback_strategy: if mutates_runtime {
+                "restore_runtime_from_profile_and_previous_marker".into()
+            } else {
+                "restore_previous_active_projection_marker".into()
+            },
         },
     }
+}
+
+fn ensure_active_projection_unchanged(
+    current: Option<&AppRuntimeActiveProjectionRecord>,
+    expected: Option<&AppRuntimeActiveProjectionRecord>,
+) -> Result<()> {
+    match (current, expected) {
+        (None, None) => Ok(()),
+        (Some(current), Some(expected))
+            if current.artifact_id == expected.artifact_id
+                && current.checksum == expected.checksum
+                && current.activated_at == expected.activated_at =>
+        {
+            Ok(())
+        }
+        _ => bail!("active projection marker changed before the operation could complete"),
+    }
+}
+
+struct AppRuntimeRuntimeMergeCandidate {
+    uid: String,
+    file: String,
+    path: PathBuf,
+}
+
+async fn write_app_runtime_projection_runtime_merge_candidate(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+) -> Result<AppRuntimeRuntimeMergeCandidate> {
+    let profiles = Config::profiles().await;
+    let profiles_arc = profiles.latest_arc();
+    let current_profile_uid = profiles_arc
+        .get_current()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("no current profile is selected for app runtime activation"))?;
+    let current_item = profiles_arc
+        .get_item(&current_profile_uid)
+        .map_err(|err| anyhow::anyhow!("failed to get current profile `{current_profile_uid}`: {err}"))?;
+    let current_merge_uid = current_item.current_merge().cloned();
+    let current_merge_item = current_merge_uid
+        .as_ref()
+        .and_then(|uid| profiles_arc.get_item(uid).ok().cloned());
+    let current_merge_yaml = match current_merge_item {
+        Some(item) => Some(item.read_file().await?),
+        None => None,
+    };
+    drop(profiles_arc);
+    drop(profiles);
+
+    let merge_yaml =
+        app_runtime_projection_runtime_merge_yaml(current_merge_yaml.as_deref(), &artifact.projection.yaml_patch)?;
+    let uid: String = format!(
+        "m-app-runtime-{}-{}",
+        safe_app_runtime_artifact_segment(&artifact.artifact_id),
+        help::get_uid("")
+    )
+    .into();
+    let file: String = format!("{uid}.yaml").into();
+    let path = resolve_profile_file_path(file.as_str())?;
+    if fs::try_exists(&path).await.unwrap_or(false) {
+        bail!("app runtime merge candidate file already exists: {file}");
+    }
+    fs::write(&path, merge_yaml.as_bytes()).await?;
+
+    Ok(AppRuntimeRuntimeMergeCandidate { uid, file, path })
+}
+
+fn app_runtime_projection_runtime_merge_yaml(
+    current_merge_yaml: Option<&str>,
+    projection_yaml_patch: &str,
+) -> Result<String> {
+    let mut merge = current_merge_yaml
+        .filter(|yaml| !yaml.trim().is_empty())
+        .map(app_runtime_projection_runtime_merge_mapping)
+        .transpose()?
+        .unwrap_or_default();
+    let patch = app_runtime_projection_runtime_merge_mapping(projection_yaml_patch)?;
+    merge_app_runtime_projection_runtime_patch(&mut merge, patch);
+    Ok(serde_yaml_ng::to_string(&merge)?.into())
+}
+
+fn app_runtime_projection_runtime_merge_mapping(yaml: &str) -> Result<Mapping> {
+    if yaml.trim().is_empty() {
+        return Ok(Mapping::new());
+    }
+    let value = serde_yaml_ng::from_str::<Value>(yaml)?;
+    value
+        .as_mapping()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("app runtime projection YAML patch must be a mapping"))
+}
+
+fn merge_app_runtime_projection_runtime_patch(merge: &mut Mapping, patch: Mapping) {
+    for (key, value) in patch {
+        if matches!(key.as_str(), Some("rules" | "proxy-groups"))
+            && let Some(existing) = merge.get_mut(&key).and_then(Value::as_sequence_mut)
+            && let Some(incoming) = value.as_sequence()
+        {
+            existing.extend(incoming.iter().cloned());
+            continue;
+        }
+        merge.insert(key, value);
+    }
+}
+
+fn attach_app_runtime_runtime_merge_candidate(
+    profiles: &mut IProfiles,
+    candidate: &AppRuntimeRuntimeMergeCandidate,
+) -> Result<()> {
+    let current_profile_uid = profiles
+        .get_current()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("no current profile is selected for app runtime activation"))?;
+    let items = profiles.items.get_or_insert_with(Vec::new);
+    items.retain(|item| item.uid.as_ref() != Some(&candidate.uid));
+    items.push(PrfItem {
+        uid: Some(candidate.uid.clone()),
+        itype: Some("merge".into()),
+        file: Some(candidate.file.clone()),
+        updated: Some((now_millis() / 1000) as usize),
+        ..PrfItem::default()
+    });
+    let Some(current_item) = items
+        .iter_mut()
+        .find(|item| item.uid.as_ref() == Some(&current_profile_uid))
+    else {
+        bail!("failed to find current profile `{current_profile_uid}` for app runtime activation");
+    };
+    let option = current_item.option.get_or_insert_with(PrfOption::default);
+    option.merge = Some(candidate.uid.clone());
+    Ok(())
+}
+
+async fn cleanup_app_runtime_projection_runtime_merge_candidate(candidate: &AppRuntimeRuntimeMergeCandidate) {
+    let _ = fs::remove_file(&candidate.path).await;
 }
 
 fn app_runtime_activation_preflight_missing_artifact_report(

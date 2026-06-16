@@ -22,9 +22,11 @@ interface AppRuntimePlanningResultPanelProps {
   activationPreflightPending: boolean
   activeProjection: AppRuntimeActiveProjectionRecord | null
   activateMarkerPending: boolean
+  runtimeApplyPending: boolean
   activationRollbackPending: boolean
   onPreflightActivation: () => void
   onMarkActive: () => void
+  onApplyRuntime: () => void
   onRollbackActivation: () => void
 }
 
@@ -37,9 +39,11 @@ export function AppRuntimePlanningResultPanel({
   activationPreflightPending,
   activeProjection,
   activateMarkerPending,
+  runtimeApplyPending,
   activationRollbackPending,
   onPreflightActivation,
   onMarkActive,
+  onApplyRuntime,
   onRollbackActivation,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
@@ -115,6 +119,21 @@ export function AppRuntimePlanningResultPanel({
               }
             >
               {activateMarkerPending ? '标记中...' : '标记 active'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={onApplyRuntime}
+              disabled={
+                runtimeApplyPending ||
+                !projectionArtifact.storagePath ||
+                projectionArtifact.validation.status === 'blocked' ||
+                activeProjection?.artifactId !==
+                  projectionArtifact.artifactId ||
+                (activeProjection?.mutatesRuntime ?? false)
+              }
+            >
+              {runtimeApplyPending ? '应用中...' : '显式应用 runtime'}
             </Button>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

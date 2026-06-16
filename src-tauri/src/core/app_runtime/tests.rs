@@ -890,6 +890,62 @@ fn active_projection_rollback_marker_restores_previous_artifact_metadata() {
     );
 }
 
+#[test]
+fn runtime_apply_marker_records_runtime_mutation_boundary() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let marker = app_runtime_active_projection_record_from_artifact_with_runtime(
+        &artifact,
+        "runtime_profile_merge",
+        None,
+        40,
+        true,
+    );
+
+    assert!(marker.mutates_runtime);
+    assert_eq!(marker.activation_kind, "runtime_profile_merge");
+    assert_eq!(
+        marker.rollback.rollback_strategy,
+        "restore_runtime_from_profile_and_previous_marker"
+    );
+}
+
+#[test]
+fn runtime_merge_candidate_appends_projection_rules_and_groups() {
+    let current = r#"
+rules:
+  - DOMAIN,existing.example,DIRECT
+proxy-groups:
+  - name: Existing
+    type: select
+    proxies:
+      - DIRECT
+"#;
+    let patch = r#"
+rules:
+  - PROCESS-NAME,browser.exe,premium-us
+proxy-groups:
+  - name: premium-us
+    type: select
+    proxies:
+      - us-1
+"#;
+
+    let merged = app_runtime_projection_runtime_merge_yaml(Some(current), patch).unwrap();
+    let value = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&merged).unwrap();
+    let mapping = value.as_mapping().unwrap();
+    let rules = mapping.get("rules").unwrap().as_sequence().unwrap();
+    let groups = mapping.get("proxy-groups").unwrap().as_sequence().unwrap();
+
+    assert_eq!(rules.len(), 2);
+    assert_eq!(groups.len(), 2);
+    assert_eq!(rules[0].as_str(), Some("DOMAIN,existing.example,DIRECT"));
+    assert_eq!(rules[1].as_str(), Some("PROCESS-NAME,browser.exe,premium-us"));
+}
+
 fn persisted_projection_artifact(
     artifact_id: &str,
     checksum: &str,
@@ -902,6 +958,23 @@ fn persisted_projection_artifact(
         activation_mode: AppRuntimeProjectionActivationMode::Staged,
         mutates_runtime: false,
         checksum: checksum.into(),
+        projection: PersistedAppRuntimeMihomoProjection {
+            proxy_groups: vec![MihomoProxyGroupProjection {
+                name: "premium-us".into(),
+                group_type: "select".into(),
+                proxies: vec!["us-1".into()],
+                url: None,
+                interval: None,
+            }],
+            rules: vec![MihomoRuleProjection {
+                matcher: "PROCESS-NAME".into(),
+                value: "browser.exe".into(),
+                target: "premium-us".into(),
+                rule: "PROCESS-NAME,browser.exe,premium-us".into(),
+            }],
+            dns: None,
+            yaml_patch: "proxy-groups:\n- name: premium-us\n  type: select\n  proxies:\n  - us-1\nrules:\n- PROCESS-NAME,browser.exe,premium-us\n".into(),
+        },
         validation: PersistedAppRuntimeProjectionValidation {
             status: AppRuntimeDiagnosticStatus::Healthy,
         },
