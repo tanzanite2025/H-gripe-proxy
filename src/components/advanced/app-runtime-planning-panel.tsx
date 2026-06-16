@@ -48,6 +48,7 @@ import { showNotice } from '@/services/notice-service'
 
 import { AppRuntimeAggregateDiagnosticsPanel } from './app-runtime-aggregate-diagnostics-panel'
 import { AppRuntimeDnsProfileForm } from './app-runtime-dns-profile-form'
+import { AppRuntimeNodePoolForm } from './app-runtime-node-pool-form'
 import { AppRuntimeOverviewPanel } from './app-runtime-overview-panel'
 import {
   collectionFor,
@@ -1260,177 +1261,14 @@ export function AppRuntimePlanningPanel() {
           onSave={() => void handleSaveDnsProfileDraft()}
         />
 
-        {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">Node pool 快速表单</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                编辑当前 app 绑定的节点池常用字段；保存后可在 policy binding
-                表单中选择该 pool。
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <TextField
-                fullWidth
-                size="small"
-                label="Pool ID"
-                value={nodePoolDraft.poolId}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    poolId: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Name"
-                value={nodePoolDraft.name}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    name: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Region"
-                value={nodePoolDraft.region}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    region: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Protocols"
-                value={nodePoolDraft.protocols}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    protocols: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔。"
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Purpose"
-                value={nodePoolDraft.purpose}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    purpose: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Cost tier"
-                value={nodePoolDraft.costTier}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    costTier: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Candidate node"
-                value={nodePoolDraft.candidateNodeName}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    candidateNodeName: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Candidate proxy group"
-                value={nodePoolDraft.candidateProxyGroup}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    candidateProxyGroup: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Candidate tags"
-                value={nodePoolDraft.candidateTags}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    candidateTags: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔。"
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Pool tags"
-                value={nodePoolDraft.tags}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setNodePoolDraft((draft) => ({
-                    ...draft,
-                    tags: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔。"
-              />
-              <div className="flex items-end">
-                <Button
-                  size="small"
-                  startIcon={<Save className="h-4 w-4" />}
-                  onClick={() => void handleSaveNodePoolDraft()}
-                  disabled={resourcePending}
-                >
-                  保存 node pool
-                </Button>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              当前绑定: {selectedBinding?.nodePoolId || '未绑定 node pool'}
-            </div>
-          </div>
-        ) : null}
+        <AppRuntimeNodePoolForm
+          selectedApp={selectedApp}
+          selectedBinding={selectedBinding}
+          draft={nodePoolDraft}
+          pending={resourcePending}
+          setDraft={setNodePoolDraft}
+          onSave={() => void handleSaveNodePoolDraft()}
+        />
 
         {selectedApp ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
