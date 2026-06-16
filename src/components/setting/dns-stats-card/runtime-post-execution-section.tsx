@@ -8,7 +8,9 @@ import {
   dnsDefaultRuntimeExpandedOptInExecution,
   dnsDefaultRuntimeExpandedOptInExecutionGate,
   dnsDefaultRuntimeExpandedOptInExecutionPreflight,
+  dnsDefaultRuntimeExpandedPostExecutionObservedVerification,
   dnsDefaultRuntimeExpandedRollback,
+  dnsDefaultRuntimeExpandedRollbackDrill,
   dnsDefaultRuntimePostExecutionObservedVerification,
   dnsDefaultRuntimeRollbackDrill,
   type DnsDefaultRuntimeExpandedOptInExecutionReport,
@@ -17,6 +19,8 @@ import {
   type DnsDefaultRuntimeExpandedOptInExecutionGateStatus,
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus,
+  type DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport,
+  type DnsDefaultRuntimeExpandedRollbackDrillReport,
   type DnsDefaultRuntimeExpandedRollbackReport,
   type DnsDefaultRuntimeExpandedRollbackStatus,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
@@ -117,10 +121,24 @@ export function RuntimePostExecutionSection() {
     )
   const [expandedExecutionReport, setExpandedExecutionReport] =
     useState<DnsDefaultRuntimeExpandedOptInExecutionReport | null>(null)
+  const [expandedPostExecutionReport, setExpandedPostExecutionReport] =
+    useState<DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport | null>(
+      null,
+    )
+  const [expandedDrillReport, setExpandedDrillReport] =
+    useState<DnsDefaultRuntimeExpandedRollbackDrillReport | null>(null)
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
-    'verify' | 'drill' | 'gate' | 'preflight' | 'execute' | 'rollback' | null
+    | 'verify'
+    | 'drill'
+    | 'gate'
+    | 'preflight'
+    | 'execute'
+    | 'expandedVerify'
+    | 'expandedDrill'
+    | 'rollback'
+    | null
   >(null)
 
   const handleVerify = useLockFn(async () => {
@@ -228,6 +246,37 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedPostExecution = useLockFn(async () => {
+    setPending('expandedVerify')
+    try {
+      const nextReport =
+        await dnsDefaultRuntimeExpandedPostExecutionObservedVerification(
+          undefined,
+          POST_EXECUTION_DOMAIN,
+        )
+      setExpandedPostExecutionReport(nextReport)
+      setExpandedDrillReport(nextReport.rollbackDrill)
+      showNotice.success('默认 DNS runtime expanded observed verification 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
+  const handleExpandedDrill = useLockFn(async () => {
+    setPending('expandedDrill')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedRollbackDrill()
+      setExpandedDrillReport(nextReport)
+      showNotice.success('默认 DNS runtime expanded rollback drill 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -280,6 +329,24 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedPostExecution}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedVerify'
+              ? '验证中...'
+              : 'Expanded verify'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExpandedDrill}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedDrill' ? '演练中...' : 'Expanded drill'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -295,6 +362,8 @@ export function RuntimePostExecutionSection() {
         只判断是否允许后续更大范围显式 opt-in，并持久化 active profile reload
         候选预检记录；Expanded execute 需要用户显式点击，才会通过现有 Mihomo config
         reload 路径应用 DNS config，并可由 Expanded rollback 恢复。
+        Expanded verify / drill 只读取 Batch T active state 与 audit
+        metadata，生成 failure audit，不自动回滚。
       </div>
 
       {verificationReport ? (
@@ -363,6 +432,116 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedPostExecutionReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded verification"
+              chipLabel={expandedPostExecutionReport.status}
+              chipColor={verificationStatusColor(
+                expandedPostExecutionReport.status,
+              )}
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedPostExecutionReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedPostExecutionReport.reason}
+            />
+            <DnsTextRow
+              label="Observed"
+              value={expandedPostExecutionReport.observedEvidence.status}
+            />
+            <DnsTextRow
+              label="Active state"
+              value={expandedPostExecutionReport.activeState?.state ?? '未读取'}
+            />
+            <DnsTextRow
+              label="Preflight"
+              value={
+                expandedPostExecutionReport.preflightRecord
+                  ? '已读取'
+                  : '未读取'
+              }
+            />
+            <DnsTextRow
+              label="Expanded drill"
+              value={expandedPostExecutionReport.rollbackDrill.status}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedPostExecutionReport.failureAudit.required
+                  ? 'warning'
+                  : 'success'
+              }
+              label={`failureAudit=${String(expandedPostExecutionReport.failureAudit.required)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedPostExecutionReport.rollbackDrill.status === 'ready'
+                  ? 'success'
+                  : 'error'
+              }
+              label={`rollbackDrill=${expandedPostExecutionReport.rollbackDrill.status}`}
+            />
+          </div>
+
+          {expandedPostExecutionReport.failureAudit.reasons.length > 0 ? (
+            <div className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+              Expanded failure audit:{' '}
+              {expandedPostExecutionReport.failureAudit.reasons.join('；')}
+            </div>
+          ) : null}
+
+          {expandedPostExecutionReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Expanded verification blockers:{' '}
+              {expandedPostExecutionReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedDrillReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded rollback drill"
+              chipLabel={expandedDrillReport.status}
+              chipColor={rollbackDrillStatusColor(expandedDrillReport.status)}
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedDrillReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedDrillReport.reason}
+            />
+            <DnsTextRow
+              label="Would restore"
+              value={expandedDrillReport.wouldRestoreRuntime}
+            />
+            <DnsTextRow
+              label="Auto rollback"
+              value={
+                expandedDrillReport.autoRollback ? '会自动回滚' : '不会自动回滚'
+              }
+            />
+          </div>
+
+          {expandedDrillReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Expanded drill blockers:{' '}
+              {expandedDrillReport.blockers.join('；')}
             </div>
           ) : null}
         </div>

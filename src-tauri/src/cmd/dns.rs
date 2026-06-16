@@ -5,7 +5,8 @@ use crate::core::dns_config_explain::{
 };
 use crate::core::dns_runtime::{
     DnsDefaultRuntimeExpandedOptInExecutionGateReport, DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
-    DnsDefaultRuntimeExpandedOptInExecutionReport, DnsDefaultRuntimeExpandedRollbackReport,
+    DnsDefaultRuntimeExpandedOptInExecutionReport, DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport,
+    DnsDefaultRuntimeExpandedRollbackDrillReport, DnsDefaultRuntimeExpandedRollbackReport,
     DnsDefaultRuntimeLimitedOptInExecutionReport, DnsDefaultRuntimeLimitedRollbackReport,
     DnsDefaultRuntimeOptInExecutionGuardReport, DnsDefaultRuntimeOptInExecutorPreflightReport,
     DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimePostExecutionObservedVerificationReport,
@@ -16,7 +17,9 @@ use crate::core::dns_runtime::{
     dns_default_runtime_expanded_opt_in_execution as build_dns_default_runtime_expanded_opt_in_execution,
     dns_default_runtime_expanded_opt_in_execution_gate as build_dns_default_runtime_expanded_opt_in_execution_gate,
     dns_default_runtime_expanded_opt_in_execution_preflight as build_dns_default_runtime_expanded_opt_in_execution_preflight,
+    dns_default_runtime_expanded_post_execution_observed_verification as build_dns_default_runtime_expanded_post_execution_observed_verification,
     dns_default_runtime_expanded_rollback as build_dns_default_runtime_expanded_rollback,
+    dns_default_runtime_expanded_rollback_drill as build_dns_default_runtime_expanded_rollback_drill,
     dns_default_runtime_limited_opt_in_execution as build_dns_default_runtime_limited_opt_in_execution,
     dns_default_runtime_limited_rollback as build_dns_default_runtime_limited_rollback,
     dns_default_runtime_opt_in_execution_guard as build_dns_default_runtime_opt_in_execution_guard,
@@ -259,6 +262,23 @@ pub async fn dns_default_runtime_expanded_opt_in_execution(
 #[tauri::command]
 pub async fn dns_default_runtime_expanded_rollback() -> CmdResult<DnsDefaultRuntimeExpandedRollbackReport> {
     build_dns_default_runtime_expanded_rollback().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_expanded_rollback_drill() -> CmdResult<DnsDefaultRuntimeExpandedRollbackDrillReport> {
+    build_dns_default_runtime_expanded_rollback_drill()
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_expanded_post_execution_observed_verification(
+    yaml: Option<String>,
+    domain: Option<String>,
+) -> CmdResult<DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport> {
+    build_dns_default_runtime_expanded_post_execution_observed_verification(yaml, domain)
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]

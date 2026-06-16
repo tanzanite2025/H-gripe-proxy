@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded execution） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S、Batch T（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback 已进入 Rust 单一路径；下一步应做执行后 observed verification/failure audit 闭环，仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded post-execution 闭环） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-T、Batch U（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification 已进入 Rust 单一路径；下一步应评估是否允许长期稳定性 gate，仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1178,3 +1178,33 @@ feat(dns-runtime): add expanded execution and rollback
 - 新增 `dns_default_runtime_expanded_rollback` command，只回滚 expanded execution 写入的 active state。
 - Expanded execution / rollback 都持久化 execution record 与 active runtime state，并在 report 中展示 apply/restore 状态。
 - DNS runtime stats UI 新增 Expanded execute / Expanded rollback 显式按钮与结果面板。
+
+### Batch U：Default DNS runtime expanded post-execution verification（本批次，执行后闭环）
+
+Batch T 已经允许用户显式触发 active reload。本批次补齐执行后的 Rust-owned observed verification / failure audit / rollback drill 闭环，避免 expanded execution 之后只能依赖手工判断。
+
+```text
+feat(dns-runtime): add expanded post-execution verification
+```
+
+建议边界：
+
+- Expanded post-execution verification 必须只读取 Batch T active state、execution record 与 Batch S preflight record。
+- 必须确认 active state 来源是 `expandedActiveProfileReloaded`，execution audit 是 `defaultDnsRuntimeExpandedOptInExecution`。
+- Observed evidence 仍走 Rust DNS resolver controlled query 与系统查询对比。
+- Failure audit 只生成 report，不自动 rollback。
+- Expanded rollback drill 只验证 rollback metadata 是否足够，不调用 `dns_default_runtime_expanded_rollback`。
+
+不包含：
+
+- 不自动 rollback。
+- 不自动扩大 rollout。
+- 不把 expanded execution 视为长期默认。
+- 不触碰 TUN、transparent proxy、adapter outbound/inbound 或 protocol runtime。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_post_execution_observed_verification` command。
+- 新增 `dns_default_runtime_expanded_rollback_drill` command。
+- Report 输出 expanded active state、execution record、preflight record、observed evidence、failure audit 与 rollback drill 状态。
+- DNS runtime stats UI 新增 Expanded verify / Expanded drill 显式按钮与结果展示。
