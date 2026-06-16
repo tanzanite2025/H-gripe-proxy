@@ -2,7 +2,6 @@ import { useLockFn } from 'ahooks'
 import {
   Activity,
   Boxes,
-  ClipboardList,
   Download,
   RefreshCw,
   Route,
@@ -45,8 +44,6 @@ import {
   type AppRuntimePlan,
   type AppRuntimeSessionEvaluationReport,
   type AppRuntimeSessionLeakReport,
-  type AppRuntimeSessionRecord,
-  type AppRuntimeSessionStatus,
   type AppRuntimeStateDocument,
   type DnsProfile,
   type NodePool,
@@ -58,280 +55,34 @@ import {
 } from '@/services/dns-api'
 import { showNotice } from '@/services/notice-service'
 
-const emptyState: AppRuntimeStateDocument = {
-  apps: [],
-  nodePools: [],
-  dnsProfiles: [],
-  securityProfiles: [],
-  policyBindings: [],
-  sessions: [],
-}
-
-function stateCountLabel(label: string, count: number) {
-  return `${label}: ${count}`
-}
-
-function selectAppLabel(app: AppRegistryEntry) {
-  return `${app.name} (${app.appId})`
-}
-
-function statusColor(
-  status: string,
-): 'default' | 'success' | 'warning' | 'error' {
-  switch (status) {
-    case 'ready':
-    case 'healthy':
-    case 'planned':
-    case 'completed':
-    case 'passed':
-    case 'pass':
-    case 'appMatched':
-      return 'success'
-    case 'degraded':
-    case 'warning':
-    case 'warn':
-    case 'skipped':
-    case 'notApplicable':
-    case 'unattributed':
-      return 'warning'
-    case 'blocked':
-    case 'rejected':
-    case 'failed':
-    case 'fail':
-    case 'appMismatch':
-      return 'error'
-    default:
-      return 'default'
-  }
-}
-
-function sortSessions(sessions: AppRuntimeSessionRecord[]) {
-  return [...sessions].sort(
-    (left, right) =>
-      right.startedAt - left.startedAt ||
-      right.sessionId.localeCompare(left.sessionId),
-  )
-}
-
-function upsertSession(
-  sessions: AppRuntimeSessionRecord[],
-  nextSession: AppRuntimeSessionRecord,
-) {
-  const nextSessions = sessions.filter(
-    (session) => session.sessionId !== nextSession.sessionId,
-  )
-  nextSessions.push(nextSession)
-  return sortSessions(nextSessions)
-}
-
-type FinishableSessionStatus = Exclude<AppRuntimeSessionStatus, 'planned'>
-
-type RuntimeResourceKind =
-  | 'apps'
-  | 'nodePools'
-  | 'dnsProfiles'
-  | 'securityProfiles'
-  | 'policyBindings'
-
-const resourceKindOptions = [
-  { value: 'apps', label: 'Apps' },
-  { value: 'nodePools', label: 'Node pools' },
-  { value: 'dnsProfiles', label: 'DNS profiles' },
-  { value: 'securityProfiles', label: 'Security profiles' },
-  { value: 'policyBindings', label: 'Policy bindings' },
-]
-
-const routingIntentOptions = [
-  { value: 'direct', label: 'direct' },
-  { value: 'proxy', label: 'proxy' },
-  { value: 'reject', label: 'reject' },
-  { value: 'auto', label: 'auto' },
-  { value: 'fallback', label: 'fallback' },
-]
-
-const enabledOptions = [
-  { value: 'true', label: 'enabled' },
-  { value: 'false', label: 'disabled' },
-]
-
-const processMatcherKindOptions = [
-  { value: 'process_name', label: 'process_name' },
-  { value: 'process_path', label: 'process_path' },
-  { value: 'process_name_regex', label: 'process_name_regex' },
-  { value: 'process_path_regex', label: 'process_path_regex' },
-  { value: 'bundle_id', label: 'bundle_id' },
-]
-
-const newResourceValue = '__new__'
-
-function now() {
-  return Date.now()
-}
-
-function createAppTemplate(): AppRegistryEntry {
-  return {
-    appId: 'new-app',
-    name: 'New App',
-    launchArgs: [],
-    env: [],
-    processMatchers: [{ kind: 'process_name', pattern: 'new-app.exe' }],
-    platformMetadata: {},
-    tags: [],
-    updatedAt: now(),
-  }
-}
-
-function createNodePoolTemplate(): NodePool {
-  return {
-    poolId: 'new-pool',
-    name: 'New Node Pool',
-    tags: [],
-    protocols: [],
-    healthConstraints: {},
-    candidateNodes: [{ nodeName: 'Proxy', tags: [] }],
-    updatedAt: now(),
-  }
-}
-
-function createDnsProfileTemplate(): DnsProfile {
-  return {
-    profileId: 'new-dns-profile',
-    name: 'New DNS Profile',
-    configYaml: 'nameserver:\n  - 1.1.1.1',
-    testDomain: 'example.com',
-    tags: [],
-    updatedAt: now(),
-  }
-}
-
-function createSecurityProfileTemplate(): SecurityProfile {
-  return {
-    profileId: 'new-security-profile',
-    name: 'New Security Profile',
-    controls: {
-      requireNodePool: true,
-      requireDnsProfile: false,
-      allowedRoutingIntents: ['proxy', 'fallback'],
-    },
-    tags: [],
-    updatedAt: now(),
-  }
-}
-
-function createPolicyBindingTemplate(appId = ''): AppPolicyBinding {
-  return {
-    bindingId: 'new-binding',
-    appId: appId || 'new-app',
-    routingIntent: 'proxy',
-    enabled: true,
-    updatedAt: now(),
-  }
-}
-
-function resourceIdFor(
-  kind: RuntimeResourceKind,
-  resource:
-    | AppRegistryEntry
-    | NodePool
-    | DnsProfile
-    | SecurityProfile
-    | AppPolicyBinding,
-) {
-  switch (kind) {
-    case 'apps':
-      return (resource as AppRegistryEntry).appId
-    case 'nodePools':
-      return (resource as NodePool).poolId
-    case 'dnsProfiles':
-      return (resource as DnsProfile).profileId
-    case 'securityProfiles':
-      return (resource as SecurityProfile).profileId
-    case 'policyBindings':
-      return (resource as AppPolicyBinding).bindingId
-  }
-}
-
-function resourceNameFor(
-  kind: RuntimeResourceKind,
-  resource:
-    | AppRegistryEntry
-    | NodePool
-    | DnsProfile
-    | SecurityProfile
-    | AppPolicyBinding,
-) {
-  switch (kind) {
-    case 'apps':
-      return (resource as AppRegistryEntry).name
-    case 'nodePools':
-      return (resource as NodePool).name
-    case 'dnsProfiles':
-      return (resource as DnsProfile).name
-    case 'securityProfiles':
-      return (resource as SecurityProfile).name
-    case 'policyBindings':
-      return `${(resource as AppPolicyBinding).appId} → ${(resource as AppPolicyBinding).routingIntent}`
-  }
-}
-
-function collectionFor(
-  state: AppRuntimeStateDocument,
-  kind: RuntimeResourceKind,
-) {
-  switch (kind) {
-    case 'apps':
-      return state.apps
-    case 'nodePools':
-      return state.nodePools
-    case 'dnsProfiles':
-      return state.dnsProfiles
-    case 'securityProfiles':
-      return state.securityProfiles
-    case 'policyBindings':
-      return state.policyBindings
-  }
-}
-
-function templateFor(kind: RuntimeResourceKind, appId = '') {
-  switch (kind) {
-    case 'apps':
-      return createAppTemplate()
-    case 'nodePools':
-      return createNodePoolTemplate()
-    case 'dnsProfiles':
-      return createDnsProfileTemplate()
-    case 'securityProfiles':
-      return createSecurityProfileTemplate()
-    case 'policyBindings':
-      return createPolicyBindingTemplate(appId)
-  }
-}
-
-function parseJsonObject<T extends object>(raw: string): T {
-  const parsed: unknown = JSON.parse(raw)
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('JSON 必须是对象')
-  }
-  return parsed as T
-}
-
-function formatJson(value: unknown) {
-  return JSON.stringify(value, null, 2)
-}
-
-function formatTime(timestamp?: number) {
-  return timestamp ? new Date(timestamp).toLocaleString() : '-'
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) {
-    return `${bytes} B`
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KiB`
-  }
-  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
-}
+import { AppRuntimeAggregateDiagnosticsPanel } from './app-runtime-aggregate-diagnostics-panel'
+import { AppRuntimeOverviewPanel } from './app-runtime-overview-panel'
+import {
+  collectionFor,
+  createDnsProfileTemplate,
+  createNodePoolTemplate,
+  createSecurityProfileTemplate,
+  emptyState,
+  enabledOptions,
+  formatJson,
+  newResourceValue,
+  now,
+  parseJsonObject,
+  processMatcherKindOptions,
+  resourceIdFor,
+  resourceKindOptions,
+  resourceNameFor,
+  routingIntentOptions,
+  selectAppLabel,
+  sortSessions,
+  stateCountLabel,
+  statusColor,
+  templateFor,
+  upsertSession,
+  type FinishableSessionStatus,
+  type RuntimeResourceKind,
+} from './app-runtime-planning-utils'
+import { AppRuntimeSessionPanel } from './app-runtime-session-panel'
 
 export function AppRuntimePlanningPanel() {
   const [state, setState] = useState<AppRuntimeStateDocument>(emptyState)
@@ -1482,126 +1233,21 @@ export function AppRuntimePlanningPanel() {
           </Button>
         </div>
 
-        {overviewRows.length > 0 ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">应用编排概览</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                汇总 Rust state 中的 app → policy binding → node / DNS /
-                security 关系，便于快速定位下一步诊断对象。
-              </div>
-            </div>
+        <AppRuntimeOverviewPanel
+          rows={overviewRows}
+          filteredRows={filteredOverviewRows}
+          filter={overviewFilter}
+          selectedAppId={selectedAppId}
+          onFilterChange={setOverviewFilter}
+          onSelectApp={selectAppForDiagnostics}
+        />
 
-            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
-              <TextField
-                fullWidth
-                size="small"
-                label="过滤应用 / 绑定 / profile / issue"
-                value={overviewFilter}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => setOverviewFilter(event.target.value)}
-              />
-              <div className="flex flex-wrap items-end gap-2">
-                <Chip
-                  size="small"
-                  color={
-                    overviewRows.some((row) => row.issues.length > 0)
-                      ? 'warning'
-                      : 'success'
-                  }
-                  label={`Issues: ${
-                    overviewRows.filter((row) => row.issues.length > 0).length
-                  }`}
-                />
-                <Chip
-                  size="small"
-                  label={`Showing: ${filteredOverviewRows.length}/${overviewRows.length}`}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              {filteredOverviewRows.map((row) => (
-                <div
-                  key={row.app.appId}
-                  className="grid gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_auto]"
-                >
-                  <div className="space-y-1">
-                    <div className="font-semibold">{row.app.name}</div>
-                    <div className="text-muted-foreground">{row.app.appId}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {row.app.tags.slice(0, 4).map((tag) => (
-                        <Chip key={tag} size="small" label={tag} />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-1 sm:grid-cols-2">
-                    <div>
-                      <span className="text-muted-foreground">Routing: </span>
-                      {row.binding?.routingIntent ?? 'unbound'}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Binding: </span>
-                      {row.binding?.enabled === false
-                        ? 'disabled'
-                        : (row.binding?.bindingId ?? 'missing')}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Node pool: </span>
-                      {row.nodePool?.name ?? row.binding?.nodePoolId ?? '-'}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">DNS: </span>
-                      {row.dnsProfile?.name ?? row.binding?.dnsProfileId ?? '-'}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Security: </span>
-                      {row.securityProfile?.name ??
-                        row.binding?.securityProfileId ??
-                        '-'}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Sessions: </span>
-                      {row.sessions.length} total / {row.openSessions} open
-                    </div>
-                    {row.issues.length > 0 ? (
-                      <div className="sm:col-span-2">
-                        <span className="text-muted-foreground">Issues: </span>
-                        <span className="text-warning">
-                          {row.issues.join('；')}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="sm:col-span-2 text-success">
-                        State references resolved
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-end">
-                    <Button
-                      size="small"
-                      variant={
-                        row.app.appId === selectedAppId
-                          ? 'contained'
-                          : 'outlined'
-                      }
-                      onClick={() => selectAppForDiagnostics(row.app.appId)}
-                    >
-                      {row.app.appId === selectedAppId ? '已选择' : '选择'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {filteredOverviewRows.length === 0 ? (
-                <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  没有匹配当前过滤条件的应用。
-                </div>
-              ) : null}
-            </div>
-          </div>
+        {selectedApp ? (
+          <AppRuntimeAggregateDiagnosticsPanel
+            items={aggregateDiagnostics}
+            actions={aggregateDiagnosticActions}
+            dnsWarnings={dnsProbeReport?.warnings ?? []}
+          />
         ) : null}
 
         {selectedApp ? (
@@ -2403,70 +2049,6 @@ export function AppRuntimePlanningPanel() {
 
         {selectedApp ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">聚合诊断摘要</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                把 overview state issue、planning diagnostics、DNS controlled
-                probe 和 runtime boundary 放在同一视图，避免分散查状态。
-              </div>
-            </div>
-
-            <div className="grid gap-2 lg:grid-cols-2">
-              {aggregateDiagnostics.map((item) => (
-                <div
-                  key={item.key}
-                  className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{item.label}</span>
-                    <Chip
-                      size="small"
-                      color={statusColor(item.status)}
-                      label={item.status}
-                    />
-                  </div>
-                  <div className="text-muted-foreground">{item.detail}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-xs font-semibold">待处理动作</div>
-              <div className="space-y-1">
-                {aggregateDiagnosticActions.map((action) => (
-                  <div
-                    key={action.key}
-                    className="grid gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs lg:grid-cols-[120px_minmax(0,1fr)_auto]"
-                  >
-                    <div className="text-muted-foreground">{action.scope}</div>
-                    <div>
-                      <div className="font-medium">{action.message}</div>
-                      <div className="text-muted-foreground">
-                        {action.detail}
-                      </div>
-                    </div>
-                    <div className="flex items-start justify-end">
-                      <Chip
-                        size="small"
-                        color={statusColor(action.status)}
-                        label={action.status}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {dnsProbeReport?.warnings.length ? (
-              <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                DNS probe warnings: {dnsProbeReport.warnings.join('；')}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold">
@@ -2543,329 +2125,23 @@ export function AppRuntimePlanningPanel() {
         ) : null}
 
         {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <ClipboardList className="h-4 w-4" />
-                  Session 观测
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  记录 app runtime session
-                  与连接指标快照，用于后续归因和泄漏维度检查。
-                </div>
-              </div>
-              <Button
-                size="small"
-                onClick={() => void handleStartSession()}
-                disabled={sessionPending}
-              >
-                {sessionPending ? '处理中...' : '开始 session'}
-              </Button>
-            </div>
-
-            {appSessions.length > 0 ? (
-              <>
-                <Select
-                  fullWidth
-                  size="small"
-                  label="选择 session"
-                  value={selectedSession?.sessionId ?? ''}
-                  options={appSessions.map((session) => ({
-                    value: session.sessionId,
-                    label: `${session.sessionId} · ${session.status} · ${session.observations.length} obs`,
-                  }))}
-                  onChange={(value: string | number) => {
-                    setSelectedSessionId(String(value))
-                    setEvaluation(null)
-                    setLeakReport(null)
-                  }}
-                />
-
-                {selectedSession ? (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <Chip
-                        size="small"
-                        color={statusColor(selectedSession.status)}
-                        label={`Session: ${selectedSession.status}`}
-                      />
-                      <Chip
-                        size="small"
-                        color={statusColor(selectedSession.diagnosticsStatus)}
-                        label={`Diagnostics: ${selectedSession.diagnosticsStatus}`}
-                      />
-                      <Chip
-                        size="small"
-                        label={`Observations: ${selectedSession.observations.length}`}
-                      />
-                      <Chip
-                        size="small"
-                        label={`Started: ${formatTime(selectedSession.startedAt)}`}
-                      />
-                      {selectedSession.endedAt ? (
-                        <Chip
-                          size="small"
-                          label={`Ended: ${formatTime(selectedSession.endedAt)}`}
-                        />
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => void handleRecordObservation()}
-                        disabled={sessionPending}
-                      >
-                        记录快照
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => void handleEvaluateSession()}
-                        disabled={sessionPending}
-                      >
-                        评估归因
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => void handleVerifySessionLeak()}
-                        disabled={sessionPending}
-                      >
-                        检查泄漏维度
-                      </Button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="success"
-                        onClick={() => void handleFinishSession('completed')}
-                        disabled={sessionPending || !!selectedSession.endedAt}
-                      >
-                        标记完成
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="warning"
-                        onClick={() => void handleFinishSession('blocked')}
-                        disabled={sessionPending || !!selectedSession.endedAt}
-                      >
-                        标记阻塞
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        onClick={() => void handleFinishSession('failed')}
-                        disabled={sessionPending || !!selectedSession.endedAt}
-                      >
-                        标记失败
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-2 text-xs sm:grid-cols-3">
-                      <div>Rules: {selectedSession.projectedRules.length}</div>
-                      <div>
-                        Proxy groups:{' '}
-                        {selectedSession.projectedProxyGroups.length}
-                      </div>
-                      <div>Warnings: {selectedSession.warnings.length}</div>
-                    </div>
-
-                    {selectedSession.observations.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold">
-                          Observation timeline
-                        </div>
-                        <div className="space-y-2">
-                          {selectedSession.observations
-                            .slice()
-                            .reverse()
-                            .slice(0, 5)
-                            .map((observation) => (
-                              <div
-                                key={observation.observationId}
-                                className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-xs"
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Chip
-                                    size="small"
-                                    color={statusColor(
-                                      observation.attributionStatus,
-                                    )}
-                                    label={observation.attributionStatus}
-                                  />
-                                  <span>
-                                    {formatTime(observation.recordedAt)}
-                                  </span>
-                                  <span>
-                                    Active:{' '}
-                                    {observation.traffic.activeConnectionCount}
-                                  </span>
-                                  <span>
-                                    Closed:{' '}
-                                    {observation.traffic.closedSinceLast}
-                                  </span>
-                                  <span>
-                                    Up:{' '}
-                                    {formatBytes(
-                                      observation.traffic.uploadTotal,
-                                    )}
-                                  </span>
-                                  <span>
-                                    Down:{' '}
-                                    {formatBytes(
-                                      observation.traffic.downloadTotal,
-                                    )}
-                                  </span>
-                                </div>
-                                {observation.attributionCandidates.length >
-                                0 ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    {observation.attributionCandidates
-                                      .slice(0, 4)
-                                      .map((candidate) => (
-                                        <Chip
-                                          key={candidate.connectionId}
-                                          size="small"
-                                          label={`${candidate.host || candidate.process || candidate.connectionId} · ${candidate.chains.join(' > ') || 'no chain'}`}
-                                          title={`rule=${candidate.rule}; matchedBy=${candidate.matchedBy.join(', ')}`}
-                                        />
-                                      ))}
-                                  </div>
-                                ) : (
-                                  <div className="text-muted-foreground">
-                                    No attribution candidates captured.
-                                  </div>
-                                )}
-                                {observation.warnings.length > 0 ? (
-                                  <div className="text-muted-foreground">
-                                    {observation.warnings.join('；')}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                该应用还没有 session 记录。
-              </div>
-            )}
-
-            {evaluation ? (
-              <div className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Chip
-                    size="small"
-                    color={statusColor(evaluation.status)}
-                    label={`Evaluation: ${evaluation.status}`}
-                  />
-                  <span className="font-medium">{evaluation.reason}</span>
-                </div>
-                <div className="grid gap-1 sm:grid-cols-4">
-                  <div>Observations: {evaluation.summary.observationCount}</div>
-                  <div>Matched: {evaluation.summary.matchedObservations}</div>
-                  <div>Mismatch: {evaluation.summary.mismatchObservations}</div>
-                  <div>
-                    Unattributed: {evaluation.summary.unattributedObservations}
-                  </div>
-                  <div>Stale: {evaluation.summary.staleObservations}</div>
-                  <div>
-                    Candidates: {evaluation.summary.attributionCandidateCount}
-                  </div>
-                  <div>
-                    Upload: {formatBytes(evaluation.summary.uploadTotal)}
-                  </div>
-                  <div>
-                    Download: {formatBytes(evaluation.summary.downloadTotal)}
-                  </div>
-                </div>
-                {evaluation.summary.observedHosts.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {evaluation.summary.observedHosts
-                      .slice(0, 8)
-                      .map((host) => (
-                        <Chip key={host} size="small" label={host} />
-                      ))}
-                  </div>
-                ) : null}
-                {evaluation.summary.observedChains.length > 0 ? (
-                  <div className="text-muted-foreground">
-                    Chains: {evaluation.summary.observedChains.join(' / ')}
-                  </div>
-                ) : null}
-                {evaluation.warnings.length > 0 ? (
-                  <div className="text-muted-foreground">
-                    {evaluation.warnings.join('；')}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {leakReport ? (
-              <div className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Chip
-                    size="small"
-                    color={statusColor(leakReport.status)}
-                    label={`Leak: ${leakReport.status}`}
-                  />
-                  <span className="font-medium">{leakReport.reason}</span>
-                </div>
-                <div className="grid gap-1 sm:grid-cols-4">
-                  <div>Pass: {leakReport.summary.pass}</div>
-                  <div>Warn: {leakReport.summary.warn}</div>
-                  <div>Fail: {leakReport.summary.fail}</div>
-                  <div>N/A: {leakReport.summary.notApplicable}</div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {leakReport.checks.map((check) => (
-                    <Chip
-                      key={check.dimension}
-                      size="small"
-                      color={statusColor(check.status)}
-                      label={`${check.dimension}: ${check.status}`}
-                    />
-                  ))}
-                </div>
-                <div className="space-y-1">
-                  {leakReport.checks.map((check) => (
-                    <div
-                      key={`${check.dimension}-detail`}
-                      className="rounded-md border border-border px-2 py-1"
-                    >
-                      <div className="font-medium">{check.message}</div>
-                      {check.facts.length > 0 ? (
-                        <div className="text-muted-foreground">
-                          {check.facts.join('；')}
-                        </div>
-                      ) : null}
-                      {check.warnings.length > 0 ? (
-                        <div className="text-muted-foreground">
-                          {check.warnings.join('；')}
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-                {leakReport.warnings.length > 0 ? (
-                  <div className="text-muted-foreground">
-                    {leakReport.warnings.join('；')}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          <AppRuntimeSessionPanel
+            sessions={appSessions}
+            selectedSession={selectedSession}
+            evaluation={evaluation}
+            leakReport={leakReport}
+            pending={sessionPending}
+            onSelectSession={(sessionId) => {
+              setSelectedSessionId(sessionId)
+              setEvaluation(null)
+              setLeakReport(null)
+            }}
+            onStartSession={() => void handleStartSession()}
+            onRecordObservation={() => void handleRecordObservation()}
+            onEvaluateSession={() => void handleEvaluateSession()}
+            onVerifySessionLeak={() => void handleVerifySessionLeak()}
+            onFinishSession={(status) => void handleFinishSession(status)}
+          />
         ) : null}
 
         {diagnostics && plan && projection ? (
