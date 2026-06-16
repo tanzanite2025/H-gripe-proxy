@@ -22,8 +22,10 @@ interface AppRuntimePlanningResultPanelProps {
   activationPreflightPending: boolean
   activeProjection: AppRuntimeActiveProjectionRecord | null
   activateMarkerPending: boolean
+  activationRollbackPending: boolean
   onPreflightActivation: () => void
   onMarkActive: () => void
+  onRollbackActivation: () => void
 }
 
 export function AppRuntimePlanningResultPanel({
@@ -35,8 +37,10 @@ export function AppRuntimePlanningResultPanel({
   activationPreflightPending,
   activeProjection,
   activateMarkerPending,
+  activationRollbackPending,
   onPreflightActivation,
   onMarkActive,
+  onRollbackActivation,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
     return null
@@ -181,6 +185,14 @@ export function AppRuntimePlanningResultPanel({
                   }
                   label={activeProjection.activationKind}
                 />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={onRollbackActivation}
+                  disabled={activationRollbackPending}
+                >
+                  {activationRollbackPending ? '回滚中...' : '回滚 marker'}
+                </Button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <div>ID: {activeProjection.artifactId}</div>

@@ -19,6 +19,7 @@ use crate::core::app_runtime::{
     preflight_app_runtime_projection_activation as preflight_app_runtime_projection_activation_record,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
     record_app_runtime_session_observation as record_app_runtime_session_observation_record,
+    rollback_app_runtime_projection_activation as rollback_app_runtime_projection_activation_record,
     start_app_runtime_session as start_app_runtime_session_record,
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
@@ -133,6 +134,13 @@ pub async fn activate_app_runtime_projection_artifact(
     request: AppRuntimeProjectionActivationPreflightRequest,
 ) -> CmdResult<AppRuntimeStateDocument> {
     activate_app_runtime_projection_artifact_record(request)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rollback_app_runtime_projection_activation() -> CmdResult<AppRuntimeStateDocument> {
+    rollback_app_runtime_projection_activation_record()
         .await
         .stringify_err()
 }

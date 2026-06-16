@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 完成（planning / session / readiness UI path） | PR #82/#84-#91/#95-#122；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作与 readiness 检查已进入 Rust 单一路径 |
+| Phase 7.5 | 应用级代理编排控制面 | 完成（planning / session / readiness / staged activation guard UI path） | PR #82/#84-#91/#95-#128；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight 与 active marker 已进入 Rust 单一路径 |
 
 ## 已完成阶段详情
 
@@ -602,6 +602,18 @@ AppRegistry
     - UI 展示 artifact 存储路径，使候选执行产物可审计、可 review，再进入后续 controlled activation。
     - 仍不执行 runtime activation；持久化 artifact 只是把 execution candidate 固化为 Rust-owned audit record。
 
+15. **Controlled activation preflight / active marker（PR #127/#128）**
+    - 新增 activation preflight command，只从已持久化 `AppRuntimeProjectionArtifact` 读取，校验 artifact id、checksum、validation status、`activationMode=staged` 与 `mutatesRuntime=false`。
+    - preflight 首批保留 executor guard 为 blocked，不 reload / restart Mihomo，不写 active profile，不把 YAML patch 当作事实源。
+    - 新增 active projection marker，记录当前 staged artifact、checksum、storage path 与 rollback metadata；该 marker 只写 Rust `AppRuntimeStateDocument.activeProjection`。
+    - UI 可显式触发 preflight 与标记 active，并展示 active marker / rollback 元数据，仍保持 `mutatesRuntime=false`。
+
+16. **Active projection rollback guard（本批次）**
+    - 新增 active projection marker rollback command，只回滚 Rust `AppRuntimeStateDocument.activeProjection`。
+    - 若 previous artifact 存在，rollback 会重新读取持久化 artifact 并校验 checksum、validation status 与 staged runtime boundary。
+    - 若 previous artifact 为空，rollback 清空 active marker；不会 reload / restart Mihomo，也不会写 active profile。
+    - UI 仅提供显式用户触发的 marker rollback 动作。
+
 删除边界：
 
 - 不新增前端直接操作 Mihomo proxy-group 的 app 级旁路。
@@ -650,7 +662,7 @@ AppRegistry
 
 ## 加速执行策略
 
-前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#125 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：从持久化 artifact 进入 controlled activation preflight / guard。
+前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#128 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard 与 active artifact marker。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：补齐 active marker rollback guard，再进入显式 opt-in runtime mutation。
 
 ### 可以加快做的部分
 
@@ -659,7 +671,7 @@ AppRegistry
 | 优先级 | 可加速方向 | 建议合并方式 | 原因 |
 | --- | --- | --- | --- |
 | P0 | Runtime projection artifact / diff / validation gate | 已完成 staged artifact + 持久化（PR #124/#125） | 已从 planning-only 推进到可审计 execution candidate；仍未切 active runtime |
-| P0 | Controlled activation preflight / guard | 下一批应做成小 PR | 只允许从持久化 artifact 出发，先做 preflight/guard，不直接扩大到 TUN/DNS/protocol runtime |
+| P0 | Controlled activation preflight / guard | 已完成 preflight + active marker（PR #127/#128）；本批次补 rollback guard | 只允许从持久化 artifact 出发，先做 preflight/guard，不直接扩大到 TUN/DNS/protocol runtime |
 | P0 | App diagnostics 串联 DNS probe / readiness | 已完成聚合诊断动作和 readiness action（PR #111-#112/#121-#122） | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
 | P1 | App runtime CRUD / form 管理面 | 已完成 JSON CRUD、import/export 与常用字段表单（PR #100/#106-#110） | 后续只补必要字段，避免继续做零散 UI |
 | P1 | 面板结构维护 | 已完成主面板拆分（PR #113-#120） | 后续功能必须落在已拆分组件中，避免重新形成巨型文件 |
@@ -688,7 +700,7 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate 都已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，并可生成/持久化 staged projection artifact。下一步不应继续追加零散 UI，而应进入 **controlled activation preflight / guard**：只从已持久化 artifact 出发，先验证 activation 条件和回滚边界，再考虑显式 opt-in runtime mutation。
+从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker 都已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight 与 active marker。下一步不应继续追加零散 UI，而应进入 **active projection rollback guard**：先验证 active marker 的 rollback metadata 可用，允许显式回滚 marker，再考虑显式 opt-in runtime mutation。
 
 ### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
@@ -724,9 +736,9 @@ feat(app-runtime): persist projection artifacts
 - 不迁默认 DNS resolver runtime。
 - 不碰 TUN / transparent proxy / tunnel / adapter outbound/inbound / protocol runtime。
 
-### Batch G：Controlled activation gate（下一步，小步做）
+### Batch G：Controlled activation gate（已完成 PR #127/#128）
 
-Batch F 已经把 artifact / validation / audit record 串起来。下一步进入 controlled activation，但首批只做 preflight / guard：
+Batch F 已经把 artifact / validation / audit record 串起来。Batch G 进入 controlled activation，但首批只做 preflight / guard：
 
 ```text
 feat(app-runtime): add opt-in projection activation gate
@@ -742,3 +754,28 @@ feat(app-runtime): add opt-in projection activation gate
 - 若 preflight 发现 active profile、runtime candidate 写入、rollback metadata 或 validation hook 不完整，应先返回 blocker，不应直接调用 Mihomo reload。
 
 Batch G 的目标不是“一步实现 per-app runtime isolation”，而是建立受控激活门：只有 Rust-owned artifact 通过 preflight，才允许后续显式 opt-in activation PR 进入真实 runtime mutation。
+
+已落地范围：
+
+- `preflight_app_runtime_projection_activation` 从持久化 artifact 读取，不接受前端临时 YAML。
+- preflight 校验 artifact id / checksum / validation status / staged runtime boundary。
+- executor guard 在首批保持 blocked，明确不 reload / restart Mihomo。
+- `activate_app_runtime_projection_artifact` 只写 `AppRuntimeStateDocument.activeProjection` marker，并记录 rollback metadata。
+- UI 可显式触发 preflight 与标记 active，仍不修改 active profile 或 Mihomo runtime。
+
+### Batch H：Active projection rollback guard（本批次，小步做）
+
+Batch G 已记录 rollback metadata，但还缺少显式 rollback action。本批次补齐 marker 级回滚，继续保持 no runtime mutation：
+
+```text
+feat(app-runtime): add active projection rollback guard
+```
+
+建议边界：
+
+- rollback 只作用于 Rust `AppRuntimeStateDocument.activeProjection` marker。
+- 若 active marker 没有 previous artifact，rollback 清空 active marker。
+- 若存在 previous artifact，必须重新读取持久化 artifact 并校验 checksum / validation / staged boundary。
+- rollback 必须防止 active marker 在操作期间被其他写入替换。
+- UI 只能由用户显式触发 rollback，不随页面加载自动执行。
+- 仍不 reload / restart Mihomo，不写 active profile，不把 projection YAML patch 作为事实源。
