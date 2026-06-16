@@ -47,6 +47,7 @@ import {
 import { showNotice } from '@/services/notice-service'
 
 import { AppRuntimeAggregateDiagnosticsPanel } from './app-runtime-aggregate-diagnostics-panel'
+import { AppRuntimeDnsProfileForm } from './app-runtime-dns-profile-form'
 import { AppRuntimeOverviewPanel } from './app-runtime-overview-panel'
 import {
   collectionFor,
@@ -1250,110 +1251,14 @@ export function AppRuntimePlanningPanel() {
           onSave={() => void handleSaveSecurityProfileDraft()}
         />
 
-        {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">DNS profile 快速表单</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                编辑当前 app 绑定的 DNS profile；保存后可直接运行绑定 DNS
-                controlled probe。
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <TextField
-                fullWidth
-                size="small"
-                label="Profile ID"
-                value={dnsProfileDraft.profileId}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setDnsProfileDraft((draft) => ({
-                    ...draft,
-                    profileId: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Name"
-                value={dnsProfileDraft.name}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setDnsProfileDraft((draft) => ({
-                    ...draft,
-                    name: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Test domain"
-                value={dnsProfileDraft.testDomain}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setDnsProfileDraft((draft) => ({
-                    ...draft,
-                    testDomain: event.target.value,
-                  }))
-                }}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Tags"
-                value={dnsProfileDraft.tags}
-                onChange={(
-                  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                ) => {
-                  setDnsProfileDraft((draft) => ({
-                    ...draft,
-                    tags: event.target.value,
-                  }))
-                }}
-                helperText="逗号分隔。"
-              />
-              <div className="lg:col-span-2">
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={6}
-                  size="small"
-                  label="DNS YAML"
-                  value={dnsProfileDraft.configYaml}
-                  onChange={(
-                    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-                  ) => {
-                    setDnsProfileDraft((draft) => ({
-                      ...draft,
-                      configYaml: event.target.value,
-                    }))
-                  }}
-                  helperText="用于 Rust DnsResolverPlan / controlled probe；不会切默认 DNS runtime。"
-                />
-              </div>
-              <div className="flex items-end">
-                <Button
-                  size="small"
-                  startIcon={<Save className="h-4 w-4" />}
-                  onClick={() => void handleSaveDnsProfileDraft()}
-                  disabled={resourcePending}
-                >
-                  保存 DNS profile
-                </Button>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              当前绑定: {selectedBinding?.dnsProfileId || '未绑定 DNS profile'}
-            </div>
-          </div>
-        ) : null}
+        <AppRuntimeDnsProfileForm
+          selectedApp={selectedApp}
+          selectedBinding={selectedBinding}
+          draft={dnsProfileDraft}
+          pending={resourcePending}
+          setDraft={setDnsProfileDraft}
+          onSave={() => void handleSaveDnsProfileDraft()}
+        />
 
         {selectedApp ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
