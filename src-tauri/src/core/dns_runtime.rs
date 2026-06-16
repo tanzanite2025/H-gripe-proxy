@@ -338,6 +338,40 @@ pub struct DnsResolverRuntimeQueryReport {
     pub metrics: DnsResolverRuntimeMetrics,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeProbeSummary {
+    pub total_targets: usize,
+    pub runtime_supported_targets: usize,
+    pub healthy_targets: usize,
+    pub failed_targets: usize,
+    pub unsupported_targets: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeProbeTargetReport {
+    pub server: String,
+    pub protocol: String,
+    pub provider_kind: Option<DnsServerProviderKind>,
+    pub provider_label: Option<String>,
+    pub runtime_supported: bool,
+    pub healthy: bool,
+    pub latency_ms: Option<u64>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsResolverRuntimeProbeReport {
+    pub plan: DnsResolverPlan,
+    pub test_domain: String,
+    pub targets: Vec<DnsResolverRuntimeProbeTargetReport>,
+    pub summary: DnsResolverRuntimeProbeSummary,
+    pub metrics: DnsResolverRuntimeMetrics,
+    pub warnings: Vec<String>,
+}
+
 #[async_trait]
 pub trait RustDnsResolverRuntime: Send + Sync {
     async fn query(
@@ -420,6 +454,49 @@ impl<R: RustDnsResolverRuntime> DnsResolverRuntimeController<R> {
             result,
             attempted_servers,
             metrics: self.metrics(),
+        }
+    }
+
+    pub async fn probe(&self, plan: DnsResolverPlan, test_domain: String) -> DnsResolverRuntimeProbeReport {
+        let options = DnsRuntimeQueryOptions {
+            timeout_ms: plan.timeout_ms,
+            attempts: plan.attempts,
+        };
+        let mut targets = Vec::new();
+
+        for nameserver in &plan.nameservers {
+            if !nameserver.runtime_supported {
+                targets.push(unsupported_probe_target_report(nameserver));
+                continue;
+            }
+
+            match self.runtime.query(nameserver, &test_domain, options).await {
+                Ok(result) => {
+                    self.record_query(&result);
+                    targets.push(success_probe_target_report(nameserver, &result));
+                }
+                Err(error) => {
+                    let message = error.to_string();
+                    self.record_error(message.clone());
+                    targets.push(error_probe_target_report(nameserver, message));
+                }
+            }
+        }
+
+        if plan.status != DnsResolverPlanStatus::Ready {
+            self.record_error(plan.reason.clone());
+        }
+
+        let summary = probe_summary(&targets);
+        let warnings = probe_warnings(&plan);
+
+        DnsResolverRuntimeProbeReport {
+            plan,
+            test_domain,
+            targets,
+            summary,
+            metrics: self.metrics(),
+            warnings,
         }
     }
 
@@ -541,6 +618,21 @@ pub async fn dns_runtime_query(yaml: &str, domain: String) -> Result<DnsResolver
     Ok(controller.query(plan, domain).await)
 }
 
+pub async fn dns_controlled_runtime_probe(
+    yaml: &str,
+    test_domain: Option<String>,
+) -> Result<DnsResolverRuntimeProbeReport> {
+    let plan = build_dns_resolver_plan(yaml)?;
+    let test_domain = test_domain
+        .as_deref()
+        .map(str::trim)
+        .filter(|domain| !domain.is_empty())
+        .unwrap_or(DEFAULT_DNS_HEALTH_CHECK_DOMAIN)
+        .to_string();
+    let controller = DnsResolverRuntimeController::new(HickoryDnsResolverRuntime);
+    Ok(controller.probe(plan, test_domain).await)
+}
+
 fn rejected_resolver_plan(reason: &str) -> DnsResolverPlan {
     DnsResolverPlan {
         status: DnsResolverPlanStatus::Rejected,
@@ -608,6 +700,106 @@ fn build_runtime_projection(dns: &Mapping) -> DnsResolverRuntimeProjection {
                 "{nameserver_policy_count} nameserver-policy entries remain plan/explain-only in this slice"
             ),
         },
+    }
+}
+
+fn success_probe_target_report(
+    nameserver: &DnsResolverNameserverPlan,
+    result: &DnsQueryResult,
+) -> DnsResolverRuntimeProbeTargetReport {
+    let provider = nameserver.target.as_ref().and_then(provider_for_probe_target);
+    DnsResolverRuntimeProbeTargetReport {
+        server: nameserver.server.clone(),
+        protocol: nameserver.protocol_name.clone(),
+        provider_kind: provider.map(|provider| provider.kind),
+        provider_label: provider.map(|provider| provider.label.to_string()),
+        runtime_supported: true,
+        healthy: result.success,
+        latency_ms: Some(result.latency),
+        message: result
+            .error
+            .clone()
+            .unwrap_or_else(|| format!("resolved {} to {}", result.domain, result.ip)),
+    }
+}
+
+fn error_probe_target_report(
+    nameserver: &DnsResolverNameserverPlan,
+    message: String,
+) -> DnsResolverRuntimeProbeTargetReport {
+    let provider = nameserver.target.as_ref().and_then(provider_for_probe_target);
+    DnsResolverRuntimeProbeTargetReport {
+        server: nameserver.server.clone(),
+        protocol: nameserver.protocol_name.clone(),
+        provider_kind: provider.map(|provider| provider.kind),
+        provider_label: provider.map(|provider| provider.label.to_string()),
+        runtime_supported: true,
+        healthy: false,
+        latency_ms: None,
+        message,
+    }
+}
+
+fn unsupported_probe_target_report(nameserver: &DnsResolverNameserverPlan) -> DnsResolverRuntimeProbeTargetReport {
+    DnsResolverRuntimeProbeTargetReport {
+        server: nameserver.server.clone(),
+        protocol: nameserver.protocol_name.clone(),
+        provider_kind: None,
+        provider_label: None,
+        runtime_supported: false,
+        healthy: false,
+        latency_ms: None,
+        message: nameserver.reason.clone(),
+    }
+}
+
+fn provider_for_probe_target(target: &DnsServerProbeTarget) -> Option<&'static DnsServerProviderDefinition> {
+    target
+        .tls_dns_name
+        .as_deref()
+        .and_then(find_dns_provider_by_host)
+        .or_else(|| {
+            target
+                .socket_addr
+                .parse::<SocketAddr>()
+                .ok()
+                .and_then(|socket_addr| find_dns_provider_by_ip(&socket_addr.ip()))
+        })
+}
+
+fn probe_summary(targets: &[DnsResolverRuntimeProbeTargetReport]) -> DnsResolverRuntimeProbeSummary {
+    let runtime_supported_targets = targets.iter().filter(|target| target.runtime_supported).count();
+    let healthy_targets = targets.iter().filter(|target| target.healthy).count();
+    let unsupported_targets = targets.iter().filter(|target| !target.runtime_supported).count();
+
+    DnsResolverRuntimeProbeSummary {
+        total_targets: targets.len(),
+        runtime_supported_targets,
+        healthy_targets,
+        failed_targets: runtime_supported_targets.saturating_sub(healthy_targets),
+        unsupported_targets,
+    }
+}
+
+fn probe_warnings(plan: &DnsResolverPlan) -> Vec<String> {
+    let mut warnings = plan.warnings.clone();
+    append_projection_warning(&mut warnings, "fake-ip", &plan.runtime_projection.fake_ip);
+    append_projection_warning(
+        &mut warnings,
+        "fallback-filter",
+        &plan.runtime_projection.fallback_filter,
+    );
+    append_projection_warning(
+        &mut warnings,
+        "nameserver-policy",
+        &plan.runtime_projection.nameserver_policy,
+    );
+    warnings
+}
+
+fn append_projection_warning(warnings: &mut Vec<String>, feature: &str, feature_plan: &DnsResolverRuntimeFeaturePlan) {
+    if feature_plan.configured && !feature_plan.runtime_applied {
+        warnings.push(format!("{feature} is plan-only for controlled Rust DNS runtime probe"));
     }
 }
 
@@ -1298,5 +1490,69 @@ dns:
         assert_eq!(plan.nameservers.len(), 1);
         assert!(!plan.nameservers[0].runtime_supported);
         assert!(plan.nameservers[0].reason.contains("unsupported DNS hostname"));
+    }
+
+    struct StaticDnsRuntime;
+
+    #[async_trait::async_trait]
+    impl RustDnsResolverRuntime for StaticDnsRuntime {
+        async fn query(
+            &self,
+            nameserver: &DnsResolverNameserverPlan,
+            domain: &str,
+            _options: DnsRuntimeQueryOptions,
+        ) -> Result<DnsQueryResult> {
+            Ok(DnsQueryResult {
+                domain: domain.to_string(),
+                ip: "93.184.216.34".to_string(),
+                latency: 12,
+                success: true,
+                error: None,
+                protocol: nameserver.protocol_name.clone(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn controlled_probe_summarizes_supported_unsupported_and_plan_only_dns_features() {
+        let plan = build_dns_resolver_plan(
+            r#"
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  nameserver:
+    - 1.1.1.1
+    - https://unregistered.example/dns-query
+  fallback-filter:
+    geoip: true
+"#,
+        )
+        .unwrap();
+        let controller = DnsResolverRuntimeController::new(StaticDnsRuntime);
+        let report = controller.probe(plan, "example.com".to_string()).await;
+
+        assert_eq!(report.test_domain, "example.com");
+        assert_eq!(report.summary.total_targets, 2);
+        assert_eq!(report.summary.runtime_supported_targets, 1);
+        assert_eq!(report.summary.healthy_targets, 1);
+        assert_eq!(report.summary.unsupported_targets, 1);
+        assert_eq!(report.metrics.total_queries, 1);
+        assert_eq!(report.metrics.successful_queries, 1);
+        assert_eq!(report.targets[0].provider_kind, Some(DnsServerProviderKind::Cloudflare));
+        assert_eq!(report.targets[0].provider_label.as_deref(), Some("Cloudflare DNS"));
+        assert!(report.targets[0].message.contains("resolved example.com"));
+        assert!(report.targets[1].message.contains("unsupported DNS hostname"));
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("fake-ip is plan-only"))
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("fallback-filter is plan-only"))
+        );
     }
 }
