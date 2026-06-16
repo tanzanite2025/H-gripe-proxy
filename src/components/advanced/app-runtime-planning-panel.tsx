@@ -1,12 +1,28 @@
 import { useLockFn } from 'ahooks'
-import { Activity, Boxes, ClipboardList, RefreshCw, Route } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import {
+  Activity,
+  Boxes,
+  ClipboardList,
+  Download,
+  RefreshCw,
+  Route,
+  Save,
+  Trash2,
+  Upload,
+} from 'lucide-react'
+import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
 import { Chip } from '@/components/tailwind/Chip'
 import { Select } from '@/components/tailwind/Select'
+import { TextField } from '@/components/tailwind/TextField'
 import {
+  deleteAppPolicyBinding,
+  deleteAppRegistryEntry,
+  deleteDnsProfile,
+  deleteNodePool,
+  deleteSecurityProfile,
   diagnoseAppRuntime,
   evaluateAppRuntimeSession,
   finishAppRuntimeSession,
@@ -14,7 +30,13 @@ import {
   recordAppRuntimeSessionObservation,
   projectAppRuntimePlanToMihomo,
   startAppRuntimeSession,
+  upsertAppPolicyBinding,
+  upsertAppRegistryEntry,
+  upsertDnsProfile,
+  upsertNodePool,
+  upsertSecurityProfile,
   verifyAppRuntimeSessionLeak,
+  type AppPolicyBinding,
   type AppRegistryEntry,
   type AppRuntimeDiagnosticsReport,
   type AppRuntimeMihomoProjection,
@@ -24,6 +46,9 @@ import {
   type AppRuntimeSessionRecord,
   type AppRuntimeSessionStatus,
   type AppRuntimeStateDocument,
+  type DnsProfile,
+  type NodePool,
+  type SecurityProfile,
 } from '@/services/app-runtime'
 import { showNotice } from '@/services/notice-service'
 
@@ -92,6 +117,178 @@ function upsertSession(
 
 type FinishableSessionStatus = Exclude<AppRuntimeSessionStatus, 'planned'>
 
+type RuntimeResourceKind =
+  | 'apps'
+  | 'nodePools'
+  | 'dnsProfiles'
+  | 'securityProfiles'
+  | 'policyBindings'
+
+const resourceKindOptions = [
+  { value: 'apps', label: 'Apps' },
+  { value: 'nodePools', label: 'Node pools' },
+  { value: 'dnsProfiles', label: 'DNS profiles' },
+  { value: 'securityProfiles', label: 'Security profiles' },
+  { value: 'policyBindings', label: 'Policy bindings' },
+]
+
+const newResourceValue = '__new__'
+
+function now() {
+  return Date.now()
+}
+
+function createAppTemplate(): AppRegistryEntry {
+  return {
+    appId: 'new-app',
+    name: 'New App',
+    launchArgs: [],
+    env: [],
+    processMatchers: [{ kind: 'process_name', pattern: 'new-app.exe' }],
+    platformMetadata: {},
+    tags: [],
+    updatedAt: now(),
+  }
+}
+
+function createNodePoolTemplate(): NodePool {
+  return {
+    poolId: 'new-pool',
+    name: 'New Node Pool',
+    tags: [],
+    protocols: [],
+    healthConstraints: {},
+    candidateNodes: [{ nodeName: 'Proxy', tags: [] }],
+    updatedAt: now(),
+  }
+}
+
+function createDnsProfileTemplate(): DnsProfile {
+  return {
+    profileId: 'new-dns-profile',
+    name: 'New DNS Profile',
+    configYaml: 'nameserver:\n  - 1.1.1.1',
+    testDomain: 'example.com',
+    tags: [],
+    updatedAt: now(),
+  }
+}
+
+function createSecurityProfileTemplate(): SecurityProfile {
+  return {
+    profileId: 'new-security-profile',
+    name: 'New Security Profile',
+    controls: {
+      requireNodePool: true,
+      requireDnsProfile: false,
+      allowedRoutingIntents: ['proxy', 'fallback'],
+    },
+    tags: [],
+    updatedAt: now(),
+  }
+}
+
+function createPolicyBindingTemplate(appId = ''): AppPolicyBinding {
+  return {
+    bindingId: 'new-binding',
+    appId: appId || 'new-app',
+    routingIntent: 'proxy',
+    enabled: true,
+    updatedAt: now(),
+  }
+}
+
+function resourceIdFor(
+  kind: RuntimeResourceKind,
+  resource:
+    | AppRegistryEntry
+    | NodePool
+    | DnsProfile
+    | SecurityProfile
+    | AppPolicyBinding,
+) {
+  switch (kind) {
+    case 'apps':
+      return (resource as AppRegistryEntry).appId
+    case 'nodePools':
+      return (resource as NodePool).poolId
+    case 'dnsProfiles':
+      return (resource as DnsProfile).profileId
+    case 'securityProfiles':
+      return (resource as SecurityProfile).profileId
+    case 'policyBindings':
+      return (resource as AppPolicyBinding).bindingId
+  }
+}
+
+function resourceNameFor(
+  kind: RuntimeResourceKind,
+  resource:
+    | AppRegistryEntry
+    | NodePool
+    | DnsProfile
+    | SecurityProfile
+    | AppPolicyBinding,
+) {
+  switch (kind) {
+    case 'apps':
+      return (resource as AppRegistryEntry).name
+    case 'nodePools':
+      return (resource as NodePool).name
+    case 'dnsProfiles':
+      return (resource as DnsProfile).name
+    case 'securityProfiles':
+      return (resource as SecurityProfile).name
+    case 'policyBindings':
+      return `${(resource as AppPolicyBinding).appId} → ${(resource as AppPolicyBinding).routingIntent}`
+  }
+}
+
+function collectionFor(
+  state: AppRuntimeStateDocument,
+  kind: RuntimeResourceKind,
+) {
+  switch (kind) {
+    case 'apps':
+      return state.apps
+    case 'nodePools':
+      return state.nodePools
+    case 'dnsProfiles':
+      return state.dnsProfiles
+    case 'securityProfiles':
+      return state.securityProfiles
+    case 'policyBindings':
+      return state.policyBindings
+  }
+}
+
+function templateFor(kind: RuntimeResourceKind, appId = '') {
+  switch (kind) {
+    case 'apps':
+      return createAppTemplate()
+    case 'nodePools':
+      return createNodePoolTemplate()
+    case 'dnsProfiles':
+      return createDnsProfileTemplate()
+    case 'securityProfiles':
+      return createSecurityProfileTemplate()
+    case 'policyBindings':
+      return createPolicyBindingTemplate(appId)
+  }
+}
+
+function parseJsonObject<T extends object>(raw: string): T {
+  const parsed: unknown = JSON.parse(raw)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('JSON 必须是对象')
+  }
+  return parsed as T
+}
+
+function formatJson(value: unknown) {
+  return JSON.stringify(value, null, 2)
+}
+
 export function AppRuntimePlanningPanel() {
   const [state, setState] = useState<AppRuntimeStateDocument>(emptyState)
   const [selectedAppId, setSelectedAppId] = useState('')
@@ -108,6 +305,11 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeSessionEvaluationReport | null>(null)
   const [leakReport, setLeakReport] =
     useState<AppRuntimeSessionLeakReport | null>(null)
+  const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
+  const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
+  const [resourceJson, setResourceJson] = useState('')
+  const [bulkJson, setBulkJson] = useState('')
+  const [resourcePending, setResourcePending] = useState(false)
 
   const selectedApp = useMemo(
     () => state.apps.find((app) => app.appId === selectedAppId) ?? null,
@@ -137,6 +339,25 @@ export function AppRuntimePlanningPanel() {
       appSessions[0] ??
       null,
     [appSessions, selectedSessionId],
+  )
+
+  const resources = useMemo(
+    () => collectionFor(state, resourceKind),
+    [resourceKind, state],
+  )
+
+  const resourceOptions = useMemo(
+    () => [
+      { value: newResourceValue, label: '新建资源' },
+      ...resources.map((resource) => {
+        const resourceId = resourceIdFor(resourceKind, resource)
+        return {
+          value: resourceId,
+          label: `${resourceNameFor(resourceKind, resource)} (${resourceId})`,
+        }
+      }),
+    ],
+    [resourceKind, resources],
   )
 
   const loadState = useLockFn(async () => {
@@ -291,9 +512,172 @@ export function AppRuntimePlanningPanel() {
     },
   )
 
+  const handleSaveResource = useLockFn(async () => {
+    setResourcePending(true)
+    try {
+      let nextState: AppRuntimeStateDocument
+      let nextResourceId = ''
+      switch (resourceKind) {
+        case 'apps': {
+          const entry = parseJsonObject<AppRegistryEntry>(resourceJson)
+          nextState = await upsertAppRegistryEntry({
+            ...entry,
+            updatedAt: now(),
+          })
+          nextResourceId = entry.appId
+          setSelectedAppId(entry.appId)
+          break
+        }
+        case 'nodePools': {
+          const nodePool = parseJsonObject<NodePool>(resourceJson)
+          nextState = await upsertNodePool({
+            ...nodePool,
+            updatedAt: now(),
+          })
+          nextResourceId = nodePool.poolId
+          break
+        }
+        case 'dnsProfiles': {
+          const dnsProfile = parseJsonObject<DnsProfile>(resourceJson)
+          nextState = await upsertDnsProfile({
+            ...dnsProfile,
+            updatedAt: now(),
+          })
+          nextResourceId = dnsProfile.profileId
+          break
+        }
+        case 'securityProfiles': {
+          const securityProfile = parseJsonObject<SecurityProfile>(resourceJson)
+          nextState = await upsertSecurityProfile({
+            ...securityProfile,
+            updatedAt: now(),
+          })
+          nextResourceId = securityProfile.profileId
+          break
+        }
+        case 'policyBindings': {
+          const binding = parseJsonObject<AppPolicyBinding>(resourceJson)
+          nextState = await upsertAppPolicyBinding({
+            ...binding,
+            updatedAt: now(),
+          })
+          nextResourceId = binding.bindingId
+          break
+        }
+      }
+      setState(nextState)
+      setSelectedResourceId(nextResourceId)
+      showNotice.success('应用编排资源已保存')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
+  const handleDeleteResource = useLockFn(async () => {
+    if (selectedResourceId === newResourceValue) {
+      return
+    }
+
+    setResourcePending(true)
+    try {
+      let nextState: AppRuntimeStateDocument
+      switch (resourceKind) {
+        case 'apps':
+          nextState = await deleteAppRegistryEntry(selectedResourceId)
+          if (selectedAppId === selectedResourceId) {
+            setSelectedAppId(nextState.apps[0]?.appId ?? '')
+          }
+          break
+        case 'nodePools':
+          nextState = await deleteNodePool(selectedResourceId)
+          break
+        case 'dnsProfiles':
+          nextState = await deleteDnsProfile(selectedResourceId)
+          break
+        case 'securityProfiles':
+          nextState = await deleteSecurityProfile(selectedResourceId)
+          break
+        case 'policyBindings':
+          nextState = await deleteAppPolicyBinding(selectedResourceId)
+          break
+      }
+      setState(nextState)
+      setSelectedResourceId(newResourceValue)
+      setPlan(null)
+      setProjection(null)
+      setDiagnostics(null)
+      showNotice.success('应用编排资源已删除')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
+  const handleExportConfig = () => {
+    setBulkJson(
+      formatJson({
+        apps: state.apps,
+        nodePools: state.nodePools,
+        dnsProfiles: state.dnsProfiles,
+        securityProfiles: state.securityProfiles,
+        policyBindings: state.policyBindings,
+      }),
+    )
+  }
+
+  const handleImportConfig = useLockFn(async () => {
+    setResourcePending(true)
+    try {
+      const document =
+        parseJsonObject<Partial<AppRuntimeStateDocument>>(bulkJson)
+      let nextState = state
+      for (const app of document.apps ?? []) {
+        nextState = await upsertAppRegistryEntry({ ...app, updatedAt: now() })
+      }
+      for (const nodePool of document.nodePools ?? []) {
+        nextState = await upsertNodePool({ ...nodePool, updatedAt: now() })
+      }
+      for (const dnsProfile of document.dnsProfiles ?? []) {
+        nextState = await upsertDnsProfile({ ...dnsProfile, updatedAt: now() })
+      }
+      for (const securityProfile of document.securityProfiles ?? []) {
+        nextState = await upsertSecurityProfile({
+          ...securityProfile,
+          updatedAt: now(),
+        })
+      }
+      for (const binding of document.policyBindings ?? []) {
+        nextState = await upsertAppPolicyBinding({
+          ...binding,
+          updatedAt: now(),
+        })
+      }
+      setState(nextState)
+      setSelectedAppId((current) => current || nextState.apps[0]?.appId || '')
+      showNotice.success('应用编排配置已导入')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
   useEffect(() => {
     void loadState()
   }, [loadState])
+
+  useEffect(() => {
+    const resource =
+      selectedResourceId === newResourceValue
+        ? templateFor(resourceKind, selectedAppId)
+        : resources.find(
+            (item) => resourceIdFor(resourceKind, item) === selectedResourceId,
+          ) || templateFor(resourceKind, selectedAppId)
+    setResourceJson(formatJson(resource))
+  }, [resourceKind, resources, selectedAppId, selectedResourceId])
 
   return (
     <Card>
@@ -344,6 +728,109 @@ export function AppRuntimePlanningPanel() {
             size="small"
             label={stateCountLabel('Bindings', state.policyBindings.length)}
           />
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-border p-3">
+          <div>
+            <div className="text-sm font-semibold">Rust state 管理</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              基于现有 app-runtime upsert/delete commands 管理 Rust
+              state；保存后仍只生成 planning / projection，不直接修改 Mihomo
+              runtime。
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <Select
+              fullWidth
+              size="small"
+              label="资源类型"
+              value={resourceKind}
+              options={resourceKindOptions}
+              onChange={(value: string | number) => {
+                setResourceKind(String(value) as RuntimeResourceKind)
+                setSelectedResourceId(newResourceValue)
+              }}
+            />
+            <Select
+              fullWidth
+              size="small"
+              label="资源"
+              value={selectedResourceId}
+              options={resourceOptions}
+              onChange={(value: string | number) => {
+                setSelectedResourceId(String(value))
+              }}
+            />
+          </div>
+
+          <TextField
+            fullWidth
+            multiline
+            rows={10}
+            size="small"
+            label="资源 JSON"
+            value={resourceJson}
+            onChange={(
+              event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+            ) => setResourceJson(event.target.value)}
+            helperText="字段与 AppRuntimeStateDocument 中对应资源类型保持一致。"
+          />
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="small"
+              startIcon={<Save className="h-4 w-4" />}
+              onClick={() => void handleSaveResource()}
+              disabled={resourcePending}
+            >
+              保存资源
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              startIcon={<Trash2 className="h-4 w-4" />}
+              onClick={() => void handleDeleteResource()}
+              disabled={
+                resourcePending || selectedResourceId === newResourceValue
+              }
+            >
+              删除资源
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<Download className="h-4 w-4" />}
+              onClick={handleExportConfig}
+              disabled={resourcePending}
+            >
+              导出配置 JSON
+            </Button>
+          </div>
+
+          <TextField
+            fullWidth
+            multiline
+            rows={6}
+            size="small"
+            label="批量导入 JSON"
+            value={bulkJson}
+            onChange={(
+              event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+            ) => setBulkJson(event.target.value)}
+            helperText="支持 apps / nodePools / dnsProfiles / securityProfiles / policyBindings，导入为合并 upsert。"
+          />
+
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<Upload className="h-4 w-4" />}
+            onClick={() => void handleImportConfig()}
+            disabled={resourcePending || !bulkJson.trim()}
+          >
+            导入/合并配置
+          </Button>
         </div>
 
         {state.apps.length === 0 ? (
