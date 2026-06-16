@@ -6,7 +6,8 @@ use crate::core::dns_config_explain::{
 use crate::core::dns_runtime::{
     DnsDefaultRuntimeLimitedOptInExecutionReport, DnsDefaultRuntimeLimitedRollbackReport,
     DnsDefaultRuntimeOptInExecutionGuardReport, DnsDefaultRuntimeOptInExecutorPreflightReport,
-    DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport,
+    DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimePostExecutionObservedVerificationReport,
+    DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport,
     DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
     DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
@@ -15,7 +16,9 @@ use crate::core::dns_runtime::{
     dns_default_runtime_opt_in_execution_guard as build_dns_default_runtime_opt_in_execution_guard,
     dns_default_runtime_opt_in_executor_preflight as build_dns_default_runtime_opt_in_executor_preflight,
     dns_default_runtime_opt_in_switch_guard as build_dns_default_runtime_opt_in_switch_guard,
+    dns_default_runtime_post_execution_observed_verification as build_dns_default_runtime_post_execution_observed_verification,
     dns_default_runtime_readiness as build_dns_default_runtime_readiness,
+    dns_default_runtime_rollback_drill as build_dns_default_runtime_rollback_drill,
     dns_default_runtime_shadow_evidence as build_dns_default_runtime_shadow_evidence,
     dns_health_check as build_dns_health_check, dns_query as build_dns_query,
     dns_runtime_query as run_dns_runtime_query, list_dns_server_provider_registrations, probe_dns_server_provider,
@@ -195,6 +198,21 @@ pub async fn dns_default_runtime_limited_opt_in_execution(
     explicit_opt_in: bool,
 ) -> CmdResult<DnsDefaultRuntimeLimitedOptInExecutionReport> {
     build_dns_default_runtime_limited_opt_in_execution(yaml, domain, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_rollback_drill() -> CmdResult<DnsDefaultRuntimeRollbackDrillReport> {
+    build_dns_default_runtime_rollback_drill().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_post_execution_observed_verification(
+    yaml: Option<String>,
+    domain: Option<String>,
+) -> CmdResult<DnsDefaultRuntimePostExecutionObservedVerificationReport> {
+    build_dns_default_runtime_post_execution_observed_verification(yaml, domain)
         .await
         .stringify_err()
 }

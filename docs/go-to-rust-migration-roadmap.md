@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime execution 后验证前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-P（PR #136-#140）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution 已进入 Rust 单一路径；下一步评估执行后 observed verification 与 rollback drill |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime execution 后验证前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-Q（PR #136-#140、本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification 与 rollback drill 已进入 Rust 单一路径；下一步评估是否允许更大范围 opt-in execution |
 
 ## 已完成阶段详情
 
@@ -714,7 +714,7 @@ AppRegistry
 
 从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard、Batch J runtime apply audit / observed verification、Batch K default DNS runtime readiness gate、Batch L default DNS runtime shadow evidence、Batch M default DNS runtime opt-in switch guard、Batch N default DNS runtime opt-in executor preflight、Batch O default DNS runtime opt-in execution guard、Batch P default DNS runtime limited opt-in execution（PR #140）都已完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback、显式 runtime candidate apply、runtime apply audit、只读运行态验证、默认 DNS runtime readiness/blocker、shadow evidence、opt-in switch guard、executor preflight、execution guard 与 limited execution 评估。
 
-下一步仍不应直接切 TUN 或协议栈替换；这些会扩大到真实数据面。默认 DNS runtime 若继续推进，建议做 **Batch Q：Default DNS runtime post-execution observed verification**：对 limited execution 后的 active state 做只读 observed verification、rollback drill 与 failure audit。
+下一步仍不应直接切 TUN 或协议栈替换；这些会扩大到真实数据面。默认 DNS runtime 若继续推进，应基于 **Batch Q：Default DNS runtime post-execution observed verification** 的执行后 observed verification、rollback drill 与 failure audit 结果，评估是否允许更大范围 opt-in execution。
 
 ### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
@@ -1056,7 +1056,7 @@ feat(dns-runtime): add limited default resolver opt-in execution
 - 默认 DNS runtime 已具备 Rust-owned limited execution state 与 rollback audit path。
 - 仍没有扩大到 active profile 写入、Mihomo reload、TUN、transparent proxy、adapter outbound/inbound 或协议栈替换。
 
-### Batch Q：Default DNS runtime post-execution observed verification（下一批，执行后验证与 rollback drill）
+### Batch Q：Default DNS runtime post-execution observed verification（本批次，执行后验证与 rollback drill）
 
 Batch P 只完成小范围 active-state mutation 与 rollback action。下一批如果继续推进，应先补执行后观测验证与回滚演练，而不是扩大 rollout：
 
@@ -1076,3 +1076,13 @@ feat(dns-runtime): add post execution observed verification
 - 不自动 rollout。
 - 不跳过 rollback drill。
 - 不碰 TUN、transparent proxy、adapter outbound/inbound 或协议栈。
+- 不自动 rollback。
+- 不写 active profile、不 reload Mihomo。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_post_execution_observed_verification` command，读取 Batch P active state、limited execution audit、pre-execution shadow audit 与 rollback marker。
+- 对 active Rust default runtime 做 observed query verification，并与 pre-execution shadow status 比较。
+- 新增 `dns_default_runtime_rollback_drill` command，只生成 rollback drill report，不执行 rollback。
+- Verification report 输出 failure audit、rollback drill readiness、`mutatesRuntime=false`、`reloadMihomo=false` 与 blockers/warnings/facts。
+- DNS runtime stats UI 新增 post-execution verification 面板，可显式触发 observed verification 与 rollback drill。
