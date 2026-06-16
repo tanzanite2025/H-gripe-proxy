@@ -90,9 +90,9 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 ### 环境要求
 
 - Node.js >= 18.0
-- pnpm
-- Rust >= 1.70
-- Tauri CLI
+- pnpm 10.33.0（见 `packageManager`）
+- Rust 1.95.0（见 `rust-toolchain.toml`）
+- Tauri CLI（通过项目脚本调用即可）
 - Go >= 1.21（仅在修改 Mihomo 内核时需要）
 
 ### 编译构建
@@ -176,7 +176,40 @@ target/release/bundle/nsis/
 
 迁移路线图和实时进度统一维护在 [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md)。
 
-README 只保留迁移入口和原则：优先把“不碰真实转发链路”的控制、校验、解释、诊断和调度逻辑迁入 Tauri Rust 后端；Mihomo Go sidecar 在对应 runtime 未迁移前继续负责真实转发、协议栈、TUN、tunnel 和 DNS runtime。
+README 只保留迁移入口、当前状态和边界原则：优先把“不碰真实转发链路”的控制、校验、解释、诊断和调度逻辑迁入 Tauri Rust 后端；Mihomo Go sidecar 在对应 runtime 未迁移前继续负责真实转发、协议栈、TUN、tunnel 和 DNS runtime。
+
+### 当前迁移状态 / Current Status
+
+截至当前主线，Rust 已接管以下 app-facing / control-plane 能力：
+
+- **规则与配置控制面**：配置 schema 校验、规则解析、rule explain、config diff、diagnostics summary、latency planner、node selection planner。
+- **本地规则数据**：GEOIP / GEOSITE / IP-ASN / SRC-IP-ASN / RULE-SET / PROCESS / UID / DSCP / inbound metadata / logical rule explain。
+- **订阅 artifact pipeline**：远程 profile 更新、不可变 artifact、active artifact marker、legacy profile 写回消除。
+- **连接与日志 app-facing 路径**：前端和托盘经 Rust monitor / Tauri event 读取连接、流量、内存和日志事件。
+- **DNS default runtime control-plane**：readiness、shadow evidence、opt-in switch guard、executor preflight、limited execution、post-execution verification、rollback drill、expanded stability / hold / reverify / closeout / handoff manifest。
+- **App runtime control-plane**：`AppRuntimeStateDocument`、plan / diagnostics、Mihomo projection artifact、session observation/evaluation/leak planning、CRUD/form、demo seed、DNS handoff intake、control-plane completion、staged activation lifecycle、runtime-apply boundary closeout。
+
+### 当前明确边界 / Runtime Boundary
+
+当前 Rust 侧已经形成从 DNS control-plane completion 到 app-runtime staged closeout 的单一事实链：
+
+```text
+DNS expanded completion
+  -> app-runtime DNS handoff
+  -> app-runtime control-plane completion
+  -> staged projection marker activation
+  -> runtime-apply boundary manifest
+```
+
+但这条链路仍然是 **显式控制面 / staged boundary**，不是真实数据面替换：
+
+- 不自动执行 `apply_app_runtime_projection_artifact_to_runtime`
+- 不自动 reload Mihomo
+- 不自动 rollout / rollback
+- 不接管 adapter / tunnel / transparent proxy / protocol runtime
+- 不进入 Phase 8（TUN / protocol runtime）
+
+换句话说，Rust 当前已经能完成“计划、诊断、投影、预检、marker、边界 manifest”的闭环；真实转发链路仍由 `mihomo/` Go sidecar 承担，直到 roadmap 明确允许进入下一阶段。
 
 ---
 
@@ -202,7 +235,7 @@ clashverge-clean/
 │   ├── src/
 │   │   ├── cmd/                # Tauri 命令处理器
 │   │   ├── config/             # 配置管理（AdvancedConfig、RuntimeConfig）
-│   │   ├── core/               # 核心逻辑（CoreManager、Backup、Coordinator）
+│   │   ├── core/               # 核心逻辑（CoreManager、DNS runtime、app-runtime、rule engine）
 │   │   ├── enhance/            # 配置增强（StableEgress、ResidentialChain）
 │   │   └── feat/               # 业务功能模块
 │   └── capabilities/           # Tauri 权限配置
@@ -254,5 +287,5 @@ the Free Software Foundation, either version 3 of the License, or
 
 ---
 
-**最后更新** / Last Updated: 2026-06-14  
+**最后更新** / Last Updated: 2026-06-16
 **维护者** / Maintainer: tanzanite2025
