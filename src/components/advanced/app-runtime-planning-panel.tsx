@@ -1,14 +1,5 @@
 import { useLockFn } from 'ahooks'
-import {
-  Activity,
-  Boxes,
-  Download,
-  RefreshCw,
-  Route,
-  Save,
-  Trash2,
-  Upload,
-} from 'lucide-react'
+import { Activity, Boxes, RefreshCw, Route, Save } from 'lucide-react'
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
@@ -70,18 +61,17 @@ import {
   parseJsonObject,
   processMatcherKindOptions,
   resourceIdFor,
-  resourceKindOptions,
   resourceNameFor,
   routingIntentOptions,
   selectAppLabel,
   sortSessions,
-  stateCountLabel,
   statusColor,
   templateFor,
   upsertSession,
   type FinishableSessionStatus,
   type RuntimeResourceKind,
 } from './app-runtime-planning-utils'
+import { AppRuntimeResourceManagerPanel } from './app-runtime-resource-manager-panel'
 import { AppRuntimeSessionPanel } from './app-runtime-session-panel'
 
 export function AppRuntimePlanningPanel() {
@@ -1880,134 +1870,23 @@ export function AppRuntimePlanningPanel() {
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
-          <Chip
-            size="small"
-            label={stateCountLabel('Apps', state.apps.length)}
-          />
-          <Chip
-            size="small"
-            label={stateCountLabel('Node pools', state.nodePools.length)}
-          />
-          <Chip
-            size="small"
-            label={stateCountLabel('DNS profiles', state.dnsProfiles.length)}
-          />
-          <Chip
-            size="small"
-            label={stateCountLabel(
-              'Security profiles',
-              state.securityProfiles.length,
-            )}
-          />
-          <Chip
-            size="small"
-            label={stateCountLabel('Bindings', state.policyBindings.length)}
-          />
-        </div>
-
-        <div className="space-y-3 rounded-lg border border-border p-3">
-          <div>
-            <div className="text-sm font-semibold">Rust state 管理</div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              基于现有 app-runtime upsert/delete commands 管理 Rust
-              state；保存后仍只生成 planning / projection，不直接修改 Mihomo
-              runtime。
-            </div>
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <Select
-              fullWidth
-              size="small"
-              label="资源类型"
-              value={resourceKind}
-              options={resourceKindOptions}
-              onChange={(value: string | number) => {
-                setResourceKind(String(value) as RuntimeResourceKind)
-                setSelectedResourceId(newResourceValue)
-              }}
-            />
-            <Select
-              fullWidth
-              size="small"
-              label="资源"
-              value={selectedResourceId}
-              options={resourceOptions}
-              onChange={(value: string | number) => {
-                setSelectedResourceId(String(value))
-              }}
-            />
-          </div>
-
-          <TextField
-            fullWidth
-            multiline
-            rows={10}
-            size="small"
-            label="资源 JSON"
-            value={resourceJson}
-            onChange={(
-              event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-            ) => setResourceJson(event.target.value)}
-            helperText="字段与 AppRuntimeStateDocument 中对应资源类型保持一致。"
-          />
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="small"
-              startIcon={<Save className="h-4 w-4" />}
-              onClick={() => void handleSaveResource()}
-              disabled={resourcePending}
-            >
-              保存资源
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              color="error"
-              startIcon={<Trash2 className="h-4 w-4" />}
-              onClick={() => void handleDeleteResource()}
-              disabled={
-                resourcePending || selectedResourceId === newResourceValue
-              }
-            >
-              删除资源
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<Download className="h-4 w-4" />}
-              onClick={handleExportConfig}
-              disabled={resourcePending}
-            >
-              导出配置 JSON
-            </Button>
-          </div>
-
-          <TextField
-            fullWidth
-            multiline
-            rows={6}
-            size="small"
-            label="批量导入 JSON"
-            value={bulkJson}
-            onChange={(
-              event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-            ) => setBulkJson(event.target.value)}
-            helperText="支持 apps / nodePools / dnsProfiles / securityProfiles / policyBindings，导入为合并 upsert。"
-          />
-
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<Upload className="h-4 w-4" />}
-            onClick={() => void handleImportConfig()}
-            disabled={resourcePending || !bulkJson.trim()}
-          >
-            导入/合并配置
-          </Button>
-        </div>
+        <AppRuntimeResourceManagerPanel
+          state={state}
+          resourceKind={resourceKind}
+          selectedResourceId={selectedResourceId}
+          resourceOptions={resourceOptions}
+          resourceJson={resourceJson}
+          bulkJson={bulkJson}
+          pending={resourcePending}
+          onResourceKindChange={setResourceKind}
+          onSelectedResourceIdChange={setSelectedResourceId}
+          onResourceJsonChange={setResourceJson}
+          onBulkJsonChange={setBulkJson}
+          onSaveResource={() => void handleSaveResource()}
+          onDeleteResource={() => void handleDeleteResource()}
+          onExportConfig={handleExportConfig}
+          onImportConfig={() => void handleImportConfig()}
+        />
 
         {state.apps.length === 0 ? (
           <div className="rounded-lg border border-border px-3 py-4 text-sm text-muted-foreground">
