@@ -135,6 +135,11 @@ export type AppRuntimeDnsHandoffStatus =
   | 'rollbackRecommended'
   | 'blocked'
 
+export type AppRuntimeControlPlaneCompletionStatus =
+  | 'ready'
+  | 'degraded'
+  | 'blocked'
+
 export interface AppRuntimeDnsHandoffRecord {
   handoffId: string
   action: string
@@ -170,6 +175,30 @@ export interface AppRuntimeDnsHandoffReport {
   autoRollback: boolean
   mutatesRuntime: boolean
   reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface AppRuntimeControlPlaneCompletionReport {
+  status: AppRuntimeControlPlaneCompletionStatus
+  reason: string
+  appId: string
+  dnsHandoff: AppRuntimeDnsHandoffReport
+  projectionArtifact: AppRuntimeProjectionArtifact
+  projectionArtifactPath?: string | null
+  projectionArtifactPersisted: boolean
+  activationPreflight: AppRuntimeProjectionActivationPreflightReport
+  readyForStagedActivation: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
   blockers: string[]
   warnings: string[]
   facts: string[]
@@ -589,6 +618,12 @@ export async function buildAppRuntimeDemoSeed(): Promise<AppRuntimeStateDocument
 
 export async function acceptAppRuntimeDnsHandoff(): Promise<AppRuntimeDnsHandoffReport> {
   return invoke('accept_app_runtime_dns_handoff')
+}
+
+export async function completeAppRuntimeControlPlane(
+  request: AppRuntimePlanRequest,
+): Promise<AppRuntimeControlPlaneCompletionReport> {
+  return invoke('complete_app_runtime_control_plane', { request })
 }
 
 export async function upsertAppRegistryEntry(

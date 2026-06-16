@@ -272,6 +272,7 @@ mod app_init {
             cmd::get_app_runtime_state,
             cmd::build_app_runtime_demo_seed,
             cmd::accept_app_runtime_dns_handoff,
+            cmd::complete_app_runtime_control_plane,
             cmd::upsert_app_registry_entry,
             cmd::delete_app_registry_entry,
             cmd::upsert_node_pool,

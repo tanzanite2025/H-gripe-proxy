@@ -12,6 +12,7 @@ import {
   applyAppRuntimeProjectionArtifactToRuntime,
   buildAppRuntimeDemoSeed,
   buildAppRuntimeProjectionArtifact,
+  completeAppRuntimeControlPlane,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
   deleteDnsProfile,
@@ -34,6 +35,7 @@ import {
   verifyAppRuntimeProjectionRuntimeApply,
   verifyAppRuntimeSessionLeak,
   type AppRuntimeDnsHandoffReport,
+  type AppRuntimeControlPlaneCompletionReport,
   type AppPolicyBinding,
   type AppProcessMatcherKind,
   type AppRegistryEntry,
@@ -99,6 +101,8 @@ export function AppRuntimePlanningPanel() {
   const [sessionPending, setSessionPending] = useState(false)
   const [dnsProbePending, setDnsProbePending] = useState(false)
   const [dnsHandoffPending, setDnsHandoffPending] = useState(false)
+  const [controlPlaneCompletionPending, setControlPlaneCompletionPending] =
+    useState(false)
   const [artifactPending, setArtifactPending] = useState(false)
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
@@ -128,6 +132,8 @@ export function AppRuntimePlanningPanel() {
     useState<DnsResolverRuntimeProbeReport | null>(null)
   const [dnsHandoffReport, setDnsHandoffReport] =
     useState<AppRuntimeDnsHandoffReport | null>(null)
+  const [controlPlaneCompletionReport, setControlPlaneCompletionReport] =
+    useState<AppRuntimeControlPlaneCompletionReport | null>(null)
   const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
@@ -450,8 +456,17 @@ export function AppRuntimePlanningPanel() {
           ? `${dnsHandoffReport.nextAppRuntimeStep}; phase8=${String(dnsHandoffReport.phase8Allowed)}`
           : 'Accept DNS expanded control-plane completion before next app-runtime follow-up.',
       },
+      {
+        key: 'control-plane-completion',
+        label: 'Control-plane completion',
+        status: controlPlaneCompletionReport?.status ?? 'skipped',
+        detail: controlPlaneCompletionReport
+          ? `${controlPlaneCompletionReport.nextAppRuntimeStep}; staged=${String(controlPlaneCompletionReport.readyForStagedActivation)}`
+          : 'Complete DNS handoff, projection artifact, and staged activation preflight together.',
+      },
     ]
   }, [
+    controlPlaneCompletionReport,
     diagnostics,
     dnsHandoffReport,
     dnsProbeReport,
@@ -580,6 +595,31 @@ export function AppRuntimePlanningPanel() {
       })
     }
 
+    if (!controlPlaneCompletionReport) {
+      actions.push({
+        key: 'control-plane-completion-run',
+        scope: 'Completion',
+        status: 'skipped',
+        message: 'App runtime control-plane completion not run',
+        detail:
+          'Run the combined DNS handoff + projection artifact + preflight bundle.',
+        action: 'complete-control-plane',
+        actionLabel: '完成',
+      })
+    } else if (controlPlaneCompletionReport.status === 'blocked') {
+      actions.push({
+        key: 'control-plane-completion-blocked',
+        scope: 'Completion',
+        status: 'blocked',
+        message: controlPlaneCompletionReport.reason,
+        detail:
+          controlPlaneCompletionReport.blockers.join('；') ||
+          controlPlaneCompletionReport.nextAppRuntimeStep,
+        action: 'complete-control-plane',
+        actionLabel: '重试',
+      })
+    }
+
     if (actions.length === 0) {
       actions.push({
         key: 'no-actions',
@@ -593,6 +633,7 @@ export function AppRuntimePlanningPanel() {
 
     return actions
   }, [
+    controlPlaneCompletionReport,
     diagnostics,
     dnsHandoffReport,
     dnsProbeReport,
@@ -716,6 +757,31 @@ export function AppRuntimePlanningPanel() {
       showNotice.error(error)
     } finally {
       setDnsHandoffPending(false)
+    }
+  })
+
+  const completeControlPlane = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    setControlPlaneCompletionPending(true)
+    try {
+      const report = await completeAppRuntimeControlPlane({
+        appId: selectedAppId,
+      })
+      setControlPlaneCompletionReport(report)
+      setDnsHandoffReport(report.dnsHandoff)
+      setProjectionArtifact(report.projectionArtifact)
+      setActivationPreflight(report.activationPreflight)
+      setPlan(report.projectionArtifact.plan)
+      setProjection(report.projectionArtifact.projection)
+      setDiagnostics(report.projectionArtifact.diagnostics)
+      showNotice.success('App runtime control-plane completion 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setControlPlaneCompletionPending(false)
     }
   })
 
@@ -900,6 +966,11 @@ export function AppRuntimePlanningPanel() {
 
     if (action.action === 'accept-dns-handoff') {
       void acceptDnsHandoff()
+      return
+    }
+
+    if (action.action === 'complete-control-plane') {
+      void completeControlPlane()
     }
   }
 
@@ -1561,6 +1632,16 @@ export function AppRuntimePlanningPanel() {
             <Button
               size="small"
               variant="outlined"
+              onClick={() => void completeControlPlane()}
+              disabled={!selectedAppId || controlPlaneCompletionPending}
+            >
+              {controlPlaneCompletionPending
+                ? '完成中...'
+                : '完成 control-plane'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
               startIcon={<RefreshCw className="h-4 w-4" />}
               onClick={() => void loadState()}
               disabled={loading}
@@ -1631,6 +1712,61 @@ export function AppRuntimePlanningPanel() {
                   accepts={String(dnsHandoffReport.appRuntimeAcceptsHandoff)} ·
                   phase8={String(dnsHandoffReport.phase8Allowed)} · mutates=
                   {String(dnsHandoffReport.mutatesRuntime)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {controlPlaneCompletionReport ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">
+                  App runtime control-plane completion
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  合并 DNS handoff、projection artifact 与 staged activation
+                  preflight；不会 runtime apply。
+                </div>
+              </div>
+              <Chip
+                size="small"
+                color={statusColor(controlPlaneCompletionReport.status)}
+                label={controlPlaneCompletionReport.status}
+              />
+            </div>
+            <div className="grid gap-2 text-xs lg:grid-cols-2">
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Artifact</div>
+                <div className="mt-1 truncate text-muted-foreground">
+                  {controlPlaneCompletionReport.projectionArtifactPath ??
+                    '未持久化'}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Preflight</div>
+                <div className="mt-1 text-muted-foreground">
+                  {controlPlaneCompletionReport.activationPreflight.status} ·{' '}
+                  {controlPlaneCompletionReport.activationPreflight.reason}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Next step</div>
+                <div className="mt-1 text-muted-foreground">
+                  {controlPlaneCompletionReport.nextAppRuntimeStep}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Boundary</div>
+                <div className="mt-1 text-muted-foreground">
+                  staged=
+                  {String(
+                    controlPlaneCompletionReport.readyForStagedActivation,
+                  )}{' '}
+                  · runtimeApply=
+                  {String(controlPlaneCompletionReport.runtimeApplyAllowed)} ·
+                  phase8={String(controlPlaneCompletionReport.phase8Allowed)}
                 </div>
               </div>
             </div>
