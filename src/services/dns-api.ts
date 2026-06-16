@@ -406,6 +406,9 @@ export type DnsDefaultRuntimeRollbackDrillStatus = 'ready' | 'blocked'
 export type DnsDefaultRuntimeExpandedOptInExecutionGateStatus =
   | 'ready'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus =
+  | 'ready'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -523,6 +526,42 @@ export interface DnsDefaultRuntimeExpandedOptInExecutionGateReport {
   rollbackDrillRequired: boolean
   failureAuditRequired: boolean
   autoRollout: boolean
+  mutatesRuntime: boolean
+  executed: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedRuntimeMutationPlan {
+  previousRuntime: string
+  candidateRuntime: string
+  executionMode: string
+  activeProfileWrite: boolean
+  mihomoReload: boolean
+  profileSource: string
+  rollbackStrategy: string
+}
+
+export interface DnsDefaultRuntimeExpandedOptInExecutionPreflightRecord {
+  eventId: string
+  gateStatus: DnsDefaultRuntimeExpandedOptInExecutionGateStatus
+  scopeName: string
+  mutationPlan: DnsDefaultRuntimeExpandedRuntimeMutationPlan
+  createdAtEpochSeconds: number
+  explicitOptIn: boolean
+}
+
+export interface DnsDefaultRuntimeExpandedOptInExecutionPreflightReport {
+  status: DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus
+  reason: string
+  gate: DnsDefaultRuntimeExpandedOptInExecutionGateReport
+  preflightRecord: DnsDefaultRuntimeExpandedOptInExecutionPreflightRecord
+  preflightRecordPath?: string | null
+  preflightPersisted: boolean
+  userTriggerRequired: boolean
+  wouldMutateRuntime: boolean
   mutatesRuntime: boolean
   executed: boolean
   reloadMihomo: boolean
@@ -896,6 +935,29 @@ export async function dnsDefaultRuntimeExpandedOptInExecutionGate(
   } catch (err) {
     console.error(
       'DNS default runtime expanded opt-in execution gate failed:',
+      err,
+    )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedOptInExecutionPreflight(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeExpandedOptInExecutionPreflightReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedOptInExecutionPreflightReport>(
+      'dns_default_runtime_expanded_opt_in_execution_preflight',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime expanded opt-in execution preflight failed:',
       err,
     )
     throw err

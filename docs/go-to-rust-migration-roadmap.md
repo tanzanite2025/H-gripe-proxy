@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expansion gate 前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142、本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate 已进入 Rust 单一路径；下一步评估 TUN / protocol runtime 边界 |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded preflight 前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight 已进入 Rust 单一路径；下一步评估真实 active profile reload 执行边界，但仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1116,3 +1116,35 @@ feat(dns-runtime): add expanded opt-in execution gate
 - Gate 仅在 verified / no failure audit / rollback drill ready / explicit opt-in 全部满足时返回 `expansionAllowed=true`。
 - Report 输出 candidate scope、blockers、facts、`mutatesRuntime=false`、`executed=false`、`reloadMihomo=false`、`autoRollout=false`。
 - DNS runtime stats UI 在 post-execution 面板新增 expanded gate 按钮与结果展示。
+
+### Batch S：Default DNS runtime expanded execution preflight + app runtime demo seed（本批次，数据面前置 + 编排补齐）
+
+Batch R 只回答“是否允许扩大范围”。下一步仍不直接 rollout，而是把更真实的数据面候选（active profile write + Mihomo reload）先固化为 Rust-owned preflight record；同时补齐应用级编排的 demo seed，使 app / pool / DNS / security / binding 的单一事实链可一键导入验证。
+
+```text
+feat(dns-runtime): add expanded execution preflight
+feat(app-runtime): add demo seed import helper
+```
+
+建议边界：
+
+- DNS expanded preflight 必须消费 Batch R gate，不允许绕过 post-execution verification / rollback drill / failure audit。
+- Preflight 只生成并持久化下一批候选 runtime mutation plan：active profile write + Mihomo reload；本批次不执行。
+- Report 必须明确 `wouldMutateRuntime=true`、`mutatesRuntime=false`、`executed=false`、`reloadMihomo=false`。
+- App runtime demo seed 只生成 Rust state document，用户仍需显式导入/合并；不能自动写 state。
+- Demo seed 必须覆盖 app registry、node pool、DNS profile、security profile、policy binding，导入后能走 `RuntimePlan` / projection / diagnostics 单一事实链。
+
+不包含：
+
+- 不写 active profile、不 reload Mihomo。
+- 不自动 rollout、不自动 rollback。
+- 不碰 TUN、transparent proxy、adapter outbound/inbound 或协议栈。
+- 不让 demo seed 成为隐藏默认配置；它只是显式导入样例。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_opt_in_execution_preflight` command，复用 Batch R expanded gate。
+- Preflight report 输出 persisted record、candidate mutation plan、`wouldMutateRuntime` 与 runtime mutation 边界。
+- DNS runtime stats UI 新增 expanded preflight 按钮与结果展示。
+- 新增 `build_app_runtime_demo_seed` command，返回包含 demo app / node pool / DNS profile / security profile / binding 的 `AppRuntimeStateDocument`。
+- App runtime resource manager 新增“加载 Demo seed”按钮，只填充批量导入 JSON，不自动写入 Rust state。

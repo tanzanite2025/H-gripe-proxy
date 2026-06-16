@@ -1,4 +1,4 @@
-import { Download, Save, Trash2, Upload } from 'lucide-react'
+import { Download, Save, Sparkles, Trash2, Upload } from 'lucide-react'
 import type { ChangeEvent } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
@@ -34,6 +34,7 @@ interface AppRuntimeResourceManagerPanelProps {
   onSaveResource: () => void
   onDeleteResource: () => void
   onExportConfig: () => void
+  onLoadDemoSeed: () => void
   onImportConfig: () => void
 }
 
@@ -52,6 +53,7 @@ export function AppRuntimeResourceManagerPanel({
   onSaveResource,
   onDeleteResource,
   onExportConfig,
+  onLoadDemoSeed,
   onImportConfig,
 }: AppRuntimeResourceManagerPanelProps) {
   return (
@@ -153,6 +155,15 @@ export function AppRuntimeResourceManagerPanel({
             disabled={pending}
           >
             导出配置 JSON
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<Sparkles className="h-4 w-4" />}
+            onClick={onLoadDemoSeed}
+            disabled={pending}
+          >
+            加载 Demo seed
           </Button>
         </div>
 

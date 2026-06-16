@@ -533,6 +533,10 @@ export async function getAppRuntimeState(): Promise<AppRuntimeStateDocument> {
   return invoke('get_app_runtime_state')
 }
 
+export async function buildAppRuntimeDemoSeed(): Promise<AppRuntimeStateDocument> {
+  return invoke('build_app_runtime_demo_seed')
+}
+
 export async function upsertAppRegistryEntry(
   entry: AppRegistryEntry,
 ): Promise<AppRuntimeStateDocument> {

@@ -6,10 +6,13 @@ import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 import {
   dnsDefaultRuntimeExpandedOptInExecutionGate,
+  dnsDefaultRuntimeExpandedOptInExecutionPreflight,
   dnsDefaultRuntimePostExecutionObservedVerification,
   dnsDefaultRuntimeRollbackDrill,
   type DnsDefaultRuntimeExpandedOptInExecutionGateReport,
   type DnsDefaultRuntimeExpandedOptInExecutionGateStatus,
+  type DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
+  type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
   type DnsDefaultRuntimePostExecutionVerificationStatus,
   type DnsDefaultRuntimeRollbackDrillReport,
@@ -58,6 +61,17 @@ function expandedGateStatusColor(
   }
 }
 
+function expandedPreflightStatusColor(
+  status: DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus,
+): DnsStatusColor {
+  switch (status) {
+    case 'ready':
+      return 'success'
+    case 'blocked':
+      return 'error'
+  }
+}
+
 export function RuntimePostExecutionSection() {
   const [verificationReport, setVerificationReport] =
     useState<DnsDefaultRuntimePostExecutionObservedVerificationReport | null>(
@@ -67,9 +81,13 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeRollbackDrillReport | null>(null)
   const [gateReport, setGateReport] =
     useState<DnsDefaultRuntimeExpandedOptInExecutionGateReport | null>(null)
-  const [pending, setPending] = useState<'verify' | 'drill' | 'gate' | null>(
-    null,
-  )
+  const [preflightReport, setPreflightReport] =
+    useState<DnsDefaultRuntimeExpandedOptInExecutionPreflightReport | null>(
+      null,
+    )
+  const [pending, setPending] = useState<
+    'verify' | 'drill' | 'gate' | 'preflight' | null
+  >(null)
 
   const handleVerify = useLockFn(async () => {
     setPending('verify')
@@ -121,6 +139,27 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedPreflight = useLockFn(async () => {
+    setPending('preflight')
+    try {
+      const nextReport =
+        await dnsDefaultRuntimeExpandedOptInExecutionPreflight(
+          undefined,
+          POST_EXECUTION_DOMAIN,
+          true,
+        )
+      setPreflightReport(nextReport)
+      setGateReport(nextReport.gate)
+      setVerificationReport(nextReport.gate.postExecution)
+      setDrillReport(nextReport.gate.postExecution.rollbackDrill)
+      showNotice.success('默认 DNS runtime expanded execution preflight 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -154,14 +193,23 @@ export function RuntimePostExecutionSection() {
           >
             {pending === 'gate' ? '评估中...' : 'Expanded gate'}
           </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExpandedPreflight}
+            disabled={pending !== null}
+          >
+            {pending === 'preflight' ? '预检中...' : 'Expanded preflight'}
+          </Button>
         </div>
       </div>
 
       <div className="mb-2 text-xs text-muted-foreground">
         Batch Q 只读取 Batch P active state、execution audit 与 rollback
         metadata；比较执行后 observed query 与执行前 shadow evidence，不自动
-        rollout、不自动 rollback、不 reload Mihomo。Expanded gate 只判断是否允许后续更大范围显式
-        opt-in，不执行 rollout。
+        rollout、不自动 rollback、不 reload Mihomo。Expanded gate / preflight
+        只判断是否允许后续更大范围显式 opt-in，并持久化下一批 active profile reload
+        候选预检记录；本批次仍不执行 rollout。
       </div>
 
       {verificationReport ? (
@@ -293,6 +341,80 @@ export function RuntimePostExecutionSection() {
           {gateReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Gate blockers: {gateReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {preflightReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded preflight"
+              chipLabel={preflightReport.status}
+              chipColor={expandedPreflightStatusColor(preflightReport.status)}
+            />
+            <DnsTextRow
+              label="结果"
+              value={preflightReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={preflightReport.reason}
+            />
+            <DnsTextRow
+              label="Execution mode"
+              value={preflightReport.preflightRecord.mutationPlan.executionMode}
+              valueTitle={
+                preflightReport.preflightRecord.mutationPlan.executionMode
+              }
+            />
+            <DnsTextRow
+              label="Record"
+              value={
+                preflightReport.preflightPersisted
+                  ? '已持久化 preflight'
+                  : '未持久化'
+              }
+              valueTitle={preflightReport.preflightRecordPath ?? undefined}
+            />
+            <DnsTextRow
+              label="Would write profile"
+              value={
+                preflightReport.preflightRecord.mutationPlan.activeProfileWrite
+                  ? '候选会写 active profile'
+                  : '不会写 active profile'
+              }
+            />
+            <DnsTextRow
+              label="Would reload Mihomo"
+              value={
+                preflightReport.preflightRecord.mutationPlan.mihomoReload
+                  ? '候选会 reload'
+                  : '不会 reload'
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={preflightReport.wouldMutateRuntime ? 'warning' : 'success'}
+              label={`wouldMutateRuntime=${String(preflightReport.wouldMutateRuntime)}`}
+            />
+            <Chip
+              size="small"
+              color={preflightReport.mutatesRuntime ? 'error' : 'success'}
+              label={`mutatesRuntime=${String(preflightReport.mutatesRuntime)}`}
+            />
+            <Chip
+              size="small"
+              color={preflightReport.reloadMihomo ? 'error' : 'success'}
+              label={`reloadMihomo=${String(preflightReport.reloadMihomo)}`}
+            />
+          </div>
+
+          {preflightReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Preflight blockers: {preflightReport.blockers.join('；')}
             </div>
           ) : null}
         </div>

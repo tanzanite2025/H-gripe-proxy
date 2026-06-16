@@ -42,6 +42,27 @@ fn plan_explain_uses_registered_app_policy_and_pool() {
 }
 
 #[test]
+fn demo_seed_builds_ready_app_runtime_plan() {
+    let state = build_app_runtime_demo_seed_document();
+
+    let plan = explain_app_runtime_plan(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "demo-browser".into(),
+            session_id: None,
+        },
+    );
+
+    assert_eq!(plan.status, AppRuntimePlanStatus::Ready);
+    assert_eq!(plan.routing_intent, Some(AppRoutingIntent::Proxy));
+    assert_eq!(state.apps.len(), 1);
+    assert_eq!(state.node_pools.len(), 1);
+    assert_eq!(state.dns_profiles.len(), 1);
+    assert_eq!(state.security_profiles.len(), 1);
+    assert_eq!(state.policy_bindings.len(), 1);
+}
+
+#[test]
 fn plan_rejects_missing_policy_binding() {
     let state = AppRuntimeStateDocument {
         apps: vec![sample_app()],
