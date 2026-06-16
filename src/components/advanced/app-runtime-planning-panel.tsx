@@ -83,17 +83,20 @@ function statusColor(
     case 'completed':
     case 'passed':
     case 'pass':
+    case 'appMatched':
       return 'success'
     case 'degraded':
     case 'warning':
     case 'warn':
     case 'skipped':
     case 'notApplicable':
+    case 'unattributed':
       return 'warning'
     case 'blocked':
     case 'rejected':
     case 'failed':
     case 'fail':
+    case 'appMismatch':
       return 'error'
     default:
       return 'default'
@@ -291,6 +294,20 @@ function parseJsonObject<T extends object>(raw: string): T {
 
 function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2)
+}
+
+function formatTime(timestamp?: number) {
+  return timestamp ? new Date(timestamp).toLocaleString() : '-'
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
 export function AppRuntimePlanningPanel() {
@@ -1063,6 +1080,16 @@ export function AppRuntimePlanningPanel() {
                         size="small"
                         label={`Observations: ${selectedSession.observations.length}`}
                       />
+                      <Chip
+                        size="small"
+                        label={`Started: ${formatTime(selectedSession.startedAt)}`}
+                      />
+                      {selectedSession.endedAt ? (
+                        <Chip
+                          size="small"
+                          label={`Ended: ${formatTime(selectedSession.endedAt)}`}
+                        />
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -1130,6 +1157,83 @@ export function AppRuntimePlanningPanel() {
                       </div>
                       <div>Warnings: {selectedSession.warnings.length}</div>
                     </div>
+
+                    {selectedSession.observations.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold">
+                          Observation timeline
+                        </div>
+                        <div className="space-y-2">
+                          {selectedSession.observations
+                            .slice()
+                            .reverse()
+                            .slice(0, 5)
+                            .map((observation) => (
+                              <div
+                                key={observation.observationId}
+                                className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-xs"
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Chip
+                                    size="small"
+                                    color={statusColor(
+                                      observation.attributionStatus,
+                                    )}
+                                    label={observation.attributionStatus}
+                                  />
+                                  <span>
+                                    {formatTime(observation.recordedAt)}
+                                  </span>
+                                  <span>
+                                    Active:{' '}
+                                    {observation.traffic.activeConnectionCount}
+                                  </span>
+                                  <span>
+                                    Closed:{' '}
+                                    {observation.traffic.closedSinceLast}
+                                  </span>
+                                  <span>
+                                    Up:{' '}
+                                    {formatBytes(
+                                      observation.traffic.uploadTotal,
+                                    )}
+                                  </span>
+                                  <span>
+                                    Down:{' '}
+                                    {formatBytes(
+                                      observation.traffic.downloadTotal,
+                                    )}
+                                  </span>
+                                </div>
+                                {observation.attributionCandidates.length >
+                                0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {observation.attributionCandidates
+                                      .slice(0, 4)
+                                      .map((candidate) => (
+                                        <Chip
+                                          key={candidate.connectionId}
+                                          size="small"
+                                          label={`${candidate.host || candidate.process || candidate.connectionId} · ${candidate.chains.join(' > ') || 'no chain'}`}
+                                          title={`rule=${candidate.rule}; matchedBy=${candidate.matchedBy.join(', ')}`}
+                                        />
+                                      ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-muted-foreground">
+                                    No attribution candidates captured.
+                                  </div>
+                                )}
+                                {observation.warnings.length > 0 ? (
+                                  <div className="text-muted-foreground">
+                                    {observation.warnings.join('；')}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -1140,21 +1244,71 @@ export function AppRuntimePlanningPanel() {
             )}
 
             {evaluation ? (
-              <div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
-                <div className="mb-1 font-medium">{evaluation.reason}</div>
-                <div className="grid gap-1 sm:grid-cols-3">
+              <div className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Chip
+                    size="small"
+                    color={statusColor(evaluation.status)}
+                    label={`Evaluation: ${evaluation.status}`}
+                  />
+                  <span className="font-medium">{evaluation.reason}</span>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-4">
+                  <div>Observations: {evaluation.summary.observationCount}</div>
                   <div>Matched: {evaluation.summary.matchedObservations}</div>
                   <div>Mismatch: {evaluation.summary.mismatchObservations}</div>
                   <div>
                     Unattributed: {evaluation.summary.unattributedObservations}
                   </div>
+                  <div>Stale: {evaluation.summary.staleObservations}</div>
+                  <div>
+                    Candidates: {evaluation.summary.attributionCandidateCount}
+                  </div>
+                  <div>
+                    Upload: {formatBytes(evaluation.summary.uploadTotal)}
+                  </div>
+                  <div>
+                    Download: {formatBytes(evaluation.summary.downloadTotal)}
+                  </div>
                 </div>
+                {evaluation.summary.observedHosts.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {evaluation.summary.observedHosts
+                      .slice(0, 8)
+                      .map((host) => (
+                        <Chip key={host} size="small" label={host} />
+                      ))}
+                  </div>
+                ) : null}
+                {evaluation.summary.observedChains.length > 0 ? (
+                  <div className="text-muted-foreground">
+                    Chains: {evaluation.summary.observedChains.join(' / ')}
+                  </div>
+                ) : null}
+                {evaluation.warnings.length > 0 ? (
+                  <div className="text-muted-foreground">
+                    {evaluation.warnings.join('；')}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
             {leakReport ? (
               <div className="space-y-2 rounded-md bg-muted/40 px-3 py-2 text-xs">
-                <div className="font-medium">{leakReport.reason}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Chip
+                    size="small"
+                    color={statusColor(leakReport.status)}
+                    label={`Leak: ${leakReport.status}`}
+                  />
+                  <span className="font-medium">{leakReport.reason}</span>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-4">
+                  <div>Pass: {leakReport.summary.pass}</div>
+                  <div>Warn: {leakReport.summary.warn}</div>
+                  <div>Fail: {leakReport.summary.fail}</div>
+                  <div>N/A: {leakReport.summary.notApplicable}</div>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {leakReport.checks.map((check) => (
                     <Chip
@@ -1165,6 +1319,31 @@ export function AppRuntimePlanningPanel() {
                     />
                   ))}
                 </div>
+                <div className="space-y-1">
+                  {leakReport.checks.map((check) => (
+                    <div
+                      key={`${check.dimension}-detail`}
+                      className="rounded-md border border-border px-2 py-1"
+                    >
+                      <div className="font-medium">{check.message}</div>
+                      {check.facts.length > 0 ? (
+                        <div className="text-muted-foreground">
+                          {check.facts.join('；')}
+                        </div>
+                      ) : null}
+                      {check.warnings.length > 0 ? (
+                        <div className="text-muted-foreground">
+                          {check.warnings.join('；')}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                {leakReport.warnings.length > 0 ? (
+                  <div className="text-muted-foreground">
+                    {leakReport.warnings.join('；')}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
