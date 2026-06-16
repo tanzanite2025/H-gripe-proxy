@@ -271,6 +271,7 @@ mod app_init {
             cmd::cleanup_subscription_artifacts_by_retention,
             cmd::get_app_runtime_state,
             cmd::build_app_runtime_demo_seed,
+            cmd::accept_app_runtime_dns_handoff,
             cmd::upsert_app_registry_entry,
             cmd::delete_app_registry_entry,
             cmd::upsert_node_pool,

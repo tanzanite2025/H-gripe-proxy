@@ -17,7 +17,11 @@ export interface AggregateDiagnosticAction {
   message: string
   detail: string
   actionLabel?: string
-  action?: 'focus-state' | 'run-diagnostics' | 'run-dns-probe'
+  action?:
+    | 'focus-state'
+    | 'run-diagnostics'
+    | 'run-dns-probe'
+    | 'accept-dns-handoff'
 }
 
 interface AppRuntimeAggregateDiagnosticsPanelProps {

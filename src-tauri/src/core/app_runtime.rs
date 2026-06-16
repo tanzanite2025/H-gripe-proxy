@@ -2,10 +2,12 @@ use crate::{
     core::dns_runtime::{DnsResolverPlanStatus, build_dns_resolver_plan},
     utils::{dirs, help},
 };
+mod handoff;
 mod projection;
 mod sessions;
 mod types;
 
+pub use handoff::accept_app_runtime_dns_handoff;
 pub use projection::{
     activate_app_runtime_projection_artifact, apply_app_runtime_projection_artifact_to_runtime,
     build_app_runtime_projection_artifact, list_app_runtime_projection_runtime_apply_audits,
@@ -19,6 +21,8 @@ pub use sessions::{
 };
 pub use types::*;
 
+#[cfg(test)]
+pub(super) use handoff::*;
 #[cfg(test)]
 pub(super) use projection::*;
 #[cfg(test)]

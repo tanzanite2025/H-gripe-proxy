@@ -1,4 +1,7 @@
-use crate::core::dns_runtime::DnsResolverPlan;
+use crate::core::dns_runtime::{
+    DnsDefaultRuntimeExpandedControlPlaneCompletionReport, DnsDefaultRuntimeExpandedControlPlaneCompletionStatus,
+    DnsResolverPlan,
+};
 use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
 use std::collections::BTreeMap;
@@ -22,6 +25,59 @@ pub struct AppRuntimeStateDocument {
     pub runtime_apply_audits: Vec<AppRuntimeProjectionRuntimeApplyAuditRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_projection: Option<AppRuntimeActiveProjectionRecord>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeDnsHandoffStatus {
+    Accepted,
+    Watching,
+    RollbackRecommended,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeDnsHandoffRecord {
+    pub handoff_id: String,
+    pub action: String,
+    pub dns_completion_status: DnsDefaultRuntimeExpandedControlPlaneCompletionStatus,
+    pub dns_control_plane_complete: bool,
+    pub dns_handoff_ready: bool,
+    pub dns_manifest_path: Option<String>,
+    pub app_runtime_accepts_handoff: bool,
+    pub app_runtime_followup_scope: String,
+    pub next_app_runtime_step: String,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeDnsHandoffReport {
+    pub status: AppRuntimeDnsHandoffStatus,
+    pub reason: String,
+    pub dns_completion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
+    pub handoff_record: AppRuntimeDnsHandoffRecord,
+    pub handoff_record_path: Option<String>,
+    pub handoff_record_persisted: bool,
+    pub app_runtime_accepts_handoff: bool,
+    pub next_app_runtime_step: String,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
