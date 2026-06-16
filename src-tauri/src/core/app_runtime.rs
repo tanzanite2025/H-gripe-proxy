@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        connection_metrics::{self, ConnectionMetricsSnapshot},
+        connection_metrics::{self, ConnectionAttributionCandidate, ConnectionMetricsSnapshot},
         dns_runtime::{DnsResolverPlan, DnsResolverPlanStatus, build_dns_resolver_plan},
     },
     utils::{dirs, help},
@@ -424,6 +424,21 @@ pub struct AppRuntimeSessionTrafficObservation {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionAttributionCandidate {
+    pub connection_id: String,
+    pub process: String,
+    pub process_path: String,
+    pub host: String,
+    pub rule: String,
+    pub rule_payload: String,
+    pub chains: Vec<String>,
+    pub upload: u64,
+    pub download: u64,
+    pub matched_by: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct AppRuntimeSessionObservationRecord {
     pub observation_id: String,
     pub session_id: String,
@@ -432,6 +447,8 @@ pub struct AppRuntimeSessionObservationRecord {
     pub attribution_status: AppRuntimeSessionAttributionStatus,
     pub traffic: AppRuntimeSessionTrafficObservation,
     pub connection_speed_count: usize,
+    #[serde(default)]
+    pub attribution_candidates: Vec<AppRuntimeSessionAttributionCandidate>,
     pub facts: Vec<String>,
     pub warnings: Vec<String>,
 }
@@ -705,7 +722,6 @@ pub async fn finish_app_runtime_session(request: AppRuntimeSessionFinishRequest)
 pub async fn record_app_runtime_session_observation(session_id: &str) -> Result<AppRuntimeSessionRecord> {
     let session_id = normalize_id(session_id, "session_id")?;
     let metrics = connection_metrics::get_connection_metrics_snapshot().await;
-    let observation = session_observation_from_metrics(&session_id, &metrics);
 
     let mut state = read_app_runtime_state_document().await?;
     let Some(session) = state
@@ -715,6 +731,7 @@ pub async fn record_app_runtime_session_observation(session_id: &str) -> Result<
     else {
         bail!("app runtime session `{session_id}` was not found");
     };
+    let observation = session_observation_from_metrics(session, &metrics);
     session.observations.push(observation);
     let session = session.clone();
     save_app_runtime_state_document(&state).await?;
@@ -1059,16 +1076,46 @@ fn session_record_from_diagnostics(
 }
 
 fn session_observation_from_metrics(
-    session_id: &str,
+    session: &AppRuntimeSessionRecord,
     metrics: &ConnectionMetricsSnapshot,
 ) -> AppRuntimeSessionObservationRecord {
     let recorded_at = now_millis();
+    let attribution_candidates = metrics
+        .attribution_candidates
+        .iter()
+        .filter_map(|candidate| session_attribution_candidate(session, candidate))
+        .collect::<Vec<_>>();
+    let attribution_status = if metrics.attribution_candidates.is_empty() {
+        AppRuntimeSessionAttributionStatus::Unattributed
+    } else if attribution_candidates.is_empty() {
+        AppRuntimeSessionAttributionStatus::AppMismatch
+    } else {
+        AppRuntimeSessionAttributionStatus::AppMatched
+    };
+    let mut facts = vec![
+        "Observation snapshots reuse the Rust connection metrics path".into(),
+        format!(
+            "inspected {} connection attribution candidate(s)",
+            metrics.attribution_candidates.len()
+        )
+        .into(),
+    ];
+    if !attribution_candidates.is_empty() {
+        facts.push(
+            format!(
+                "matched {} candidate(s) against session projected rules or proxy groups",
+                attribution_candidates.len()
+            )
+            .into(),
+        );
+    }
+
     AppRuntimeSessionObservationRecord {
-        observation_id: format!("{session_id}-{recorded_at}").into(),
-        session_id: session_id.into(),
+        observation_id: format!("{}-{recorded_at}", session.session_id).into(),
+        session_id: session.session_id.clone(),
         recorded_at,
         source: AppRuntimeSessionObservationSource::ConnectionMetricsSnapshot,
-        attribution_status: AppRuntimeSessionAttributionStatus::Unattributed,
+        attribution_status,
         traffic: AppRuntimeSessionTrafficObservation {
             upload_total: metrics.traffic.upload_total,
             download_total: metrics.traffic.download_total,
@@ -1080,11 +1127,88 @@ fn session_observation_from_metrics(
             stale: metrics.stale,
         },
         connection_speed_count: metrics.speeds.len(),
-        facts: vec![
-            "Observation snapshots reuse the Rust connection metrics path".into(),
-            "Current slice records session-level totals without claiming app-level socket attribution".into(),
-        ],
-        warnings: vec!["Per-app connection attribution is pending process/socket metadata correlation".into()],
+        attribution_candidates,
+        facts,
+        warnings: session_observation_warnings(attribution_status),
+    }
+}
+
+fn session_attribution_candidate(
+    session: &AppRuntimeSessionRecord,
+    candidate: &ConnectionAttributionCandidate,
+) -> Option<AppRuntimeSessionAttributionCandidate> {
+    let matched_by = session_candidate_matches(session, candidate);
+    if matched_by.is_empty() {
+        return None;
+    }
+
+    Some(AppRuntimeSessionAttributionCandidate {
+        connection_id: candidate.id.clone().into(),
+        process: candidate.process.clone().into(),
+        process_path: candidate.process_path.clone().into(),
+        host: candidate.host.clone().into(),
+        rule: candidate.rule.clone().into(),
+        rule_payload: candidate.rule_payload.clone().into(),
+        chains: candidate.chains.iter().map(|chain| chain.as_str().into()).collect(),
+        upload: candidate.upload,
+        download: candidate.download,
+        matched_by,
+    })
+}
+
+fn session_candidate_matches(
+    session: &AppRuntimeSessionRecord,
+    candidate: &ConnectionAttributionCandidate,
+) -> Vec<String> {
+    let mut matched_by = Vec::new();
+    for proxy_group in &session.projected_proxy_groups {
+        if candidate
+            .chains
+            .iter()
+            .any(|chain| chain.as_str() == proxy_group.as_str())
+        {
+            matched_by.push(format!("proxyGroup:{proxy_group}").into());
+        }
+    }
+    for rule in &session.projected_rules {
+        if projected_rule_matches_candidate(rule, candidate) {
+            matched_by.push(format!("projectedRule:{rule}").into());
+        }
+    }
+    matched_by
+}
+
+fn projected_rule_matches_candidate(rule: &str, candidate: &ConnectionAttributionCandidate) -> bool {
+    let mut parts = rule.splitn(3, ',');
+    let Some(kind) = parts.next() else {
+        return false;
+    };
+    let Some(payload) = parts.next() else {
+        return false;
+    };
+    match kind {
+        "PROCESS-NAME" => {
+            candidate.process.eq_ignore_ascii_case(payload)
+                || candidate
+                    .process_path
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(payload))
+        }
+        "PROCESS-PATH" => candidate.process_path.eq_ignore_ascii_case(payload),
+        _ => false,
+    }
+}
+
+fn session_observation_warnings(status: AppRuntimeSessionAttributionStatus) -> Vec<String> {
+    match status {
+        AppRuntimeSessionAttributionStatus::AppMatched => Vec::new(),
+        AppRuntimeSessionAttributionStatus::AppMismatch => {
+            vec!["Latest connection metadata did not match this session's projected rules or proxy groups".into()]
+        }
+        AppRuntimeSessionAttributionStatus::Unattributed => {
+            vec!["No connection attribution candidates are available in the latest metrics snapshot".into()]
+        }
     }
 }
 
@@ -2029,6 +2153,23 @@ mod tests {
 
     #[test]
     fn session_observation_snapshots_connection_metrics_without_app_attribution() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
+        };
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        let session = session_record_from_diagnostics("session-a".into(), &report);
         let metrics = ConnectionMetricsSnapshot {
             traffic: connection_metrics::TrafficSnapshot {
                 upload_total: 100,
@@ -2044,10 +2185,11 @@ mod tests {
                 cur_upload: 10,
                 cur_download: 20,
             }],
+            attribution_candidates: Vec::new(),
             stale: false,
         };
 
-        let observation = session_observation_from_metrics("session-a", &metrics);
+        let observation = session_observation_from_metrics(&session, &metrics);
 
         assert_eq!(observation.session_id, "session-a");
         assert_eq!(
@@ -2064,7 +2206,72 @@ mod tests {
             observation
                 .warnings
                 .iter()
-                .any(|warning| warning.contains("Per-app connection attribution is pending"))
+                .any(|warning| warning.contains("No connection attribution candidates"))
+        );
+    }
+
+    #[test]
+    fn session_observation_matches_connection_candidates_against_projected_rules() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
+        };
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        let session = session_record_from_diagnostics("session-a".into(), &report);
+        let metrics = ConnectionMetricsSnapshot {
+            traffic: connection_metrics::TrafficSnapshot {
+                upload_total: 100,
+                download_total: 200,
+                upload_speed: 10,
+                download_speed: 20,
+                active_connection_count: 1,
+                closed_since_last: 0,
+                memory: 42,
+            },
+            speeds: Vec::new(),
+            attribution_candidates: vec![connection_metrics::ConnectionAttributionCandidate {
+                id: "conn-a".into(),
+                process: "browser.exe".into(),
+                process_path: "C:\\Program Files\\Browser\\browser.exe".into(),
+                host: "example.com".into(),
+                rule: "ProcessName".into(),
+                rule_payload: "browser.exe".into(),
+                chains: vec!["app-browser".into()],
+                upload: 100,
+                download: 200,
+            }],
+            stale: false,
+        };
+
+        let observation = session_observation_from_metrics(&session, &metrics);
+
+        assert_eq!(
+            observation.attribution_status,
+            AppRuntimeSessionAttributionStatus::AppMatched
+        );
+        assert_eq!(observation.attribution_candidates.len(), 1);
+        assert!(
+            observation.attribution_candidates[0]
+                .matched_by
+                .iter()
+                .any(|matched_by| matched_by == "proxyGroup:app-browser")
+        );
+        assert!(
+            observation.attribution_candidates[0]
+                .matched_by
+                .iter()
+                .any(|matched_by| matched_by.starts_with("projectedRule:PROCESS-NAME,browser.exe"))
         );
     }
 
