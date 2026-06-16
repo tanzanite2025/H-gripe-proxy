@@ -9,6 +9,7 @@ import { Select } from '@/components/tailwind/Select'
 import {
   diagnoseAppRuntime,
   evaluateAppRuntimeSession,
+  finishAppRuntimeSession,
   getAppRuntimeState,
   recordAppRuntimeSessionObservation,
   projectAppRuntimePlanToMihomo,
@@ -21,6 +22,7 @@ import {
   type AppRuntimeSessionEvaluationReport,
   type AppRuntimeSessionLeakReport,
   type AppRuntimeSessionRecord,
+  type AppRuntimeSessionStatus,
   type AppRuntimeStateDocument,
 } from '@/services/app-runtime'
 import { showNotice } from '@/services/notice-service'
@@ -87,6 +89,8 @@ function upsertSession(
   nextSessions.push(nextSession)
   return sortSessions(nextSessions)
 }
+
+type FinishableSessionStatus = Exclude<AppRuntimeSessionStatus, 'planned'>
 
 export function AppRuntimePlanningPanel() {
   const [state, setState] = useState<AppRuntimeStateDocument>(emptyState)
@@ -260,6 +264,32 @@ export function AppRuntimePlanningPanel() {
       setSessionPending(false)
     }
   })
+
+  const handleFinishSession = useLockFn(
+    async (status: FinishableSessionStatus) => {
+      if (!selectedSession) {
+        return
+      }
+
+      setSessionPending(true)
+      try {
+        const session = await finishAppRuntimeSession({
+          sessionId: selectedSession.sessionId,
+          status,
+        })
+        setState((current) => ({
+          ...current,
+          sessions: upsertSession(current.sessions, session),
+        }))
+        setSelectedSessionId(session.sessionId)
+        showNotice.success(`Session 已标记为 ${status}`)
+      } catch (error) {
+        showNotice.error(error)
+      } finally {
+        setSessionPending(false)
+      }
+    },
+  )
 
   useEffect(() => {
     void loadState()
@@ -443,6 +473,36 @@ export function AppRuntimePlanningPanel() {
                         disabled={sessionPending}
                       >
                         检查泄漏维度
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="success"
+                        onClick={() => void handleFinishSession('completed')}
+                        disabled={sessionPending || !!selectedSession.endedAt}
+                      >
+                        标记完成
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="warning"
+                        onClick={() => void handleFinishSession('blocked')}
+                        disabled={sessionPending || !!selectedSession.endedAt}
+                      >
+                        标记阻塞
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        onClick={() => void handleFinishSession('failed')}
+                        disabled={sessionPending || !!selectedSession.endedAt}
+                      >
+                        标记失败
                       </Button>
                     </div>
 
