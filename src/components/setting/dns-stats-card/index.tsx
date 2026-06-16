@@ -12,6 +12,7 @@ import { RoutingSection } from './routing-section'
 import { RuntimeAlignmentSection } from './runtime-alignment-section'
 import { RuntimeOptionsSection } from './runtime-options-section'
 import { RuntimeOverrideSection } from './runtime-override-section'
+import { RuntimeProbeSection } from './runtime-probe-section'
 import { RuntimeSummarySection } from './runtime-summary-section'
 import { DnsCardState, DnsDivider } from './shared'
 
@@ -70,7 +71,8 @@ export const DnsStatsCard = ({
         </div>
 
         <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-          这里展示的是 Rust 后端确认的当前 DNS 运行态统计，不会随着未保存的表单编辑即时变化。
+          这里展示的是 Rust 后端确认的当前 DNS
+          运行态统计，不会随着未保存的表单编辑即时变化。
         </div>
 
         <RuntimeSummarySection runtimeView={runtimeView} />
@@ -84,6 +86,8 @@ export const DnsStatsCard = ({
         <RuntimeOverrideSection runtimeView={runtimeView} />
         <DnsDivider />
         <LeakProtectionSection runtimeView={runtimeView} />
+        <DnsDivider />
+        <RuntimeProbeSection runtimeStatus={runtimeStatus} />
         <DnsDivider />
         <PerformanceMetricsSection />
       </div>
