@@ -652,6 +652,119 @@ export function AppRuntimePlanningPanel() {
     selectedOverviewRow,
   ])
 
+  const aggregateDiagnosticActions = useMemo(() => {
+    if (!selectedApp) {
+      return []
+    }
+
+    const actions: Array<{
+      key: string
+      scope: string
+      status: string
+      message: string
+      detail: string
+    }> = []
+
+    for (const issue of selectedOverviewRow?.issues ?? []) {
+      actions.push({
+        key: `state-${issue}`,
+        scope: 'State',
+        status: 'failed',
+        message: issue,
+        detail: 'Use the quick forms or JSON editor to repair this reference.',
+      })
+    }
+
+    if (!diagnostics) {
+      actions.push({
+        key: 'diagnostics-run',
+        scope: 'Diagnostics',
+        status: 'skipped',
+        message: 'Planning diagnostics not run',
+        detail:
+          'Run planning diagnostics before reviewing projection readiness.',
+      })
+    } else {
+      for (const check of diagnostics.checks.filter(
+        (item) => item.status === 'failed' || item.status === 'warning',
+      )) {
+        actions.push({
+          key: `diagnostics-${check.checkId}`,
+          scope: check.category,
+          status: check.status,
+          message: check.message,
+          detail: check.details.join('；') || check.severity,
+        })
+      }
+    }
+
+    if (selectedDnsProfile && !dnsProbeReport) {
+      actions.push({
+        key: 'dns-probe-run',
+        scope: 'DNS',
+        status: 'skipped',
+        message: 'DNS controlled probe not run',
+        detail:
+          'Run the opt-in probe before treating DNS runtime health as known.',
+      })
+    }
+
+    if (dnsProbeReport) {
+      for (const target of dnsProbeReport.targets.filter(
+        (item) => item.runtimeSupported && !item.healthy,
+      )) {
+        actions.push({
+          key: `dns-target-${target.protocol}-${target.server}`,
+          scope: 'DNS',
+          status: 'failed',
+          message: `${target.server} · ${target.providerLabel ?? target.protocol}`,
+          detail: target.message,
+        })
+      }
+
+      for (const warning of dnsProbeReport.warnings) {
+        actions.push({
+          key: `dns-warning-${warning}`,
+          scope: 'DNS',
+          status: 'warning',
+          message: warning,
+          detail:
+            'Probe warning remains informational unless promoted by policy.',
+        })
+      }
+    }
+
+    if (projection?.mutatesRuntime) {
+      actions.push({
+        key: 'runtime-boundary-mutates',
+        scope: 'Runtime',
+        status: 'failed',
+        message: 'Projection reports runtime mutation',
+        detail: 'App-runtime UI should stay planning-only at this phase.',
+      })
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        key: 'no-actions',
+        scope: 'Summary',
+        status: 'passed',
+        message: 'No aggregate actions pending',
+        detail:
+          'State references, diagnostics, DNS probe, and runtime boundary are clear.',
+      })
+    }
+
+    return actions
+  }, [
+    diagnostics,
+    dnsProbeReport,
+    projection?.mutatesRuntime,
+    selectedApp,
+    selectedDnsProfile,
+    selectedOverviewRow,
+  ])
+
   const resources = useMemo(
     () => collectionFor(state, resourceKind),
     [resourceKind, state],
@@ -2315,6 +2428,33 @@ export function AppRuntimePlanningPanel() {
                   <div className="text-muted-foreground">{item.detail}</div>
                 </div>
               ))}
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold">待处理动作</div>
+              <div className="space-y-1">
+                {aggregateDiagnosticActions.map((action) => (
+                  <div
+                    key={action.key}
+                    className="grid gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs lg:grid-cols-[120px_minmax(0,1fr)_auto]"
+                  >
+                    <div className="text-muted-foreground">{action.scope}</div>
+                    <div>
+                      <div className="font-medium">{action.message}</div>
+                      <div className="text-muted-foreground">
+                        {action.detail}
+                      </div>
+                    </div>
+                    <div className="flex items-start justify-end">
+                      <Chip
+                        size="small"
+                        color={statusColor(action.status)}
+                        label={action.status}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {dnsProbeReport?.warnings.length ? (
