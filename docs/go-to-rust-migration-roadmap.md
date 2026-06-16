@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（explicit runtime candidate apply guard） | PR #82/#84-#91/#95-#130；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker 与 marker rollback 已进入 Rust 单一路径；当前进入显式 opt-in runtime candidate 应用 guard |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime apply audit / observed runtime verification） | PR #82/#84-#91/#95-#132；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback 与显式 opt-in runtime candidate apply guard 已进入 Rust 单一路径；下一步补 runtime apply audit / observed runtime verification |
 
 ## 已完成阶段详情
 
@@ -515,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path（截至 PR #125）**。
+当前进度：**完成 planning / session / CRUD / form / observability / readiness / staged projection artifact path / active marker rollback / explicit runtime apply guard，并完成 app-runtime backend 第二轮拆分（截至 PR #132）**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -614,11 +614,17 @@ AppRegistry
     - 若 previous artifact 为空，rollback 清空 active marker；不会 reload / restart Mihomo，也不会写 active profile。
     - UI 仅提供显式用户触发的 marker rollback 动作。
 
-17. **Explicit runtime candidate apply guard（本批次）**
+17. **Explicit runtime candidate apply guard（PR #131）**
     - 新增显式用户触发的 runtime candidate apply command，从已持久化 artifact 读取并复用 checksum / validation / staged boundary gate。
     - 将 projection YAML patch 组合为临时 profile merge candidate，通过现有 `CoreManager::update_config_without_restart_with_force(...)` 入口应用；不持久修改 `profiles.yaml`，不把前端临时 YAML 当事实源。
     - active marker 标记 `mutatesRuntime=true`，并要求 rollback 先恢复 runtime，再恢复 runtime apply 前的 marker-only state。
     - 当前仅覆盖 profile merge candidate 这条显式 opt-in 路径；仍不迁默认 DNS runtime / TUN / protocol 数据面。
+
+18. **App runtime backend second split（PR #132）**
+    - `app_runtime.rs` 从约 3039 行降到约 993 行。
+    - `app_runtime/projection.rs` 承接 Mihomo projection、artifact、activation、runtime apply 与 rollback 逻辑。
+    - `app_runtime/sessions.rs` 承接 session lifecycle、observation、evaluation 与 leak check 逻辑。
+    - 只做维护性拆分，公共 `core::app_runtime` re-export API 保持不变。
 
 删除边界：
 
@@ -668,7 +674,7 @@ AppRegistry
 
 ## 加速执行策略
 
-前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#130 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard、active artifact marker 与 marker rollback。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：先做显式 opt-in runtime candidate apply guard，再评估更高风险的 DNS / TUN / protocol runtime 边界。
+前一轮 PR 进度偏慢的主要原因不是技术阻塞，而是切片过细。PR #100-#132 已经把 app-runtime control-plane / diagnostics UI 的基础能力补齐，完成主面板与后端 app-runtime 第二轮拆分，并把 Rust-owned plan 推进到 **可验证、可审计的 staged runtime projection artifact**、activation preflight guard、active artifact marker、marker rollback 与显式 opt-in runtime candidate apply guard。后续不能继续停留在零散 UI 增强，应回到 Go → Rust 主线：先补齐 runtime apply audit / observed runtime verification，再评估更高风险的 DNS / TUN / protocol runtime 边界。
 
 ### 可以加快做的部分
 
@@ -677,10 +683,10 @@ AppRegistry
 | 优先级 | 可加速方向 | 建议合并方式 | 原因 |
 | --- | --- | --- | --- |
 | P0 | Runtime projection artifact / diff / validation gate | 已完成 staged artifact + 持久化（PR #124/#125） | 已从 planning-only 推进到可审计 execution candidate；仍未切 active runtime |
-| P0 | Controlled activation preflight / guard | 已完成 preflight + active marker（PR #127/#128）与 rollback guard（PR #130）；本批次进入 explicit runtime candidate apply guard | 只允许从持久化 artifact 出发，先做 preflight/guard，再做显式 opt-in runtime candidate，不直接扩大到 TUN/DNS/protocol runtime |
+| P0 | Controlled activation / runtime apply guard | 已完成 preflight + active marker（PR #127/#128）、rollback guard（PR #130）与 explicit runtime candidate apply guard（PR #131） | 只允许从持久化 artifact 出发，先做 preflight/guard，再做显式 opt-in runtime candidate，不直接扩大到 TUN/DNS/protocol runtime |
 | P0 | App diagnostics 串联 DNS probe / readiness | 已完成聚合诊断动作和 readiness action（PR #111-#112/#121-#122） | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
 | P1 | App runtime CRUD / form 管理面 | 已完成 JSON CRUD、import/export 与常用字段表单（PR #100/#106-#110） | 后续只补必要字段，避免继续做零散 UI |
-| P1 | 面板结构维护 | 已完成主面板拆分（PR #113-#120） | 后续功能必须落在已拆分组件中，避免重新形成巨型文件 |
+| P1 | 面板 / 后端结构维护 | 已完成主面板拆分（PR #113-#120）与 app-runtime backend 第二轮拆分（PR #132） | 后续功能必须落在已拆分组件 / modules 中，避免重新形成巨型文件 |
 | P2 | Demo / seed import-export | 可在 activation preflight 后再做 | 只有当 artifact / validation / preflight chain 稳定后，样例数据才真正服务主线验证 |
 
 ### 不应加速硬推的部分
@@ -706,7 +712,9 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard 都已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker 与 marker rollback。下一步不应继续追加零散 UI，而应进入 **explicit opt-in runtime candidate apply guard**：只允许用户从持久化 artifact 显式应用临时 runtime candidate，并保留 rollback 恢复边界。
+从提交记录看，Batch D / E、结构拆分、Batch F staged artifact gate、Batch G activation preflight / active marker、Batch H active projection rollback guard、Batch I explicit runtime candidate apply guard 都已经完成：Rust-owned app-runtime state 可编辑、可表单化管理、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链，可一键 readiness，可生成/持久化 staged projection artifact，并可从持久化 artifact 做 activation preflight、active marker、marker rollback 与显式 runtime candidate apply。
+
+下一步不应直接跳到默认 DNS runtime、TUN 或协议栈替换；这些会扩大到真实数据面。更稳妥的下一批是 **Batch J：Runtime apply audit / observed runtime verification**：把 Batch I 的 opt-in runtime mutation 变成可审计、可观测、可复核的闭环，再决定是否进入更高风险 runtime 边界。
 
 ### Batch F：Runtime projection artifact / diff / validation gate（已完成 PR #124/#125）
 
@@ -786,7 +794,7 @@ feat(app-runtime): add active projection rollback guard
 - UI 只能由用户显式触发 rollback，不随页面加载自动执行。
 - 仍不 reload / restart Mihomo，不写 active profile，不把 projection YAML patch 作为事实源。
 
-### Batch I：Explicit runtime candidate apply guard（本批次，小步做）
+### Batch I：Explicit runtime candidate apply guard（已完成 PR #131）
 
 Batch H 已能恢复 active marker。本批次开始进入真实 runtime 边界，但只走已有配置生成入口，仍保持用户显式触发与可回滚：
 
@@ -801,3 +809,49 @@ feat(app-runtime): add explicit runtime candidate apply guard
 - apply 成功后 active marker 必须记录 `mutatesRuntime=true` 和 runtime rollback strategy。
 - rollback 遇到 `mutatesRuntime=true` 时必须先恢复 runtime，再恢复 runtime apply 前的 marker-only state。
 - 仍不迁默认 DNS runtime、TUN、transparent proxy、adapter outbound/inbound 或协议栈。
+
+已落地范围：
+
+- 新增 `apply_app_runtime_projection_artifact_to_runtime` command。
+- apply 必须匹配当前 active projection marker，且 artifact id / checksum / validation / staged boundary 全部通过。
+- 通过临时 profile merge candidate 调用 `CoreManager::update_config_without_restart_with_force(...)`，不持久修改 `profiles.yaml`。
+- apply 成功后 active marker 记录 `activationKind=runtime_profile_merge` 与 `mutatesRuntime=true`。
+- rollback 遇到 runtime-mutating marker 时先恢复 runtime，再恢复 runtime apply 前的 marker-only state。
+- UI 增加显式 `应用 runtime` 按钮；只有当前 active artifact 且未 mutatesRuntime 时可触发。
+
+### Batch J：Runtime apply audit / observed runtime verification（下一批，小步做）
+
+Batch I 已允许显式 opt-in runtime mutation，但当前闭环仍主要停留在“命令成功 / active marker 已变更”。下一批应补齐 audit 与 observed verification，避免进入 DNS/TUN/protocol 前缺少运行态证据：
+
+```text
+feat(app-runtime): add runtime apply audit verification
+```
+
+建议边界：
+
+- apply 成功后生成 Rust-owned audit record / report，至少包含：
+  - artifact id / checksum / activation kind / mutation timestamp。
+  - runtime config validation outcome。
+  - 临时 candidate merge 摘要（proxy-groups / rules count、profile item identity，不记录敏感配置）。
+  - rollback strategy 与 previous marker 摘要。
+- 新增 read/list command 读取最近 runtime apply audit，不从前端临时状态推断。
+- 新增 observed runtime verification：
+  - 从当前 Rust monitor / controller 可见数据检查 active projection 的 proxy-group / rule 是否能在 runtime config 或 controller surface 中被观察到。
+  - 输出 `verified / degraded / blocked`，并说明缺少哪些 runtime evidence。
+  - 只读 controller/runtime surface，不再次写 profile、不自动 reload。
+- UI 在 active marker 下展示 apply audit 与 verification result，使用户能判断“已应用”是否真的进入 Mihomo runtime。
+- rollback 后 audit 应能标记该 runtime mutation 已被 rollback / superseded，避免误以为仍生效。
+
+不包含：
+
+- 不切默认 DNS resolver runtime。
+- 不接管 fake-ip cache / fallback-filter / nameserver-policy。
+- 不碰 TUN / transparent proxy / tunnel / adapter outbound/inbound / protocol runtime。
+- 不把 observed runtime config 反向写回 `AppRuntimeStateDocument` 作为事实源；事实源仍是 Rust app-runtime state + artifact。
+
+完成标准：
+
+- Runtime apply 有可持久化 / 可查询的 audit record。
+- UI 能展示 active projection 的 latest apply audit 与 observed verification。
+- verification 缺少 runtime evidence 时 fail-soft 返回 degraded / blocked，不 panic、不自动修复。
+- rollback 后 audit 状态可区分 active / rolled back / superseded。
