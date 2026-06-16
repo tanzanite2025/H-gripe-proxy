@@ -4,10 +4,12 @@ use crate::core::dns_config_explain::{
     plan_dns_probe as build_dns_probe_plan,
 };
 use crate::core::dns_runtime::{
-    DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport,
-    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
-    DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
+    DnsDefaultRuntimeOptInExecutorPreflightReport, DnsDefaultRuntimeOptInSwitchGuardReport,
+    DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport, DnsHealthCheckResult, DnsProtocol,
+    DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport, DnsResolverRuntimeQueryReport,
+    DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    dns_default_runtime_opt_in_executor_preflight as build_dns_default_runtime_opt_in_executor_preflight,
     dns_default_runtime_opt_in_switch_guard as build_dns_default_runtime_opt_in_switch_guard,
     dns_default_runtime_readiness as build_dns_default_runtime_readiness,
     dns_default_runtime_shadow_evidence as build_dns_default_runtime_shadow_evidence,
@@ -156,6 +158,17 @@ pub async fn dns_default_runtime_opt_in_switch_guard(
     explicit_opt_in: bool,
 ) -> CmdResult<DnsDefaultRuntimeOptInSwitchGuardReport> {
     build_dns_default_runtime_opt_in_switch_guard(yaml, domain, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_opt_in_executor_preflight(
+    yaml: Option<String>,
+    domain: Option<String>,
+    explicit_opt_in: bool,
+) -> CmdResult<DnsDefaultRuntimeOptInExecutorPreflightReport> {
+    build_dns_default_runtime_opt_in_executor_preflight(yaml, domain, explicit_opt_in)
         .await
         .stringify_err()
 }
