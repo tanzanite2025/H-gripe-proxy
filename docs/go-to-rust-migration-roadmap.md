@@ -109,10 +109,10 @@ app registry
 | Phase 4D | wildcard / logical / sub-rule 规则 | 完成 | PR #27-#31；`PROCESS-*WILDCARD`、`AND` / `OR` / `NOT` / `SUB-RULE` 与 rule explain |
 | Phase 5 | 控制器外围逻辑 Rust 化 | 完成 | PR #31-#37；rule explain、config diff、diagnostics summary、latency planner、node selection planner |
 | Phase 6A | DNS 控制面 explain / probe planner | 完成 | PR #45；只做 DNS 配置解释和 probe plan，不接管 Go DNS runtime |
-| Phase 6A.1 | DNS resolver runtime skeleton | 完成（skeleton） | PR #83；Rust `DnsResolverPlan` / hickory query controller 已落地，fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
+| Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 完成（planning / session path） | PR #82/#84-#91；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning 已进入 Rust 单一路径 |
+| Phase 7.5 | 应用级代理编排控制面 | 完成（planning / session UI path） | PR #82/#84-#91/#95-#97；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning 与 session finish 操作已进入 Rust 单一路径 |
 
 ## 已完成阶段详情
 
@@ -390,7 +390,8 @@ Phase 5 的删除边界：
 
 1. Rust DNS config explain / probe planner：已完成（PR #45）。
 2. Rust DNS resolver runtime skeleton：已完成（PR #83）。
-3. Rust DNS resolver default runtime：未接管。
+3. Rust DNS controlled runtime probe：已完成（PR #93/#94）。
+4. Rust DNS resolver default runtime：未接管。
 
 已完成范围：
 
@@ -399,6 +400,8 @@ Phase 5 的删除边界：
 - 规划 DNS probe / health check 输入。
 - 从 Clash DNS 配置构建 Rust `DnsResolverPlan`，标记 runtime-supported nameserver。
 - 提供 hickory-backed query controller / `dns_runtime_query` skeleton，用于受控查询、timeout / retry / metrics 试运行。
+- 提供 `dns_controlled_runtime_probe` / `dnsControlledRuntimeProbe(...)`，按 nameserver 输出 supported / healthy / latency / provider / warning summary。
+- DNS stats UI 可从当前 Rust-observed runtime DNS 列表触发 controlled probe；该入口只诊断 Rust resolver 支持能力，不写 Mihomo runtime。
 
 仍未迁移：
 
@@ -414,9 +417,9 @@ Phase 5 的删除边界：
 后续仍建议拆成三步：
 
 1. Rust DNS 配置校验与 explain：已完成。
-2. Rust DNS probe / health check planner：已完成控制面 planner，真实 health check 可继续补。
+2. Rust DNS probe / health check planner：已完成控制面 planner。
 3. Rust DNS resolver runtime skeleton：已完成。
-4. Rust DNS controlled runtime probe：下一步只做 opt-in 查询、provider health、metrics 和失败归因。
+4. Rust DNS controlled runtime probe：已完成 opt-in 查询、provider health、metrics 和失败归因。
 5. Rust DNS default runtime：最后做。
 
 不要一上来替换 Go 的 DNS runtime，否则会同时碰缓存、fake-ip、fallback-filter、nameserver-policy。
@@ -512,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session control path（截至 PR #91）**。
+当前进度：**完成 planning / session UI path（截至 PR #97）**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -557,6 +560,12 @@ AppRegistry
 7. **Leak verification planning（PR #91）**
    - 基于 session observation 与 plan projection 检查 proxy / DNS / exit / node-pool 一致性。
    - 仍是规划和观测归因，不做 live exit probe，也不声称强 per-app isolation。
+
+8. **App runtime planning / session UI（PR #95-#97）**
+   - “高级功能 → 应用编排”面板读取 `AppRuntimeStateDocument`，展示 app / node pool / DNS profile / security profile / binding inventory。
+   - 可对已注册 app 触发 `diagnoseAppRuntime` 与 `projectAppRuntimePlanToMihomo`，展示 plan / diagnostics / YAML patch，仍保持 `mutatesRuntime=false`。
+   - 可启动 app runtime session、记录 connection metrics snapshot、评估 attribution、检查 leak dimensions，并将 session 标记为 completed / blocked / failed。
+   - 这些 UI 操作只写 Rust app-runtime state / session record，不直接生成前端临时 Mihomo rules，也不启动或隔离第三方应用。
 
 删除边界：
 
@@ -606,21 +615,21 @@ AppRegistry
 
 ## 推荐的下一个实际开发 PR
 
-从提交记录看，原先推荐的主线 A 首批控制面切片和主线 B DNS runtime skeleton 已经完成。下一阶段应继续保持 planning-only / opt-in 边界，避免把 app 编排、DNS runtime 和真实转发一次性绑死。
+从提交记录看，原先推荐的主线 A 首批控制面切片、session 观测闭环，以及主线 B DNS controlled runtime probe 都已经完成。下一阶段应继续保持 planning-only / opt-in 边界，避免把 app 编排、DNS runtime 和真实转发一次性绑死。
 
-### 主线 A：应用级代理编排 UI / 管理面
+### 主线 A：应用级代理编排 CRUD / 管理面
 
-把已经落地的 Rust state / diagnostics 暴露成可操作管理面，但仍不修改真实 runtime：
+当前已经有 planning / diagnostics / session 面板。下一步应补齐 Rust state 的可视化 CRUD 管理面，但仍不修改真实 runtime：
 
 ```text
-feat(app-runtime): add app orchestration management surface
+feat(app-runtime): add app orchestration CRUD surface
 ```
 
 建议范围：
 
 - 应用、节点池、DNS profile、security profile、policy binding 的 CRUD UI。
-- `RuntimePlan` / Mihomo projection / diagnostics 的只读 explain 视图。
-- session start / observation / evaluation / leak verification 的诊断入口。
+- 与现有“应用编排”planning panel 共用同一个 `AppRuntimeStateDocument`。
+- 保存后立即复用现有 `diagnoseAppRuntime` / `projectAppRuntimePlanToMihomo` 做 explain。
 - 清楚标注 projection `mutatesRuntime=false`。
 
 不包含：
@@ -631,19 +640,19 @@ feat(app-runtime): add app orchestration management surface
 - 前端绕过 Rust state 直接写 Mihomo rules。
 - 把 leak verification 文案写成真实出口探测或强隔离保证。
 
-### 主线 B：DNS controlled runtime probe
+### 主线 B：DNS profile probe 与 app diagnostics 关联
 
-DNS runtime skeleton 已存在，下一刀只做受控 probe / metrics，不替换默认 DNS：
+DNS controlled runtime probe 已存在，下一刀应把 probe 结果与 app DNS profile diagnostics 关联，不替换默认 DNS：
 
 ```text
-feat(dns): add controlled resolver runtime probes
+feat(app-runtime): include DNS profile probe summary in diagnostics
 ```
 
 建议范围：
 
-- 基于 `DnsResolverPlan` 执行 opt-in provider / nameserver probe。
-- 记录 per-provider latency / success / error metrics。
-- 把 app DNS profile 的 runtime-supported nameserver 与 probe 结果关联到 diagnostics。
+- 从 app runtime diagnostics 中定位绑定的 DNS profile。
+- 对该 profile opt-in 调用 `dns_controlled_runtime_probe`。
+- 把 runtime-supported / healthy / failed / unsupported summary 合并进 diagnostics。
 - 对 unsupported fake-ip / fallback-filter / nameserver-policy 明确输出 plan-only warning。
 
 不包含：
@@ -653,4 +662,4 @@ feat(dns): add controlled resolver runtime probes
 - 默认 DNS resolver runtime 切换。
 - fake-ip / fallback-filter / nameserver-policy 真实执行。
 
-主线 A 和主线 B 可以继续并行推进：A 让 Rust-owned app/pool/policy 可见可管，B 增强 DNS runtime 的 opt-in 可验证性。二者仍通过 `RuntimePlan` / `DnsResolverPlan` 对接，避免日后重复建模。
+主线 A 和主线 B 可以继续并行推进：A 让 Rust-owned app/pool/policy 可见可管，B 把 DNS runtime 的 opt-in 可验证性接入 app diagnostics。二者仍通过 `RuntimePlan` / `DnsResolverPlan` 对接，避免日后重复建模。
