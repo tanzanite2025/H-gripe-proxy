@@ -3,10 +3,11 @@ use crate::core::app_runtime::{
     AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
     AppRuntimePlanRequest, AppRuntimeProjectionActivationPreflightReport,
     AppRuntimeProjectionActivationPreflightRequest, AppRuntimeProjectionArtifact,
-    AppRuntimeProjectionRuntimeApplyRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest,
-    AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStateDocument,
-    DnsProfile, NodePool, SecurityProfile,
-    activate_app_runtime_projection_artifact as activate_app_runtime_projection_artifact_record,
+    AppRuntimeProjectionRuntimeApplyAuditRecord, AppRuntimeProjectionRuntimeApplyRequest,
+    AppRuntimeProjectionRuntimeVerificationReport, AppRuntimeProjectionRuntimeVerificationRequest,
+    AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest, AppRuntimeSessionLeakReport,
+    AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStateDocument, DnsProfile, NodePool,
+    SecurityProfile, activate_app_runtime_projection_artifact as activate_app_runtime_projection_artifact_record,
     apply_app_runtime_projection_artifact_to_runtime as apply_app_runtime_projection_artifact_to_runtime_record,
     build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
     delete_app_policy_binding as delete_app_policy_binding_record,
@@ -16,6 +17,7 @@ use crate::core::app_runtime::{
     evaluate_app_runtime_session as evaluate_app_runtime_session_record,
     explain_app_runtime_plan as build_app_runtime_plan,
     finish_app_runtime_session as finish_app_runtime_session_record,
+    list_app_runtime_projection_runtime_apply_audits as list_app_runtime_projection_runtime_apply_audit_records,
     list_app_runtime_sessions as list_app_runtime_session_records,
     persist_app_runtime_projection_artifact as persist_app_runtime_projection_artifact_record,
     preflight_app_runtime_projection_activation as preflight_app_runtime_projection_activation_record,
@@ -26,6 +28,7 @@ use crate::core::app_runtime::{
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
     upsert_node_pool as upsert_node_pool_record, upsert_security_profile as upsert_security_profile_record,
+    verify_app_runtime_projection_runtime_apply as verify_app_runtime_projection_runtime_apply_record,
     verify_app_runtime_session_leak as verify_app_runtime_session_leak_record,
 };
 
@@ -145,6 +148,24 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
     request: AppRuntimeProjectionRuntimeApplyRequest,
 ) -> CmdResult<AppRuntimeStateDocument> {
     apply_app_runtime_projection_artifact_to_runtime_record(request)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn list_app_runtime_projection_runtime_apply_audits(
+    artifact_id: Option<String>,
+) -> CmdResult<Vec<AppRuntimeProjectionRuntimeApplyAuditRecord>> {
+    list_app_runtime_projection_runtime_apply_audit_records(artifact_id.map(Into::into))
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn verify_app_runtime_projection_runtime_apply(
+    request: AppRuntimeProjectionRuntimeVerificationRequest,
+) -> CmdResult<AppRuntimeProjectionRuntimeVerificationReport> {
+    verify_app_runtime_projection_runtime_apply_record(request)
         .await
         .stringify_err()
 }

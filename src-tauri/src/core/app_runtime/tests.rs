@@ -11,6 +11,7 @@ fn plan_explain_uses_registered_app_policy_and_pool() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -49,6 +50,7 @@ fn plan_rejects_missing_policy_binding() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: Vec::new(),
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -84,6 +86,7 @@ fn plan_warns_when_binding_references_missing_dns_profile() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -113,6 +116,7 @@ fn diagnostics_report_combines_plan_projection_and_security_checks() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -150,6 +154,7 @@ fn diagnostics_report_blocks_when_security_policy_is_not_satisfied() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![binding],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -186,6 +191,7 @@ fn diagnostics_report_marks_projection_without_rules_as_degraded() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -217,6 +223,7 @@ fn session_record_snapshots_diagnostics_without_runtime_mutation() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -248,6 +255,7 @@ fn session_record_marks_blocked_diagnostics_as_blocked() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: Vec::new(),
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -275,6 +283,7 @@ fn session_observation_snapshots_connection_metrics_without_app_attribution() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
     let report = diagnose_app_runtime(
@@ -335,6 +344,7 @@ fn session_observation_matches_connection_candidates_against_projected_rules() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
     let report = diagnose_app_runtime(
@@ -401,6 +411,7 @@ fn session_evaluation_summarizes_matched_observations_as_healthy() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
     let report = diagnose_app_runtime(
@@ -460,6 +471,7 @@ fn session_evaluation_marks_missing_observations_as_degraded() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
     let report = diagnose_app_runtime(
@@ -594,6 +606,7 @@ fn session_leak_verification_warns_for_direct_routing_without_dns_profile() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![binding],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
     let session = planned_session(&state);
@@ -631,6 +644,7 @@ fn mihomo_projection_emits_process_rule_proxy_group_and_yaml_patch() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -671,6 +685,7 @@ fn mihomo_projection_maps_direct_binding_without_proxy_group() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![binding],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -702,6 +717,7 @@ fn mihomo_projection_warns_for_unsupported_matchers() {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     };
 
@@ -760,6 +776,7 @@ fn sample_state() -> AppRuntimeStateDocument {
         security_profiles: vec![sample_security_profile()],
         policy_bindings: vec![sample_binding()],
         sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
         active_projection: None,
     }
 }
@@ -912,6 +929,122 @@ fn runtime_apply_marker_records_runtime_mutation_boundary() {
         marker.rollback.rollback_strategy,
         "restore_runtime_from_profile_and_previous_marker"
     );
+}
+
+#[test]
+fn runtime_apply_audit_records_candidate_and_previous_marker() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let previous = app_runtime_active_projection_record_from_artifact(&artifact, "state_marker", None, 40);
+    let summary = AppRuntimeProjectionRuntimeApplyCandidateSummary {
+        profile_item_uid: "m-app-runtime-runtime".into(),
+        profile_item_file: "m-app-runtime-runtime.yaml".into(),
+        proxy_group_count: 1,
+        rule_count: 1,
+        dns_profile_projected: false,
+    };
+
+    let audit = app_runtime_projection_runtime_apply_audit_record(
+        &artifact,
+        "runtime_profile_merge",
+        Some(&previous),
+        &summary,
+        "valid".into(),
+        50,
+    );
+
+    assert_eq!(audit.artifact_id, artifact.artifact_id);
+    assert_eq!(audit.status, AppRuntimeProjectionRuntimeApplyAuditStatus::Active);
+    assert_eq!(audit.candidate_summary.proxy_group_count, 1);
+    assert_eq!(audit.previous_marker.unwrap().activation_kind, "state_marker");
+    assert_eq!(
+        audit.rollback_strategy,
+        "restore_runtime_from_profile_and_previous_marker"
+    );
+}
+
+#[test]
+fn runtime_apply_audit_status_tracks_rollback_and_supersede() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let summary = AppRuntimeProjectionRuntimeApplyCandidateSummary {
+        profile_item_uid: "m-app-runtime-runtime".into(),
+        profile_item_file: "m-app-runtime-runtime.yaml".into(),
+        proxy_group_count: 1,
+        rule_count: 1,
+        dns_profile_projected: false,
+    };
+    let first = app_runtime_projection_runtime_apply_audit_record(
+        &artifact,
+        "runtime_profile_merge",
+        None,
+        &summary,
+        "valid".into(),
+        50,
+    );
+    let next = app_runtime_projection_runtime_apply_audit_record(
+        &artifact,
+        "runtime_profile_merge",
+        None,
+        &summary,
+        "valid".into(),
+        60,
+    );
+    let mut audits = vec![first];
+    mark_runtime_apply_audits_superseded(&mut audits, &next, 60);
+    assert_eq!(
+        audits[0].status,
+        AppRuntimeProjectionRuntimeApplyAuditStatus::Superseded
+    );
+
+    let marker = app_runtime_active_projection_record_from_artifact_with_runtime(
+        &artifact,
+        "runtime_profile_merge",
+        None,
+        70,
+        true,
+    );
+    audits.push(next);
+    mark_runtime_apply_audits_rolled_back(&mut audits, &marker, 80);
+    assert_eq!(
+        audits[1].status,
+        AppRuntimeProjectionRuntimeApplyAuditStatus::RolledBack
+    );
+}
+
+#[test]
+fn runtime_verification_observes_projected_rules_and_groups() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let runtime_yaml = r#"
+proxy-groups:
+  - name: premium-us
+    type: select
+    proxies:
+      - us-1
+rules:
+  - PROCESS-NAME,browser.exe,premium-us
+"#;
+    let runtime_config = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(runtime_yaml)
+        .unwrap()
+        .as_mapping()
+        .unwrap()
+        .clone();
+
+    let group_check = runtime_verification_proxy_groups_check(&runtime_config, &artifact.projection.proxy_groups);
+    let rule_check = runtime_verification_rules_check(&runtime_config, &artifact.projection.rules);
+
+    assert_eq!(group_check.status, AppRuntimeDiagnosticCheckStatus::Passed);
+    assert_eq!(rule_check.status, AppRuntimeDiagnosticCheckStatus::Passed);
 }
 
 #[test]
