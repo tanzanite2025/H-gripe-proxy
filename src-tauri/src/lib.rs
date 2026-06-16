@@ -324,6 +324,7 @@ mod app_init {
             cmd::dns_controlled_runtime_probe,
             cmd::dns_default_runtime_readiness,
             cmd::dns_default_runtime_shadow_evidence,
+            cmd::dns_default_runtime_opt_in_switch_guard,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,
             cmd::anti_probe_generate_token,
