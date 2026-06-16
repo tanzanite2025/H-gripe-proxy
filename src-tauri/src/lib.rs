@@ -338,6 +338,7 @@ mod app_init {
             cmd::dns_default_runtime_expanded_rollback_drill,
             cmd::dns_default_runtime_expanded_post_execution_observed_verification,
             cmd::dns_default_runtime_expanded_stability_gate,
+            cmd::dns_default_runtime_expanded_hold_policy,
             cmd::dns_default_runtime_limited_rollback,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,

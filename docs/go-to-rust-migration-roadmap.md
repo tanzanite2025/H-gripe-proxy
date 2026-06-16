@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded stability gate） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-U、Batch V（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate 已进入 Rust 单一路径；下一步才可评估更长窗口的 hold/rollback policy，仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded hold/rollback policy） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-V、Batch W（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy 已进入 Rust 单一路径；下一步才可评估更长观察窗口的重复 reverify policy，仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1235,3 +1235,32 @@ feat(dns-runtime): add expanded stability gate
 - 新增 `dns_default_runtime_expanded_stability_gate` command。
 - Report 输出 expanded post-execution、keep-active 决策、rollback recommendation 与 promotion boundary。
 - DNS runtime stats UI 新增 Expanded stability 显式按钮与结果展示。
+
+### Batch W：Default DNS runtime expanded hold / rollback policy（本批次，时间窗保持策略）
+
+Batch V 只回答“当前观测是否足以继续保持 active”。本批次继续补齐 session-scoped hold policy：把 keep-active 决策放进最小/最大观察窗口，超过窗口只建议显式 rollback，不自动回滚，也不升级为长期默认。
+
+```text
+feat(dns-runtime): add expanded hold rollback policy
+```
+
+建议边界：
+
+- Hold policy 必须消费 Batch V expanded stability gate。
+- 必须计算 expanded active state 的 active age，并输出最小观察窗口与最大保持窗口。
+- 在最小窗口未满足时只返回 `holding` + `nextVerificationRequired=true`。
+- 在最大窗口超时或 stability gate 失败但 active state 仍存在时返回 `rollbackRecommended`。
+- Report 必须明确 `promotionAllowed=false`、`autoRollout=false`、`autoRollback=false`、`mutatesRuntime=false`。
+
+不包含：
+
+- 不等待真实时间，不在后台轮询。
+- 不自动 rollback。
+- 不进行长期默认推广。
+- 不触碰 TUN、transparent proxy、adapter outbound/inbound 或 protocol runtime。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_hold_policy` command。
+- Report 输出 active age、min/max hold window、next verification deadline、rollback recommendation 与 promotion boundary。
+- DNS runtime stats UI 新增 Expanded hold 显式按钮与结果展示。

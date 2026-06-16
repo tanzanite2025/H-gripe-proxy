@@ -8,6 +8,7 @@ import {
   dnsDefaultRuntimeExpandedOptInExecution,
   dnsDefaultRuntimeExpandedOptInExecutionGate,
   dnsDefaultRuntimeExpandedOptInExecutionPreflight,
+  dnsDefaultRuntimeExpandedHoldPolicy,
   dnsDefaultRuntimeExpandedPostExecutionObservedVerification,
   dnsDefaultRuntimeExpandedRollback,
   dnsDefaultRuntimeExpandedRollbackDrill,
@@ -24,6 +25,7 @@ import {
   type DnsDefaultRuntimeExpandedRollbackDrillReport,
   type DnsDefaultRuntimeExpandedRollbackReport,
   type DnsDefaultRuntimeExpandedRollbackStatus,
+  type DnsDefaultRuntimeExpandedHoldPolicyReport,
   type DnsDefaultRuntimeExpandedStabilityGateReport,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
   type DnsDefaultRuntimePostExecutionVerificationStatus,
@@ -131,6 +133,8 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeExpandedRollbackDrillReport | null>(null)
   const [expandedStabilityGateReport, setExpandedStabilityGateReport] =
     useState<DnsDefaultRuntimeExpandedStabilityGateReport | null>(null)
+  const [expandedHoldPolicyReport, setExpandedHoldPolicyReport] =
+    useState<DnsDefaultRuntimeExpandedHoldPolicyReport | null>(null)
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
@@ -142,6 +146,7 @@ export function RuntimePostExecutionSection() {
     | 'expandedVerify'
     | 'expandedDrill'
     | 'expandedStability'
+    | 'expandedHold'
     | 'rollback'
     | null
   >(null)
@@ -301,6 +306,28 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedHoldPolicy = useLockFn(async () => {
+    setPending('expandedHold')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedHoldPolicy(
+        undefined,
+        POST_EXECUTION_DOMAIN,
+        true,
+      )
+      setExpandedHoldPolicyReport(nextReport)
+      setExpandedStabilityGateReport(nextReport.stabilityGate)
+      setExpandedPostExecutionReport(nextReport.stabilityGate.postExecution)
+      setExpandedDrillReport(
+        nextReport.stabilityGate.postExecution.rollbackDrill,
+      )
+      showNotice.success('默认 DNS runtime expanded hold policy 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -381,6 +408,14 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedHoldPolicy}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedHold' ? '评估中...' : 'Expanded hold'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -398,7 +433,8 @@ export function RuntimePostExecutionSection() {
         reload 路径应用 DNS config，并可由 Expanded rollback 恢复。
         Expanded verify / drill 只读取 Batch T active state 与 audit
         metadata，生成 failure audit，不自动回滚。Expanded stability 只决定当前 session
-        是否可保持 active，不做长期默认推广。
+        是否可保持 active，不做长期默认推广。Expanded hold 再加最小/最大观察窗口，
+        超窗只建议显式 rollback。
       </div>
 
       {verificationReport ? (
@@ -467,6 +503,93 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedHoldPolicyReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Expanded hold"
+              chipLabel={expandedHoldPolicyReport.status}
+              chipColor={
+                expandedHoldPolicyReport.status === 'ready'
+                  ? 'success'
+                  : expandedHoldPolicyReport.status === 'blocked'
+                    ? 'error'
+                    : 'warning'
+              }
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedHoldPolicyReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedHoldPolicyReport.reason}
+            />
+            <DnsTextRow
+              label="Active age"
+              value={
+                expandedHoldPolicyReport.activeAgeSeconds == null
+                  ? '未读取'
+                  : `${expandedHoldPolicyReport.activeAgeSeconds}s`
+              }
+            />
+            <DnsTextRow
+              label="Hold window"
+              value={`${expandedHoldPolicyReport.minimumHoldSeconds}s - ${expandedHoldPolicyReport.maximumHoldSeconds}s`}
+            />
+            <DnsTextRow
+              label="Recommended"
+              value={expandedHoldPolicyReport.recommendedAction}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedHoldPolicyReport.recommendedAction}
+            />
+            <DnsTextRow
+              label="Promotion"
+              value={
+                expandedHoldPolicyReport.promotionAllowed
+                  ? '允许推广'
+                  : '不允许长期默认'
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedHoldPolicyReport.keepActiveAllowed
+                  ? 'success'
+                  : 'warning'
+              }
+              label={`keepActive=${String(expandedHoldPolicyReport.keepActiveAllowed)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedHoldPolicyReport.nextVerificationRequired
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`reverify=${String(expandedHoldPolicyReport.nextVerificationRequired)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedHoldPolicyReport.rollbackRecommended
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`rollbackRecommended=${String(expandedHoldPolicyReport.rollbackRecommended)}`}
+            />
+          </div>
+
+          {expandedHoldPolicyReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Expanded hold blockers:{' '}
+              {expandedHoldPolicyReport.blockers.join('；')}
             </div>
           ) : null}
         </div>
