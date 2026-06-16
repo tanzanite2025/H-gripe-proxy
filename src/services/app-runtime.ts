@@ -306,6 +306,12 @@ export interface AppRuntimeProjectionActivationPreflightRequest {
   expectedChecksum?: string
 }
 
+export interface AppRuntimeProjectionRuntimeApplyRequest {
+  artifactId: string
+  expectedChecksum?: string
+  force?: boolean
+}
+
 export interface AppRuntimeProjectionActivationPreflightReport {
   status: AppRuntimeDiagnosticStatus
   reason: string
@@ -563,6 +569,12 @@ export async function activateAppRuntimeProjectionArtifact(
   request: AppRuntimeProjectionActivationPreflightRequest,
 ): Promise<AppRuntimeStateDocument> {
   return invoke('activate_app_runtime_projection_artifact', { request })
+}
+
+export async function applyAppRuntimeProjectionArtifactToRuntime(
+  request: AppRuntimeProjectionRuntimeApplyRequest,
+): Promise<AppRuntimeStateDocument> {
+  return invoke('apply_app_runtime_projection_artifact_to_runtime', { request })
 }
 
 export async function rollbackAppRuntimeProjectionActivation(): Promise<AppRuntimeStateDocument> {

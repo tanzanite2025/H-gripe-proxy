@@ -354,6 +354,15 @@ pub struct AppRuntimeProjectionActivationPreflightRequest {
     pub expected_checksum: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeApplyRequest {
+    pub artifact_id: String,
+    pub expected_checksum: Option<String>,
+    #[serde(default = "default_runtime_apply_force")]
+    pub force: bool,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeProjectionActivationPreflightReport {
@@ -371,7 +380,7 @@ pub struct AppRuntimeProjectionActivationPreflightReport {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MihomoRuleProjection {
     pub matcher: String,
@@ -380,7 +389,7 @@ pub struct MihomoRuleProjection {
     pub rule: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MihomoProxyGroupProjection {
     pub name: String,
@@ -393,7 +402,7 @@ pub struct MihomoProxyGroupProjection {
     pub interval: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MihomoDnsProjection {
     pub profile_id: String,
@@ -669,5 +678,9 @@ pub struct AppRuntimeDiagnosticsReport {
 }
 
 fn default_enabled() -> bool {
+    true
+}
+
+fn default_runtime_apply_force() -> bool {
     true
 }

@@ -8,6 +8,7 @@ import { Chip } from '@/components/tailwind/Chip'
 import { Select } from '@/components/tailwind/Select'
 import {
   activateAppRuntimeProjectionArtifact,
+  applyAppRuntimeProjectionArtifactToRuntime,
   buildAppRuntimeProjectionArtifact,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
@@ -95,6 +96,7 @@ export function AppRuntimePlanningPanel() {
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
   const [activateMarkerPending, setActivateMarkerPending] = useState(false)
+  const [runtimeApplyPending, setRuntimeApplyPending] = useState(false)
   const [activationRollbackPending, setActivationRollbackPending] =
     useState(false)
   const [plan, setPlan] = useState<AppRuntimePlan | null>(null)
@@ -718,11 +720,34 @@ export function AppRuntimePlanningPanel() {
     try {
       const nextState = await rollbackAppRuntimeProjectionActivation()
       setState(nextState)
-      showNotice.success('已回滚 active projection marker（未 reload Mihomo）')
+      showNotice.success(
+        '已回滚 active projection；如有 runtime candidate 已恢复',
+      )
     } catch (error) {
       showNotice.error(error)
     } finally {
       setActivationRollbackPending(false)
+    }
+  })
+
+  const applyProjectionArtifactToRuntime = useLockFn(async () => {
+    if (!projectionArtifact) {
+      return
+    }
+
+    setRuntimeApplyPending(true)
+    try {
+      const nextState = await applyAppRuntimeProjectionArtifactToRuntime({
+        artifactId: projectionArtifact.artifactId,
+        expectedChecksum: projectionArtifact.checksum,
+        force: true,
+      })
+      setState(nextState)
+      showNotice.success('已显式应用 projection runtime candidate')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setRuntimeApplyPending(false)
     }
   })
 
@@ -1655,9 +1680,11 @@ export function AppRuntimePlanningPanel() {
           activationPreflightPending={activationPreflightPending}
           activeProjection={state.activeProjection ?? null}
           activateMarkerPending={activateMarkerPending}
+          runtimeApplyPending={runtimeApplyPending}
           activationRollbackPending={activationRollbackPending}
           onPreflightActivation={() => void preflightProjectionActivation()}
           onMarkActive={() => void markProjectionArtifactActive()}
+          onApplyRuntime={() => void applyProjectionArtifactToRuntime()}
           onRollbackActivation={() => void rollbackProjectionActivation()}
         />
       </div>
