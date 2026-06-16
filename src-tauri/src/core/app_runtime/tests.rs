@@ -1,0 +1,942 @@
+use super::*;
+use std::collections::BTreeMap;
+
+#[test]
+fn plan_explain_uses_registered_app_policy_and_pool() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let plan = explain_app_runtime_plan(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    );
+
+    assert_eq!(plan.status, AppRuntimePlanStatus::Ready);
+    assert_eq!(plan.routing_intent, Some(AppRoutingIntent::Proxy));
+    assert_eq!(plan.node_pool.as_ref().map(|pool| pool.candidate_count), Some(1));
+    assert_eq!(
+        plan.dns_profile
+            .as_ref()
+            .map(|profile| profile.resolver_plan.nameservers.len()),
+        Some(1)
+    );
+    assert_eq!(
+        plan.security_profile
+            .as_ref()
+            .map(|profile| profile.profile_id.as_str()),
+        Some("strict")
+    );
+    assert!(!plan.projection.mutates_runtime);
+}
+
+#[test]
+fn plan_rejects_missing_policy_binding() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: Vec::new(),
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let plan = explain_app_runtime_plan(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    );
+
+    assert_eq!(plan.status, AppRuntimePlanStatus::Rejected);
+    assert_eq!(plan.reason, "app `browser` has no enabled policy binding");
+}
+
+#[test]
+fn validation_rejects_duplicate_process_matchers() {
+    let mut app = sample_app();
+    app.process_matchers.push(AppProcessMatcher {
+        kind: AppProcessMatcherKind::ProcessName,
+        pattern: "browser.exe".into(),
+    });
+
+    assert!(validate_app(&app).is_err());
+}
+
+#[test]
+fn plan_warns_when_binding_references_missing_dns_profile() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: Vec::new(),
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let plan = explain_app_runtime_plan(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    );
+
+    assert_eq!(plan.status, AppRuntimePlanStatus::Ready);
+    assert!(plan.dns_profile.is_none());
+    assert!(
+        plan.warnings
+            .iter()
+            .any(|warning| warning.contains("missing dns_profile_id `default`"))
+    );
+}
+
+#[test]
+fn diagnostics_report_combines_plan_projection_and_security_checks() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Healthy);
+    assert_eq!(report.summary.failed, 0);
+    assert_eq!(report.summary.warnings, 0);
+    assert_eq!(report.plan.status, AppRuntimePlanStatus::Ready);
+    assert_eq!(report.mihomo_projection.rules.len(), 1);
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|check| check.check_id == "security_requires_dns_profile"
+                && check.status == AppRuntimeDiagnosticCheckStatus::Passed)
+    );
+}
+
+#[test]
+fn diagnostics_report_blocks_when_security_policy_is_not_satisfied() {
+    let mut binding = sample_binding();
+    binding.dns_profile_id = None;
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: Vec::new(),
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![binding],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Blocked);
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|check| check.check_id == "security_requires_dns_profile"
+                && check.status == AppRuntimeDiagnosticCheckStatus::Failed)
+    );
+}
+
+#[test]
+fn diagnostics_report_marks_projection_without_rules_as_degraded() {
+    let mut app = sample_app();
+    app.process_matchers = vec![AppProcessMatcher {
+        kind: AppProcessMatcherKind::BundleId,
+        pattern: "com.example.browser".into(),
+    }];
+    let state = AppRuntimeStateDocument {
+        apps: vec![app],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|check| check.check_id == "mihomo_projection_rules"
+                && check.status == AppRuntimeDiagnosticCheckStatus::Warning)
+    );
+}
+
+#[test]
+fn session_record_snapshots_diagnostics_without_runtime_mutation() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    let session = session_record_from_diagnostics("session-a".into(), &report);
+
+    assert_eq!(session.session_id, "session-a");
+    assert_eq!(session.status, AppRuntimeSessionStatus::Planned);
+    assert_eq!(session.plan_status, AppRuntimePlanStatus::Ready);
+    assert_eq!(session.diagnostics_status, AppRuntimeDiagnosticStatus::Healthy);
+    assert_eq!(session.projected_rules, vec!["PROCESS-NAME,browser.exe,app-browser"]);
+    assert_eq!(session.projected_proxy_groups, vec!["app-browser"]);
+    assert!(session.ended_at.is_none());
+}
+
+#[test]
+fn session_record_marks_blocked_diagnostics_as_blocked() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: Vec::new(),
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    let session = session_record_from_diagnostics("session-a".into(), &report);
+
+    assert_eq!(session.status, AppRuntimeSessionStatus::Blocked);
+    assert_eq!(session.plan_status, AppRuntimePlanStatus::Rejected);
+    assert_eq!(session.diagnostics_status, AppRuntimeDiagnosticStatus::Blocked);
+}
+
+#[test]
+fn session_observation_snapshots_connection_metrics_without_app_attribution() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    let session = session_record_from_diagnostics("session-a".into(), &report);
+    let metrics = ConnectionMetricsSnapshot {
+        traffic: connection_metrics::TrafficSnapshot {
+            upload_total: 100,
+            download_total: 200,
+            upload_speed: 10,
+            download_speed: 20,
+            active_connection_count: 2,
+            closed_since_last: 1,
+            memory: 42,
+        },
+        speeds: vec![connection_metrics::ConnectionSpeed {
+            id: "conn-a".into(),
+            cur_upload: 10,
+            cur_download: 20,
+        }],
+        attribution_candidates: Vec::new(),
+        stale: false,
+    };
+
+    let observation = session_observation_from_metrics(&session, &metrics);
+
+    assert_eq!(observation.session_id, "session-a");
+    assert_eq!(
+        observation.source,
+        AppRuntimeSessionObservationSource::ConnectionMetricsSnapshot
+    );
+    assert_eq!(
+        observation.attribution_status,
+        AppRuntimeSessionAttributionStatus::Unattributed
+    );
+    assert_eq!(observation.traffic.active_connection_count, 2);
+    assert_eq!(observation.connection_speed_count, 1);
+    assert!(
+        observation
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("No connection attribution candidates"))
+    );
+}
+
+#[test]
+fn session_observation_matches_connection_candidates_against_projected_rules() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    let session = session_record_from_diagnostics("session-a".into(), &report);
+    let metrics = ConnectionMetricsSnapshot {
+        traffic: connection_metrics::TrafficSnapshot {
+            upload_total: 100,
+            download_total: 200,
+            upload_speed: 10,
+            download_speed: 20,
+            active_connection_count: 1,
+            closed_since_last: 0,
+            memory: 42,
+        },
+        speeds: Vec::new(),
+        attribution_candidates: vec![connection_metrics::ConnectionAttributionCandidate {
+            id: "conn-a".into(),
+            process: "browser.exe".into(),
+            process_path: "C:\\Program Files\\Browser\\browser.exe".into(),
+            host: "example.com".into(),
+            rule: "ProcessName".into(),
+            rule_payload: "browser.exe".into(),
+            chains: vec!["app-browser".into()],
+            upload: 100,
+            download: 200,
+        }],
+        stale: false,
+    };
+
+    let observation = session_observation_from_metrics(&session, &metrics);
+
+    assert_eq!(
+        observation.attribution_status,
+        AppRuntimeSessionAttributionStatus::AppMatched
+    );
+    assert_eq!(observation.attribution_candidates.len(), 1);
+    assert!(
+        observation.attribution_candidates[0]
+            .matched_by
+            .iter()
+            .any(|matched_by| matched_by == "proxyGroup:app-browser")
+    );
+    assert!(
+        observation.attribution_candidates[0]
+            .matched_by
+            .iter()
+            .any(|matched_by| matched_by.starts_with("projectedRule:PROCESS-NAME,browser.exe"))
+    );
+}
+
+#[test]
+fn session_evaluation_summarizes_matched_observations_as_healthy() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    let mut session = session_record_from_diagnostics("session-a".into(), &report);
+    let metrics = ConnectionMetricsSnapshot {
+        traffic: connection_metrics::TrafficSnapshot {
+            upload_total: 100,
+            download_total: 200,
+            upload_speed: 10,
+            download_speed: 20,
+            active_connection_count: 1,
+            closed_since_last: 0,
+            memory: 42,
+        },
+        speeds: Vec::new(),
+        attribution_candidates: vec![connection_metrics::ConnectionAttributionCandidate {
+            id: "conn-a".into(),
+            process: "browser.exe".into(),
+            process_path: "C:\\Program Files\\Browser\\browser.exe".into(),
+            host: "example.com".into(),
+            rule: "ProcessName".into(),
+            rule_payload: "browser.exe".into(),
+            chains: vec!["app-browser".into()],
+            upload: 100,
+            download: 200,
+        }],
+        stale: false,
+    };
+    session
+        .observations
+        .push(session_observation_from_metrics(&session, &metrics));
+
+    let evaluation = evaluation_report_from_session(&session);
+
+    assert_eq!(evaluation.status, AppRuntimeDiagnosticStatus::Healthy);
+    assert_eq!(evaluation.summary.observation_count, 1);
+    assert_eq!(evaluation.summary.matched_observations, 1);
+    assert_eq!(evaluation.summary.attribution_candidate_count, 1);
+    assert_eq!(evaluation.summary.observed_chains, vec!["app-browser"]);
+    assert_eq!(evaluation.summary.observed_hosts, vec!["example.com"]);
+    assert!(evaluation.warnings.is_empty());
+}
+
+#[test]
+fn session_evaluation_marks_missing_observations_as_degraded() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+    let report = diagnose_app_runtime(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    let session = session_record_from_diagnostics("session-a".into(), &report);
+
+    let evaluation = evaluation_report_from_session(&session);
+
+    assert_eq!(evaluation.status, AppRuntimeDiagnosticStatus::Degraded);
+    assert_eq!(evaluation.summary.observation_count, 0);
+    assert!(
+        evaluation
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("no connection metrics observations"))
+    );
+}
+
+#[test]
+fn session_leak_verification_reports_healthy_for_matched_proxy_session() {
+    let state = sample_state();
+    let mut session = planned_session(&state);
+    let metrics = candidate_metrics(vec![attribution_candidate("browser.exe", vec!["app-browser"])]);
+    session
+        .observations
+        .push(session_observation_from_metrics(&session, &metrics));
+
+    let report = leak_report_from_session(&state, &session);
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Healthy);
+    assert_eq!(report.routing_intent, Some(AppRoutingIntent::Proxy));
+    assert_eq!(report.summary.fail, 0);
+    assert_eq!(report.summary.warn, 0);
+    assert_eq!(report.summary.pass, 4);
+    assert!(report.warnings.is_empty());
+    assert!(report.checks.iter().all(|check| matches!(
+        check.status,
+        AppRuntimeLeakCheckStatus::Pass | AppRuntimeLeakCheckStatus::NotApplicable
+    )));
+    assert!(report.facts.iter().any(|fact| fact.contains("planning-only")));
+}
+
+#[test]
+fn session_leak_verification_flags_missing_observations_as_degraded() {
+    let state = sample_state();
+    let session = planned_session(&state);
+
+    let report = leak_report_from_session(&state, &session);
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+    assert_eq!(report.summary.fail, 0);
+    assert!(report.summary.warn >= 1);
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::DnsLeak),
+        AppRuntimeLeakCheckStatus::Pass
+    );
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+        AppRuntimeLeakCheckStatus::Warn
+    );
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::ExitVerification),
+        AppRuntimeLeakCheckStatus::Warn
+    );
+}
+
+#[test]
+fn session_leak_verification_fails_on_proxy_mismatch() {
+    let state = sample_state();
+    let mut session = planned_session(&state);
+    let metrics = candidate_metrics(vec![attribution_candidate("other.exe", vec!["other-group"])]);
+    let observation = session_observation_from_metrics(&session, &metrics);
+    assert_eq!(
+        observation.attribution_status,
+        AppRuntimeSessionAttributionStatus::AppMismatch
+    );
+    session.observations.push(observation);
+
+    let report = leak_report_from_session(&state, &session);
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Blocked);
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+        AppRuntimeLeakCheckStatus::Fail
+    );
+    assert!(report.warnings.iter().any(|warning| warning.contains("proxy leak")));
+}
+
+#[test]
+fn session_leak_verification_warns_on_node_pool_inconsistency() {
+    let state = sample_state();
+    let mut session = planned_session(&state);
+    let metrics = candidate_metrics(vec![attribution_candidate(
+        "browser.exe",
+        vec!["app-browser", "rogue-node"],
+    )]);
+    session
+        .observations
+        .push(session_observation_from_metrics(&session, &metrics));
+
+    let report = leak_report_from_session(&state, &session);
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+        AppRuntimeLeakCheckStatus::Pass
+    );
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::NodePoolConsistency),
+        AppRuntimeLeakCheckStatus::Warn
+    );
+    assert!(report.warnings.iter().any(|warning| warning.contains("rogue-node")));
+}
+
+#[test]
+fn session_leak_verification_warns_for_direct_routing_without_dns_profile() {
+    let mut binding = sample_binding();
+    binding.node_pool_id = None;
+    binding.dns_profile_id = None;
+    binding.security_profile_id = None;
+    binding.routing_intent = AppRoutingIntent::Direct;
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![binding],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+    let session = planned_session(&state);
+
+    let report = leak_report_from_session(&state, &session);
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+    assert_eq!(report.routing_intent, Some(AppRoutingIntent::Direct));
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+        AppRuntimeLeakCheckStatus::NotApplicable
+    );
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::ExitVerification),
+        AppRuntimeLeakCheckStatus::NotApplicable
+    );
+    assert_eq!(
+        leak_check_status(&report, AppRuntimeLeakDimension::DnsLeak),
+        AppRuntimeLeakCheckStatus::Warn
+    );
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("system resolver"))
+    );
+}
+
+#[test]
+fn mihomo_projection_emits_process_rule_proxy_group_and_yaml_patch() {
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let projection = project_app_runtime_plan_to_mihomo(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(projection.status, AppRuntimePlanStatus::Ready);
+    assert!(!projection.mutates_runtime);
+    assert_eq!(projection.proxy_groups.len(), 1);
+    assert_eq!(projection.proxy_groups[0].name, "app-browser");
+    assert_eq!(projection.proxy_groups[0].group_type, "select");
+    assert_eq!(projection.proxy_groups[0].proxies, vec!["us-1"]);
+    assert_eq!(projection.rules.len(), 1);
+    assert_eq!(projection.rules[0].rule, "PROCESS-NAME,browser.exe,app-browser");
+    assert_eq!(
+        projection.dns.as_ref().map(|dns| dns.nameservers.clone()),
+        Some(vec!["1.1.1.1".into()])
+    );
+    assert!(projection.yaml_patch.contains("proxy-groups:"));
+    assert!(projection.yaml_patch.contains("PROCESS-NAME,browser.exe,app-browser"));
+}
+
+#[test]
+fn mihomo_projection_maps_direct_binding_without_proxy_group() {
+    let mut binding = sample_binding();
+    binding.node_pool_id = None;
+    binding.routing_intent = AppRoutingIntent::Direct;
+    let state = AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![binding],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let projection = project_app_runtime_plan_to_mihomo(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    )
+    .unwrap();
+
+    assert!(projection.proxy_groups.is_empty());
+    assert_eq!(projection.rules[0].rule, "PROCESS-NAME,browser.exe,DIRECT");
+    assert!(projection.yaml_patch.contains("PROCESS-NAME,browser.exe,DIRECT"));
+}
+
+#[test]
+fn mihomo_projection_warns_for_unsupported_matchers() {
+    let mut app = sample_app();
+    app.process_matchers = vec![AppProcessMatcher {
+        kind: AppProcessMatcherKind::BundleId,
+        pattern: "com.example.browser".into(),
+    }];
+    let state = AppRuntimeStateDocument {
+        apps: vec![app],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    };
+
+    let projection = project_app_runtime_plan_to_mihomo(
+        &state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: None,
+        },
+    )
+    .unwrap();
+
+    assert!(projection.rules.is_empty());
+    assert!(
+        projection
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("cannot be projected to a Mihomo rule"))
+    );
+}
+
+#[test]
+fn projection_artifact_is_staged_and_validates_yaml_patch() {
+    let artifact = build_app_runtime_projection_artifact(
+        &sample_state(),
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(artifact.activation_mode, AppRuntimeProjectionActivationMode::Staged);
+    assert!(!artifact.mutates_runtime);
+    assert_eq!(artifact.validation.status, AppRuntimeDiagnosticStatus::Healthy);
+    assert_eq!(artifact.validation.summary.failed, 0);
+    assert_eq!(artifact.projection.rules.len(), 1);
+    assert_eq!(artifact.storage_path, None);
+    assert!(artifact.artifact_id.starts_with("app-runtime-browser-"));
+    assert_eq!(artifact.checksum.len(), 64);
+    assert!(
+        artifact
+            .validation
+            .checks
+            .iter()
+            .any(|check| check.check_id == "artifact_yaml_patch_parse"
+                && check.status == AppRuntimeDiagnosticCheckStatus::Passed)
+    );
+}
+
+fn sample_state() -> AppRuntimeStateDocument {
+    AppRuntimeStateDocument {
+        apps: vec![sample_app()],
+        node_pools: vec![sample_pool()],
+        dns_profiles: vec![sample_dns_profile()],
+        security_profiles: vec![sample_security_profile()],
+        policy_bindings: vec![sample_binding()],
+        sessions: Vec::new(),
+        active_projection: None,
+    }
+}
+
+fn planned_session(state: &AppRuntimeStateDocument) -> AppRuntimeSessionRecord {
+    let report = diagnose_app_runtime(
+        state,
+        AppRuntimePlanRequest {
+            app_id: "browser".into(),
+            session_id: Some("session-a".into()),
+        },
+    )
+    .unwrap();
+    session_record_from_diagnostics("session-a".into(), &report)
+}
+
+fn attribution_candidate(process: &str, chains: Vec<&str>) -> ConnectionAttributionCandidate {
+    ConnectionAttributionCandidate {
+        id: "conn-a".into(),
+        process: process.into(),
+        process_path: format!("C:\\Program Files\\App\\{process}").into(),
+        host: "example.com".into(),
+        rule: "ProcessName".into(),
+        rule_payload: process.into(),
+        chains: chains.into_iter().map(Into::into).collect(),
+        upload: 100,
+        download: 200,
+    }
+}
+
+fn candidate_metrics(candidates: Vec<ConnectionAttributionCandidate>) -> ConnectionMetricsSnapshot {
+    ConnectionMetricsSnapshot {
+        traffic: connection_metrics::TrafficSnapshot {
+            upload_total: 100,
+            download_total: 200,
+            upload_speed: 10,
+            download_speed: 20,
+            active_connection_count: 1,
+            closed_since_last: 0,
+            memory: 42,
+        },
+        speeds: Vec::new(),
+        attribution_candidates: candidates,
+        stale: false,
+    }
+}
+
+fn leak_check_status(
+    report: &AppRuntimeSessionLeakReport,
+    dimension: AppRuntimeLeakDimension,
+) -> AppRuntimeLeakCheckStatus {
+    report
+        .checks
+        .iter()
+        .find(|check| check.dimension == dimension)
+        .map(|check| check.status)
+        .expect("leak check dimension present")
+}
+
+#[test]
+fn activation_preflight_blocks_before_runtime_mutation() {
+    let request = AppRuntimeProjectionActivationPreflightRequest {
+        artifact_id: "app-runtime-browser-abc123".into(),
+        expected_checksum: Some("checksum-a".into()),
+    };
+    let report = app_runtime_activation_preflight_report_from_yaml(
+        &request,
+        "app-runtime/artifacts/app-runtime-browser-abc123/artifact.yaml".into(),
+        r#"
+artifactId: app-runtime-browser-abc123
+appId: browser
+checksum: checksum-a
+activationMode: staged
+mutatesRuntime: false
+validation:
+  status: healthy
+"#,
+    );
+
+    assert_eq!(report.status, AppRuntimeDiagnosticStatus::Blocked);
+    assert_eq!(report.app_id, Some("browser".into()));
+    assert_eq!(report.checksum, Some("checksum-a".into()));
+    assert!(report.summary.passed >= 5);
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|check| check.check_id == "activation_executor_guard"
+                && check.status == AppRuntimeDiagnosticCheckStatus::Failed)
+    );
+}
+
+fn sample_app() -> AppRegistryEntry {
+    AppRegistryEntry {
+        app_id: "browser".into(),
+        name: "Browser".into(),
+        executable_path: Some("C:\\Program Files\\Browser\\browser.exe".into()),
+        bundle_id: None,
+        launch_args: Vec::new(),
+        working_directory: None,
+        env: Vec::new(),
+        process_matchers: vec![AppProcessMatcher {
+            kind: AppProcessMatcherKind::ProcessName,
+            pattern: "browser.exe".into(),
+        }],
+        platform_metadata: BTreeMap::new(),
+        tags: vec!["desktop".into()],
+        updated_at: 1,
+    }
+}
+
+fn sample_pool() -> NodePool {
+    NodePool {
+        pool_id: "premium-us".into(),
+        name: "Premium US".into(),
+        tags: vec!["stable".into()],
+        region: Some("US".into()),
+        protocols: vec!["trojan".into()],
+        purpose: Some("streaming".into()),
+        cost_tier: Some("paid".into()),
+        health_constraints: NodePoolHealthConstraints {
+            max_latency_ms: Some(300),
+            require_alive: Some(true),
+            min_available_nodes: Some(1),
+        },
+        candidate_nodes: vec![NodePoolCandidate {
+            node_name: "us-1".into(),
+            proxy_group: Some("Proxy".into()),
+            protocol: Some("trojan".into()),
+            region: Some("US".into()),
+            tags: vec!["stable".into()],
+            priority: Some(1),
+        }],
+        updated_at: 1,
+    }
+}
+
+fn sample_dns_profile() -> DnsProfile {
+    DnsProfile {
+        profile_id: "default".into(),
+        name: "Default DNS".into(),
+        config_yaml: r#"
+dns:
+  enable: true
+  nameserver:
+    - 1.1.1.1
+"#
+        .into(),
+        test_domain: Some("example.com".into()),
+        tags: vec!["default".into()],
+        updated_at: 1,
+    }
+}
+
+fn sample_security_profile() -> SecurityProfile {
+    SecurityProfile {
+        profile_id: "strict".into(),
+        name: "Strict App Runtime".into(),
+        controls: SecurityProfileControls {
+            require_node_pool: true,
+            require_dns_profile: true,
+            min_runtime_supported_nameservers: Some(1),
+            allowed_routing_intents: vec![AppRoutingIntent::Proxy, AppRoutingIntent::Auto],
+        },
+        tags: vec!["strict".into()],
+        updated_at: 1,
+    }
+}
+
+fn sample_binding() -> AppPolicyBinding {
+    AppPolicyBinding {
+        binding_id: "browser-policy".into(),
+        app_id: "browser".into(),
+        node_pool_id: Some("premium-us".into()),
+        dns_profile_id: Some("default".into()),
+        security_profile_id: Some("strict".into()),
+        routing_intent: AppRoutingIntent::Proxy,
+        enabled: true,
+        updated_at: 1,
+    }
+}
