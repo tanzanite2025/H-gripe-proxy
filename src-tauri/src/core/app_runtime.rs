@@ -519,6 +519,59 @@ pub struct AppRuntimeSessionEvaluationReport {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeLeakDimension {
+    ProxyLeak,
+    DnsLeak,
+    ExitVerification,
+    NodePoolConsistency,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeLeakCheckStatus {
+    Pass,
+    Warn,
+    Fail,
+    NotApplicable,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeLeakCheck {
+    pub dimension: AppRuntimeLeakDimension,
+    pub status: AppRuntimeLeakCheckStatus,
+    pub severity: AppRuntimeDiagnosticSeverity,
+    pub message: String,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeLeakSummary {
+    pub pass: usize,
+    pub warn: usize,
+    pub fail: usize,
+    pub not_applicable: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionLeakReport {
+    pub session_id: String,
+    pub app_id: String,
+    pub status: AppRuntimeDiagnosticStatus,
+    pub reason: String,
+    pub routing_intent: Option<AppRoutingIntent>,
+    pub evaluation_summary: AppRuntimeSessionEvaluationSummary,
+    pub checks: Vec<AppRuntimeLeakCheck>,
+    pub summary: AppRuntimeLeakSummary,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDiagnosticsReport {
@@ -775,6 +828,16 @@ pub async fn evaluate_app_runtime_session(session_id: &str) -> Result<AppRuntime
     };
 
     Ok(evaluation_report_from_session(session))
+}
+
+pub async fn verify_app_runtime_session_leak(session_id: &str) -> Result<AppRuntimeSessionLeakReport> {
+    let session_id = normalize_id(session_id, "session_id")?;
+    let state = read_app_runtime_state_document().await?;
+    let Some(session) = state.sessions.iter().find(|session| session.session_id == session_id) else {
+        bail!("app runtime session `{session_id}` was not found");
+    };
+
+    Ok(leak_report_from_session(&state, session))
 }
 
 pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRuntimePlanRequest) -> AppRuntimePlan {
@@ -1389,6 +1452,524 @@ fn session_evaluation_warnings(
         warnings.push("healthy status requires matched observations with attribution candidates".into());
     }
     warnings
+}
+
+fn leak_report_from_session(
+    state: &AppRuntimeStateDocument,
+    session: &AppRuntimeSessionRecord,
+) -> AppRuntimeSessionLeakReport {
+    let plan = explain_app_runtime_plan(
+        state,
+        AppRuntimePlanRequest {
+            app_id: session.app_id.clone(),
+            session_id: Some(session.session_id.clone()),
+        },
+    );
+    let summary = session_evaluation_summary(session);
+    let routing_intent = plan.routing_intent;
+    let checks = vec![
+        leak_proxy_check(routing_intent, session, &summary),
+        leak_dns_check(&plan),
+        leak_exit_check(session, &plan, routing_intent, &summary),
+        leak_node_pool_check(routing_intent, &plan, session, &summary),
+    ];
+    let leak_summary = leak_summary_counts(&checks);
+    let status = leak_status(&leak_summary);
+    let reason = leak_reason(status, &leak_summary);
+    let warnings = leak_report_warnings(&checks);
+    let facts = vec![
+        "App-scoped leak verification is planning-only; no TUN, Mihomo runtime, or live exit/DNS probe is performed"
+            .into(),
+        format!(
+            "evaluated {} recorded observation(s) against projected proxy/DNS/node-pool artifacts",
+            summary.observation_count
+        )
+        .into(),
+        match routing_intent {
+            Some(intent) => format!("routing intent under verification is `{}`", intent_label(intent)).into(),
+            None => "routing intent under verification is unavailable because the plan was rejected".into(),
+        },
+    ];
+
+    AppRuntimeSessionLeakReport {
+        session_id: session.session_id.clone(),
+        app_id: session.app_id.clone(),
+        status,
+        reason,
+        routing_intent,
+        evaluation_summary: summary,
+        checks,
+        summary: leak_summary,
+        facts,
+        warnings,
+    }
+}
+
+fn leak_proxy_check(
+    routing_intent: Option<AppRoutingIntent>,
+    session: &AppRuntimeSessionRecord,
+    summary: &AppRuntimeSessionEvaluationSummary,
+) -> AppRuntimeLeakCheck {
+    let intent = routing_intent.unwrap_or(AppRoutingIntent::Direct);
+    if !requires_node_pool(intent) {
+        return leak_check(
+            AppRuntimeLeakDimension::ProxyLeak,
+            AppRuntimeLeakCheckStatus::NotApplicable,
+            format!(
+                "routing intent `{}` does not route through a proxy group",
+                intent_label(intent)
+            )
+            .into(),
+            vec!["direct or reject routing has no proxy tunnel to leak from".into()],
+            Vec::new(),
+        );
+    }
+    if session.projected_proxy_groups.is_empty() {
+        return leak_check(
+            AppRuntimeLeakDimension::ProxyLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            "proxy routing intent has no projected proxy group to verify traffic against".into(),
+            Vec::new(),
+            vec!["projected proxy groups are empty, so proxy routing cannot be confirmed".into()],
+        );
+    }
+    if summary.observation_count == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::ProxyLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            "no observations recorded, so proxy routing has not been verified".into(),
+            Vec::new(),
+            vec!["record session observations before verifying proxy routing".into()],
+        );
+    }
+
+    let direct_egress = summary
+        .observed_chains
+        .iter()
+        .filter(|chain| is_builtin_outbound(chain))
+        .cloned()
+        .collect::<Vec<_>>();
+    if summary.mismatch_observations > 0 || !direct_egress.is_empty() {
+        let mut warnings = Vec::new();
+        if summary.mismatch_observations > 0 {
+            warnings.push("connection metadata matched the app but not its projected proxy group or rules".into());
+        }
+        if !direct_egress.is_empty() {
+            warnings.push(
+                format!(
+                    "observed direct or reject egress chains: {}",
+                    join_chain_list(&direct_egress)
+                )
+                .into(),
+            );
+        }
+        return leak_check(
+            AppRuntimeLeakDimension::ProxyLeak,
+            AppRuntimeLeakCheckStatus::Fail,
+            "app traffic appears to bypass the projected proxy group (possible proxy leak)".into(),
+            Vec::new(),
+            warnings,
+        );
+    }
+    if summary.matched_observations == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::ProxyLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            "observations were recorded but none were attributed to the app's projected proxy group".into(),
+            Vec::new(),
+            vec!["no attribution candidates matched the projected proxy group or rules".into()],
+        );
+    }
+    if summary.unattributed_observations > 0 || summary.stale_observations > 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::ProxyLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            "some observations were unattributed or stale, so proxy routing is only partially verified".into(),
+            vec![
+                format!(
+                    "{} matched, {} unattributed, {} stale observation(s)",
+                    summary.matched_observations, summary.unattributed_observations, summary.stale_observations
+                )
+                .into(),
+            ],
+            vec!["partial observation coverage prevents a fully confirmed proxy routing result".into()],
+        );
+    }
+
+    leak_check(
+        AppRuntimeLeakDimension::ProxyLeak,
+        AppRuntimeLeakCheckStatus::Pass,
+        format!(
+            "all {} attributed observation(s) traversed the projected proxy group(s)",
+            summary.matched_observations
+        )
+        .into(),
+        vec![format!("observed proxy chains: {}", join_chain_list(&summary.observed_chains)).into()],
+        Vec::new(),
+    )
+}
+
+fn leak_dns_check(plan: &AppRuntimePlan) -> AppRuntimeLeakCheck {
+    let planning_fact: String = "DNS leak verification is planning-only; no live DNS query is issued".into();
+    let require_dns = plan
+        .security_profile
+        .as_ref()
+        .map(|profile| profile.controls.require_dns_profile)
+        .unwrap_or(false);
+    let Some(dns) = plan.dns_profile.as_ref() else {
+        if require_dns {
+            return leak_check(
+                AppRuntimeLeakDimension::DnsLeak,
+                AppRuntimeLeakCheckStatus::Fail,
+                "security profile requires a DNS profile but none is bound; DNS may leak to the system resolver".into(),
+                vec![planning_fact],
+                vec!["bind a DNS profile to satisfy the security profile and prevent DNS leaks".into()],
+            );
+        }
+        return leak_check(
+            AppRuntimeLeakDimension::DnsLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            "no DNS profile is bound; app DNS queries may fall back to the system resolver".into(),
+            vec![planning_fact],
+            vec!["bind a DNS profile to route app DNS through the tunnel".into()],
+        );
+    };
+    if dns.resolver_plan.status != DnsResolverPlanStatus::Ready {
+        return leak_check(
+            AppRuntimeLeakDimension::DnsLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            format!(
+                "DNS profile `{}` resolver plan is `{:?}`; tunneled DNS resolution is not confirmed",
+                dns.profile_id, dns.resolver_plan.status
+            )
+            .into(),
+            vec![planning_fact],
+            vec![
+                format!(
+                    "review DNS profile `{}` so its resolver plan becomes ready",
+                    dns.profile_id
+                )
+                .into(),
+            ],
+        );
+    }
+    let runtime_supported = dns
+        .resolver_plan
+        .nameservers
+        .iter()
+        .filter(|nameserver| nameserver.runtime_supported)
+        .count();
+    if runtime_supported == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::DnsLeak,
+            AppRuntimeLeakCheckStatus::Warn,
+            format!(
+                "DNS profile `{}` has no runtime-supported nameservers; DNS may fall back to the system resolver",
+                dns.profile_id
+            )
+            .into(),
+            vec![planning_fact],
+            vec!["add at least one runtime-supported nameserver to reduce DNS leak risk".into()],
+        );
+    }
+
+    leak_check(
+        AppRuntimeLeakDimension::DnsLeak,
+        AppRuntimeLeakCheckStatus::Pass,
+        format!(
+            "DNS profile `{}` provides {runtime_supported} runtime-supported nameserver(s) for leak-resistant resolution",
+            dns.profile_id
+        )
+        .into(),
+        vec![planning_fact],
+        Vec::new(),
+    )
+}
+
+fn leak_exit_check(
+    session: &AppRuntimeSessionRecord,
+    plan: &AppRuntimePlan,
+    routing_intent: Option<AppRoutingIntent>,
+    summary: &AppRuntimeSessionEvaluationSummary,
+) -> AppRuntimeLeakCheck {
+    let planning_fact: String = "exit verification is planning-only; no real exit IP is fetched".into();
+    if matches!(
+        session.status,
+        AppRuntimeSessionStatus::Blocked | AppRuntimeSessionStatus::Failed
+    ) || plan.status == AppRuntimePlanStatus::Rejected
+    {
+        return leak_check(
+            AppRuntimeLeakDimension::ExitVerification,
+            AppRuntimeLeakCheckStatus::Fail,
+            "session was blocked or failed, so exit verification cannot be planned".into(),
+            vec![planning_fact],
+            vec!["resolve session diagnostics before planning exit verification".into()],
+        );
+    }
+    let intent = routing_intent.unwrap_or(AppRoutingIntent::Direct);
+    if !requires_node_pool(intent) {
+        return leak_check(
+            AppRuntimeLeakDimension::ExitVerification,
+            AppRuntimeLeakCheckStatus::NotApplicable,
+            format!(
+                "routing intent `{}` exits directly, so there is no proxy exit to verify",
+                intent_label(intent)
+            )
+            .into(),
+            vec![planning_fact],
+            Vec::new(),
+        );
+    }
+    let has_candidates = plan
+        .node_pool
+        .as_ref()
+        .map(|pool| pool.candidate_count > 0)
+        .unwrap_or(false);
+    if !has_candidates {
+        return leak_check(
+            AppRuntimeLeakDimension::ExitVerification,
+            AppRuntimeLeakCheckStatus::Warn,
+            "no node pool candidates are available, so the exit verification target is undefined".into(),
+            vec![planning_fact],
+            vec!["bind a node pool with candidates to define an exit verification target".into()],
+        );
+    }
+    if summary.observation_count == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::ExitVerification,
+            AppRuntimeLeakCheckStatus::Warn,
+            "no observations recorded, so exit verification readiness is not established".into(),
+            vec![planning_fact],
+            vec!["record observations before planning exit verification".into()],
+        );
+    }
+    if summary.matched_observations == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::ExitVerification,
+            AppRuntimeLeakCheckStatus::Warn,
+            "no attributed observations, so exit verification cannot target a confirmed connection".into(),
+            vec![planning_fact],
+            vec!["attribute at least one observation to the app before exit verification".into()],
+        );
+    }
+
+    leak_check(
+        AppRuntimeLeakDimension::ExitVerification,
+        AppRuntimeLeakCheckStatus::Pass,
+        format!(
+            "exit verification can be planned against {} attributed observation(s)",
+            summary.matched_observations
+        )
+        .into(),
+        vec![planning_fact],
+        Vec::new(),
+    )
+}
+
+fn leak_node_pool_check(
+    routing_intent: Option<AppRoutingIntent>,
+    plan: &AppRuntimePlan,
+    session: &AppRuntimeSessionRecord,
+    summary: &AppRuntimeSessionEvaluationSummary,
+) -> AppRuntimeLeakCheck {
+    let intent = routing_intent.unwrap_or(AppRoutingIntent::Direct);
+    if !requires_node_pool(intent) {
+        return leak_check(
+            AppRuntimeLeakDimension::NodePoolConsistency,
+            AppRuntimeLeakCheckStatus::NotApplicable,
+            format!("routing intent `{}` does not use a node pool", intent_label(intent)).into(),
+            Vec::new(),
+            Vec::new(),
+        );
+    }
+    let Some(pool) = plan.node_pool.as_ref() else {
+        return leak_check(
+            AppRuntimeLeakDimension::NodePoolConsistency,
+            AppRuntimeLeakCheckStatus::Fail,
+            "proxy routing intent has no node pool, so node-pool consistency cannot be verified".into(),
+            Vec::new(),
+            vec!["bind a node pool so observed proxy chains can be validated".into()],
+        );
+    };
+    if summary.observation_count == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::NodePoolConsistency,
+            AppRuntimeLeakCheckStatus::Warn,
+            format!(
+                "no observations recorded to compare against node pool `{}`",
+                pool.pool_id
+            )
+            .into(),
+            Vec::new(),
+            vec!["record observations to verify proxy chains stay within the node pool".into()],
+        );
+    }
+    if summary.matched_observations == 0 {
+        return leak_check(
+            AppRuntimeLeakDimension::NodePoolConsistency,
+            AppRuntimeLeakCheckStatus::Warn,
+            "no attributed observations, so node-pool consistency cannot be checked".into(),
+            Vec::new(),
+            vec!["attribute observations to the app before checking node-pool consistency".into()],
+        );
+    }
+
+    let mut expected = BTreeSet::new();
+    for candidate in &pool.candidates {
+        expected.insert(candidate.node_name.clone());
+    }
+    for group in &session.projected_proxy_groups {
+        expected.insert(group.clone());
+    }
+    let unexpected = summary
+        .observed_chains
+        .iter()
+        .filter(|chain| !expected.contains(*chain) && !is_builtin_outbound(chain))
+        .cloned()
+        .collect::<Vec<_>>();
+    if unexpected.is_empty() {
+        return leak_check(
+            AppRuntimeLeakDimension::NodePoolConsistency,
+            AppRuntimeLeakCheckStatus::Pass,
+            format!(
+                "all observed proxy chains belong to node pool `{}` or its projected proxy group",
+                pool.pool_id
+            )
+            .into(),
+            vec![
+                format!(
+                    "node pool `{}` declares {} candidate(s)",
+                    pool.pool_id, pool.candidate_count
+                )
+                .into(),
+            ],
+            Vec::new(),
+        );
+    }
+
+    leak_check(
+        AppRuntimeLeakDimension::NodePoolConsistency,
+        AppRuntimeLeakCheckStatus::Warn,
+        format!(
+            "observed proxy chain(s) {} are not declared in node pool `{}`",
+            join_chain_list(&unexpected),
+            pool.pool_id
+        )
+        .into(),
+        Vec::new(),
+        vec!["verify selector or group membership, or update the node pool to include observed nodes".into()],
+    )
+}
+
+fn leak_check(
+    dimension: AppRuntimeLeakDimension,
+    status: AppRuntimeLeakCheckStatus,
+    message: String,
+    facts: Vec<String>,
+    warnings: Vec<String>,
+) -> AppRuntimeLeakCheck {
+    AppRuntimeLeakCheck {
+        dimension,
+        severity: leak_severity(status),
+        status,
+        message,
+        facts,
+        warnings,
+    }
+}
+
+fn leak_severity(status: AppRuntimeLeakCheckStatus) -> AppRuntimeDiagnosticSeverity {
+    match status {
+        AppRuntimeLeakCheckStatus::Pass | AppRuntimeLeakCheckStatus::NotApplicable => {
+            AppRuntimeDiagnosticSeverity::Info
+        }
+        AppRuntimeLeakCheckStatus::Warn => AppRuntimeDiagnosticSeverity::Warning,
+        AppRuntimeLeakCheckStatus::Fail => AppRuntimeDiagnosticSeverity::Error,
+    }
+}
+
+fn leak_summary_counts(checks: &[AppRuntimeLeakCheck]) -> AppRuntimeLeakSummary {
+    let mut summary = AppRuntimeLeakSummary::default();
+    for check in checks {
+        match check.status {
+            AppRuntimeLeakCheckStatus::Pass => summary.pass += 1,
+            AppRuntimeLeakCheckStatus::Warn => summary.warn += 1,
+            AppRuntimeLeakCheckStatus::Fail => summary.fail += 1,
+            AppRuntimeLeakCheckStatus::NotApplicable => summary.not_applicable += 1,
+        }
+    }
+    summary
+}
+
+fn leak_status(summary: &AppRuntimeLeakSummary) -> AppRuntimeDiagnosticStatus {
+    if summary.fail > 0 {
+        AppRuntimeDiagnosticStatus::Blocked
+    } else if summary.warn > 0 {
+        AppRuntimeDiagnosticStatus::Degraded
+    } else {
+        AppRuntimeDiagnosticStatus::Healthy
+    }
+}
+
+fn leak_reason(status: AppRuntimeDiagnosticStatus, summary: &AppRuntimeLeakSummary) -> String {
+    match status {
+        AppRuntimeDiagnosticStatus::Healthy => {
+            "app session shows no proxy, DNS, exit, or node-pool leak indicators in recorded observations".into()
+        }
+        AppRuntimeDiagnosticStatus::Degraded => format!(
+            "{} leak verification check(s) need attention before exit or leak verification can be confirmed",
+            summary.warn
+        )
+        .into(),
+        AppRuntimeDiagnosticStatus::Blocked => format!(
+            "{} leak verification check(s) failed; resolve before performing exit or leak verification",
+            summary.fail
+        )
+        .into(),
+    }
+}
+
+fn leak_report_warnings(checks: &[AppRuntimeLeakCheck]) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut warnings = Vec::new();
+    for check in checks {
+        if matches!(
+            check.status,
+            AppRuntimeLeakCheckStatus::Warn | AppRuntimeLeakCheckStatus::Fail
+        ) && seen.insert(check.message.clone())
+        {
+            warnings.push(check.message.clone());
+        }
+        for warning in &check.warnings {
+            if seen.insert(warning.clone()) {
+                warnings.push(warning.clone());
+            }
+        }
+    }
+    warnings
+}
+
+fn intent_label(intent: AppRoutingIntent) -> String {
+    format!("{intent:?}").to_ascii_lowercase().into()
+}
+
+fn join_chain_list(items: &[String]) -> String {
+    if items.is_empty() {
+        return "none".into();
+    }
+    items
+        .iter()
+        .map(|item| item.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+        .into()
+}
+
+fn is_builtin_outbound(chain: &str) -> bool {
+    matches!(
+        chain.to_ascii_uppercase().as_str(),
+        "DIRECT" | "REJECT" | "REJECT-DROP" | "PASS" | "COMPATIBLE"
+    )
 }
 
 fn validate_app(entry: &AppRegistryEntry) -> Result<()> {
@@ -2545,6 +3126,143 @@ mod tests {
     }
 
     #[test]
+    fn session_leak_verification_reports_healthy_for_matched_proxy_session() {
+        let state = sample_state();
+        let mut session = planned_session(&state);
+        let metrics = candidate_metrics(vec![attribution_candidate("browser.exe", vec!["app-browser"])]);
+        session
+            .observations
+            .push(session_observation_from_metrics(&session, &metrics));
+
+        let report = leak_report_from_session(&state, &session);
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Healthy);
+        assert_eq!(report.routing_intent, Some(AppRoutingIntent::Proxy));
+        assert_eq!(report.summary.fail, 0);
+        assert_eq!(report.summary.warn, 0);
+        assert_eq!(report.summary.pass, 4);
+        assert!(report.warnings.is_empty());
+        assert!(report.checks.iter().all(|check| matches!(
+            check.status,
+            AppRuntimeLeakCheckStatus::Pass | AppRuntimeLeakCheckStatus::NotApplicable
+        )));
+        assert!(report.facts.iter().any(|fact| fact.contains("planning-only")));
+    }
+
+    #[test]
+    fn session_leak_verification_flags_missing_observations_as_degraded() {
+        let state = sample_state();
+        let session = planned_session(&state);
+
+        let report = leak_report_from_session(&state, &session);
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+        assert_eq!(report.summary.fail, 0);
+        assert!(report.summary.warn >= 1);
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::DnsLeak),
+            AppRuntimeLeakCheckStatus::Pass
+        );
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+            AppRuntimeLeakCheckStatus::Warn
+        );
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::ExitVerification),
+            AppRuntimeLeakCheckStatus::Warn
+        );
+    }
+
+    #[test]
+    fn session_leak_verification_fails_on_proxy_mismatch() {
+        let state = sample_state();
+        let mut session = planned_session(&state);
+        let metrics = candidate_metrics(vec![attribution_candidate("other.exe", vec!["other-group"])]);
+        let observation = session_observation_from_metrics(&session, &metrics);
+        assert_eq!(
+            observation.attribution_status,
+            AppRuntimeSessionAttributionStatus::AppMismatch
+        );
+        session.observations.push(observation);
+
+        let report = leak_report_from_session(&state, &session);
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Blocked);
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+            AppRuntimeLeakCheckStatus::Fail
+        );
+        assert!(report.warnings.iter().any(|warning| warning.contains("proxy leak")));
+    }
+
+    #[test]
+    fn session_leak_verification_warns_on_node_pool_inconsistency() {
+        let state = sample_state();
+        let mut session = planned_session(&state);
+        let metrics = candidate_metrics(vec![attribution_candidate(
+            "browser.exe",
+            vec!["app-browser", "rogue-node"],
+        )]);
+        session
+            .observations
+            .push(session_observation_from_metrics(&session, &metrics));
+
+        let report = leak_report_from_session(&state, &session);
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+            AppRuntimeLeakCheckStatus::Pass
+        );
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::NodePoolConsistency),
+            AppRuntimeLeakCheckStatus::Warn
+        );
+        assert!(report.warnings.iter().any(|warning| warning.contains("rogue-node")));
+    }
+
+    #[test]
+    fn session_leak_verification_warns_for_direct_routing_without_dns_profile() {
+        let mut binding = sample_binding();
+        binding.node_pool_id = None;
+        binding.dns_profile_id = None;
+        binding.security_profile_id = None;
+        binding.routing_intent = AppRoutingIntent::Direct;
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![binding],
+            sessions: Vec::new(),
+        };
+        let session = planned_session(&state);
+
+        let report = leak_report_from_session(&state, &session);
+
+        assert_eq!(report.status, AppRuntimeDiagnosticStatus::Degraded);
+        assert_eq!(report.routing_intent, Some(AppRoutingIntent::Direct));
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::ProxyLeak),
+            AppRuntimeLeakCheckStatus::NotApplicable
+        );
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::ExitVerification),
+            AppRuntimeLeakCheckStatus::NotApplicable
+        );
+        assert_eq!(
+            leak_check_status(&report, AppRuntimeLeakDimension::DnsLeak),
+            AppRuntimeLeakCheckStatus::Warn
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("system resolver"))
+        );
+    }
+
+    #[test]
     fn mihomo_projection_emits_process_rule_proxy_group_and_yaml_patch() {
         let state = AppRuntimeStateDocument {
             apps: vec![sample_app()],
@@ -2640,6 +3358,72 @@ mod tests {
                 .iter()
                 .any(|warning| warning.contains("cannot be projected to a Mihomo rule"))
         );
+    }
+
+    fn sample_state() -> AppRuntimeStateDocument {
+        AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
+        }
+    }
+
+    fn planned_session(state: &AppRuntimeStateDocument) -> AppRuntimeSessionRecord {
+        let report = diagnose_app_runtime(
+            state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        session_record_from_diagnostics("session-a".into(), &report)
+    }
+
+    fn attribution_candidate(process: &str, chains: Vec<&str>) -> ConnectionAttributionCandidate {
+        ConnectionAttributionCandidate {
+            id: "conn-a".into(),
+            process: process.into(),
+            process_path: format!("C:\\Program Files\\App\\{process}").into(),
+            host: "example.com".into(),
+            rule: "ProcessName".into(),
+            rule_payload: process.into(),
+            chains: chains.into_iter().map(Into::into).collect(),
+            upload: 100,
+            download: 200,
+        }
+    }
+
+    fn candidate_metrics(candidates: Vec<ConnectionAttributionCandidate>) -> ConnectionMetricsSnapshot {
+        ConnectionMetricsSnapshot {
+            traffic: connection_metrics::TrafficSnapshot {
+                upload_total: 100,
+                download_total: 200,
+                upload_speed: 10,
+                download_speed: 20,
+                active_connection_count: 1,
+                closed_since_last: 0,
+                memory: 42,
+            },
+            speeds: Vec::new(),
+            attribution_candidates: candidates,
+            stale: false,
+        }
+    }
+
+    fn leak_check_status(
+        report: &AppRuntimeSessionLeakReport,
+        dimension: AppRuntimeLeakDimension,
+    ) -> AppRuntimeLeakCheckStatus {
+        report
+            .checks
+            .iter()
+            .find(|check| check.dimension == dimension)
+            .map(|check| check.status)
+            .expect("leak check dimension present")
     }
 
     fn sample_app() -> AppRegistryEntry {

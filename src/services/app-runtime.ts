@@ -324,6 +324,47 @@ export interface AppRuntimeSessionEvaluationReport {
   warnings: string[]
 }
 
+export type AppRuntimeLeakDimension =
+  | 'proxyLeak'
+  | 'dnsLeak'
+  | 'exitVerification'
+  | 'nodePoolConsistency'
+
+export type AppRuntimeLeakCheckStatus =
+  | 'pass'
+  | 'warn'
+  | 'fail'
+  | 'notApplicable'
+
+export interface AppRuntimeLeakCheck {
+  dimension: AppRuntimeLeakDimension
+  status: AppRuntimeLeakCheckStatus
+  severity: AppRuntimeDiagnosticSeverity
+  message: string
+  facts: string[]
+  warnings: string[]
+}
+
+export interface AppRuntimeLeakSummary {
+  pass: number
+  warn: number
+  fail: number
+  notApplicable: number
+}
+
+export interface AppRuntimeSessionLeakReport {
+  sessionId: string
+  appId: string
+  status: AppRuntimeDiagnosticStatus
+  reason: string
+  routingIntent?: AppRoutingIntent
+  evaluationSummary: AppRuntimeSessionEvaluationSummary
+  checks: AppRuntimeLeakCheck[]
+  summary: AppRuntimeLeakSummary
+  facts: string[]
+  warnings: string[]
+}
+
 export interface AppRuntimeSessionRecord {
   sessionId: string
   appId: string
@@ -462,4 +503,10 @@ export async function evaluateAppRuntimeSession(
   sessionId: string,
 ): Promise<AppRuntimeSessionEvaluationReport> {
   return invoke('evaluate_app_runtime_session', { sessionId })
+}
+
+export async function verifyAppRuntimeSessionLeak(
+  sessionId: string,
+): Promise<AppRuntimeSessionLeakReport> {
+  return invoke('verify_app_runtime_session_leak', { sessionId })
 }
