@@ -10,6 +10,7 @@ use crate::core::app_runtime::{
     finish_app_runtime_session as finish_app_runtime_session_record,
     list_app_runtime_sessions as list_app_runtime_session_records,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
+    record_app_runtime_session_observation as record_app_runtime_session_observation_record,
     start_app_runtime_session as start_app_runtime_session_record,
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
@@ -110,4 +111,11 @@ pub async fn start_app_runtime_session(request: AppRuntimePlanRequest) -> CmdRes
 #[tauri::command]
 pub async fn finish_app_runtime_session(request: AppRuntimeSessionFinishRequest) -> CmdResult<AppRuntimeSessionRecord> {
     finish_app_runtime_session_record(request).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn record_app_runtime_session_observation(session_id: String) -> CmdResult<AppRuntimeSessionRecord> {
+    record_app_runtime_session_observation_record(session_id.as_str())
+        .await
+        .stringify_err()
 }

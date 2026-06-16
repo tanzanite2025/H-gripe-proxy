@@ -255,6 +255,36 @@ export type AppRuntimeSessionStatus =
   | 'completed'
   | 'failed'
 
+export type AppRuntimeSessionObservationSource = 'connectionMetricsSnapshot'
+
+export type AppRuntimeSessionAttributionStatus =
+  | 'unattributed'
+  | 'appMatched'
+  | 'appMismatch'
+
+export interface AppRuntimeSessionTrafficObservation {
+  uploadTotal: number
+  downloadTotal: number
+  uploadSpeed: number
+  downloadSpeed: number
+  activeConnectionCount: number
+  closedSinceLast: number
+  memory: number
+  stale: boolean
+}
+
+export interface AppRuntimeSessionObservationRecord {
+  observationId: string
+  sessionId: string
+  recordedAt: number
+  source: AppRuntimeSessionObservationSource
+  attributionStatus: AppRuntimeSessionAttributionStatus
+  traffic: AppRuntimeSessionTrafficObservation
+  connectionSpeedCount: number
+  facts: string[]
+  warnings: string[]
+}
+
 export interface AppRuntimeSessionRecord {
   sessionId: string
   appId: string
@@ -267,6 +297,7 @@ export interface AppRuntimeSessionRecord {
   endedAt?: number
   projectedRules: string[]
   projectedProxyGroups: string[]
+  observations: AppRuntimeSessionObservationRecord[]
   facts: string[]
   warnings: string[]
 }
@@ -380,4 +411,10 @@ export async function finishAppRuntimeSession(
   request: AppRuntimeSessionFinishRequest,
 ): Promise<AppRuntimeSessionRecord> {
   return invoke('finish_app_runtime_session', { request })
+}
+
+export async function recordAppRuntimeSessionObservation(
+  sessionId: string,
+): Promise<AppRuntimeSessionRecord> {
+  return invoke('record_app_runtime_session_observation', { sessionId })
 }
