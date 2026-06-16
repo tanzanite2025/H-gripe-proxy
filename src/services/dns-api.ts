@@ -198,6 +198,34 @@ export interface DnsResolverRuntimeQueryReport {
   metrics: DnsResolverRuntimeMetrics
 }
 
+export interface DnsResolverRuntimeProbeSummary {
+  totalTargets: number
+  runtimeSupportedTargets: number
+  healthyTargets: number
+  failedTargets: number
+  unsupportedTargets: number
+}
+
+export interface DnsResolverRuntimeProbeTargetReport {
+  server: string
+  protocol: string
+  providerKind?: DnsServerProviderKind | null
+  providerLabel?: string | null
+  runtimeSupported: boolean
+  healthy: boolean
+  latencyMs?: number | null
+  message: string
+}
+
+export interface DnsResolverRuntimeProbeReport {
+  plan: DnsResolverPlan
+  testDomain: string
+  targets: DnsResolverRuntimeProbeTargetReport[]
+  summary: DnsResolverRuntimeProbeSummary
+  metrics: DnsResolverRuntimeMetrics
+  warnings: string[]
+}
+
 /**
  * DNS 查询选项
  */
@@ -373,6 +401,24 @@ export async function dnsRuntimeQuery(
     })
   } catch (err) {
     console.error(`DNS runtime query failed for ${domain}:`, err)
+    throw err
+  }
+}
+
+export async function dnsControlledRuntimeProbe(
+  yaml: string,
+  testDomain?: string,
+): Promise<DnsResolverRuntimeProbeReport> {
+  try {
+    return await invoke<DnsResolverRuntimeProbeReport>(
+      'dns_controlled_runtime_probe',
+      {
+        yaml,
+        testDomain,
+      },
+    )
+  } catch (err) {
+    console.error('DNS controlled runtime probe failed:', err)
     throw err
   }
 }
