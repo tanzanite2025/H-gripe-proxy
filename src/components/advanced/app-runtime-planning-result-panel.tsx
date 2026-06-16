@@ -3,6 +3,7 @@ import { Boxes } from 'lucide-react'
 import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 import type {
+  AppRuntimeActiveProjectionRecord,
   AppRuntimeDiagnosticsReport,
   AppRuntimeMihomoProjection,
   AppRuntimePlan,
@@ -19,7 +20,10 @@ interface AppRuntimePlanningResultPanelProps {
   projectionArtifact: AppRuntimeProjectionArtifact | null
   activationPreflight: AppRuntimeProjectionActivationPreflightReport | null
   activationPreflightPending: boolean
+  activeProjection: AppRuntimeActiveProjectionRecord | null
+  activateMarkerPending: boolean
   onPreflightActivation: () => void
+  onMarkActive: () => void
 }
 
 export function AppRuntimePlanningResultPanel({
@@ -29,7 +33,10 @@ export function AppRuntimePlanningResultPanel({
   projectionArtifact,
   activationPreflight,
   activationPreflightPending,
+  activeProjection,
+  activateMarkerPending,
   onPreflightActivation,
+  onMarkActive,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
     return null
@@ -96,6 +103,15 @@ export function AppRuntimePlanningResultPanel({
                 ? 'Preflight 中...'
                 : 'Activation preflight'}
             </Button>
+            <Button
+              size="small"
+              onClick={onMarkActive}
+              disabled={
+                activateMarkerPending || !projectionArtifact.storagePath
+              }
+            >
+              {activateMarkerPending ? '标记中...' : '标记 active'}
+            </Button>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div>ID: {projectionArtifact.artifactId}</div>
@@ -148,6 +164,34 @@ export function AppRuntimePlanningResultPanel({
                     />
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : null}
+          {activeProjection ? (
+            <div className="space-y-1 rounded-md border border-border bg-background/50 p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Active projection marker</span>
+                <Chip
+                  size="small"
+                  color={
+                    activeProjection.artifactId ===
+                    projectionArtifact.artifactId
+                      ? 'success'
+                      : 'warning'
+                  }
+                  label={activeProjection.activationKind}
+                />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div>ID: {activeProjection.artifactId}</div>
+                <div>Checksum: {activeProjection.checksum.slice(0, 12)}</div>
+                <div>
+                  Mutates runtime: {String(activeProjection.mutatesRuntime)}
+                </div>
+                <div>
+                  Rollback:{' '}
+                  {activeProjection.rollback.previousArtifactId || 'empty'}
+                </div>
               </div>
             </div>
           ) : null}

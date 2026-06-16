@@ -110,6 +110,26 @@ export interface AppRuntimeStateDocument {
   securityProfiles: SecurityProfile[]
   policyBindings: AppPolicyBinding[]
   sessions: AppRuntimeSessionRecord[]
+  activeProjection?: AppRuntimeActiveProjectionRecord
+}
+
+export interface AppRuntimeActiveProjectionRecord {
+  artifactId: string
+  appId: string
+  checksum: string
+  storagePath: string
+  activatedAt: number
+  activationKind: string
+  mutatesRuntime: boolean
+  rollback: AppRuntimeProjectionRollbackMetadata
+}
+
+export interface AppRuntimeProjectionRollbackMetadata {
+  previousArtifactId?: string
+  previousChecksum?: string
+  previousStoragePath?: string
+  capturedAt: number
+  rollbackStrategy: string
 }
 
 export interface AppRuntimePlanRequest {
@@ -537,6 +557,12 @@ export async function preflightAppRuntimeProjectionActivation(
   request: AppRuntimeProjectionActivationPreflightRequest,
 ): Promise<AppRuntimeProjectionActivationPreflightReport> {
   return invoke('preflight_app_runtime_projection_activation', { request })
+}
+
+export async function activateAppRuntimeProjectionArtifact(
+  request: AppRuntimeProjectionActivationPreflightRequest,
+): Promise<AppRuntimeStateDocument> {
+  return invoke('activate_app_runtime_projection_artifact', { request })
 }
 
 export async function listAppRuntimeSessions(

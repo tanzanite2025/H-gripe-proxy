@@ -16,6 +16,7 @@ export const emptyState: AppRuntimeStateDocument = {
   securityProfiles: [],
   policyBindings: [],
   sessions: [],
+  activeProjection: undefined,
 }
 
 export function stateCountLabel(label: string, count: number) {
