@@ -424,6 +424,9 @@ export type DnsDefaultRuntimeExpandedPostExecutionVerificationStatus =
 export type DnsDefaultRuntimeExpandedRollbackDrillStatus =
   | 'ready'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedStabilityGateStatus =
+  | 'ready'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -646,6 +649,24 @@ export interface DnsDefaultRuntimeExpandedPostExecutionObservedVerificationRepor
   observedEvidence: DnsDefaultRuntimeShadowEvidenceReport
   rollbackDrill: DnsDefaultRuntimeExpandedRollbackDrillReport
   failureAudit: DnsDefaultRuntimePostExecutionFailureAudit
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedStabilityGateReport {
+  status: DnsDefaultRuntimeExpandedStabilityGateStatus
+  reason: string
+  postExecution: DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport
+  keepActiveAllowed: boolean
+  rollbackRecommended: boolean
+  promotionAllowed: boolean
+  recommendedAction: string
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
   mutatesRuntime: boolean
   reloadMihomo: boolean
   blockers: string[]
@@ -1109,6 +1130,26 @@ export async function dnsDefaultRuntimeExpandedPostExecutionObservedVerification
       'DNS default runtime expanded post-execution observed verification failed:',
       err,
     )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedStabilityGate(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeExpandedStabilityGateReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedStabilityGateReport>(
+      'dns_default_runtime_expanded_stability_gate',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('DNS default runtime expanded stability gate failed:', err)
     throw err
   }
 }
