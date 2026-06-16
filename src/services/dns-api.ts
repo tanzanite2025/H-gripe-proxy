@@ -409,6 +409,14 @@ export type DnsDefaultRuntimeExpandedOptInExecutionGateStatus =
 export type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus =
   | 'ready'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedOptInExecutionStatus =
+  | 'executed'
+  | 'blocked'
+  | 'failed'
+export type DnsDefaultRuntimeExpandedRollbackStatus =
+  | 'restored'
+  | 'blocked'
+  | 'failed'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -564,6 +572,42 @@ export interface DnsDefaultRuntimeExpandedOptInExecutionPreflightReport {
   wouldMutateRuntime: boolean
   mutatesRuntime: boolean
   executed: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedOptInExecutionReport {
+  status: DnsDefaultRuntimeExpandedOptInExecutionStatus
+  reason: string
+  preflight: DnsDefaultRuntimeExpandedOptInExecutionPreflightReport
+  executionRecord: DnsDefaultRuntimeExecutionRecord
+  activeState?: DnsDefaultRuntimeActiveState | null
+  activeStatePath?: string | null
+  executionRecordPath?: string | null
+  dnsConfigApplyAttempted: boolean
+  dnsConfigApplied: boolean
+  rollbackAvailable: boolean
+  mutatesRuntime: boolean
+  executed: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedRollbackReport {
+  status: DnsDefaultRuntimeExpandedRollbackStatus
+  reason: string
+  previousState?: DnsDefaultRuntimeActiveState | null
+  restoredState?: DnsDefaultRuntimeActiveState | null
+  rollbackRecord: DnsDefaultRuntimeExecutionRecord
+  activeStatePath?: string | null
+  rollbackRecordPath?: string | null
+  dnsConfigRestoreAttempted: boolean
+  dnsConfigRestored: boolean
+  mutatesRuntime: boolean
   reloadMihomo: boolean
   blockers: string[]
   warnings: string[]
@@ -960,6 +1004,40 @@ export async function dnsDefaultRuntimeExpandedOptInExecutionPreflight(
       'DNS default runtime expanded opt-in execution preflight failed:',
       err,
     )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedOptInExecution(
+  yaml?: string,
+  domain?: string,
+  explicitOptIn = false,
+): Promise<DnsDefaultRuntimeExpandedOptInExecutionReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedOptInExecutionReport>(
+      'dns_default_runtime_expanded_opt_in_execution',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime expanded opt-in execution failed:',
+      err,
+    )
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedRollback(): Promise<DnsDefaultRuntimeExpandedRollbackReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedRollbackReport>(
+      'dns_default_runtime_expanded_rollback',
+    )
+  } catch (err) {
+    console.error('DNS default runtime expanded rollback failed:', err)
     throw err
   }
 }

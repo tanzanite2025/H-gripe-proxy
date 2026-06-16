@@ -2061,6 +2061,25 @@ dns:
         assert!(!preflight.reload_mihomo);
         assert!(preflight.preflight_record.mutation_plan.active_profile_write);
         assert!(preflight.preflight_record.mutation_plan.mihomo_reload);
+
+        let expanded_execution =
+            build_dns_default_runtime_expanded_opt_in_execution_report(preflight, true, true, Vec::new());
+
+        assert_eq!(
+            expanded_execution.status,
+            DnsDefaultRuntimeExpandedOptInExecutionStatus::Executed
+        );
+        assert!(expanded_execution.mutates_runtime);
+        assert!(expanded_execution.executed);
+        assert!(expanded_execution.reload_mihomo);
+        assert!(expanded_execution.rollback_available);
+        assert_eq!(
+            expanded_execution
+                .active_state
+                .as_ref()
+                .map(|state| state.state.as_str()),
+            Some("expandedActiveProfileReloaded")
+        );
     }
 
     #[test]

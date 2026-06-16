@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded preflight 前置） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight 已进入 Rust 单一路径；下一步评估真实 active profile reload 执行边界，但仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded execution） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S、Batch T（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback 已进入 Rust 单一路径；下一步应做执行后 observed verification/failure audit 闭环，仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1148,3 +1148,33 @@ feat(app-runtime): add demo seed import helper
 - DNS runtime stats UI 新增 expanded preflight 按钮与结果展示。
 - 新增 `build_app_runtime_demo_seed` command，返回包含 demo app / node pool / DNS profile / security profile / binding 的 `AppRuntimeStateDocument`。
 - App runtime resource manager 新增“加载 Demo seed”按钮，只填充批量导入 JSON，不自动写入 Rust state。
+
+### Batch T：Default DNS runtime expanded execution + rollback（本批次，显式 active reload）
+
+Batch S 已把 active profile write + Mihomo reload 变成持久化 preflight record。本批次才进入真实 runtime mutation，但仍然限定在用户显式点击、复用现有 DNS config reload 路径、Rust-owned audit/active state/rollback metadata 闭环内。
+
+```text
+feat(dns-runtime): add expanded execution and rollback
+```
+
+建议边界：
+
+- Execution 必须消费 Batch S preflight，且 preflight 必须 ready + persisted。
+- Execution 只能由用户显式 opt-in 触发；页面打开、readiness、gate、preflight 都不得自动执行。
+- Execution 通过现有 `apply_dns_config(true)` 路径把 DNS config 应用到 Mihomo runtime，并记录 Rust-owned execution record / active state。
+- Rollback 只允许回滚由 expanded execution 创建的 active state，通过现有 `apply_dns_config(false)` 恢复 Mihomo-managed DNS runtime。
+- Report 必须明确 `mutatesRuntime=true`、`reloadMihomo=true`、apply/restore attempted/applied 状态、rollback availability。
+
+不包含：
+
+- 不自动 rollout、不自动 rollback。
+- 不把 Rust DNS resolver 宣称为 Go DNS runtime 的完整替代。
+- 不修改 TUN、transparent proxy、adapter outbound/inbound 或 protocol runtime。
+- 不扩大到系统级流量转发路径。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_opt_in_execution` command，先执行 Batch S preflight，再在 ready + persisted 时应用 DNS config reload。
+- 新增 `dns_default_runtime_expanded_rollback` command，只回滚 expanded execution 写入的 active state。
+- Expanded execution / rollback 都持久化 execution record 与 active runtime state，并在 report 中展示 apply/restore 状态。
+- DNS runtime stats UI 新增 Expanded execute / Expanded rollback 显式按钮与结果面板。
