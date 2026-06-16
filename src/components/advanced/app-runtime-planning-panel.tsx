@@ -604,6 +604,18 @@ export function AppRuntimePlanningPanel() {
     }
   })
 
+  const runSelectedAppReadiness = useLockFn(async () => {
+    if (!selectedAppId) {
+      return
+    }
+
+    await runPlanningDiagnostics()
+
+    if (selectedDnsProfile) {
+      await handleProbeSelectedDnsProfile()
+    }
+  })
+
   const focusStateAction = (message: string) => {
     setOverviewFilter(message)
 
@@ -1377,14 +1389,25 @@ export function AppRuntimePlanningPanel() {
                 selectAppForDiagnostics(String(value))
               }}
             />
-            <Button
-              size="small"
-              startIcon={<Activity className="h-4 w-4" />}
-              onClick={() => void runPlanningDiagnostics()}
-              disabled={!selectedAppId || planning}
-            >
-              {planning ? '诊断中...' : '运行规划诊断'}
-            </Button>
+            <div className="flex flex-wrap items-end gap-2">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Activity className="h-4 w-4" />}
+                onClick={() => void runPlanningDiagnostics()}
+                disabled={!selectedAppId || planning}
+              >
+                {planning ? '诊断中...' : '运行规划诊断'}
+              </Button>
+              <Button
+                size="small"
+                startIcon={<Activity className="h-4 w-4" />}
+                onClick={() => void runSelectedAppReadiness()}
+                disabled={!selectedAppId || planning || dnsProbePending}
+              >
+                {planning || dnsProbePending ? '检查中...' : '运行 readiness'}
+              </Button>
+            </div>
           </div>
         )}
 
