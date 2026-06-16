@@ -398,6 +398,11 @@ export interface DnsDefaultRuntimeOptInExecutionGuardReport {
 
 export type DnsDefaultRuntimeLimitedExecutionStatus = 'executed' | 'blocked'
 export type DnsDefaultRuntimeLimitedRollbackStatus = 'restored' | 'blocked'
+export type DnsDefaultRuntimePostExecutionVerificationStatus =
+  | 'verified'
+  | 'failed'
+  | 'blocked'
+export type DnsDefaultRuntimeRollbackDrillStatus = 'ready' | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -447,6 +452,47 @@ export interface DnsDefaultRuntimeLimitedRollbackReport {
   rollbackRecord: DnsDefaultRuntimeExecutionRecord
   activeStatePath?: string | null
   rollbackRecordPath?: string | null
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeRollbackDrillReport {
+  status: DnsDefaultRuntimeRollbackDrillStatus
+  reason: string
+  activeState?: DnsDefaultRuntimeActiveState | null
+  executionRecord?: DnsDefaultRuntimeExecutionRecord | null
+  rollbackMarker?: DnsDefaultRuntimeExecutorRollbackMarker | null
+  wouldRollback: boolean
+  wouldRestoreRuntime: string
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimePostExecutionFailureAudit {
+  required: boolean
+  eventId: string
+  activeExecutionEventId?: string | null
+  reasons: string[]
+  rollbackDrillRequired: boolean
+  createdAtEpochSeconds: number
+}
+
+export interface DnsDefaultRuntimePostExecutionObservedVerificationReport {
+  status: DnsDefaultRuntimePostExecutionVerificationStatus
+  reason: string
+  activeState?: DnsDefaultRuntimeActiveState | null
+  executionRecord?: DnsDefaultRuntimeExecutionRecord | null
+  preExecutionAuditRecord?: DnsDefaultRuntimeExecutorAuditRecord | null
+  observedEvidence: DnsDefaultRuntimeShadowEvidenceReport
+  rollbackDrill: DnsDefaultRuntimeRollbackDrillReport
+  failureAudit: DnsDefaultRuntimePostExecutionFailureAudit
   mutatesRuntime: boolean
   reloadMihomo: boolean
   blockers: string[]
@@ -766,6 +812,38 @@ export async function dnsDefaultRuntimeLimitedOptInExecution(
     )
   } catch (err) {
     console.error('DNS default runtime limited opt-in execution failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeRollbackDrill(): Promise<DnsDefaultRuntimeRollbackDrillReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeRollbackDrillReport>(
+      'dns_default_runtime_rollback_drill',
+    )
+  } catch (err) {
+    console.error('DNS default runtime rollback drill failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimePostExecutionObservedVerification(
+  yaml?: string,
+  domain?: string,
+): Promise<DnsDefaultRuntimePostExecutionObservedVerificationReport> {
+  try {
+    return await invoke<DnsDefaultRuntimePostExecutionObservedVerificationReport>(
+      'dns_default_runtime_post_execution_observed_verification',
+      {
+        yaml,
+        domain,
+      },
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime post-execution observed verification failed:',
+      err,
+    )
     throw err
   }
 }
