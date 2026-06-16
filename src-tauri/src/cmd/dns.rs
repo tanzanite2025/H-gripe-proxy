@@ -4,11 +4,14 @@ use crate::core::dns_config_explain::{
     plan_dns_probe as build_dns_probe_plan,
 };
 use crate::core::dns_runtime::{
+    DnsDefaultRuntimeLimitedOptInExecutionReport, DnsDefaultRuntimeLimitedRollbackReport,
     DnsDefaultRuntimeOptInExecutionGuardReport, DnsDefaultRuntimeOptInExecutorPreflightReport,
     DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeShadowEvidenceReport,
     DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
     DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    dns_default_runtime_limited_opt_in_execution as build_dns_default_runtime_limited_opt_in_execution,
+    dns_default_runtime_limited_rollback as build_dns_default_runtime_limited_rollback,
     dns_default_runtime_opt_in_execution_guard as build_dns_default_runtime_opt_in_execution_guard,
     dns_default_runtime_opt_in_executor_preflight as build_dns_default_runtime_opt_in_executor_preflight,
     dns_default_runtime_opt_in_switch_guard as build_dns_default_runtime_opt_in_switch_guard,
@@ -183,4 +186,20 @@ pub async fn dns_default_runtime_opt_in_execution_guard(
     build_dns_default_runtime_opt_in_execution_guard(yaml, domain, explicit_opt_in)
         .await
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_limited_opt_in_execution(
+    yaml: Option<String>,
+    domain: Option<String>,
+    explicit_opt_in: bool,
+) -> CmdResult<DnsDefaultRuntimeLimitedOptInExecutionReport> {
+    build_dns_default_runtime_limited_opt_in_execution(yaml, domain, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_limited_rollback() -> CmdResult<DnsDefaultRuntimeLimitedRollbackReport> {
+    build_dns_default_runtime_limited_rollback().await.stringify_err()
 }
