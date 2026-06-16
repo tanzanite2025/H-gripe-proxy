@@ -436,6 +436,12 @@ export type DnsDefaultRuntimeExpandedReverifyStatus =
   | 'recorded'
   | 'rollbackRecommended'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedReverifyHistoryStatus =
+  | 'ready'
+  | 'watching'
+  | 'rollbackRecommended'
+  | 'empty'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -734,6 +740,35 @@ export interface DnsDefaultRuntimeExpandedReverifyReport {
   keepActiveAllowed: boolean
   nextVerificationRequired: boolean
   rollbackRecommended: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedReverifyHistoryReport {
+  status: DnsDefaultRuntimeExpandedReverifyHistoryStatus
+  reason: string
+  records: DnsDefaultRuntimeExpandedReverifyRecord[]
+  latestRecord?: DnsDefaultRuntimeExpandedReverifyRecord | null
+  recordCount: number
+  recordedCount: number
+  rollbackRecommendedCount: number
+  blockedCount: number
+  keepActiveCount: number
+  nextVerificationRequiredCount: number
+  stableStreak: number
+  requiredStableRecords: number
+  firstRecordAtEpochSeconds?: number | null
+  latestRecordAtEpochSeconds?: number | null
+  closeoutReady: boolean
+  rollbackRecommended: boolean
+  promotionAllowed: boolean
+  recommendedAction: string
   userTriggerRequired: boolean
   autoRollout: boolean
   autoRollback: boolean
@@ -1260,6 +1295,17 @@ export async function dnsDefaultRuntimeExpandedReverify(
     )
   } catch (err) {
     console.error('DNS default runtime expanded reverify failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedReverifyHistory(): Promise<DnsDefaultRuntimeExpandedReverifyHistoryReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedReverifyHistoryReport>(
+      'dns_default_runtime_expanded_reverify_history',
+    )
+  } catch (err) {
+    console.error('DNS default runtime expanded reverify history failed:', err)
     throw err
   }
 }

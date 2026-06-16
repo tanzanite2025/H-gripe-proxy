@@ -6,15 +6,15 @@ use crate::core::dns_config_explain::{
 use crate::core::dns_runtime::{
     DnsDefaultRuntimeExpandedHoldPolicyReport, DnsDefaultRuntimeExpandedOptInExecutionGateReport,
     DnsDefaultRuntimeExpandedOptInExecutionPreflightReport, DnsDefaultRuntimeExpandedOptInExecutionReport,
-    DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport, DnsDefaultRuntimeExpandedReverifyReport,
-    DnsDefaultRuntimeExpandedRollbackDrillReport, DnsDefaultRuntimeExpandedRollbackReport,
-    DnsDefaultRuntimeExpandedStabilityGateReport, DnsDefaultRuntimeLimitedOptInExecutionReport,
-    DnsDefaultRuntimeLimitedRollbackReport, DnsDefaultRuntimeOptInExecutionGuardReport,
-    DnsDefaultRuntimeOptInExecutorPreflightReport, DnsDefaultRuntimeOptInSwitchGuardReport,
-    DnsDefaultRuntimePostExecutionObservedVerificationReport, DnsDefaultRuntimeReadinessReport,
-    DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport, DnsHealthCheckResult, DnsProtocol,
-    DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport, DnsResolverRuntimeQueryReport,
-    DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
+    DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport, DnsDefaultRuntimeExpandedReverifyHistoryReport,
+    DnsDefaultRuntimeExpandedReverifyReport, DnsDefaultRuntimeExpandedRollbackDrillReport,
+    DnsDefaultRuntimeExpandedRollbackReport, DnsDefaultRuntimeExpandedStabilityGateReport,
+    DnsDefaultRuntimeLimitedOptInExecutionReport, DnsDefaultRuntimeLimitedRollbackReport,
+    DnsDefaultRuntimeOptInExecutionGuardReport, DnsDefaultRuntimeOptInExecutorPreflightReport,
+    DnsDefaultRuntimeOptInSwitchGuardReport, DnsDefaultRuntimePostExecutionObservedVerificationReport,
+    DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport,
+    DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
+    DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
     dns_default_runtime_expanded_hold_policy as build_dns_default_runtime_expanded_hold_policy,
     dns_default_runtime_expanded_opt_in_execution as build_dns_default_runtime_expanded_opt_in_execution,
@@ -22,6 +22,7 @@ use crate::core::dns_runtime::{
     dns_default_runtime_expanded_opt_in_execution_preflight as build_dns_default_runtime_expanded_opt_in_execution_preflight,
     dns_default_runtime_expanded_post_execution_observed_verification as build_dns_default_runtime_expanded_post_execution_observed_verification,
     dns_default_runtime_expanded_reverify as build_dns_default_runtime_expanded_reverify,
+    dns_default_runtime_expanded_reverify_history as build_dns_default_runtime_expanded_reverify_history,
     dns_default_runtime_expanded_rollback as build_dns_default_runtime_expanded_rollback,
     dns_default_runtime_expanded_rollback_drill as build_dns_default_runtime_expanded_rollback_drill,
     dns_default_runtime_expanded_stability_gate as build_dns_default_runtime_expanded_stability_gate,
@@ -315,6 +316,14 @@ pub async fn dns_default_runtime_expanded_reverify(
     explicit_opt_in: bool,
 ) -> CmdResult<DnsDefaultRuntimeExpandedReverifyReport> {
     build_dns_default_runtime_expanded_reverify(yaml, domain, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn dns_default_runtime_expanded_reverify_history() -> CmdResult<DnsDefaultRuntimeExpandedReverifyHistoryReport>
+{
+    build_dns_default_runtime_expanded_reverify_history()
         .await
         .stringify_err()
 }

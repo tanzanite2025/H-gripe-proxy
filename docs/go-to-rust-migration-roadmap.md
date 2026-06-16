@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded repeated reverify） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-W、Batch X（本批次）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit 已进入 Rust 单一路径；下一步才可考虑 reverify history 汇总，仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（DNS default runtime expanded reverify closeout） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-X、Batch Y（本批次，合并 history/trend/closeout 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1294,3 +1294,38 @@ feat(dns-runtime): add expanded reverify audit
 - 每次显式 reverify 持久化 `expanded-reverify/<event>/reverify.yaml`。
 - Report 输出 reverify record、persisted path、hold policy、rollback recommendation 与 next verification 状态。
 - DNS runtime stats UI 新增 Expanded reverify 显式按钮与结果展示。
+
+### Batch Y：Default DNS runtime expanded reverify history / trend / closeout（本批次，合并多步）
+
+按“几步合并”的粒度，本批次不再只做一个小按钮，而是把 reverify history、trend threshold、session closeout 建议合在一个功能块里。目标是让 Batch X 的多次显式 reverify record 能形成一个 Rust-owned 汇总判断。
+
+```text
+feat(dns-runtime): add expanded reverify history closeout
+```
+
+合并范围：
+
+- History：读取 `expanded-reverify/<event>/reverify.yaml` 下所有显式 reverify audit record。
+- Trend：统计 keep-active、rollback recommended、blocked、next verification required、stable streak。
+- Threshold：连续稳定 reverify 数达到阈值时输出 `closeoutReady=true`。
+- Closeout：只关闭当前 session 的 observation window，不推广为长期默认。
+
+建议边界：
+
+- History summary 只读取已持久化 record，不触发新的 reverify。
+- 发现 rollback recommended trend 时只建议显式 rollback。
+- `promotionAllowed=false`、`autoRollout=false`、`autoRollback=false`、`mutatesRuntime=false`、`reloadMihomo=false` 必须保持。
+- Empty history 是可解释状态，不应伪造成功。
+
+不包含：
+
+- 不自动创建 reverify record。
+- 不自动 rollback。
+- 不推广为长期默认。
+- 不触碰 TUN、transparent proxy、adapter outbound/inbound 或 protocol runtime。
+
+已落地范围：
+
+- 新增 `dns_default_runtime_expanded_reverify_history` command。
+- Report 输出 record list、latest record、status counts、stable streak、required threshold、rollback trend 与 closeout recommendation。
+- DNS runtime stats UI 新增 Reverify history 显式按钮与汇总面板。

@@ -340,6 +340,7 @@ mod app_init {
             cmd::dns_default_runtime_expanded_stability_gate,
             cmd::dns_default_runtime_expanded_hold_policy,
             cmd::dns_default_runtime_expanded_reverify,
+            cmd::dns_default_runtime_expanded_reverify_history,
             cmd::dns_default_runtime_limited_rollback,
             cmd::anti_probe_get_config,
             cmd::anti_probe_verify_handshake,

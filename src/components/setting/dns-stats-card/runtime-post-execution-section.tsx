@@ -11,6 +11,7 @@ import {
   dnsDefaultRuntimeExpandedHoldPolicy,
   dnsDefaultRuntimeExpandedPostExecutionObservedVerification,
   dnsDefaultRuntimeExpandedReverify,
+  dnsDefaultRuntimeExpandedReverifyHistory,
   dnsDefaultRuntimeExpandedRollback,
   dnsDefaultRuntimeExpandedRollbackDrill,
   dnsDefaultRuntimeExpandedStabilityGate,
@@ -23,6 +24,7 @@ import {
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightReport,
   type DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus,
   type DnsDefaultRuntimeExpandedPostExecutionObservedVerificationReport,
+  type DnsDefaultRuntimeExpandedReverifyHistoryReport,
   type DnsDefaultRuntimeExpandedReverifyReport,
   type DnsDefaultRuntimeExpandedRollbackDrillReport,
   type DnsDefaultRuntimeExpandedRollbackReport,
@@ -139,6 +141,8 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeExpandedHoldPolicyReport | null>(null)
   const [expandedReverifyReport, setExpandedReverifyReport] =
     useState<DnsDefaultRuntimeExpandedReverifyReport | null>(null)
+  const [expandedReverifyHistoryReport, setExpandedReverifyHistoryReport] =
+    useState<DnsDefaultRuntimeExpandedReverifyHistoryReport | null>(null)
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
@@ -152,6 +156,7 @@ export function RuntimePostExecutionSection() {
     | 'expandedStability'
     | 'expandedHold'
     | 'expandedReverify'
+    | 'expandedHistory'
     | 'rollback'
     | null
   >(null)
@@ -358,6 +363,19 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedReverifyHistory = useLockFn(async () => {
+    setPending('expandedHistory')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedReverifyHistory()
+      setExpandedReverifyHistoryReport(nextReport)
+      showNotice.success('默认 DNS runtime expanded reverify history 已汇总')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -456,6 +474,16 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedReverifyHistory}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedHistory'
+              ? '汇总中...'
+              : 'Reverify history'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -475,7 +503,8 @@ export function RuntimePostExecutionSection() {
         metadata，生成 failure audit，不自动回滚。Expanded stability 只决定当前 session
         是否可保持 active，不做长期默认推广。Expanded hold 再加最小/最大观察窗口，
         超窗只建议显式 rollback。Expanded reverify 将一次显式 hold-window
-        评估持久化为 audit record，方便重复验证。
+        评估持久化为 audit record，方便重复验证。Reverify history 汇总多次记录，
+        给出 stable threshold / rollback trend / closeout 建议。
       </div>
 
       {verificationReport ? (
@@ -544,6 +573,81 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedReverifyHistoryReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Reverify history"
+              chipLabel={expandedReverifyHistoryReport.status}
+              chipColor={
+                expandedReverifyHistoryReport.status === 'ready'
+                  ? 'success'
+                  : expandedReverifyHistoryReport.status === 'blocked'
+                    ? 'error'
+                    : 'warning'
+              }
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedReverifyHistoryReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedReverifyHistoryReport.reason}
+            />
+            <DnsTextRow
+              label="Records"
+              value={`${expandedReverifyHistoryReport.recordCount} total / ${expandedReverifyHistoryReport.recordedCount} keep-active`}
+            />
+            <DnsTextRow
+              label="Stable streak"
+              value={`${expandedReverifyHistoryReport.stableStreak}/${expandedReverifyHistoryReport.requiredStableRecords}`}
+            />
+            <DnsTextRow
+              label="Rollback trend"
+              value={`${expandedReverifyHistoryReport.rollbackRecommendedCount} recommended`}
+            />
+            <DnsTextRow
+              label="Recommended"
+              value={expandedReverifyHistoryReport.recommendedAction}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedReverifyHistoryReport.recommendedAction}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedReverifyHistoryReport.closeoutReady
+                  ? 'success'
+                  : 'warning'
+              }
+              label={`closeout=${String(expandedReverifyHistoryReport.closeoutReady)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedReverifyHistoryReport.rollbackRecommended
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`rollbackRecommended=${String(expandedReverifyHistoryReport.rollbackRecommended)}`}
+            />
+            <Chip
+              size="small"
+              color="default"
+              label={`promotion=${String(expandedReverifyHistoryReport.promotionAllowed)}`}
+            />
+          </div>
+
+          {expandedReverifyHistoryReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Reverify history blockers:{' '}
+              {expandedReverifyHistoryReport.blockers.join('；')}
             </div>
           ) : null}
         </div>
