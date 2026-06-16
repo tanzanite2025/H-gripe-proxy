@@ -1,12 +1,14 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::app_runtime::{
     AppPolicyBinding, AppRegistryEntry, AppRuntimeDiagnosticsReport, AppRuntimeMihomoProjection, AppRuntimePlan,
-    AppRuntimePlanRequest, AppRuntimeSessionFinishRequest, AppRuntimeSessionRecord, AppRuntimeSessionStartReport,
-    AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
+    AppRuntimePlanRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest, AppRuntimeSessionRecord,
+    AppRuntimeSessionStartReport, AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
     delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
-    diagnose_app_runtime as build_app_runtime_diagnostics, explain_app_runtime_plan as build_app_runtime_plan,
+    diagnose_app_runtime as build_app_runtime_diagnostics,
+    evaluate_app_runtime_session as evaluate_app_runtime_session_record,
+    explain_app_runtime_plan as build_app_runtime_plan,
     finish_app_runtime_session as finish_app_runtime_session_record,
     list_app_runtime_sessions as list_app_runtime_session_records,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
@@ -116,6 +118,13 @@ pub async fn finish_app_runtime_session(request: AppRuntimeSessionFinishRequest)
 #[tauri::command]
 pub async fn record_app_runtime_session_observation(session_id: String) -> CmdResult<AppRuntimeSessionRecord> {
     record_app_runtime_session_observation_record(session_id.as_str())
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn evaluate_app_runtime_session(session_id: String) -> CmdResult<AppRuntimeSessionEvaluationReport> {
+    evaluate_app_runtime_session_record(session_id.as_str())
         .await
         .stringify_err()
 }

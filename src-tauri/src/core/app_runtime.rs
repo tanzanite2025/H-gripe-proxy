@@ -490,6 +490,35 @@ pub struct AppRuntimeSessionFinishRequest {
     pub reason: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionEvaluationSummary {
+    pub observation_count: usize,
+    pub matched_observations: usize,
+    pub mismatch_observations: usize,
+    pub unattributed_observations: usize,
+    pub stale_observations: usize,
+    pub attribution_candidate_count: usize,
+    pub upload_total: u64,
+    pub download_total: u64,
+    pub max_active_connections: usize,
+    pub observed_chains: Vec<String>,
+    pub observed_hosts: Vec<String>,
+    pub matched_by: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeSessionEvaluationReport {
+    pub session_id: String,
+    pub app_id: String,
+    pub status: AppRuntimeDiagnosticStatus,
+    pub reason: String,
+    pub summary: AppRuntimeSessionEvaluationSummary,
+    pub facts: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDiagnosticsReport {
@@ -736,6 +765,16 @@ pub async fn record_app_runtime_session_observation(session_id: &str) -> Result<
     let session = session.clone();
     save_app_runtime_state_document(&state).await?;
     Ok(session)
+}
+
+pub async fn evaluate_app_runtime_session(session_id: &str) -> Result<AppRuntimeSessionEvaluationReport> {
+    let session_id = normalize_id(session_id, "session_id")?;
+    let state = read_app_runtime_state_document().await?;
+    let Some(session) = state.sessions.iter().find(|session| session.session_id == session_id) else {
+        bail!("app runtime session `{session_id}` was not found");
+    };
+
+    Ok(evaluation_report_from_session(session))
 }
 
 pub fn explain_app_runtime_plan(state: &AppRuntimeStateDocument, request: AppRuntimePlanRequest) -> AppRuntimePlan {
@@ -1210,6 +1249,146 @@ fn session_observation_warnings(status: AppRuntimeSessionAttributionStatus) -> V
             vec!["No connection attribution candidates are available in the latest metrics snapshot".into()]
         }
     }
+}
+
+fn evaluation_report_from_session(session: &AppRuntimeSessionRecord) -> AppRuntimeSessionEvaluationReport {
+    let summary = session_evaluation_summary(session);
+    let status = session_evaluation_status(session, &summary);
+    let warnings = session_evaluation_warnings(session, status, &summary);
+    let reason = session_evaluation_reason(status, &summary);
+    let facts = vec![
+        format!("session status is {:?}", session.status).into(),
+        format!("evaluated {} recorded observation(s)", summary.observation_count).into(),
+        format!(
+            "matched {} attribution candidate(s)",
+            summary.attribution_candidate_count
+        )
+        .into(),
+    ];
+
+    AppRuntimeSessionEvaluationReport {
+        session_id: session.session_id.clone(),
+        app_id: session.app_id.clone(),
+        status,
+        reason,
+        summary,
+        facts,
+        warnings,
+    }
+}
+
+fn session_evaluation_summary(session: &AppRuntimeSessionRecord) -> AppRuntimeSessionEvaluationSummary {
+    let mut summary = AppRuntimeSessionEvaluationSummary {
+        observation_count: session.observations.len(),
+        ..AppRuntimeSessionEvaluationSummary::default()
+    };
+    let mut observed_chains = BTreeSet::new();
+    let mut observed_hosts = BTreeSet::new();
+    let mut matched_by = BTreeSet::new();
+
+    for observation in &session.observations {
+        match observation.attribution_status {
+            AppRuntimeSessionAttributionStatus::AppMatched => summary.matched_observations += 1,
+            AppRuntimeSessionAttributionStatus::AppMismatch => summary.mismatch_observations += 1,
+            AppRuntimeSessionAttributionStatus::Unattributed => summary.unattributed_observations += 1,
+        }
+        if observation.traffic.stale {
+            summary.stale_observations += 1;
+        }
+        summary.upload_total = summary.upload_total.max(observation.traffic.upload_total);
+        summary.download_total = summary.download_total.max(observation.traffic.download_total);
+        summary.max_active_connections = summary
+            .max_active_connections
+            .max(observation.traffic.active_connection_count);
+        summary.attribution_candidate_count += observation.attribution_candidates.len();
+
+        for candidate in &observation.attribution_candidates {
+            if !candidate.host.is_empty() {
+                observed_hosts.insert(candidate.host.clone());
+            }
+            for chain in &candidate.chains {
+                observed_chains.insert(chain.clone());
+            }
+            for matcher in &candidate.matched_by {
+                matched_by.insert(matcher.clone());
+            }
+        }
+    }
+
+    summary.observed_chains = observed_chains.into_iter().collect();
+    summary.observed_hosts = observed_hosts.into_iter().collect();
+    summary.matched_by = matched_by.into_iter().collect();
+    summary
+}
+
+fn session_evaluation_status(
+    session: &AppRuntimeSessionRecord,
+    summary: &AppRuntimeSessionEvaluationSummary,
+) -> AppRuntimeDiagnosticStatus {
+    if matches!(
+        session.status,
+        AppRuntimeSessionStatus::Blocked | AppRuntimeSessionStatus::Failed
+    ) {
+        return AppRuntimeDiagnosticStatus::Blocked;
+    }
+    if summary.observation_count == 0
+        || summary.mismatch_observations > 0
+        || summary.unattributed_observations > 0
+        || summary.stale_observations > 0
+    {
+        return AppRuntimeDiagnosticStatus::Degraded;
+    }
+    AppRuntimeDiagnosticStatus::Healthy
+}
+
+fn session_evaluation_reason(
+    status: AppRuntimeDiagnosticStatus,
+    summary: &AppRuntimeSessionEvaluationSummary,
+) -> String {
+    match status {
+        AppRuntimeDiagnosticStatus::Healthy => {
+            "all recorded app session observations matched projected runtime artifacts".into()
+        }
+        AppRuntimeDiagnosticStatus::Degraded if summary.observation_count == 0 => {
+            "app runtime session has no recorded observations yet".into()
+        }
+        AppRuntimeDiagnosticStatus::Degraded => {
+            "app runtime session observations require attribution or freshness review".into()
+        }
+        AppRuntimeDiagnosticStatus::Blocked => {
+            "app runtime session was blocked or failed before a healthy evaluation could be confirmed".into()
+        }
+    }
+}
+
+fn session_evaluation_warnings(
+    session: &AppRuntimeSessionRecord,
+    status: AppRuntimeDiagnosticStatus,
+    summary: &AppRuntimeSessionEvaluationSummary,
+) -> Vec<String> {
+    let mut warnings = Vec::new();
+    if matches!(
+        session.status,
+        AppRuntimeSessionStatus::Blocked | AppRuntimeSessionStatus::Failed
+    ) {
+        warnings.push("session ended in blocked or failed state".into());
+    }
+    if summary.observation_count == 0 {
+        warnings.push("no connection metrics observations have been recorded for this session".into());
+    }
+    if summary.mismatch_observations > 0 {
+        warnings.push("one or more observations had connection metadata but no app projection match".into());
+    }
+    if summary.unattributed_observations > 0 {
+        warnings.push("one or more observations had no attribution candidates".into());
+    }
+    if summary.stale_observations > 0 {
+        warnings.push("one or more observations were marked stale by connection metrics".into());
+    }
+    if status == AppRuntimeDiagnosticStatus::Healthy && summary.attribution_candidate_count == 0 {
+        warnings.push("healthy status requires matched observations with attribution candidates".into());
+    }
+    warnings
 }
 
 fn validate_app(entry: &AppRegistryEntry) -> Result<()> {
@@ -2272,6 +2451,96 @@ mod tests {
                 .matched_by
                 .iter()
                 .any(|matched_by| matched_by.starts_with("projectedRule:PROCESS-NAME,browser.exe"))
+        );
+    }
+
+    #[test]
+    fn session_evaluation_summarizes_matched_observations_as_healthy() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
+        };
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        let mut session = session_record_from_diagnostics("session-a".into(), &report);
+        let metrics = ConnectionMetricsSnapshot {
+            traffic: connection_metrics::TrafficSnapshot {
+                upload_total: 100,
+                download_total: 200,
+                upload_speed: 10,
+                download_speed: 20,
+                active_connection_count: 1,
+                closed_since_last: 0,
+                memory: 42,
+            },
+            speeds: Vec::new(),
+            attribution_candidates: vec![connection_metrics::ConnectionAttributionCandidate {
+                id: "conn-a".into(),
+                process: "browser.exe".into(),
+                process_path: "C:\\Program Files\\Browser\\browser.exe".into(),
+                host: "example.com".into(),
+                rule: "ProcessName".into(),
+                rule_payload: "browser.exe".into(),
+                chains: vec!["app-browser".into()],
+                upload: 100,
+                download: 200,
+            }],
+            stale: false,
+        };
+        session
+            .observations
+            .push(session_observation_from_metrics(&session, &metrics));
+
+        let evaluation = evaluation_report_from_session(&session);
+
+        assert_eq!(evaluation.status, AppRuntimeDiagnosticStatus::Healthy);
+        assert_eq!(evaluation.summary.observation_count, 1);
+        assert_eq!(evaluation.summary.matched_observations, 1);
+        assert_eq!(evaluation.summary.attribution_candidate_count, 1);
+        assert_eq!(evaluation.summary.observed_chains, vec!["app-browser"]);
+        assert_eq!(evaluation.summary.observed_hosts, vec!["example.com"]);
+        assert!(evaluation.warnings.is_empty());
+    }
+
+    #[test]
+    fn session_evaluation_marks_missing_observations_as_degraded() {
+        let state = AppRuntimeStateDocument {
+            apps: vec![sample_app()],
+            node_pools: vec![sample_pool()],
+            dns_profiles: vec![sample_dns_profile()],
+            security_profiles: vec![sample_security_profile()],
+            policy_bindings: vec![sample_binding()],
+            sessions: Vec::new(),
+        };
+        let report = diagnose_app_runtime(
+            &state,
+            AppRuntimePlanRequest {
+                app_id: "browser".into(),
+                session_id: Some("session-a".into()),
+            },
+        )
+        .unwrap();
+        let session = session_record_from_diagnostics("session-a".into(), &report);
+
+        let evaluation = evaluation_report_from_session(&session);
+
+        assert_eq!(evaluation.status, AppRuntimeDiagnosticStatus::Degraded);
+        assert_eq!(evaluation.summary.observation_count, 0);
+        assert!(
+            evaluation
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("no connection metrics observations"))
         );
     }
 
