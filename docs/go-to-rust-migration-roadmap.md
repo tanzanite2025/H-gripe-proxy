@@ -515,7 +515,7 @@ Mihomo /logs WS
 
 #### Phase 7.5：应用级代理编排控制面
 
-当前进度：**完成 planning / session UI path（截至 PR #97）**。
+当前进度：**完成 planning / session / CRUD / observability UI path（截至 PR #104）**。
 
 目标不是新增一个普通“应用列表”，而是为最终 app-centric proxy orchestration 建立 Rust-owned 数据链：
 
@@ -566,6 +566,13 @@ AppRegistry
    - 可对已注册 app 触发 `diagnoseAppRuntime` 与 `projectAppRuntimePlanToMihomo`，展示 plan / diagnostics / YAML patch，仍保持 `mutatesRuntime=false`。
    - 可启动 app runtime session、记录 connection metrics snapshot、评估 attribution、检查 leak dimensions，并将 session 标记为 completed / blocked / failed。
    - 这些 UI 操作只写 Rust app-runtime state / session record，不直接生成前端临时 Mihomo rules，也不启动或隔离第三方应用。
+
+9. **App runtime accelerated UI batches（PR #100-#104）**
+   - PR #100：在同一“应用编排”面板中提供 app / node pool / DNS profile / security profile / policy binding 的 JSON CRUD，以及批量 import / export。
+   - PR #101：从 app policy binding 定位 DNS profile，并 opt-in 调用 `dns_controlled_runtime_probe` 展示 runtime-supported / healthy / failed / warning summary。
+   - PR #102：展开 session observability，展示 observation timeline、traffic totals、attribution candidates、evaluation details 与 leak dimension facts/warnings。
+   - PR #103/#104：提供 app → binding → node / DNS / security → session 的 overview matrix，并标出 missing binding、disabled binding、缺失 profile 引用等 state issue。
+   - 这些加速批次仍只围绕 Rust `AppRuntimeStateDocument` / session reports / controlled probe，不切默认 DNS runtime，不注入或修改真实 Mihomo 转发。
 
 删除边界：
 
@@ -623,11 +630,11 @@ AppRegistry
 
 | 优先级 | 可加速方向 | 建议合并方式 | 原因 |
 | --- | --- | --- | --- |
-| P0 | App runtime CRUD 管理面 | 一个 PR 内完成 app / node pool / DNS profile / security profile / binding 的基础 CRUD UI | 后端 upsert/delete command 和 TypeScript service 已存在，主要是 UI 表单与 state refresh |
-| P0 | App diagnostics 串联 DNS probe | 一个 PR 内把 DNS profile → `DnsResolverPlan` → controlled probe summary 接到 app diagnostics | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
-| P1 | App runtime demo / seed import-export | 一个 PR 内提供示例 state JSON 导入、导出、清空入口 | 可加快手动验证和后续 UI 评审，不影响 runtime |
+| P0 | App runtime CRUD 管理面 | 已完成基础 JSON CRUD（PR #100）；下一步改成常用字段表单 | 后端 upsert/delete command 和 TypeScript service 已存在，主要是 UI 表单与 state refresh |
+| P0 | App diagnostics 串联 DNS probe | 已完成绑定 DNS profile 的 controlled probe summary（PR #101）；下一步可沉入 diagnostics report | 已有 `dns_controlled_runtime_probe`，仍是 opt-in，不切默认 DNS runtime |
+| P1 | App runtime demo / seed import-export | 已完成批量 JSON import / export（PR #100）；下一步提供内置样例模板 | 可加快手动验证和后续 UI 评审，不影响 runtime |
 | P1 | 文档与 UI 文案整理 | 随功能 PR 一起更新，不再每个小按钮单独开文档 PR | 降低 PR 数量，避免路线图频繁小改 |
-| P2 | Session observability 展示增强 | 合并 observation timeline、evaluation detail、leak check detail 到一个 PR | 都读同一 `AppRuntimeSessionRecord`，风险边界一致 |
+| P2 | Session observability 展示增强 | 已完成 observation timeline、evaluation detail、leak check detail（PR #102） | 都读同一 `AppRuntimeSessionRecord`，风险边界一致 |
 
 ### 不应加速硬推的部分
 
@@ -652,52 +659,50 @@ AppRegistry
 
 ## 推荐的下一个实际开发批次
 
-从提交记录看，原先推荐的主线 A 首批控制面切片、session 观测闭环，以及主线 B DNS controlled runtime probe 都已经完成。下一阶段应继续保持 planning-only / opt-in 边界，避免把 app 编排、DNS runtime 和真实转发一次性绑死。
+从提交记录看，Batch A / B / C 的基础 UI 加速已经完成：Rust-owned app-runtime state 可编辑、可导入导出、可做绑定 DNS controlled probe、可查看 session 细节、可在 overview matrix 中定位断链。下一阶段继续保持 planning-only / opt-in 边界，但 PR 粒度应按功能批次推进。
 
-### Batch A：应用级代理编排 CRUD / 管理面
+### Batch D：表单化 app-runtime 管理面
 
-当前已经有 planning / diagnostics / session 面板。下一步应补齐 Rust state 的可视化 CRUD 管理面，但仍不修改真实 runtime：
+当前 CRUD 以 JSON editor 为主，适合快速验证模型；下一步应把高频字段改成表单，减少手写 JSON：
 
 ```text
-feat(app-runtime): add app orchestration CRUD surface
+feat(app-runtime): add form editors for orchestration state
 ```
 
 建议范围：
 
-- 应用、节点池、DNS profile、security profile、policy binding 的 CRUD UI。
-- 与现有“应用编排”planning panel 共用同一个 `AppRuntimeStateDocument`。
-- 保存后立即复用现有 `diagnoseAppRuntime` / `projectAppRuntimePlanToMihomo` 做 explain。
-- 增加 import / export JSON，方便快速构造 app orchestration 测试数据。
-- 清楚标注 projection `mutatesRuntime=false`。
+- App：name、executable path、process matcher、tags。
+- Node pool：candidate node、protocol、region、health constraint。
+- DNS profile：test domain、nameserver YAML preview、tags。
+- Security profile：required profile toggles、allowed routing intent。
+- Policy binding：app / node pool / DNS / security 下拉选择与 enabled/routing intent。
+- 表单保存后仍走现有 Rust upsert/delete command，并立即刷新 overview / diagnostics。
 
 不包含：
 
-- per-app network isolation。
-- 自研 outbound / inbound。
-- 自动启动和注入第三方软件。
-- 前端绕过 Rust state 直接写 Mihomo rules。
-- 把 leak verification 文案写成真实出口探测或强隔离保证。
+- 真实启动 app。
+- 自动修改 Mihomo runtime。
+- 强隔离、TUN、adapter outbound/inbound。
 
-### Batch B：DNS profile probe 与 app diagnostics 关联
+### Batch E：diagnostics report 聚合增强
 
-DNS controlled runtime probe 已存在，下一刀应把 probe 结果与 app DNS profile diagnostics 关联，不替换默认 DNS：
+当前 DNS profile controlled probe 已接到 UI；下一步可以把 probe summary 和 overview issue 合并成更统一的 diagnostics report 展示：
 
 ```text
-feat(app-runtime): include DNS profile probe summary in diagnostics
+feat(app-runtime): aggregate probe and state issues in diagnostics
 ```
 
 建议范围：
 
-- 从 app runtime diagnostics 中定位绑定的 DNS profile。
-- 对该 profile opt-in 调用 `dns_controlled_runtime_probe`。
-- 把 runtime-supported / healthy / failed / unsupported summary 合并进 diagnostics。
-- 对 unsupported fake-ip / fallback-filter / nameserver-policy 明确输出 plan-only warning。
+- 在 app diagnostics 结果中展示 overview matrix 检出的 missing binding / missing profile references。
+- 将绑定 DNS profile 的 controlled probe summary 与现有 `diagnoseAppRuntime` checks 放在同一 diagnostics 区域。
+- 对 fake-ip / fallback-filter / nameserver-policy 继续输出 plan-only warning。
+- 保持 opt-in：probe 仍由用户触发，不在打开页面时自动访问外部 DNS。
 
 不包含：
 
-- 协议栈 / TUN / tunnel。
-- adapter outbound/inbound。
 - 默认 DNS resolver runtime 切换。
-- fake-ip / fallback-filter / nameserver-policy 真实执行。
+- live exit probe。
+- 声称强 per-app isolation。
 
-Batch A 和 Batch B 可以继续并行推进：A 让 Rust-owned app/pool/policy 可见可管，B 把 DNS runtime 的 opt-in 可验证性接入 app diagnostics。二者仍通过 `RuntimePlan` / `DnsResolverPlan` 对接，避免日后重复建模。
+Batch D 和 Batch E 仍属于控制面 / diagnostics，可以中等 PR 推进；任何进入默认 DNS、TUN、adapter、protocol runtime 的改动继续拆小 PR。
