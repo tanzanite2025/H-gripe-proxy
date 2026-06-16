@@ -1,5 +1,5 @@
 import { useLockFn } from 'ahooks'
-import { Activity, Boxes, RefreshCw, Route, Save } from 'lucide-react'
+import { Activity, Boxes, RefreshCw, Route } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
@@ -56,14 +56,12 @@ import {
   createNodePoolTemplate,
   createSecurityProfileTemplate,
   emptyState,
-  enabledOptions,
   formatJson,
   newResourceValue,
   now,
   parseJsonObject,
   resourceIdFor,
   resourceNameFor,
-  routingIntentOptions,
   selectAppLabel,
   sortSessions,
   statusColor,
@@ -72,6 +70,7 @@ import {
   type FinishableSessionStatus,
   type RuntimeResourceKind,
 } from './app-runtime-planning-utils'
+import { AppRuntimePolicyBindingForm } from './app-runtime-policy-binding-form'
 import { AppRuntimeResourceManagerPanel } from './app-runtime-resource-manager-panel'
 import { AppRuntimeSecurityProfileForm } from './app-runtime-security-profile-form'
 import { AppRuntimeSessionPanel } from './app-runtime-session-panel'
@@ -1277,102 +1276,18 @@ export function AppRuntimePlanningPanel() {
           onSave={() => void handleSaveAppDraft()}
         />
 
-        {selectedApp ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <div className="text-sm font-semibold">
-                Policy binding 快速表单
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                常用绑定字段可直接通过表单保存；底层仍写入 Rust
-                AppRuntimeStateDocument。
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <Select
-                fullWidth
-                size="small"
-                label="Node pool"
-                value={bindingDraft.nodePoolId}
-                options={optionalNodePoolOptions}
-                onChange={(value: string | number) => {
-                  setBindingDraft((draft) => ({
-                    ...draft,
-                    nodePoolId: String(value),
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="DNS profile"
-                value={bindingDraft.dnsProfileId}
-                options={optionalDnsProfileOptions}
-                onChange={(value: string | number) => {
-                  setBindingDraft((draft) => ({
-                    ...draft,
-                    dnsProfileId: String(value),
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="Security profile"
-                value={bindingDraft.securityProfileId}
-                options={optionalSecurityProfileOptions}
-                onChange={(value: string | number) => {
-                  setBindingDraft((draft) => ({
-                    ...draft,
-                    securityProfileId: String(value),
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="Routing intent"
-                value={bindingDraft.routingIntent}
-                options={routingIntentOptions}
-                onChange={(value: string | number) => {
-                  setBindingDraft((draft) => ({
-                    ...draft,
-                    routingIntent: String(value) as AppRoutingIntent,
-                  }))
-                }}
-              />
-              <Select
-                fullWidth
-                size="small"
-                label="Binding status"
-                value={bindingDraft.enabled}
-                options={enabledOptions}
-                onChange={(value: string | number) => {
-                  setBindingDraft((draft) => ({
-                    ...draft,
-                    enabled: String(value),
-                  }))
-                }}
-              />
-              <div className="flex items-end">
-                <Button
-                  size="small"
-                  startIcon={<Save className="h-4 w-4" />}
-                  onClick={() => void handleSaveBindingDraft()}
-                  disabled={resourcePending}
-                >
-                  保存 binding
-                </Button>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              Binding ID:{' '}
-              {selectedBinding?.bindingId || `binding-${selectedAppId}`}
-            </div>
-          </div>
-        ) : null}
+        <AppRuntimePolicyBindingForm
+          selectedApp={selectedApp}
+          selectedAppId={selectedAppId}
+          selectedBinding={selectedBinding}
+          draft={bindingDraft}
+          pending={resourcePending}
+          nodePoolOptions={optionalNodePoolOptions}
+          dnsProfileOptions={optionalDnsProfileOptions}
+          securityProfileOptions={optionalSecurityProfileOptions}
+          setDraft={setBindingDraft}
+          onSave={() => void handleSaveBindingDraft()}
+        />
 
         <AppRuntimeResourceManagerPanel
           state={state}
