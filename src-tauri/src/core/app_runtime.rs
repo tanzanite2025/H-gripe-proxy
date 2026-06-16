@@ -308,6 +308,7 @@ pub struct AppRuntimeProjectionArtifact {
     pub dns_profile_id: Option<String>,
     pub security_profile_id: Option<String>,
     pub generated_at: i64,
+    pub storage_path: Option<String>,
     pub activation_mode: AppRuntimeProjectionActivationMode,
     pub mutates_runtime: bool,
     pub checksum: String,
@@ -1096,6 +1097,7 @@ pub fn build_app_runtime_projection_artifact(
         dns_profile_id: binding.and_then(|item| item.dns_profile_id.clone()),
         security_profile_id: binding.and_then(|item| item.security_profile_id.clone()),
         generated_at,
+        storage_path: None,
         activation_mode: AppRuntimeProjectionActivationMode::Staged,
         mutates_runtime: false,
         checksum: checksum.into(),
@@ -1106,6 +1108,19 @@ pub fn build_app_runtime_projection_artifact(
         facts,
         warnings,
     })
+}
+
+pub async fn persist_app_runtime_projection_artifact(artifact: &AppRuntimeProjectionArtifact) -> Result<String> {
+    let path = app_runtime_projection_artifact_path(&artifact.artifact_id)?;
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    let storage_path: String = path.to_string_lossy().to_string().into();
+    let mut persisted_artifact = artifact.clone();
+    persisted_artifact.storage_path = Some(storage_path.clone());
+    help::save_yaml(&path, &persisted_artifact, None).await?;
+
+    Ok(storage_path)
 }
 
 pub fn diagnose_app_runtime(
@@ -2564,6 +2579,32 @@ fn app_runtime_projection_checksum(projection: &AppRuntimeMihomoProjection) -> S
     format!("{:x}", hasher.finalize()).into()
 }
 
+fn app_runtime_projection_artifact_path(artifact_id: &str) -> Result<std::path::PathBuf> {
+    Ok(dirs::app_runtime_projection_artifacts_dir()?
+        .join(safe_app_runtime_artifact_segment(artifact_id))
+        .join("artifact.yaml"))
+}
+
+fn safe_app_runtime_artifact_segment(value: &str) -> String {
+    let segment: std::string::String = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let segment = segment.trim_matches('-');
+
+    if segment.is_empty() {
+        "artifact".into()
+    } else {
+        segment.into()
+    }
+}
+
 fn yaml_patch_validation_status(
     plan: &AppRuntimePlan,
     projection: &AppRuntimeMihomoProjection,
@@ -3620,6 +3661,7 @@ mod tests {
         assert_eq!(artifact.validation.status, AppRuntimeDiagnosticStatus::Healthy);
         assert_eq!(artifact.validation.summary.failed, 0);
         assert_eq!(artifact.projection.rules.len(), 1);
+        assert_eq!(artifact.storage_path, None);
         assert!(artifact.artifact_id.starts_with("app-runtime-browser-"));
         assert_eq!(artifact.checksum.len(), 64);
         assert!(
