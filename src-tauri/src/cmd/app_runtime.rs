@@ -13,6 +13,7 @@ use crate::core::app_runtime::{
     explain_app_runtime_plan as build_app_runtime_plan,
     finish_app_runtime_session as finish_app_runtime_session_record,
     list_app_runtime_sessions as list_app_runtime_session_records,
+    persist_app_runtime_projection_artifact as persist_app_runtime_projection_artifact_record,
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
     record_app_runtime_session_observation as record_app_runtime_session_observation_record,
     start_app_runtime_session as start_app_runtime_session_record,
@@ -106,7 +107,13 @@ pub async fn build_app_runtime_projection_artifact(
     request: AppRuntimePlanRequest,
 ) -> CmdResult<AppRuntimeProjectionArtifact> {
     let state = read_app_runtime_state_document().await.stringify_err()?;
-    build_app_runtime_projection_artifact_record(&state, request).stringify_err()
+    let mut artifact = build_app_runtime_projection_artifact_record(&state, request).stringify_err()?;
+    artifact.storage_path = Some(
+        persist_app_runtime_projection_artifact_record(&artifact)
+            .await
+            .stringify_err()?,
+    );
+    Ok(artifact)
 }
 
 #[tauri::command]

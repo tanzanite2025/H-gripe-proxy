@@ -269,6 +269,7 @@ export interface AppRuntimeProjectionArtifact {
   dnsProfileId?: string
   securityProfileId?: string
   generatedAt: number
+  storagePath?: string
   activationMode: AppRuntimeProjectionActivationMode
   mutatesRuntime: boolean
   checksum: string

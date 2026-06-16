@@ -81,6 +81,11 @@ export function AppRuntimePlanningResultPanel({
             <div>Binding: {projectionArtifact.bindingId || '-'}</div>
             <div>{projectionArtifact.validation.reason}</div>
           </div>
+          {projectionArtifact.storagePath ? (
+            <div className="rounded-md bg-background/60 px-2 py-1">
+              Stored: {projectionArtifact.storagePath}
+            </div>
+          ) : null}
           <div className="space-y-1">
             {projectionArtifact.validation.checks.map((check) => (
               <div

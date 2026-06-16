@@ -41,6 +41,7 @@ pub static PROFILE_YAML: &str = "profiles.yaml";
 pub static CHINA_RULES_CONFIG: &str = "china-rules.yaml";
 pub static APP_RUNTIME_DIR: &str = "app-runtime";
 pub static APP_RUNTIME_STATE_FILE: &str = "state.yaml";
+pub static APP_RUNTIME_ARTIFACTS_DIR: &str = "artifacts";
 pub static SUBSCRIPTIONS_DIR: &str = "subscriptions";
 pub static SUBSCRIPTION_STATE_FILE: &str = "state.yaml";
 
@@ -267,6 +268,10 @@ pub fn app_runtime_dir() -> Result<PathBuf> {
 
 pub fn app_runtime_state_path() -> Result<PathBuf> {
     Ok(app_runtime_dir()?.join(APP_RUNTIME_STATE_FILE))
+}
+
+pub fn app_runtime_projection_artifacts_dir() -> Result<PathBuf> {
+    Ok(app_runtime_dir()?.join(APP_RUNTIME_ARTIFACTS_DIR))
 }
 
 pub fn subscriptions_dir() -> Result<PathBuf> {
