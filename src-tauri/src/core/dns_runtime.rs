@@ -2184,7 +2184,7 @@ dns:
         second_record.created_at_epoch_seconds = hold_started_at.saturating_add(600);
         second_record.active_age_seconds = Some(600);
         let history = build_dns_default_runtime_expanded_reverify_history_report(
-            vec![reverify.reverify_record, second_record],
+            vec![reverify.reverify_record.clone(), second_record],
             Vec::new(),
         );
 
@@ -2196,6 +2196,20 @@ dns:
         assert!(!history.promotion_allowed);
         assert!(!history.auto_rollout);
         assert!(!history.auto_rollback);
+
+        let active_state = reverify.hold_policy.stability_gate.post_execution.active_state.clone();
+        let closeout = build_dns_default_runtime_expanded_lifecycle_closeout_report(history, active_state, Vec::new());
+
+        assert_eq!(
+            closeout.status,
+            DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Complete
+        );
+        assert!(closeout.observation_closed);
+        assert!(closeout.handoff_ready);
+        assert!(!closeout.rollback_recommended);
+        assert!(!closeout.promotion_allowed);
+        assert!(!closeout.auto_rollout);
+        assert!(!closeout.auto_rollback);
     }
 
     #[test]

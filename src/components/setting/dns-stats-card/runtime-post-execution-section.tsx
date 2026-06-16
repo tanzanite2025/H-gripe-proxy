@@ -6,6 +6,7 @@ import { Button } from '@/components/tailwind/Button'
 import { Chip } from '@/components/tailwind/Chip'
 import {
   dnsDefaultRuntimeExpandedOptInExecution,
+  dnsDefaultRuntimeExpandedLifecycleCloseout,
   dnsDefaultRuntimeExpandedOptInExecutionGate,
   dnsDefaultRuntimeExpandedOptInExecutionPreflight,
   dnsDefaultRuntimeExpandedHoldPolicy,
@@ -30,6 +31,7 @@ import {
   type DnsDefaultRuntimeExpandedRollbackReport,
   type DnsDefaultRuntimeExpandedRollbackStatus,
   type DnsDefaultRuntimeExpandedHoldPolicyReport,
+  type DnsDefaultRuntimeExpandedLifecycleCloseoutReport,
   type DnsDefaultRuntimeExpandedStabilityGateReport,
   type DnsDefaultRuntimePostExecutionObservedVerificationReport,
   type DnsDefaultRuntimePostExecutionVerificationStatus,
@@ -143,6 +145,8 @@ export function RuntimePostExecutionSection() {
     useState<DnsDefaultRuntimeExpandedReverifyReport | null>(null)
   const [expandedReverifyHistoryReport, setExpandedReverifyHistoryReport] =
     useState<DnsDefaultRuntimeExpandedReverifyHistoryReport | null>(null)
+  const [expandedLifecycleCloseoutReport, setExpandedLifecycleCloseoutReport] =
+    useState<DnsDefaultRuntimeExpandedLifecycleCloseoutReport | null>(null)
   const [expandedRollbackReport, setExpandedRollbackReport] =
     useState<DnsDefaultRuntimeExpandedRollbackReport | null>(null)
   const [pending, setPending] = useState<
@@ -157,6 +161,7 @@ export function RuntimePostExecutionSection() {
     | 'expandedHold'
     | 'expandedReverify'
     | 'expandedHistory'
+    | 'expandedCloseout'
     | 'rollback'
     | null
   >(null)
@@ -376,6 +381,20 @@ export function RuntimePostExecutionSection() {
     }
   })
 
+  const handleExpandedLifecycleCloseout = useLockFn(async () => {
+    setPending('expandedCloseout')
+    try {
+      const nextReport = await dnsDefaultRuntimeExpandedLifecycleCloseout()
+      setExpandedLifecycleCloseoutReport(nextReport)
+      setExpandedReverifyHistoryReport(nextReport.history)
+      showNotice.success('默认 DNS runtime expanded lifecycle closeout 已完成')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setPending(null)
+    }
+  })
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -484,6 +503,16 @@ export function RuntimePostExecutionSection() {
           <Button
             size="small"
             variant="outlined"
+            onClick={handleExpandedLifecycleCloseout}
+            disabled={pending !== null}
+          >
+            {pending === 'expandedCloseout'
+              ? '收口中...'
+              : 'Lifecycle closeout'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExpandedRollback}
             disabled={pending !== null}
           >
@@ -504,7 +533,8 @@ export function RuntimePostExecutionSection() {
         是否可保持 active，不做长期默认推广。Expanded hold 再加最小/最大观察窗口，
         超窗只建议显式 rollback。Expanded reverify 将一次显式 hold-window
         评估持久化为 audit record，方便重复验证。Reverify history 汇总多次记录，
-        给出 stable threshold / rollback trend / closeout 建议。
+        给出 stable threshold / rollback trend / closeout 建议。Lifecycle closeout
+        合并 history 与 active state，给出下一控制面交接建议。
       </div>
 
       {verificationReport ? (
@@ -573,6 +603,79 @@ export function RuntimePostExecutionSection() {
           {verificationReport.blockers.length > 0 ? (
             <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
               Blockers: {verificationReport.blockers.join('；')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedLifecycleCloseoutReport ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DnsChipRow
+              label="Lifecycle closeout"
+              chipLabel={expandedLifecycleCloseoutReport.status}
+              chipColor={
+                expandedLifecycleCloseoutReport.status === 'complete'
+                  ? 'success'
+                  : expandedLifecycleCloseoutReport.status === 'blocked'
+                    ? 'error'
+                    : 'warning'
+              }
+            />
+            <DnsTextRow
+              label="结果"
+              value={expandedLifecycleCloseoutReport.reason}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedLifecycleCloseoutReport.reason}
+            />
+            <DnsTextRow
+              label="Next step"
+              value={expandedLifecycleCloseoutReport.nextControlPlaneStep}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedLifecycleCloseoutReport.nextControlPlaneStep}
+            />
+            <DnsTextRow
+              label="Recommended"
+              value={expandedLifecycleCloseoutReport.recommendedAction}
+              valueClassName="max-w-[260px] truncate text-right text-xs font-bold"
+              valueTitle={expandedLifecycleCloseoutReport.recommendedAction}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="small"
+              color={
+                expandedLifecycleCloseoutReport.observationClosed
+                  ? 'success'
+                  : 'warning'
+              }
+              label={`closed=${String(expandedLifecycleCloseoutReport.observationClosed)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedLifecycleCloseoutReport.handoffReady
+                  ? 'success'
+                  : 'default'
+              }
+              label={`handoff=${String(expandedLifecycleCloseoutReport.handoffReady)}`}
+            />
+            <Chip
+              size="small"
+              color={
+                expandedLifecycleCloseoutReport.rollbackRecommended
+                  ? 'warning'
+                  : 'default'
+              }
+              label={`rollbackRecommended=${String(expandedLifecycleCloseoutReport.rollbackRecommended)}`}
+            />
+          </div>
+
+          {expandedLifecycleCloseoutReport.blockers.length > 0 ? (
+            <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2 text-xs text-muted-foreground">
+              Lifecycle closeout blockers:{' '}
+              {expandedLifecycleCloseoutReport.blockers.join('；')}
             </div>
           ) : null}
         </div>

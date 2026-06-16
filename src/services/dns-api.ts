@@ -442,6 +442,11 @@ export type DnsDefaultRuntimeExpandedReverifyHistoryStatus =
   | 'rollbackRecommended'
   | 'empty'
   | 'blocked'
+export type DnsDefaultRuntimeExpandedLifecycleCloseoutStatus =
+  | 'complete'
+  | 'watching'
+  | 'rollbackRecommended'
+  | 'blocked'
 
 export interface DnsDefaultRuntimeExecutionRecord {
   eventId: string
@@ -769,6 +774,27 @@ export interface DnsDefaultRuntimeExpandedReverifyHistoryReport {
   rollbackRecommended: boolean
   promotionAllowed: boolean
   recommendedAction: string
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface DnsDefaultRuntimeExpandedLifecycleCloseoutReport {
+  status: DnsDefaultRuntimeExpandedLifecycleCloseoutStatus
+  reason: string
+  history: DnsDefaultRuntimeExpandedReverifyHistoryReport
+  activeState?: DnsDefaultRuntimeActiveState | null
+  observationClosed: boolean
+  handoffReady: boolean
+  rollbackRecommended: boolean
+  promotionAllowed: boolean
+  recommendedAction: string
+  nextControlPlaneStep: string
   userTriggerRequired: boolean
   autoRollout: boolean
   autoRollback: boolean
@@ -1306,6 +1332,20 @@ export async function dnsDefaultRuntimeExpandedReverifyHistory(): Promise<DnsDef
     )
   } catch (err) {
     console.error('DNS default runtime expanded reverify history failed:', err)
+    throw err
+  }
+}
+
+export async function dnsDefaultRuntimeExpandedLifecycleCloseout(): Promise<DnsDefaultRuntimeExpandedLifecycleCloseoutReport> {
+  try {
+    return await invoke<DnsDefaultRuntimeExpandedLifecycleCloseoutReport>(
+      'dns_default_runtime_expanded_lifecycle_closeout',
+    )
+  } catch (err) {
+    console.error(
+      'DNS default runtime expanded lifecycle closeout failed:',
+      err,
+    )
     throw err
   }
 }

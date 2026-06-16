@@ -20,6 +20,15 @@ pub enum DnsDefaultRuntimeExpandedReverifyHistoryStatus {
     Blocked,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DnsDefaultRuntimeExpandedLifecycleCloseoutStatus {
+    Complete,
+    Watching,
+    RollbackRecommended,
+    Blocked,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsDefaultRuntimeExpandedReverifyRecord {
@@ -91,6 +100,29 @@ pub struct DnsDefaultRuntimeExpandedReverifyHistoryReport {
     pub facts: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsDefaultRuntimeExpandedLifecycleCloseoutReport {
+    pub status: DnsDefaultRuntimeExpandedLifecycleCloseoutStatus,
+    pub reason: String,
+    pub history: DnsDefaultRuntimeExpandedReverifyHistoryReport,
+    pub active_state: Option<DnsDefaultRuntimeActiveState>,
+    pub observation_closed: bool,
+    pub handoff_ready: bool,
+    pub rollback_recommended: bool,
+    pub promotion_allowed: bool,
+    pub recommended_action: String,
+    pub next_control_plane_step: String,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
 pub async fn dns_default_runtime_expanded_reverify(
     yaml: Option<String>,
     domain: Option<String>,
@@ -104,6 +136,18 @@ pub async fn dns_default_runtime_expanded_reverify_history() -> Result<DnsDefaul
     let (records, errors) = read_dns_default_runtime_expanded_reverify_records().await;
     Ok(build_dns_default_runtime_expanded_reverify_history_report(
         records, errors,
+    ))
+}
+
+pub async fn dns_default_runtime_expanded_lifecycle_closeout()
+-> Result<DnsDefaultRuntimeExpandedLifecycleCloseoutReport> {
+    let history = dns_default_runtime_expanded_reverify_history().await?;
+    let mut errors = Vec::new();
+    let active_state = read_default_runtime_active_state(&mut errors).await;
+    Ok(build_dns_default_runtime_expanded_lifecycle_closeout_report(
+        history,
+        active_state,
+        errors,
     ))
 }
 
@@ -345,6 +389,84 @@ pub fn build_dns_default_runtime_expanded_reverify_history_report(
     }
 }
 
+pub fn build_dns_default_runtime_expanded_lifecycle_closeout_report(
+    history: DnsDefaultRuntimeExpandedReverifyHistoryReport,
+    active_state: Option<DnsDefaultRuntimeActiveState>,
+    active_state_errors: Vec<String>,
+) -> DnsDefaultRuntimeExpandedLifecycleCloseoutReport {
+    let mut blockers = active_state_errors;
+    let expanded_active =
+        active_state.as_ref().map(|state| state.state.as_str()) == Some("expandedActiveProfileReloaded");
+    if history.closeout_ready && !expanded_active {
+        blockers.push("expanded lifecycle closeout requires expandedActiveProfileReloaded active state".into());
+    }
+    if history.status == DnsDefaultRuntimeExpandedReverifyHistoryStatus::Blocked {
+        blockers.extend(history.blockers.clone());
+    }
+    let status = if !blockers.is_empty() {
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Blocked
+    } else if history.rollback_recommended {
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::RollbackRecommended
+    } else if history.closeout_ready {
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Complete
+    } else {
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Watching
+    };
+    let observation_closed = status == DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Complete;
+    let rollback_recommended = status == DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::RollbackRecommended;
+    let handoff_ready = observation_closed && !rollback_recommended;
+    let recommended_action = match status {
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Complete => {
+            "closeExpandedRuntimeObservationAndPlanNextControlPlaneBlock"
+        }
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Watching => "continueExpandedReverifyHistoryBeforeCloseout",
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::RollbackRecommended => {
+            "runExplicitExpandedRollbackBeforeCloseout"
+        }
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Blocked => "fixExpandedLifecycleCloseoutBlockers",
+    }
+    .into();
+    let next_control_plane_step = if handoff_ready {
+        "evaluate next app-runtime orchestration feature block before any TUN/protocol runtime work"
+    } else if rollback_recommended {
+        "explicit expanded rollback"
+    } else {
+        "repeat explicit expanded reverify until history threshold is met"
+    }
+    .into();
+    let mut warnings = history.warnings.clone();
+    if handoff_ready {
+        warnings.push("lifecycle closeout is a control-plane handoff, not a data-plane migration approval".into());
+    }
+    let facts = vec![
+        "expanded lifecycle closeout consumes reverify history summary and active state".into(),
+        "expanded lifecycle closeout does not promote Rust DNS as a permanent default".into(),
+        "expanded lifecycle closeout never auto-rolls out or auto-rolls back".into(),
+        "expanded lifecycle closeout does not touch TUN, transparent proxy, adapters, or protocol runtime".into(),
+    ];
+
+    DnsDefaultRuntimeExpandedLifecycleCloseoutReport {
+        status,
+        reason: default_runtime_expanded_lifecycle_closeout_reason(status, &blockers),
+        history,
+        active_state,
+        observation_closed,
+        handoff_ready,
+        rollback_recommended,
+        promotion_allowed: false,
+        recommended_action,
+        next_control_plane_step,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
 async fn read_dns_default_runtime_expanded_reverify_records()
 -> (Vec<DnsDefaultRuntimeExpandedReverifyRecord>, Vec<String>) {
     let mut records = Vec::new();
@@ -427,5 +549,26 @@ fn default_runtime_expanded_reverify_history_reason(
             .first()
             .cloned()
             .unwrap_or_else(|| "expanded default DNS runtime reverify history is blocked".into()),
+    }
+}
+
+fn default_runtime_expanded_lifecycle_closeout_reason(
+    status: DnsDefaultRuntimeExpandedLifecycleCloseoutStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Complete => {
+            "expanded default DNS runtime lifecycle observation is closed for this session".into()
+        }
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Watching => {
+            "expanded default DNS runtime lifecycle still needs more reverify history".into()
+        }
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::RollbackRecommended => {
+            "expanded default DNS runtime lifecycle recommends explicit rollback".into()
+        }
+        DnsDefaultRuntimeExpandedLifecycleCloseoutStatus::Blocked => blockers
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "expanded default DNS runtime lifecycle closeout is blocked".into()),
     }
 }
