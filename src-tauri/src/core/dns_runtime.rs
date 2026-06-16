@@ -2043,6 +2043,24 @@ dns:
         assert!(!gate.auto_rollout);
         assert!(!gate.executed);
         assert!(!gate.reload_mihomo);
+
+        let preflight = build_dns_default_runtime_expanded_opt_in_execution_preflight_report(
+            gate,
+            true,
+            true,
+            Some("preflight.yaml".into()),
+        );
+
+        assert_eq!(
+            preflight.status,
+            DnsDefaultRuntimeExpandedOptInExecutionPreflightStatus::Ready
+        );
+        assert!(preflight.would_mutate_runtime);
+        assert!(!preflight.mutates_runtime);
+        assert!(!preflight.executed);
+        assert!(!preflight.reload_mihomo);
+        assert!(preflight.preflight_record.mutation_plan.active_profile_write);
+        assert!(preflight.preflight_record.mutation_plan.mihomo_reload);
     }
 
     #[test]

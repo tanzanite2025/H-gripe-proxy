@@ -9,6 +9,7 @@ use crate::core::app_runtime::{
     AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStateDocument, DnsProfile, NodePool,
     SecurityProfile, activate_app_runtime_projection_artifact as activate_app_runtime_projection_artifact_record,
     apply_app_runtime_projection_artifact_to_runtime as apply_app_runtime_projection_artifact_to_runtime_record,
+    build_app_runtime_demo_seed_document,
     build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
     delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
@@ -35,6 +36,11 @@ use crate::core::app_runtime::{
 #[tauri::command]
 pub async fn get_app_runtime_state() -> CmdResult<AppRuntimeStateDocument> {
     read_app_runtime_state_document().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn build_app_runtime_demo_seed() -> CmdResult<AppRuntimeStateDocument> {
+    Ok(build_app_runtime_demo_seed_document())
 }
 
 #[tauri::command]

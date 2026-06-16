@@ -31,7 +31,7 @@ use projection::{
     yaml_patch_validation_message, yaml_patch_validation_status,
 };
 use smartstring::alias::String;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub async fn read_app_runtime_state_document() -> Result<AppRuntimeStateDocument> {
     let path = dirs::app_runtime_state_path()?;
@@ -39,6 +39,93 @@ pub async fn read_app_runtime_state_document() -> Result<AppRuntimeStateDocument
         return Ok(AppRuntimeStateDocument::default());
     }
     help::read_yaml(&path).await
+}
+
+pub fn build_app_runtime_demo_seed_document() -> AppRuntimeStateDocument {
+    let updated_at = now_millis();
+    let mut platform_metadata = BTreeMap::new();
+    platform_metadata.insert("seed".into(), "demo".into());
+    AppRuntimeStateDocument {
+        apps: vec![AppRegistryEntry {
+            app_id: "demo-browser".into(),
+            name: "Demo Browser".into(),
+            executable_path: Some("C:\\Program Files\\Demo Browser\\browser.exe".into()),
+            bundle_id: None,
+            launch_args: Vec::new(),
+            working_directory: None,
+            env: Vec::new(),
+            process_matchers: vec![AppProcessMatcher {
+                kind: AppProcessMatcherKind::ProcessName,
+                pattern: "browser.exe".into(),
+            }],
+            platform_metadata,
+            tags: vec!["demo".into(), "browser".into()],
+            updated_at,
+        }],
+        node_pools: vec![NodePool {
+            pool_id: "demo-stable-proxy".into(),
+            name: "Demo Stable Proxy".into(),
+            tags: vec!["demo".into(), "stable".into()],
+            region: Some("US".into()),
+            protocols: vec!["trojan".into(), "vless".into()],
+            purpose: Some("general".into()),
+            cost_tier: Some("paid".into()),
+            health_constraints: NodePoolHealthConstraints {
+                max_latency_ms: Some(300),
+                require_alive: Some(true),
+                min_available_nodes: Some(1),
+            },
+            candidate_nodes: vec![NodePoolCandidate {
+                node_name: "demo-us-1".into(),
+                proxy_group: Some("Proxy".into()),
+                protocol: Some("trojan".into()),
+                region: Some("US".into()),
+                tags: vec!["demo".into(), "stable".into()],
+                priority: Some(1),
+            }],
+            updated_at,
+        }],
+        dns_profiles: vec![DnsProfile {
+            profile_id: "demo-dns".into(),
+            name: "Demo DNS".into(),
+            config_yaml: r#"
+dns:
+  enable: true
+  enhanced-mode: normal
+  nameserver:
+    - 1.1.1.1
+"#
+            .into(),
+            test_domain: Some("example.com".into()),
+            tags: vec!["demo".into()],
+            updated_at,
+        }],
+        security_profiles: vec![SecurityProfile {
+            profile_id: "demo-strict".into(),
+            name: "Demo Strict App Runtime".into(),
+            controls: SecurityProfileControls {
+                require_node_pool: true,
+                require_dns_profile: true,
+                min_runtime_supported_nameservers: Some(1),
+                allowed_routing_intents: vec![AppRoutingIntent::Proxy, AppRoutingIntent::Auto],
+            },
+            tags: vec!["demo".into(), "strict".into()],
+            updated_at,
+        }],
+        policy_bindings: vec![AppPolicyBinding {
+            binding_id: "demo-browser-policy".into(),
+            app_id: "demo-browser".into(),
+            node_pool_id: Some("demo-stable-proxy".into()),
+            dns_profile_id: Some("demo-dns".into()),
+            security_profile_id: Some("demo-strict".into()),
+            routing_intent: AppRoutingIntent::Proxy,
+            enabled: true,
+            updated_at,
+        }],
+        sessions: Vec::new(),
+        runtime_apply_audits: Vec::new(),
+        active_projection: None,
+    }
 }
 
 pub async fn upsert_app_registry_entry(mut entry: AppRegistryEntry) -> Result<AppRuntimeStateDocument> {

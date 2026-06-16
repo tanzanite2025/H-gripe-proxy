@@ -9,6 +9,7 @@ import { Select } from '@/components/tailwind/Select'
 import {
   activateAppRuntimeProjectionArtifact,
   applyAppRuntimeProjectionArtifactToRuntime,
+  buildAppRuntimeDemoSeed,
   buildAppRuntimeProjectionArtifact,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
@@ -1326,6 +1327,27 @@ export function AppRuntimePlanningPanel() {
     )
   }
 
+  const handleLoadDemoSeed = useLockFn(async () => {
+    setResourcePending(true)
+    try {
+      const seed = await buildAppRuntimeDemoSeed()
+      setBulkJson(
+        formatJson({
+          apps: seed.apps,
+          nodePools: seed.nodePools,
+          dnsProfiles: seed.dnsProfiles,
+          securityProfiles: seed.securityProfiles,
+          policyBindings: seed.policyBindings,
+        }),
+      )
+      showNotice.success('Demo seed 已加载到批量导入 JSON')
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setResourcePending(false)
+    }
+  })
+
   const handleImportConfig = useLockFn(async () => {
     setResourcePending(true)
     try {
@@ -1562,6 +1584,7 @@ export function AppRuntimePlanningPanel() {
           onSaveResource={() => void handleSaveResource()}
           onDeleteResource={() => void handleDeleteResource()}
           onExportConfig={handleExportConfig}
+          onLoadDemoSeed={() => void handleLoadDemoSeed()}
           onImportConfig={() => void handleImportConfig()}
         />
 
