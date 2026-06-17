@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime apply decision checkpoint enforcement） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（显式 runtime-apply boundary decision / audit record / UI gate）、Batch AG（本批次，apply 前强制核验 persisted allow decision）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision / apply checkpoint enforcement 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime apply verification checkpoint） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（显式 runtime-apply boundary decision / audit record / UI gate）、Batch AG（apply 前强制核验 persisted allow decision）、Batch AH（本批次，post-apply verification 反查 decision checkpoint）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision / apply checkpoint enforcement / verification checkpoint 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1591,3 +1591,33 @@ apply_app_runtime_projection_artifact_to_runtime(artifactId, decisionId)
 
 - 不扩大默认 DNS runtime 或协议 runtime 的执行范围。
 - 不自动 rollout / rollback。
+
+### Batch AH：Runtime apply verification decision checkpoint（本批次，post-apply 反查决策链）
+
+Batch AG 已要求 runtime apply command 在写 runtime candidate 前携带 persisted allow decision。本批次继续把 post-apply observed verification 接到同一事实链：验证报告必须反查 runtime apply audit 中记录的 decision id，并确认该 decision 仍匹配 artifact / checksum / boundary manifest。
+
+```text
+verify_app_runtime_projection_runtime_apply(artifactId)
+  -> latest runtime apply audit
+  -> read runtime-apply-decisions/<audit.decisionId>/decision.yaml
+  -> require allowRuntimeCandidate + accepted + artifact/checksum/audit match
+  -> expose runtimeApplyDecisionVerified in verification report/UI
+```
+
+合并范围：
+
+- Verification：新增 `runtime_apply_decision_checkpoint` diagnostic check，缺少 decision id、读取失败、defer / rollback / checksum mismatch 都会让 observed verification fail。
+- Report：verification report 暴露 `runtimeApplyDecisionId` / `runtimeApplyDecisionBoundaryManifestId` / `runtimeApplyDecisionVerified`。
+- UI：runtime verification 面板展示 decision checkpoint 是否 verified。
+- Tests：覆盖匹配 allow decision 通过、缺失或非 allow decision 失败。
+
+强边界：
+
+- 只读验证；不触发 runtime apply，不 reload Mihomo。
+- 不放宽 Batch AG 的 command guard。
+- 不进入 Phase 8 / adapter / tunnel / protocol runtime。
+
+不包含：
+
+- 不新增自动 rollout / rollback。
+- 不扩大默认 DNS runtime 或协议 runtime 执行范围。

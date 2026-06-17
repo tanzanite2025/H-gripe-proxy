@@ -287,6 +287,15 @@ export function AppRuntimePlanningResultPanel({
                 <div>Failed: {runtimeVerification.summary.failed}</div>
                 <div>Skipped: {runtimeVerification.summary.skipped}</div>
               </div>
+              <div className="text-muted-foreground">
+                Decision checkpoint:{' '}
+                {runtimeVerification.runtimeApplyDecisionVerified
+                  ? 'verified'
+                  : 'blocked'}
+                {runtimeVerification.runtimeApplyDecisionId
+                  ? ` · ${runtimeVerification.runtimeApplyDecisionId}`
+                  : ''}
+              </div>
             </div>
           ) : null}
           {activeProjection ? (

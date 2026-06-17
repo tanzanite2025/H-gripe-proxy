@@ -236,6 +236,86 @@ fn app_runtime_runtime_apply_audit_links_boundary_decision() {
 }
 
 #[test]
+fn runtime_verification_decision_checkpoint_requires_matching_allow_decision() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let decision = sample_runtime_apply_decision_record(&artifact);
+    let summary = AppRuntimeProjectionRuntimeApplyCandidateSummary {
+        profile_item_uid: "m-app-runtime-runtime".into(),
+        profile_item_file: "m-app-runtime-runtime.yaml".into(),
+        proxy_group_count: 1,
+        rule_count: 1,
+        dns_profile_projected: false,
+    };
+    let audit = app_runtime_projection_runtime_apply_audit_record(
+        &artifact,
+        &decision,
+        "runtime_profile_merge",
+        None,
+        &summary,
+        "valid".into(),
+        50,
+    );
+
+    let check = runtime_verification_decision_checkpoint_check(Some(&audit), Some(&decision), None, Some(&artifact));
+
+    assert_eq!(check.status, AppRuntimeDiagnosticCheckStatus::Passed);
+    assert!(runtime_apply_decision_matches_audit(
+        Some(&audit),
+        &decision,
+        Some(&artifact)
+    ));
+}
+
+#[test]
+fn runtime_verification_decision_checkpoint_rejects_missing_decision() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let mut decision = sample_runtime_apply_decision_record(&artifact);
+    decision.decision = AppRuntimeRuntimeApplyBoundaryDecision::DeferRuntimeApply;
+    let mut audit = AppRuntimeProjectionRuntimeApplyAuditRecord {
+        audit_id: "audit-without-decision".into(),
+        artifact_id: artifact.artifact_id.clone(),
+        app_id: artifact.app_id.clone(),
+        checksum: artifact.checksum.clone(),
+        runtime_apply_decision_id: None,
+        runtime_apply_decision_boundary_manifest_id: None,
+        activation_kind: "runtime_profile_merge".into(),
+        applied_at: 50,
+        validation_outcome: "valid".into(),
+        candidate_summary: AppRuntimeProjectionRuntimeApplyCandidateSummary {
+            profile_item_uid: "m-app-runtime-runtime".into(),
+            profile_item_file: "m-app-runtime-runtime.yaml".into(),
+            proxy_group_count: 1,
+            rule_count: 1,
+            dns_profile_projected: false,
+        },
+        previous_marker: None,
+        rollback_strategy: "restore_runtime_from_profile_and_previous_marker".into(),
+        status: AppRuntimeProjectionRuntimeApplyAuditStatus::Active,
+        status_updated_at: 50,
+        latest_verification_status: None,
+        latest_verification_reason: None,
+        latest_verification_at: None,
+    };
+
+    let missing = runtime_verification_decision_checkpoint_check(Some(&audit), None, None, Some(&artifact));
+    assert_eq!(missing.status, AppRuntimeDiagnosticCheckStatus::Failed);
+
+    audit.runtime_apply_decision_id = Some(decision.decision_id.clone());
+    audit.runtime_apply_decision_boundary_manifest_id = Some(decision.boundary_manifest_id.clone());
+    let mismatched =
+        runtime_verification_decision_checkpoint_check(Some(&audit), Some(&decision), None, Some(&artifact));
+    assert_eq!(mismatched.status, AppRuntimeDiagnosticCheckStatus::Failed);
+}
+
+#[test]
 fn plan_rejects_missing_policy_binding() {
     let state = AppRuntimeStateDocument {
         apps: vec![sample_app()],
