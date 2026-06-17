@@ -31,6 +31,7 @@ mod tests {
             core_running: true,
             proxies: None,
             dns_metrics: None,
+            proxies_from_runtime_config: false,
         };
 
         let input = DiagnosticsInput::from_snapshot(snapshot);

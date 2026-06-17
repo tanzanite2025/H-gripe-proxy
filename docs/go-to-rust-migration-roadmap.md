@@ -1686,3 +1686,28 @@ build_app_runtime_projection_runtime_post_apply_hold(artifactId)
 - 不进入 Phase 8 / adapter / tunnel / protocol runtime。
 - 不新增自动 rollout / rollback。
 - 不把 closeout history 作为自动升级依据；后续 runtime expansion 仍需新的显式用户决策。
+
+### Aggressive replacement track：Rust runtime proxy topology（当前大步迁移方向）
+
+前面的 checkpoint 批次推进过慢；后续改为优先迁移高频 Go/Mihomo 调用面。本批次先替换前端和托盘最常用的静态 proxy topology 读取：不再为了渲染代理组/节点拓扑而先请求 Go Mihomo `/proxies`，改由 Rust 直接从已生成 runtime config 解析 `proxies` / `proxy-groups`。
+
+```text
+get_runtime_proxy_topology()
+  -> Config::runtime().latest.config
+  -> parse proxies + proxy-groups in Rust
+  -> synthesize DIRECT / REJECT / REJECT-DROP / GLOBAL
+  -> frontend calcuProxies() consumes Rust topology
+  -> tray menu consumes Rust topology, only falls back to Go API if runtime config is unavailable
+```
+
+迁移效果：
+
+- 移除前端 `calcuProxies()` 对 `tauri-plugin-mihomo-api.getProxies()` 的主路径依赖。
+- 托盘代理菜单优先使用 Rust topology，避免每次构建菜单都阻塞在 Go control API。
+- 保留 runtime 选择/测速/provider healthcheck 等确实需要活 Go data plane 的路径，作为下一批大替换目标。
+
+下一批优先级：
+
+1. Rust-owned provider topology：从 `proxy-providers` 解析 provider + node inventory，移除前端 provider 列表主路径的 Go API 依赖。
+2. Rust-owned runtime rule inventory：从 runtime YAML 解析 rules/rule-providers，并让规则测试/诊断直接消费 Rust rule engine。
+3. Rust-owned selection state cache：选择节点时同步写 Rust state，减少 UI 展示对 Go `/proxies` live state 的依赖。
