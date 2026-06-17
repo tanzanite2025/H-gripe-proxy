@@ -275,6 +275,7 @@ mod app_init {
             cmd::complete_app_runtime_control_plane,
             cmd::complete_app_runtime_staged_activation_lifecycle,
             cmd::closeout_app_runtime_staged_activation_lifecycle,
+            cmd::decide_app_runtime_runtime_apply_boundary,
             cmd::upsert_app_registry_entry,
             cmd::delete_app_registry_entry,
             cmd::upsert_node_pool,

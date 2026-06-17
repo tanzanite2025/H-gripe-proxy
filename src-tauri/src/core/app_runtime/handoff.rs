@@ -67,6 +67,17 @@ pub async fn closeout_app_runtime_staged_activation_lifecycle(
     persist_app_runtime_staged_activation_closeout_report(lifecycle).await
 }
 
+pub async fn decide_app_runtime_runtime_apply_boundary(
+    request: AppRuntimeRuntimeApplyBoundaryDecisionRequest,
+) -> Result<AppRuntimeRuntimeApplyBoundaryDecisionReport> {
+    let closeout = closeout_app_runtime_staged_activation_lifecycle(AppRuntimePlanRequest {
+        app_id: request.app_id.clone(),
+        session_id: None,
+    })
+    .await?;
+    persist_app_runtime_runtime_apply_boundary_decision_report(closeout, request).await
+}
+
 pub fn build_app_runtime_dns_handoff_report(
     dns_completion: DnsDefaultRuntimeExpandedControlPlaneCompletionReport,
     handoff_record_path: Option<String>,
@@ -232,6 +243,111 @@ pub fn build_app_runtime_staged_activation_closeout_report(
     }
 }
 
+pub fn build_app_runtime_runtime_apply_boundary_decision_report(
+    closeout: AppRuntimeStagedActivationCloseoutReport,
+    request: AppRuntimeRuntimeApplyBoundaryDecisionRequest,
+    decision_record_path: Option<String>,
+    decision_record_persisted: bool,
+    mut persist_errors: Vec<String>,
+    created_at: i64,
+) -> AppRuntimeRuntimeApplyBoundaryDecisionReport {
+    let boundary = &closeout.boundary_manifest;
+    let boundary_ready = closeout.closeout_complete
+        && closeout.boundary_manifest_persisted
+        && boundary.active_marker_matches_artifact
+        && boundary.rollback_boundary_available;
+    let runtime_apply_candidate_allowed =
+        boundary_ready && request.decision == AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate;
+    let rollback_recommended = request.decision == AppRuntimeRuntimeApplyBoundaryDecision::RecommendRollback;
+    let next_app_runtime_step: String = if runtime_apply_candidate_allowed {
+        "userMayExplicitlyApplyRuntimeCandidate".into()
+    } else if rollback_recommended {
+        "runExplicitStagedActivationRollbackBeforeRuntimeApply".into()
+    } else {
+        "keepHoldingAtRuntimeApplyBoundary".into()
+    };
+    let mut blockers = closeout.blockers.clone();
+    if request.app_id != boundary.app_id {
+        blockers.push("runtime-apply boundary decision app id does not match boundary manifest".into());
+    }
+    if request.decision == AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate && !boundary_ready {
+        blockers.push("runtime-apply boundary decision requires complete closeout and rollback boundary".into());
+    }
+    if !decision_record_persisted {
+        blockers.append(&mut persist_errors);
+    }
+    let status = if !blockers.is_empty() {
+        AppRuntimeRuntimeApplyBoundaryDecisionStatus::Blocked
+    } else {
+        match request.decision {
+            AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate => {
+                AppRuntimeRuntimeApplyBoundaryDecisionStatus::Accepted
+            }
+            AppRuntimeRuntimeApplyBoundaryDecision::DeferRuntimeApply => {
+                AppRuntimeRuntimeApplyBoundaryDecisionStatus::Deferred
+            }
+            AppRuntimeRuntimeApplyBoundaryDecision::RecommendRollback => {
+                AppRuntimeRuntimeApplyBoundaryDecisionStatus::RollbackRecommended
+            }
+        }
+    };
+    let decision_record = AppRuntimeRuntimeApplyBoundaryDecisionRecord {
+        decision_id: format!("app-runtime-runtime-apply-decision-{created_at}").into(),
+        app_id: boundary.app_id.clone(),
+        artifact_id: boundary.artifact_id.clone(),
+        checksum: boundary.checksum.clone(),
+        boundary_manifest_id: boundary.manifest_id.clone(),
+        boundary_manifest_path: closeout.boundary_manifest_path.clone(),
+        decision: request.decision,
+        rationale: request.rationale,
+        decision_accepted: status != AppRuntimeRuntimeApplyBoundaryDecisionStatus::Blocked,
+        runtime_apply_candidate_allowed,
+        rollback_recommended,
+        runtime_apply_allowed: runtime_apply_candidate_allowed,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step: next_app_runtime_step.clone(),
+        created_at,
+    };
+    let mut warnings = closeout.warnings.clone();
+    warnings.push("Runtime-apply boundary decision records user intent but does not apply runtime".into());
+    warnings.sort();
+    warnings.dedup();
+    let facts = vec![
+        "runtime-apply boundary decision consumes staged closeout manifest".into(),
+        "runtime-apply boundary decision persists an explicit audit record".into(),
+        "runtime-apply boundary decision does not reload Mihomo".into(),
+        "runtime-apply boundary decision keeps phase8Allowed=false".into(),
+    ];
+
+    AppRuntimeRuntimeApplyBoundaryDecisionReport {
+        status,
+        reason: app_runtime_runtime_apply_boundary_decision_reason(status, &blockers),
+        closeout,
+        decision_record,
+        decision_record_path,
+        decision_record_persisted,
+        runtime_apply_candidate_allowed,
+        rollback_recommended,
+        runtime_apply_allowed: runtime_apply_candidate_allowed,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
 pub fn build_app_runtime_staged_activation_lifecycle_report(
     control_plane_completion: AppRuntimeControlPlaneCompletionReport,
     active_projection: Option<AppRuntimeActiveProjectionRecord>,
@@ -336,6 +452,47 @@ async fn persist_app_runtime_staged_activation_closeout_report(
                 Some(path.to_string_lossy().to_string().into()),
                 false,
                 vec![format!("failed to persist app-runtime staged closeout manifest: {error}").into()],
+                created_at,
+            ));
+        }
+    }
+    Ok(report)
+}
+
+async fn persist_app_runtime_runtime_apply_boundary_decision_report(
+    closeout: AppRuntimeStagedActivationCloseoutReport,
+    request: AppRuntimeRuntimeApplyBoundaryDecisionRequest,
+) -> Result<AppRuntimeRuntimeApplyBoundaryDecisionReport> {
+    let created_at = now_millis();
+    let decision_id = format!("app-runtime-runtime-apply-decision-{created_at}");
+    let path = app_runtime_runtime_apply_boundary_decision_path(&decision_id)?;
+    let mut persist_errors = Vec::new();
+    if let Some(parent) = path.parent() {
+        if let Err(error) = fs::create_dir_all(parent).await {
+            persist_errors
+                .push(format!("failed to create app-runtime runtime-apply decision directory: {error}").into());
+        }
+    }
+    let report = build_app_runtime_runtime_apply_boundary_decision_report(
+        closeout,
+        request,
+        Some(path.to_string_lossy().to_string().into()),
+        persist_errors.is_empty(),
+        persist_errors,
+        created_at,
+    );
+    if report.decision_record_persisted {
+        if let Err(error) = help::save_yaml(&path, &report.decision_record, None).await {
+            return Ok(build_app_runtime_runtime_apply_boundary_decision_report(
+                report.closeout,
+                AppRuntimeRuntimeApplyBoundaryDecisionRequest {
+                    app_id: report.decision_record.app_id,
+                    decision: report.decision_record.decision,
+                    rationale: report.decision_record.rationale,
+                },
+                Some(path.to_string_lossy().to_string().into()),
+                false,
+                vec![format!("failed to persist app-runtime runtime-apply decision record: {error}").into()],
                 created_at,
             ));
         }
@@ -475,6 +632,14 @@ fn app_runtime_staged_activation_closeout_path(manifest_id: &str) -> Result<std:
         .join("runtime-apply-boundary.yaml"))
 }
 
+fn app_runtime_runtime_apply_boundary_decision_path(decision_id: &str) -> Result<std::path::PathBuf> {
+    let safe_segment = safe_app_runtime_handoff_segment(decision_id);
+    Ok(dirs::app_runtime_dir()?
+        .join("runtime-apply-decisions")
+        .join(safe_segment)
+        .join("decision.yaml"))
+}
+
 fn safe_app_runtime_handoff_segment(input: &str) -> std::string::String {
     input
         .chars()
@@ -551,5 +716,26 @@ fn app_runtime_staged_activation_closeout_reason(
             .first()
             .cloned()
             .unwrap_or_else(|| "app runtime staged activation closeout is blocked".into()),
+    }
+}
+
+fn app_runtime_runtime_apply_boundary_decision_reason(
+    status: AppRuntimeRuntimeApplyBoundaryDecisionStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        AppRuntimeRuntimeApplyBoundaryDecisionStatus::Accepted => {
+            "runtime-apply boundary decision allows explicit runtime candidate apply".into()
+        }
+        AppRuntimeRuntimeApplyBoundaryDecisionStatus::Deferred => {
+            "runtime-apply boundary decision keeps holding at staged boundary".into()
+        }
+        AppRuntimeRuntimeApplyBoundaryDecisionStatus::RollbackRecommended => {
+            "runtime-apply boundary decision recommends explicit staged rollback".into()
+        }
+        AppRuntimeRuntimeApplyBoundaryDecisionStatus::Blocked => blockers
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "runtime-apply boundary decision is blocked".into()),
     }
 }

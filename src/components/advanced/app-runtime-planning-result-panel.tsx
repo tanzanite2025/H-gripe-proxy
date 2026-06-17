@@ -26,6 +26,7 @@ interface AppRuntimePlanningResultPanelProps {
   latestRuntimeApplyAudit: AppRuntimeProjectionRuntimeApplyAuditRecord | null
   runtimeVerification: AppRuntimeProjectionRuntimeVerificationReport | null
   activateMarkerPending: boolean
+  runtimeApplyAllowed: boolean
   runtimeApplyPending: boolean
   runtimeVerificationPending: boolean
   activationRollbackPending: boolean
@@ -47,6 +48,7 @@ export function AppRuntimePlanningResultPanel({
   latestRuntimeApplyAudit,
   runtimeVerification,
   activateMarkerPending,
+  runtimeApplyAllowed,
   runtimeApplyPending,
   runtimeVerificationPending,
   activationRollbackPending,
@@ -137,13 +139,18 @@ export function AppRuntimePlanningResultPanel({
               disabled={
                 runtimeApplyPending ||
                 !projectionArtifact.storagePath ||
+                !runtimeApplyAllowed ||
                 projectionArtifact.validation.status === 'blocked' ||
                 activeProjection?.artifactId !==
                   projectionArtifact.artifactId ||
                 (activeProjection?.mutatesRuntime ?? false)
               }
             >
-              {runtimeApplyPending ? '应用中...' : '显式应用 runtime'}
+              {runtimeApplyPending
+                ? '应用中...'
+                : runtimeApplyAllowed
+                  ? '显式应用 runtime'
+                  : '等待 boundary 决策'}
             </Button>
             <Button
               size="small"
@@ -242,7 +249,9 @@ export function AppRuntimePlanningResultPanel({
                   Groups:{' '}
                   {latestRuntimeApplyAudit.candidateSummary.proxyGroupCount}
                 </div>
-                <div>Rules: {latestRuntimeApplyAudit.candidateSummary.ruleCount}</div>
+                <div>
+                  Rules: {latestRuntimeApplyAudit.candidateSummary.ruleCount}
+                </div>
               </div>
               <div className="text-muted-foreground">
                 Validation: {latestRuntimeApplyAudit.validationOutcome}

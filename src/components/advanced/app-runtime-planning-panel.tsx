@@ -15,6 +15,7 @@ import {
   closeoutAppRuntimeStagedActivationLifecycle,
   completeAppRuntimeControlPlane,
   completeAppRuntimeStagedActivationLifecycle,
+  decideAppRuntimeRuntimeApplyBoundary,
   deleteAppPolicyBinding,
   deleteAppRegistryEntry,
   deleteDnsProfile,
@@ -50,6 +51,8 @@ import {
   type AppRuntimeProjectionActivationPreflightReport,
   type AppRuntimeProjectionArtifact,
   type AppRuntimeProjectionRuntimeVerificationReport,
+  type AppRuntimeRuntimeApplyBoundaryDecision,
+  type AppRuntimeRuntimeApplyBoundaryDecisionReport,
   type AppRuntimeSessionEvaluationReport,
   type AppRuntimeSessionLeakReport,
   type AppRuntimeStateDocument,
@@ -107,10 +110,16 @@ export function AppRuntimePlanningPanel() {
   const [dnsHandoffPending, setDnsHandoffPending] = useState(false)
   const [controlPlaneCompletionPending, setControlPlaneCompletionPending] =
     useState(false)
-  const [stagedActivationLifecyclePending, setStagedActivationLifecyclePending] =
-    useState(false)
+  const [
+    stagedActivationLifecyclePending,
+    setStagedActivationLifecyclePending,
+  ] = useState(false)
   const [stagedActivationCloseoutPending, setStagedActivationCloseoutPending] =
     useState(false)
+  const [
+    runtimeApplyBoundaryDecisionPending,
+    setRuntimeApplyBoundaryDecisionPending,
+  ] = useState(false)
   const [artifactPending, setArtifactPending] = useState(false)
   const [activationPreflightPending, setActivationPreflightPending] =
     useState(false)
@@ -146,6 +155,10 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeStagedActivationLifecycleReport | null>(null)
   const [stagedActivationCloseoutReport, setStagedActivationCloseoutReport] =
     useState<AppRuntimeStagedActivationCloseoutReport | null>(null)
+  const [
+    runtimeApplyBoundaryDecisionReport,
+    setRuntimeApplyBoundaryDecisionReport,
+  ] = useState<AppRuntimeRuntimeApplyBoundaryDecisionReport | null>(null)
   const [resourceKind, setResourceKind] = useState<RuntimeResourceKind>('apps')
   const [selectedResourceId, setSelectedResourceId] = useState(newResourceValue)
   const [resourceJson, setResourceJson] = useState('')
@@ -219,10 +232,10 @@ export function AppRuntimePlanningPanel() {
           (audit) => audit.artifactId === projectionArtifact.artifactId,
         ),
       ].sort(
-          (left, right) =>
-            right.appliedAt - left.appliedAt ||
-            right.auditId.localeCompare(left.auditId),
-        )[0] ?? null
+        (left, right) =>
+          right.appliedAt - left.appliedAt ||
+          right.auditId.localeCompare(left.auditId),
+      )[0] ?? null
     )
   }, [projectionArtifact, state.runtimeApplyAudits])
 
@@ -619,7 +632,9 @@ export function AppRuntimePlanningPanel() {
         scope: 'DNS handoff',
         status: dnsHandoffReport.status,
         message: dnsHandoffReport.reason,
-        detail: dnsHandoffReport.blockers.join('；') || dnsHandoffReport.nextAppRuntimeStep,
+        detail:
+          dnsHandoffReport.blockers.join('；') ||
+          dnsHandoffReport.nextAppRuntimeStep,
         action: 'accept-dns-handoff',
         actionLabel: '重试',
       })
@@ -884,7 +899,9 @@ export function AppRuntimePlanningPanel() {
       setActivationPreflight(report.controlPlaneCompletion.activationPreflight)
       setPlan(report.controlPlaneCompletion.projectionArtifact.plan)
       setProjection(report.controlPlaneCompletion.projectionArtifact.projection)
-      setDiagnostics(report.controlPlaneCompletion.projectionArtifact.diagnostics)
+      setDiagnostics(
+        report.controlPlaneCompletion.projectionArtifact.diagnostics,
+      )
       setState(await getAppRuntimeState())
       showNotice.success('App runtime staged activation lifecycle 已完成')
     } catch (error) {
@@ -929,6 +946,58 @@ export function AppRuntimePlanningPanel() {
       setStagedActivationCloseoutPending(false)
     }
   })
+
+  const decideRuntimeApplyBoundary = useLockFn(
+    async (
+      decision: AppRuntimeRuntimeApplyBoundaryDecision,
+      rationale: string,
+    ) => {
+      if (!selectedAppId) {
+        return
+      }
+
+      setRuntimeApplyBoundaryDecisionPending(true)
+      try {
+        const report = await decideAppRuntimeRuntimeApplyBoundary({
+          appId: selectedAppId,
+          decision,
+          rationale,
+        })
+        setRuntimeApplyBoundaryDecisionReport(report)
+        setStagedActivationCloseoutReport(report.closeout)
+        setStagedActivationLifecycleReport(report.closeout.lifecycle)
+        setControlPlaneCompletionReport(
+          report.closeout.lifecycle.controlPlaneCompletion,
+        )
+        setDnsHandoffReport(
+          report.closeout.lifecycle.controlPlaneCompletion.dnsHandoff,
+        )
+        setProjectionArtifact(
+          report.closeout.lifecycle.controlPlaneCompletion.projectionArtifact,
+        )
+        setActivationPreflight(
+          report.closeout.lifecycle.controlPlaneCompletion.activationPreflight,
+        )
+        setPlan(
+          report.closeout.lifecycle.controlPlaneCompletion.projectionArtifact
+            .plan,
+        )
+        setProjection(
+          report.closeout.lifecycle.controlPlaneCompletion.projectionArtifact
+            .projection,
+        )
+        setDiagnostics(
+          report.closeout.lifecycle.controlPlaneCompletion.projectionArtifact
+            .diagnostics,
+        )
+        showNotice.success('Runtime-apply boundary 显式决策已记录')
+      } catch (error) {
+        showNotice.error(error)
+      } finally {
+        setRuntimeApplyBoundaryDecisionPending(false)
+      }
+    },
+  )
 
   const buildProjectionArtifact = useLockFn(async () => {
     if (!selectedAppId) {
@@ -1020,6 +1089,10 @@ export function AppRuntimePlanningPanel() {
 
   const applyProjectionArtifactToRuntime = useLockFn(async () => {
     if (!projectionArtifact) {
+      return
+    }
+    if (!runtimeApplyDecisionAllowsCandidate) {
+      showNotice.error('请先完成 runtime-apply boundary 的显式 allow 决策')
       return
     }
 
@@ -1761,6 +1834,13 @@ export function AppRuntimePlanningPanel() {
     setResourceJson(formatJson(resource))
   }, [resourceKind, resources, selectedAppId, selectedResourceId])
 
+  const runtimeApplyDecisionAllowsCandidate =
+    runtimeApplyBoundaryDecisionReport?.runtimeApplyCandidateAllowed === true &&
+    runtimeApplyBoundaryDecisionReport.decisionRecord.artifactId ===
+      projectionArtifact?.artifactId &&
+    runtimeApplyBoundaryDecisionReport.decisionRecord.checksum ===
+      projectionArtifact?.checksum
+
   return (
     <Card>
       <div className="space-y-4 p-4">
@@ -1848,9 +1928,7 @@ export function AppRuntimePlanningPanel() {
           <div className="space-y-2 rounded-lg border border-border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold">
-                  DNS handoff intake
-                </div>
+                <div className="text-sm font-semibold">DNS handoff intake</div>
                 <div className="mt-1 text-xs text-muted-foreground">
                   接收 DNS expanded control-plane completion manifest，并保持
                   phase8Allowed=false。
@@ -1887,6 +1965,109 @@ export function AppRuntimePlanningPanel() {
                   accepts={String(dnsHandoffReport.appRuntimeAcceptsHandoff)} ·
                   phase8={String(dnsHandoffReport.phase8Allowed)} · mutates=
                   {String(dnsHandoffReport.mutatesRuntime)}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="small"
+                onClick={() =>
+                  void decideRuntimeApplyBoundary(
+                    'allowRuntimeCandidate',
+                    'operator explicitly allows the runtime candidate after staged closeout',
+                  )
+                }
+                disabled={
+                  !selectedAppId ||
+                  runtimeApplyBoundaryDecisionPending ||
+                  !stagedActivationCloseoutReport?.closeoutComplete
+                }
+              >
+                {runtimeApplyBoundaryDecisionPending
+                  ? '记录中...'
+                  : '允许 runtime candidate'}
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() =>
+                  void decideRuntimeApplyBoundary(
+                    'deferRuntimeApply',
+                    'operator keeps holding at the runtime-apply boundary',
+                  )
+                }
+                disabled={!selectedAppId || runtimeApplyBoundaryDecisionPending}
+              >
+                延后 runtime apply
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() =>
+                  void decideRuntimeApplyBoundary(
+                    'recommendRollback',
+                    'operator recommends explicit staged rollback before runtime apply',
+                  )
+                }
+                disabled={!selectedAppId || runtimeApplyBoundaryDecisionPending}
+              >
+                建议 staged rollback
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {runtimeApplyBoundaryDecisionReport ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">
+                  Runtime-apply boundary decision
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  记录显式 allow/defer/rollback 决策；不 apply runtime、不
+                  reload Mihomo。
+                </div>
+              </div>
+              <Chip
+                size="small"
+                color={statusColor(runtimeApplyBoundaryDecisionReport.status)}
+                label={runtimeApplyBoundaryDecisionReport.status}
+              />
+            </div>
+            <div className="grid gap-2 text-xs lg:grid-cols-2">
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Decision record</div>
+                <div className="mt-1 truncate text-muted-foreground">
+                  {runtimeApplyBoundaryDecisionReport.decisionRecordPath ??
+                    '未持久化'}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Decision</div>
+                <div className="mt-1 text-muted-foreground">
+                  {runtimeApplyBoundaryDecisionReport.decisionRecord.decision} ·
+                  allowed=
+                  {String(
+                    runtimeApplyBoundaryDecisionReport.runtimeApplyCandidateAllowed,
+                  )}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Next step</div>
+                <div className="mt-1 text-muted-foreground">
+                  {runtimeApplyBoundaryDecisionReport.nextAppRuntimeStep}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="font-medium">Boundary flags</div>
+                <div className="mt-1 text-muted-foreground">
+                  phase8=
+                  {String(runtimeApplyBoundaryDecisionReport.phase8Allowed)} ·
+                  reload=
+                  {String(runtimeApplyBoundaryDecisionReport.reloadMihomo)}·
+                  mutates=
+                  {String(runtimeApplyBoundaryDecisionReport.mutatesRuntime)}
                 </div>
               </div>
             </div>
@@ -1970,8 +2151,8 @@ export function AppRuntimePlanningPanel() {
               <div className="rounded-md bg-muted/40 px-3 py-2">
                 <div className="font-medium">Marker</div>
                 <div className="mt-1 truncate text-muted-foreground">
-                  {stagedActivationLifecycleReport.activeProjection?.artifactId ??
-                    '未激活'}
+                  {stagedActivationLifecycleReport.activeProjection
+                    ?.artifactId ?? '未激活'}
                 </div>
               </div>
               <div className="rounded-md bg-muted/40 px-3 py-2">
@@ -1993,10 +2174,12 @@ export function AppRuntimePlanningPanel() {
               <div className="rounded-md bg-muted/40 px-3 py-2">
                 <div className="font-medium">Boundary</div>
                 <div className="mt-1 text-muted-foreground">
-                  marker={String(stagedActivationLifecycleReport.markerActivated)}
-                  · runtimeApply=
-                  {String(stagedActivationLifecycleReport.runtimeApplyAllowed)} ·
-                  reload={String(stagedActivationLifecycleReport.reloadMihomo)}
+                  marker=
+                  {String(stagedActivationLifecycleReport.markerActivated)}·
+                  runtimeApply=
+                  {String(stagedActivationLifecycleReport.runtimeApplyAllowed)}{' '}
+                  · reload=
+                  {String(stagedActivationLifecycleReport.reloadMihomo)}
                 </div>
               </div>
             </div>
@@ -2051,8 +2234,8 @@ export function AppRuntimePlanningPanel() {
                 <div className="mt-1 text-muted-foreground">
                   runtimeApply=
                   {String(stagedActivationCloseoutReport.runtimeApplyAllowed)} ·
-                  phase8={String(stagedActivationCloseoutReport.phase8Allowed)} ·
-                  reload={String(stagedActivationCloseoutReport.reloadMihomo)}
+                  phase8={String(stagedActivationCloseoutReport.phase8Allowed)}{' '}
+                  · reload={String(stagedActivationCloseoutReport.reloadMihomo)}
                 </div>
               </div>
             </div>
@@ -2292,6 +2475,7 @@ export function AppRuntimePlanningPanel() {
           latestRuntimeApplyAudit={latestRuntimeApplyAudit}
           runtimeVerification={runtimeVerification}
           activateMarkerPending={activateMarkerPending}
+          runtimeApplyAllowed={runtimeApplyDecisionAllowsCandidate}
           runtimeApplyPending={runtimeApplyPending}
           runtimeVerificationPending={runtimeVerificationPending}
           activationRollbackPending={activationRollbackPending}
