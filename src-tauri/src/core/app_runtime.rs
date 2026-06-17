@@ -14,8 +14,9 @@ pub use handoff::{
 };
 pub use projection::{
     activate_app_runtime_projection_artifact, apply_app_runtime_projection_artifact_to_runtime,
-    build_app_runtime_projection_artifact, closeout_app_runtime_projection_runtime_apply_verification,
-    list_app_runtime_projection_runtime_apply_audits, persist_app_runtime_projection_artifact,
+    build_app_runtime_projection_artifact, build_app_runtime_projection_runtime_post_apply_hold,
+    closeout_app_runtime_projection_runtime_apply_verification, list_app_runtime_projection_runtime_apply_audits,
+    list_app_runtime_projection_runtime_verification_closeouts, persist_app_runtime_projection_artifact,
     preflight_app_runtime_projection_activation, project_app_runtime_plan_to_mihomo,
     rollback_app_runtime_projection_activation, verify_app_runtime_projection_runtime_apply,
 };

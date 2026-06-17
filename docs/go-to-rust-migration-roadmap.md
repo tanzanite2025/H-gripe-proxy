@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime apply verification closeout checkpoint） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（显式 runtime-apply boundary decision / audit record / UI gate）、Batch AG（apply 前强制核验 persisted allow decision）、Batch AH（post-apply verification 反查 decision checkpoint）、Batch AI（本批次，verification closeout checkpoint）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision / apply checkpoint enforcement / verification checkpoint / verification closeout 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime post-apply hold milestone） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（显式 runtime-apply boundary decision / audit record / UI gate）、Batch AG（apply 前强制核验 persisted allow decision）、Batch AH（post-apply verification 反查 decision checkpoint）、Batch AI（verification closeout checkpoint）、Batch AJ-AL（本批次，closeout history + post-apply hold gate + aggregate UI action）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision / apply checkpoint enforcement / verification checkpoint / verification closeout / post-apply hold 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1651,3 +1651,38 @@ closeout_app_runtime_projection_runtime_apply_verification(artifactId)
 
 - 不进入 Phase 8 / adapter / tunnel / protocol runtime。
 - 不新增自动 rollout / rollback。
+
+### Batch AJ-AL：Runtime post-apply hold milestone（本批次，合并多个连续 checkpoint）
+
+为避免每个 checkpoint 都拆成微型 PR，本批次把 Batch AJ / AK / AL 合并成一个 milestone：在 Batch AI 的 verification closeout 之后，补齐 closeout history 读取、post-apply hold gate、以及聚合 UI action。该 milestone 的目标是把 runtime apply 的已验证事实链停在可审计 hold 状态，而不是继续推进 Phase 8。
+
+```text
+list_app_runtime_projection_runtime_verification_closeouts(artifactId)
+  -> read app-runtime/runtime-apply-verification-closeouts/*/closeout.yaml
+  -> sort newest first
+
+build_app_runtime_projection_runtime_post_apply_hold(artifactId)
+  -> latest complete closeout
+  -> require runtimeApplyDecisionVerified
+  -> reject any unsafe follow-up flags
+  -> expose hold status/history without runtime mutation
+```
+
+合并范围：
+
+- Batch AJ：新增 closeout history list command / service，按 artifact 过滤并按 createdAt 倒序。
+- Batch AK：新增 Rust-owned post-apply hold report，消费最新 complete closeout，校验 decision chain 和安全 flags。
+- Batch AL：UI 聚合诊断增加 runtime verification closeout 与 post-apply hold action/status，closeout 后自动刷新 history + hold gate。
+- Tests：覆盖 complete closeout history 可进入 holding、缺失 history 或 unsafe flags 会 blocked。
+
+强边界：
+
+- Hold gate 不触发 runtime apply，不 reload Mihomo。
+- `runtimeApplyAllowed=false`、`phase8Allowed=false`、`promotionAllowed=false`。
+- `autoRollout=false`、`autoRollback=false`、`mutatesRuntime=false`。
+
+不包含：
+
+- 不进入 Phase 8 / adapter / tunnel / protocol runtime。
+- 不新增自动 rollout / rollback。
+- 不把 closeout history 作为自动升级依据；后续 runtime expansion 仍需新的显式用户决策。

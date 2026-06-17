@@ -4,6 +4,7 @@ use crate::core::app_runtime::{
     AppRuntimeDnsHandoffReport, AppRuntimeMihomoProjection, AppRuntimePlan, AppRuntimePlanRequest,
     AppRuntimeProjectionActivationPreflightReport, AppRuntimeProjectionActivationPreflightRequest,
     AppRuntimeProjectionArtifact, AppRuntimeProjectionRuntimeApplyAuditRecord, AppRuntimeProjectionRuntimeApplyRequest,
+    AppRuntimeProjectionRuntimePostApplyHoldReport, AppRuntimeProjectionRuntimeVerificationCloseoutRecord,
     AppRuntimeProjectionRuntimeVerificationCloseoutReport, AppRuntimeProjectionRuntimeVerificationReport,
     AppRuntimeProjectionRuntimeVerificationRequest, AppRuntimeRuntimeApplyBoundaryDecisionReport,
     AppRuntimeRuntimeApplyBoundaryDecisionRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest,
@@ -14,6 +15,7 @@ use crate::core::app_runtime::{
     apply_app_runtime_projection_artifact_to_runtime as apply_app_runtime_projection_artifact_to_runtime_record,
     build_app_runtime_demo_seed_document,
     build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
+    build_app_runtime_projection_runtime_post_apply_hold as build_app_runtime_projection_runtime_post_apply_hold_record,
     closeout_app_runtime_projection_runtime_apply_verification as closeout_app_runtime_projection_runtime_apply_verification_record,
     closeout_app_runtime_staged_activation_lifecycle as closeout_app_runtime_staged_activation_lifecycle_record,
     complete_app_runtime_control_plane as complete_app_runtime_control_plane_record,
@@ -27,6 +29,7 @@ use crate::core::app_runtime::{
     explain_app_runtime_plan as build_app_runtime_plan,
     finish_app_runtime_session as finish_app_runtime_session_record,
     list_app_runtime_projection_runtime_apply_audits as list_app_runtime_projection_runtime_apply_audit_records,
+    list_app_runtime_projection_runtime_verification_closeouts as list_app_runtime_projection_runtime_verification_closeout_records,
     list_app_runtime_sessions as list_app_runtime_session_records,
     persist_app_runtime_projection_artifact as persist_app_runtime_projection_artifact_record,
     preflight_app_runtime_projection_activation as preflight_app_runtime_projection_activation_record,
@@ -228,6 +231,24 @@ pub async fn closeout_app_runtime_projection_runtime_apply_verification(
     request: AppRuntimeProjectionRuntimeVerificationRequest,
 ) -> CmdResult<AppRuntimeProjectionRuntimeVerificationCloseoutReport> {
     closeout_app_runtime_projection_runtime_apply_verification_record(request)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn list_app_runtime_projection_runtime_verification_closeouts(
+    artifact_id: Option<String>,
+) -> CmdResult<Vec<AppRuntimeProjectionRuntimeVerificationCloseoutRecord>> {
+    list_app_runtime_projection_runtime_verification_closeout_records(artifact_id.map(Into::into))
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn build_app_runtime_projection_runtime_post_apply_hold(
+    request: AppRuntimeProjectionRuntimeVerificationRequest,
+) -> CmdResult<AppRuntimeProjectionRuntimePostApplyHoldReport> {
+    build_app_runtime_projection_runtime_post_apply_hold_record(request)
         .await
         .stringify_err()
 }

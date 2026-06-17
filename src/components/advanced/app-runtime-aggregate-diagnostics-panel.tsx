@@ -25,6 +25,8 @@ export interface AggregateDiagnosticAction {
     | 'complete-control-plane'
     | 'complete-staged-activation-lifecycle'
     | 'closeout-staged-activation'
+    | 'closeout-runtime-verification'
+    | 'build-runtime-post-apply-hold'
 }
 
 interface AppRuntimeAggregateDiagnosticsPanelProps {

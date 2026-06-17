@@ -10,6 +10,8 @@ import type {
   AppRuntimeProjectionActivationPreflightReport,
   AppRuntimeProjectionArtifact,
   AppRuntimeProjectionRuntimeApplyAuditRecord,
+  AppRuntimeProjectionRuntimePostApplyHoldReport,
+  AppRuntimeProjectionRuntimeVerificationCloseoutRecord,
   AppRuntimeProjectionRuntimeVerificationCloseoutReport,
   AppRuntimeProjectionRuntimeVerificationReport,
 } from '@/services/app-runtime'
@@ -27,6 +29,8 @@ interface AppRuntimePlanningResultPanelProps {
   latestRuntimeApplyAudit: AppRuntimeProjectionRuntimeApplyAuditRecord | null
   runtimeVerification: AppRuntimeProjectionRuntimeVerificationReport | null
   runtimeVerificationCloseout: AppRuntimeProjectionRuntimeVerificationCloseoutReport | null
+  runtimeVerificationCloseoutHistory: AppRuntimeProjectionRuntimeVerificationCloseoutRecord[]
+  runtimePostApplyHold: AppRuntimeProjectionRuntimePostApplyHoldReport | null
   activateMarkerPending: boolean
   runtimeApplyAllowed: boolean
   runtimeApplyPending: boolean
@@ -52,6 +56,8 @@ export function AppRuntimePlanningResultPanel({
   latestRuntimeApplyAudit,
   runtimeVerification,
   runtimeVerificationCloseout,
+  runtimeVerificationCloseoutHistory,
+  runtimePostApplyHold,
   activateMarkerPending,
   runtimeApplyAllowed,
   runtimeApplyPending,
@@ -350,6 +356,46 @@ export function AppRuntimePlanningResultPanel({
                       Next: {runtimeVerificationCloseout.nextAppRuntimeStep}
                     </div>
                   </div>
+                </div>
+              ) : null}
+              {runtimePostApplyHold ? (
+                <div className="space-y-1 rounded-md border border-border bg-background/50 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">
+                      Runtime post-apply hold
+                    </span>
+                    <Chip
+                      size="small"
+                      color={statusColor(runtimePostApplyHold.status)}
+                      label={runtimePostApplyHold.status}
+                    />
+                  </div>
+                  <div className="text-muted-foreground">
+                    {runtimePostApplyHold.reason}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      History: {runtimePostApplyHold.closeoutHistoryCount}
+                    </div>
+                    <div>
+                      Decision chain:{' '}
+                      {String(runtimePostApplyHold.decisionChainVerified)}
+                    </div>
+                    <div>
+                      Runtime apply:{' '}
+                      {String(runtimePostApplyHold.runtimeApplyAllowed)}
+                    </div>
+                    <div>Next: {runtimePostApplyHold.nextAppRuntimeStep}</div>
+                  </div>
+                </div>
+              ) : null}
+              {runtimeVerificationCloseoutHistory.length > 0 ? (
+                <div className="text-muted-foreground">
+                  Closeout history:{' '}
+                  {runtimeVerificationCloseoutHistory
+                    .slice(0, 3)
+                    .map((item) => item.closeoutId)
+                    .join(' / ')}
                 </div>
               ) : null}
             </div>

@@ -758,6 +758,37 @@ pub struct AppRuntimeProjectionRuntimeVerificationCloseoutReport {
     pub facts: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeProjectionRuntimePostApplyHoldStatus {
+    Holding,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimePostApplyHoldReport {
+    pub status: AppRuntimeProjectionRuntimePostApplyHoldStatus,
+    pub reason: String,
+    pub artifact_id: Option<String>,
+    pub latest_closeout: Option<AppRuntimeProjectionRuntimeVerificationCloseoutRecord>,
+    pub closeout_history_count: usize,
+    pub decision_chain_verified: bool,
+    pub post_apply_hold_complete: bool,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeProjectionActivationPreflightReport {
