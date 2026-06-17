@@ -201,6 +201,41 @@ fn app_runtime_runtime_apply_boundary_decision_can_defer_or_recommend_rollback()
 }
 
 #[test]
+fn app_runtime_runtime_apply_audit_links_boundary_decision() {
+    let artifact = persisted_projection_artifact(
+        "projection-browser-runtime",
+        "checksum-runtime",
+        "app-runtime/artifacts/runtime/artifact.yaml",
+    );
+    let decision = sample_runtime_apply_decision_record(&artifact);
+    let candidate = AppRuntimeProjectionRuntimeApplyCandidateSummary {
+        profile_item_uid: "app-runtime-candidate".into(),
+        profile_item_file: "app-runtime-candidate.yaml".into(),
+        proxy_group_count: 1,
+        rule_count: 1,
+        dns_profile_projected: true,
+    };
+
+    let audit = app_runtime_projection_runtime_apply_audit_record(
+        &artifact,
+        &decision,
+        "runtime_profile_merge",
+        None,
+        &candidate,
+        "valid".into(),
+        740,
+    );
+
+    assert_eq!(audit.runtime_apply_decision_id, Some(decision.decision_id));
+    assert_eq!(
+        audit.runtime_apply_decision_boundary_manifest_id,
+        Some(decision.boundary_manifest_id)
+    );
+    assert_eq!(audit.artifact_id, artifact.artifact_id);
+    assert_eq!(audit.checksum, artifact.checksum);
+}
+
+#[test]
 fn plan_rejects_missing_policy_binding() {
     let state = AppRuntimeStateDocument {
         apps: vec![sample_app()],
@@ -1108,6 +1143,7 @@ fn runtime_apply_audit_records_candidate_and_previous_marker() {
 
     let audit = app_runtime_projection_runtime_apply_audit_record(
         &artifact,
+        &sample_runtime_apply_decision_record(&artifact),
         "runtime_profile_merge",
         Some(&previous),
         &summary,
@@ -1141,6 +1177,7 @@ fn runtime_apply_audit_status_tracks_rollback_and_supersede() {
     };
     let first = app_runtime_projection_runtime_apply_audit_record(
         &artifact,
+        &sample_runtime_apply_decision_record(&artifact),
         "runtime_profile_merge",
         None,
         &summary,
@@ -1149,6 +1186,7 @@ fn runtime_apply_audit_status_tracks_rollback_and_supersede() {
     );
     let next = app_runtime_projection_runtime_apply_audit_record(
         &artifact,
+        &sample_runtime_apply_decision_record(&artifact),
         "runtime_profile_merge",
         None,
         &summary,
@@ -1271,6 +1309,33 @@ fn persisted_projection_artifact(
         validation: PersistedAppRuntimeProjectionValidation {
             status: AppRuntimeDiagnosticStatus::Healthy,
         },
+    }
+}
+
+fn sample_runtime_apply_decision_record(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+) -> AppRuntimeRuntimeApplyBoundaryDecisionRecord {
+    AppRuntimeRuntimeApplyBoundaryDecisionRecord {
+        decision_id: format!("app-runtime-runtime-apply-decision-{}", artifact.artifact_id).into(),
+        app_id: artifact.app_id.clone(),
+        artifact_id: artifact.artifact_id.clone(),
+        checksum: artifact.checksum.clone(),
+        boundary_manifest_id: format!("app-runtime-boundary-{}", artifact.artifact_id).into(),
+        boundary_manifest_path: Some("runtime-apply-boundary.yaml".into()),
+        decision: AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate,
+        rationale: None,
+        decision_accepted: true,
+        runtime_apply_candidate_allowed: true,
+        rollback_recommended: false,
+        runtime_apply_allowed: true,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step: "userMayExplicitlyApplyRuntimeCandidate".into(),
+        created_at: 730,
     }
 }
 

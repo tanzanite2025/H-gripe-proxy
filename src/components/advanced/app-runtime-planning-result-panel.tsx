@@ -241,6 +241,11 @@ export function AppRuntimePlanningResultPanel({
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <div>Audit: {latestRuntimeApplyAudit.auditId}</div>
+                {latestRuntimeApplyAudit.runtimeApplyDecisionId ? (
+                  <div>
+                    Decision: {latestRuntimeApplyAudit.runtimeApplyDecisionId}
+                  </div>
+                ) : null}
                 <div>
                   Candidate:{' '}
                   {latestRuntimeApplyAudit.candidateSummary.profileItemUid}

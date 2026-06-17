@@ -1095,12 +1095,18 @@ export function AppRuntimePlanningPanel() {
       showNotice.error('请先完成 runtime-apply boundary 的显式 allow 决策')
       return
     }
+    const decisionRecord = runtimeApplyBoundaryDecisionReport?.decisionRecord
+    if (!decisionRecord) {
+      return
+    }
 
     setRuntimeApplyPending(true)
     try {
       const nextState = await applyAppRuntimeProjectionArtifactToRuntime({
         artifactId: projectionArtifact.artifactId,
         expectedChecksum: projectionArtifact.checksum,
+        runtimeApplyDecisionId: decisionRecord.decisionId,
+        expectedRuntimeApplyDecisionChecksum: decisionRecord.checksum,
         force: true,
       })
       setState(nextState)
@@ -1836,6 +1842,9 @@ export function AppRuntimePlanningPanel() {
 
   const runtimeApplyDecisionAllowsCandidate =
     runtimeApplyBoundaryDecisionReport?.runtimeApplyCandidateAllowed === true &&
+    runtimeApplyBoundaryDecisionReport.decisionRecord.decision ===
+      'allowRuntimeCandidate' &&
+    runtimeApplyBoundaryDecisionReport.decisionRecord.decisionAccepted === true &&
     runtimeApplyBoundaryDecisionReport.decisionRecord.artifactId ===
       projectionArtifact?.artifactId &&
     runtimeApplyBoundaryDecisionReport.decisionRecord.checksum ===

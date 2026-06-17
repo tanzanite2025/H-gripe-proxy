@@ -527,6 +527,8 @@ export interface AppRuntimeProjectionActivationPreflightRequest {
 export interface AppRuntimeProjectionRuntimeApplyRequest {
   artifactId: string
   expectedChecksum?: string
+  runtimeApplyDecisionId?: string
+  expectedRuntimeApplyDecisionChecksum?: string
   force?: boolean
 }
 
@@ -561,6 +563,8 @@ export interface AppRuntimeProjectionRuntimeApplyAuditRecord {
   artifactId: string
   appId: string
   checksum: string
+  runtimeApplyDecisionId?: string
+  runtimeApplyDecisionBoundaryManifestId?: string
   activationKind: string
   appliedAt: number
   validationOutcome: string

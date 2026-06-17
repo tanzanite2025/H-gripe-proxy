@@ -614,6 +614,10 @@ pub struct AppRuntimeProjectionActivationPreflightRequest {
 pub struct AppRuntimeProjectionRuntimeApplyRequest {
     pub artifact_id: String,
     pub expected_checksum: Option<String>,
+    #[serde(default)]
+    pub runtime_apply_decision_id: Option<String>,
+    #[serde(default)]
+    pub expected_runtime_apply_decision_checksum: Option<String>,
     #[serde(default = "default_runtime_apply_force")]
     pub force: bool,
 }
@@ -631,6 +635,10 @@ pub struct AppRuntimeProjectionRuntimeApplyAuditRecord {
     pub artifact_id: String,
     pub app_id: String,
     pub checksum: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_apply_decision_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_apply_decision_boundary_manifest_id: Option<String>,
     pub activation_kind: String,
     pub applied_at: i64,
     pub validation_outcome: String,
