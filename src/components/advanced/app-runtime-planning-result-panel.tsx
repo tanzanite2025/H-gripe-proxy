@@ -10,6 +10,7 @@ import type {
   AppRuntimeProjectionActivationPreflightReport,
   AppRuntimeProjectionArtifact,
   AppRuntimeProjectionRuntimeApplyAuditRecord,
+  AppRuntimeProjectionRuntimeVerificationCloseoutReport,
   AppRuntimeProjectionRuntimeVerificationReport,
 } from '@/services/app-runtime'
 
@@ -25,15 +26,18 @@ interface AppRuntimePlanningResultPanelProps {
   activeProjection: AppRuntimeActiveProjectionRecord | null
   latestRuntimeApplyAudit: AppRuntimeProjectionRuntimeApplyAuditRecord | null
   runtimeVerification: AppRuntimeProjectionRuntimeVerificationReport | null
+  runtimeVerificationCloseout: AppRuntimeProjectionRuntimeVerificationCloseoutReport | null
   activateMarkerPending: boolean
   runtimeApplyAllowed: boolean
   runtimeApplyPending: boolean
   runtimeVerificationPending: boolean
+  runtimeVerificationCloseoutPending: boolean
   activationRollbackPending: boolean
   onPreflightActivation: () => void
   onMarkActive: () => void
   onApplyRuntime: () => void
   onVerifyRuntime: () => void
+  onCloseoutRuntimeVerification: () => void
   onRollbackActivation: () => void
 }
 
@@ -47,15 +51,18 @@ export function AppRuntimePlanningResultPanel({
   activeProjection,
   latestRuntimeApplyAudit,
   runtimeVerification,
+  runtimeVerificationCloseout,
   activateMarkerPending,
   runtimeApplyAllowed,
   runtimeApplyPending,
   runtimeVerificationPending,
+  runtimeVerificationCloseoutPending,
   activationRollbackPending,
   onPreflightActivation,
   onMarkActive,
   onApplyRuntime,
   onVerifyRuntime,
+  onCloseoutRuntimeVerification,
   onRollbackActivation,
 }: AppRuntimePlanningResultPanelProps) {
   if (!diagnostics || !plan || !projection) {
@@ -296,6 +303,55 @@ export function AppRuntimePlanningResultPanel({
                   ? ` · ${runtimeVerification.runtimeApplyDecisionId}`
                   : ''}
               </div>
+              <div>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={onCloseoutRuntimeVerification}
+                  disabled={
+                    runtimeVerificationCloseoutPending ||
+                    !runtimeVerification.runtimeApplyDecisionVerified
+                  }
+                >
+                  {runtimeVerificationCloseoutPending
+                    ? 'closeout 中...'
+                    : 'closeout verification'}
+                </Button>
+              </div>
+              {runtimeVerificationCloseout ? (
+                <div className="space-y-1 rounded-md border border-border bg-background/50 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">
+                      Runtime verification closeout
+                    </span>
+                    <Chip
+                      size="small"
+                      color={statusColor(runtimeVerificationCloseout.status)}
+                      label={runtimeVerificationCloseout.status}
+                    />
+                  </div>
+                  <div className="text-muted-foreground">
+                    {runtimeVerificationCloseout.reason}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      Closeout:{' '}
+                      {runtimeVerificationCloseout.closeoutRecord.closeoutId}
+                    </div>
+                    <div>
+                      Mutates runtime:{' '}
+                      {String(runtimeVerificationCloseout.mutatesRuntime)}
+                    </div>
+                    <div>
+                      Phase 8:{' '}
+                      {String(runtimeVerificationCloseout.phase8Allowed)}
+                    </div>
+                    <div>
+                      Next: {runtimeVerificationCloseout.nextAppRuntimeStep}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {activeProjection ? (

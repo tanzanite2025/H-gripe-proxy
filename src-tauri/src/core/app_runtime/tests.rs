@@ -316,6 +316,91 @@ fn runtime_verification_decision_checkpoint_rejects_missing_decision() {
 }
 
 #[test]
+fn runtime_verification_closeout_requires_verified_decision_checkpoint() {
+    let verification = AppRuntimeProjectionRuntimeVerificationReport {
+        status: AppRuntimeDiagnosticStatus::Healthy,
+        reason: "runtime verification passed".into(),
+        artifact_id: Some("projection-browser-runtime".into()),
+        checksum: Some("checksum-runtime".into()),
+        audit_id: Some("runtime-apply-projection-browser-runtime-50".into()),
+        runtime_apply_decision_id: Some("runtime-apply-decision-browser".into()),
+        runtime_apply_decision_boundary_manifest_id: Some("runtime-apply-boundary-browser".into()),
+        runtime_apply_decision_verified: true,
+        observed_at: 80,
+        checks: Vec::new(),
+        summary: AppRuntimeDiagnosticsSummary {
+            passed: 3,
+            warnings: 0,
+            failed: 0,
+            skipped: 0,
+        },
+        facts: vec!["runtime apply verification is read-only".into()],
+        warnings: Vec::new(),
+    };
+
+    let report = build_app_runtime_projection_runtime_verification_closeout_report(
+        verification,
+        Some("runtime-apply-verification-closeouts/closeout.yaml".into()),
+        true,
+        Vec::new(),
+        90,
+    );
+
+    assert_eq!(
+        report.status,
+        AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Complete
+    );
+    assert!(report.closeout_complete);
+    assert!(report.user_trigger_required);
+    assert!(!report.runtime_apply_allowed);
+    assert!(!report.phase8_allowed);
+    assert!(!report.reload_mihomo);
+}
+
+#[test]
+fn runtime_verification_closeout_blocks_unverified_decision_checkpoint() {
+    let verification = AppRuntimeProjectionRuntimeVerificationReport {
+        status: AppRuntimeDiagnosticStatus::Degraded,
+        reason: "runtime verification warning".into(),
+        artifact_id: Some("projection-browser-runtime".into()),
+        checksum: Some("checksum-runtime".into()),
+        audit_id: Some("runtime-apply-projection-browser-runtime-50".into()),
+        runtime_apply_decision_id: None,
+        runtime_apply_decision_boundary_manifest_id: None,
+        runtime_apply_decision_verified: false,
+        observed_at: 80,
+        checks: Vec::new(),
+        summary: AppRuntimeDiagnosticsSummary {
+            passed: 2,
+            warnings: 1,
+            failed: 0,
+            skipped: 0,
+        },
+        facts: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    let report = build_app_runtime_projection_runtime_verification_closeout_report(
+        verification,
+        Some("runtime-apply-verification-closeouts/closeout.yaml".into()),
+        true,
+        Vec::new(),
+        90,
+    );
+
+    assert_eq!(
+        report.status,
+        AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Blocked
+    );
+    assert!(!report.closeout_complete);
+    assert!(
+        report
+            .blockers
+            .contains(&"runtime verification closeout requires a verified runtime-apply decision checkpoint".into())
+    );
+}
+
+#[test]
 fn plan_rejects_missing_policy_binding() {
     let state = AppRuntimeStateDocument {
         apps: vec![sample_app()],

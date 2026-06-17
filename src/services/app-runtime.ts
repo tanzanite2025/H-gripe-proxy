@@ -594,6 +594,54 @@ export interface AppRuntimeProjectionRuntimeVerificationReport {
   warnings: string[]
 }
 
+export type AppRuntimeProjectionRuntimeVerificationCloseoutStatus =
+  | 'complete'
+  | 'blocked'
+
+export interface AppRuntimeProjectionRuntimeVerificationCloseoutRecord {
+  closeoutId: string
+  artifactId?: string
+  checksum?: string
+  auditId?: string
+  runtimeApplyDecisionId?: string
+  runtimeApplyDecisionBoundaryManifestId?: string
+  verificationStatus: AppRuntimeDiagnosticStatus
+  verificationReason: string
+  runtimeApplyDecisionVerified: boolean
+  closeoutComplete: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  createdAt: number
+}
+
+export interface AppRuntimeProjectionRuntimeVerificationCloseoutReport {
+  status: AppRuntimeProjectionRuntimeVerificationCloseoutStatus
+  reason: string
+  verification: AppRuntimeProjectionRuntimeVerificationReport
+  closeoutRecord: AppRuntimeProjectionRuntimeVerificationCloseoutRecord
+  closeoutRecordPath?: string
+  closeoutRecordPersisted: boolean
+  closeoutComplete: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export interface AppRuntimeProjectionActivationPreflightReport {
   status: AppRuntimeDiagnosticStatus
   reason: string
@@ -903,6 +951,14 @@ export async function verifyAppRuntimeProjectionRuntimeApply(
   request: AppRuntimeProjectionRuntimeVerificationRequest,
 ): Promise<AppRuntimeProjectionRuntimeVerificationReport> {
   return invoke('verify_app_runtime_projection_runtime_apply', { request })
+}
+
+export async function closeoutAppRuntimeProjectionRuntimeApplyVerification(
+  request: AppRuntimeProjectionRuntimeVerificationRequest,
+): Promise<AppRuntimeProjectionRuntimeVerificationCloseoutReport> {
+  return invoke('closeout_app_runtime_projection_runtime_apply_verification', {
+    request,
+  })
 }
 
 export async function rollbackAppRuntimeProjectionActivation(): Promise<AppRuntimeStateDocument> {

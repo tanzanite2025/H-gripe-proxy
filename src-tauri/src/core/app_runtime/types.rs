@@ -703,6 +703,61 @@ pub struct AppRuntimeProjectionRuntimeVerificationReport {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeProjectionRuntimeVerificationCloseoutStatus {
+    Complete,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeVerificationCloseoutRecord {
+    pub closeout_id: String,
+    pub artifact_id: Option<String>,
+    pub checksum: Option<String>,
+    pub audit_id: Option<String>,
+    pub runtime_apply_decision_id: Option<String>,
+    pub runtime_apply_decision_boundary_manifest_id: Option<String>,
+    pub verification_status: AppRuntimeDiagnosticStatus,
+    pub verification_reason: String,
+    pub runtime_apply_decision_verified: bool,
+    pub closeout_complete: bool,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeProjectionRuntimeVerificationCloseoutReport {
+    pub status: AppRuntimeProjectionRuntimeVerificationCloseoutStatus,
+    pub reason: String,
+    pub verification: AppRuntimeProjectionRuntimeVerificationReport,
+    pub closeout_record: AppRuntimeProjectionRuntimeVerificationCloseoutRecord,
+    pub closeout_record_path: Option<String>,
+    pub closeout_record_persisted: bool,
+    pub closeout_complete: bool,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeProjectionActivationPreflightReport {
