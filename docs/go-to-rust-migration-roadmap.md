@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime runtime-apply decision boundary） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（本批次，显式 runtime-apply boundary decision / audit record / UI gate）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（runtime apply decision checkpoint enforcement） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（显式 runtime-apply boundary decision / audit record / UI gate）、Batch AG（本批次，apply 前强制核验 persisted allow decision）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision / apply checkpoint enforcement 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1561,3 +1561,33 @@ decide_app_runtime_runtime_apply_boundary(appId, decision)
 - 不调用 `apply_app_runtime_projection_artifact_to_runtime`。
 - 不 reload Mihomo。
 - 不进入 adapter / tunnel / protocol runtime。
+
+### Batch AG：Runtime apply decision checkpoint enforcement（本批次，apply 前强制核验决策）
+
+Batch AF 已把 runtime-apply boundary 的 allow / defer / rollback recommendation 做成 Rust-owned 决策记录和 UI gate。本批次继续把这个 gate 下沉到 Rust apply 命令本身：显式 runtime candidate apply 必须携带已持久化的 allow decision id，并在真正写入 runtime candidate 前再次核验 artifact / checksum / boundary manifest 链路。
+
+```text
+apply_app_runtime_projection_artifact_to_runtime(artifactId, decisionId)
+  -> read projection artifact
+  -> read app-runtime/runtime-apply-decisions/<decisionId>/decision.yaml
+  -> require allowRuntimeCandidate + accepted + checksum/artifact match
+  -> write runtime apply audit with decision id + boundary manifest id
+```
+
+合并范围：
+
+- Command guard：`apply_app_runtime_projection_artifact_to_runtime` 新增 persisted decision checkpoint；缺少 allow decision id 时直接阻止。
+- Audit：runtime apply audit 记录 `runtimeApplyDecisionId` 与 `runtimeApplyDecisionBoundaryManifestId`，让真实 runtime mutation 可追溯到 Batch AE/AF 的 boundary manifest 和 decision record。
+- UI：显式 runtime apply 请求携带最近的 allow decision id/checksum；defer / rollback / artifact mismatch 仍不能进入 apply。
+- Tests：覆盖 runtime apply audit 与 boundary decision 的事实链关联。
+
+强边界：
+
+- 不自动调用 runtime apply；仍必须用户点击显式 apply。
+- 不绕过 staged active marker / checksum guard。
+- 不 reload Mihomo，不进入 Phase 8 / adapter / tunnel / protocol runtime。
+
+不包含：
+
+- 不扩大默认 DNS runtime 或协议 runtime 的执行范围。
+- 不自动 rollout / rollback。

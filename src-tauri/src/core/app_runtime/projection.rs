@@ -228,6 +228,8 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
     if active_projection.mutates_runtime {
         bail!("active projection already mutates runtime; rollback it before applying another runtime candidate");
     }
+    let runtime_apply_decision =
+        validate_app_runtime_projection_runtime_apply_boundary_decision(&artifact, &request).await?;
 
     let candidate = write_app_runtime_projection_runtime_merge_candidate(&artifact).await?;
     let candidate_summary = app_runtime_projection_runtime_apply_candidate_summary(&artifact, &candidate);
@@ -245,6 +247,7 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
         let applied_at = now_millis();
         let audit = app_runtime_projection_runtime_apply_audit_record(
             &artifact,
+            &runtime_apply_decision,
             "runtime_profile_merge",
             previous.as_ref(),
             &candidate_summary,
@@ -279,6 +282,55 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
     }
 
     result
+}
+
+pub(super) async fn validate_app_runtime_projection_runtime_apply_boundary_decision(
+    artifact: &PersistedAppRuntimeProjectionArtifact,
+    request: &AppRuntimeProjectionRuntimeApplyRequest,
+) -> Result<AppRuntimeRuntimeApplyBoundaryDecisionRecord> {
+    let decision_id = request
+        .runtime_apply_decision_id
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime apply requires an accepted runtime-apply boundary decision id"))?;
+    let decision = super::handoff::read_persisted_app_runtime_runtime_apply_boundary_decision(decision_id).await?;
+    if decision.decision_id != *decision_id {
+        bail!("runtime-apply boundary decision id does not match persisted record");
+    }
+    if decision.app_id != artifact.app_id {
+        bail!("runtime-apply boundary decision app id does not match projection artifact");
+    }
+    if decision.artifact_id != artifact.artifact_id {
+        bail!("runtime-apply boundary decision artifact id does not match projection artifact");
+    }
+    if decision.checksum != artifact.checksum {
+        bail!("runtime-apply boundary decision checksum does not match projection artifact");
+    }
+    if request
+        .expected_runtime_apply_decision_checksum
+        .as_ref()
+        .is_some_and(|expected| expected != &decision.checksum)
+    {
+        bail!("runtime-apply boundary decision checksum does not match expected checksum");
+    }
+    if decision.decision != AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate {
+        bail!("runtime apply requires an allowRuntimeCandidate boundary decision");
+    }
+    if !decision.decision_accepted || !decision.runtime_apply_candidate_allowed || !decision.runtime_apply_allowed {
+        bail!("runtime apply requires an accepted boundary decision with runtime candidate access");
+    }
+    if decision.rollback_recommended {
+        bail!("runtime apply is blocked because the boundary decision recommends rollback");
+    }
+    if decision.phase8_allowed
+        || decision.promotion_allowed
+        || decision.auto_rollout
+        || decision.auto_rollback
+        || decision.mutates_runtime
+        || decision.reload_mihomo
+    {
+        bail!("runtime-apply boundary decision has unsafe runtime mutation flags");
+    }
+    Ok(decision)
 }
 
 pub async fn list_app_runtime_projection_runtime_apply_audits(
@@ -699,6 +751,7 @@ pub(super) fn app_runtime_projection_runtime_apply_candidate_summary(
 
 pub(super) fn app_runtime_projection_runtime_apply_audit_record(
     artifact: &PersistedAppRuntimeProjectionArtifact,
+    runtime_apply_decision: &AppRuntimeRuntimeApplyBoundaryDecisionRecord,
     activation_kind: &str,
     previous: Option<&AppRuntimeActiveProjectionRecord>,
     candidate_summary: &AppRuntimeProjectionRuntimeApplyCandidateSummary,
@@ -715,6 +768,8 @@ pub(super) fn app_runtime_projection_runtime_apply_audit_record(
         artifact_id: artifact.artifact_id.clone(),
         app_id: artifact.app_id.clone(),
         checksum: artifact.checksum.clone(),
+        runtime_apply_decision_id: Some(runtime_apply_decision.decision_id.clone()),
+        runtime_apply_decision_boundary_manifest_id: Some(runtime_apply_decision.boundary_manifest_id.clone()),
         activation_kind: activation_kind.into(),
         applied_at,
         validation_outcome,

@@ -500,6 +500,16 @@ async fn persist_app_runtime_runtime_apply_boundary_decision_report(
     Ok(report)
 }
 
+pub(super) async fn read_persisted_app_runtime_runtime_apply_boundary_decision(
+    decision_id: &str,
+) -> Result<AppRuntimeRuntimeApplyBoundaryDecisionRecord> {
+    let path = app_runtime_runtime_apply_boundary_decision_path(decision_id)?;
+    if !fs::try_exists(&path).await.unwrap_or(false) {
+        bail!("runtime-apply boundary decision record does not exist");
+    }
+    help::read_yaml(&path).await
+}
+
 pub fn build_app_runtime_control_plane_completion_report(
     dns_handoff: AppRuntimeDnsHandoffReport,
     projection_artifact: AppRuntimeProjectionArtifact,
