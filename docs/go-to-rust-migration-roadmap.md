@@ -112,7 +112,7 @@ app registry
 | Phase 6A.1 | DNS resolver runtime skeleton / controlled probe | 完成（opt-in probe path） | PR #83/#93/#94；Rust `DnsResolverPlan` / hickory query controller / per-nameserver controlled probe UI 已落地，默认 DNS runtime 与 fake-ip / fallback-filter / nameserver-policy 仍 plan-only |
 | Phase 6B | 订阅更新控制面 / artifact pipeline | 完成 | PR #46-#71；单一事实链：state source_config → artifact → active_artifact_version → runtime，已消除 legacy profile 写回 |
 | Phase 7 | 连接 / 流量 / 内存 / 日志事件路径 Rust 化 | 完成（app-facing path） | PR #72-#79；UI 和托盘不再直连 Mihomo WebSocket，统一经 Rust monitor / Tauri event；Go sidecar 仅作为 Rust 内部 runtime event 来源 |
-| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime staged closeout boundary） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（本批次，合并 staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
+| Phase 7.5 | 应用级代理编排控制面 | 进行中（App runtime runtime-apply decision boundary） | PR #82/#84-#91/#95-#132、Batch J-K（PR #134/#135）、Batch L-R（PR #136-#140/#142/#143）、Batch S-AD、Batch AE（staged lifecycle closeout + active marker audit + rollback readiness + runtime-apply boundary manifest + UI/checkpoint 多步）、Batch AF（本批次，显式 runtime-apply boundary decision / audit record / UI gate）；AppRuntimeStateDocument、RuntimePlan、Mihomo projection、diagnostics、session observation/evaluation/leak planning、CRUD/form 管理、demo seed、聚合诊断动作、readiness 检查、staged artifact preflight、active marker、marker rollback、显式 opt-in runtime candidate apply guard、runtime apply audit / observed verification、默认 DNS runtime readiness gate / shadow evidence / opt-in switch guard / executor preflight / execution guard / limited opt-in execution / post-execution observed verification / rollback drill / expanded opt-in gate / expanded execution preflight / expanded execution + rollback / expanded post-execution verification / expanded stability gate / expanded hold policy / expanded reverify audit / reverify history closeout / lifecycle handoff / control-plane completion manifest / app-runtime DNS handoff intake / app-runtime control-plane completion bundle / staged activation lifecycle / runtime-apply boundary closeout / explicit runtime-apply decision 已进入 Rust 单一路径；下一步仍不直接切 TUN / protocol runtime |
 
 ## 已完成阶段详情
 
@@ -1529,4 +1529,35 @@ closeout_app_runtime_staged_activation_lifecycle(appId)
 不包含：
 
 - 不把 staged projection 应用到真实 runtime profile。
+- 不进入 adapter / tunnel / protocol runtime。
+
+### Batch AF：App runtime explicit runtime-apply boundary decision（本批次，显式决策审计）
+
+在 Batch AE 已持久化 runtime-apply boundary manifest 后，本批次继续把“是否允许进入显式 runtime candidate apply”做成 Rust-owned 决策记录。它只记录 allow / defer / rollback recommendation，不直接执行 runtime apply，也不 reload Mihomo。
+
+```text
+decide_app_runtime_runtime_apply_boundary(appId, decision)
+  -> closeout_app_runtime_staged_activation_lifecycle(appId)
+  -> verify closeout + marker + rollback boundary
+  -> persist app-runtime/runtime-apply-decisions/<decision>/decision.yaml
+  -> expose UI gate for explicit runtime candidate apply
+```
+
+合并范围：
+
+- Command：新增 `decide_app_runtime_runtime_apply_boundary`，消费 staged closeout 并持久化显式决策 record。
+- Decision：支持 `allowRuntimeCandidate` / `deferRuntimeApply` / `recommendRollback`。
+- UI：高级页 closeout 面板新增 allow / defer / rollback decision 按钮；runtime apply 按钮必须先看到 allow decision。
+- Tests：覆盖 allow 决策可打开 runtime candidate gate、defer / rollback 不打开 gate，且 runtime mutation flags 仍关闭。
+
+强边界：
+
+- Decision record 本身 `mutatesRuntime=false`、`reloadMihomo=false`。
+- `phase8Allowed=false`、`promotionAllowed=false`、`autoRollout=false`、`autoRollback=false`。
+- allow 只表示“用户可继续显式触发已有 runtime candidate apply”，不是自动 apply。
+
+不包含：
+
+- 不调用 `apply_app_runtime_projection_artifact_to_runtime`。
+- 不 reload Mihomo。
 - 不进入 adapter / tunnel / protocol runtime。

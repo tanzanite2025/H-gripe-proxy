@@ -60,6 +60,23 @@ pub enum AppRuntimeStagedActivationCloseoutStatus {
     Blocked,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeRuntimeApplyBoundaryDecision {
+    AllowRuntimeCandidate,
+    DeferRuntimeApply,
+    RecommendRollback,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AppRuntimeRuntimeApplyBoundaryDecisionStatus {
+    Accepted,
+    Deferred,
+    RollbackRecommended,
+    Blocked,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDnsHandoffRecord {
@@ -187,6 +204,65 @@ pub struct AppRuntimeStagedActivationCloseoutReport {
     pub boundary_manifest_path: Option<String>,
     pub boundary_manifest_persisted: bool,
     pub closeout_complete: bool,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub user_trigger_required: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeRuntimeApplyBoundaryDecisionRequest {
+    pub app_id: String,
+    pub decision: AppRuntimeRuntimeApplyBoundaryDecision,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeRuntimeApplyBoundaryDecisionRecord {
+    pub decision_id: String,
+    pub app_id: String,
+    pub artifact_id: String,
+    pub checksum: String,
+    pub boundary_manifest_id: String,
+    pub boundary_manifest_path: Option<String>,
+    pub decision: AppRuntimeRuntimeApplyBoundaryDecision,
+    pub rationale: Option<String>,
+    pub decision_accepted: bool,
+    pub runtime_apply_candidate_allowed: bool,
+    pub rollback_recommended: bool,
+    pub runtime_apply_allowed: bool,
+    pub phase8_allowed: bool,
+    pub promotion_allowed: bool,
+    pub auto_rollout: bool,
+    pub auto_rollback: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub next_app_runtime_step: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeRuntimeApplyBoundaryDecisionReport {
+    pub status: AppRuntimeRuntimeApplyBoundaryDecisionStatus,
+    pub reason: String,
+    pub closeout: AppRuntimeStagedActivationCloseoutReport,
+    pub decision_record: AppRuntimeRuntimeApplyBoundaryDecisionRecord,
+    pub decision_record_path: Option<String>,
+    pub decision_record_persisted: bool,
+    pub runtime_apply_candidate_allowed: bool,
+    pub rollback_recommended: bool,
     pub runtime_apply_allowed: bool,
     pub phase8_allowed: bool,
     pub promotion_allowed: bool,

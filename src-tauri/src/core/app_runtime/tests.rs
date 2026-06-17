@@ -131,6 +131,76 @@ fn app_runtime_staged_activation_closeout_persists_boundary_without_runtime_appl
 }
 
 #[test]
+fn app_runtime_runtime_apply_boundary_decision_allows_candidate_without_runtime_mutation() {
+    let closeout = sample_staged_activation_closeout_report();
+    let report = build_app_runtime_runtime_apply_boundary_decision_report(
+        closeout,
+        AppRuntimeRuntimeApplyBoundaryDecisionRequest {
+            app_id: "browser".into(),
+            decision: AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate,
+            rationale: Some("operator reviewed staged boundary".into()),
+        },
+        Some("decision.yaml".into()),
+        true,
+        Vec::new(),
+        700,
+    );
+
+    assert_eq!(report.status, AppRuntimeRuntimeApplyBoundaryDecisionStatus::Accepted);
+    assert!(report.runtime_apply_candidate_allowed);
+    assert!(report.runtime_apply_allowed);
+    assert!(report.decision_record_persisted);
+    assert!(report.decision_record.decision_accepted);
+    assert_eq!(
+        report.decision_record.decision,
+        AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate
+    );
+    assert!(!report.phase8_allowed);
+    assert!(!report.auto_rollout);
+    assert!(!report.auto_rollback);
+    assert!(!report.mutates_runtime);
+    assert!(!report.reload_mihomo);
+}
+
+#[test]
+fn app_runtime_runtime_apply_boundary_decision_can_defer_or_recommend_rollback() {
+    let defer = build_app_runtime_runtime_apply_boundary_decision_report(
+        sample_staged_activation_closeout_report(),
+        AppRuntimeRuntimeApplyBoundaryDecisionRequest {
+            app_id: "browser".into(),
+            decision: AppRuntimeRuntimeApplyBoundaryDecision::DeferRuntimeApply,
+            rationale: None,
+        },
+        Some("defer.yaml".into()),
+        true,
+        Vec::new(),
+        710,
+    );
+    let rollback = build_app_runtime_runtime_apply_boundary_decision_report(
+        sample_staged_activation_closeout_report(),
+        AppRuntimeRuntimeApplyBoundaryDecisionRequest {
+            app_id: "browser".into(),
+            decision: AppRuntimeRuntimeApplyBoundaryDecision::RecommendRollback,
+            rationale: None,
+        },
+        Some("rollback.yaml".into()),
+        true,
+        Vec::new(),
+        720,
+    );
+
+    assert_eq!(defer.status, AppRuntimeRuntimeApplyBoundaryDecisionStatus::Deferred);
+    assert!(!defer.runtime_apply_candidate_allowed);
+    assert_eq!(
+        rollback.status,
+        AppRuntimeRuntimeApplyBoundaryDecisionStatus::RollbackRecommended
+    );
+    assert!(rollback.rollback_recommended);
+    assert!(!rollback.runtime_apply_candidate_allowed);
+    assert!(!rollback.mutates_runtime);
+}
+
+#[test]
 fn plan_rejects_missing_policy_binding() {
     let state = AppRuntimeStateDocument {
         apps: vec![sample_app()],
@@ -1392,6 +1462,16 @@ fn sample_staged_activation_lifecycle_report() -> AppRuntimeStagedActivationLife
     };
 
     build_app_runtime_staged_activation_lifecycle_report(report, Some(active_projection), true)
+}
+
+fn sample_staged_activation_closeout_report() -> AppRuntimeStagedActivationCloseoutReport {
+    build_app_runtime_staged_activation_closeout_report(
+        sample_staged_activation_lifecycle_report(),
+        Some("runtime-apply-boundary.yaml".into()),
+        true,
+        Vec::new(),
+        600,
+    )
 }
 
 fn sample_dns_reverify_record(created_at_epoch_seconds: u64) -> DnsDefaultRuntimeExpandedReverifyRecord {

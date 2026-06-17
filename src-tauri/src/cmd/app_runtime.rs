@@ -5,6 +5,7 @@ use crate::core::app_runtime::{
     AppRuntimeProjectionActivationPreflightReport, AppRuntimeProjectionActivationPreflightRequest,
     AppRuntimeProjectionArtifact, AppRuntimeProjectionRuntimeApplyAuditRecord, AppRuntimeProjectionRuntimeApplyRequest,
     AppRuntimeProjectionRuntimeVerificationReport, AppRuntimeProjectionRuntimeVerificationRequest,
+    AppRuntimeRuntimeApplyBoundaryDecisionReport, AppRuntimeRuntimeApplyBoundaryDecisionRequest,
     AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest, AppRuntimeSessionLeakReport,
     AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStagedActivationCloseoutReport,
     AppRuntimeStagedActivationLifecycleReport, AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
@@ -16,6 +17,7 @@ use crate::core::app_runtime::{
     closeout_app_runtime_staged_activation_lifecycle as closeout_app_runtime_staged_activation_lifecycle_record,
     complete_app_runtime_control_plane as complete_app_runtime_control_plane_record,
     complete_app_runtime_staged_activation_lifecycle as complete_app_runtime_staged_activation_lifecycle_record,
+    decide_app_runtime_runtime_apply_boundary as decide_app_runtime_runtime_apply_boundary_record,
     delete_app_policy_binding as delete_app_policy_binding_record,
     delete_app_registry_entry as delete_app_registry_entry_record, delete_dns_profile as delete_dns_profile_record,
     delete_node_pool as delete_node_pool_record, delete_security_profile as delete_security_profile_record,
@@ -74,6 +76,15 @@ pub async fn closeout_app_runtime_staged_activation_lifecycle(
     request: AppRuntimePlanRequest,
 ) -> CmdResult<AppRuntimeStagedActivationCloseoutReport> {
     closeout_app_runtime_staged_activation_lifecycle_record(request)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn decide_app_runtime_runtime_apply_boundary(
+    request: AppRuntimeRuntimeApplyBoundaryDecisionRequest,
+) -> CmdResult<AppRuntimeRuntimeApplyBoundaryDecisionReport> {
+    decide_app_runtime_runtime_apply_boundary_record(request)
         .await
         .stringify_err()
 }

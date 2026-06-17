@@ -279,6 +279,69 @@ export interface AppRuntimeStagedActivationCloseoutReport {
   facts: string[]
 }
 
+export type AppRuntimeRuntimeApplyBoundaryDecision =
+  | 'allowRuntimeCandidate'
+  | 'deferRuntimeApply'
+  | 'recommendRollback'
+
+export type AppRuntimeRuntimeApplyBoundaryDecisionStatus =
+  | 'accepted'
+  | 'deferred'
+  | 'rollbackRecommended'
+  | 'blocked'
+
+export interface AppRuntimeRuntimeApplyBoundaryDecisionRequest {
+  appId: string
+  decision: AppRuntimeRuntimeApplyBoundaryDecision
+  rationale?: string | null
+}
+
+export interface AppRuntimeRuntimeApplyBoundaryDecisionRecord {
+  decisionId: string
+  appId: string
+  artifactId: string
+  checksum: string
+  boundaryManifestId: string
+  boundaryManifestPath?: string | null
+  decision: AppRuntimeRuntimeApplyBoundaryDecision
+  rationale?: string | null
+  decisionAccepted: boolean
+  runtimeApplyCandidateAllowed: boolean
+  rollbackRecommended: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  createdAt: number
+}
+
+export interface AppRuntimeRuntimeApplyBoundaryDecisionReport {
+  status: AppRuntimeRuntimeApplyBoundaryDecisionStatus
+  reason: string
+  closeout: AppRuntimeStagedActivationCloseoutReport
+  decisionRecord: AppRuntimeRuntimeApplyBoundaryDecisionRecord
+  decisionRecordPath?: string | null
+  decisionRecordPersisted: boolean
+  runtimeApplyCandidateAllowed: boolean
+  rollbackRecommended: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export interface AppRuntimeProjectionRollbackMetadata {
   previousArtifactId?: string
   previousChecksum?: string
@@ -711,6 +774,12 @@ export async function closeoutAppRuntimeStagedActivationLifecycle(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeStagedActivationCloseoutReport> {
   return invoke('closeout_app_runtime_staged_activation_lifecycle', { request })
+}
+
+export async function decideAppRuntimeRuntimeApplyBoundary(
+  request: AppRuntimeRuntimeApplyBoundaryDecisionRequest,
+): Promise<AppRuntimeRuntimeApplyBoundaryDecisionReport> {
+  return invoke('decide_app_runtime_runtime_apply_boundary', { request })
 }
 
 export async function upsertAppRegistryEntry(
