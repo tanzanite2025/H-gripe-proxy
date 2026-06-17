@@ -387,6 +387,148 @@ pub async fn verify_app_runtime_projection_runtime_apply(
     Ok(report)
 }
 
+pub async fn closeout_app_runtime_projection_runtime_apply_verification(
+    request: AppRuntimeProjectionRuntimeVerificationRequest,
+) -> Result<AppRuntimeProjectionRuntimeVerificationCloseoutReport> {
+    let verification = verify_app_runtime_projection_runtime_apply(request).await?;
+    persist_app_runtime_projection_runtime_verification_closeout_report(verification).await
+}
+
+async fn persist_app_runtime_projection_runtime_verification_closeout_report(
+    verification: AppRuntimeProjectionRuntimeVerificationReport,
+) -> Result<AppRuntimeProjectionRuntimeVerificationCloseoutReport> {
+    let created_at = now_millis();
+    let closeout_id = format!("app-runtime-runtime-verification-closeout-{created_at}");
+    let path = app_runtime_projection_runtime_verification_closeout_path(&closeout_id)?;
+    let mut persist_errors = Vec::new();
+    if let Some(parent) = path.parent() {
+        if let Err(error) = fs::create_dir_all(parent).await {
+            persist_errors
+                .push(format!("failed to create app-runtime runtime verification closeout directory: {error}").into());
+        }
+    }
+    let report = build_app_runtime_projection_runtime_verification_closeout_report(
+        verification,
+        Some(path.to_string_lossy().to_string().into()),
+        persist_errors.is_empty(),
+        persist_errors,
+        created_at,
+    );
+    if report.closeout_record_persisted {
+        if let Err(error) = help::save_yaml(&path, &report.closeout_record, None).await {
+            return Ok(build_app_runtime_projection_runtime_verification_closeout_report(
+                report.verification,
+                Some(path.to_string_lossy().to_string().into()),
+                false,
+                vec![format!("failed to persist app-runtime runtime verification closeout record: {error}").into()],
+                created_at,
+            ));
+        }
+    }
+    Ok(report)
+}
+
+pub fn build_app_runtime_projection_runtime_verification_closeout_report(
+    verification: AppRuntimeProjectionRuntimeVerificationReport,
+    closeout_record_path: Option<String>,
+    closeout_record_persisted: bool,
+    mut persist_errors: Vec<String>,
+    created_at: i64,
+) -> AppRuntimeProjectionRuntimeVerificationCloseoutReport {
+    let mut blockers = Vec::new();
+    if verification.status == AppRuntimeDiagnosticStatus::Blocked {
+        blockers.push("runtime verification closeout requires non-blocked observed verification".into());
+    }
+    if verification.audit_id.is_none() {
+        blockers.push("runtime verification closeout requires a runtime apply audit".into());
+    }
+    if !verification.runtime_apply_decision_verified {
+        blockers.push("runtime verification closeout requires a verified runtime-apply decision checkpoint".into());
+    }
+    if !closeout_record_persisted {
+        blockers.append(&mut persist_errors);
+    }
+    let status = if blockers.is_empty() {
+        AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Complete
+    } else {
+        AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Blocked
+    };
+    let closeout_complete = status == AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Complete;
+    let next_app_runtime_step: String = if closeout_complete {
+        "holdVerifiedRuntimeApplyAtPostApplyBoundary".into()
+    } else {
+        "resolveRuntimeApplyVerificationCheckpointBeforeProceeding".into()
+    };
+    let closeout_record = AppRuntimeProjectionRuntimeVerificationCloseoutRecord {
+        closeout_id: format!("app-runtime-runtime-verification-closeout-{created_at}").into(),
+        artifact_id: verification.artifact_id.clone(),
+        checksum: verification.checksum.clone(),
+        audit_id: verification.audit_id.clone(),
+        runtime_apply_decision_id: verification.runtime_apply_decision_id.clone(),
+        runtime_apply_decision_boundary_manifest_id: verification.runtime_apply_decision_boundary_manifest_id.clone(),
+        verification_status: verification.status,
+        verification_reason: verification.reason.clone(),
+        runtime_apply_decision_verified: verification.runtime_apply_decision_verified,
+        closeout_complete,
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step: next_app_runtime_step.clone(),
+        created_at,
+    };
+    let mut warnings = verification.warnings.clone();
+    warnings.push("Runtime verification closeout is read-only and does not promote Phase 8".into());
+    warnings.sort();
+    warnings.dedup();
+    let facts = vec![
+        "runtime verification closeout consumes observed runtime verification".into(),
+        "runtime verification closeout preserves runtime-apply decision checkpoint lineage".into(),
+        "runtime verification closeout does not reload Mihomo".into(),
+        "runtime verification closeout keeps phase8Allowed=false".into(),
+    ];
+    AppRuntimeProjectionRuntimeVerificationCloseoutReport {
+        status,
+        reason: app_runtime_projection_runtime_verification_closeout_reason(status, &blockers),
+        verification,
+        closeout_record,
+        closeout_record_path,
+        closeout_record_persisted,
+        closeout_complete,
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        user_trigger_required: true,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
+fn app_runtime_projection_runtime_verification_closeout_reason(
+    status: AppRuntimeProjectionRuntimeVerificationCloseoutStatus,
+    blockers: &[String],
+) -> String {
+    match status {
+        AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Complete => {
+            "runtime apply verification checkpoint closeout is complete".into()
+        }
+        AppRuntimeProjectionRuntimeVerificationCloseoutStatus::Blocked => format!(
+            "runtime apply verification checkpoint closeout is blocked: {}",
+            blockers.join("; ")
+        )
+        .into(),
+    }
+}
+
 pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeStateDocument> {
     let current = read_app_runtime_state_document()
         .await?
@@ -471,6 +613,16 @@ pub(super) fn app_runtime_projection_artifact_path(artifact_id: &str) -> Result<
     Ok(dirs::app_runtime_projection_artifacts_dir()?
         .join(artifact_segment.as_str())
         .join("artifact.yaml"))
+}
+
+pub(super) fn app_runtime_projection_runtime_verification_closeout_path(
+    closeout_id: &str,
+) -> Result<std::path::PathBuf> {
+    let closeout_segment = safe_app_runtime_artifact_segment(closeout_id);
+    Ok(dirs::app_runtime_dir()?
+        .join("runtime-apply-verification-closeouts")
+        .join(closeout_segment.as_str())
+        .join("closeout.yaml"))
 }
 
 pub(super) fn safe_app_runtime_artifact_segment(value: &str) -> String {

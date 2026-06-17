@@ -4,16 +4,17 @@ use crate::core::app_runtime::{
     AppRuntimeDnsHandoffReport, AppRuntimeMihomoProjection, AppRuntimePlan, AppRuntimePlanRequest,
     AppRuntimeProjectionActivationPreflightReport, AppRuntimeProjectionActivationPreflightRequest,
     AppRuntimeProjectionArtifact, AppRuntimeProjectionRuntimeApplyAuditRecord, AppRuntimeProjectionRuntimeApplyRequest,
-    AppRuntimeProjectionRuntimeVerificationReport, AppRuntimeProjectionRuntimeVerificationRequest,
-    AppRuntimeRuntimeApplyBoundaryDecisionReport, AppRuntimeRuntimeApplyBoundaryDecisionRequest,
-    AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest, AppRuntimeSessionLeakReport,
-    AppRuntimeSessionRecord, AppRuntimeSessionStartReport, AppRuntimeStagedActivationCloseoutReport,
-    AppRuntimeStagedActivationLifecycleReport, AppRuntimeStateDocument, DnsProfile, NodePool, SecurityProfile,
-    accept_app_runtime_dns_handoff as accept_app_runtime_dns_handoff_record,
+    AppRuntimeProjectionRuntimeVerificationCloseoutReport, AppRuntimeProjectionRuntimeVerificationReport,
+    AppRuntimeProjectionRuntimeVerificationRequest, AppRuntimeRuntimeApplyBoundaryDecisionReport,
+    AppRuntimeRuntimeApplyBoundaryDecisionRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest,
+    AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport,
+    AppRuntimeStagedActivationCloseoutReport, AppRuntimeStagedActivationLifecycleReport, AppRuntimeStateDocument,
+    DnsProfile, NodePool, SecurityProfile, accept_app_runtime_dns_handoff as accept_app_runtime_dns_handoff_record,
     activate_app_runtime_projection_artifact as activate_app_runtime_projection_artifact_record,
     apply_app_runtime_projection_artifact_to_runtime as apply_app_runtime_projection_artifact_to_runtime_record,
     build_app_runtime_demo_seed_document,
     build_app_runtime_projection_artifact as build_app_runtime_projection_artifact_record,
+    closeout_app_runtime_projection_runtime_apply_verification as closeout_app_runtime_projection_runtime_apply_verification_record,
     closeout_app_runtime_staged_activation_lifecycle as closeout_app_runtime_staged_activation_lifecycle_record,
     complete_app_runtime_control_plane as complete_app_runtime_control_plane_record,
     complete_app_runtime_staged_activation_lifecycle as complete_app_runtime_staged_activation_lifecycle_record,
@@ -218,6 +219,15 @@ pub async fn verify_app_runtime_projection_runtime_apply(
     request: AppRuntimeProjectionRuntimeVerificationRequest,
 ) -> CmdResult<AppRuntimeProjectionRuntimeVerificationReport> {
     verify_app_runtime_projection_runtime_apply_record(request)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn closeout_app_runtime_projection_runtime_apply_verification(
+    request: AppRuntimeProjectionRuntimeVerificationRequest,
+) -> CmdResult<AppRuntimeProjectionRuntimeVerificationCloseoutReport> {
+    closeout_app_runtime_projection_runtime_apply_verification_record(request)
         .await
         .stringify_err()
 }
