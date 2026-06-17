@@ -584,6 +584,9 @@ export interface AppRuntimeProjectionRuntimeVerificationReport {
   artifactId?: string
   checksum?: string
   auditId?: string
+  runtimeApplyDecisionId?: string
+  runtimeApplyDecisionBoundaryManifestId?: string
+  runtimeApplyDecisionVerified: boolean
   observedAt: number
   checks: AppRuntimeDiagnosticCheck[]
   summary: AppRuntimeDiagnosticsSummary

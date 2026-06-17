@@ -842,9 +842,28 @@ pub(super) async fn app_runtime_projection_runtime_verification_report(
         Some(artifact_id) => Some(read_persisted_app_runtime_projection_artifact(artifact_id).await?),
         None => None,
     };
+    let (runtime_apply_decision, decision_load_error) =
+        match audit.and_then(|audit| audit.runtime_apply_decision_id.as_ref()) {
+            Some(decision_id) => {
+                match super::handoff::read_persisted_app_runtime_runtime_apply_boundary_decision(decision_id).await {
+                    Ok(decision) => (Some(decision), None),
+                    Err(error) => (
+                        None,
+                        Some(format!("failed to read runtime-apply boundary decision record: {error}").into()),
+                    ),
+                }
+            }
+            None => (None, None),
+        };
 
     checks.push(runtime_verification_active_marker_check(active, artifact_id));
     checks.push(runtime_verification_audit_check(audit));
+    checks.push(runtime_verification_decision_checkpoint_check(
+        audit,
+        runtime_apply_decision.as_ref(),
+        decision_load_error.as_ref(),
+        artifact.as_ref(),
+    ));
 
     let runtime_config = Config::runtime().await.latest_arc().config.clone();
     checks.push(runtime_verification_runtime_config_check(runtime_config.as_ref()));
@@ -874,6 +893,9 @@ pub(super) async fn app_runtime_projection_runtime_verification_report(
     let status = diagnostics_status(&summary);
     let reason = runtime_verification_reason(status, &summary);
     warnings.extend(runtime_verification_warnings(&checks));
+    if let Some(error) = decision_load_error {
+        warnings.push(error);
+    }
 
     Ok(AppRuntimeProjectionRuntimeVerificationReport {
         status,
@@ -881,6 +903,17 @@ pub(super) async fn app_runtime_projection_runtime_verification_report(
         artifact_id: artifact_id.cloned(),
         checksum: active.map(|active| active.checksum.clone()),
         audit_id: audit.map(|audit| audit.audit_id.clone()),
+        runtime_apply_decision_id: runtime_apply_decision
+            .as_ref()
+            .map(|decision| decision.decision_id.clone())
+            .or_else(|| audit.and_then(|audit| audit.runtime_apply_decision_id.clone())),
+        runtime_apply_decision_boundary_manifest_id: runtime_apply_decision
+            .as_ref()
+            .map(|decision| decision.boundary_manifest_id.clone())
+            .or_else(|| audit.and_then(|audit| audit.runtime_apply_decision_boundary_manifest_id.clone())),
+        runtime_apply_decision_verified: runtime_apply_decision
+            .as_ref()
+            .is_some_and(|decision| runtime_apply_decision_matches_audit(audit, decision, artifact.as_ref())),
         observed_at,
         checks,
         summary,
@@ -942,6 +975,97 @@ pub(super) fn runtime_verification_active_marker_check(
             Vec::new(),
         ),
     }
+}
+
+pub(super) fn runtime_verification_decision_checkpoint_check(
+    audit: Option<&AppRuntimeProjectionRuntimeApplyAuditRecord>,
+    decision: Option<&AppRuntimeRuntimeApplyBoundaryDecisionRecord>,
+    decision_load_error: Option<&String>,
+    artifact: Option<&PersistedAppRuntimeProjectionArtifact>,
+) -> AppRuntimeDiagnosticCheck {
+    match (audit, decision) {
+        (Some(_), _) if decision_load_error.is_some() => diagnostic_check(
+            "runtime_apply_decision_checkpoint",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "runtime apply decision checkpoint could not be read".into(),
+            decision_load_error.iter().map(|error| (*error).clone()).collect(),
+        ),
+        (Some(audit), None) if audit.runtime_apply_decision_id.is_none() => diagnostic_check(
+            "runtime_apply_decision_checkpoint",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "runtime apply audit is missing a boundary decision checkpoint".into(),
+            vec![format!("auditId={}", audit.audit_id).into()],
+        ),
+        (Some(audit), None) => diagnostic_check(
+            "runtime_apply_decision_checkpoint",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "runtime apply boundary decision checkpoint is unavailable".into(),
+            vec![format!("auditId={}", audit.audit_id).into()],
+        ),
+        (Some(audit), Some(decision)) if runtime_apply_decision_matches_audit(Some(audit), decision, artifact) => {
+            diagnostic_check(
+                "runtime_apply_decision_checkpoint",
+                AppRuntimeDiagnosticCategory::RuntimeBoundary,
+                AppRuntimeDiagnosticCheckStatus::Passed,
+                "runtime apply audit is linked to an accepted boundary decision".into(),
+                vec![
+                    format!("decisionId={}", decision.decision_id).into(),
+                    format!("boundaryManifestId={}", decision.boundary_manifest_id).into(),
+                ],
+            )
+        }
+        (Some(audit), Some(decision)) => diagnostic_check(
+            "runtime_apply_decision_checkpoint",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "runtime apply decision checkpoint does not match the audit chain".into(),
+            vec![
+                format!("auditId={}", audit.audit_id).into(),
+                format!("decisionId={}", decision.decision_id).into(),
+            ],
+        ),
+        (None, _) => diagnostic_check(
+            "runtime_apply_decision_checkpoint",
+            AppRuntimeDiagnosticCategory::RuntimeBoundary,
+            AppRuntimeDiagnosticCheckStatus::Failed,
+            "no runtime apply audit exists for decision checkpoint verification".into(),
+            Vec::new(),
+        ),
+    }
+}
+
+pub(super) fn runtime_apply_decision_matches_audit(
+    audit: Option<&AppRuntimeProjectionRuntimeApplyAuditRecord>,
+    decision: &AppRuntimeRuntimeApplyBoundaryDecisionRecord,
+    artifact: Option<&PersistedAppRuntimeProjectionArtifact>,
+) -> bool {
+    let Some(audit) = audit else {
+        return false;
+    };
+    audit.runtime_apply_decision_id.as_ref() == Some(&decision.decision_id)
+        && audit.runtime_apply_decision_boundary_manifest_id.as_ref() == Some(&decision.boundary_manifest_id)
+        && audit.artifact_id == decision.artifact_id
+        && audit.app_id == decision.app_id
+        && audit.checksum == decision.checksum
+        && artifact.is_none_or(|artifact| {
+            artifact.artifact_id == decision.artifact_id
+                && artifact.app_id == decision.app_id
+                && artifact.checksum == decision.checksum
+        })
+        && decision.decision == AppRuntimeRuntimeApplyBoundaryDecision::AllowRuntimeCandidate
+        && decision.decision_accepted
+        && decision.runtime_apply_candidate_allowed
+        && decision.runtime_apply_allowed
+        && !decision.rollback_recommended
+        && !decision.phase8_allowed
+        && !decision.promotion_allowed
+        && !decision.auto_rollout
+        && !decision.auto_rollback
+        && !decision.mutates_runtime
+        && !decision.reload_mihomo
 }
 
 pub(super) fn runtime_verification_audit_check(
