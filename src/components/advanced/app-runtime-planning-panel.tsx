@@ -12,6 +12,7 @@ import {
   applyAppRuntimeProjectionArtifactToRuntime,
   buildAppRuntimeDemoSeed,
   buildAppRuntimeProjectionArtifact,
+  buildAppRuntimeProjectionRuntimePostApplyHold,
   closeoutAppRuntimeProjectionRuntimeApplyVerification,
   closeoutAppRuntimeStagedActivationLifecycle,
   completeAppRuntimeControlPlane,
@@ -26,6 +27,7 @@ import {
   evaluateAppRuntimeSession,
   finishAppRuntimeSession,
   getAppRuntimeState,
+  listAppRuntimeProjectionRuntimeVerificationCloseouts,
   preflightAppRuntimeProjectionActivation,
   recordAppRuntimeSessionObservation,
   projectAppRuntimePlanToMihomo,
@@ -51,6 +53,8 @@ import {
   type AppRuntimePlan,
   type AppRuntimeProjectionActivationPreflightReport,
   type AppRuntimeProjectionArtifact,
+  type AppRuntimeProjectionRuntimePostApplyHoldReport,
+  type AppRuntimeProjectionRuntimeVerificationCloseoutRecord,
   type AppRuntimeProjectionRuntimeVerificationCloseoutReport,
   type AppRuntimeProjectionRuntimeVerificationReport,
   type AppRuntimeRuntimeApplyBoundaryDecision,
@@ -148,6 +152,10 @@ export function AppRuntimePlanningPanel() {
     useState<AppRuntimeProjectionRuntimeVerificationReport | null>(null)
   const [runtimeVerificationCloseout, setRuntimeVerificationCloseout] =
     useState<AppRuntimeProjectionRuntimeVerificationCloseoutReport | null>(null)
+  const [runtimeVerificationCloseoutHistory, setRuntimeVerificationCloseoutHistory] =
+    useState<AppRuntimeProjectionRuntimeVerificationCloseoutRecord[]>([])
+  const [runtimePostApplyHold, setRuntimePostApplyHold] =
+    useState<AppRuntimeProjectionRuntimePostApplyHoldReport | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [evaluation, setEvaluation] =
     useState<AppRuntimeSessionEvaluationReport | null>(null)
@@ -227,6 +235,9 @@ export function AppRuntimePlanningPanel() {
     if (!projectionArtifact) {
       setActivationPreflight(null)
       setRuntimeVerification(null)
+      setRuntimeVerificationCloseout(null)
+      setRuntimeVerificationCloseoutHistory([])
+      setRuntimePostApplyHold(null)
     }
   }, [projectionArtifact])
 
@@ -513,6 +524,22 @@ export function AppRuntimePlanningPanel() {
           ? `${stagedActivationCloseoutReport.nextAppRuntimeStep}; manifest=${String(stagedActivationCloseoutReport.boundaryManifestPersisted)}`
           : 'Close out staged activation with a persisted runtime-apply boundary manifest.',
       },
+      {
+        key: 'runtime-verification-closeout',
+        label: 'Runtime verification closeout',
+        status: runtimeVerificationCloseout?.status ?? 'skipped',
+        detail: runtimeVerificationCloseout
+          ? `${runtimeVerificationCloseout.nextAppRuntimeStep}; closeout=${runtimeVerificationCloseout.closeoutRecord.closeoutId}`
+          : 'Persist a closeout after runtime verification validates the decision chain.',
+      },
+      {
+        key: 'runtime-post-apply-hold',
+        label: 'Runtime post-apply hold',
+        status: runtimePostApplyHold?.status ?? 'skipped',
+        detail: runtimePostApplyHold
+          ? `${runtimePostApplyHold.nextAppRuntimeStep}; history=${runtimePostApplyHold.closeoutHistoryCount}`
+          : 'Build the final hold gate from closeout history before any later runtime expansion discussion.',
+      },
     ]
   }, [
     controlPlaneCompletionReport,
@@ -520,6 +547,8 @@ export function AppRuntimePlanningPanel() {
     dnsHandoffReport,
     dnsProbeReport,
     projection,
+    runtimePostApplyHold,
+    runtimeVerificationCloseout,
     selectedApp,
     selectedDnsProfile,
     selectedOverviewRow,
@@ -723,6 +752,56 @@ export function AppRuntimePlanningPanel() {
       })
     }
 
+    if (!runtimeVerificationCloseout) {
+      actions.push({
+        key: 'runtime-verification-closeout-run',
+        scope: 'Verification closeout',
+        status: 'skipped',
+        message: 'Runtime verification closeout not run',
+        detail:
+          'Persist the post-apply verification closeout before building the hold gate.',
+        action: 'closeout-runtime-verification',
+        actionLabel: '收口',
+      })
+    } else if (runtimeVerificationCloseout.status === 'blocked') {
+      actions.push({
+        key: 'runtime-verification-closeout-blocked',
+        scope: 'Verification closeout',
+        status: 'blocked',
+        message: runtimeVerificationCloseout.reason,
+        detail:
+          runtimeVerificationCloseout.blockers.join('；') ||
+          runtimeVerificationCloseout.nextAppRuntimeStep,
+        action: 'closeout-runtime-verification',
+        actionLabel: '重试',
+      })
+    }
+
+    if (!runtimePostApplyHold) {
+      actions.push({
+        key: 'runtime-post-apply-hold-run',
+        scope: 'Post-apply hold',
+        status: 'skipped',
+        message: 'Runtime post-apply hold not built',
+        detail:
+          'Review persisted closeout history and hold runtime expansion at the audited boundary.',
+        action: 'build-runtime-post-apply-hold',
+        actionLabel: '生成',
+      })
+    } else if (runtimePostApplyHold.status === 'blocked') {
+      actions.push({
+        key: 'runtime-post-apply-hold-blocked',
+        scope: 'Post-apply hold',
+        status: 'blocked',
+        message: runtimePostApplyHold.reason,
+        detail:
+          runtimePostApplyHold.blockers.join('；') ||
+          runtimePostApplyHold.nextAppRuntimeStep,
+        action: 'build-runtime-post-apply-hold',
+        actionLabel: '重试',
+      })
+    }
+
     if (actions.length === 0) {
       actions.push({
         key: 'no-actions',
@@ -741,6 +820,8 @@ export function AppRuntimePlanningPanel() {
     dnsHandoffReport,
     dnsProbeReport,
     projection?.mutatesRuntime,
+    runtimePostApplyHold,
+    runtimeVerificationCloseout,
     selectedApp,
     selectedDnsProfile,
     selectedOverviewRow,
@@ -777,6 +858,10 @@ export function AppRuntimePlanningPanel() {
     setLeakReport(null)
     setDnsProbeReport(null)
     setProjectionArtifact(null)
+    setRuntimeVerification(null)
+    setRuntimeVerificationCloseout(null)
+    setRuntimeVerificationCloseoutHistory([])
+    setRuntimePostApplyHold(null)
   }
 
   const loadState = useLockFn(async () => {
@@ -1120,6 +1205,8 @@ export function AppRuntimePlanningPanel() {
       setState(nextState)
       setRuntimeVerification(null)
       setRuntimeVerificationCloseout(null)
+      setRuntimeVerificationCloseoutHistory([])
+      setRuntimePostApplyHold(null)
       showNotice.success('已显式应用 projection runtime candidate')
     } catch (error) {
       showNotice.error(error)
@@ -1140,6 +1227,8 @@ export function AppRuntimePlanningPanel() {
       })
       setRuntimeVerification(report)
       setRuntimeVerificationCloseout(null)
+      setRuntimeVerificationCloseoutHistory([])
+      setRuntimePostApplyHold(null)
       setState(await getAppRuntimeState())
       showNotice.success(
         report.status === 'healthy'
@@ -1166,11 +1255,50 @@ export function AppRuntimePlanningPanel() {
         })
       setRuntimeVerification(report.verification)
       setRuntimeVerificationCloseout(report)
+      const [history, hold] = await Promise.all([
+        listAppRuntimeProjectionRuntimeVerificationCloseouts(
+          projectionArtifact.artifactId,
+        ),
+        buildAppRuntimeProjectionRuntimePostApplyHold({
+          artifactId: projectionArtifact.artifactId,
+        }),
+      ])
+      setRuntimeVerificationCloseoutHistory(history)
+      setRuntimePostApplyHold(hold)
       setState(await getAppRuntimeState())
       showNotice.success(
         report.status === 'complete'
           ? 'runtime verification closeout 已完成'
           : 'runtime verification closeout 已阻止',
+      )
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setRuntimeVerificationCloseoutPending(false)
+    }
+  })
+
+  const buildProjectionRuntimePostApplyHold = useLockFn(async () => {
+    if (!projectionArtifact) {
+      return
+    }
+
+    setRuntimeVerificationCloseoutPending(true)
+    try {
+      const [history, report] = await Promise.all([
+        listAppRuntimeProjectionRuntimeVerificationCloseouts(
+          projectionArtifact.artifactId,
+        ),
+        buildAppRuntimeProjectionRuntimePostApplyHold({
+          artifactId: projectionArtifact.artifactId,
+        }),
+      ])
+      setRuntimeVerificationCloseoutHistory(history)
+      setRuntimePostApplyHold(report)
+      showNotice.success(
+        report.status === 'holding'
+          ? 'runtime post-apply hold 已生成'
+          : 'runtime post-apply hold 已阻止',
       )
     } catch (error) {
       showNotice.error(error)
@@ -1241,6 +1369,16 @@ export function AppRuntimePlanningPanel() {
 
     if (action.action === 'closeout-staged-activation') {
       void closeoutStagedActivation()
+      return
+    }
+
+    if (action.action === 'closeout-runtime-verification') {
+      void closeoutProjectionRuntimeVerification()
+      return
+    }
+
+    if (action.action === 'build-runtime-post-apply-hold') {
+      void buildProjectionRuntimePostApplyHold()
     }
   }
 
@@ -2520,6 +2658,10 @@ export function AppRuntimePlanningPanel() {
           latestRuntimeApplyAudit={latestRuntimeApplyAudit}
           runtimeVerification={runtimeVerification}
           runtimeVerificationCloseout={runtimeVerificationCloseout}
+          runtimeVerificationCloseoutHistory={
+            runtimeVerificationCloseoutHistory
+          }
+          runtimePostApplyHold={runtimePostApplyHold}
           activateMarkerPending={activateMarkerPending}
           runtimeApplyAllowed={runtimeApplyDecisionAllowsCandidate}
           runtimeApplyPending={runtimeApplyPending}

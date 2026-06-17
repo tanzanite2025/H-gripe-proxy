@@ -401,6 +401,93 @@ fn runtime_verification_closeout_blocks_unverified_decision_checkpoint() {
 }
 
 #[test]
+fn runtime_post_apply_hold_accepts_latest_complete_closeout_history() {
+    let latest = AppRuntimeProjectionRuntimeVerificationCloseoutRecord {
+        closeout_id: "closeout-2".into(),
+        artifact_id: Some("projection-browser-runtime".into()),
+        checksum: Some("checksum-runtime".into()),
+        audit_id: Some("runtime-apply-projection-browser-runtime-50".into()),
+        runtime_apply_decision_id: Some("runtime-apply-decision-browser".into()),
+        runtime_apply_decision_boundary_manifest_id: Some("runtime-apply-boundary-browser".into()),
+        verification_status: AppRuntimeDiagnosticStatus::Healthy,
+        verification_reason: "runtime verification passed".into(),
+        runtime_apply_decision_verified: true,
+        closeout_complete: true,
+        runtime_apply_allowed: false,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step: "holdVerifiedRuntimeApplyAtPostApplyBoundary".into(),
+        created_at: 100,
+    };
+    let mut older = latest.clone();
+    older.closeout_id = "closeout-1".into();
+    older.created_at = 50;
+
+    let report = build_app_runtime_projection_runtime_post_apply_hold_report(
+        Some("projection-browser-runtime".into()),
+        vec![latest, older],
+        Vec::new(),
+    );
+
+    assert_eq!(report.status, AppRuntimeProjectionRuntimePostApplyHoldStatus::Holding);
+    assert_eq!(report.closeout_history_count, 2);
+    assert!(report.decision_chain_verified);
+    assert!(report.post_apply_hold_complete);
+    assert!(!report.runtime_apply_allowed);
+    assert!(!report.phase8_allowed);
+    assert!(!report.reload_mihomo);
+}
+
+#[test]
+fn runtime_post_apply_hold_blocks_missing_or_unsafe_closeout_history() {
+    let missing = build_app_runtime_projection_runtime_post_apply_hold_report(
+        Some("projection-browser-runtime".into()),
+        Vec::new(),
+        Vec::new(),
+    );
+    assert_eq!(missing.status, AppRuntimeProjectionRuntimePostApplyHoldStatus::Blocked);
+
+    let unsafe_closeout = AppRuntimeProjectionRuntimeVerificationCloseoutRecord {
+        closeout_id: "closeout-unsafe".into(),
+        artifact_id: Some("projection-browser-runtime".into()),
+        checksum: Some("checksum-runtime".into()),
+        audit_id: Some("runtime-apply-projection-browser-runtime-50".into()),
+        runtime_apply_decision_id: Some("runtime-apply-decision-browser".into()),
+        runtime_apply_decision_boundary_manifest_id: Some("runtime-apply-boundary-browser".into()),
+        verification_status: AppRuntimeDiagnosticStatus::Healthy,
+        verification_reason: "runtime verification passed".into(),
+        runtime_apply_decision_verified: true,
+        closeout_complete: true,
+        runtime_apply_allowed: true,
+        phase8_allowed: false,
+        promotion_allowed: false,
+        auto_rollout: false,
+        auto_rollback: false,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        next_app_runtime_step: "unsafe".into(),
+        created_at: 100,
+    };
+
+    let blocked = build_app_runtime_projection_runtime_post_apply_hold_report(
+        Some("projection-browser-runtime".into()),
+        vec![unsafe_closeout],
+        Vec::new(),
+    );
+
+    assert_eq!(blocked.status, AppRuntimeProjectionRuntimePostApplyHoldStatus::Blocked);
+    assert!(
+        blocked
+            .blockers
+            .contains(&"latest runtime verification closeout has unsafe follow-up flags".into())
+    );
+}
+
+#[test]
 fn plan_rejects_missing_policy_binding() {
     let state = AppRuntimeStateDocument {
         apps: vec![sample_app()],

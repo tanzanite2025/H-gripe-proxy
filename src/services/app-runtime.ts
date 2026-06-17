@@ -642,6 +642,32 @@ export interface AppRuntimeProjectionRuntimeVerificationCloseoutReport {
   facts: string[]
 }
 
+export type AppRuntimeProjectionRuntimePostApplyHoldStatus =
+  | 'holding'
+  | 'blocked'
+
+export interface AppRuntimeProjectionRuntimePostApplyHoldReport {
+  status: AppRuntimeProjectionRuntimePostApplyHoldStatus
+  reason: string
+  artifactId?: string
+  latestCloseout?: AppRuntimeProjectionRuntimeVerificationCloseoutRecord
+  closeoutHistoryCount: number
+  decisionChainVerified: boolean
+  postApplyHoldComplete: boolean
+  runtimeApplyAllowed: boolean
+  phase8Allowed: boolean
+  promotionAllowed: boolean
+  userTriggerRequired: boolean
+  autoRollout: boolean
+  autoRollback: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  nextAppRuntimeStep: string
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export interface AppRuntimeProjectionActivationPreflightReport {
   status: AppRuntimeDiagnosticStatus
   reason: string
@@ -957,6 +983,22 @@ export async function closeoutAppRuntimeProjectionRuntimeApplyVerification(
   request: AppRuntimeProjectionRuntimeVerificationRequest,
 ): Promise<AppRuntimeProjectionRuntimeVerificationCloseoutReport> {
   return invoke('closeout_app_runtime_projection_runtime_apply_verification', {
+    request,
+  })
+}
+
+export async function listAppRuntimeProjectionRuntimeVerificationCloseouts(
+  artifactId?: string,
+): Promise<AppRuntimeProjectionRuntimeVerificationCloseoutRecord[]> {
+  return invoke('list_app_runtime_projection_runtime_verification_closeouts', {
+    artifactId,
+  })
+}
+
+export async function buildAppRuntimeProjectionRuntimePostApplyHold(
+  request: AppRuntimeProjectionRuntimeVerificationRequest,
+): Promise<AppRuntimeProjectionRuntimePostApplyHoldReport> {
+  return invoke('build_app_runtime_projection_runtime_post_apply_hold', {
     request,
   })
 }

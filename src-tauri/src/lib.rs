@@ -296,6 +296,8 @@ mod app_init {
             cmd::list_app_runtime_projection_runtime_apply_audits,
             cmd::verify_app_runtime_projection_runtime_apply,
             cmd::closeout_app_runtime_projection_runtime_apply_verification,
+            cmd::list_app_runtime_projection_runtime_verification_closeouts,
+            cmd::build_app_runtime_projection_runtime_post_apply_hold,
             cmd::rollback_app_runtime_projection_activation,
             cmd::list_app_runtime_sessions,
             cmd::start_app_runtime_session,
