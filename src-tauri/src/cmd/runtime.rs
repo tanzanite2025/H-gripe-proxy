@@ -19,7 +19,9 @@ use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
-use tauri_plugin_mihomo::models::{Proxies, ProxyDelay, ProxyProviders, RuleProviders, Rules};
+use tauri_plugin_mihomo::models::{
+    BaseConfig, DnsMetrics, MihomoVersion, Proxies, ProxyDelay, ProxyProviders, RuleProviders, Rules,
+};
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
 /// 获取运行时配置
@@ -43,6 +45,36 @@ pub async fn get_runtime_yaml() -> CmdResult<String> {
                 .map(|s| s.into())
         })
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_version() -> CmdResult<MihomoVersion> {
+    Handle::mihomo().await.get_version().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_base_config() -> CmdResult<BaseConfig> {
+    Handle::mihomo().await.get_base_config().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn patch_runtime_base_config(data: serde_json::Value) -> CmdResult<()> {
+    Handle::mihomo().await.patch_base_config(&data).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn update_runtime_geo() -> CmdResult<()> {
+    Handle::mihomo().await.update_geo().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_dns_metrics() -> CmdResult<DnsMetrics> {
+    Handle::mihomo().await.get_dns_metrics().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn runtime_dns_warmup() -> CmdResult<()> {
+    Handle::mihomo().await.dns_warmup().await.stringify_err()
 }
 
 #[tauri::command]

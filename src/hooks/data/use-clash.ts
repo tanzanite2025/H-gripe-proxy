@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { useLockFn } from 'ahooks'
-import { getVersion } from 'tauri-plugin-mihomo-api'
 
 import {
   getClashInfo,
   getRuntimeConfig,
   patchClashConfig,
 } from '@/services/cmds'
+import { getRuntimeVersion } from '@/services/core-runtime'
 import { queryClient } from '@/services/query-client'
 
 type MutateClashUpdater =
@@ -70,7 +70,7 @@ export const useClash = () => {
 
   const { data: versionData, refetch: mutateVersion } = useQuery({
     queryKey: ['getVersion'],
-    queryFn: getVersion,
+    queryFn: getRuntimeVersion,
   })
 
   const mutateClash = (updater?: MutateClashUpdater, revalidate?: boolean) => {

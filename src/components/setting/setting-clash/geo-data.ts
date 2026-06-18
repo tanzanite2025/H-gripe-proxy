@@ -1,6 +1,9 @@
-import { getBaseConfig, patchBaseConfig, updateGeo } from 'tauri-plugin-mihomo-api'
-
 import { getGeoDataUpdateTime } from '@/services/cmds'
+import {
+  getRuntimeBaseConfig,
+  patchRuntimeBaseConfig,
+  updateRuntimeGeo,
+} from '@/services/core-runtime'
 
 export const GEO_UPDATE_INTERVAL_OPTIONS = [
   6,
@@ -43,7 +46,7 @@ export const formatGeoLastUpdateLabel = (timestamp: number | null) => {
 
 export async function loadGeoSettings() {
   const [baseConfig, updateTime] = await Promise.all([
-    getBaseConfig(),
+    getRuntimeBaseConfig(),
     getGeoDataUpdateTime(),
   ])
 
@@ -57,7 +60,7 @@ export async function loadGeoSettings() {
 }
 
 export async function triggerGeoUpdate() {
-  await updateGeo()
+  await updateRuntimeGeo()
   const updateTime = await getGeoDataUpdateTime()
 
   return (
@@ -66,9 +69,9 @@ export async function triggerGeoUpdate() {
 }
 
 export async function saveGeoAutoUpdate(enabled: boolean) {
-  await patchBaseConfig({ 'geo-auto-update': enabled })
+  await patchRuntimeBaseConfig({ 'geo-auto-update': enabled })
 }
 
 export async function saveGeoUpdateInterval(hours: number) {
-  await patchBaseConfig({ 'geo-update-interval': hours })
+  await patchRuntimeBaseConfig({ 'geo-update-interval': hours })
 }
