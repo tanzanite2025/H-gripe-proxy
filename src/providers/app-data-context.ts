@@ -1,7 +1,6 @@
 import { Context, createContext, use } from 'react'
 import {
   BaseConfig,
-  ProxyProvider,
   Rule,
   RuleProvider,
 } from 'tauri-plugin-mihomo-api'
@@ -13,7 +12,7 @@ export interface AppDataContextType {
   sysproxy: any
   runningMode?: string
   uptime: number
-  proxyProviders: Record<string, ProxyProvider>
+  proxyProviders: Record<string, IProxyProviderItem>
   ruleProviders: Record<string, RuleProvider>
   systemProxyAddress: string
   isCoreDataPending: boolean
@@ -41,7 +40,7 @@ export interface ConnectionSpeedData {
 
 export interface ProxiesContextType {
   proxies: any
-  proxyProviders: Record<string, ProxyProvider | undefined>
+  proxyProviders: Record<string, IProxyProviderItem | undefined>
   isProxiesPending: boolean
 }
 
@@ -106,7 +105,7 @@ export const useProxiesData = () => {
 
   return {
     proxies,
-    proxyProviders: proxyProviders as Record<string, ProxyProvider>,
+    proxyProviders: proxyProviders as Record<string, IProxyProviderItem>,
     isProxiesPending,
   }
 }
@@ -151,7 +150,7 @@ export const useAppData = (): AppDataContextType => {
     sysproxy,
     runningMode,
     uptime,
-    proxyProviders: proxyProviders as Record<string, ProxyProvider>,
+    proxyProviders: proxyProviders as Record<string, IProxyProviderItem>,
     ruleProviders: ruleProviders as Record<string, RuleProvider>,
     systemProxyAddress,
     isCoreDataPending,

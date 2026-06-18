@@ -1711,3 +1711,31 @@ get_runtime_proxy_topology()
 1. Rust-owned provider topology：从 `proxy-providers` 解析 provider + node inventory，移除前端 provider 列表主路径的 Go API 依赖。
 2. Rust-owned runtime rule inventory：从 runtime YAML 解析 rules/rule-providers，并让规则测试/诊断直接消费 Rust rule engine。
 3. Rust-owned selection state cache：选择节点时同步写 Rust state，减少 UI 展示对 Go `/proxies` live state 的依赖。
+
+### Aggressive replacement track：Rust runtime provider topology（第二批大步迁移）
+
+继前端 proxy topology 主路径迁移后，本批次替换 provider 列表的主路径读取：不再为了渲染 proxy provider 列表而请求 Go Mihomo `/providers/proxies`，改由 Rust 直接从 runtime config 解析 `proxy-providers` section，并读取 provider 对应的本地 YAML 文件获取节点列表。
+
+```text
+get_runtime_proxy_providers()
+  -> Config::runtime().latest.config
+  -> parse proxy-providers section in Rust
+  -> for each provider: read provider file from disk (path field)
+  -> parse proxies from provider file (proxies key or bare sequence)
+  -> filter by vehicle type (HTTP / File only, matching existing UI logic)
+  -> build ProxyProviders { providers: HashMap<String, ProxyProvider> }
+  -> frontend calcuProxyProviders() consumes Rust provider topology
+```
+
+迁移效果：
+
+- 移除前端 `calcuProxyProviders()` 对 `tauri-plugin-mihomo-api.getProxyProviders()` 的主路径依赖。
+- Provider 节点列表直接从磁盘文件解析，无需经过 Go sidecar IPC 往返。
+- 保留 `updateProxyProvider()` / `healthcheckProxyProvider()` 等写操作仍走 Go data plane。
+- 前端类型系统同步更新：`IProxyProviderItem` 补齐 `testUrl` / `expectedStatus` 字段。
+
+下一批优先级：
+
+1. Rust-owned runtime rule inventory：从 runtime YAML 解析 rules/rule-providers。
+2. Rust-owned selection state cache：选择节点时同步写 Rust state。
+3. Connections/traffic reads 迁移到 Rust long-poll。

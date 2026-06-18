@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getProxyProviders } from 'tauri-plugin-mihomo-api'
+
 
 import { isBuiltinPolicyName, isHiddenProxyName } from './proxy-display'
 
@@ -13,10 +13,16 @@ export interface CalculatedProxies {
 const isDisplayableProxyName = (name?: string | null) =>
   !isHiddenProxyName(name) && !isBuiltinPolicyName(name)
 
+async function getRuntimeProxyProviders() {
+  return invoke<{ providers: Record<string, IProxyProviderItem> }>(
+    'get_runtime_proxy_providers',
+  )
+}
+
 export async function calcuProxyProviders() {
-  const providers = await getProxyProviders()
+  const response = await getRuntimeProxyProviders()
   return Object.fromEntries(
-    Object.entries(providers.providers)
+    Object.entries(response.providers)
       .sort()
       .filter(
         ([_, item]) =>
