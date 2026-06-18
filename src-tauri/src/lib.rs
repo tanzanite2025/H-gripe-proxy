@@ -212,6 +212,8 @@ mod app_init {
             cmd::runtime_dns_warmup,
             cmd::get_runtime_proxy_topology,
             cmd::get_runtime_proxy_selection_state,
+            cmd::get_runtime_proxy_delay_state,
+            cmd::get_runtime_provider_health_state,
             cmd::apply_runtime_proxy_selection,
             cmd::get_runtime_proxy_providers,
             cmd::update_runtime_proxy_provider,

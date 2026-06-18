@@ -1942,3 +1942,40 @@ Next aggressive batches:
 1. Persist delay/healthcheck results into Rust runtime state.
 2. Wrap remaining core lifecycle commands (`reload_config`, `restart`) with explicit app-owned gates.
 3. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models once the Rust model layer stabilizes.
+
+### Aggressive replacement track: Rust-owned delay and provider health result cache
+
+This batch makes delay and provider healthcheck wrappers stateful in Rust instead of only returning transient frontend results. Results are persisted under `app-runtime/` and then replayed into runtime proxy/provider topology.
+
+```text
+delay_runtime_group(group, url, timeout, keepFixed)
+  -> Handle::mihomo().delay_group(...)
+  -> record_runtime_proxy_delay(group, proxy, delay, url)
+  -> persist app-runtime/proxy-delays.yaml
+
+delay_runtime_proxy(proxy, url, timeout, group?)
+  -> Handle::mihomo().delay_proxy_by_name(...)
+  -> when group provided: record_runtime_proxy_delay(...)
+
+healthcheck_runtime_proxy_provider(provider)
+  -> Handle::mihomo().healthcheck_proxy_provider(provider)
+  -> record_runtime_provider_health(provider, success/error)
+  -> persist app-runtime/provider-health.yaml
+
+get_runtime_proxy_topology/get_runtime_proxy_providers
+  -> load proxy delay cache
+  -> append cached delay history to matching proxies/providers
+```
+
+Migration impact:
+
+- Rust runtime now owns durable delay result records.
+- Frontend `DelayManager` hydrates its in-memory cache from `get_runtime_proxy_delay_state`.
+- Provider healthcheck success/failure metadata is captured in Rust runtime state.
+- Runtime proxy/provider topology can expose cached delay history without direct live Go reads.
+
+Next aggressive batches:
+
+1. Wrap remaining core lifecycle commands (`reload_config`, `restart`) with explicit app-owned gates.
+2. Surface provider health cache in provider UI status badges.
+3. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.

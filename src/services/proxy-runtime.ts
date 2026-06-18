@@ -27,6 +27,19 @@ export async function healthcheckRuntimeProxyProvider(providerName: string) {
   await invoke<void>('healthcheck_runtime_proxy_provider', { providerName })
 }
 
+export interface RuntimeProviderHealthRecord {
+  providerName: string
+  success: boolean
+  error?: string | null
+  updatedAt: number
+}
+
+export async function getRuntimeProviderHealthState() {
+  return invoke<{ records: RuntimeProviderHealthRecord[] }>(
+    'get_runtime_provider_health_state',
+  )
+}
+
 export async function calcuProxyProviders() {
   const response = await getRuntimeProxyProviders()
   return Object.fromEntries(
