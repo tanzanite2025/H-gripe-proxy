@@ -205,6 +205,7 @@ mod app_init {
             cmd::get_runtime_config,
             cmd::get_runtime_yaml,
             cmd::get_runtime_proxy_topology,
+            cmd::get_runtime_proxy_providers,
             cmd::get_runtime_diagnostics_summary,
             cmd::get_dns_runtime_status,
             cmd::test_dns_leak,

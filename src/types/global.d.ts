@@ -118,6 +118,8 @@ interface IProxyProviderItem {
   proxies: IProxyItem[]
   updatedAt: string
   vehicleType: string
+  testUrl: string
+  expectedStatus: string
   subscriptionInfo?: {
     Upload: number
     Download: number

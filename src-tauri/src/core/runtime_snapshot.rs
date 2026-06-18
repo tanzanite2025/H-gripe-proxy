@@ -7,7 +7,10 @@ use crate::{
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde_yaml_ng::Value;
-use tauri_plugin_mihomo::models::{DelayHistory, DnsMetrics, Extra, Proxies, Proxy, ProxyType};
+use tauri_plugin_mihomo::models::{
+    DelayHistory, DnsMetrics, Extra, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType,
+    SubScriptionInfo, VehicleType,
+};
 
 #[derive(Debug, Default)]
 pub struct RuntimeSnapshot {
@@ -334,6 +337,147 @@ fn i32_field(item: &Value, field: &str) -> Option<i32> {
     item.get(field)
         .and_then(Value::as_i64)
         .and_then(|value| i32::try_from(value).ok())
+}
+
+fn i64_field(item: &Value, field: &str) -> Option<i64> {
+    item.get(field).and_then(Value::as_i64)
+}
+
+/// Build proxy providers from runtime config YAML and provider files on disk.
+pub fn build_proxy_providers_from_runtime_config(config: &serde_yaml_ng::Mapping) -> ProxyProviders {
+    let mut providers = HashMap::new();
+
+    let Some(provider_map) = config.get("proxy-providers").and_then(Value::as_mapping) else {
+        return ProxyProviders { providers };
+    };
+
+    let app_home = crate::utils::dirs::app_home_dir().unwrap_or_default();
+
+    for (key, value) in provider_map {
+        let Some(name) = key.as_str() else { continue };
+        let Some(provider) = build_single_provider(name, value, &app_home) else {
+            continue;
+        };
+        providers.insert(name.to_string(), provider);
+    }
+
+    ProxyProviders { providers }
+}
+
+fn build_single_provider(name: &str, value: &Value, app_home: &std::path::Path) -> Option<ProxyProvider> {
+    let vehicle_type = match string_field(value, "type").as_deref() {
+        Some("http") => VehicleType::HTTP,
+        Some("file") => VehicleType::File,
+        Some("inline") => VehicleType::Inline,
+        _ => VehicleType::Compatible,
+    };
+
+    let test_url = value
+        .get("health-check")
+        .and_then(|hc| hc.get("url"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+
+    let expected_status = value
+        .get("health-check")
+        .and_then(|hc| hc.get("expected-status"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+
+    let proxies = load_provider_proxies(value, app_home, name);
+
+    let subscription_info = load_subscription_info(value);
+
+    Some(ProxyProvider {
+        name: name.to_string(),
+        provider_type: ProviderType::Proxy,
+        vehicle_type,
+        proxies,
+        test_url,
+        expected_status,
+        updated_at: None,
+        subscription_info,
+    })
+}
+
+/// Load proxy nodes from provider file on disk.
+fn load_provider_proxies(provider_config: &Value, app_home: &std::path::Path, provider_name: &str) -> Vec<Proxy> {
+    // Inline providers have proxies embedded in the config
+    if let Some(payload) = provider_config.get("payload").and_then(Value::as_sequence) {
+        return payload
+            .iter()
+            .filter_map(|item| {
+                let mut proxy = proxy_from_config_item(item)?;
+                proxy.provider_name = Some(provider_name.to_string());
+                Some(proxy)
+            })
+            .collect();
+    }
+
+    // File/HTTP providers store proxies in a file on disk
+    let path_str = match string_field(provider_config, "path") {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+
+    let file_path = if std::path::Path::new(&path_str).is_absolute() {
+        std::path::PathBuf::from(&path_str)
+    } else {
+        app_home.join(&path_str)
+    };
+
+    let content = match std::fs::read_to_string(&file_path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    parse_provider_file_content(&content, provider_name)
+}
+
+/// Parse provider file content (supports both proxies key and bare sequence).
+fn parse_provider_file_content(content: &str, provider_name: &str) -> Vec<Proxy> {
+    let value: Value = match serde_yaml_ng::from_str(content) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+
+    let sequence = if let Some(seq) = value.get("proxies").and_then(Value::as_sequence) {
+        seq.clone()
+    } else if let Some(seq) = value.as_sequence() {
+        seq.clone()
+    } else {
+        return Vec::new();
+    };
+
+    sequence
+        .iter()
+        .filter_map(|item| {
+            let mut proxy = proxy_from_config_item(item)?;
+            proxy.provider_name = Some(provider_name.to_string());
+            Some(proxy)
+        })
+        .collect()
+}
+
+/// Try to load subscription info from the provider config.
+fn load_subscription_info(provider_config: &Value) -> Option<SubScriptionInfo> {
+    let sub_info = provider_config.get("subscription-info")?;
+    Some(SubScriptionInfo {
+        upload: i64_field(sub_info, "Upload")
+            .or_else(|| i64_field(sub_info, "upload"))
+            .unwrap_or(0),
+        download: i64_field(sub_info, "Download")
+            .or_else(|| i64_field(sub_info, "download"))
+            .unwrap_or(0),
+        total: i64_field(sub_info, "Total")
+            .or_else(|| i64_field(sub_info, "total"))
+            .unwrap_or(0),
+        expire: i64_field(sub_info, "Expire")
+            .or_else(|| i64_field(sub_info, "expire"))
+            .unwrap_or(0),
+    })
 }
 
 #[cfg(test)]

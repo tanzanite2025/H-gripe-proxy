@@ -81,7 +81,7 @@ export const AppDataProvider = ({
   })
 
   const { data: proxyProviders, refetch: _refetchProxyProviders } = useQuery({
-    queryKey: ['getProxyProviders'],
+    queryKey: ['getRuntimeProxyProviders'],
     queryFn: calcuProxyProviders,
     ...TQ_MIHOMO,
   })

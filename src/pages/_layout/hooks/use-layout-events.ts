@@ -59,7 +59,7 @@ export const useLayoutEvents = (
           'getRuntimeProxyTopology',
           'getVersion',
           'getClashConfig',
-          'getProxyProviders',
+          'getRuntimeProxyProviders',
           'current-egress-identity',
         ])
       }),
