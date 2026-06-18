@@ -1,7 +1,6 @@
-import type { Rule } from 'tauri-plugin-mihomo-api'
-
 import { useAppRefreshers } from '@/providers/app-data-context'
 import { deleteRuntimeRule, disableRuntimeRules } from '@/services/rule-runtime'
+import type { Rule } from '@/types/mihomo'
 import { cn } from '@/utils/cn'
 
 const COLOR = [

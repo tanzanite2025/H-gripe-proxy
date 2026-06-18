@@ -1915,3 +1915,30 @@ Next aggressive batches:
 1. Move remaining runtime model type ownership out of `tauri-plugin-mihomo-api` into app-level generated/typescript types.
 2. Persist delay/healthcheck results into Rust runtime state.
 3. Wrap remaining core lifecycle commands (`reload_config`, `restart`) with explicit app-owned gates.
+
+### Aggressive replacement track: app-owned frontend Mihomo runtime types
+
+This batch removes frontend source imports from the `tauri-plugin-mihomo-api` package entirely. Runtime data still comes from Rust commands, but the UI no longer depends on the plugin package for either live command functions or model type names.
+
+```text
+src/types/mihomo.ts
+  -> BaseConfig / MihomoVersion / ProxyProvider / Rule / RuleProvider
+  -> Rules / RuleProviders / ProxyDelay / DnsMetrics / LogLevel
+
+frontend service/component imports
+  -> import type {...} from '@/types/mihomo'
+  -> no imports from 'tauri-plugin-mihomo-api'
+```
+
+Migration impact:
+
+- `src/services/core-runtime.ts`, `rule-runtime.ts`, `delay.ts`, and `dns-api.ts` use app-owned response types.
+- Rule, provider, and log UI components use app-owned model types.
+- Global `LogLevel` no longer references the plugin package.
+- Frontend `src/**/*.{ts,tsx,d.ts}` has no remaining `tauri-plugin-mihomo-api` imports.
+
+Next aggressive batches:
+
+1. Persist delay/healthcheck results into Rust runtime state.
+2. Wrap remaining core lifecycle commands (`reload_config`, `restart`) with explicit app-owned gates.
+3. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models once the Rust model layer stabilizes.

@@ -4,12 +4,12 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import type { DnsMetrics } from 'tauri-plugin-mihomo-api'
 
 import {
   getRuntimeDnsMetrics,
   runtimeDnsWarmup,
 } from '@/services/core-runtime'
+import type { DnsMetrics } from '@/types/mihomo'
 
 /**
  * DNS 协议类型
