@@ -4,11 +4,12 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import type { DnsMetrics } from 'tauri-plugin-mihomo-api'
+
 import {
-  getDnsMetrics as pluginGetDnsMetrics,
-  dnsWarmup as pluginDnsWarmup,
-  type DnsMetrics,
-} from 'tauri-plugin-mihomo-api'
+  getRuntimeDnsMetrics,
+  runtimeDnsWarmup,
+} from '@/services/core-runtime'
 
 /**
  * DNS 协议类型
@@ -1430,9 +1431,9 @@ export async function dnsDefaultRuntimeLimitedRollback(): Promise<DnsDefaultRunt
 export type { DnsMetrics }
 
 export async function getDnsMetrics(): Promise<DnsMetrics> {
-  return await pluginGetDnsMetrics()
+  return await getRuntimeDnsMetrics()
 }
 
 export async function dnsWarmup(): Promise<void> {
-  await pluginDnsWarmup()
+  await runtimeDnsWarmup()
 }

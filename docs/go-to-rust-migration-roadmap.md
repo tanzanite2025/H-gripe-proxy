@@ -1875,3 +1875,43 @@ Next aggressive batches:
 1. Move base config reads and patch writes behind Rust commands.
 2. Wrap DNS/version/geo command surfaces behind Rust services.
 3. Move delay/healthcheck result caching into Rust runtime state.
+
+### Aggressive replacement track: Rust-owned base config, version, geo, and DNS wrappers
+
+This batch removes the remaining frontend runtime command imports for base config, version, GeoData update, DNS metrics, and DNS warmup. The frontend still reuses plugin model types, but all live command calls now go through app-owned Rust commands.
+
+```text
+getRuntimeVersion()
+  -> invoke('get_runtime_version')
+  -> Handle::mihomo().get_version()
+
+getRuntimeBaseConfig()
+  -> invoke('get_runtime_base_config')
+  -> Handle::mihomo().get_base_config()
+
+patchRuntimeBaseConfig(data)
+  -> invoke('patch_runtime_base_config', { data })
+  -> Handle::mihomo().patch_base_config(data)
+
+updateRuntimeGeo()
+  -> invoke('update_runtime_geo')
+  -> Handle::mihomo().update_geo()
+
+getRuntimeDnsMetrics() / runtimeDnsWarmup()
+  -> invoke('get_runtime_dns_metrics' | 'runtime_dns_warmup')
+  -> Handle::mihomo().get_dns_metrics()/dns_warmup()
+```
+
+Migration impact:
+
+- `AppDataProvider` reads Mihomo base config through Rust runtime wrappers.
+- Clash version display reads through `get_runtime_version`.
+- GeoData auto-update/source config reads and patches base config through Rust app commands.
+- DNS metrics and warmup service calls are routed through Rust commands.
+- The current proxy card group delay fallback now uses the existing Rust delay wrapper, removing another direct live command import.
+
+Next aggressive batches:
+
+1. Move remaining runtime model type ownership out of `tauri-plugin-mihomo-api` into app-level generated/typescript types.
+2. Persist delay/healthcheck results into Rust runtime state.
+3. Wrap remaining core lifecycle commands (`reload_config`, `restart`) with explicit app-owned gates.

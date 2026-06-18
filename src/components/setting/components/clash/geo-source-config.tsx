@@ -2,10 +2,13 @@ import { useLockFn } from 'ahooks'
 import { Globe } from 'lucide-react'
 import type { ChangeEvent, Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
-import { getBaseConfig, patchBaseConfig } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog, DialogRef } from '@/components/base'
 import { TextField } from '@/components/tailwind'
+import {
+  getRuntimeBaseConfig,
+  patchRuntimeBaseConfig,
+} from '@/services/core-runtime'
 import { showNotice } from '@/services/notice-service'
 
 interface GeoXUrlState {
@@ -30,7 +33,7 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
-      getBaseConfig()
+      getRuntimeBaseConfig()
         .then((config) => {
           setUrls({
             geoIp: config.geoxUrl.geoIp || '',
@@ -47,7 +50,7 @@ export function GeoSourceConfig({ ref }: { ref?: Ref<DialogRef> }) {
   const onSave = useLockFn(async () => {
     setSaving(true)
     try {
-      await patchBaseConfig({
+      await patchRuntimeBaseConfig({
         'geox-url': {
           'geo-ip': urls.geoIp || undefined,
           mmdb: urls.mmdb || undefined,

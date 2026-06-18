@@ -1,6 +1,4 @@
-import { delayGroup } from 'tauri-plugin-mihomo-api'
-
-import delayManager from '@/services/delay'
+import delayManager, { delayRuntimeGroup } from '@/services/delay'
 import { debugLog } from '@/utils/misc'
 
 interface RunGroupDelayCheckOptions {
@@ -26,7 +24,7 @@ export async function runGroupDelayCheck({
       delayManager.setDelay(name, groupName, -2)
     })
 
-    const result = await delayGroup(groupName, url, timeout, false)
+    const result = await delayRuntimeGroup(groupName, url, timeout, false)
     debugLog(
       `[CurrentProxyCard] Group delay result count: ${Object.keys(result || {}).length}`,
     )

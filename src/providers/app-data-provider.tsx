@@ -1,7 +1,6 @@
 ﻿import { useQuery } from '@tanstack/react-query'
 import { listen } from '@tauri-apps/api/event'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
-import { getBaseConfig } from 'tauri-plugin-mihomo-api'
 
 import { useVerge } from '@/hooks/system'
 import {
@@ -9,6 +8,7 @@ import {
   getRunningMode,
   getSystemProxy,
 } from '@/services/cmds'
+import { getRuntimeBaseConfig } from '@/services/core-runtime'
 import {
   calcuProxies,
   calcuProxyProviders,
@@ -73,7 +73,7 @@ export const AppDataProvider = ({
     refetch: _refetchClashConfig,
   } = useQuery({
     queryKey: ['getClashConfig'],
-    queryFn: getBaseConfig,
+    queryFn: getRuntimeBaseConfig,
     ...TQ_MIHOMO,
   })
 
