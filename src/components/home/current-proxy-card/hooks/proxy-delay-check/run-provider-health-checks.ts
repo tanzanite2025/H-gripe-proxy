@@ -1,4 +1,4 @@
-import { healthcheckProxyProvider } from 'tauri-plugin-mihomo-api'
+import { healthcheckRuntimeProxyProvider } from '@/services/proxy-runtime'
 
 export async function runProviderHealthChecks(providerNames: string[]) {
   if (!providerNames.length) {
@@ -6,6 +6,6 @@ export async function runProviderHealthChecks(providerNames: string[]) {
   }
 
   await Promise.allSettled(
-    providerNames.map((provider) => healthcheckProxyProvider(provider)),
+    providerNames.map((provider) => healthcheckRuntimeProxyProvider(provider)),
   )
 }

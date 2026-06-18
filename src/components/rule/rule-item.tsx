@@ -1,6 +1,7 @@
-import { Rule, disableRules, deleteRule } from 'tauri-plugin-mihomo-api'
+import type { Rule } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers } from '@/providers/app-data-context'
+import { deleteRuntimeRule, disableRuntimeRules } from '@/services/rule-runtime'
 import { cn } from '@/utils/cn'
 
 const COLOR = [
@@ -51,12 +52,12 @@ const RuleItem = (props: Props) => {
   const hitRate = totalAttempts > 0 ? ((hitCount / totalAttempts) * 100).toFixed(1) : null
 
   const handleToggle = async () => {
-    await disableRules({ [value.index]: !isDisabled })
+    await disableRuntimeRules({ [value.index]: !isDisabled })
     refreshRules()
   }
 
   const handleDelete = async () => {
-    await deleteRule(value.index)
+    await deleteRuntimeRule(value.index)
     refreshRules()
   }
 

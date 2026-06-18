@@ -19,7 +19,7 @@ use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
-use tauri_plugin_mihomo::models::{Proxies, ProxyProviders, RuleProviders, Rules};
+use tauri_plugin_mihomo::models::{Proxies, ProxyDelay, ProxyProviders, RuleProviders, Rules};
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
 /// 获取运行时配置
@@ -124,6 +124,66 @@ pub async fn get_runtime_proxy_providers() -> CmdResult<ProxyProviders> {
 }
 
 #[tauri::command]
+pub async fn update_runtime_proxy_provider(provider_name: String) -> CmdResult<()> {
+    Handle::mihomo()
+        .await
+        .update_proxy_provider(&provider_name)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn healthcheck_runtime_proxy_provider(provider_name: String) -> CmdResult<()> {
+    Handle::mihomo()
+        .await
+        .healthcheck_proxy_provider(&provider_name)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn delay_runtime_group(
+    group_name: String,
+    test_url: String,
+    timeout: u32,
+    keep_fixed: bool,
+) -> CmdResult<HashMap<std::string::String, u32>> {
+    let mihomo = Handle::mihomo().await;
+    let fixed = if keep_fixed {
+        mihomo.get_group_by_name(&group_name).await.stringify_err()?.fixed
+    } else {
+        None
+    };
+
+    let result = mihomo
+        .delay_group(&group_name, &test_url, timeout)
+        .await
+        .stringify_err()?;
+
+    if keep_fixed
+        && let Some(fixed) = fixed
+        && !fixed.is_empty()
+    {
+        mihomo
+            .select_node_for_group(&group_name, &fixed)
+            .await
+            .stringify_err()?;
+        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(&group_name, &fixed);
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn delay_runtime_proxy(proxy_name: String, test_url: String, timeout: u32) -> CmdResult<ProxyDelay> {
+    Handle::mihomo()
+        .await
+        .delay_proxy_by_name(&proxy_name, &test_url, timeout)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_rules() -> CmdResult<Rules> {
     let runtime = Config::runtime().await;
     let runtime = runtime.latest_arc();
@@ -147,6 +207,48 @@ pub async fn get_runtime_rule_providers() -> CmdResult<RuleProviders> {
     Ok(crate::core::runtime_snapshot::build_rule_providers_from_runtime_config(
         config,
     ))
+}
+
+#[tauri::command]
+pub async fn disable_runtime_rules(payload: HashMap<i32, bool>) -> CmdResult<()> {
+    Handle::mihomo().await.disable_rules(&payload).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn delete_runtime_rule(index: i32) -> CmdResult<()> {
+    Handle::mihomo().await.delete_rule(index).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn create_runtime_rule(
+    rule_type: String,
+    payload: String,
+    proxy: String,
+    source: Option<String>,
+    sub_rule: Option<String>,
+    position: Option<String>,
+) -> CmdResult<i32> {
+    Handle::mihomo()
+        .await
+        .create_rule(
+            &rule_type,
+            &payload,
+            &proxy,
+            source.as_deref(),
+            sub_rule.as_deref(),
+            position.as_deref(),
+        )
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn update_runtime_rule_provider(provider_name: String) -> CmdResult<()> {
+    Handle::mihomo()
+        .await
+        .update_rule_provider(&provider_name)
+        .await
+        .stringify_err()
 }
 
 /// 获取运行时日志
