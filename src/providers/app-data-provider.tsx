@@ -63,7 +63,7 @@ export const AppDataProvider = ({
     isPending: isProxiesPending,
     refetch: _refetchProxy,
   } = useQuery({
-    queryKey: ['getProxies'],
+    queryKey: ['getRuntimeProxyTopology'],
     queryFn: calcuProxies,
     ...TQ_MIHOMO,
     refetchInterval: 3000,
@@ -357,4 +357,3 @@ export const AppDataProvider = ({
     </ProxiesContext>
   )
 }
-

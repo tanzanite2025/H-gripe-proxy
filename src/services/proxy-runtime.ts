@@ -1,4 +1,5 @@
-import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
+import { invoke } from '@tauri-apps/api/core'
+import { getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { isBuiltinPolicyName, isHiddenProxyName } from './proxy-display'
 
@@ -24,8 +25,14 @@ export async function calcuProxyProviders() {
   )
 }
 
+async function getRuntimeProxyTopology() {
+  return invoke<{ proxies: Record<string, IProxyItem> }>(
+    'get_runtime_proxy_topology',
+  )
+}
+
 export async function calcuProxies(): Promise<CalculatedProxies> {
-  const proxyResponse = await getProxies()
+  const proxyResponse = await getRuntimeProxyTopology()
   const providerResponse = await calcuProxyProviders().catch((error) => {
     console.warn(
       '[calcuProxies] proxy providers unavailable, continue without provider metadata:',

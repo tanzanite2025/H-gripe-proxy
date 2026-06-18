@@ -536,9 +536,12 @@ async fn create_tray_menu(
 
     // TODO: should update tray menu again when it was timeout error
     let snapshot_service = RuntimeSnapshotService::global();
-    let proxy_nodes_data = tokio::time::timeout(Duration::from_millis(1000), snapshot_service.refresh_proxies_result())
-        .await
-        .map_or(None, |res| res.ok().and_then(|snapshot| snapshot.proxies));
+    let proxy_nodes_data = match snapshot_service.refresh_proxy_topology_from_runtime_config().await {
+        Ok(snapshot) => snapshot.proxies,
+        Err(_) => tokio::time::timeout(Duration::from_millis(1000), snapshot_service.refresh_proxies_result())
+            .await
+            .map_or(None, |res| res.ok().and_then(|snapshot| snapshot.proxies)),
+    };
 
     let runtime_proxy_groups_order = {
         let runtime = Config::runtime().await;

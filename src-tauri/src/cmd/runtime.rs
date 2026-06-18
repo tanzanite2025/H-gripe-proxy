@@ -9,6 +9,7 @@ use crate::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
             build_runtime_diagnostics_summary,
         },
+        runtime_snapshot::RuntimeSnapshotService,
         runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
 };
@@ -17,6 +18,7 @@ use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
+use tauri_plugin_mihomo::models::Proxies;
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
 /// 获取运行时配置
@@ -72,6 +74,19 @@ pub async fn get_current_egress_identity(app_handle: tauri::AppHandle) -> CmdRes
 #[tauri::command]
 pub async fn get_runtime_exists() -> CmdResult<HashSet<String>> {
     Ok(Config::runtime().await.latest_arc().exists_keys.clone())
+}
+
+#[tauri::command]
+pub async fn get_runtime_proxy_topology() -> CmdResult<Proxies> {
+    RuntimeSnapshotService::global()
+        .refresh_proxy_topology_from_runtime_config()
+        .await
+        .map(|snapshot| {
+            snapshot.proxies.unwrap_or_else(|| Proxies {
+                proxies: HashMap::new(),
+            })
+        })
+        .stringify_err()
 }
 
 /// 获取运行时日志

@@ -214,7 +214,10 @@ export const useProfiles = () => {
       try {
         await patchProfile(current.uid, { selected: newSelected })
         debugLog('[ActivateSelected] sanitized selections saved')
-        queryClient.setQueryData(['getProxies'], await calcuProxies())
+        queryClient.setQueryData(
+          ['getRuntimeProxyTopology'],
+          await calcuProxies(),
+        )
       } catch (error: unknown) {
         console.error(
           '[ActivateSelected] failed to save proxy selections:',
