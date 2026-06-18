@@ -2,7 +2,6 @@ import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import {
   getConnectionViewSpec,
@@ -11,6 +10,7 @@ import {
 import { buildConnectionViewModel } from '@/components/connection/connection-view-model'
 import { IconButton } from '@/components/tailwind/IconButton'
 import { ListItem, ListItemText } from '@/components/tailwind/List'
+import { closeRuntimeConnection } from '@/services/connection-runtime'
 import parseTraffic from '@/utils/format'
 
 interface Props {
@@ -28,7 +28,7 @@ export const ConnectionItem = (props: Props) => {
   const closed = viewMode === 'closed'
   const { listMetaFields } = getConnectionViewSpec(viewMode)
 
-  const onDelete = useLockFn(async () => closeConnection(id))
+  const onDelete = useLockFn(async () => closeRuntimeConnection(id))
   const showTraffic = (curUpload ?? 0) >= 100 || (curDownload ?? 0) >= 100
 
   const hasField = (field: (typeof listMetaFields)[number]) =>

@@ -2,7 +2,6 @@ import { useLockFn } from 'ahooks'
 import { Trash2, Table, Rows, Columns } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import {
   BaseEmpty,
@@ -36,6 +35,7 @@ import {
 } from '@/components/tailwind'
 import { useConnectionData } from '@/hooks/data'
 import { useConnectionSetting } from '@/hooks/system'
+import { closeAllRuntimeConnections } from '@/services/connection-runtime'
 import parseTraffic from '@/utils/format'
 
 const ConnectionsPage = () => {
@@ -81,7 +81,7 @@ const ConnectionsPage = () => {
     ]
   }, [connections, connectionsType, curOrderOpt, match, searchText, viewSpec.mode])
 
-  const onCloseAll = useLockFn(closeAllConnections)
+  const onCloseAll = useLockFn(closeAllRuntimeConnections)
 
   const detailRef = useRef<ConnectionDetailRef>(null!)
 

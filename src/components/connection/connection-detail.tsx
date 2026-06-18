@@ -2,7 +2,6 @@ import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import {
   getConnectionViewSpec,
@@ -12,6 +11,7 @@ import {
 import { buildConnectionViewModel } from '@/components/connection/connection-view-model'
 import { Button } from '@/components/tailwind/Button'
 import { Snackbar } from '@/components/tailwind/Snackbar'
+import { closeRuntimeConnection } from '@/services/connection-runtime'
 import parseTraffic from '@/utils/format'
 
 export interface ConnectionDetailRef {
@@ -125,7 +125,7 @@ const InnerConnectionDetail = ({ data, viewMode, onClose }: InnerProps) => {
 
   const information = detailFields.map((field) => detailFieldMap[field])
 
-  const onDelete = useLockFn(async () => closeConnection(data.id))
+  const onDelete = useLockFn(async () => closeRuntimeConnection(data.id))
 
   return (
     <div className="select-text text-text-secondary">

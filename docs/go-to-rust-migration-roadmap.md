@@ -1801,3 +1801,36 @@ Next aggressive batches:
 1. Move connections and traffic reads to Rust long-poll.
 2. Wrap provider and rule update write paths with Rust commands.
 3. Aggregate delay and healthcheck reads into Rust runtime cache.
+
+### Aggressive replacement track: Rust-owned connection control wrappers
+
+This batch finishes the remaining frontend connection read/write calls that still imported connection commands from `tauri-plugin-mihomo-api`.
+
+```text
+getRuntimeConnections()
+  -> invoke('get_runtime_connections')
+  -> Rust Handle::mihomo().get_connections()
+  -> ingest_connection_metrics_snapshot(payload)
+
+closeRuntimeConnection(id)
+  -> invoke('close_runtime_connection')
+  -> Rust Handle::mihomo().close_connection(id)
+
+closeAllRuntimeConnections()
+  -> invoke('close_all_runtime_connections')
+  -> Rust Handle::mihomo().close_all_connections()
+  -> reset_connection_metrics()
+```
+
+Migration impact:
+
+- Connection cleanup, connection table row actions, detail close action, profile activation cleanup, and proxy-chain disconnect now use app-owned Rust commands.
+- Runtime connection reads performed for cleanup also feed the Rust connection metrics cache.
+- Traffic graph code no longer imports the plugin `Traffic` runtime symbol; it uses the app-level `ITrafficItem` shape from Rust metrics events.
+- Go/Mihomo remains the data plane for connection close operations, but frontend control is now routed through Rust app commands.
+
+Next aggressive batches:
+
+1. Move base config reads and patch writes behind Rust commands.
+2. Wrap provider/rule update write paths with Rust commands.
+3. Move delay/healthcheck reads into Rust runtime cache.

@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Traffic } from 'tauri-plugin-mihomo-api'
 
 import { useVisibility } from '@/hooks/ui'
 import { debugLog } from '@/utils/misc'
@@ -301,7 +300,7 @@ class TrafficWorkerClient {
     }
   }
 
-  appendData(traffic: Traffic) {
+  appendData(traffic: ITrafficItem) {
     this.ensureStarted()
     this.post({
       type: 'append',
@@ -423,7 +422,7 @@ export const useTrafficMonitorEnhanced = (options?: {
 
   // 添加流量数据
   const appendData = useCallback(
-    (traffic: Traffic) => {
+    (traffic: ITrafficItem) => {
       if (!enabled) return
       clientRef.current?.appendData(traffic)
     },

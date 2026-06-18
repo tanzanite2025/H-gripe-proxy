@@ -1,5 +1,4 @@
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
-
+import { closeAllRuntimeConnections } from '@/services/connection-runtime'
 import {
   applyProxyRuntimeSelection,
   tryApplyProxyRuntimeSelection,
@@ -66,7 +65,7 @@ export const disconnectProxyChain = async ({
   }
 
   clearProxyChainStorage()
-  await closeAllConnections()
+  await closeAllRuntimeConnections()
   await refreshProxy()
   onUpdateChain([])
 }
