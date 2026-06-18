@@ -1,9 +1,6 @@
 import { Context, createContext, use } from 'react'
-import {
-  BaseConfig,
-  Rule,
-  RuleProvider,
-} from 'tauri-plugin-mihomo-api'
+
+import type { BaseConfig, Rule, RuleProvider } from '@/types/mihomo'
 
 export interface AppDataContextType {
   proxies: any

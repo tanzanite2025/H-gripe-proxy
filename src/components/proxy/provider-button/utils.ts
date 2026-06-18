@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
+
+import type { ProxyProvider } from '@/types/mihomo'
 
 export const parseExpire = (expire?: number) => {
   if (!expire) return '-'

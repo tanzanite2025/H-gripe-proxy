@@ -1,11 +1,11 @@
 import dayjs from 'dayjs'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { IconButton } from '@/components/tailwind/IconButton'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import { ListItem, ListItemText } from '@/components/tailwind/List'
+import type { ProxyProvider } from '@/types/mihomo'
 import { cn } from '@/utils/cn'
 import parseTraffic from '@/utils/format'
 

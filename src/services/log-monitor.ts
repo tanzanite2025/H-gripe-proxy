@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import type { LogLevel } from 'tauri-plugin-mihomo-api'
+
+import type { LogLevel } from '@/types/mihomo'
 
 type CoreLogHandler = (payload: unknown) => void
 

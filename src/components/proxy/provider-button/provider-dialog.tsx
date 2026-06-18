@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { Button } from '@/components/tailwind/Button'
 import {
@@ -9,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/tailwind/Dialog'
 import { List } from '@/components/tailwind/List'
+import type { ProxyProvider } from '@/types/mihomo'
 
 import { ProviderListItem } from './provider-list-item'
 
