@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { selectNodeForGroup } from 'tauri-plugin-mihomo-api'
 
 import { syncTrayProxySelection } from '@/services/cmds'
 
@@ -51,7 +50,10 @@ export async function applyProxyRuntimeSelection(
   proxyName: string,
   options: ProxyRuntimeSelectionOptions = {},
 ) {
-  await selectNodeForGroup(groupName, proxyName)
+  await invoke<void>('apply_runtime_proxy_selection', {
+    groupName,
+    proxyName,
+  })
 
   if (options.syncTray ?? true) {
     await syncTrayProxySelection()

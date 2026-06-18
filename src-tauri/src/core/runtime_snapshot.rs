@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, path::PathBuf, sync::RwLock};
 
 use crate::{
     config::Config,
@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
 use tauri_plugin_mihomo::models::{
     DelayHistory, DnsMetrics, Extra, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
@@ -47,6 +48,13 @@ impl RuntimeSnapshot {
 }
 
 static RUNTIME_SNAPSHOT_SERVICE: Lazy<RuntimeSnapshotService> = Lazy::new(RuntimeSnapshotService::new);
+static RUNTIME_PROXY_SELECTION_STATE: Lazy<RwLock<HashMap<String, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+const RUNTIME_PROXY_SELECTIONS_FILE: &str = "proxy-selections.yaml";
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct RuntimeProxySelectionState {
+    pub groups: HashMap<String, String>,
+}
 
 #[derive(Debug, Default)]
 pub struct RuntimeSnapshotService;
@@ -167,7 +175,85 @@ pub fn build_proxies_from_runtime_config(config: &serde_yaml_ng::Mapping) -> Pro
         );
     }
 
+    apply_proxy_selection_state(&mut proxies);
+
     Proxies { proxies }
+}
+
+pub fn runtime_proxy_selection_state() -> HashMap<String, String> {
+    RUNTIME_PROXY_SELECTION_STATE
+        .read()
+        .map(|state| state.clone())
+        .unwrap_or_default()
+}
+
+pub fn record_runtime_proxy_selection(group_name: &str, proxy_name: &str) {
+    if let Ok(mut state) = RUNTIME_PROXY_SELECTION_STATE.write() {
+        state.insert(group_name.to_string(), proxy_name.to_string());
+    }
+}
+
+pub fn record_and_persist_runtime_proxy_selection(group_name: &str, proxy_name: &str) {
+    record_runtime_proxy_selection(group_name, proxy_name);
+    if let Err(error) = persist_runtime_proxy_selection_state() {
+        log::warn!("failed to persist runtime proxy selection state: {error}");
+    }
+}
+
+pub fn load_runtime_proxy_selection_state_from_disk() -> Result<()> {
+    let path = runtime_proxy_selection_state_path()?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) => {
+            log::warn!("failed to read runtime proxy selection state: {error}");
+            return Ok(());
+        }
+    };
+    let document = match serde_yaml_ng::from_str::<RuntimeProxySelectionState>(&content) {
+        Ok(document) => document,
+        Err(error) => {
+            log::warn!("failed to parse runtime proxy selection state: {error}");
+            return Ok(());
+        }
+    };
+    if let Ok(mut state) = RUNTIME_PROXY_SELECTION_STATE.write() {
+        *state = document.groups;
+    }
+    Ok(())
+}
+
+fn persist_runtime_proxy_selection_state() -> Result<()> {
+    let path = runtime_proxy_selection_state_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let document = RuntimeProxySelectionState {
+        groups: runtime_proxy_selection_state(),
+    };
+    fs::write(path, serde_yaml_ng::to_string(&document)?)?;
+    Ok(())
+}
+
+fn runtime_proxy_selection_state_path() -> Result<PathBuf> {
+    Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_PROXY_SELECTIONS_FILE))
+}
+
+fn apply_proxy_selection_state(proxies: &mut HashMap<String, Proxy>) {
+    let state = runtime_proxy_selection_state();
+    for (group_name, proxy_name) in state {
+        let Some(group) = proxies.get_mut(&group_name) else {
+            continue;
+        };
+        let Some(all) = group.all.as_ref() else {
+            continue;
+        };
+        if all.iter().any(|candidate| candidate == &proxy_name) {
+            group.now = Some(proxy_name);
+        }
+    }
 }
 
 fn proxy_from_config_item(item: &Value) -> Option<Proxy> {
@@ -784,6 +870,7 @@ fn rule_type_from_str(value: Option<&str>) -> RuleType {
         "SRCIPSUFFIX" => RuleType::SrcIPSuffix,
         "SRCPORT" => RuleType::SrcPort,
         "DSTPORT" => RuleType::DstPort,
+        // spellchecker:disable-next-line
         "INPORT" => RuleType::InPort,
         "INUSER" => RuleType::InUser,
         "INNAME" => RuleType::InName,
@@ -953,6 +1040,38 @@ proxy-groups:
         assert_eq!(global.all.as_ref().unwrap(), &vec!["Auto".to_string()]);
         assert!(topology.proxies.contains_key("DIRECT"));
         assert!(topology.proxies.contains_key("REJECT"));
+    }
+
+    #[test]
+    fn runtime_proxy_topology_applies_selection_state_cache() {
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            r#"
+proxies:
+  - name: cache-node-a
+    type: ss
+  - name: cache-node-b
+    type: ss
+proxy-groups:
+  - name: CacheSelector
+    type: select
+    proxies:
+      - cache-node-a
+      - cache-node-b
+"#,
+        )
+        .unwrap();
+
+        record_runtime_proxy_selection("CacheSelector", "cache-node-b");
+
+        let topology = build_proxies_from_runtime_config(&config);
+
+        assert_eq!(
+            topology
+                .proxies
+                .get("CacheSelector")
+                .and_then(|group| group.now.as_deref()),
+            Some("cache-node-b")
+        );
     }
 
     #[test]

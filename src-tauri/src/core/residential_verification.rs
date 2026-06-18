@@ -219,6 +219,7 @@ impl<'a> MihomoSelectionGuard<'a> {
         }
 
         mihomo.select_node_for_group(group_name, node_name).await?;
+        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(group_name, node_name);
         drop(mihomo);
 
         Ok(Self {
@@ -232,6 +233,7 @@ impl<'a> MihomoSelectionGuard<'a> {
         if let Some(previous_node) = self.previous_node {
             let mihomo = self.app_handle.mihomo().read().await;
             mihomo.select_node_for_group(&self.group_name, &previous_node).await?;
+            crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(&self.group_name, &previous_node);
         }
 
         Ok(())

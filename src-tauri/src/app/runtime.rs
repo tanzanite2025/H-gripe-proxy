@@ -365,6 +365,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             .await
         {
             Ok(_) => {
+                crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(group_name, proxy_name);
                 logging!(
                     info,
                     Type::Tray,
