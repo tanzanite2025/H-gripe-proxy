@@ -1739,3 +1739,36 @@ get_runtime_proxy_providers()
 1. Rust-owned runtime rule inventory：从 runtime YAML 解析 rules/rule-providers。
 2. Rust-owned selection state cache：选择节点时同步写 Rust state。
 3. Connections/traffic reads 迁移到 Rust long-poll。
+
+### Aggressive replacement track：Rust runtime rule inventory（第三批大步迁移）
+
+继 proxy topology / provider topology 主读取路径迁移后，本批次替换 rules 与 rule provider 列表的主路径读取：不再为了渲染规则页而请求 Go Mihomo `/rules` / `/providers/rules`，改由 Rust 直接从 runtime config 解析 `rules` 与 `rule-providers`，并读取本地 rule provider 文件补齐 provider rule inventory。
+
+```text
+get_runtime_rules()
+  -> Config::runtime().latest.config
+  -> parse profile rules
+  -> collect RULE-SET provider -> target mapping
+  -> parse rule-provider payload files
+  -> expand provider payloads with source = provider:<name>
+  -> Rules { rules, total, page, pageSize }
+
+get_runtime_rule_providers()
+  -> Config::runtime().latest.config["rule-providers"]
+  -> parse behavior / format / vehicle type
+  -> count payload entries from provider file
+  -> RuleProviders { providers: HashMap<String, RuleProvider> }
+```
+
+迁移效果：
+
+- 移除 `AppDataProvider` 对 `tauri-plugin-mihomo-api.getRules()` 的主路径依赖。
+- 移除 `AppDataProvider` 对 `tauri-plugin-mihomo-api.getRuleProviders()` 的主路径依赖。
+- 规则页仍保留 `createRule()` / `deleteRule()` / `disableRules()` / `updateRuleProvider()` 等写操作走 Go data plane。
+- 规则来源补齐为 `profile` / `provider:<name>`，继续兼容 UI source badge。
+
+下一批优先级：
+
+1. Rust-owned selection state cache：选择节点时同步写 Rust state。
+2. Connections/traffic reads 迁移到 Rust long-poll。
+3. Provider/rule update write-path 迁移 Rust command wrapper，逐步收缩 Go control API 面。

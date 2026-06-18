@@ -60,6 +60,8 @@ export const useLayoutEvents = (
           'getVersion',
           'getClashConfig',
           'getRuntimeProxyProviders',
+          'getRuntimeRules',
+          'getRuntimeRuleProviders',
           'current-egress-identity',
         ])
       }),

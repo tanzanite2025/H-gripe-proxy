@@ -8,8 +8,8 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde_yaml_ng::Value;
 use tauri_plugin_mihomo::models::{
-    DelayHistory, DnsMetrics, Extra, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType,
-    SubScriptionInfo, VehicleType,
+    DelayHistory, DnsMetrics, Extra, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
+    RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleType, Rules, SubScriptionInfo, VehicleType,
 };
 
 #[derive(Debug, Default)]
@@ -480,6 +480,361 @@ fn load_subscription_info(provider_config: &Value) -> Option<SubScriptionInfo> {
     })
 }
 
+pub fn build_rules_from_runtime_config(config: &serde_yaml_ng::Mapping) -> Rules {
+    let mut rules = Vec::new();
+    let mut rule_set_targets = HashMap::new();
+
+    if let Some(items) = config.get("rules").and_then(Value::as_sequence) {
+        for item in items {
+            let Some(rule) = rule_from_value(item, rules.len() as i32, "profile", None) else {
+                continue;
+            };
+            if matches!(rule.rule_type, RuleType::RuleSet) && !rule.payload.is_empty() && !rule.proxy.is_empty() {
+                rule_set_targets.insert(rule.payload.clone(), rule.proxy.clone());
+            }
+            rules.push(rule);
+        }
+    }
+
+    append_rule_provider_rules(config, &mut rules, &rule_set_targets);
+
+    let total = i32::try_from(rules.len()).unwrap_or(i32::MAX);
+    Rules {
+        rules,
+        total: Some(total),
+        page: Some(1),
+        page_size: Some(total),
+    }
+}
+
+pub fn build_rule_providers_from_runtime_config(config: &serde_yaml_ng::Mapping) -> RuleProviders {
+    let mut providers = HashMap::new();
+
+    let Some(provider_map) = config.get("rule-providers").and_then(Value::as_mapping) else {
+        return RuleProviders { providers };
+    };
+
+    let app_home = crate::utils::dirs::app_home_dir().unwrap_or_default();
+
+    for (key, value) in provider_map {
+        let Some(name) = key.as_str() else { continue };
+        let provider = build_single_rule_provider(name, value, &app_home);
+        providers.insert(name.to_string(), provider);
+    }
+
+    RuleProviders { providers }
+}
+
+fn append_rule_provider_rules(
+    config: &serde_yaml_ng::Mapping,
+    rules: &mut Vec<Rule>,
+    targets: &HashMap<String, String>,
+) {
+    let Some(provider_map) = config.get("rule-providers").and_then(Value::as_mapping) else {
+        return;
+    };
+
+    let app_home = crate::utils::dirs::app_home_dir().unwrap_or_default();
+
+    for (key, value) in provider_map {
+        let Some(name) = key.as_str() else { continue };
+        let behavior = rule_behavior_from_str(string_field(value, "behavior").as_deref());
+        let target = targets.get(name).map(std::string::String::as_str);
+        let source = format!("provider:{name}");
+
+        for payload in load_rule_provider_payloads(value, &app_home) {
+            let index = i32::try_from(rules.len()).unwrap_or(i32::MAX);
+            let rule = match behavior {
+                RuleBehavior::Classical => rule_from_line(&payload, index, &source, target),
+                RuleBehavior::Domain => Some(rule_from_provider_payload(
+                    index,
+                    RuleType::Domain,
+                    payload,
+                    target.unwrap_or_default().to_string(),
+                    source.clone(),
+                )),
+                RuleBehavior::IpCidr => Some(rule_from_provider_payload(
+                    index,
+                    RuleType::IPCIDR,
+                    payload,
+                    target.unwrap_or_default().to_string(),
+                    source.clone(),
+                )),
+            };
+
+            if let Some(rule) = rule {
+                rules.push(rule);
+            }
+        }
+    }
+}
+
+fn build_single_rule_provider(name: &str, value: &Value, app_home: &std::path::Path) -> RuleProvider {
+    let payloads = load_rule_provider_payloads(value, app_home);
+    RuleProvider {
+        behavior: rule_behavior_from_str(string_field(value, "behavior").as_deref()),
+        format: rule_format_from_str(string_field(value, "format").as_deref()),
+        name: name.to_string(),
+        rule_count: u32::try_from(payloads.len()).unwrap_or(u32::MAX),
+        provider_type: ProviderType::Rule,
+        updated_at: provider_file_updated_at(value, app_home),
+        vehicle_type: vehicle_type_from_str(string_field(value, "type").as_deref()),
+    }
+}
+
+fn rule_from_value(item: &Value, index: i32, source: &str, fallback_proxy: Option<&str>) -> Option<Rule> {
+    let line = item.as_str()?;
+    rule_from_line(line, index, source, fallback_proxy)
+}
+
+fn rule_from_line(line: &str, index: i32, source: &str, fallback_proxy: Option<&str>) -> Option<Rule> {
+    let fields = split_rule_fields(line);
+    let rule_type_field = fields.first()?.trim();
+    let rule_type = rule_type_from_str(Some(rule_type_field));
+    let payload = if matches!(rule_type, RuleType::Match) {
+        String::new()
+    } else {
+        fields.get(1).cloned().unwrap_or_default()
+    };
+    let proxy = if matches!(rule_type, RuleType::Match) {
+        fields
+            .get(1)
+            .cloned()
+            .or_else(|| fallback_proxy.map(std::string::String::from))
+            .unwrap_or_default()
+    } else {
+        fields
+            .get(2)
+            .cloned()
+            .or_else(|| fallback_proxy.map(std::string::String::from))
+            .unwrap_or_default()
+    };
+
+    Some(Rule {
+        index,
+        rule_type,
+        payload,
+        proxy,
+        size: i32::try_from(line.len()).unwrap_or(i32::MAX),
+        source: source.to_string(),
+        extra: None,
+    })
+}
+
+fn rule_from_provider_payload(index: i32, rule_type: RuleType, payload: String, proxy: String, source: String) -> Rule {
+    Rule {
+        index,
+        rule_type,
+        size: i32::try_from(payload.len()).unwrap_or(i32::MAX),
+        payload,
+        proxy,
+        source,
+        extra: None,
+    }
+}
+
+fn load_rule_provider_payloads(provider_config: &Value, app_home: &std::path::Path) -> Vec<String> {
+    if let Some(payload) = provider_config.get("payload").and_then(Value::as_sequence) {
+        return collect_payload_entries(payload);
+    }
+
+    let Some(file_path) = provider_file_path(provider_config, app_home) else {
+        return Vec::new();
+    };
+    let content = match std::fs::read_to_string(&file_path) {
+        Ok(content) => content,
+        Err(_) => return Vec::new(),
+    };
+
+    parse_rule_provider_file_content(&content)
+}
+
+fn parse_rule_provider_file_content(content: &str) -> Vec<String> {
+    let value: Result<Value, _> = serde_yaml_ng::from_str(content);
+    let Ok(value) = value else {
+        return content_lines(content);
+    };
+
+    if let Some(payload) = value.get("payload").and_then(Value::as_sequence) {
+        return collect_payload_entries(payload);
+    }
+    if let Some(rules) = value.get("rules").and_then(Value::as_sequence) {
+        return collect_payload_entries(rules);
+    }
+    if let Some(sequence) = value.as_sequence() {
+        return collect_payload_entries(sequence);
+    }
+    if let Some(text) = value.as_str() {
+        return content_lines(text);
+    }
+
+    Vec::new()
+}
+
+fn content_lines(content: &str) -> Vec<String> {
+    content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(std::string::String::from)
+        .collect()
+}
+
+fn collect_payload_entries(items: &[Value]) -> Vec<String> {
+    items
+        .iter()
+        .filter_map(|item| {
+            item.as_str()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(std::string::String::from)
+        })
+        .collect()
+}
+
+fn provider_file_path(provider_config: &Value, app_home: &std::path::Path) -> Option<std::path::PathBuf> {
+    let path_str = string_field(provider_config, "path")?;
+    if std::path::Path::new(&path_str).is_absolute() {
+        Some(std::path::PathBuf::from(&path_str))
+    } else {
+        Some(app_home.join(&path_str))
+    }
+}
+
+fn provider_file_updated_at(provider_config: &Value, app_home: &std::path::Path) -> String {
+    let Some(file_path) = provider_file_path(provider_config, app_home) else {
+        return String::new();
+    };
+    let Ok(metadata) = std::fs::metadata(&file_path) else {
+        return String::new();
+    };
+    let Ok(modified) = metadata.modified() else {
+        return String::new();
+    };
+    chrono::DateTime::<chrono::Utc>::from(modified).to_rfc3339()
+}
+
+fn split_rule_fields(line: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0_i32;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+
+    for ch in line.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+
+        if ch == '\\' {
+            current.push(ch);
+            escaped = true;
+            continue;
+        }
+
+        match ch {
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
+                current.push(ch);
+            }
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
+                current.push(ch);
+            }
+            '(' | '[' | '{' if !in_single_quote && !in_double_quote => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' | ']' | '}' if !in_single_quote && !in_double_quote => {
+                depth = (depth - 1).max(0);
+                current.push(ch);
+            }
+            ',' if depth == 0 && !in_single_quote && !in_double_quote => {
+                fields.push(current.trim().to_string());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    fields.push(current.trim().to_string());
+    fields
+}
+
+fn rule_type_from_str(value: Option<&str>) -> RuleType {
+    let Some(raw) = value else {
+        return RuleType::Unknown("unknown".into());
+    };
+    match raw.replace(['-', '_'], "").to_ascii_uppercase().as_str() {
+        "DOMAIN" => RuleType::Domain,
+        "DOMAINSUFFIX" => RuleType::DomainSuffix,
+        "DOMAINKEYWORD" => RuleType::DomainKeyword,
+        "DOMAINREGEX" => RuleType::DomainRegex,
+        "GEOSITE" => RuleType::GeoSite,
+        "GEOIP" => RuleType::GeoIP,
+        "SRCGEOIP" => RuleType::SrcGeoIP,
+        "IPASN" => RuleType::IPASN,
+        "SRCIPASN" => RuleType::SrcIPASN,
+        "IPCIDR" => RuleType::IPCIDR,
+        "SRCIPCIDR" => RuleType::SrcIPCIDR,
+        "IPSUFFIX" => RuleType::IPSuffix,
+        "SRCIPSUFFIX" => RuleType::SrcIPSuffix,
+        "SRCPORT" => RuleType::SrcPort,
+        "DSTPORT" => RuleType::DstPort,
+        "INPORT" => RuleType::InPort,
+        "INUSER" => RuleType::InUser,
+        "INNAME" => RuleType::InName,
+        "INTYPE" => RuleType::InType,
+        "PROCESSNAME" => RuleType::ProcessName,
+        "PROCESSPATH" => RuleType::ProcessPath,
+        "PROCESSNAMEREGEX" => RuleType::ProcessNameRegex,
+        "PROCESSPATHREGEX" => RuleType::ProcessPathRegex,
+        "MATCH" => RuleType::Match,
+        "RULESET" => RuleType::RuleSet,
+        "NETWORK" => RuleType::Network,
+        "DSCP" => RuleType::DSCP,
+        "UID" => RuleType::Uid,
+        "SUBRULES" => RuleType::SubRules,
+        "AND" => RuleType::AND,
+        "OR" => RuleType::OR,
+        "NOT" => RuleType::NOT,
+        _ => RuleType::Unknown(raw.to_string()),
+    }
+}
+
+fn rule_behavior_from_str(value: Option<&str>) -> RuleBehavior {
+    match value
+        .unwrap_or_default()
+        .replace(['-', '_'], "")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "domain" => RuleBehavior::Domain,
+        "ipcidr" => RuleBehavior::IpCidr,
+        _ => RuleBehavior::Classical,
+    }
+}
+
+fn rule_format_from_str(value: Option<&str>) -> RuleFormat {
+    match value.unwrap_or_default().to_ascii_lowercase().as_str() {
+        "text" => RuleFormat::Text,
+        "mrs" => RuleFormat::Mrs,
+        _ => RuleFormat::Yaml,
+    }
+}
+
+fn vehicle_type_from_str(value: Option<&str>) -> VehicleType {
+    match value.unwrap_or_default().to_ascii_lowercase().as_str() {
+        "http" => VehicleType::HTTP,
+        "file" => VehicleType::File,
+        "inline" => VehicleType::Inline,
+        _ => VehicleType::Compatible,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,5 +953,64 @@ proxy-groups:
         assert_eq!(global.all.as_ref().unwrap(), &vec!["Auto".to_string()]);
         assert!(topology.proxies.contains_key("DIRECT"));
         assert!(topology.proxies.contains_key("REJECT"));
+    }
+
+    #[test]
+    fn builds_rules_from_runtime_config_and_inline_rule_provider() {
+        let runtime_yaml = r#"
+rules:
+  - DOMAIN-SUFFIX,example.com,DIRECT
+  - RULE-SET,ads,REJECT
+  - MATCH,DIRECT
+rule-providers:
+  ads:
+    type: http
+    behavior: domain
+    format: yaml
+    payload:
+      - ads.example
+"#;
+        let value = serde_yaml_ng::from_str::<Value>(runtime_yaml).unwrap();
+        let config = value.as_mapping().unwrap();
+
+        let rules = build_rules_from_runtime_config(config);
+
+        assert_eq!(rules.rules.len(), 4);
+        assert_eq!(rules.rules[0].rule_type, RuleType::DomainSuffix);
+        assert_eq!(rules.rules[0].payload, "example.com");
+        assert_eq!(rules.rules[0].proxy, "DIRECT");
+        assert_eq!(rules.rules[2].rule_type, RuleType::Match);
+        assert_eq!(rules.rules[2].payload, "");
+        assert_eq!(rules.rules[2].proxy, "DIRECT");
+        assert_eq!(rules.rules[3].source, "provider:ads");
+        assert_eq!(rules.rules[3].rule_type, RuleType::Domain);
+        assert_eq!(rules.rules[3].payload, "ads.example");
+        assert_eq!(rules.rules[3].proxy, "REJECT");
+    }
+
+    #[test]
+    fn builds_rule_providers_from_runtime_config() {
+        let runtime_yaml = r#"
+rule-providers:
+  cn:
+    type: file
+    behavior: ipcidr
+    format: text
+    payload:
+      - 10.0.0.0/8
+      - 192.168.0.0/16
+"#;
+        let value = serde_yaml_ng::from_str::<Value>(runtime_yaml).unwrap();
+        let config = value.as_mapping().unwrap();
+
+        let providers = build_rule_providers_from_runtime_config(config);
+        let provider = providers.providers.get("cn").unwrap();
+
+        assert_eq!(provider.name, "cn");
+        assert_eq!(provider.rule_count, 2);
+        assert_eq!(provider.behavior, RuleBehavior::IpCidr);
+        assert_eq!(provider.format, RuleFormat::Text);
+        assert_eq!(provider.provider_type, ProviderType::Rule);
+        assert_eq!(provider.vehicle_type, VehicleType::File);
     }
 }

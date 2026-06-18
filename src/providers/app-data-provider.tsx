@@ -1,11 +1,7 @@
 ﻿import { useQuery } from '@tanstack/react-query'
 import { listen } from '@tauri-apps/api/event'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
-import {
-  getBaseConfig,
-  getRuleProviders,
-  getRules,
-} from 'tauri-plugin-mihomo-api'
+import { getBaseConfig } from 'tauri-plugin-mihomo-api'
 
 import { useVerge } from '@/hooks/system'
 import {
@@ -18,6 +14,7 @@ import {
   calcuProxyProviders,
 } from '@/services/proxy-runtime'
 import { queryClient } from '@/services/query-client'
+import { getRuntimeRuleProviders, getRuntimeRules } from '@/services/rule-runtime'
 
 import {
   ClashConfigContext,
@@ -87,14 +84,14 @@ export const AppDataProvider = ({
   })
 
   const { data: ruleProviders, refetch: _refetchRuleProviders } = useQuery({
-    queryKey: ['getRuleProviders'],
-    queryFn: getRuleProviders,
+    queryKey: ['getRuntimeRuleProviders'],
+    queryFn: getRuntimeRuleProviders,
     ...TQ_MIHOMO,
   })
 
   const { data: rulesData, refetch: _refetchRules } = useQuery({
-    queryKey: ['getRules'],
-    queryFn: getRules,
+    queryKey: ['getRuntimeRules'],
+    queryFn: getRuntimeRules,
     ...TQ_MIHOMO,
   })
 

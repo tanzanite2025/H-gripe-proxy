@@ -18,7 +18,7 @@ use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
-use tauri_plugin_mihomo::models::{Proxies, ProxyProviders};
+use tauri_plugin_mihomo::models::{Proxies, ProxyProviders, RuleProviders, Rules};
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
 /// 获取运行时配置
@@ -99,6 +99,32 @@ pub async fn get_runtime_proxy_providers() -> CmdResult<ProxyProviders> {
         .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))
         .stringify_err()?;
     Ok(crate::core::runtime_snapshot::build_proxy_providers_from_runtime_config(config))
+}
+
+#[tauri::command]
+pub async fn get_runtime_rules() -> CmdResult<Rules> {
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))
+        .stringify_err()?;
+    Ok(crate::core::runtime_snapshot::build_rules_from_runtime_config(config))
+}
+
+#[tauri::command]
+pub async fn get_runtime_rule_providers() -> CmdResult<RuleProviders> {
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))
+        .stringify_err()?;
+    Ok(crate::core::runtime_snapshot::build_rule_providers_from_runtime_config(
+        config,
+    ))
 }
 
 /// 获取运行时日志
