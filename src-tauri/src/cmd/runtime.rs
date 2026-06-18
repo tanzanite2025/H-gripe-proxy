@@ -5,6 +5,7 @@ use crate::{
     core::{
         CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
+        handle::Handle,
         runtime_diagnostics::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
             build_runtime_diagnostics_summary,
@@ -78,6 +79,7 @@ pub async fn get_runtime_exists() -> CmdResult<HashSet<String>> {
 
 #[tauri::command]
 pub async fn get_runtime_proxy_topology() -> CmdResult<Proxies> {
+    crate::core::runtime_snapshot::load_runtime_proxy_selection_state_from_disk().stringify_err()?;
     RuntimeSnapshotService::global()
         .refresh_proxy_topology_from_runtime_config()
         .await
@@ -87,6 +89,26 @@ pub async fn get_runtime_proxy_topology() -> CmdResult<Proxies> {
             })
         })
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_proxy_selection_state() -> CmdResult<HashMap<std::string::String, std::string::String>> {
+    crate::core::runtime_snapshot::load_runtime_proxy_selection_state_from_disk().stringify_err()?;
+    Ok(crate::core::runtime_snapshot::runtime_proxy_selection_state())
+}
+
+#[tauri::command]
+pub async fn apply_runtime_proxy_selection(
+    group_name: std::string::String,
+    proxy_name: std::string::String,
+) -> CmdResult<()> {
+    let mihomo = Handle::mihomo().await;
+    mihomo
+        .select_node_for_group(&group_name, &proxy_name)
+        .await
+        .stringify_err()?;
+    crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(&group_name, &proxy_name);
+    Ok(())
 }
 
 #[tauri::command]

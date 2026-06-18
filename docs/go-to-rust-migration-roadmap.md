@@ -1772,3 +1772,32 @@ get_runtime_rule_providers()
 1. Rust-owned selection state cache：选择节点时同步写 Rust state。
 2. Connections/traffic reads 迁移到 Rust long-poll。
 3. Provider/rule update write-path 迁移 Rust command wrapper，逐步收缩 Go control API 面。
+
+### Aggressive replacement track: Rust-owned selection state cache
+
+This batch moves proxy selection projection into Rust-owned state after the proxy, provider, and rule read-path migrations. The frontend no longer calls `tauri-plugin-mihomo-api.selectNodeForGroup()` directly. It now invokes the app-owned Rust command, which applies the selection to Mihomo and records the selected node in Rust.
+
+```text
+apply_runtime_proxy_selection(group, node)
+  -> Mihomo select_node_for_group(group, node)
+  -> record_and_persist_runtime_proxy_selection(group, node)
+  -> frontend refreshes get_runtime_proxy_topology()
+  -> build_proxies_from_runtime_config() overlays cached group.now
+
+get_runtime_proxy_selection_state()
+  -> returns Rust-owned HashMap<group, selected_node>
+```
+
+Migration impact:
+
+- Frontend proxy group selection writes now go through an app-owned Rust command instead of the plugin command.
+- `get_runtime_proxy_topology()` overlays `group.now` from the Rust selection cache, reducing UI dependence on Go `/proxies` live state.
+- Tray switching, egress rebind, runtime guard, and residential verification selection writes also record the Rust selection cache after successful Mihomo updates.
+- The Rust cache is persisted under the app runtime directory as `proxy-selections.yaml`.
+- Go data plane still performs the actual node switch; Rust control plane now owns the authoritative UI selection projection.
+
+Next aggressive batches:
+
+1. Move connections and traffic reads to Rust long-poll.
+2. Wrap provider and rule update write paths with Rust commands.
+3. Aggregate delay and healthcheck reads into Rust runtime cache.

@@ -95,6 +95,9 @@ impl RebindStrategy for RoundRobinRebind {
                     .await
                 {
                     Ok(_) => {
+                        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(
+                            group_name, next_node,
+                        );
                         log::info!(
                             "[RebindStrategy::RoundRobin] 自动重绑定: {} 从 {} 切换到 {}",
                             group_name,
@@ -288,6 +291,9 @@ impl RebindStrategy for SmartRebind {
                     .await
                 {
                     Ok(_) => {
+                        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(
+                            group_name, &best_node,
+                        );
                         log::info!(
                             "[RebindStrategy::Smart] 智能重绑定: {} 从 {} 切换到 {} (评分: {})",
                             group_name,

@@ -205,6 +205,8 @@ mod app_init {
             cmd::get_runtime_config,
             cmd::get_runtime_yaml,
             cmd::get_runtime_proxy_topology,
+            cmd::get_runtime_proxy_selection_state,
+            cmd::apply_runtime_proxy_selection,
             cmd::get_runtime_proxy_providers,
             cmd::get_runtime_rules,
             cmd::get_runtime_rule_providers,
