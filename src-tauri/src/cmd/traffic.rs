@@ -3,9 +3,10 @@ use super::{CmdResult, StringifyErr as _};
  * 流量功能 Tauri 命令
  */
 use crate::{
-    core::connection_metrics::ConnectionMetricsSnapshot,
+    core::{connection_metrics::ConnectionMetricsSnapshot, handle::Handle},
     traffic::{ObfuscationProfile, ObfuscationStats, TrafficObfuscationConfig},
 };
+use tauri_plugin_mihomo::models::Connections;
 
 /// 应用混淆配置（供内部调用，委托 feat 层）
 pub async fn apply_traffic_obfuscation_config(config: TrafficObfuscationConfig) -> CmdResult<()> {
@@ -78,6 +79,29 @@ pub async fn traffic_get_connection_metrics_snapshot() -> CmdResult<ConnectionMe
     crate::core::connection_metrics::refresh_connection_metrics_snapshot()
         .await
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_connections() -> CmdResult<Connections> {
+    let payload = Handle::mihomo().await.get_connections().await.stringify_err()?;
+    crate::core::connection_metrics::ingest_connection_metrics_snapshot(&payload).await;
+    Ok(payload)
+}
+
+#[tauri::command]
+pub async fn close_runtime_connection(connection_id: String) -> CmdResult<()> {
+    Handle::mihomo()
+        .await
+        .close_connection(&connection_id)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn close_all_runtime_connections() -> CmdResult<()> {
+    Handle::mihomo().await.close_all_connections().await.stringify_err()?;
+    crate::core::connection_metrics::reset_connection_metrics().await;
+    Ok(())
 }
 
 /// 重置 Rust 连接/流量指标聚合状态。

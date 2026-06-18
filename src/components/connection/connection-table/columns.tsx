@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
-import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { IconButton } from '@/components/tailwind/IconButton'
+import { closeRuntimeConnection } from '@/services/connection-runtime'
 import parseTraffic from '@/utils/format'
 
 import { createCloseConnectionAction } from '../connection-actions'
@@ -136,7 +136,7 @@ export const buildConnectionBaseColumns = ({
         const action = createCloseConnectionAction({
           closed,
           connectionId: row.id,
-          onCloseConnection: closeConnection,
+          onCloseConnection: closeRuntimeConnection,
         })
 
         if (!action) {

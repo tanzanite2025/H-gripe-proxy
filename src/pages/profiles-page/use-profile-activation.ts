@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
+import { closeAllRuntimeConnections } from '@/services/connection-runtime'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/misc'
 
@@ -187,7 +187,7 @@ export function useProfileActivation({
         await refreshRules()
         await refreshRuleProviders()
         await mutateLogs()
-        closeAllConnections()
+        closeAllRuntimeConnections()
 
         if (notifySuccess && success) {
           showNotice.success(
