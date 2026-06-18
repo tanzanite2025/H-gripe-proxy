@@ -3,7 +3,6 @@ import dayjs from 'dayjs'
 import { Database, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { updateRuleProvider } from 'tauri-plugin-mihomo-api'
 
 import { Button } from '@/components/tailwind/Button'
 import { Dialog, DialogActions, DialogContent, DialogTitle } from '@/components/tailwind/Dialog'
@@ -11,6 +10,7 @@ import { IconButton } from '@/components/tailwind/IconButton'
 import { List, ListItem, ListItemText } from '@/components/tailwind/List'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
+import { updateRuntimeRuleProvider } from '@/services/rule-runtime'
 import { cn } from '@/utils/cn'
 
 export const ProviderButton = () => {
@@ -29,7 +29,7 @@ export const ProviderButton = () => {
       // 设置更新状态
       setUpdating((prev) => ({ ...prev, [name]: true }))
 
-      await updateRuleProvider(name)
+      await updateRuntimeRuleProvider(name)
 
       // 刷新数据
       await refreshRules()
@@ -75,7 +75,7 @@ export const ProviderButton = () => {
       // 改为串行逐个更新所有provider
       for (const name of allProviders) {
         try {
-          await updateRuleProvider(name)
+          await updateRuntimeRuleProvider(name)
           // 每个更新完成后更新状态
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (err) {

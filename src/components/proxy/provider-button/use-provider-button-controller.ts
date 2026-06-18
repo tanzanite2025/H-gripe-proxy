@@ -1,9 +1,10 @@
 import { useLockFn } from 'ahooks'
 import { useMemo, useState } from 'react'
-import { type ProxyProvider, updateProxyProvider } from 'tauri-plugin-mihomo-api'
+import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
+import { updateRuntimeProxyProvider } from '@/services/proxy-runtime'
 
 import { buildUpdatingMap } from './utils'
 
@@ -31,7 +32,7 @@ export const useProviderButtonController = () => {
   const updateProvider = useLockFn(async (name: string) => {
     try {
       setUpdating((prev) => ({ ...prev, [name]: true }))
-      await updateProxyProvider(name)
+      await updateRuntimeProxyProvider(name)
       await refreshProviderData()
 
       showNotice.success(
@@ -60,7 +61,7 @@ export const useProviderButtonController = () => {
 
       for (const name of allProviders) {
         try {
-          await updateProxyProvider(name)
+          await updateRuntimeProxyProvider(name)
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (error) {
           console.error(`failed to update provider: ${name}`, error)

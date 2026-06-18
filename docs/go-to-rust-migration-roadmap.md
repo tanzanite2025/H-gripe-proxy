@@ -1834,3 +1834,44 @@ Next aggressive batches:
 1. Move base config reads and patch writes behind Rust commands.
 2. Wrap provider/rule update write paths with Rust commands.
 3. Move delay/healthcheck reads into Rust runtime cache.
+
+### Aggressive replacement track: Rust-owned provider/rule writes and delay wrappers
+
+This batch moves the remaining high-traffic frontend provider/rule write commands and delay/healthcheck calls behind app-owned Rust commands.
+
+```text
+updateRuntimeProxyProvider(name)
+  -> invoke('update_runtime_proxy_provider')
+  -> Handle::mihomo().update_proxy_provider(name)
+
+healthcheckRuntimeProxyProvider(name)
+  -> invoke('healthcheck_runtime_proxy_provider')
+  -> Handle::mihomo().healthcheck_proxy_provider(name)
+
+delayRuntimeGroup(group, url, timeout, keepFixed)
+  -> invoke('delay_runtime_group')
+  -> Handle::mihomo().delay_group(...)
+  -> if keepFixed: restore fixed selection and persist Rust selection cache
+
+disableRuntimeRules(payload) / deleteRuntimeRule(index) / createRuntimeRule(...)
+  -> invoke('disable_runtime_rules' | 'delete_runtime_rule' | 'create_runtime_rule')
+  -> Handle::mihomo().disable_rules/delete_rule/create_rule(...)
+
+updateRuntimeRuleProvider(name)
+  -> invoke('update_runtime_rule_provider')
+  -> Handle::mihomo().update_rule_provider(name)
+```
+
+Migration impact:
+
+- Rule create/delete/disable UI no longer imports write commands from `tauri-plugin-mihomo-api`.
+- Rule provider and proxy provider update flows are routed through Rust app commands.
+- Provider healthcheck and group/proxy delay checks are routed through Rust app commands.
+- Traffic graph code no longer imports the plugin `Traffic` runtime symbol.
+- Go/Mihomo remains the data plane for live updates, but frontend control now goes through Rust-owned app APIs.
+
+Next aggressive batches:
+
+1. Move base config reads and patch writes behind Rust commands.
+2. Wrap DNS/version/geo command surfaces behind Rust services.
+3. Move delay/healthcheck result caching into Rust runtime state.

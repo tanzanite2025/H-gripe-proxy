@@ -1,8 +1,8 @@
 import { useLockFn } from 'ahooks'
 import { useCallback, useRef } from 'react'
-import { delayGroup, healthcheckProxyProvider } from 'tauri-plugin-mihomo-api'
 
-import delayManager from '@/services/delay'
+import delayManager, { delayRuntimeGroup } from '@/services/delay'
+import { healthcheckRuntimeProxyProvider } from '@/services/proxy-runtime'
 import { debugLog } from '@/utils/misc'
 
 import type { HeadState } from '../../use-head-state'
@@ -41,7 +41,7 @@ export function useDelayCheck(options: UseDelayCheckOptions) {
     if (providers.size > 0) {
       debugLog(`[ProxyGroups] Provider count: ${providers.size}`)
       Promise.allSettled(
-        [...providers].map((provider) => healthcheckProxyProvider(provider)),
+        [...providers].map((provider) => healthcheckRuntimeProxyProvider(provider)),
       ).then(() => {
         debugLog('[ProxyGroups] Provider health check finished')
         onProxies()
@@ -62,7 +62,7 @@ export function useDelayCheck(options: UseDelayCheckOptions) {
         delayManager.setDelay(name, groupName, -2)
       })
 
-      const result = await delayGroup(groupName, url, timeout, false)
+      const result = await delayRuntimeGroup(groupName, url, timeout, false)
       debugLog(
         `[ProxyGroups] Group delay result count: ${Object.keys(result || {}).length}`,
       )

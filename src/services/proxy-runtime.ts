@@ -19,6 +19,14 @@ async function getRuntimeProxyProviders() {
   )
 }
 
+export async function updateRuntimeProxyProvider(providerName: string) {
+  await invoke<void>('update_runtime_proxy_provider', { providerName })
+}
+
+export async function healthcheckRuntimeProxyProvider(providerName: string) {
+  await invoke<void>('healthcheck_runtime_proxy_provider', { providerName })
+}
+
 export async function calcuProxyProviders() {
   const response = await getRuntimeProxyProviders()
   return Object.fromEntries(

@@ -1,12 +1,12 @@
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createRule } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog } from '@/components/base'
 import { Select, TextField } from '@/components/tailwind'
 import { useAppRefreshers } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
+import { createRuntimeRule } from '@/services/rule-runtime'
 
 const RULE_TYPES = [
   'Domain',
@@ -54,7 +54,14 @@ export const CreateRuleDialog = (props: Props) => {
       return
     }
     try {
-      await createRule(ruleType, payload.trim(), proxy.trim(), undefined, undefined, undefined)
+      await createRuntimeRule(
+        ruleType,
+        payload.trim(),
+        proxy.trim(),
+        undefined,
+        undefined,
+        undefined,
+      )
       await refreshRules()
       showNotice.success(`Rule created: ${ruleType},${payload.trim()},${proxy.trim()}`)
       setPayload('')

@@ -1,4 +1,5 @@
-import { delayProxyByName, ProxyDelay } from 'tauri-plugin-mihomo-api'
+import { invoke } from '@tauri-apps/api/core'
+import type { ProxyDelay } from 'tauri-plugin-mihomo-api'
 
 import { debugLog } from '@/utils/misc'
 
@@ -9,6 +10,32 @@ import {
   normalizeDelayTestUrl,
 } from './delay-config'
 import { networkMonitor } from './network-monitor'
+
+export async function delayRuntimeProxy(
+  proxyName: string,
+  testUrl: string,
+  timeout: number,
+) {
+  return invoke<ProxyDelay>('delay_runtime_proxy', {
+    proxyName,
+    testUrl,
+    timeout,
+  })
+}
+
+export async function delayRuntimeGroup(
+  groupName: string,
+  testUrl: string,
+  timeout: number,
+  keepFixed = false,
+) {
+  return invoke<Record<string, number>>('delay_runtime_group', {
+    groupName,
+    testUrl,
+    timeout,
+    keepFixed,
+  })
+}
 
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
 
@@ -250,7 +277,7 @@ class DelayManager {
 
       // 使用Promise.race来实现超时控制
       const result = await Promise.race([
-        delayProxyByName(name, url, effectiveTimeout),
+        delayRuntimeProxy(name, url, effectiveTimeout),
         timeoutPromise,
       ])
 
