@@ -1,6 +1,5 @@
 import { useLockFn } from 'ahooks'
 import { useCallback, useMemo, useState } from 'react'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
@@ -10,6 +9,7 @@ import {
   updateRuntimeProxyProvider,
   type RuntimeProviderHealthRecord,
 } from '@/services/proxy-runtime'
+import type { IProxyProviderItem } from '@/types/proxy'
 
 import { buildUpdatingMap } from './utils'
 
@@ -40,7 +40,7 @@ export const useProviderButtonController = () => {
     () =>
       Object.entries(proxyProviders || {}).sort(([left], [right]) =>
         left.localeCompare(right),
-      ) as Array<[string, ProxyProvider]>,
+      ) as Array<[string, IProxyProviderItem]>,
     [proxyProviders],
   )
 

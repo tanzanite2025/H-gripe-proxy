@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
+
+import type { IProxyProviderItem } from '@/types/proxy'
 
 export const parseExpire = (expire?: number) => {
   if (!expire) return '-'
@@ -7,7 +8,7 @@ export const parseExpire = (expire?: number) => {
 }
 
 export const getProviderProgress = (
-  provider: ProxyProvider,
+  provider: IProxyProviderItem,
 ) => {
   const sub = provider.subscriptionInfo
   const upload = sub?.Upload || 0

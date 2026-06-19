@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { Button } from '@/components/tailwind/Button'
 import {
@@ -10,12 +9,13 @@ import {
 } from '@/components/tailwind/Dialog'
 import { List } from '@/components/tailwind/List'
 import type { RuntimeProviderHealthRecord } from '@/services/proxy-runtime'
+import type { IProxyProviderItem } from '@/types/proxy'
 
 import { ProviderListItem } from './provider-list-item'
 
 interface ProviderDialogProps {
   open: boolean
-  providers: Array<[string, ProxyProvider]>
+  providers: Array<[string, IProxyProviderItem]>
   updating: Record<string, boolean>
   checking: Record<string, boolean>
   health: Record<string, RuntimeProviderHealthRecord>
