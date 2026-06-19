@@ -67,11 +67,11 @@ export async function stopCore() {
 }
 
 export async function restartCore() {
-  return invoke<void>('restart_core')
+  return invoke<void>('restart_runtime_core')
 }
 
 export async function restartApp() {
-  return invoke<void>('restart_app')
+  return invoke<void>('restart_runtime_app')
 }
 
 export async function openAppDir() {
