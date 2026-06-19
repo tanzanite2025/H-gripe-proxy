@@ -7,6 +7,7 @@ use crate::core::{CoreManager, handle::Handle, manager::RunningMode};
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
 const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
+const NEXT_SHADOW_BATCH: &str = "dns-shadow-resolver-evidence";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +42,29 @@ pub struct KernelRuntimePreflightReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelShadowComponent {
+    pub component: String,
+    pub kernel_area: String,
+    pub status: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub evidence: Vec<String>,
+    pub next_step: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelShadowComponentsReport {
+    pub runtime_id: String,
+    pub active_kernel: String,
+    pub mutates_runtime: bool,
+    pub components: Vec<KernelShadowComponent>,
+    pub live_execution_blockers: Vec<KernelReplacementBlocker>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -58,6 +82,8 @@ pub trait KernelRuntime: Send + Sync {
     async fn status(&self) -> KernelRuntimeStatus;
 
     async fn replacement_readiness(&self) -> KernelReplacementReadiness;
+
+    async fn shadow_components(&self) -> KernelShadowComponentsReport;
 
     async fn apply_projection_preflight(&self, artifact_id: Option<String>) -> KernelRuntimePreflightReport;
 }
@@ -95,6 +121,17 @@ impl KernelRuntime for MihomoKernelRuntime {
         }
     }
 
+    async fn shadow_components(&self) -> KernelShadowComponentsReport {
+        KernelShadowComponentsReport {
+            runtime_id: self.runtime_id().into(),
+            active_kernel: active_kernel_label(),
+            mutates_runtime: false,
+            components: shadow_components(),
+            live_execution_blockers: blocked_replacement_areas(),
+            next_safe_batch: NEXT_SHADOW_BATCH.into(),
+        }
+    }
+
     async fn apply_projection_preflight(&self, artifact_id: Option<String>) -> KernelRuntimePreflightReport {
         KernelRuntimePreflightReport {
             runtime_id: self.runtime_id().into(),
@@ -119,6 +156,10 @@ pub async fn mihomo_kernel_replacement_readiness() -> KernelReplacementReadiness
 
 pub async fn mihomo_kernel_apply_preflight(artifact_id: Option<String>) -> KernelRuntimePreflightReport {
     MihomoKernelRuntime.apply_projection_preflight(artifact_id).await
+}
+
+pub async fn mihomo_kernel_shadow_components() -> KernelShadowComponentsReport {
+    MihomoKernelRuntime.shadow_components().await
 }
 
 fn active_kernel_label() -> String {
@@ -181,6 +222,59 @@ fn blocked_replacement_areas() -> Vec<KernelReplacementBlocker> {
             reason: "must remain behind readiness, shadow evidence, opt-in execution, rollback drill, and hold history"
                 .into(),
             required_next_step: "dns-shadow-evidence-continuation".into(),
+        },
+    ]
+}
+
+fn shadow_components() -> Vec<KernelShadowComponent> {
+    vec![
+        KernelShadowComponent {
+            component: "dns-shadow-resolver".into(),
+            kernel_area: "dns".into(),
+            status: "planned-read-only".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            evidence: vec![
+                "compare Rust resolver answers against Mihomo/system answers before opt-in execution".into(),
+                "must reuse DNS readiness, shadow evidence, rollback drill, and hold history".into(),
+            ],
+            next_step: "dns-shadow-resolver-evidence".into(),
+        },
+        KernelShadowComponent {
+            component: "rule-shadow-classifier".into(),
+            kernel_area: "rule-engine".into(),
+            status: "planned-read-only".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            evidence: vec![
+                "compare Rust rule decisions with Mihomo rule inventory without routing traffic".into(),
+                "must not create, delete, or disable live runtime rules".into(),
+            ],
+            next_step: "rule-shadow-classification-evidence".into(),
+        },
+        KernelShadowComponent {
+            component: "adapter-capability-shadow".into(),
+            kernel_area: "adapter".into(),
+            status: "planned-read-only".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            evidence: vec![
+                "parse adapter capabilities before implementing Rust protocol stacks".into(),
+                "must not open outbound sockets or forward packets".into(),
+            ],
+            next_step: "adapter-capability-report".into(),
+        },
+        KernelShadowComponent {
+            component: "connection-observer-shadow".into(),
+            kernel_area: "forwarding".into(),
+            status: "planned-read-only".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            evidence: vec![
+                "observe connection/session shape before Rust forwarding takeover".into(),
+                "must keep Mihomo as the only live forwarding owner".into(),
+            ],
+            next_step: "connection-session-shadow-model".into(),
         },
     ]
 }
