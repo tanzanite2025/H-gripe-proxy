@@ -138,6 +138,41 @@ export interface RuntimeKernelShadowComponent {
   nextStep: string
 }
 
+export interface RuntimeKernelRuleShadowRule {
+  index: number
+  ruleType: string
+  payload: string
+  proxy: string
+  source: string
+}
+
+export interface RuntimeKernelRuleShadowSample {
+  sampleIndex: number
+  appRule?: RuntimeKernelRuleShadowRule | null
+  mihomoRule?: RuntimeKernelRuleShadowRule | null
+  matched: boolean
+  mismatchReason?: string | null
+}
+
+export interface RuntimeKernelRuleShadowEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  status: string
+  appRuleCount: number
+  mihomoRuleCount: number
+  comparedSampleSize: number
+  matchedSampleCount: number
+  mismatchedSampleCount: number
+  samples: RuntimeKernelRuleShadowSample[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelDnsShadowEvidenceReport {
   runtimeId: string
   component: string
@@ -194,5 +229,11 @@ export async function getRuntimeKernelDnsShadowEvidence(
   return invoke<RuntimeKernelDnsShadowEvidenceReport>(
     'get_runtime_kernel_dns_shadow_evidence',
     { yaml, domain },
+  )
+}
+
+export async function getRuntimeKernelRuleShadowEvidence() {
+  return invoke<RuntimeKernelRuleShadowEvidenceReport>(
+    'get_runtime_kernel_rule_shadow_evidence',
   )
 }

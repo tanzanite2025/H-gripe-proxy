@@ -55,6 +55,11 @@ pub async fn get_runtime_kernel_dns_shadow_evidence(
     mihomo_kernel_dns_shadow_evidence(yaml, domain).await.stringify_err()
 }
 
+#[tauri::command]
+pub async fn get_runtime_kernel_rule_shadow_evidence() -> CmdResult<KernelRuleShadowEvidenceReport> {
+    mihomo_kernel_rule_shadow_evidence().await.stringify_err()
+}
+
 /// 获取运行时配置
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
