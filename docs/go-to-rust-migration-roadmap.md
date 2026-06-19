@@ -1,29 +1,30 @@
 # Go-to-Rust migration roadmap
 
-This document is the compact operating roadmap for the Go/Mihomo to Rust migration. It intentionally keeps only durable architecture boundaries, current status, and future decision points. Per-batch implementation logs were removed; use the linked PRs and git history for detailed archaeology.
+This is the single source of truth for the Go/Mihomo to Rust migration. The old Phase 8 standalone plan was folded back into this roadmap so status, safety gates, and next batches do not drift across two documents. Use PRs and git history for implementation archaeology.
 
 ## Goal
 
-Move control-plane ownership out of the Go/Mihomo sidecar and into the Tauri Rust layer. Rust should own validation, planning, gates, audit, telemetry, runtime-history records, and frontend type sources.
+Move app control-plane ownership out of the Go/Mihomo sidecar and into the Tauri Rust layer, while keeping production packet forwarding safe until each data-plane replacement step has evidence, opt-in gates, rollback, and hold history.
 
-The target control chain is:
+Target ownership chain:
 
 ```text
 App registry / policy / node pool / DNS / security profile
   -> Rust-owned runtime plan
   -> Rust-generated projection artifact
   -> explicit gate / audit / rollback boundary
-  -> Mihomo data-plane apply bridge
+  -> Mihomo production data-plane apply bridge
   -> Rust-observed runtime state
 ```
 
-## Current conclusion
+## Current state
 
-The control-plane migration is effectively closed for the current phase:
-
-- Config schema, rule parsing, subscription artifacts, app-runtime plans, staged artifacts, runtime gates, audit, upgrades, telemetry, sensitive-config audit, TLS rotation, and frontend type bindings are Rust-owned or Rust-generated.
-- Mihomo remains the data plane for protocol stacks, TUN, transparent proxy, and real packet forwarding.
-- Further work should be treated as a new decision: either stop at the current Rust-owned control plane, do low-risk cleanup, or open a separate high-risk data-plane migration plan.
+| Area | State | Boundary |
+| --- | --- | --- |
+| Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
+| Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams and R2 shadow evidence are complete. R3 has a loopback-only opt-in test listener; it does not forward traffic or become default route. |
+| Next safe batch | `listener-smoke-evidence` | Verify start/status/local 204/stop behavior and confirm no system proxy, TUN, Mihomo config, DNS, or outbound forwarding mutation. |
 
 ## Non-negotiable boundaries
 
@@ -37,23 +38,24 @@ Forbidden patterns:
 - UI calls Mihomo mutation APIs directly.
 - App policy, node pool, DNS, or security profile logic is assembled ad hoc in the frontend.
 - Runtime mutation happens without an app-owned Rust command.
-- Runtime mutation is not recorded in audit, history, closeout, or rollback state.
+- Runtime mutation is not recorded in audit, history, closeout, or rollback state when it affects production runtime.
 
-### 2. Mihomo remains the data plane
+### 2. Mihomo remains the production data plane
 
-These areas stay owned by Mihomo/Go unless a dedicated high-risk design and PR series is approved:
+These areas stay owned by Mihomo/Go unless a dedicated high-risk PR series explicitly changes them:
 
 - outbound / inbound protocol stacks
+- adapter runtime
 - TUN / transparent proxy
 - real packet forwarding
-- adapter / protocol runtime
+- default DNS runtime
 - OS-level per-app network isolation / sandboxing
 
 Do not mix these changes with UI cleanup, type cleanup, documentation cleanup, or telemetry-only PRs.
 
 ### 3. Runtime apply must stay explicitly gated
 
-Any real runtime apply must preserve this chain:
+Any real production runtime apply must preserve this chain:
 
 ```text
 staged artifact
@@ -65,7 +67,7 @@ staged artifact
   -> closeout / hold / rollback readiness
 ```
 
-Readiness, shadow evidence, verification, or closeout records are not automatic rollout permission.
+Readiness, shadow evidence, smoke evidence, verification, or closeout records are not automatic rollout permission.
 
 ### 4. DNS runtime remains opt-in
 
@@ -99,7 +101,7 @@ tauri-plugin-mihomo-api
 
 `IProxyItem`, `IProxyGroupItem`, and `IProxyProviderItem` must not be force-replaced with raw generated types because they preserve UI semantics such as `provider`, `fixed`, and expanded group `all` items.
 
-## Completed milestones
+## Completed control-plane milestones
 
 | Area | Status | Durable result |
 | --- | --- | --- |
@@ -110,19 +112,68 @@ tauri-plugin-mihomo-api
 | Subscription pipeline | Complete | Source config -> artifact -> active artifact -> runtime is transactional and Rust-owned. |
 | App-facing monitor path | Complete | Connection, traffic, memory, and log views use Rust monitor controllers and Tauri events instead of frontend Mihomo WebSocket ownership. |
 | App runtime orchestration | Complete to hold milestone | Runtime plan, projection artifact, staged activation, runtime-apply decision, verification closeout, and post-apply hold are Rust-owned. |
-| Data-plane replacement | Not started | Protocol stacks, TUN, transparent proxy, and real forwarding remain Mihomo-owned. |
+| Runtime mutation audit | Complete | Mode, system proxy, TUN toggle, DNS apply, geo update, sensitive-config edits, TLS rotation, and upgrade actions are audited. |
+| Runtime telemetry | Complete | Engine, perf, buffer, hot-reload, XDP, rule traffic, TLS fingerprint, provider health, delay, and runtime wrapper result cache are Rust-observed. |
+| Proxy type boundary | Complete | Proxy globals moved to app-owned view models backed by Rust-generated field sources. |
 
-## Phase-2 data-plane control closeout
+## Phase 8 kernel replacement track
 
-| Batch | Status | Result |
-| --- | --- | --- |
-| B1 | Complete | Lifecycle audit covers runtime mutations: mode, system proxy, TUN toggle, DNS apply, and geo update. |
-| B2 | Cancelled | sub-rules commands were unused frontend dead code and did not need migration. |
-| B3 | Complete | Proxy globals moved to app-owned view models backed by Rust-generated field sources. |
-| B4 | Complete | Core, UI, and geo upgrades run through Rust gates and write upgrade history. |
-| B5 | Complete | Engine, perf, buffer, hot-reload, XDP, and rule-traffic telemetry are exposed through Rust commands and diagnostics UI. |
-| B6 | Complete | Sensitive config changes such as `secret` and `external-controller` are lifecycle-audited. |
-| B7 | Complete | TLS fingerprint stats and forced rotation go through Rust commands, audit, and telemetry UI. |
+Phase 8 is not a direct Go/Mihomo kernel swap. The safe sequence is:
+
+```text
+inventory current Mihomo kernel seams
+  -> introduce Rust kernel runtime capability boundaries
+  -> shadow Rust components without forwarding traffic
+  -> opt-in isolated execution
+  -> observed verification + rollback drill
+  -> expanded opt-in
+  -> default cutover only after hold windows pass
+```
+
+Default behavior remains Mihomo-backed until a specific phase explicitly changes it.
+
+### Phase 8 status
+
+| Batch | Status | Runtime impact | Commands / evidence |
+| --- | --- | --- | --- |
+| R0 kernel seam inventory | Complete | Read-only | `get_runtime_kernel_replacement_readiness` reports Mihomo-owned vs Rust-owned areas. |
+| R1 kernel runtime seam | Complete | No default behavior change | `KernelRuntime` exists; the only implementation delegates to `MihomoKernelRuntime`. |
+| R2 DNS shadow evidence | Complete | Read-only | `get_runtime_kernel_dns_shadow_evidence` wraps existing DNS shadow evidence. |
+| R2 rule shadow evidence | Complete | Read-only | `get_runtime_kernel_rule_shadow_evidence` compares app runtime rule projection with Mihomo rule inventory. |
+| R2 adapter capability evidence | Complete | Read-only | `get_runtime_kernel_adapter_capability_report` compares proxy/adapter inventory without dialing endpoints. |
+| R2 connection/session shape evidence | Complete | Read-only | `get_runtime_kernel_connection_session_shadow` summarizes Mihomo connection shape without closing or migrating sessions. |
+| R3 isolated listener preflight | Complete | Read-only | `get_runtime_kernel_isolated_listener_preflight` checks loopback port readiness and runtime-port overlap. |
+| R3 loopback test listener opt-in | In progress | Explicit opt-in, non-production only | `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, and `stop_runtime_kernel_isolated_test_listener` gate a local 204-only listener. |
+| R4 expanded opt-in | Blocked | Not allowed yet | Requires R3 smoke evidence, rollback drill, leak checks, platform matrix, and hold window. |
+| R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
+
+### Current R3 loopback listener boundary
+
+Allowed behavior:
+
+- bind only `127.0.0.1`
+- require preflight before start
+- return a local `204 No Content`
+- report status, accepted connection count, and safety flags
+- stop through an app-owned command
+
+Forbidden behavior:
+
+- no system proxy or TUN mutation
+- no Mihomo config patch
+- no DNS hijack or default route
+- no outbound adapter dialing
+- no packet forwarding
+- no production traffic ownership
+
+`KernelIsolatedTestListenerStatus` must continue to report:
+
+```text
+loopbackOnly=true
+defaultRoute=false
+forwardsTraffic=false
+mihomoFallback=true
+```
 
 ## Current Rust-owned capability inventory
 
@@ -139,67 +190,76 @@ tauri-plugin-mihomo-api
 - Sensitive-config audit.
 - TLS fingerprint telemetry and rotation audit.
 - Provider health, delay, and runtime wrapper result cache.
-- Frontend Mihomo runtime types via Rust-generated bindings plus app-owned UI view models.
+- Proxy and provider view-model boundary.
+- Kernel runtime readiness, shadow evidence, and loopback-only R3 listener gates.
+
+## Hard blockers before production TUN/protocol replacement
+
+Do not replace TUN, adapter runtime, protocol stacks, or real forwarding until all of these exist:
+
+- Mihomo fallback with no app restart and no connectivity loss.
+- Platform-specific rollback drill for Windows service, sidecar, macOS, and Linux paths.
+- Leak verification for DNS, TUN, system proxy, and direct/proxy egress.
+- Adapter/protocol compatibility matrix.
+- Repeated shadow evidence for rules, DNS, adapters, and connection/session shape.
+- Opt-in execution history with hold windows and rollback closeout.
+- Dedicated PR that does not include unrelated cleanup.
 
 ## Removed from this document
 
-The old roadmap contained detailed logs for many completed batches. Those details were useful while work was active, but they made the document harder to use as a current boundary reference.
+The migration history used to contain long per-batch logs and a separate Phase 8 document. Those details are intentionally not duplicated here anymore.
 
-Removed categories:
+Use:
 
-- Batch F through AI implementation details for artifacts, activation, runtime apply, and verification.
-- Batch AJ through AL implementation details for closeout history and post-apply hold.
-- Aggressive replacement track batch-by-batch notes.
-- B1 through B7 per-file implementation notes.
-
-These are now considered historical implementation records. Use PRs, commit history, or release notes when detailed archaeology is needed.
+- PR history for exact implementation details.
+- `git log` / `git blame` for archaeology.
+- This roadmap for current boundaries, allowed next work, and stop conditions.
 
 ## Future decision points
 
-### Option A: Stop here
+### Option A: Stop after current R3 evidence
 
-Default recommendation. Treat the Rust-owned control plane as complete for this phase. Continue only with bug fixes, test coverage, observability polish, and small type-boundary cleanup.
+Accept Rust-owned control plane plus bounded loopback listener evidence. Mihomo remains the production data plane.
 
-### Option B: Low-risk maintenance cleanup
+### Option B: Continue low-risk maintenance
 
-Allowed without a new high-risk design:
+Allowed cleanup:
 
-- Documentation and naming cleanup.
-- Legacy migration block retention-window notes.
-- UI type-boundary completion.
-- Audit and telemetry display polish.
-- Refactors that keep `mutatesRuntime=false`.
+- remove dead frontend paths
+- keep generated types and app view models aligned
+- improve diagnostics wording
+- add read-only evidence commands
+- improve audit/history rendering
 
-### Option C: High-risk data-plane migration
+### Option C: Continue high-risk data-plane migration
 
-Replacing protocol stacks, TUN, transparent proxy, or real forwarding requires a separate design document and staged PR series. The active Phase 8 design starts in `docs/phase-8-rust-kernel-replacement.md`.
+Allowed only after R3 smoke evidence and explicit decision. Next safe high-risk batch is **not** TUN/protocol replacement; it is smoke evidence for the loopback listener:
 
-Minimum design requirements:
+```text
+listener-smoke-evidence
+  -> start listener
+  -> local request receives 204
+  -> status increments accepted connection count
+  -> stop listener
+  -> verify no system proxy/TUN/Mihomo config/outbound mutation
+```
 
-1. Exact runtime mutation scope.
-2. Rollback strategy.
-3. Mihomo sidecar coexistence or cutover boundary.
-4. Observability metrics and failure criteria.
-5. Hold window and rollback readiness.
-6. One PR per real data-plane mutation.
+After that, a separate decision is required before any loopback DNS or forwarding path.
 
 ## PR checklist for future changes
 
-Every future PR touching this area must state:
+Every PR in this area must state:
 
-- `mutatesRuntime=true/false`
-- Whether it touches DNS, TUN, protocol, adapter, or forwarding paths.
-- Whether it adds or bypasses a Rust-owned command gate.
-- Whether it writes audit, history, closeout, or rollback records.
-- Rollback path.
-- Local verification commands.
-
-If `mutatesRuntime=true`, also document preflight, observed verification, hold window, and rollback readiness.
+- Does it mutate runtime?
+- Does it touch Mihomo config, controller APIs, process lifecycle, system proxy, TUN, DNS, or adapter forwarding?
+- What is the rollback path?
+- What evidence proves the change is app-owned and gated?
+- Which boundary in this roadmap allows the change?
+- If it is Phase 8 work, which batch does it belong to and what is the next safe batch?
 
 ## Document maintenance rules
 
-- Keep this file as a boundary and decision document, not a PR log.
-- Add completed work as a one-line milestone only.
-- Put detailed implementation plans in separate design docs while active.
-- Link separate high-risk design docs from here instead of appending large batch logs.
-- Never remove the boundaries for Rust-owned gates, DNS opt-in, runtime apply verification, or Mihomo-owned TUN/protocol/forwarding without an explicit architectural decision.
+- Keep this file compact and current-state oriented.
+- Do not re-add historical per-PR logs.
+- Do not create parallel Go-to-Rust status documents; update this roadmap instead.
+- Preserve the production data-plane boundary unless a dedicated cutover PR changes it.
