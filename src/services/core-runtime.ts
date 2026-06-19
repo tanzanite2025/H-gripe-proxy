@@ -209,6 +209,49 @@ export interface RuntimeKernelLoopbackForwardingLeakCheckReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackPlatformMatrixRow {
+  platform: string
+  currentPlatform: boolean
+  evidenceStatus: string
+  listenerPortReleased?: boolean | null
+  targetPortReleased?: boolean | null
+  isolatedTestListenerStopped?: boolean | null
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackPlatformMatrixReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  requiredPlatforms: string[]
+  coveredPlatforms: string[]
+  pendingPlatforms: string[]
+  currentPlatformPassed: boolean
+  expandedOptInAllowed: boolean
+  leakCheck: RuntimeKernelLoopbackForwardingLeakCheckReport
+  rows: RuntimeKernelLoopbackPlatformMatrixRow[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -636,6 +679,16 @@ export async function getRuntimeKernelLoopbackForwardingLeakCheck(
 ) {
   return invoke<RuntimeKernelLoopbackForwardingLeakCheckReport>(
     'get_runtime_kernel_loopback_forwarding_leak_check',
+    { listenerPort, targetPort },
+  )
+}
+
+export async function getRuntimeKernelLoopbackPlatformMatrix(
+  listenerPort?: number,
+  targetPort?: number,
+) {
+  return invoke<RuntimeKernelLoopbackPlatformMatrixReport>(
+    'get_runtime_kernel_loopback_platform_matrix',
     { listenerPort, targetPort },
   )
 }

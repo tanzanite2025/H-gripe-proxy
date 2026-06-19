@@ -40,6 +40,7 @@ const DEFAULT_LOOPBACK_DNS_PREFLIGHT_PORT: u16 = 19053;
 const LOOPBACK_DNS_SMOKE_QUERY: &str = "kernel-smoke.invalid";
 const DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT: u16 = 19180;
 const DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT: u16 = 19181;
+const LOOPBACK_PLATFORM_MATRIX_PLATFORMS: [&str; 3] = ["windows", "macos", "linux"];
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
@@ -493,6 +494,53 @@ pub struct KernelLoopbackForwardingLeakCheckReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformMatrixRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub evidence_status: String,
+    pub listener_port_released: Option<bool>,
+    pub target_port_released: Option<bool>,
+    pub isolated_test_listener_stopped: Option<bool>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformMatrixReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub required_platforms: Vec<String>,
+    pub covered_platforms: Vec<String>,
+    pub pending_platforms: Vec<String>,
+    pub current_platform_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub leak_check: KernelLoopbackForwardingLeakCheckReport,
+    pub rows: Vec<KernelLoopbackPlatformMatrixRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -594,8 +642,12 @@ pub async fn mihomo_kernel_dns_shadow_evidence(
     yaml: Option<String>,
     domain: Option<String>,
 ) -> Result<KernelDnsShadowEvidenceReport> {
-    let evidence = dns_default_runtime_shadow_evidence(yaml, domain).await?;
-    let mut blockers = evidence.blockers.clone();
+    let evidence = dns_default_runtime_shadow_evidence(yaml.map(Into::into), domain.map(Into::into)).await?;
+    let mut blockers = evidence
+        .blockers
+        .iter()
+        .map(|blocker| blocker.as_str().into())
+        .collect::<Vec<String>>();
     blockers.push("Rust kernel DNS live execution remains blocked; this command is shadow evidence only".into());
 
     Ok(KernelDnsShadowEvidenceReport {
@@ -639,17 +691,23 @@ pub async fn mihomo_kernel_rule_shadow_evidence() -> Result<KernelRuleShadowEvid
     let mismatched_sample_count = samples.len().saturating_sub(matched_sample_count);
     let mut warnings = Vec::new();
     if app_rules.rules.len() != mihomo_rules.rules.len() {
-        warnings.push(format!(
-            "app rule inventory has {} rule(s), Mihomo reports {} rule(s)",
-            app_rules.rules.len(),
-            mihomo_rules.rules.len()
-        ));
+        warnings.push(
+            format!(
+                "app rule inventory has {} rule(s), Mihomo reports {} rule(s)",
+                app_rules.rules.len(),
+                mihomo_rules.rules.len()
+            )
+            .into(),
+        );
     }
     if mismatched_sample_count > 0 {
-        warnings.push(format!(
-            "{} sampled rule position(s) differ between app and Mihomo inventory",
-            mismatched_sample_count
-        ));
+        warnings.push(
+            format!(
+                "{} sampled rule position(s) differ between app and Mihomo inventory",
+                mismatched_sample_count
+            )
+            .into(),
+        );
     }
 
     Ok(KernelRuleShadowEvidenceReport {
@@ -1355,6 +1413,128 @@ pub async fn mihomo_kernel_loopback_forwarding_leak_check(
     })
 }
 
+pub async fn mihomo_kernel_loopback_platform_matrix(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+) -> Result<KernelLoopbackPlatformMatrixReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let leak_check = mihomo_kernel_loopback_forwarding_leak_check(Some(listener_port), Some(target_port)).await?;
+    let current_platform = std::env::consts::OS;
+    let current_arch = std::env::consts::ARCH;
+    let required_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+    let current_platform_supported = LOOPBACK_PLATFORM_MATRIX_PLATFORMS.contains(&current_platform);
+    let covered_platforms = if current_platform_supported {
+        vec![current_platform.into()]
+    } else {
+        Vec::new()
+    };
+    let pending_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .filter(|platform| **platform != current_platform)
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+    let current_platform_passed = current_platform_supported && leak_check.passed;
+
+    let rows = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .map(|platform| {
+            let is_current_platform = *platform == current_platform;
+            if is_current_platform {
+                let mut facts = leak_check.facts.clone();
+                facts.push(
+                    format!("recorded loopback forwarding leak evidence on {current_platform}/{current_arch}").into(),
+                );
+
+                KernelLoopbackPlatformMatrixRow {
+                    platform: (*platform).into(),
+                    current_platform: true,
+                    evidence_status: if leak_check.passed {
+                        "observed".into()
+                    } else {
+                        "blocked".into()
+                    },
+                    listener_port_released: Some(leak_check.listener_port_released),
+                    target_port_released: Some(leak_check.target_port_released),
+                    isolated_test_listener_stopped: Some(!leak_check.isolated_test_listener_running),
+                    default_route: leak_check.default_route,
+                    forwards_traffic: leak_check.forwards_traffic,
+                    outbound_adapters_used: leak_check.outbound_adapters_used,
+                    mihomo_fallback: leak_check.mihomo_fallback,
+                    blockers: leak_check.blockers.clone(),
+                    facts,
+                }
+            } else {
+                KernelLoopbackPlatformMatrixRow {
+                    platform: (*platform).into(),
+                    current_platform: false,
+                    evidence_status: "pending".into(),
+                    listener_port_released: None,
+                    target_port_released: None,
+                    isolated_test_listener_stopped: None,
+                    default_route: false,
+                    forwards_traffic: false,
+                    outbound_adapters_used: false,
+                    mihomo_fallback: true,
+                    blockers: vec![
+                        format!("run the loopback platform matrix on {platform} before expanded opt-in").into(),
+                    ],
+                    facts: vec!["pending platform row is a placeholder and records no runtime evidence".into()],
+                }
+            }
+        })
+        .collect::<Vec<KernelLoopbackPlatformMatrixRow>>();
+
+    let mut blockers = vec![
+        "R4 expanded opt-in remains blocked until Windows, macOS, and Linux matrix rows are observed".into(),
+        "platform-specific rollback drills and hold-window evidence are still required".into(),
+    ];
+    if !current_platform_supported {
+        blockers.push(format!("current platform {current_platform} is not in the required matrix").into());
+    }
+    if !leak_check.passed {
+        blockers.extend(leak_check.blockers.clone());
+    }
+
+    let mut warnings = leak_check.warnings.clone();
+    warnings.push("platform matrix is read-only evidence and does not allow real adapter/TUN/protocol cutover".into());
+
+    Ok(KernelLoopbackPlatformMatrixReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-platform-matrix".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: current_platform.into(),
+        current_arch: current_arch.into(),
+        listener_port,
+        target_port,
+        required_platforms,
+        covered_platforms,
+        pending_platforms,
+        current_platform_passed,
+        expanded_opt_in_allowed: false,
+        leak_check,
+        rows,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: current_platform_passed,
+        blockers,
+        warnings,
+        facts: vec![
+            "wraps loopback forwarding leak evidence with a required platform matrix row".into(),
+            "records only the current platform; other platform rows stay pending until run there".into(),
+            "keeps R4 expanded opt-in blocked until matrix, rollback, and hold-window evidence exist".into(),
+        ],
+        next_safe_batch: "loopback-hold-window".into(),
+    })
+}
+
 pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {
     isolated_test_listener_status(Vec::new())
 }
@@ -1727,6 +1907,97 @@ fn kernel_loopback_port_available(port: u16) -> bool {
     port > 0 && StdTcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
+fn kernel_loopback_udp_port_available(port: u16) -> bool {
+    port > 0 && StdUdpSocket::bind((ISOLATED_TEST_LISTENER_HOST, port)).is_ok()
+}
+
+fn build_loopback_dns_smoke_query(domain: &str) -> Vec<u8> {
+    let mut query = vec![0xca, 0xfe, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+    for label in domain.split('.') {
+        query.push(label.len().min(63) as u8);
+        query.extend_from_slice(label.as_bytes().get(..label.len().min(63)).unwrap_or_default());
+    }
+    query.extend_from_slice(&[0x00, 0x00, 0x01, 0x00, 0x01]);
+    query
+}
+
+fn build_loopback_dns_smoke_response(query: &[u8]) -> Option<Vec<u8>> {
+    if query.len() < 12 {
+        return None;
+    }
+    let question_end = skip_dns_question(query, 12)?;
+    let mut response = Vec::with_capacity(question_end + 16);
+    response.extend_from_slice(&query[0..2]);
+    response.extend_from_slice(&[0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+    response.extend_from_slice(&query[12..question_end]);
+    response.extend_from_slice(&[
+        0xc0, 0x0c, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 127, 0, 0, 1,
+    ]);
+    Some(response)
+}
+
+fn parse_loopback_dns_smoke_response(response: &[u8]) -> Option<String> {
+    if response.len() < 12 {
+        return None;
+    }
+    let question_count = u16::from_be_bytes([response[4], response[5]]);
+    let answer_count = u16::from_be_bytes([response[6], response[7]]);
+    if answer_count == 0 {
+        return None;
+    }
+    let mut offset = 12;
+    for _ in 0..question_count {
+        offset = skip_dns_question(response, offset)?;
+    }
+    for _ in 0..answer_count {
+        offset = skip_dns_name(response, offset)?;
+        if offset + 10 > response.len() {
+            return None;
+        }
+        let record_type = u16::from_be_bytes([response[offset], response[offset + 1]]);
+        let record_class = u16::from_be_bytes([response[offset + 2], response[offset + 3]]);
+        let data_len = u16::from_be_bytes([response[offset + 8], response[offset + 9]]) as usize;
+        offset += 10;
+        if offset + data_len > response.len() {
+            return None;
+        }
+        if record_type == 1 && record_class == 1 && data_len == 4 {
+            return Some(
+                format!(
+                    "{}.{}.{}.{}",
+                    response[offset],
+                    response[offset + 1],
+                    response[offset + 2],
+                    response[offset + 3]
+                )
+                .into(),
+            );
+        }
+        offset += data_len;
+    }
+    None
+}
+
+fn skip_dns_question(packet: &[u8], offset: usize) -> Option<usize> {
+    skip_dns_name(packet, offset).and_then(|offset| offset.checked_add(4).filter(|end| *end <= packet.len()))
+}
+
+fn skip_dns_name(packet: &[u8], mut offset: usize) -> Option<usize> {
+    loop {
+        let len = *packet.get(offset)?;
+        if len & 0xc0 == 0xc0 {
+            return offset.checked_add(2).filter(|end| *end <= packet.len());
+        }
+        offset += 1;
+        if len == 0 {
+            return Some(offset);
+        }
+        offset = offset
+            .checked_add(usize::from(len))
+            .filter(|next| *next <= packet.len())?;
+    }
+}
+
 fn isolated_test_listener_running_status() -> Option<KernelIsolatedTestListenerStatus> {
     let guard = ISOLATED_TEST_LISTENER.lock().unwrap_or_else(|e| e.into_inner());
     guard.as_ref().map(|state| KernelIsolatedTestListenerStatus {
@@ -1874,5 +2145,113 @@ fn kernel_listener_smoke_report(
             "runtime config, system proxy, and TUN settings are compared before and after".into(),
         ],
         next_safe_batch: "loopback-dns-or-forwarding-decision".into(),
+    }
+}
+
+fn kernel_loopback_dns_smoke_report(
+    requested_port: u16,
+    udp_bound: bool,
+    local_response_received: bool,
+    response_address: Option<String>,
+    system_proxy_unchanged: bool,
+    tun_unchanged: bool,
+    runtime_config_unchanged: bool,
+    blockers: Vec<String>,
+    warnings: Vec<String>,
+) -> KernelLoopbackDnsSmokeEvidenceReport {
+    let passed = udp_bound
+        && local_response_received
+        && response_address.as_deref() == Some("127.0.0.1")
+        && system_proxy_unchanged
+        && tun_unchanged
+        && runtime_config_unchanged
+        && blockers.is_empty();
+
+    KernelLoopbackDnsSmokeEvidenceReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-dns-smoke-evidence".into(),
+        kernel_area: "dns".into(),
+        mutates_runtime: udp_bound,
+        live_execution_allowed: true,
+        requested_host: ISOLATED_TEST_LISTENER_HOST.into(),
+        requested_port,
+        query_name: LOOPBACK_DNS_SMOKE_QUERY.into(),
+        udp_bound,
+        local_response_received,
+        response_address,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        default_route: false,
+        forwards_traffic: false,
+        mihomo_fallback: true,
+        passed,
+        blockers,
+        warnings,
+        facts: vec![
+            "smoke evidence binds one temporary UDP socket on 127.0.0.1".into(),
+            "synthetic DNS answer returns 127.0.0.1 without replacing default DNS".into(),
+            "runtime config, system proxy, and TUN settings are compared before and after".into(),
+        ],
+        next_safe_batch: "loopback-forwarding-preflight".into(),
+    }
+}
+
+fn kernel_loopback_forwarding_smoke_report(
+    listener_port: u16,
+    target_port: u16,
+    listener_accepted: bool,
+    target_received: bool,
+    response_status: Option<String>,
+    bytes_from_client: u64,
+    bytes_from_target: u64,
+    system_proxy_unchanged: bool,
+    tun_unchanged: bool,
+    runtime_config_unchanged: bool,
+    blockers: Vec<String>,
+    warnings: Vec<String>,
+) -> KernelLoopbackForwardingSmokeEvidenceReport {
+    let loopback_forwarded =
+        listener_accepted && target_received && response_status.as_deref() == Some("HTTP/1.1 204 No Content");
+    let passed = loopback_forwarded
+        && bytes_from_client > 0
+        && bytes_from_target > 0
+        && system_proxy_unchanged
+        && tun_unchanged
+        && runtime_config_unchanged
+        && blockers.is_empty();
+
+    KernelLoopbackForwardingSmokeEvidenceReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-forwarding-smoke-evidence".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: listener_accepted,
+        live_execution_allowed: true,
+        requested_host: ISOLATED_TEST_LISTENER_HOST.into(),
+        listener_port,
+        target_port,
+        request_path: "/kernel-forwarding-smoke".into(),
+        listener_accepted,
+        target_received,
+        response_status,
+        bytes_from_client,
+        bytes_from_target,
+        loopback_forwarded,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed,
+        blockers,
+        warnings,
+        facts: vec![
+            "smoke evidence binds temporary listener and target sockets on 127.0.0.1".into(),
+            "the target is synthetic and no outbound adapter is dialed".into(),
+            "runtime config, system proxy, and TUN settings are compared before and after".into(),
+        ],
+        next_safe_batch: "loopback-forwarding-rollback-drill".into(),
     }
 }
