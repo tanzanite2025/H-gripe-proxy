@@ -108,3 +108,25 @@ export async function upgradeRuntimeUi() {
 export async function upgradeRuntimeGeo() {
   await invoke<void>('upgrade_runtime_geo')
 }
+
+export interface RuntimeKernelReplacementBlocker {
+  area: string
+  reason: string
+  requiredNextStep: string
+}
+
+export interface RuntimeKernelReplacementReadiness {
+  mutatesRuntime: boolean
+  activeKernel: string
+  controllerTransport: string
+  rustOwnedControlPlane: string[]
+  mihomoOwnedDataPlane: string[]
+  blockedReplacementAreas: RuntimeKernelReplacementBlocker[]
+  nextSafeBatch: string
+}
+
+export async function getRuntimeKernelReplacementReadiness() {
+  return invoke<RuntimeKernelReplacementReadiness>(
+    'get_runtime_kernel_replacement_readiness',
+  )
+}

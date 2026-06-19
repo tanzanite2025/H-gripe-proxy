@@ -172,7 +172,7 @@ Allowed without a new high-risk design:
 
 ### Option C: High-risk data-plane migration
 
-Replacing protocol stacks, TUN, transparent proxy, or real forwarding requires a separate design document and staged PR series.
+Replacing protocol stacks, TUN, transparent proxy, or real forwarding requires a separate design document and staged PR series. The active Phase 8 design starts in `docs/phase-8-rust-kernel-replacement.md`.
 
 Minimum design requirements:
 
