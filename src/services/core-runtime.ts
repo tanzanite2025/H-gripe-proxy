@@ -9,6 +9,8 @@ import type {
   MihomoVersion,
   PerfStats,
   RuleTrafficSnapshot,
+  TLSFingerprintStats,
+  TLSRotationResult,
   XDPStatus,
 } from 'tauri-plugin-mihomo-api'
 
@@ -62,6 +64,14 @@ export async function getRuntimeXdpStatus() {
 
 export async function getRuntimeRuleTraffic() {
   return invoke<Record<string, RuleTrafficSnapshot>>('get_runtime_rule_traffic')
+}
+
+export async function getRuntimeTlsFingerprintStats() {
+  return invoke<TLSFingerprintStats>('get_runtime_tls_fingerprint_stats')
+}
+
+export async function forceRuntimeTlsRotation() {
+  return invoke<TLSRotationResult>('force_runtime_tls_rotation')
 }
 
 export interface RuntimeLifecycleRecord {

@@ -20,6 +20,7 @@ const KIND_LABELS: Record<string, string> = {
   toggle_tun: 'TUN 模式',
   apply_dns: 'DNS 配置',
   patch_sensitive_config: '敏感配置变更',
+  tls_rotation: 'TLS 指纹轮换',
 }
 
 const DETAIL_LABELS: Record<string, string> = {
