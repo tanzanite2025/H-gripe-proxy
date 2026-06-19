@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { useClashLog } from '@/hooks/system'
 import { getClashLogs } from '@/services/cmds'
 import { subscribeCoreLogs } from '@/services/log-monitor'
-import type { LogLevel } from '@/types/mihomo'
 import { normalizeCoreLogLevel } from '@/utils/log-level'
 
 import { useClash } from './use-clash'

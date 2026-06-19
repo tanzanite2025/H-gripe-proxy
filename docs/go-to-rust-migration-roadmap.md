@@ -2065,3 +2065,21 @@ Migration impact:
 Next aggressive batches:
 
 1. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.
+
+### Aggressive replacement track: Mihomo types from generated ts-rs bindings
+
+This batch removes the hand-maintained `src/types/mihomo.ts` (a parallel copy of the Mihomo model shapes) and points all consumers at the `ts-rs`-generated bindings re-exported by the `tauri-plugin-mihomo-api` package (`crates/tauri-plugin-mihomo/bindings`, built into `dist-js/bindings`). Rust `models.rs` (`#[derive(TS)]`) is now the single source of truth for these frontend types.
+
+```text
+- src/types/mihomo.ts (hand-maintained)        // deleted
++ import type { ProxyProvider, Rule, ... } from 'tauri-plugin-mihomo-api'
+  // global.d.ts: type LogLevel = import('tauri-plugin-mihomo-api').LogLevel
+```
+
+Migration impact:
+
+- 13 importers repointed from `@/types/mihomo` to `tauri-plugin-mihomo-api`; the global `LogLevel` alias in `global.d.ts` now references the package instead of the deleted file.
+- Generated shapes are richer than the hand-maintained copies (e.g. `Proxy.type: ProxyType`, `Rule.type: RuleType`, `ProxyProvider.vehicleType: VehicleType`); the enums include a `| string` fallback so existing string comparisons stay valid, and structural shapes (`ProxyProvider.updatedAt: string | null`, `SubScriptionInfo`, `DnsMetrics`) match runtime payloads.
+- To regenerate after changing `models.rs`: `cargo test export_bindings` in `crates/tauri-plugin-mihomo`, then rebuild the plugin `dist-js`.
+
+This completes the aggressive replacement batches enumerated in this roadmap; the Mihomo model layer is now Rust-owned end to end (control plane commands, runtime caches, lifecycle gates, and frontend type bindings).

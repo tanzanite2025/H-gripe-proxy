@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-
-import type { BaseConfig, DnsMetrics, MihomoVersion } from '@/types/mihomo'
+import type { BaseConfig, DnsMetrics, MihomoVersion } from 'tauri-plugin-mihomo-api'
 
 export async function getRuntimeVersion() {
   return invoke<MihomoVersion>('get_runtime_version')

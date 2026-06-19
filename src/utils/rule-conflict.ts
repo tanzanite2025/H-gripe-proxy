@@ -1,4 +1,4 @@
-import type { Rule } from '@/types/mihomo'
+import type { Rule } from 'tauri-plugin-mihomo-api'
 
 export interface RuleConflict {
   /** The rule that is shadowed (will never match) */

@@ -1,5 +1,6 @@
 import { useLockFn } from 'ahooks'
 import { useCallback, useMemo, useState } from 'react'
+import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
@@ -9,7 +10,6 @@ import {
   updateRuntimeProxyProvider,
   type RuntimeProviderHealthRecord,
 } from '@/services/proxy-runtime'
-import type { ProxyProvider } from '@/types/mihomo'
 
 import { buildUpdatingMap } from './utils'
 
