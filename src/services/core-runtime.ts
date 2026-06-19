@@ -1,5 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { BaseConfig, DnsMetrics, MihomoVersion } from 'tauri-plugin-mihomo-api'
+import type {
+  BaseConfig,
+  CoreUpdaterChannel,
+  DnsMetrics,
+  MihomoVersion,
+} from 'tauri-plugin-mihomo-api'
 
 export async function getRuntimeVersion() {
   return invoke<MihomoVersion>('get_runtime_version')
@@ -41,4 +46,25 @@ export async function getRuntimeLifecycleState() {
   return invoke<{ records: RuntimeLifecycleRecord[] }>(
     'get_runtime_lifecycle_state',
   )
+}
+
+export async function getRuntimeUpgradeHistory() {
+  return invoke<{ records: RuntimeLifecycleRecord[] }>(
+    'get_runtime_upgrade_history',
+  )
+}
+
+export async function upgradeRuntimeCore(
+  channel: CoreUpdaterChannel,
+  force: boolean,
+) {
+  await invoke<void>('upgrade_runtime_core', { channel, force })
+}
+
+export async function upgradeRuntimeUi() {
+  await invoke<void>('upgrade_runtime_ui')
+}
+
+export async function upgradeRuntimeGeo() {
+  await invoke<void>('upgrade_runtime_geo')
 }

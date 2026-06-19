@@ -1,5 +1,6 @@
 import { AppRuntimePlanningPanel } from '@/components/advanced/app-runtime-planning-panel'
 import { BlackholeBreakerPanel } from '@/components/advanced/blackhole-breaker-panel'
+import { CoreUpgradePanel } from '@/components/advanced/core-upgrade-panel'
 import { EgressIdentityPanel } from '@/components/advanced/egress-identity-panel'
 import { EgressMonitorPanel } from '@/components/advanced/egress-monitor-panel'
 import { IpReputationPanel } from '@/components/advanced/ip-reputation-panel'
@@ -120,6 +121,7 @@ export function AdvancedTabContent({
       >
         <div className="space-y-4">
           <AppRuntimePlanningPanel />
+          <CoreUpgradePanel />
           <LifecycleAuditLogPanel />
         </div>
       </AdvancedTabPanel>
