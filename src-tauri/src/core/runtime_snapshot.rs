@@ -59,9 +59,13 @@ static RUNTIME_PROXY_DELAY_STATE: Lazy<RwLock<RuntimeProxyDelayState>> =
     Lazy::new(|| RwLock::new(RuntimeProxyDelayState::default()));
 static RUNTIME_PROVIDER_HEALTH_STATE: Lazy<RwLock<RuntimeProviderHealthState>> =
     Lazy::new(|| RwLock::new(RuntimeProviderHealthState::default()));
+static RUNTIME_LIFECYCLE_STATE: Lazy<RwLock<RuntimeLifecycleState>> =
+    Lazy::new(|| RwLock::new(RuntimeLifecycleState::default()));
 const RUNTIME_PROXY_SELECTIONS_FILE: &str = "proxy-selections.yaml";
 const RUNTIME_PROXY_DELAYS_FILE: &str = "proxy-delays.yaml";
 const RUNTIME_PROVIDER_HEALTH_FILE: &str = "provider-health.yaml";
+const RUNTIME_LIFECYCLE_EVENTS_FILE: &str = "lifecycle-events.yaml";
+const RUNTIME_LIFECYCLE_EVENTS_CAP: usize = 100;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct RuntimeProxySelectionState {
@@ -95,6 +99,20 @@ pub struct RuntimeProviderHealthRecord {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct RuntimeProviderHealthState {
     pub records: Vec<RuntimeProviderHealthRecord>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLifecycleRecord {
+    pub kind: String,
+    pub success: bool,
+    pub error: Option<String>,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct RuntimeLifecycleState {
+    pub records: Vec<RuntimeLifecycleRecord>,
 }
 
 #[derive(Debug, Default)]
@@ -330,6 +348,57 @@ pub fn record_and_persist_runtime_provider_health(provider_name: &str, success: 
     }
 }
 
+pub fn runtime_lifecycle_state() -> RuntimeLifecycleState {
+    RUNTIME_LIFECYCLE_STATE
+        .read()
+        .map(|state| state.clone())
+        .unwrap_or_default()
+}
+
+pub fn record_and_persist_runtime_lifecycle_event(kind: &str, success: bool, error: Option<String>) {
+    if let Ok(mut state) = RUNTIME_LIFECYCLE_STATE.write() {
+        let record = RuntimeLifecycleRecord {
+            kind: kind.to_string(),
+            success,
+            error,
+            updated_at: now_millis(),
+        };
+        state.records.push(record);
+        let len = state.records.len();
+        if len > RUNTIME_LIFECYCLE_EVENTS_CAP {
+            state.records.drain(0..len - RUNTIME_LIFECYCLE_EVENTS_CAP);
+        }
+    }
+    if let Err(error) = persist_runtime_lifecycle_state() {
+        log::warn!("failed to persist runtime lifecycle state: {error}");
+    }
+}
+
+pub fn load_runtime_lifecycle_state_from_disk() -> Result<()> {
+    let path = runtime_lifecycle_state_path()?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) => {
+            log::warn!("failed to read runtime lifecycle state: {error}");
+            return Ok(());
+        }
+    };
+    let document = match serde_yaml_ng::from_str::<RuntimeLifecycleState>(&content) {
+        Ok(document) => document,
+        Err(error) => {
+            log::warn!("failed to parse runtime lifecycle state: {error}");
+            return Ok(());
+        }
+    };
+    if let Ok(mut state) = RUNTIME_LIFECYCLE_STATE.write() {
+        *state = document;
+    }
+    Ok(())
+}
+
 pub fn load_runtime_provider_health_state_from_disk() -> Result<()> {
     let path = runtime_provider_health_state_path()?;
     if !path.exists() {
@@ -410,6 +479,15 @@ fn persist_runtime_provider_health_state() -> Result<()> {
     Ok(())
 }
 
+fn persist_runtime_lifecycle_state() -> Result<()> {
+    let path = runtime_lifecycle_state_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_yaml_ng::to_string(&runtime_lifecycle_state())?)?;
+    Ok(())
+}
+
 fn runtime_proxy_selection_state_path() -> Result<PathBuf> {
     Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_PROXY_SELECTIONS_FILE))
 }
@@ -420,6 +498,10 @@ fn runtime_proxy_delay_state_path() -> Result<PathBuf> {
 
 fn runtime_provider_health_state_path() -> Result<PathBuf> {
     Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_PROVIDER_HEALTH_FILE))
+}
+
+fn runtime_lifecycle_state_path() -> Result<PathBuf> {
+    Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_LIFECYCLE_EVENTS_FILE))
 }
 
 fn now_millis() -> u64 {

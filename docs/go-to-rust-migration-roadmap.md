@@ -1979,3 +1979,37 @@ Next aggressive batches:
 1. Wrap remaining core lifecycle commands (`reload_config`, `restart`) with explicit app-owned gates.
 2. Surface provider health cache in provider UI status badges.
 3. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.
+
+### Aggressive replacement track: Rust-owned core lifecycle gates
+
+This batch wraps the remaining core lifecycle commands (core restart, app restart, config reload) behind app-owned Rust commands that record an auditable lifecycle event before/after delegating to the existing `CoreManager` path. The frontend no longer invokes the raw `restart_core` / `restart_app` plugin-style commands; lifecycle mutations now flow through gated app commands that persist a Rust-owned audit log.
+
+```text
+restart_runtime_core()
+  -> app::runtime::restart_core()  (CoreManager::restart_core)
+  -> record_and_persist_runtime_lifecycle_event("restart_core", ok, err?)
+
+reload_runtime_config()
+  -> CoreManager::update_config_forced()
+  -> record_and_persist_runtime_lifecycle_event("reload_config", valid, message?)
+
+restart_runtime_app()
+  -> record_and_persist_runtime_lifecycle_event("restart_app", ok)
+  -> app::runtime::restart_app()  (relaunch)
+
+get_runtime_lifecycle_state()
+  -> returns Rust-owned Vec<RuntimeLifecycleRecord>
+```
+
+Migration impact:
+
+- Frontend `restartCore()` / `restartApp()` route through `restart_runtime_core` / `restart_runtime_app` instead of the ungated commands.
+- A new `reload_runtime_config` command exposes a gated, single-path config reload through `CoreManager`.
+- Lifecycle events (kind / success / error / timestamp) are persisted under `app-runtime/lifecycle-events.yaml` (capped to the last 100 records).
+- `get_runtime_lifecycle_state` lets the UI read the Rust-owned lifecycle audit log.
+
+Next aggressive batches:
+
+1. Surface provider health cache in provider UI status badges.
+2. Surface the lifecycle audit log in the UI / aggregate diagnostics view.
+3. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.

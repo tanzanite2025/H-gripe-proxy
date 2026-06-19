@@ -143,6 +143,76 @@ pub async fn get_runtime_provider_health_state() -> CmdResult<crate::core::runti
     Ok(crate::core::runtime_snapshot::runtime_provider_health_state())
 }
 
+const LIFECYCLE_RESTART_CORE: &str = "restart_core";
+const LIFECYCLE_RESTART_APP: &str = "restart_app";
+const LIFECYCLE_RELOAD_CONFIG: &str = "reload_config";
+
+#[tauri::command]
+pub async fn get_runtime_lifecycle_state() -> CmdResult<crate::core::runtime_snapshot::RuntimeLifecycleState> {
+    crate::core::runtime_snapshot::load_runtime_lifecycle_state_from_disk().stringify_err()?;
+    Ok(crate::core::runtime_snapshot::runtime_lifecycle_state())
+}
+
+/// 重启核心（app-owned 生命周期门禁，记录审计）
+#[tauri::command]
+pub async fn restart_runtime_core() -> CmdResult<()> {
+    match crate::app::runtime::restart_core().await {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(LIFECYCLE_RESTART_CORE, true, None);
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_RESTART_CORE,
+                false,
+                Some(error.to_string()),
+            );
+            Err(error).stringify_err()
+        }
+    }
+}
+
+/// 重载运行时配置（app-owned 生命周期门禁，记录审计）
+#[tauri::command]
+pub async fn reload_runtime_config() -> CmdResult<()> {
+    let outcome = CoreManager::global().update_config_forced().await;
+    match outcome {
+        Ok(outcome) if outcome.is_valid() => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_RELOAD_CONFIG,
+                true,
+                None,
+            );
+            Ok(())
+        }
+        Ok(outcome) => {
+            let message = outcome.to_string();
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_RELOAD_CONFIG,
+                false,
+                Some(message.clone()),
+            );
+            Err(message.into())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_RELOAD_CONFIG,
+                false,
+                Some(error.to_string()),
+            );
+            Err(error).stringify_err()
+        }
+    }
+}
+
+/// 重启应用（app-owned 生命周期门禁，记录审计后再重启）
+#[tauri::command]
+pub async fn restart_runtime_app() -> CmdResult<()> {
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(LIFECYCLE_RESTART_APP, true, None);
+    crate::app::runtime::restart_app().await;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn apply_runtime_proxy_selection(
     group_name: std::string::String,

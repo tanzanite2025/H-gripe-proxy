@@ -25,3 +25,20 @@ export async function getRuntimeDnsMetrics() {
 export async function runtimeDnsWarmup() {
   await invoke<void>('runtime_dns_warmup')
 }
+
+export async function reloadRuntimeConfig() {
+  await invoke<void>('reload_runtime_config')
+}
+
+export interface RuntimeLifecycleRecord {
+  kind: string
+  success: boolean
+  error?: string | null
+  updatedAt: number
+}
+
+export async function getRuntimeLifecycleState() {
+  return invoke<{ records: RuntimeLifecycleRecord[] }>(
+    'get_runtime_lifecycle_state',
+  )
+}
