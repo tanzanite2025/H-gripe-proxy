@@ -38,6 +38,8 @@ const ISOLATED_TEST_LISTENER_HOST: &str = "127.0.0.1";
 const DEFAULT_ISOLATED_TEST_LISTENER_PORT: u16 = 19090;
 const DEFAULT_LOOPBACK_DNS_PREFLIGHT_PORT: u16 = 19053;
 const LOOPBACK_DNS_SMOKE_QUERY: &str = "kernel-smoke.invalid";
+const DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT: u16 = 19180;
+const DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT: u16 = 19181;
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
@@ -362,6 +364,43 @@ pub struct KernelLoopbackDnsSmokeEvidenceReport {
     pub forwards_traffic: bool,
     pub mihomo_fallback: bool,
     pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingPortCheck {
+    pub host: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub listener_available: bool,
+    pub target_available: bool,
+    pub target_loopback_only: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub port_check: KernelLoopbackForwardingPortCheck,
+    pub system_proxy_enabled: bool,
+    pub tun_enabled: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_allowed: bool,
+    pub mihomo_fallback: bool,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -906,6 +945,90 @@ pub async fn mihomo_kernel_loopback_dns_smoke_evidence(
         blockers,
         warnings,
     ))
+}
+
+pub async fn mihomo_kernel_loopback_forwarding_preflight(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+) -> Result<KernelLoopbackForwardingPreflightReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let listener_available = kernel_loopback_port_available(listener_port);
+    let target_available = kernel_loopback_port_available(target_port);
+    let verge = Config::verge().await.latest_arc();
+    let system_proxy_enabled = verge.enable_system_proxy.unwrap_or(false);
+    let tun_enabled = verge.enable_tun_mode.unwrap_or(false);
+    let mut notes = vec![
+        "preflight checks only candidate loopback TCP ports and does not keep sockets open".into(),
+        "future smoke target must be a synthetic local responder, not a real outbound adapter".into(),
+    ];
+    if listener_port == target_port {
+        notes.push("listener and target ports must differ for a forwarding smoke path".into());
+    }
+    if !listener_available {
+        notes.push("candidate listener port is unavailable on 127.0.0.1".into());
+    }
+    if !target_available {
+        notes.push("candidate target port is unavailable on 127.0.0.1".into());
+    }
+
+    let mut blockers = vec![
+        "loopback forwarding remains opt-in only and must not become a system proxy/default route".into(),
+        "future smoke evidence must forward only to a synthetic loopback target, never Mihomo/outbound adapters".into(),
+        "TUN, transparent proxy, protocol stack replacement, and production forwarding remain blocked".into(),
+    ];
+    if listener_port == target_port {
+        blockers.push("choose different listener and target ports before forwarding smoke evidence".into());
+    }
+    if !listener_available {
+        blockers.push("choose an unused loopback listener TCP port before forwarding smoke evidence".into());
+    }
+    if !target_available {
+        blockers.push("choose an unused loopback target TCP port before forwarding smoke evidence".into());
+    }
+
+    let mut warnings = Vec::new();
+    if system_proxy_enabled {
+        warnings.push("system proxy is enabled; loopback forwarding smoke must not register as a proxy".into());
+    }
+    if tun_enabled {
+        warnings.push("TUN is enabled; loopback forwarding smoke must not attach to transparent proxy routing".into());
+    }
+
+    Ok(KernelLoopbackForwardingPreflightReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-forwarding-preflight".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        requested_host: ISOLATED_TEST_LISTENER_HOST.into(),
+        listener_port,
+        target_port,
+        can_start_after_opt_in: listener_port != target_port && listener_available && target_available,
+        port_check: KernelLoopbackForwardingPortCheck {
+            host: ISOLATED_TEST_LISTENER_HOST.into(),
+            listener_port,
+            target_port,
+            listener_available,
+            target_available,
+            target_loopback_only: true,
+            notes,
+        },
+        system_proxy_enabled,
+        tun_enabled,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_allowed: false,
+        mihomo_fallback: true,
+        blockers,
+        warnings,
+        facts: vec![
+            "preflight only checks local port readiness and safety gates".into(),
+            "forwarding smoke evidence must stay inside 127.0.0.1 listener -> 127.0.0.1 target".into(),
+            "real adapter dialing, TUN, system proxy, and default route changes are still forbidden".into(),
+        ],
+        next_safe_batch: "loopback-forwarding-smoke-evidence".into(),
+    })
 }
 
 pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {

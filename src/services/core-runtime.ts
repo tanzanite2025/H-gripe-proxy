@@ -186,6 +186,39 @@ export interface RuntimeKernelIsolatedTestListenerSmokeEvidenceReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackForwardingPortCheck {
+  host: string
+  listenerPort: number
+  targetPort: number
+  listenerAvailable: boolean
+  targetAvailable: boolean
+  targetLoopbackOnly: boolean
+  notes: string[]
+}
+
+export interface RuntimeKernelLoopbackForwardingPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  requestedHost: string
+  listenerPort: number
+  targetPort: number
+  canStartAfterOptIn: boolean
+  portCheck: RuntimeKernelLoopbackForwardingPortCheck
+  systemProxyEnabled: boolean
+  tunEnabled: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersAllowed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -486,5 +519,15 @@ export async function getRuntimeKernelLoopbackDnsSmokeEvidence(port?: number) {
   return invoke<RuntimeKernelLoopbackDnsSmokeEvidenceReport>(
     'get_runtime_kernel_loopback_dns_smoke_evidence',
     { port },
+  )
+}
+
+export async function getRuntimeKernelLoopbackForwardingPreflight(
+  listenerPort?: number,
+  targetPort?: number,
+) {
+  return invoke<RuntimeKernelLoopbackForwardingPreflightReport>(
+    'get_runtime_kernel_loopback_forwarding_preflight',
+    { listenerPort, targetPort },
   )
 }
