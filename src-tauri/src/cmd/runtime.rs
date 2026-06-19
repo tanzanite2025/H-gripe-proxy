@@ -47,6 +47,14 @@ pub async fn get_runtime_kernel_shadow_components() -> CmdResult<KernelShadowCom
     Ok(mihomo_kernel_shadow_components().await)
 }
 
+#[tauri::command]
+pub async fn get_runtime_kernel_dns_shadow_evidence(
+    yaml: Option<String>,
+    domain: Option<String>,
+) -> CmdResult<KernelDnsShadowEvidenceReport> {
+    mihomo_kernel_dns_shadow_evidence(yaml, domain).await.stringify_err()
+}
+
 /// 获取运行时配置
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {

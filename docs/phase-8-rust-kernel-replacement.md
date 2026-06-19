@@ -124,18 +124,18 @@ The only implementation in R1 is `MihomoKernelRuntime`. It delegates to existing
 
 ### R2: Rust shadow components, no live forwarding
 
-Status: started. `get_runtime_kernel_shadow_components` now exposes the read-only component manifest that future shadow-evidence commands must follow.
+Status: in progress. `get_runtime_kernel_shadow_components` exposes the read-only component manifest, and `get_runtime_kernel_dns_shadow_evidence` now produces the first DNS shadow evidence report without live execution.
 
 Current shadow components:
 
-- `dns-shadow-resolver`: compare Rust resolver answers against Mihomo/system output before opt-in execution.
+- `dns-shadow-resolver`: compare Rust resolver answers against Mihomo/system output before opt-in execution. First evidence command: `get_runtime_kernel_dns_shadow_evidence`.
 - `rule-shadow-classifier`: compare Rust rule decisions with Mihomo rule inventory without routing traffic.
 - `adapter-capability-shadow`: parse adapter capability before implementing Rust protocol stacks.
 - `connection-observer-shadow`: model connection/session shape before Rust forwarding takeover.
 
 All R2 components must keep `mutatesRuntime=false`, `liveExecutionAllowed=false`, and Mihomo as the only live forwarding owner.
 
-Next safe R2 slice: `dns-shadow-resolver-evidence`.
+Next safe R2 slice: `rule-shadow-classification-evidence`.
 
 ### R3: Isolated opt-in execution
 

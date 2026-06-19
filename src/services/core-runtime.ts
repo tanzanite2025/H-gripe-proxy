@@ -14,6 +14,8 @@ import type {
   XDPStatus,
 } from 'tauri-plugin-mihomo-api'
 
+import type { DnsDefaultRuntimeShadowEvidenceReport } from './dns-api'
+
 export async function getRuntimeVersion() {
   return invoke<MihomoVersion>('get_runtime_version')
 }
@@ -136,6 +138,17 @@ export interface RuntimeKernelShadowComponent {
   nextStep: string
 }
 
+export interface RuntimeKernelDnsShadowEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  evidence: DnsDefaultRuntimeShadowEvidenceReport
+  blockers: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelShadowComponentsReport {
   runtimeId: string
   activeKernel: string
@@ -171,5 +184,15 @@ export async function getRuntimeKernelApplyPreflight(artifactId?: string) {
 export async function getRuntimeKernelShadowComponents() {
   return invoke<RuntimeKernelShadowComponentsReport>(
     'get_runtime_kernel_shadow_components',
+  )
+}
+
+export async function getRuntimeKernelDnsShadowEvidence(
+  yaml?: string,
+  domain?: string,
+) {
+  return invoke<RuntimeKernelDnsShadowEvidenceReport>(
+    'get_runtime_kernel_dns_shadow_evidence',
+    { yaml, domain },
   )
 }
