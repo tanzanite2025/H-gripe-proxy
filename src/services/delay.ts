@@ -15,11 +15,13 @@ export async function delayRuntimeProxy(
   proxyName: string,
   testUrl: string,
   timeout: number,
+  groupName?: string,
 ) {
   return invoke<ProxyDelay>('delay_runtime_proxy', {
     proxyName,
     testUrl,
     timeout,
+    groupName,
   })
 }
 
@@ -45,6 +47,20 @@ export interface DelayUpdate {
   updatedAt: number
 }
 
+interface RuntimeProxyDelayRecord {
+  groupName: string
+  proxyName: string
+  delay: number
+  testUrl: string
+  updatedAt: number
+}
+
+async function getRuntimeProxyDelayState() {
+  return invoke<{ records: RuntimeProxyDelayRecord[] }>(
+    'get_runtime_proxy_delay_state',
+  )
+}
+
 const CACHE_TTL = 30 * 60 * 1000
 
 class DelayManager {
@@ -64,6 +80,25 @@ class DelayManager {
 
   // 取消控制器
   private abortControllers = new Map<string, AbortController>()
+
+  constructor() {
+    void this.hydrateFromRuntimeCache()
+  }
+
+  private async hydrateFromRuntimeCache() {
+    try {
+      const { records } = await getRuntimeProxyDelayState()
+      records.forEach((record) => {
+        const key = hashKey(record.proxyName, record.groupName)
+        this.cache.set(key, {
+          delay: record.delay,
+          updatedAt: record.updatedAt,
+        })
+      })
+    } catch (error) {
+      debugLog(`[DelayManager] 读取 Rust 延迟缓存失败: ${error}`)
+    }
+  }
 
   private scheduleOnNextFrame(run: () => void): void {
     if (typeof window !== 'undefined') {
@@ -277,7 +312,7 @@ class DelayManager {
 
       // 使用Promise.race来实现超时控制
       const result = await Promise.race([
-        delayRuntimeProxy(name, url, effectiveTimeout),
+        delayRuntimeProxy(name, url, effectiveTimeout, group),
         timeoutPromise,
       ])
 

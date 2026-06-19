@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::RwLock};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+    sync::RwLock,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     config::Config,
@@ -49,11 +55,46 @@ impl RuntimeSnapshot {
 
 static RUNTIME_SNAPSHOT_SERVICE: Lazy<RuntimeSnapshotService> = Lazy::new(RuntimeSnapshotService::new);
 static RUNTIME_PROXY_SELECTION_STATE: Lazy<RwLock<HashMap<String, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static RUNTIME_PROXY_DELAY_STATE: Lazy<RwLock<RuntimeProxyDelayState>> =
+    Lazy::new(|| RwLock::new(RuntimeProxyDelayState::default()));
+static RUNTIME_PROVIDER_HEALTH_STATE: Lazy<RwLock<RuntimeProviderHealthState>> =
+    Lazy::new(|| RwLock::new(RuntimeProviderHealthState::default()));
 const RUNTIME_PROXY_SELECTIONS_FILE: &str = "proxy-selections.yaml";
+const RUNTIME_PROXY_DELAYS_FILE: &str = "proxy-delays.yaml";
+const RUNTIME_PROVIDER_HEALTH_FILE: &str = "provider-health.yaml";
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct RuntimeProxySelectionState {
     pub groups: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeProxyDelayRecord {
+    pub group_name: String,
+    pub proxy_name: String,
+    pub delay: u32,
+    pub test_url: String,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct RuntimeProxyDelayState {
+    pub records: Vec<RuntimeProxyDelayRecord>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeProviderHealthRecord {
+    pub provider_name: String,
+    pub success: bool,
+    pub error: Option<String>,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct RuntimeProviderHealthState {
+    pub records: Vec<RuntimeProviderHealthRecord>,
 }
 
 #[derive(Debug, Default)]
@@ -176,6 +217,7 @@ pub fn build_proxies_from_runtime_config(config: &serde_yaml_ng::Mapping) -> Pro
     }
 
     apply_proxy_selection_state(&mut proxies);
+    apply_proxy_delay_state(&mut proxies);
 
     Proxies { proxies }
 }
@@ -198,6 +240,119 @@ pub fn record_and_persist_runtime_proxy_selection(group_name: &str, proxy_name: 
     if let Err(error) = persist_runtime_proxy_selection_state() {
         log::warn!("failed to persist runtime proxy selection state: {error}");
     }
+}
+
+pub fn runtime_proxy_delay_state() -> RuntimeProxyDelayState {
+    RUNTIME_PROXY_DELAY_STATE
+        .read()
+        .map(|state| state.clone())
+        .unwrap_or_default()
+}
+
+pub fn record_and_persist_runtime_proxy_delay(group_name: &str, proxy_name: &str, delay: u32, test_url: &str) {
+    if let Ok(mut state) = RUNTIME_PROXY_DELAY_STATE.write() {
+        let updated_at = now_millis();
+        let record = RuntimeProxyDelayRecord {
+            group_name: group_name.to_string(),
+            proxy_name: proxy_name.to_string(),
+            delay,
+            test_url: test_url.to_string(),
+            updated_at,
+        };
+        if let Some(existing) = state
+            .records
+            .iter_mut()
+            .find(|item| item.group_name == group_name && item.proxy_name == proxy_name)
+        {
+            *existing = record;
+        } else {
+            state.records.push(record);
+        }
+    }
+    if let Err(error) = persist_runtime_proxy_delay_state() {
+        log::warn!("failed to persist runtime proxy delay state: {error}");
+    }
+}
+
+pub fn load_runtime_proxy_delay_state_from_disk() -> Result<()> {
+    let path = runtime_proxy_delay_state_path()?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) => {
+            log::warn!("failed to read runtime proxy delay state: {error}");
+            return Ok(());
+        }
+    };
+    let document = match serde_yaml_ng::from_str::<RuntimeProxyDelayState>(&content) {
+        Ok(document) => document,
+        Err(error) => {
+            log::warn!("failed to parse runtime proxy delay state: {error}");
+            return Ok(());
+        }
+    };
+    if let Ok(mut state) = RUNTIME_PROXY_DELAY_STATE.write() {
+        *state = document;
+    }
+    Ok(())
+}
+
+pub fn runtime_provider_health_state() -> RuntimeProviderHealthState {
+    RUNTIME_PROVIDER_HEALTH_STATE
+        .read()
+        .map(|state| state.clone())
+        .unwrap_or_default()
+}
+
+pub fn record_and_persist_runtime_provider_health(provider_name: &str, success: bool, error: Option<String>) {
+    if let Ok(mut state) = RUNTIME_PROVIDER_HEALTH_STATE.write() {
+        let updated_at = now_millis();
+        let record = RuntimeProviderHealthRecord {
+            provider_name: provider_name.to_string(),
+            success,
+            error,
+            updated_at,
+        };
+        if let Some(existing) = state
+            .records
+            .iter_mut()
+            .find(|item| item.provider_name == provider_name)
+        {
+            *existing = record;
+        } else {
+            state.records.push(record);
+        }
+    }
+    if let Err(error) = persist_runtime_provider_health_state() {
+        log::warn!("failed to persist runtime provider health state: {error}");
+    }
+}
+
+pub fn load_runtime_provider_health_state_from_disk() -> Result<()> {
+    let path = runtime_provider_health_state_path()?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) => {
+            log::warn!("failed to read runtime provider health state: {error}");
+            return Ok(());
+        }
+    };
+    let document = match serde_yaml_ng::from_str::<RuntimeProviderHealthState>(&content) {
+        Ok(document) => document,
+        Err(error) => {
+            log::warn!("failed to parse runtime provider health state: {error}");
+            return Ok(());
+        }
+    };
+    if let Ok(mut state) = RUNTIME_PROVIDER_HEALTH_STATE.write() {
+        *state = document;
+    }
+    Ok(())
 }
 
 pub fn load_runtime_proxy_selection_state_from_disk() -> Result<()> {
@@ -237,8 +392,41 @@ fn persist_runtime_proxy_selection_state() -> Result<()> {
     Ok(())
 }
 
+fn persist_runtime_proxy_delay_state() -> Result<()> {
+    let path = runtime_proxy_delay_state_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_yaml_ng::to_string(&runtime_proxy_delay_state())?)?;
+    Ok(())
+}
+
+fn persist_runtime_provider_health_state() -> Result<()> {
+    let path = runtime_provider_health_state_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_yaml_ng::to_string(&runtime_provider_health_state())?)?;
+    Ok(())
+}
+
 fn runtime_proxy_selection_state_path() -> Result<PathBuf> {
     Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_PROXY_SELECTIONS_FILE))
+}
+
+fn runtime_proxy_delay_state_path() -> Result<PathBuf> {
+    Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_PROXY_DELAYS_FILE))
+}
+
+fn runtime_provider_health_state_path() -> Result<PathBuf> {
+    Ok(crate::utils::dirs::app_runtime_dir()?.join(RUNTIME_PROVIDER_HEALTH_FILE))
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or_default()
 }
 
 fn apply_proxy_selection_state(proxies: &mut HashMap<String, Proxy>) {
@@ -254,6 +442,33 @@ fn apply_proxy_selection_state(proxies: &mut HashMap<String, Proxy>) {
             group.now = Some(proxy_name);
         }
     }
+}
+
+fn apply_proxy_delay_state(proxies: &mut HashMap<String, Proxy>) {
+    for record in runtime_proxy_delay_state().records {
+        let Some(proxy) = proxies.get_mut(&record.proxy_name) else {
+            continue;
+        };
+        apply_proxy_delay_record(proxy, &record);
+    }
+}
+
+fn apply_proxy_delay_state_to_list(proxies: &mut [Proxy]) {
+    let records = runtime_proxy_delay_state().records;
+    for proxy in proxies {
+        let proxy_name = proxy.name.clone();
+        for record in records.iter().filter(|record| record.proxy_name == proxy_name) {
+            apply_proxy_delay_record(proxy, record);
+        }
+    }
+}
+
+fn apply_proxy_delay_record(proxy: &mut Proxy, record: &RuntimeProxyDelayRecord) {
+    proxy.history.push(DelayHistory {
+        time: record.updated_at.to_string(),
+        delay: u16::try_from(record.delay).unwrap_or(u16::MAX),
+    });
+    proxy.alive = record.delay > 0 && record.delay < 1_000_000;
 }
 
 fn proxy_from_config_item(item: &Value) -> Option<Proxy> {
@@ -472,7 +687,8 @@ fn build_single_provider(name: &str, value: &Value, app_home: &std::path::Path) 
         .unwrap_or("")
         .to_string();
 
-    let proxies = load_provider_proxies(value, app_home, name);
+    let mut proxies = load_provider_proxies(value, app_home, name);
+    apply_proxy_delay_state_to_list(&mut proxies);
 
     let subscription_info = load_subscription_info(value);
 

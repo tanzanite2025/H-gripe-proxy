@@ -112,6 +112,7 @@ pub async fn get_runtime_exists() -> CmdResult<HashSet<String>> {
 #[tauri::command]
 pub async fn get_runtime_proxy_topology() -> CmdResult<Proxies> {
     crate::core::runtime_snapshot::load_runtime_proxy_selection_state_from_disk().stringify_err()?;
+    crate::core::runtime_snapshot::load_runtime_proxy_delay_state_from_disk().stringify_err()?;
     RuntimeSnapshotService::global()
         .refresh_proxy_topology_from_runtime_config()
         .await
@@ -130,6 +131,19 @@ pub async fn get_runtime_proxy_selection_state() -> CmdResult<HashMap<std::strin
 }
 
 #[tauri::command]
+pub async fn get_runtime_proxy_delay_state() -> CmdResult<crate::core::runtime_snapshot::RuntimeProxyDelayState> {
+    crate::core::runtime_snapshot::load_runtime_proxy_delay_state_from_disk().stringify_err()?;
+    Ok(crate::core::runtime_snapshot::runtime_proxy_delay_state())
+}
+
+#[tauri::command]
+pub async fn get_runtime_provider_health_state() -> CmdResult<crate::core::runtime_snapshot::RuntimeProviderHealthState>
+{
+    crate::core::runtime_snapshot::load_runtime_provider_health_state_from_disk().stringify_err()?;
+    Ok(crate::core::runtime_snapshot::runtime_provider_health_state())
+}
+
+#[tauri::command]
 pub async fn apply_runtime_proxy_selection(
     group_name: std::string::String,
     proxy_name: std::string::String,
@@ -145,6 +159,7 @@ pub async fn apply_runtime_proxy_selection(
 
 #[tauri::command]
 pub async fn get_runtime_proxy_providers() -> CmdResult<ProxyProviders> {
+    crate::core::runtime_snapshot::load_runtime_proxy_delay_state_from_disk().stringify_err()?;
     let runtime = Config::runtime().await;
     let runtime = runtime.latest_arc();
     let config = runtime
@@ -166,11 +181,21 @@ pub async fn update_runtime_proxy_provider(provider_name: String) -> CmdResult<(
 
 #[tauri::command]
 pub async fn healthcheck_runtime_proxy_provider(provider_name: String) -> CmdResult<()> {
-    Handle::mihomo()
-        .await
-        .healthcheck_proxy_provider(&provider_name)
-        .await
-        .stringify_err()
+    let result = Handle::mihomo().await.healthcheck_proxy_provider(&provider_name).await;
+    match result {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_provider_health(&provider_name, true, None);
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_provider_health(
+                &provider_name,
+                false,
+                Some(error.to_string()),
+            );
+            Err(error).stringify_err()
+        }
+    }
 }
 
 #[tauri::command]
@@ -192,6 +217,15 @@ pub async fn delay_runtime_group(
         .await
         .stringify_err()?;
 
+    for (proxy_name, delay) in &result {
+        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_delay(
+            &group_name,
+            proxy_name,
+            *delay,
+            &test_url,
+        );
+    }
+
     if keep_fixed
         && let Some(fixed) = fixed
         && !fixed.is_empty()
@@ -207,12 +241,26 @@ pub async fn delay_runtime_group(
 }
 
 #[tauri::command]
-pub async fn delay_runtime_proxy(proxy_name: String, test_url: String, timeout: u32) -> CmdResult<ProxyDelay> {
-    Handle::mihomo()
+pub async fn delay_runtime_proxy(
+    proxy_name: String,
+    test_url: String,
+    timeout: u32,
+    group_name: Option<String>,
+) -> CmdResult<ProxyDelay> {
+    let result = Handle::mihomo()
         .await
         .delay_proxy_by_name(&proxy_name, &test_url, timeout)
         .await
-        .stringify_err()
+        .stringify_err()?;
+    if let Some(group_name) = group_name.filter(|value| !value.is_empty()) {
+        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_delay(
+            &group_name,
+            &proxy_name,
+            result.delay,
+            &test_url,
+        );
+    }
+    Ok(result)
 }
 
 #[tauri::command]
