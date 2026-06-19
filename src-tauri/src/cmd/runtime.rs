@@ -158,7 +158,11 @@ pub async fn get_runtime_lifecycle_state() -> CmdResult<crate::core::runtime_sna
 pub async fn restart_runtime_core() -> CmdResult<()> {
     match crate::app::runtime::restart_core().await {
         Ok(()) => {
-            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(LIFECYCLE_RESTART_CORE, true, None);
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_RESTART_CORE,
+                true,
+                None,
+            );
             Ok(())
         }
         Err(error) => {
