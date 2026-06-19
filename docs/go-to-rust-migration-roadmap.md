@@ -2083,3 +2083,33 @@ Migration impact:
 - To regenerate after changing `models.rs`: `cargo test export_bindings` in `crates/tauri-plugin-mihomo`, then rebuild the plugin `dist-js`.
 
 This completes the aggressive replacement batches enumerated in this roadmap; the Mihomo model layer is now Rust-owned end to end (control plane commands, runtime caches, lifecycle gates, and frontend type bindings).
+
+## 第二阶段（phase 2）
+
+延续 phase 1 的模式（gate + 审计 / Rust-owned 缓存 / 前端只走 `*_runtime_*` 命令 / ts-rs 生成绑定），把仍由 Go/Mihomo 直接驱动或仅薄转发的能力继续收归 Rust 应用层。
+
+### B1: 把生命周期审计扩展到全部运行时变更
+
+phase 1 的生命周期审计只覆盖 `restart_core` / `reload_config` / `restart_app`。本批把审计扩展到其余运行时变更操作，使所有用户发起的运行时 mutation 都可审计。
+
+新增审计的操作与埋点位置：
+
+- `change_clash_mode`（kind `change_mode`，detail 为模式名）— 埋在 `app/runtime.rs`，覆盖命令 / 托盘 / 快捷键全部触发路径。
+- `toggle_system_proxy`（kind `toggle_system_proxy`，detail `on`/`off`）— 同上（托盘 / 快捷键）。
+- `toggle_tun_mode`（kind `toggle_tun`，detail `on`/`off`）— 同上。
+- `apply_dns_config`（kind `apply_dns`，detail `apply`/`revoke`）— 埋在命令层 `cmd/clash.rs`，**刻意只记录用户发起的调用**，避开 DNS runtime 自动执行路径（`dns_runtime/...`）造成的审计刷屏。
+- `update_runtime_geo`（kind `update_geo`）— 埋在命令层 `cmd/runtime.rs`。
+
+数据结构变更：
+
+- `RuntimeLifecycleRecord` 新增可选字段 `detail`（`#[serde(default)]` 兼容旧 yaml），`record_and_persist_runtime_lifecycle_event` 增加 `detail: Option<String>` 入参。
+- 前端 `RuntimeLifecycleRecord` 接口与 `LifecycleAuditLogPanel` 同步：新增 kind / detail 的中文标签映射并在记录行展示 detail。
+
+### 第二阶段后续批次（规划）
+
+- B2: sub-rules 走 Rust 运行时命令（`get_runtime_sub_rules` / `delete_runtime_sub_rule`）。
+- B3: proxy 全局类型（`IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem`）迁到生成绑定。
+- B4: Mihomo core / UI / geo 升级的 Rust gate + 升级历史。
+- B5: 数据面遥测（engine / perf / buffer / hot-reload / xdp / rule-traffic）的 Rust 命令 + 诊断面板。
+- B6: 敏感配置变更（controller / secret）的 gate + 审计。
+- B7: TLS 指纹实时统计的归一。

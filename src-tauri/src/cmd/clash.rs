@@ -79,7 +79,22 @@ pub async fn test_delay(url: String) -> CmdResult<u32> {
 /// 应用或撤销DNS配置
 #[tauri::command]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
-    runtime::apply_dns_config(apply).await.stringify_err()
+    let detail = Some(if apply { "apply" } else { "revoke" }.to_string());
+    match runtime::apply_dns_config(apply).await {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event("apply_dns", true, None, detail);
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                "apply_dns",
+                false,
+                Some(error.to_string()),
+                detail,
+            );
+            Err(error).stringify_err()
+        }
+    }
 }
 
 #[tauri::command]

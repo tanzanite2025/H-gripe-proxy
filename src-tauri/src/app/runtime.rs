@@ -28,6 +28,10 @@ static TLS_CONFIG: Lazy<Arc<rustls::ClientConfig>> = Lazy::new(|| {
     Arc::new(config)
 });
 
+const LIFECYCLE_CHANGE_MODE: &str = "change_mode";
+const LIFECYCLE_TOGGLE_SYSTEM_PROXY: &str = "toggle_system_proxy";
+const LIFECYCLE_TOGGLE_TUN: &str = "toggle_tun";
+
 pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
     let mode = mode.as_str();
     let mut mapping = Mapping::new();
@@ -55,10 +59,22 @@ pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
                     );
                 }
             });
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_CHANGE_MODE,
+                true,
+                None,
+                Some(mode.to_string()),
+            );
             Ok(())
         }
         Err(err) => {
             logging!(error, Type::Core, "{err}");
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_CHANGE_MODE,
+                false,
+                Some(err.to_string()),
+                Some(mode.to_string()),
+            );
             Err(anyhow::anyhow!("{err}"))
         }
     }
@@ -80,10 +96,22 @@ pub async fn toggle_system_proxy() -> bool {
     {
         Ok(_) => {
             handle::Handle::refresh_verge();
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_TOGGLE_SYSTEM_PROXY,
+                true,
+                None,
+                Some(if requested { "on" } else { "off" }.to_string()),
+            );
             requested
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_TOGGLE_SYSTEM_PROXY,
+                false,
+                Some(err.to_string()),
+                Some(if requested { "on" } else { "off" }.to_string()),
+            );
             current
         }
     }
@@ -104,10 +132,22 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     {
         Ok(_) => {
             handle::Handle::refresh_verge();
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_TOGGLE_TUN,
+                true,
+                None,
+                Some(if enable { "on" } else { "off" }.to_string()),
+            );
             enable
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_TOGGLE_TUN,
+                false,
+                Some(err.to_string()),
+                Some(if enable { "on" } else { "off" }.to_string()),
+            );
             current
         }
     }

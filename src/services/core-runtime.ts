@@ -33,6 +33,7 @@ export interface RuntimeLifecycleRecord {
   kind: string
   success: boolean
   error?: string | null
+  detail?: string | null
   updatedAt: number
 }
 
