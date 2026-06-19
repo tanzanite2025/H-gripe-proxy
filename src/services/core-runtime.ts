@@ -138,6 +138,40 @@ export interface RuntimeKernelShadowComponent {
   nextStep: string
 }
 
+export interface RuntimeKernelConnectionSessionSample {
+  sampleIndex: number
+  network: string
+  connectionType: string
+  chainLen: number
+  providerChainLen: number
+  hasHost: boolean
+  hasProcess: boolean
+  hasRemoteDestination: boolean
+  rule: string
+  uploadedBytes: number
+  downloadedBytes: number
+}
+
+export interface RuntimeKernelConnectionSessionShadowReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  connectionCount: number
+  uploadTotal: number
+  downloadTotal: number
+  memory: number
+  networkCounts: Record<string, number>
+  connectionTypeCounts: Record<string, number>
+  ruleCounts: Record<string, number>
+  samples: RuntimeKernelConnectionSessionSample[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelAdapterCapabilityEntry {
   proxyType: string
   appCount: number
@@ -266,5 +300,11 @@ export async function getRuntimeKernelRuleShadowEvidence() {
 export async function getRuntimeKernelAdapterCapabilityReport() {
   return invoke<RuntimeKernelAdapterCapabilityReport>(
     'get_runtime_kernel_adapter_capability_report',
+  )
+}
+
+export async function getRuntimeKernelConnectionSessionShadow() {
+  return invoke<RuntimeKernelConnectionSessionShadowReport>(
+    'get_runtime_kernel_connection_session_shadow',
   )
 }
