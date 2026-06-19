@@ -19,6 +19,7 @@ const KIND_LABELS: Record<string, string> = {
   toggle_system_proxy: '系统代理',
   toggle_tun: 'TUN 模式',
   apply_dns: 'DNS 配置',
+  patch_sensitive_config: '敏感配置变更',
 }
 
 const DETAIL_LABELS: Record<string, string> = {
@@ -68,8 +69,8 @@ export function LifecycleAuditLogPanel() {
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               读取 Rust runtime 持久化的运行时变更事件（重启核心 / 重载配置 /
-              重启应用 / 更新 GEO / 切换模式 / 系统代理 / TUN / DNS
-              配置），来自 app-runtime/lifecycle-events.yaml，保留最近 100 条。
+              重启应用 / 更新 GEO / 切换模式 / 系统代理 / TUN / DNS 配置 /
+              敏感配置），来自 app-runtime/lifecycle-events.yaml，保留最近 100 条。
             </div>
           </div>
           <Button
