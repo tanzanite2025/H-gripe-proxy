@@ -1,9 +1,15 @@
+use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
 use smartstring::alias::String;
 use tauri_plugin_mihomo::models::Protocol;
 
-use crate::core::{CoreManager, handle::Handle, manager::RunningMode};
+use crate::core::{
+    CoreManager,
+    dns_runtime::{DnsDefaultRuntimeShadowEvidenceReport, dns_default_runtime_shadow_evidence},
+    handle::Handle,
+    manager::RunningMode,
+};
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
 const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
@@ -60,6 +66,19 @@ pub struct KernelShadowComponentsReport {
     pub mutates_runtime: bool,
     pub components: Vec<KernelShadowComponent>,
     pub live_execution_blockers: Vec<KernelReplacementBlocker>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelDnsShadowEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub evidence: DnsDefaultRuntimeShadowEvidenceReport,
+    pub blockers: Vec<String>,
     pub next_safe_batch: String,
 }
 
@@ -160,6 +179,26 @@ pub async fn mihomo_kernel_apply_preflight(artifact_id: Option<String>) -> Kerne
 
 pub async fn mihomo_kernel_shadow_components() -> KernelShadowComponentsReport {
     MihomoKernelRuntime.shadow_components().await
+}
+
+pub async fn mihomo_kernel_dns_shadow_evidence(
+    yaml: Option<String>,
+    domain: Option<String>,
+) -> Result<KernelDnsShadowEvidenceReport> {
+    let evidence = dns_default_runtime_shadow_evidence(yaml, domain).await?;
+    let mut blockers = evidence.blockers.clone();
+    blockers.push("Rust kernel DNS live execution remains blocked; this command is shadow evidence only".into());
+
+    Ok(KernelDnsShadowEvidenceReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "dns-shadow-resolver".into(),
+        kernel_area: "dns".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        evidence,
+        blockers,
+        next_safe_batch: "rule-shadow-classification-evidence".into(),
+    })
 }
 
 fn active_kernel_label() -> String {
