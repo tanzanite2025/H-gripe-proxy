@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 
 import { BaseLoading } from '@/components/base'
 import delayManager from '@/services/delay'
+import type { IProxyItem } from '@/types/proxy'
 import { cn } from '@/utils/cn'
 
 interface ProxyCardDelayActionProps {

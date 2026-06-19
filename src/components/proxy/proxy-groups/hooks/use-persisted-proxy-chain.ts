@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import type { IProxyItem } from '@/types/proxy'
+
 import { clearProxyChainRuntimeConfig } from '../../proxy-chain-runtime'
 import {
   clearProxyChainStorage,

@@ -1,3 +1,4 @@
+import type { IProxyItem } from '@/types/proxy'
 /**
  * 多路复用辅助函数
  * 用于显示和格式化多路复用信息

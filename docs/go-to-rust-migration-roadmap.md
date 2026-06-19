@@ -2170,4 +2170,9 @@ Mihomo 插件暴露了运行时 `get_tls_fingerprint_stats`（`TLSFingerprintSta
 ### 第二阶段后续批次（规划 / 调整）
 
 - ~~B2: sub-rules 走 Rust 运行时命令~~ — **取消**：前端无 sub-rules 读/删功能，`getSubRules` / `deleteSubRuleBySource` 是插件里未被前端使用的函数；唯一 sub-rule 路径（createRule 的 `subRule` 入参）已走 `create_runtime_rule`。加命令只会是死代码。
-- B3（重新评估）: `IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem` 是前端**刻意精简的视图模型**（字段更少、含 `provider`/`fixed` 等自定义字段，`all` 形状不同），并非生成绑定的简单副本；是否迁移待定，强行替换可能引入语义错误。
+- B3：proxy 视图类型迁移已收口。`IProxyItem` / `IProxyGroupItem` /
+  `IProxyProviderItem` 不强换成 Mihomo 生成结构，因它们是前端视图模型
+  （含 `provider` / `fixed` 等 UI 语义字段，且 group 的 `all` 是展开后
+  的 item 列表而非 raw name 列表）。本批把这些类型从 `global.d.ts`
+  迁到 app-owned `src/types/proxy.ts`，显式依赖 Rust 生成的 `Proxy` /
+  `ProxyProvider` 字段来源，同时保留现有视图语义。

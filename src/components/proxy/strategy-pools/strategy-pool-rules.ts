@@ -2,6 +2,7 @@ import {
   isBuiltinPolicyName,
   isHiddenProxyName,
 } from '@/services/proxy-display'
+import type { IProxyGroupItem } from '@/types/proxy'
 
 import type { StrategyPoolGroupRef } from './types'
 

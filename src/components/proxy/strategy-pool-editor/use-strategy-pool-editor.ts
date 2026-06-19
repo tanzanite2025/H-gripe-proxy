@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 
 import { useProfiles } from '@/hooks/data'
 import { useProxiesData } from '@/providers/app-data-context'
+import type { IProxyItem } from '@/types/proxy'
 
 import { buildCandidateOptions } from './build-candidate-options'
 import type { UseStrategyPoolEditorOptions } from './types'

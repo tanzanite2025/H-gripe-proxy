@@ -4,6 +4,7 @@ import {
   isHiddenProxyName,
   isProxyGroupItem,
 } from '@/services/proxy-display'
+import type { IProxyItem } from '@/types/proxy'
 
 import type { CandidateOption } from './types'
 

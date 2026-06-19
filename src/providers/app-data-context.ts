@@ -1,6 +1,7 @@
 import { Context, createContext, use } from 'react'
 import type { BaseConfig, Rule, RuleProvider } from 'tauri-plugin-mihomo-api'
 
+import type { IProxyProviderItem } from '@/types/proxy'
 export interface AppDataContextType {
   proxies: any
   clashConfig: BaseConfig

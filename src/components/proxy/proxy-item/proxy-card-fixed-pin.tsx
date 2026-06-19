@@ -1,6 +1,7 @@
 import { Pin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
 import { cn } from '@/utils/cn'
 
 interface ProxyCardFixedPinProps {

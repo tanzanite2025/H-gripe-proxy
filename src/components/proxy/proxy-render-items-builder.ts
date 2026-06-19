@@ -1,4 +1,5 @@
 import type { CalculatedProxies } from '@/services/proxy-runtime'
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
 
 import { buildGlobalSelectorSections } from './render-list/global-selector-sections'
 import { resolveSelectionGroup } from './render-list/selection-group'

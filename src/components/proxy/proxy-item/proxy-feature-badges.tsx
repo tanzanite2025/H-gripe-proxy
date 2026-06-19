@@ -1,4 +1,5 @@
 import { Tooltip } from '@/components/tailwind/Tooltip'
+import type { IProxyItem } from '@/types/proxy'
 
 import {
   getMieruMultiplexShortText,

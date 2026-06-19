@@ -1,3 +1,5 @@
+import type { IProxyItem } from '@/types/proxy'
+
 import { ProxyItem } from '../proxy-item'
 import { ProxyItemMini } from '../proxy-item-mini'
 import type { IRenderItem } from '../render-list/types'

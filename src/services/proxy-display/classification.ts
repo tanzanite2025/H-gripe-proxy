@@ -1,3 +1,5 @@
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
+
 import {
   isBuiltinPolicyName,
   isHiddenProxyName,

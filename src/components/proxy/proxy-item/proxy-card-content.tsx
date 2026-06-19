@@ -1,3 +1,5 @@
+import type { IProxyItem } from '@/types/proxy'
+
 import { ProxyFeatureBadges } from './proxy-feature-badges'
 
 type ProxyCardContentVariant = 'default' | 'compact'

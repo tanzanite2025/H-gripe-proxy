@@ -1,3 +1,5 @@
+import type { IProxyItem } from '@/types/proxy'
+
 import type { HeadState } from '../use-head-state'
 
 import type { IRenderItem, ProxyGroup, ProxyItem, VisibleSectionKind } from './types'

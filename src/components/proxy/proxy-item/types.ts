@@ -1,3 +1,4 @@
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
 export interface ProxyCardProps {
   group: IProxyGroupItem
   proxy: IProxyItem

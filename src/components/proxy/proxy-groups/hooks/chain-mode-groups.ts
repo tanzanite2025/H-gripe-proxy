@@ -1,3 +1,4 @@
+import type { IProxyGroupItem } from '@/types/proxy'
 export const getAvailableChainModeGroups = (
   groups: IProxyGroupItem[] | undefined,
   isChainMode: boolean,

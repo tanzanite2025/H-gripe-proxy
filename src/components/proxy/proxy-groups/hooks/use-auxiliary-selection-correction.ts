@@ -5,7 +5,7 @@ import {
   isHiddenProxyName,
   pickPreferredProxyNameFromGroup,
 } from '@/services/proxy-display'
-
+import type { IProxyGroupItem } from '@/types/proxy'
 interface SelectionCorrection {
   groupName: string
   previousProxy: string

@@ -1,5 +1,7 @@
 import { useCallback } from 'react'
 
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
+
 import type { HeadState } from '../../use-head-state'
 import type { IRenderItem } from '../../use-render-list'
 import type { ProxyVirtualListProps } from '../components/proxy-virtual-list'

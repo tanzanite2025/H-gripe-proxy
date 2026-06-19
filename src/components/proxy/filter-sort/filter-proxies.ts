@@ -1,4 +1,5 @@
 import delayManager from '@/services/delay'
+import type { IProxyItem } from '@/types/proxy'
 import { compileStringMatcher } from '@/utils/validation'
 
 import type { ProxySearchState } from './types'

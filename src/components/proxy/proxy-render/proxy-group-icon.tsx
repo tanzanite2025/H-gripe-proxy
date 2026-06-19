@@ -1,5 +1,5 @@
 import { useIconCache } from '@/hooks/system'
-
+import type { IProxyGroupItem } from '@/types/proxy'
 interface ProxyGroupIconProps {
   group: IProxyGroupItem
 }

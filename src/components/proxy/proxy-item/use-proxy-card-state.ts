@@ -3,7 +3,7 @@ import {
   categorizeProxyGroup,
   isProxyGroupItem,
 } from '@/services/proxy-display'
-
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
 interface UseProxyCardStateOptions {
   group: IProxyGroupItem
   proxy: IProxyItem
