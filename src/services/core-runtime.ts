@@ -138,6 +138,31 @@ export interface RuntimeKernelShadowComponent {
   nextStep: string
 }
 
+export interface RuntimeKernelAdapterCapabilityEntry {
+  proxyType: string
+  appCount: number
+  mihomoCount: number
+  inventoryMatched: boolean
+  rustShadowSupported: boolean
+  liveExecutionAllowed: boolean
+  notes: string[]
+}
+
+export interface RuntimeKernelAdapterCapabilityReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  appProxyCount: number
+  mihomoProxyCount: number
+  capabilities: RuntimeKernelAdapterCapabilityEntry[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelRuleShadowRule {
   index: number
   ruleType: string
@@ -235,5 +260,11 @@ export async function getRuntimeKernelDnsShadowEvidence(
 export async function getRuntimeKernelRuleShadowEvidence() {
   return invoke<RuntimeKernelRuleShadowEvidenceReport>(
     'get_runtime_kernel_rule_shadow_evidence',
+  )
+}
+
+export async function getRuntimeKernelAdapterCapabilityReport() {
+  return invoke<RuntimeKernelAdapterCapabilityReport>(
+    'get_runtime_kernel_adapter_capability_report',
   )
 }

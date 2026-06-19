@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
 use smartstring::alias::String;
+use std::collections::{BTreeMap, BTreeSet};
 use tauri_plugin_mihomo::models::Protocol;
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
         dns_runtime::{DnsDefaultRuntimeShadowEvidenceReport, dns_default_runtime_shadow_evidence},
         handle::Handle,
         manager::RunningMode,
-        runtime_snapshot::build_rules_from_runtime_config,
+        runtime_snapshot::{build_proxies_from_runtime_config, build_rules_from_runtime_config},
     },
 };
 
@@ -121,6 +122,35 @@ pub struct KernelRuleShadowEvidenceReport {
     pub matched_sample_count: usize,
     pub mismatched_sample_count: usize,
     pub samples: Vec<KernelRuleShadowSample>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelAdapterCapabilityEntry {
+    pub proxy_type: String,
+    pub app_count: usize,
+    pub mihomo_count: usize,
+    pub inventory_matched: bool,
+    pub rust_shadow_supported: bool,
+    pub live_execution_allowed: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelAdapterCapabilityReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub app_proxy_count: usize,
+    pub mihomo_proxy_count: usize,
+    pub capabilities: Vec<KernelAdapterCapabilityEntry>,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -314,6 +344,74 @@ pub async fn mihomo_kernel_rule_shadow_evidence() -> Result<KernelRuleShadowEvid
     })
 }
 
+pub async fn mihomo_kernel_adapter_capability_report() -> Result<KernelAdapterCapabilityReport> {
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+    let app_proxies = build_proxies_from_runtime_config(config);
+    let mihomo_proxies = Handle::mihomo().await.get_proxies().await?;
+    let app_counts = proxy_type_counts(&app_proxies.proxies);
+    let mihomo_counts = proxy_type_counts(&mihomo_proxies.proxies);
+    let mut proxy_types = BTreeSet::new();
+    proxy_types.extend(app_counts.keys().cloned());
+    proxy_types.extend(mihomo_counts.keys().cloned());
+
+    let capabilities = proxy_types
+        .into_iter()
+        .map(|proxy_type| {
+            let app_count = app_counts.get(&proxy_type).copied().unwrap_or_default();
+            let mihomo_count = mihomo_counts.get(&proxy_type).copied().unwrap_or_default();
+            let inventory_matched = app_count == mihomo_count;
+            let rust_shadow_supported = proxy_type != "Unknown";
+            let mut notes = vec!["inventory-only capability; no outbound sockets opened".into()];
+            if !inventory_matched {
+                notes.push("app runtime projection and Mihomo inventory counts differ".into());
+            }
+            if !rust_shadow_supported {
+                notes.push("unknown adapter type requires explicit Rust parser support before shadow execution".into());
+            }
+            KernelAdapterCapabilityEntry {
+                proxy_type,
+                app_count,
+                mihomo_count,
+                inventory_matched,
+                rust_shadow_supported,
+                live_execution_allowed: false,
+                notes,
+            }
+        })
+        .collect::<Vec<_>>();
+    let warnings = capabilities
+        .iter()
+        .filter(|capability| !capability.inventory_matched || !capability.rust_shadow_supported)
+        .map(|capability| format!("adapter capability needs review: {}", capability.proxy_type).into())
+        .collect::<Vec<_>>();
+
+    Ok(KernelAdapterCapabilityReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "adapter-capability-shadow".into(),
+        kernel_area: "adapter".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        app_proxy_count: app_proxies.proxies.len(),
+        mihomo_proxy_count: mihomo_proxies.proxies.len(),
+        capabilities,
+        blockers: vec![
+            "Rust adapter capability reporting is inventory-only and must not dial proxy endpoints".into(),
+            "Mihomo remains the only live adapter runtime owner".into(),
+        ],
+        warnings,
+        facts: vec![
+            "report compares app runtime proxy projection with Mihomo controller proxy inventory".into(),
+            "adapter parsing evidence must precede any Rust protocol stack implementation".into(),
+        ],
+        next_safe_batch: "connection-session-shadow-model".into(),
+    })
+}
+
 fn active_kernel_label() -> String {
     match CoreManager::global().get_running_mode().as_ref() {
         RunningMode::Service => "mihomo-service",
@@ -461,4 +559,18 @@ fn rule_shadow_mismatch_reason(
             }
         }
     }
+}
+
+fn proxy_type_counts(
+    proxies: &std::collections::HashMap<std::string::String, tauri_plugin_mihomo::models::Proxy>,
+) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for proxy in proxies.values() {
+        *counts.entry(proxy_type_label(proxy)).or_default() += 1;
+    }
+    counts
+}
+
+fn proxy_type_label(proxy: &tauri_plugin_mihomo::models::Proxy) -> String {
+    format!("{:?}", proxy.proxy_type).into()
 }

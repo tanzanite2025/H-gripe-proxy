@@ -60,6 +60,11 @@ pub async fn get_runtime_kernel_rule_shadow_evidence() -> CmdResult<KernelRuleSh
     mihomo_kernel_rule_shadow_evidence().await.stringify_err()
 }
 
+#[tauri::command]
+pub async fn get_runtime_kernel_adapter_capability_report() -> CmdResult<KernelAdapterCapabilityReport> {
+    mihomo_kernel_adapter_capability_report().await.stringify_err()
+}
+
 /// 获取运行时配置
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
