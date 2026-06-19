@@ -4,11 +4,15 @@ use serde::Serialize;
 use smartstring::alias::String;
 use tauri_plugin_mihomo::models::Protocol;
 
-use crate::core::{
-    CoreManager,
-    dns_runtime::{DnsDefaultRuntimeShadowEvidenceReport, dns_default_runtime_shadow_evidence},
-    handle::Handle,
-    manager::RunningMode,
+use crate::{
+    config::Config,
+    core::{
+        CoreManager,
+        dns_runtime::{DnsDefaultRuntimeShadowEvidenceReport, dns_default_runtime_shadow_evidence},
+        handle::Handle,
+        manager::RunningMode,
+        runtime_snapshot::build_rules_from_runtime_config,
+    },
 };
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
@@ -79,6 +83,47 @@ pub struct KernelDnsShadowEvidenceReport {
     pub live_execution_allowed: bool,
     pub evidence: DnsDefaultRuntimeShadowEvidenceReport,
     pub blockers: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuleShadowRule {
+    pub index: i32,
+    pub rule_type: String,
+    pub payload: String,
+    pub proxy: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuleShadowSample {
+    pub sample_index: usize,
+    pub app_rule: Option<KernelRuleShadowRule>,
+    pub mihomo_rule: Option<KernelRuleShadowRule>,
+    pub matched: bool,
+    pub mismatch_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuleShadowEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub status: String,
+    pub app_rule_count: usize,
+    pub mihomo_rule_count: usize,
+    pub compared_sample_size: usize,
+    pub matched_sample_count: usize,
+    pub mismatched_sample_count: usize,
+    pub samples: Vec<KernelRuleShadowSample>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
     pub next_safe_batch: String,
 }
 
@@ -201,6 +246,74 @@ pub async fn mihomo_kernel_dns_shadow_evidence(
     })
 }
 
+pub async fn mihomo_kernel_rule_shadow_evidence() -> Result<KernelRuleShadowEvidenceReport> {
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+    let app_rules = build_rules_from_runtime_config(config);
+    let mihomo_rules = Handle::mihomo().await.get_rules().await?;
+    let sample_size = app_rules.rules.len().max(mihomo_rules.rules.len()).min(25);
+    let mut samples = Vec::with_capacity(sample_size);
+
+    for sample_index in 0..sample_size {
+        let app_rule = app_rules.rules.get(sample_index).map(kernel_rule_shadow_rule);
+        let mihomo_rule = mihomo_rules.rules.get(sample_index).map(kernel_rule_shadow_rule);
+        let mismatch_reason = rule_shadow_mismatch_reason(app_rule.as_ref(), mihomo_rule.as_ref());
+        samples.push(KernelRuleShadowSample {
+            sample_index,
+            app_rule,
+            mihomo_rule,
+            matched: mismatch_reason.is_none(),
+            mismatch_reason,
+        });
+    }
+
+    let matched_sample_count = samples.iter().filter(|sample| sample.matched).count();
+    let mismatched_sample_count = samples.len().saturating_sub(matched_sample_count);
+    let mut warnings = Vec::new();
+    if app_rules.rules.len() != mihomo_rules.rules.len() {
+        warnings.push(format!(
+            "app rule inventory has {} rule(s), Mihomo reports {} rule(s)",
+            app_rules.rules.len(),
+            mihomo_rules.rules.len()
+        ));
+    }
+    if mismatched_sample_count > 0 {
+        warnings.push(format!(
+            "{} sampled rule position(s) differ between app and Mihomo inventory",
+            mismatched_sample_count
+        ));
+    }
+
+    Ok(KernelRuleShadowEvidenceReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "rule-shadow-classifier".into(),
+        kernel_area: "rule-engine".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        status: if warnings.is_empty() { "matched" } else { "mismatched" }.into(),
+        app_rule_count: app_rules.rules.len(),
+        mihomo_rule_count: mihomo_rules.rules.len(),
+        compared_sample_size: samples.len(),
+        matched_sample_count,
+        mismatched_sample_count,
+        samples,
+        blockers: vec![
+            "Rust kernel rule classification is shadow-only and must not route traffic".into(),
+            "Mihomo remains the only live rule decision owner for forwarding".into(),
+        ],
+        warnings,
+        facts: vec![
+            "sample compares app runtime rule projection with Mihomo controller rule inventory".into(),
+            "command reads rule inventories only and does not change rule providers or mode".into(),
+        ],
+        next_safe_batch: "adapter-capability-report".into(),
+    })
+}
+
 fn active_kernel_label() -> String {
     match CoreManager::global().get_running_mode().as_ref() {
         RunningMode::Service => "mihomo-service",
@@ -316,4 +429,36 @@ fn shadow_components() -> Vec<KernelShadowComponent> {
             next_step: "connection-session-shadow-model".into(),
         },
     ]
+}
+
+fn kernel_rule_shadow_rule(rule: &tauri_plugin_mihomo::models::Rule) -> KernelRuleShadowRule {
+    KernelRuleShadowRule {
+        index: rule.index,
+        rule_type: format!("{:?}", rule.rule_type).into(),
+        payload: rule.payload.clone().into(),
+        proxy: rule.proxy.clone().into(),
+        source: rule.source.clone().into(),
+    }
+}
+
+fn rule_shadow_mismatch_reason(
+    app_rule: Option<&KernelRuleShadowRule>,
+    mihomo_rule: Option<&KernelRuleShadowRule>,
+) -> Option<String> {
+    match (app_rule, mihomo_rule) {
+        (None, None) => None,
+        (None, Some(_)) => Some("Mihomo has a rule where app projection has none".into()),
+        (Some(_), None) => Some("app projection has a rule where Mihomo has none".into()),
+        (Some(app), Some(mihomo)) => {
+            if app.rule_type != mihomo.rule_type {
+                Some(format!("rule type differs: app={} mihomo={}", app.rule_type, mihomo.rule_type).into())
+            } else if app.payload != mihomo.payload {
+                Some(format!("payload differs: app={} mihomo={}", app.payload, mihomo.payload).into())
+            } else if app.proxy != mihomo.proxy {
+                Some(format!("target differs: app={} mihomo={}", app.proxy, mihomo.proxy).into())
+            } else {
+                None
+            }
+        }
+    }
 }
