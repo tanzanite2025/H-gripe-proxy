@@ -2042,3 +2042,26 @@ Next aggressive batches:
 
 1. Surface the lifecycle audit log in the UI / aggregate diagnostics view.
 2. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.
+
+### Aggressive replacement track: lifecycle audit log in advanced UI
+
+This batch surfaces the Rust-owned lifecycle audit log (`get_runtime_lifecycle_state`, persisted to `app-runtime/lifecycle-events.yaml` since PR #174) in the advanced page's app-runtime tab, alongside the planning panel. Pure frontend — no new Rust command.
+
+```text
+LifecycleAuditLogPanel (advanced page -> appRuntime tab)
+  -> getRuntimeLifecycleState()           // Rust-owned audit log
+  -> records sorted newest-first
+  -> row: kind (restart_core/reload_config/restart_app) + success/fail chip
+          + error message or formatted timestamp
+  -> manual refresh button
+```
+
+Migration impact:
+
+- The lifecycle audit log (previously only persisted by Rust) is now visible in the UI for diagnostics.
+- Component follows the advanced panels' inline-Chinese convention (no i18n keys added).
+- No new Rust command was needed; pure frontend consumption of the existing app command.
+
+Next aggressive batches:
+
+1. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.
