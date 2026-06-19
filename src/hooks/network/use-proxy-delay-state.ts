@@ -5,7 +5,7 @@ import { useVerge } from '@/hooks/system'
 import delayManager, { type DelayUpdate } from '@/services/delay'
 import { resolveVergeDelayTimeout } from '@/services/delay-config'
 import { resolveDisplayDelayUpdate } from '@/services/delay-display'
-
+import type { IProxyItem } from '@/types/proxy'
 const PRESET_PROXY_NAMES = [
   'DIRECT',
   'REJECT',

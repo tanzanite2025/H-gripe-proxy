@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
 import { useVerge } from '@/hooks/system'
+import type { IProxyItem } from '@/types/proxy'
 
 import { filterProxies } from './filter-sort/filter-proxies'
 import { sortProxies } from './filter-sort/sort-proxies'

@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
 import { cn } from '@/utils/cn'
 
 import { ACTION_VARIANT_CLASS, type ProxyCardActionVariant } from './proxy-card-action-types'

@@ -1,7 +1,7 @@
 import { SlidersHorizontal } from 'lucide-react'
 
 import { Tooltip } from '@/components/tailwind/Tooltip'
-
+import type { IProxyGroupItem } from '@/types/proxy'
 interface ProxyCardConfigureActionProps {
   className: string
   configurableStrategyGroup?: IProxyGroupItem | null

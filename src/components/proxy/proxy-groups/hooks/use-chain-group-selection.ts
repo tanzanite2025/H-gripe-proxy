@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 
+import type { IProxyGroupItem } from '@/types/proxy'
+
 import {
   findCurrentChainModeGroup,
   getAvailableChainModeGroups,

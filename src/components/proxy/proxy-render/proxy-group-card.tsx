@@ -6,6 +6,7 @@ import {
   ListItemText,
   Tooltip,
 } from '@/components/tailwind'
+import type { IProxyGroupItem } from '@/types/proxy'
 
 import type { IRenderItem } from '../render-list/types'
 import type { HeadState } from '../use-head-state'

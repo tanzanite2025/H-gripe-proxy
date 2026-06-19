@@ -4,6 +4,7 @@ import { useProxySelection } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { useProxiesData } from '@/providers/app-data-context'
 import { resolveVergeDelayTimeout } from '@/services/delay-config'
+import type { IProxyGroupItem } from '@/types/proxy'
 
 import { useRenderList } from '../../use-render-list'
 

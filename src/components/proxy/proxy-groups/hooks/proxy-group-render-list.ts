@@ -1,3 +1,5 @@
+import type { IProxyGroupItem } from '@/types/proxy'
+
 import type { HeadState } from '../../use-head-state'
 import type { IRenderItem } from '../../use-render-list'
 

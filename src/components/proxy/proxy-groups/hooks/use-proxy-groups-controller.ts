@@ -1,5 +1,7 @@
 import { useCallback } from 'react'
 
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
+
 import type { ProxyGroupsProps } from '../types'
 
 import { useChainMode } from './use-chain-mode'

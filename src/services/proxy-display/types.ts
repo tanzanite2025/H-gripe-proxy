@@ -1,3 +1,4 @@
+import type { IProxyItem } from '@/types/proxy'
 export type ProxyDisplayGroupKind = 'manual' | 'strategy' | 'auxiliary'
 export type ProxyDisplayTargetKind = ProxyDisplayGroupKind
 

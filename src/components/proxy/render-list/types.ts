@@ -1,4 +1,5 @@
 import type { ProxyDisplayGroupKind } from '@/services/proxy-display'
+import type { IProxyGroupItem, IProxyItem } from '@/types/proxy'
 
 import type { HeadState } from '../use-head-state'
 

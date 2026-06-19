@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { ProxyDelay } from 'tauri-plugin-mihomo-api'
 
+import type { IProxyItem } from '@/types/proxy'
 import { debugLog } from '@/utils/misc'
 
 import { getDelayTestConfig } from './adaptive-config'

@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
 
+import type { IProxyGroupItem, IProxyProviderItem, IProxyItem } from '@/types/proxy'
+
 import { isBuiltinPolicyName, isHiddenProxyName } from './proxy-display'
 
 export interface CalculatedProxies {

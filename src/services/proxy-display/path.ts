@@ -1,4 +1,5 @@
 import type { CurrentEgressIdentity } from '@/services/cmds/diagnostics'
+import type { IProxyItem } from '@/types/proxy'
 
 import {
   isAuxiliaryGroupType,

@@ -1,5 +1,6 @@
 import delayManager from '@/services/delay'
 import { resolveDelayTimeout } from '@/services/delay-config'
+import type { IProxyItem } from '@/types/proxy'
 
 import type { ProxySortType } from './types'
 

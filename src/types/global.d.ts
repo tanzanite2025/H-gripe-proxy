@@ -84,49 +84,9 @@ interface IConfigData {
     address: string
     target: string
   }[]
-  'proxy-groups'?: IProxyGroupItem[]
+  'proxy-groups'?: import('@/types/proxy').IProxyGroupItem[]
 }
 
-interface IProxyItem {
-  name: string
-  type: string
-  udp: boolean
-  xudp: boolean
-  tfo: boolean
-  mptcp: boolean
-  smux: boolean
-  history: {
-    time: string
-    delay: number
-  }[]
-  testUrl?: string
-  all?: string[]
-  now?: string
-  hidden?: boolean
-  icon?: string
-  provider?: string // 记录是否来自provider
-  fixed?: string // 记录固定(优先)的节点
-}
-
-type IProxyGroupItem = Omit<IProxyItem, 'all'> & {
-  all: IProxyItem[]
-}
-
-interface IProxyProviderItem {
-  name: string
-  type: string
-  proxies: IProxyItem[]
-  updatedAt: string
-  vehicleType: string
-  testUrl: string
-  expectedStatus: string
-  subscriptionInfo?: {
-    Upload: number
-    Download: number
-    Total: number
-    Expire: number
-  }
-}
 
 interface IRuleProviderItem {
   name: string
