@@ -441,6 +441,33 @@ pub struct KernelLoopbackForwardingSmokeEvidenceReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingRollbackDrillReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub smoke_passed: bool,
+    pub ports_released: bool,
+    pub post_preflight: KernelLoopbackForwardingPreflightReport,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1182,6 +1209,74 @@ pub async fn mihomo_kernel_loopback_forwarding_smoke_evidence(
         blockers,
         warnings,
     ))
+}
+
+pub async fn mihomo_kernel_loopback_forwarding_rollback_drill(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+) -> Result<KernelLoopbackForwardingRollbackDrillReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let before_runtime_config = kernel_runtime_config_snapshot().await?;
+    let before_verge = Config::verge().await.latest_arc();
+    let before_system_proxy = before_verge.enable_system_proxy.unwrap_or(false);
+    let before_tun = before_verge.enable_tun_mode.unwrap_or(false);
+
+    let smoke = mihomo_kernel_loopback_forwarding_smoke_evidence(Some(listener_port), Some(target_port)).await?;
+    let post_preflight = mihomo_kernel_loopback_forwarding_preflight(Some(listener_port), Some(target_port)).await?;
+    let ports_released = post_preflight.can_start_after_opt_in;
+    let after_runtime_config = kernel_runtime_config_snapshot().await?;
+    let after_verge = Config::verge().await.latest_arc();
+    let system_proxy_unchanged = before_system_proxy == after_verge.enable_system_proxy.unwrap_or(false);
+    let tun_unchanged = before_tun == after_verge.enable_tun_mode.unwrap_or(false);
+    let runtime_config_unchanged = before_runtime_config == after_runtime_config;
+
+    let mut blockers = Vec::new();
+    if !smoke.passed {
+        blockers.push("loopback forwarding smoke evidence did not pass before rollback drill".into());
+    }
+    if !ports_released {
+        blockers.push("loopback forwarding smoke ports were not released after the drill".into());
+    }
+    if !system_proxy_unchanged {
+        blockers.push("system proxy setting changed during forwarding rollback drill".into());
+    }
+    if !tun_unchanged {
+        blockers.push("TUN setting changed during forwarding rollback drill".into());
+    }
+    if !runtime_config_unchanged {
+        blockers.push("runtime config changed during forwarding rollback drill".into());
+    }
+
+    let passed = blockers.is_empty();
+    Ok(KernelLoopbackForwardingRollbackDrillReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-forwarding-rollback-drill".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: true,
+        live_execution_allowed: true,
+        listener_port,
+        target_port,
+        smoke_passed: smoke.passed,
+        ports_released,
+        post_preflight,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed,
+        blockers,
+        warnings: vec!["rollback drill remains synthetic loopback-only and does not exercise real adapters".into()],
+        facts: vec![
+            "drill runs loopback forwarding smoke evidence and immediately re-runs preflight".into(),
+            "post-preflight must show listener and target ports are available again".into(),
+            "runtime config, system proxy, and TUN settings are compared before and after".into(),
+        ],
+        next_safe_batch: "loopback-forwarding-leak-check".into(),
+    })
 }
 
 pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {

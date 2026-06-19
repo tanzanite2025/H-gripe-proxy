@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, and forwarding preflight are complete. Current step adds loopback forwarding smoke evidence; it is synthetic 127.0.0.1 only. |
-| Next safe batch | `loopback-forwarding-rollback-drill` | Drill stop/rollback semantics for isolated forwarding evidence before any broader opt-in. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding preflight, and forwarding smoke evidence are complete. Current step drills rollback/cleanup for synthetic forwarding. |
+| Next safe batch | `loopback-forwarding-leak-check` | Verify no listener/target socket or state leakage after the rollback drill. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -148,7 +148,8 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R3 loopback DNS preflight | Complete | Read-only | `get_runtime_kernel_loopback_dns_preflight` checks loopback UDP/TCP candidate port readiness and reports DNS/TUN/system proxy context without replacing default DNS. |
 | R3 loopback DNS smoke evidence | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_dns_smoke_evidence` binds a temporary loopback UDP DNS socket, answers one synthetic query locally, and compares runtime config/system proxy/TUN before and after. |
 | R3 loopback forwarding preflight | Complete | Read-only | `get_runtime_kernel_loopback_forwarding_preflight` checks candidate listener/target loopback TCP ports and reports that future smoke evidence must not use outbound adapters. |
-| R3 loopback forwarding smoke evidence | In progress | Bounded local runtime mutation only | `get_runtime_kernel_loopback_forwarding_smoke_evidence` forwards one synthetic HTTP request from a temporary 127.0.0.1 listener to a temporary 127.0.0.1 target and compares runtime config/system proxy/TUN before and after. |
+| R3 loopback forwarding smoke evidence | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_forwarding_smoke_evidence` forwards one synthetic HTTP request from a temporary 127.0.0.1 listener to a temporary 127.0.0.1 target and compares runtime config/system proxy/TUN before and after. |
+| R3 loopback forwarding rollback drill | In progress | Bounded local runtime mutation only | `get_runtime_kernel_loopback_forwarding_rollback_drill` runs forwarding smoke evidence, then re-runs preflight to prove the loopback ports are released and runtime/TUN/system proxy state is unchanged. |
 | R4 expanded opt-in | Blocked | Not allowed yet | Requires loopback forwarding rollback drill, leak checks, platform matrix, and hold window. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
 
@@ -238,7 +239,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-forwarding-smoke-evidence`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-forwarding-rollback-drill`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 
