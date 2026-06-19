@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { Button } from '@/components/tailwind/Button'
 import {
@@ -9,7 +10,6 @@ import {
 } from '@/components/tailwind/Dialog'
 import { List } from '@/components/tailwind/List'
 import type { RuntimeProviderHealthRecord } from '@/services/proxy-runtime'
-import type { ProxyProvider } from '@/types/mihomo'
 
 import { ProviderListItem } from './provider-list-item'
 

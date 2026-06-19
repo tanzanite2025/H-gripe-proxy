@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-
-import type { RuleProviders, Rules } from '@/types/mihomo'
+import type { RuleProviders, Rules } from 'tauri-plugin-mihomo-api'
 
 export async function getRuntimeRules() {
   return invoke<Rules>('get_runtime_rules')
