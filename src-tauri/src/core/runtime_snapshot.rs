@@ -107,6 +107,8 @@ pub struct RuntimeLifecycleRecord {
     pub kind: String,
     pub success: bool,
     pub error: Option<String>,
+    #[serde(default)]
+    pub detail: Option<String>,
     pub updated_at: u64,
 }
 
@@ -355,12 +357,18 @@ pub fn runtime_lifecycle_state() -> RuntimeLifecycleState {
         .unwrap_or_default()
 }
 
-pub fn record_and_persist_runtime_lifecycle_event(kind: &str, success: bool, error: Option<String>) {
+pub fn record_and_persist_runtime_lifecycle_event(
+    kind: &str,
+    success: bool,
+    error: Option<String>,
+    detail: Option<String>,
+) {
     if let Ok(mut state) = RUNTIME_LIFECYCLE_STATE.write() {
         let record = RuntimeLifecycleRecord {
             kind: kind.to_string(),
             success,
             error,
+            detail,
             updated_at: now_millis(),
         };
         state.records.push(record);

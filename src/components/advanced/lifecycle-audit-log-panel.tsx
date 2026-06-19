@@ -14,6 +14,22 @@ const KIND_LABELS: Record<string, string> = {
   restart_core: '重启核心',
   reload_config: '重载配置',
   restart_app: '重启应用',
+  update_geo: '更新 GEO',
+  change_mode: '切换模式',
+  toggle_system_proxy: '系统代理',
+  toggle_tun: 'TUN 模式',
+  apply_dns: 'DNS 配置',
+}
+
+const DETAIL_LABELS: Record<string, string> = {
+  on: '开启',
+  off: '关闭',
+  apply: '应用',
+  revoke: '撤销',
+  rule: '规则',
+  global: '全局',
+  direct: '直连',
+  script: '脚本',
 }
 
 export function LifecycleAuditLogPanel() {
@@ -51,9 +67,9 @@ export function LifecycleAuditLogPanel() {
               核心生命周期审计日志
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              读取 Rust runtime 持久化的生命周期事件（重启核心 / 重载配置 /
-              重启应用），来自 app-runtime/lifecycle-events.yaml，保留最近 100
-              条。
+              读取 Rust runtime 持久化的运行时变更事件（重启核心 / 重载配置 /
+              重启应用 / 更新 GEO / 切换模式 / 系统代理 / TUN / DNS
+              配置），来自 app-runtime/lifecycle-events.yaml，保留最近 100 条。
             </div>
           </div>
           <Button
@@ -82,6 +98,11 @@ export function LifecycleAuditLogPanel() {
               >
                 <div className="font-medium">
                   {KIND_LABELS[record.kind] ?? record.kind}
+                  {record.detail ? (
+                    <span className="ml-1 text-muted-foreground">
+                      · {DETAIL_LABELS[record.detail] ?? record.detail}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="text-muted-foreground">
                   {record.error ? (

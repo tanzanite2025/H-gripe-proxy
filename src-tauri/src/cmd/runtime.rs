@@ -64,7 +64,26 @@ pub async fn patch_runtime_base_config(data: serde_json::Value) -> CmdResult<()>
 
 #[tauri::command]
 pub async fn update_runtime_geo() -> CmdResult<()> {
-    Handle::mihomo().await.update_geo().await.stringify_err()
+    match Handle::mihomo().await.update_geo().await {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_UPDATE_GEO,
+                true,
+                None,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_UPDATE_GEO,
+                false,
+                Some(error.to_string()),
+                None,
+            );
+            Err(error).stringify_err()
+        }
+    }
 }
 
 #[tauri::command]
@@ -146,6 +165,7 @@ pub async fn get_runtime_provider_health_state() -> CmdResult<crate::core::runti
 const LIFECYCLE_RESTART_CORE: &str = "restart_core";
 const LIFECYCLE_RESTART_APP: &str = "restart_app";
 const LIFECYCLE_RELOAD_CONFIG: &str = "reload_config";
+const LIFECYCLE_UPDATE_GEO: &str = "update_geo";
 
 #[tauri::command]
 pub async fn get_runtime_lifecycle_state() -> CmdResult<crate::core::runtime_snapshot::RuntimeLifecycleState> {
@@ -162,6 +182,7 @@ pub async fn restart_runtime_core() -> CmdResult<()> {
                 LIFECYCLE_RESTART_CORE,
                 true,
                 None,
+                None,
             );
             Ok(())
         }
@@ -170,6 +191,7 @@ pub async fn restart_runtime_core() -> CmdResult<()> {
                 LIFECYCLE_RESTART_CORE,
                 false,
                 Some(error.to_string()),
+                None,
             );
             Err(error).stringify_err()
         }
@@ -186,6 +208,7 @@ pub async fn reload_runtime_config() -> CmdResult<()> {
                 LIFECYCLE_RELOAD_CONFIG,
                 true,
                 None,
+                None,
             );
             Ok(())
         }
@@ -195,6 +218,7 @@ pub async fn reload_runtime_config() -> CmdResult<()> {
                 LIFECYCLE_RELOAD_CONFIG,
                 false,
                 Some(message.clone()),
+                None,
             );
             Err(message.into())
         }
@@ -203,6 +227,7 @@ pub async fn reload_runtime_config() -> CmdResult<()> {
                 LIFECYCLE_RELOAD_CONFIG,
                 false,
                 Some(error.to_string()),
+                None,
             );
             Err(error).stringify_err()
         }
@@ -212,7 +237,7 @@ pub async fn reload_runtime_config() -> CmdResult<()> {
 /// 重启应用（app-owned 生命周期门禁，记录审计后再重启）
 #[tauri::command]
 pub async fn restart_runtime_app() -> CmdResult<()> {
-    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(LIFECYCLE_RESTART_APP, true, None);
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(LIFECYCLE_RESTART_APP, true, None, None);
     crate::app::runtime::restart_app().await;
     Ok(())
 }
