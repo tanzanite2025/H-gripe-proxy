@@ -11,7 +11,14 @@
       "title": "Proxy Provider",
       "actions": {
         "updateAll": "Update All",
-        "update": "Update"
+        "update": "Update",
+        "healthCheck": "Health check"
+      },
+      "health": {
+        "healthy": "Healthy",
+        "unhealthy": "Unhealthy",
+        "unknown": "Unknown",
+        "lastChecked": "Last checked"
       }
     },
     "rules": {

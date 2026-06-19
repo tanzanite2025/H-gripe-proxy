@@ -566,8 +566,15 @@ export interface TranslationResources {
         }
         provider: {
           actions: {
+            healthCheck: string
             update: string
             updateAll: string
+          }
+          health: {
+            healthy: string
+            lastChecked: string
+            unhealthy: string
+            unknown: string
           }
           title: string
         }

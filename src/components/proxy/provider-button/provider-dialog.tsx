@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/tailwind/Dialog'
 import { List } from '@/components/tailwind/List'
+import type { RuntimeProviderHealthRecord } from '@/services/proxy-runtime'
 import type { ProxyProvider } from '@/types/mihomo'
 
 import { ProviderListItem } from './provider-list-item'
@@ -16,18 +17,24 @@ interface ProviderDialogProps {
   open: boolean
   providers: Array<[string, ProxyProvider]>
   updating: Record<string, boolean>
+  checking: Record<string, boolean>
+  health: Record<string, RuntimeProviderHealthRecord>
   onClose: () => void
   onUpdateAll: () => void | Promise<void>
   onUpdateProvider: (name: string) => void | Promise<void>
+  onCheckProvider: (name: string) => void | Promise<void>
 }
 
 export const ProviderDialog = ({
   open,
   providers,
   updating,
+  checking,
+  health,
   onClose,
   onUpdateAll,
   onUpdateProvider,
+  onCheckProvider,
 }: ProviderDialogProps) => {
   const { t } = useTranslation()
 
@@ -63,7 +70,10 @@ export const ProviderDialog = ({
               name={name}
               provider={provider}
               isUpdating={!!updating[name]}
+              isChecking={!!checking[name]}
+              health={health[name]}
               onUpdate={onUpdateProvider}
+              onCheck={onCheckProvider}
             />
           ))}
         </List>

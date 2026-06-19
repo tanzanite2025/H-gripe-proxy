@@ -28,9 +28,12 @@ export const ProviderButton = () => {
         open={controller.open}
         providers={controller.providers}
         updating={controller.updating}
+        checking={controller.checking}
+        health={controller.health}
         onClose={controller.closeDialog}
         onUpdateAll={controller.updateAllProviders}
         onUpdateProvider={controller.updateProvider}
+        onCheckProvider={controller.checkProvider}
       />
     </>
   )
