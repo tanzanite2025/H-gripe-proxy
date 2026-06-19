@@ -65,6 +65,11 @@ pub async fn get_runtime_kernel_adapter_capability_report() -> CmdResult<KernelA
     mihomo_kernel_adapter_capability_report().await.stringify_err()
 }
 
+#[tauri::command]
+pub async fn get_runtime_kernel_connection_session_shadow() -> CmdResult<KernelConnectionSessionShadowReport> {
+    mihomo_kernel_connection_session_shadow().await.stringify_err()
+}
+
 /// 获取运行时配置
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {

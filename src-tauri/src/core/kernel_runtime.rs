@@ -18,7 +18,7 @@ use crate::{
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
 const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
-const NEXT_SHADOW_BATCH: &str = "dns-shadow-resolver-evidence";
+const NEXT_SHADOW_BATCH: &str = "isolated-test-listener-preflight";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -151,6 +151,44 @@ pub struct KernelAdapterCapabilityReport {
     pub app_proxy_count: usize,
     pub mihomo_proxy_count: usize,
     pub capabilities: Vec<KernelAdapterCapabilityEntry>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelConnectionSessionSample {
+    pub sample_index: usize,
+    pub network: String,
+    pub connection_type: String,
+    pub chain_len: usize,
+    pub provider_chain_len: usize,
+    pub has_host: bool,
+    pub has_process: bool,
+    pub has_remote_destination: bool,
+    pub rule: String,
+    pub uploaded_bytes: u64,
+    pub downloaded_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelConnectionSessionShadowReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub connection_count: usize,
+    pub upload_total: u64,
+    pub download_total: u64,
+    pub memory: u32,
+    pub network_counts: BTreeMap<String, usize>,
+    pub connection_type_counts: BTreeMap<String, usize>,
+    pub rule_counts: BTreeMap<String, usize>,
+    pub samples: Vec<KernelConnectionSessionSample>,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -412,6 +450,60 @@ pub async fn mihomo_kernel_adapter_capability_report() -> Result<KernelAdapterCa
     })
 }
 
+pub async fn mihomo_kernel_connection_session_shadow() -> Result<KernelConnectionSessionShadowReport> {
+    let connections = Handle::mihomo().await.get_connections().await?;
+    let sessions = connections.connections.unwrap_or_default();
+    let mut network_counts = BTreeMap::new();
+    let mut connection_type_counts = BTreeMap::new();
+    let mut rule_counts = BTreeMap::new();
+
+    for session in &sessions {
+        increment_count(&mut network_counts, format!("{:?}", session.metadata.network).into());
+        increment_count(
+            &mut connection_type_counts,
+            format!("{:?}", session.metadata.connection_type).into(),
+        );
+        increment_count(&mut rule_counts, session.rule.clone().into());
+    }
+
+    let samples = sessions
+        .iter()
+        .take(10)
+        .enumerate()
+        .map(connection_session_sample)
+        .collect::<Vec<_>>();
+    let mut warnings = Vec::new();
+    if sessions.is_empty() {
+        warnings.push("no active Mihomo connections observed; shape model has no live samples".into());
+    }
+
+    Ok(KernelConnectionSessionShadowReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "connection-observer-shadow".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        connection_count: sessions.len(),
+        upload_total: connections.upload_total,
+        download_total: connections.download_total,
+        memory: connections.memory,
+        network_counts,
+        connection_type_counts,
+        rule_counts,
+        samples,
+        blockers: vec![
+            "Rust connection observation is shape-only and must not close or migrate sessions".into(),
+            "Mihomo remains the only live forwarding owner".into(),
+        ],
+        warnings,
+        facts: vec![
+            "report reads Mihomo connection inventory and strips endpoint identifiers from samples".into(),
+            "session shape evidence must precede isolated test listener execution".into(),
+        ],
+        next_safe_batch: "isolated-test-listener-preflight".into(),
+    })
+}
+
 fn active_kernel_label() -> String {
     match CoreManager::global().get_running_mode().as_ref() {
         RunningMode::Service => "mihomo-service",
@@ -481,7 +573,7 @@ fn shadow_components() -> Vec<KernelShadowComponent> {
         KernelShadowComponent {
             component: "dns-shadow-resolver".into(),
             kernel_area: "dns".into(),
-            status: "planned-read-only".into(),
+            status: "evidence-command-available".into(),
             mutates_runtime: false,
             live_execution_allowed: false,
             evidence: vec![
@@ -493,7 +585,7 @@ fn shadow_components() -> Vec<KernelShadowComponent> {
         KernelShadowComponent {
             component: "rule-shadow-classifier".into(),
             kernel_area: "rule-engine".into(),
-            status: "planned-read-only".into(),
+            status: "evidence-command-available".into(),
             mutates_runtime: false,
             live_execution_allowed: false,
             evidence: vec![
@@ -505,7 +597,7 @@ fn shadow_components() -> Vec<KernelShadowComponent> {
         KernelShadowComponent {
             component: "adapter-capability-shadow".into(),
             kernel_area: "adapter".into(),
-            status: "planned-read-only".into(),
+            status: "evidence-command-available".into(),
             mutates_runtime: false,
             live_execution_allowed: false,
             evidence: vec![
@@ -517,14 +609,14 @@ fn shadow_components() -> Vec<KernelShadowComponent> {
         KernelShadowComponent {
             component: "connection-observer-shadow".into(),
             kernel_area: "forwarding".into(),
-            status: "planned-read-only".into(),
+            status: "evidence-command-available".into(),
             mutates_runtime: false,
             live_execution_allowed: false,
             evidence: vec![
                 "observe connection/session shape before Rust forwarding takeover".into(),
                 "must keep Mihomo as the only live forwarding owner".into(),
             ],
-            next_step: "connection-session-shadow-model".into(),
+            next_step: "isolated-test-listener-preflight".into(),
         },
     ]
 }
@@ -573,4 +665,26 @@ fn proxy_type_counts(
 
 fn proxy_type_label(proxy: &tauri_plugin_mihomo::models::Proxy) -> String {
     format!("{:?}", proxy.proxy_type).into()
+}
+
+fn increment_count(counts: &mut BTreeMap<String, usize>, key: String) {
+    *counts.entry(key).or_default() += 1;
+}
+
+fn connection_session_sample(
+    (sample_index, session): (usize, &tauri_plugin_mihomo::models::Connection),
+) -> KernelConnectionSessionSample {
+    KernelConnectionSessionSample {
+        sample_index,
+        network: format!("{:?}", session.metadata.network).into(),
+        connection_type: format!("{:?}", session.metadata.connection_type).into(),
+        chain_len: session.chains.len(),
+        provider_chain_len: session.provider_chains.as_ref().map(Vec::len).unwrap_or_default(),
+        has_host: !session.metadata.host.is_empty(),
+        has_process: !session.metadata.process.is_empty() || !session.metadata.process_path.is_empty(),
+        has_remote_destination: !session.metadata.remote_destination.is_empty(),
+        rule: session.rule.clone().into(),
+        uploaded_bytes: session.upload,
+        downloaded_bytes: session.download,
+    }
 }

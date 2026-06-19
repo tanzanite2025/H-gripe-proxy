@@ -124,18 +124,18 @@ The only implementation in R1 is `MihomoKernelRuntime`. It delegates to existing
 
 ### R2: Rust shadow components, no live forwarding
 
-Status: in progress. `get_runtime_kernel_shadow_components` exposes the read-only component manifest. `get_runtime_kernel_dns_shadow_evidence`, `get_runtime_kernel_rule_shadow_evidence`, and `get_runtime_kernel_adapter_capability_report` now produce DNS, rule, and adapter inventory evidence without live execution.
+Status: complete for the initial evidence manifest. `get_runtime_kernel_shadow_components` exposes the read-only component manifest. `get_runtime_kernel_dns_shadow_evidence`, `get_runtime_kernel_rule_shadow_evidence`, `get_runtime_kernel_adapter_capability_report`, and `get_runtime_kernel_connection_session_shadow` now produce DNS, rule, adapter, and session-shape evidence without live execution.
 
 Current shadow components:
 
 - `dns-shadow-resolver`: compare Rust resolver answers against Mihomo/system output before opt-in execution. First evidence command: `get_runtime_kernel_dns_shadow_evidence`.
 - `rule-shadow-classifier`: compare app runtime rule projection with Mihomo rule inventory without routing traffic. First evidence command: `get_runtime_kernel_rule_shadow_evidence`.
 - `adapter-capability-shadow`: parse adapter capability before implementing Rust protocol stacks. First evidence command: `get_runtime_kernel_adapter_capability_report`.
-- `connection-observer-shadow`: model connection/session shape before Rust forwarding takeover.
+- `connection-observer-shadow`: model connection/session shape before Rust forwarding takeover. First evidence command: `get_runtime_kernel_connection_session_shadow`.
 
 All R2 components must keep `mutatesRuntime=false`, `liveExecutionAllowed=false`, and Mihomo as the only live forwarding owner.
 
-Next safe R2 slice: `connection-session-shadow-model`.
+Next safe batch: `isolated-test-listener-preflight` (R3).
 
 ### R3: Isolated opt-in execution
 
