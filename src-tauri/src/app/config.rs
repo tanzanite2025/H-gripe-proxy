@@ -9,11 +9,18 @@ use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::Mapping;
 
+const LIFECYCLE_PATCH_SENSITIVE: &str = "patch_sensitive_config";
+
 pub async fn patch_clash(patch: &Mapping) -> Result<()> {
+    let sensitive_keys: Vec<&str> = ["secret", "external-controller"]
+        .into_iter()
+        .filter(|key| patch.get(*key).is_some())
+        .collect();
+
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
     let res = {
-        if patch.get("secret").is_some() || patch.get("external-controller").is_some() {
+        if !sensitive_keys.is_empty() {
             Config::generate().await?;
             CoreManager::global().restart_core().await?;
         } else {
@@ -40,10 +47,26 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
                     err
                 );
             }
+            if !sensitive_keys.is_empty() {
+                crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                    LIFECYCLE_PATCH_SENSITIVE,
+                    true,
+                    None,
+                    Some(sensitive_keys.join(", ")),
+                );
+            }
             Ok(())
         }
         Err(err) => {
             Config::clash().await.discard();
+            if !sensitive_keys.is_empty() {
+                crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                    LIFECYCLE_PATCH_SENSITIVE,
+                    false,
+                    Some(err.to_string()),
+                    Some(sensitive_keys.join(", ")),
+                );
+            }
             Err(err)
         }
     }

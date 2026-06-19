@@ -2144,9 +2144,16 @@ Mihomo 插件暴露了 `get_engine_stats` / `get_perf_stats` / `get_buffer_pool_
 - `core-runtime.ts` 新增对应 6 个 getter（类型直接复用 `tauri-plugin-mihomo-api` 生成绑定）。
 - 新增 `TelemetryDiagnosticsPanel`（高级页 app-runtime 标签）：分区展示引擎/性能/缓冲池/热重载/XDP/规则流量(Top 8)，内存类字段格式化为人类可读；每个分区**独立 `catch`**，单个内核不支持的指标显示“不可用”而不影响其余分区。
 
+### B6: 敏感配置变更（external-controller / secret）的审计
+
+`patch_clash`（`app/config.rs`，唯一调用方为 `cmd/clash.rs::patch_clash_config`）在 patch 含 `secret` 或 `external-controller` 时会**重新生成配置并重启内核**——属于敏感运行时变更，此前无审计。
+
+- 函数开头计算 `sensitive_keys`（命中 `secret` / `external-controller`），并复用它替换原先 `patch.get(...).is_some()` 的内联判断。
+- 在最终 `Ok` / `Err` 分支记录生命周期审计事件 `patch_sensitive_config`（成功/失败 + error），detail 为命中的 key 列表（如 `secret, external-controller`）。落盘到既有 `app-runtime/lifecycle-events.yaml`，复用 B1 的审计基础设施。
+- 前端 `LifecycleAuditLogPanel` 增加 `patch_sensitive_config` → 「敏感配置变更」标签，描述行补充该 kind。
+
 ### 第二阶段后续批次（规划 / 调整）
 
 - ~~B2: sub-rules 走 Rust 运行时命令~~ — **取消**：前端无 sub-rules 读/删功能，`getSubRules` / `deleteSubRuleBySource` 是插件里未被前端使用的函数；唯一 sub-rule 路径（createRule 的 `subRule` 入参）已走 `create_runtime_rule`。加命令只会是死代码。
 - B3（重新评估）: `IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem` 是前端**刻意精简的视图模型**（字段更少、含 `provider`/`fixed` 等自定义字段，`all` 形状不同），并非生成绑定的简单副本；是否迁移待定，强行替换可能引入语义错误。
-- B6: 敏感配置变更（controller / secret）的 gate + 审计。
 - B7: TLS 指纹实时统计的归一。
