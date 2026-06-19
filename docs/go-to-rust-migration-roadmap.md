@@ -2126,10 +2126,27 @@ Mihomo 插件暴露了 `upgrade_core(channel, force)` / `upgrade_ui` / `upgrade_
 - `core-runtime.ts` 新增 `getRuntimeUpgradeHistory` / `upgradeRuntimeCore` / `upgradeRuntimeUi` / `upgradeRuntimeGeo`。
 - 新增 `CoreUpgradePanel`（高级页 app-runtime 标签，位于审计面板上方）：展示当前内核版本、channel 选择（auto/release/alpha）+ 强制覆盖开关 + 三个升级按钮，并列出升级历史（成功/失败 Chip）。
 
+### B5: 数据面遥测的 Rust 命令 + 诊断面板
+
+Mihomo 插件暴露了 `get_engine_stats` / `get_perf_stats` / `get_buffer_pool_stats` / `get_hot_reload_status` / `get_xdp_status` / `get_rule_traffic`，但此前**既无 app-owned Rust 命令也未在前端使用**。本批把这些只读遥测包成运行时命令并新增诊断面板。
+
+新增 Rust 命令（`cmd/runtime.rs`，薄包装经 `Handle::mihomo()`，与 `get_runtime_dns_metrics` 同型）：
+
+- `get_runtime_engine_stats` → `EngineStats`
+- `get_runtime_perf_stats` → `PerfStats`
+- `get_runtime_buffer_pool_stats` → `BufferPoolStats`
+- `get_runtime_hot_reload_status` → `HotReloadStatus`
+- `get_runtime_xdp_status` → `XDPStatus`
+- `get_runtime_rule_traffic` → `HashMap<String, RuleTrafficSnapshot>`（key 用 `std::string::String`，避开模块内 `smartstring` 别名）
+
+前端：
+
+- `core-runtime.ts` 新增对应 6 个 getter（类型直接复用 `tauri-plugin-mihomo-api` 生成绑定）。
+- 新增 `TelemetryDiagnosticsPanel`（高级页 app-runtime 标签）：分区展示引擎/性能/缓冲池/热重载/XDP/规则流量(Top 8)，内存类字段格式化为人类可读；每个分区**独立 `catch`**，单个内核不支持的指标显示“不可用”而不影响其余分区。
+
 ### 第二阶段后续批次（规划 / 调整）
 
 - ~~B2: sub-rules 走 Rust 运行时命令~~ — **取消**：前端无 sub-rules 读/删功能，`getSubRules` / `deleteSubRuleBySource` 是插件里未被前端使用的函数；唯一 sub-rule 路径（createRule 的 `subRule` 入参）已走 `create_runtime_rule`。加命令只会是死代码。
 - B3（重新评估）: `IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem` 是前端**刻意精简的视图模型**（字段更少、含 `provider`/`fixed` 等自定义字段，`all` 形状不同），并非生成绑定的简单副本；是否迁移待定，强行替换可能引入语义错误。
-- B5: 数据面遥测（engine / perf / buffer / hot-reload / xdp / rule-traffic）的 Rust 命令 + 诊断面板。
 - B6: 敏感配置变更（controller / secret）的 gate + 审计。
 - B7: TLS 指纹实时统计的归一。
