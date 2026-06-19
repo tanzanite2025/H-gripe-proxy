@@ -220,6 +220,8 @@ mod app_init {
             cmd::get_runtime_hot_reload_status,
             cmd::get_runtime_xdp_status,
             cmd::get_runtime_rule_traffic,
+            cmd::get_runtime_tls_fingerprint_stats,
+            cmd::force_runtime_tls_rotation,
             cmd::get_runtime_lifecycle_state,
             cmd::get_runtime_upgrade_history,
             cmd::upgrade_runtime_core,

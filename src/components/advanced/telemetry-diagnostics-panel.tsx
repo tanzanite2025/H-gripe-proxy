@@ -6,6 +6,7 @@ import type {
   HotReloadStatus,
   PerfStats,
   RuleTrafficSnapshot,
+  TLSFingerprintStats,
   XDPStatus,
 } from 'tauri-plugin-mihomo-api'
 
@@ -13,11 +14,13 @@ import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
 import { Chip } from '@/components/tailwind/Chip'
 import {
+  forceRuntimeTlsRotation,
   getRuntimeBufferPoolStats,
   getRuntimeEngineStats,
   getRuntimeHotReloadStatus,
   getRuntimePerfStats,
   getRuntimeRuleTraffic,
+  getRuntimeTlsFingerprintStats,
   getRuntimeXdpStatus,
 } from '@/services/core-runtime'
 
@@ -35,6 +38,7 @@ interface TelemetryState {
   hotReload: HotReloadStatus | null
   xdp: XDPStatus | null
   ruleTraffic: Record<string, RuleTrafficSnapshot> | null
+  tls: TLSFingerprintStats | null
 }
 
 function StatGrid({ rows }: { rows: [string, string][] }) {
@@ -80,22 +84,37 @@ export function TelemetryDiagnosticsPanel() {
     hotReload: null,
     xdp: null,
     ruleTraffic: null,
+    tls: null,
   })
   const [loading, setLoading] = useState(false)
+  const [rotating, setRotating] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    const [engine, perf, buffer, hotReload, xdp, ruleTraffic] = await Promise.all([
+    const [engine, perf, buffer, hotReload, xdp, ruleTraffic, tls] = await Promise.all([
       getRuntimeEngineStats().catch(() => null),
       getRuntimePerfStats().catch(() => null),
       getRuntimeBufferPoolStats().catch(() => null),
       getRuntimeHotReloadStatus().catch(() => null),
       getRuntimeXdpStatus().catch(() => null),
       getRuntimeRuleTraffic().catch(() => null),
+      getRuntimeTlsFingerprintStats().catch(() => null),
     ])
-    setState({ engine, perf, buffer, hotReload, xdp, ruleTraffic })
+    setState({ engine, perf, buffer, hotReload, xdp, ruleTraffic, tls })
     setLoading(false)
   }, [])
+
+  const rotateTls = useCallback(async () => {
+    try {
+      setRotating(true)
+      await forceRuntimeTlsRotation()
+    } catch (error) {
+      console.warn('force tls rotation failed', error)
+    } finally {
+      setRotating(false)
+      void refresh()
+    }
+  }, [refresh])
 
   useEffect(() => {
     void refresh()
@@ -108,6 +127,13 @@ export function TelemetryDiagnosticsPanel() {
       .slice(0, 8)
   }, [state.ruleTraffic])
 
+  const tlsUsage = useMemo(() => {
+    if (!state.tls) return []
+    return Object.entries(state.tls.usageSnapshot)
+      .map(([name, count]) => [name, String(count ?? 0)] as [string, string])
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+  }, [state.tls])
+
   return (
     <Card>
       <div className="space-y-4 p-4">
@@ -119,7 +145,7 @@ export function TelemetryDiagnosticsPanel() {
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               通过 Rust 运行时命令读取 Mihomo 数据面遥测（引擎 / 性能 / 缓冲池 /
-              热重载 / XDP / 规则流量）。部分指标依赖具体内核构建，不支持时显示“不可用”。
+              热重载 / XDP / 规则流量 / TLS 指纹）。部分指标依赖具体内核构建，不支持时显示“不可用”。
             </div>
           </div>
           <Button
@@ -224,6 +250,38 @@ export function TelemetryDiagnosticsPanel() {
               ))}
             </div>
           )}
+        </Section>
+
+        <Section title="TLS 指纹" available={state.tls !== null}>
+          {state.tls ? (
+            <div className="space-y-2">
+              <StatGrid
+                rows={[
+                  ['当前指纹', state.tls.currentFingerprint || '-'],
+                  ['轮换次数', String(state.tls.rotationCount)],
+                ]}
+              />
+              {tlsUsage.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="text-muted-foreground">使用分布</div>
+                  {tlsUsage.map(([name, count]) => (
+                    <div key={name} className="flex justify-between gap-2">
+                      <span className="truncate text-muted-foreground">{name}</span>
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={rotating}
+                onClick={() => void rotateTls()}
+              >
+                {rotating ? '轮换中...' : '强制轮换指纹'}
+              </Button>
+            </div>
+          ) : null}
         </Section>
       </div>
     </Card>

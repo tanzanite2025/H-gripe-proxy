@@ -21,7 +21,8 @@ use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tauri_plugin_mihomo::models::{
     BaseConfig, BufferPoolStats, CoreUpdaterChannel, DnsMetrics, EngineStats, HotReloadStatus, MihomoVersion,
-    PerfStats, Proxies, ProxyDelay, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, XDPStatus,
+    PerfStats, Proxies, ProxyDelay, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, TLSFingerprintStats,
+    TLSRotationResult, XDPStatus,
 };
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
@@ -128,6 +129,36 @@ pub async fn get_runtime_rule_traffic() -> CmdResult<HashMap<std::string::String
 }
 
 #[tauri::command]
+pub async fn get_runtime_tls_fingerprint_stats() -> CmdResult<TLSFingerprintStats> {
+    Handle::mihomo().await.get_tls_fingerprint_stats().await.stringify_err()
+}
+
+/// 强制轮换 TLS 指纹（app-owned 门禁，记录生命周期审计）
+#[tauri::command]
+pub async fn force_runtime_tls_rotation() -> CmdResult<TLSRotationResult> {
+    match Handle::mihomo().await.force_tls_rotation().await {
+        Ok(result) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_TLS_ROTATION,
+                true,
+                None,
+                Some(result.new_fingerprint.clone()),
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                LIFECYCLE_TLS_ROTATION,
+                false,
+                Some(error.to_string()),
+                None,
+            );
+            Err(error).stringify_err()
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn get_dns_runtime_status() -> CmdResult<DnsRuntimeStatus> {
     build_dns_runtime_status().await.stringify_err()
 }
@@ -197,6 +228,7 @@ const LIFECYCLE_RESTART_CORE: &str = "restart_core";
 const LIFECYCLE_RESTART_APP: &str = "restart_app";
 const LIFECYCLE_RELOAD_CONFIG: &str = "reload_config";
 const LIFECYCLE_UPDATE_GEO: &str = "update_geo";
+const LIFECYCLE_TLS_ROTATION: &str = "tls_rotation";
 
 const UPGRADE_CORE: &str = "core";
 const UPGRADE_UI: &str = "ui";

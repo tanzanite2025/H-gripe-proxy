@@ -2152,8 +2152,22 @@ Mihomo 插件暴露了 `get_engine_stats` / `get_perf_stats` / `get_buffer_pool_
 - 在最终 `Ok` / `Err` 分支记录生命周期审计事件 `patch_sensitive_config`（成功/失败 + error），detail 为命中的 key 列表（如 `secret, external-controller`）。落盘到既有 `app-runtime/lifecycle-events.yaml`，复用 B1 的审计基础设施。
 - 前端 `LifecycleAuditLogPanel` 增加 `patch_sensitive_config` → 「敏感配置变更」标签，描述行补充该 kind。
 
+### B7: TLS 指纹实时统计 + 强制轮换的归一
+
+Mihomo 插件暴露了运行时 `get_tls_fingerprint_stats`（`TLSFingerprintStats`：currentFingerprint / rotationCount / usageSnapshot）和 `force_tls_rotation`（`TLSRotationResult`：newFingerprint），但此前**既无 app-owned Rust 命令也未在前端使用**（注意：与 app 侧 `tls_fingerprint::TlsFingerprintLibrary` 的指纹库选择是两套东西，后者是配置选择，本批是数据面实时统计）。
+
+新增 Rust 命令（`cmd/runtime.rs`）：
+
+- `get_runtime_tls_fingerprint_stats` → `TLSFingerprintStats`（只读）。
+- `force_runtime_tls_rotation` → `TLSRotationResult`（运行时变更，**经 app-owned 门禁**：成功/失败记录生命周期审计事件 `tls_rotation`，detail 为新指纹名；落盘到既有 `lifecycle-events.yaml`）。
+
+前端：
+
+- `core-runtime.ts` 新增 `getRuntimeTlsFingerprintStats` / `forceRuntimeTlsRotation`。
+- `TelemetryDiagnosticsPanel` 新增「TLS 指纹」分区：当前指纹 / 轮换次数 / 使用分布（按次数降序）+ 「强制轮换指纹」按钮（轮换后刷新）。
+- `LifecycleAuditLogPanel` 增加 `tls_rotation` → 「TLS 指纹轮换」标签。
+
 ### 第二阶段后续批次（规划 / 调整）
 
 - ~~B2: sub-rules 走 Rust 运行时命令~~ — **取消**：前端无 sub-rules 读/删功能，`getSubRules` / `deleteSubRuleBySource` 是插件里未被前端使用的函数；唯一 sub-rule 路径（createRule 的 `subRule` 入参）已走 `create_runtime_rule`。加命令只会是死代码。
 - B3（重新评估）: `IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem` 是前端**刻意精简的视图模型**（字段更少、含 `provider`/`fixed` 等自定义字段，`all` 形状不同），并非生成绑定的简单副本；是否迁移待定，强行替换可能引入语义错误。
-- B7: TLS 指纹实时统计的归一。
