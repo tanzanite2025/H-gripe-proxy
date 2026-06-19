@@ -186,6 +186,31 @@ export interface RuntimeKernelIsolatedTestListenerSmokeEvidenceReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  requestedHost: string
+  requestedPort: number
+  queryName: string
+  udpBound: boolean
+  localResponseReceived: boolean
+  responseAddress?: string | null
+  systemProxyUnchanged: boolean
+  tunUnchanged: boolean
+  runtimeConfigUnchanged: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsPortCheck {
   host: string
   port: number
@@ -453,6 +478,13 @@ export async function getRuntimeKernelIsolatedTestListenerSmokeEvidence(
 export async function getRuntimeKernelLoopbackDnsPreflight(port?: number) {
   return invoke<RuntimeKernelLoopbackDnsPreflightReport>(
     'get_runtime_kernel_loopback_dns_preflight',
+    { port },
+  )
+}
+
+export async function getRuntimeKernelLoopbackDnsSmokeEvidence(port?: number) {
+  return invoke<RuntimeKernelLoopbackDnsSmokeEvidenceReport>(
+    'get_runtime_kernel_loopback_dns_smoke_evidence',
     { port },
   )
 }

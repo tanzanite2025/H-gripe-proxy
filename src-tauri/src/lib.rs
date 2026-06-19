@@ -231,6 +231,7 @@ mod app_init {
             cmd::get_runtime_kernel_isolated_test_listener_status,
             cmd::get_runtime_kernel_isolated_test_listener_smoke_evidence,
             cmd::get_runtime_kernel_loopback_dns_preflight,
+            cmd::get_runtime_kernel_loopback_dns_smoke_evidence,
             cmd::start_runtime_kernel_isolated_test_listener,
             cmd::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,

@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, and R3 listener smoke evidence are complete. Next step is loopback DNS preflight; it is still read-only and non-default. |
-| Next safe batch | `loopback-dns-smoke-evidence` | After preflight, validate a loopback-only DNS smoke path without replacing default DNS, TUN, system proxy, or forwarding. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener smoke evidence, and loopback DNS preflight are complete. Current step adds loopback DNS smoke evidence; it is still non-default. |
+| Next safe batch | `loopback-forwarding-preflight-decision` | Decide whether to preflight a still-isolated forwarding path; TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -145,7 +145,8 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R3 isolated listener preflight | Complete | Read-only | `get_runtime_kernel_isolated_listener_preflight` checks loopback port readiness and runtime-port overlap. |
 | R3 loopback test listener opt-in | Complete | Explicit opt-in, non-production only | `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, and `stop_runtime_kernel_isolated_test_listener` gate a local 204-only listener. |
 | R3 listener smoke evidence | Complete | Bounded local runtime mutation only | `get_runtime_kernel_isolated_test_listener_smoke_evidence` starts the listener, sends a local request, verifies status increment, stops it, and compares system proxy/TUN/runtime config before and after. |
-| R3 loopback DNS preflight | In progress | Read-only | `get_runtime_kernel_loopback_dns_preflight` checks loopback UDP/TCP candidate port readiness and reports DNS/TUN/system proxy context without replacing default DNS. |
+| R3 loopback DNS preflight | Complete | Read-only | `get_runtime_kernel_loopback_dns_preflight` checks loopback UDP/TCP candidate port readiness and reports DNS/TUN/system proxy context without replacing default DNS. |
+| R3 loopback DNS smoke evidence | In progress | Bounded local runtime mutation only | `get_runtime_kernel_loopback_dns_smoke_evidence` binds a temporary loopback UDP DNS socket, answers one synthetic query locally, and compares runtime config/system proxy/TUN before and after. |
 | R4 expanded opt-in | Blocked | Not allowed yet | Requires loopback DNS smoke evidence or another isolated execution evidence path, rollback drill, leak checks, platform matrix, and hold window. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
 
@@ -235,7 +236,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is loopback DNS preflight, then `loopback-dns-smoke-evidence`; any forwarding path still needs a separate decision. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-dns-smoke-evidence`; any forwarding path still needs a separate preflight decision. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 

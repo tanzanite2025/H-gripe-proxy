@@ -15,7 +15,7 @@ use std::{
 use tauri_plugin_mihomo::models::Protocol;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener as TokioTcpListener, TcpStream},
+    net::{TcpListener as TokioTcpListener, TcpStream, UdpSocket as TokioUdpSocket},
     sync::oneshot,
     time::{Duration, timeout},
 };
@@ -37,6 +37,7 @@ const NEXT_SHADOW_BATCH: &str = "loopback-test-listener-opt-in";
 const ISOLATED_TEST_LISTENER_HOST: &str = "127.0.0.1";
 const DEFAULT_ISOLATED_TEST_LISTENER_PORT: u16 = 19090;
 const DEFAULT_LOOPBACK_DNS_PREFLIGHT_PORT: u16 = 19053;
+const LOOPBACK_DNS_SMOKE_QUERY: &str = "kernel-smoke.invalid";
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
@@ -334,6 +335,33 @@ pub struct KernelLoopbackDnsPreflightReport {
     pub default_route: bool,
     pub forwards_traffic: bool,
     pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackDnsSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub query_name: String,
+    pub udp_bound: bool,
+    pub local_response_received: bool,
+    pub response_address: Option<String>,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -795,6 +823,89 @@ pub async fn mihomo_kernel_loopback_dns_preflight(port: Option<u16>) -> Result<K
         ],
         next_safe_batch: "loopback-dns-smoke-evidence".into(),
     })
+}
+
+pub async fn mihomo_kernel_loopback_dns_smoke_evidence(
+    port: Option<u16>,
+) -> Result<KernelLoopbackDnsSmokeEvidenceReport> {
+    let requested_port = port.unwrap_or(DEFAULT_LOOPBACK_DNS_PREFLIGHT_PORT);
+    let preflight = mihomo_kernel_loopback_dns_preflight(Some(requested_port)).await?;
+    let before_runtime_config = kernel_runtime_config_snapshot().await?;
+    let before_verge = Config::verge().await.latest_arc();
+    let before_system_proxy = before_verge.enable_system_proxy.unwrap_or(false);
+    let before_tun = before_verge.enable_tun_mode.unwrap_or(false);
+    let mut warnings = preflight.warnings.clone();
+
+    if !preflight.can_start_after_opt_in {
+        return Ok(kernel_loopback_dns_smoke_report(
+            requested_port,
+            false,
+            false,
+            None,
+            true,
+            true,
+            true,
+            preflight.blockers,
+            warnings,
+        ));
+    }
+
+    let server = TokioUdpSocket::bind((ISOLATED_TEST_LISTENER_HOST, requested_port)).await?;
+    let server_task = tokio::spawn(async move {
+        let mut request = [0_u8; 512];
+        let (request_len, peer) = timeout(Duration::from_secs(2), server.recv_from(&mut request)).await??;
+        if let Some(response) = build_loopback_dns_smoke_response(&request[..request_len]) {
+            server.send_to(&response, peer).await?;
+            Ok::<bool, anyhow::Error>(true)
+        } else {
+            Ok(false)
+        }
+    });
+
+    let client = TokioUdpSocket::bind((ISOLATED_TEST_LISTENER_HOST, 0)).await?;
+    let query = build_loopback_dns_smoke_query(LOOPBACK_DNS_SMOKE_QUERY);
+    client
+        .send_to(&query, (ISOLATED_TEST_LISTENER_HOST, requested_port))
+        .await?;
+    let mut response = [0_u8; 512];
+    let response_len = timeout(Duration::from_secs(2), client.recv(&mut response)).await??;
+    let response_address = parse_loopback_dns_smoke_response(&response[..response_len]);
+    let server_responded = server_task.await??;
+    let local_response_received = server_responded && response_address.is_some();
+
+    let after_runtime_config = kernel_runtime_config_snapshot().await?;
+    let after_verge = Config::verge().await.latest_arc();
+    let system_proxy_unchanged = before_system_proxy == after_verge.enable_system_proxy.unwrap_or(false);
+    let tun_unchanged = before_tun == after_verge.enable_tun_mode.unwrap_or(false);
+    let runtime_config_unchanged = before_runtime_config == after_runtime_config;
+    let mut blockers = Vec::new();
+    if response_address.as_deref() != Some("127.0.0.1") {
+        blockers.push("loopback DNS smoke response did not return 127.0.0.1".into());
+    }
+    if !system_proxy_unchanged {
+        blockers.push("system proxy setting changed during DNS smoke evidence".into());
+    }
+    if !tun_unchanged {
+        blockers.push("TUN setting changed during DNS smoke evidence".into());
+    }
+    if !runtime_config_unchanged {
+        blockers.push("runtime config changed during DNS smoke evidence".into());
+    }
+    warnings.push(
+        "DNS smoke evidence uses a synthetic kernel-smoke.invalid query and must not be used as production DNS".into(),
+    );
+
+    Ok(kernel_loopback_dns_smoke_report(
+        requested_port,
+        true,
+        local_response_received,
+        response_address,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        blockers,
+        warnings,
+    ))
 }
 
 pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {
