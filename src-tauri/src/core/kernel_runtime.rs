@@ -409,6 +409,38 @@ pub struct KernelLoopbackForwardingPreflightReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub request_path: String,
+    pub listener_accepted: bool,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub bytes_from_client: u64,
+    pub bytes_from_target: u64,
+    pub loopback_forwarded: bool,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1029,6 +1061,127 @@ pub async fn mihomo_kernel_loopback_forwarding_preflight(
         ],
         next_safe_batch: "loopback-forwarding-smoke-evidence".into(),
     })
+}
+
+pub async fn mihomo_kernel_loopback_forwarding_smoke_evidence(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+) -> Result<KernelLoopbackForwardingSmokeEvidenceReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let preflight = mihomo_kernel_loopback_forwarding_preflight(Some(listener_port), Some(target_port)).await?;
+    let before_runtime_config = kernel_runtime_config_snapshot().await?;
+    let before_verge = Config::verge().await.latest_arc();
+    let before_system_proxy = before_verge.enable_system_proxy.unwrap_or(false);
+    let before_tun = before_verge.enable_tun_mode.unwrap_or(false);
+    let mut warnings = preflight.warnings.clone();
+
+    if !preflight.can_start_after_opt_in {
+        return Ok(kernel_loopback_forwarding_smoke_report(
+            listener_port,
+            target_port,
+            false,
+            false,
+            None,
+            0,
+            0,
+            true,
+            true,
+            true,
+            preflight.blockers,
+            warnings,
+        ));
+    }
+
+    let target = TokioTcpListener::bind((ISOLATED_TEST_LISTENER_HOST, target_port)).await?;
+    let listener = TokioTcpListener::bind((ISOLATED_TEST_LISTENER_HOST, listener_port)).await?;
+
+    let target_task = tokio::spawn(async move {
+        let (mut stream, _) = timeout(Duration::from_secs(2), target.accept()).await??;
+        let mut request = [0_u8; 512];
+        let request_len = timeout(Duration::from_secs(2), stream.read(&mut request)).await??;
+        let received = std::str::from_utf8(&request[..request_len])
+            .map(|request| request.contains("GET /kernel-forwarding-smoke"))
+            .unwrap_or(false);
+        stream
+            .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
+            .await?;
+        stream.shutdown().await?;
+        Ok::<bool, anyhow::Error>(received)
+    });
+
+    let listener_task = tokio::spawn(async move {
+        let (mut inbound, _) = timeout(Duration::from_secs(2), listener.accept()).await??;
+        let mut outbound = timeout(
+            Duration::from_secs(2),
+            TcpStream::connect((ISOLATED_TEST_LISTENER_HOST, target_port)),
+        )
+        .await??;
+        let mut request = [0_u8; 512];
+        let request_len = timeout(Duration::from_secs(2), inbound.read(&mut request)).await??;
+        outbound.write_all(&request[..request_len]).await?;
+        let mut response = [0_u8; 512];
+        let response_len = timeout(Duration::from_secs(2), outbound.read(&mut response)).await??;
+        inbound.write_all(&response[..response_len]).await?;
+        inbound.shutdown().await?;
+        Ok::<(u64, u64), anyhow::Error>((request_len as u64, response_len as u64))
+    });
+
+    let mut client = timeout(
+        Duration::from_secs(2),
+        TcpStream::connect((ISOLATED_TEST_LISTENER_HOST, listener_port)),
+    )
+    .await??;
+    client
+        .write_all(b"GET /kernel-forwarding-smoke HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        .await?;
+    let mut response = [0_u8; 512];
+    let response_len = timeout(Duration::from_secs(2), client.read(&mut response)).await??;
+    let response = std::string::String::from_utf8_lossy(&response[..response_len]);
+    let response_status = response.lines().next().map(Into::into);
+    let (bytes_from_client, bytes_from_target) = listener_task.await??;
+    let target_received = target_task.await??;
+
+    let after_runtime_config = kernel_runtime_config_snapshot().await?;
+    let after_verge = Config::verge().await.latest_arc();
+    let system_proxy_unchanged = before_system_proxy == after_verge.enable_system_proxy.unwrap_or(false);
+    let tun_unchanged = before_tun == after_verge.enable_tun_mode.unwrap_or(false);
+    let runtime_config_unchanged = before_runtime_config == after_runtime_config;
+    let mut blockers = Vec::new();
+    if response_status.as_deref() != Some("HTTP/1.1 204 No Content") {
+        blockers.push("loopback forwarding smoke response did not return HTTP 204".into());
+    }
+    if !target_received {
+        blockers.push("synthetic target did not receive the forwarding smoke request".into());
+    }
+    if !system_proxy_unchanged {
+        blockers.push("system proxy setting changed during forwarding smoke evidence".into());
+    }
+    if !tun_unchanged {
+        blockers.push("TUN setting changed during forwarding smoke evidence".into());
+    }
+    if !runtime_config_unchanged {
+        blockers.push("runtime config changed during forwarding smoke evidence".into());
+    }
+    warnings.push(
+        "forwarding smoke evidence uses only synthetic loopback endpoints and must not be connected to real adapters"
+            .into(),
+    );
+
+    Ok(kernel_loopback_forwarding_smoke_report(
+        listener_port,
+        target_port,
+        true,
+        target_received,
+        response_status,
+        bytes_from_client,
+        bytes_from_target,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        blockers,
+        warnings,
+    ))
 }
 
 pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {
