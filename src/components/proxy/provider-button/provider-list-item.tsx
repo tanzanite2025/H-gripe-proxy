@@ -1,12 +1,12 @@
 import dayjs from 'dayjs'
 import { Activity, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { IconButton } from '@/components/tailwind/IconButton'
 import { LinearProgress } from '@/components/tailwind/LinearProgress'
 import { ListItem, ListItemText } from '@/components/tailwind/List'
 import type { RuntimeProviderHealthRecord } from '@/services/proxy-runtime'
+import type { IProxyProviderItem } from '@/types/proxy'
 import { cn } from '@/utils/cn'
 import parseTraffic from '@/utils/format'
 
@@ -14,7 +14,7 @@ import { getProviderProgress, parseExpire } from './utils'
 
 interface ProviderListItemProps {
   name: string
-  provider: ProxyProvider
+  provider: IProxyProviderItem
   isUpdating: boolean
   isChecking: boolean
   health?: RuntimeProviderHealthRecord
