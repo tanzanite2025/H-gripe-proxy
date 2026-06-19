@@ -1,12 +1,19 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use serde::Serialize;
 use smartstring::alias::String;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::TcpListener,
+    net::TcpListener as StdTcpListener,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri_plugin_mihomo::models::Protocol;
+use tokio::{io::AsyncWriteExt, net::TcpListener as TokioTcpListener, sync::oneshot};
 
 use crate::{
     config::Config,
@@ -21,7 +28,18 @@ use crate::{
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
 const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
-const NEXT_SHADOW_BATCH: &str = "isolated-test-listener-preflight";
+const NEXT_SHADOW_BATCH: &str = "loopback-test-listener-opt-in";
+const ISOLATED_TEST_LISTENER_HOST: &str = "127.0.0.1";
+const DEFAULT_ISOLATED_TEST_LISTENER_PORT: u16 = 19090;
+
+static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
+
+struct KernelIsolatedTestListenerState {
+    port: u16,
+    started_at_epoch_ms: u64,
+    accepted_connections: Arc<AtomicU64>,
+    stop_tx: oneshot::Sender<()>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -223,6 +241,29 @@ pub struct KernelIsolatedListenerPreflightReport {
     pub runtime_ports: BTreeMap<String, u16>,
     pub system_proxy_enabled: bool,
     pub tun_enabled: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedTestListenerStatus {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub running: bool,
+    pub host: String,
+    pub port: Option<u16>,
+    pub started_at_epoch_ms: Option<u64>,
+    pub accepted_connections: u64,
+    pub loopback_only: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -607,6 +648,76 @@ pub async fn mihomo_kernel_isolated_listener_preflight(
     })
 }
 
+pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {
+    isolated_test_listener_status(Vec::new())
+}
+
+pub async fn mihomo_kernel_start_isolated_test_listener(port: Option<u16>) -> Result<KernelIsolatedTestListenerStatus> {
+    if let Some(status) = isolated_test_listener_running_status() {
+        return Ok(status);
+    }
+
+    let preflight = mihomo_kernel_isolated_listener_preflight(port).await?;
+    if !preflight.can_start_after_opt_in {
+        bail!(
+            "isolated test listener preflight failed: {}",
+            preflight
+                .blockers
+                .iter()
+                .map(|blocker| blocker.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        );
+    }
+
+    let port = preflight.requested_port;
+    let listener = TokioTcpListener::bind((ISOLATED_TEST_LISTENER_HOST, port)).await?;
+    let accepted_connections = Arc::new(AtomicU64::new(0));
+    let task_counter = accepted_connections.clone();
+    let (stop_tx, mut stop_rx) = oneshot::channel();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = &mut stop_rx => break,
+                accepted = listener.accept() => {
+                    let Ok((mut stream, _)) = accepted else {
+                        break;
+                    };
+                    task_counter.fetch_add(1, Ordering::Relaxed);
+                    tauri::async_runtime::spawn(async move {
+                        let _ = stream.write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n").await;
+                        let _ = stream.shutdown().await;
+                    });
+                }
+            }
+        }
+    });
+
+    let state = KernelIsolatedTestListenerState {
+        port,
+        started_at_epoch_ms: current_epoch_ms(),
+        accepted_connections,
+        stop_tx,
+    };
+    let mut guard = ISOLATED_TEST_LISTENER.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.is_some() {
+        return Ok(isolated_test_listener_status(vec![
+            "isolated test listener was already running".into(),
+        ]));
+    }
+    *guard = Some(state);
+    Ok(isolated_test_listener_status(Vec::new()))
+}
+
+pub async fn mihomo_kernel_stop_isolated_test_listener() -> KernelIsolatedTestListenerStatus {
+    let state = ISOLATED_TEST_LISTENER.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let Some(state) = state {
+        let _ = state.stop_tx.send(());
+        return isolated_test_listener_status(vec!["isolated test listener stopped".into()]);
+    }
+    isolated_test_listener_status(vec!["isolated test listener was not running".into()])
+}
+
 fn active_kernel_label() -> String {
     match CoreManager::global().get_running_mode().as_ref() {
         RunningMode::Service => "mihomo-service",
@@ -811,5 +922,74 @@ fn kernel_runtime_port(config: &serde_yaml_ng::Mapping, key: &str) -> Option<u16
 }
 
 fn kernel_loopback_port_available(port: u16) -> bool {
-    port > 0 && TcpListener::bind(("127.0.0.1", port)).is_ok()
+    port > 0 && StdTcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+fn isolated_test_listener_running_status() -> Option<KernelIsolatedTestListenerStatus> {
+    let guard = ISOLATED_TEST_LISTENER.lock().unwrap_or_else(|e| e.into_inner());
+    guard.as_ref().map(|state| KernelIsolatedTestListenerStatus {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-test-listener-opt-in".into(),
+        kernel_area: "listener".into(),
+        mutates_runtime: true,
+        live_execution_allowed: true,
+        running: true,
+        host: ISOLATED_TEST_LISTENER_HOST.into(),
+        port: Some(state.port),
+        started_at_epoch_ms: Some(state.started_at_epoch_ms),
+        accepted_connections: state.accepted_connections.load(Ordering::Relaxed),
+        loopback_only: true,
+        default_route: false,
+        forwards_traffic: false,
+        mihomo_fallback: true,
+        blockers: isolated_test_listener_blockers(),
+        warnings: Vec::new(),
+        facts: isolated_test_listener_facts(),
+        next_safe_batch: "listener-smoke-evidence".into(),
+    })
+}
+
+fn isolated_test_listener_status(warnings: Vec<String>) -> KernelIsolatedTestListenerStatus {
+    isolated_test_listener_running_status().unwrap_or_else(|| KernelIsolatedTestListenerStatus {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-test-listener-opt-in".into(),
+        kernel_area: "listener".into(),
+        mutates_runtime: false,
+        live_execution_allowed: true,
+        running: false,
+        host: ISOLATED_TEST_LISTENER_HOST.into(),
+        port: None,
+        started_at_epoch_ms: None,
+        accepted_connections: 0,
+        loopback_only: true,
+        default_route: false,
+        forwards_traffic: false,
+        mihomo_fallback: true,
+        blockers: isolated_test_listener_blockers(),
+        warnings,
+        facts: isolated_test_listener_facts(),
+        next_safe_batch: "listener-smoke-evidence".into(),
+    })
+}
+
+fn isolated_test_listener_blockers() -> Vec<String> {
+    vec![
+        "listener is loopback-only and must not be installed as the default proxy".into(),
+        "listener must not attach to TUN, system proxy, DNS, or outbound forwarding".into(),
+        "Mihomo remains the only production forwarding owner".into(),
+    ]
+}
+
+fn isolated_test_listener_facts() -> Vec<String> {
+    vec![
+        "accepted connections receive an immediate local 204 response and are not proxied".into(),
+        "start requires isolated listener preflight to pass for the selected port".into(),
+    ]
+}
+
+fn current_epoch_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or_default()
 }

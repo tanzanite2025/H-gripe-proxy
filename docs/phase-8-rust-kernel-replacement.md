@@ -139,11 +139,11 @@ Next safe batch: `isolated-test-listener-preflight` (R3).
 
 ### R3: Isolated opt-in execution
 
-Status: preflight started. `get_runtime_kernel_isolated_listener_preflight` checks loopback listener readiness without starting a listener or changing forwarding.
+Status: opt-in listener started. `get_runtime_kernel_isolated_listener_preflight` checks readiness; `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, and `stop_runtime_kernel_isolated_test_listener` gate a loopback-only test listener that does not forward traffic.
 
 Allow a Rust component to handle a bounded, non-default path with explicit opt-in:
 
-- test-only listener or loopback-only DNS path; first preflight command: `get_runtime_kernel_isolated_listener_preflight`
+- test-only listener or loopback-only DNS path; first listener commands: `get_runtime_kernel_isolated_listener_preflight`, `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, `stop_runtime_kernel_isolated_test_listener`
 - no default system proxy/TUN takeover
 - automatic rollback to Mihomo on failed verification
 
@@ -169,7 +169,7 @@ Recommended order from lowest to highest risk:
 2. Read-only telemetry and capability reports.
 3. DNS shadow resolver.
 4. Rule/adapter shadow classification.
-5. Loopback-only or test-only listener preflight.
+5. Loopback-only or test-only listener opt-in.
 6. Limited opt-in DNS execution.
 7. Limited opt-in inbound/outbound path.
 8. TUN / transparent proxy proof of concept.

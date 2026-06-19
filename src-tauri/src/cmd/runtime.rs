@@ -7,8 +7,14 @@ use crate::{
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
         handle::Handle,
         kernel_runtime::{
-            KernelReplacementReadiness, KernelRuntimePreflightReport, mihomo_kernel_apply_preflight,
-            mihomo_kernel_replacement_readiness,
+            KernelAdapterCapabilityReport, KernelConnectionSessionShadowReport, KernelDnsShadowEvidenceReport,
+            KernelIsolatedListenerPreflightReport, KernelIsolatedTestListenerStatus, KernelReplacementReadiness,
+            KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelShadowComponentsReport,
+            mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
+            mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
+            mihomo_kernel_isolated_listener_preflight, mihomo_kernel_isolated_test_listener_status,
+            mihomo_kernel_replacement_readiness, mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
+            mihomo_kernel_start_isolated_test_listener, mihomo_kernel_stop_isolated_test_listener,
         },
         runtime_diagnostics::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
@@ -75,6 +81,23 @@ pub async fn get_runtime_kernel_isolated_listener_preflight(
     port: Option<u16>,
 ) -> CmdResult<KernelIsolatedListenerPreflightReport> {
     mihomo_kernel_isolated_listener_preflight(port).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
+    Ok(mihomo_kernel_isolated_test_listener_status().await)
+}
+
+#[tauri::command]
+pub async fn start_runtime_kernel_isolated_test_listener(
+    port: Option<u16>,
+) -> CmdResult<KernelIsolatedTestListenerStatus> {
+    mihomo_kernel_start_isolated_test_listener(port).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn stop_runtime_kernel_isolated_test_listener() -> CmdResult<KernelIsolatedTestListenerStatus> {
+    Ok(mihomo_kernel_stop_isolated_test_listener().await)
 }
 
 /// 获取运行时配置

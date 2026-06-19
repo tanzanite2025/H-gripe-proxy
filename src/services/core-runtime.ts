@@ -138,6 +138,27 @@ export interface RuntimeKernelShadowComponent {
   nextStep: string
 }
 
+export interface RuntimeKernelIsolatedTestListenerStatus {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  running: boolean
+  host: string
+  port?: number | null
+  startedAtEpochMs?: number | null
+  acceptedConnections: number
+  loopbackOnly: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelIsolatedListenerPortCheck {
   host: string
   port: number
@@ -340,5 +361,24 @@ export async function getRuntimeKernelIsolatedListenerPreflight(port?: number) {
   return invoke<RuntimeKernelIsolatedListenerPreflightReport>(
     'get_runtime_kernel_isolated_listener_preflight',
     { port },
+  )
+}
+
+export async function getRuntimeKernelIsolatedTestListenerStatus() {
+  return invoke<RuntimeKernelIsolatedTestListenerStatus>(
+    'get_runtime_kernel_isolated_test_listener_status',
+  )
+}
+
+export async function startRuntimeKernelIsolatedTestListener(port?: number) {
+  return invoke<RuntimeKernelIsolatedTestListenerStatus>(
+    'start_runtime_kernel_isolated_test_listener',
+    { port },
+  )
+}
+
+export async function stopRuntimeKernelIsolatedTestListener() {
+  return invoke<RuntimeKernelIsolatedTestListenerStatus>(
+    'stop_runtime_kernel_isolated_test_listener',
   )
 }
