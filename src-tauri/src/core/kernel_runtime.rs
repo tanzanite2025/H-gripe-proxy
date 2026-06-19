@@ -5,7 +5,7 @@ use serde::Serialize;
 use smartstring::alias::String;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::TcpListener as StdTcpListener,
+    net::{TcpListener as StdTcpListener, UdpSocket as StdUdpSocket},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -36,6 +36,7 @@ const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
 const NEXT_SHADOW_BATCH: &str = "loopback-test-listener-opt-in";
 const ISOLATED_TEST_LISTENER_HOST: &str = "127.0.0.1";
 const DEFAULT_ISOLATED_TEST_LISTENER_PORT: u16 = 19090;
+const DEFAULT_LOOPBACK_DNS_PREFLIGHT_PORT: u16 = 19053;
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
@@ -298,6 +299,41 @@ pub struct KernelIsolatedTestListenerSmokeEvidenceReport {
     pub forwards_traffic: bool,
     pub mihomo_fallback: bool,
     pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackDnsPortCheck {
+    pub host: String,
+    pub port: u16,
+    pub udp_available: bool,
+    pub tcp_available: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackDnsPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub port_check: KernelLoopbackDnsPortCheck,
+    pub runtime_dns_present: bool,
+    pub app_dns_settings_enabled: bool,
+    pub system_proxy_enabled: bool,
+    pub tun_enabled: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -679,6 +715,85 @@ pub async fn mihomo_kernel_isolated_listener_preflight(
             "R3 may only use a bounded loopback test path with Mihomo fallback preserved".into(),
         ],
         next_safe_batch: "loopback-test-listener-opt-in".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_dns_preflight(port: Option<u16>) -> Result<KernelLoopbackDnsPreflightReport> {
+    let requested_port = port.unwrap_or(DEFAULT_LOOPBACK_DNS_PREFLIGHT_PORT);
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+    let runtime_dns_present = config.get("dns").is_some();
+    let verge = Config::verge().await.latest_arc();
+    let app_dns_settings_enabled = verge.enable_dns_settings.unwrap_or(false);
+    let system_proxy_enabled = verge.enable_system_proxy.unwrap_or(false);
+    let tun_enabled = verge.enable_tun_mode.unwrap_or(false);
+    let udp_available = kernel_loopback_udp_port_available(requested_port);
+    let tcp_available = kernel_loopback_port_available(requested_port);
+    let mut notes = vec!["loopback DNS candidate; preflight does not bind persistent sockets".into()];
+    if !udp_available {
+        notes.push("candidate UDP port is unavailable on 127.0.0.1".into());
+    }
+    if !tcp_available {
+        notes.push("candidate TCP port is unavailable on 127.0.0.1".into());
+    }
+
+    let mut blockers = vec![
+        "loopback DNS remains opt-in only and must not replace default Mihomo DNS".into(),
+        "R3 DNS preflight must not patch Mihomo config, TUN, system proxy, or forwarding".into(),
+    ];
+    if !udp_available {
+        blockers.push("choose an unused loopback UDP port before enabling loopback DNS smoke evidence".into());
+    }
+    if !tcp_available {
+        blockers.push("choose an unused loopback TCP port before enabling loopback DNS smoke evidence".into());
+    }
+
+    let mut warnings = Vec::new();
+    if app_dns_settings_enabled {
+        warnings.push("app DNS settings are enabled; loopback DNS must still remain an isolated test path".into());
+    }
+    if system_proxy_enabled {
+        warnings.push("system proxy is enabled; loopback DNS must not become a default proxy dependency".into());
+    }
+    if tun_enabled {
+        warnings.push("TUN is enabled; loopback DNS must not attach to transparent proxy routing".into());
+    }
+
+    Ok(KernelLoopbackDnsPreflightReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-dns-preflight".into(),
+        kernel_area: "dns".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        requested_host: ISOLATED_TEST_LISTENER_HOST.into(),
+        requested_port,
+        can_start_after_opt_in: udp_available && tcp_available,
+        port_check: KernelLoopbackDnsPortCheck {
+            host: ISOLATED_TEST_LISTENER_HOST.into(),
+            port: requested_port,
+            udp_available,
+            tcp_available,
+            notes,
+        },
+        runtime_dns_present,
+        app_dns_settings_enabled,
+        system_proxy_enabled,
+        tun_enabled,
+        default_route: false,
+        forwards_traffic: false,
+        mihomo_fallback: true,
+        blockers,
+        warnings,
+        facts: vec![
+            "preflight checks loopback UDP and TCP DNS candidate ports without keeping sockets open".into(),
+            "default Mihomo DNS remains production owner until a dedicated opt-in execution batch".into(),
+            "loopback DNS must not mutate runtime config, system proxy, TUN, or outbound forwarding".into(),
+        ],
+        next_safe_batch: "loopback-dns-smoke-evidence".into(),
     })
 }
 
