@@ -20,6 +20,7 @@ pub mod hotkey;
 pub mod identity_consistency;
 pub mod ip_intelligence;
 pub mod ip_reputation;
+pub mod kernel_runtime;
 pub mod latency_test;
 pub mod log_monitor;
 pub mod logger;

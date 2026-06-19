@@ -6,6 +6,10 @@ use crate::{
         CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
         handle::Handle,
+        kernel_runtime::{
+            KernelReplacementReadiness, KernelRuntimePreflightReport, mihomo_kernel_apply_preflight,
+            mihomo_kernel_replacement_readiness,
+        },
         runtime_diagnostics::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
             build_runtime_diagnostics_summary,
@@ -16,7 +20,6 @@ use crate::{
 };
 use anyhow::{Context as _, anyhow};
 use clash_verge_logging::{Type, logging};
-use serde::Serialize;
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
@@ -27,89 +30,16 @@ use tauri_plugin_mihomo::models::{
 };
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeKernelReplacementBlocker {
-    area: String,
-    reason: String,
-    required_next_step: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeKernelReplacementReadiness {
-    mutates_runtime: bool,
-    active_kernel: String,
-    controller_transport: String,
-    rust_owned_control_plane: Vec<String>,
-    mihomo_owned_data_plane: Vec<String>,
-    blocked_replacement_areas: Vec<RuntimeKernelReplacementBlocker>,
-    next_safe_batch: String,
-}
-
-fn controller_transport_label(protocol: &tauri_plugin_mihomo::models::Protocol) -> String {
-    match protocol {
-        tauri_plugin_mihomo::models::Protocol::Http => "http".into(),
-        tauri_plugin_mihomo::models::Protocol::LocalSocket => "local-socket".into(),
-        tauri_plugin_mihomo::models::Protocol::Auto => "auto".into(),
-    }
-}
-
-/// Phase 8 readiness inventory for Rust kernel replacement.
 #[tauri::command]
-pub async fn get_runtime_kernel_replacement_readiness() -> CmdResult<RuntimeKernelReplacementReadiness> {
-    let active_kernel = match CoreManager::global().get_running_mode().as_ref() {
-        crate::core::manager::RunningMode::Service => "mihomo-service",
-        crate::core::manager::RunningMode::Sidecar => "mihomo-sidecar",
-        crate::core::manager::RunningMode::NotRunning => "not-running",
-    }
-    .into();
-    let controller_transport = controller_transport_label(&Handle::mihomo().await.protocol);
+pub async fn get_runtime_kernel_replacement_readiness() -> CmdResult<KernelReplacementReadiness> {
+    Ok(mihomo_kernel_replacement_readiness().await)
+}
 
-    Ok(RuntimeKernelReplacementReadiness {
-        mutates_runtime: false,
-        active_kernel,
-        controller_transport,
-        rust_owned_control_plane: vec![
-            "config-schema-validation".into(),
-            "rule-engine".into(),
-            "subscription-artifacts".into(),
-            "app-runtime-plan".into(),
-            "projection-artifact".into(),
-            "staged-activation".into(),
-            "runtime-apply-gates".into(),
-            "audit-history".into(),
-            "telemetry-wrappers".into(),
-        ],
-        mihomo_owned_data_plane: vec![
-            "protocol-stacks".into(),
-            "tun-transparent-proxy".into(),
-            "packet-forwarding".into(),
-            "adapter-runtime".into(),
-            "default-dns-runtime".into(),
-        ],
-        blocked_replacement_areas: vec![
-            RuntimeKernelReplacementBlocker {
-                area: "tun-transparent-proxy".into(),
-                reason: "requires platform rollback, leak verification, and Mihomo fallback before any live takeover"
-                    .into(),
-                required_next_step: "kernel-runtime-capability-trait".into(),
-            },
-            RuntimeKernelReplacementBlocker {
-                area: "protocol-stacks".into(),
-                reason: "requires shadow adapter/protocol verification before forwarding traffic".into(),
-                required_next_step: "shadow-adapter-capability-report".into(),
-            },
-            RuntimeKernelReplacementBlocker {
-                area: "default-dns-runtime".into(),
-                reason:
-                    "must remain behind readiness, shadow evidence, opt-in execution, rollback drill, and hold history"
-                        .into(),
-                required_next_step: "dns-shadow-evidence-continuation".into(),
-            },
-        ],
-        next_safe_batch: "kernel-runtime-capability-trait".into(),
-    })
+#[tauri::command]
+pub async fn get_runtime_kernel_apply_preflight(
+    artifact_id: Option<String>,
+) -> CmdResult<KernelRuntimePreflightReport> {
+    Ok(mihomo_kernel_apply_preflight(artifact_id).await)
 }
 
 /// 获取运行时配置
