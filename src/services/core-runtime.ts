@@ -138,6 +138,33 @@ export interface RuntimeKernelShadowComponent {
   nextStep: string
 }
 
+export interface RuntimeKernelIsolatedListenerPortCheck {
+  host: string
+  port: number
+  available: boolean
+  conflictsWithRuntimePort: boolean
+  notes: string[]
+}
+
+export interface RuntimeKernelIsolatedListenerPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  requestedHost: string
+  requestedPort: number
+  canStartAfterOptIn: boolean
+  portCheck: RuntimeKernelIsolatedListenerPortCheck
+  runtimePorts: Record<string, number>
+  systemProxyEnabled: boolean
+  tunEnabled: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelConnectionSessionSample {
   sampleIndex: number
   network: string
@@ -306,5 +333,12 @@ export async function getRuntimeKernelAdapterCapabilityReport() {
 export async function getRuntimeKernelConnectionSessionShadow() {
   return invoke<RuntimeKernelConnectionSessionShadowReport>(
     'get_runtime_kernel_connection_session_shadow',
+  )
+}
+
+export async function getRuntimeKernelIsolatedListenerPreflight(port?: number) {
+  return invoke<RuntimeKernelIsolatedListenerPreflightReport>(
+    'get_runtime_kernel_isolated_listener_preflight',
+    { port },
   )
 }

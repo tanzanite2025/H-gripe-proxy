@@ -70,6 +70,13 @@ pub async fn get_runtime_kernel_connection_session_shadow() -> CmdResult<KernelC
     mihomo_kernel_connection_session_shadow().await.stringify_err()
 }
 
+#[tauri::command]
+pub async fn get_runtime_kernel_isolated_listener_preflight(
+    port: Option<u16>,
+) -> CmdResult<KernelIsolatedListenerPreflightReport> {
+    mihomo_kernel_isolated_listener_preflight(port).await.stringify_err()
+}
+
 /// 获取运行时配置
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
