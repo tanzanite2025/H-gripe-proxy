@@ -2013,3 +2013,32 @@ Next aggressive batches:
 1. Surface provider health cache in provider UI status badges.
 2. Surface the lifecycle audit log in the UI / aggregate diagnostics view.
 3. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.
+
+### Aggressive replacement track: provider health badges in provider UI
+
+This batch consumes the Rust-owned provider health cache (`get_runtime_provider_health_state`, persisted in `app-runtime/provider-health.yaml` since PR #173) directly in the proxy provider dialog. Each provider row now renders a status badge (healthy / unhealthy / unknown) sourced from the Rust cache, plus a per-provider health-check action that calls the app-owned `healthcheck_runtime_proxy_provider` command and re-reads the Rust cache.
+
+```text
+ProviderButton.openDialog()
+  -> getRuntimeProviderHealthState()  // Rust-owned cache (provider-health.yaml)
+  -> health[providerName] = { success, error, updatedAt }
+
+ProviderListItem
+  -> badge: success ? "healthy" : "unhealthy" (fallback "unknown" when no record)
+  -> tooltip: error message, or last-checked relative time
+
+ProviderListItem.onCheck(name)
+  -> healthcheck_runtime_proxy_provider(name)
+  -> getRuntimeProviderHealthState()  // refresh badge from Rust cache
+```
+
+Migration impact:
+
+- The provider dialog reads health status from the Rust runtime cache instead of the UI being health-agnostic.
+- Provider update / update-all / per-provider health-check flows all refresh the badge from the Rust-owned state, keeping a single source of truth.
+- No new Rust command was needed; this batch is pure frontend consumption of the existing Rust app command.
+
+Next aggressive batches:
+
+1. Surface the lifecycle audit log in the UI / aggregate diagnostics view.
+2. Convert app-owned Mihomo types from hand-maintained TS to generated bindings from Rust app models.

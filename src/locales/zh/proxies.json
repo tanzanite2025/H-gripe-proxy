@@ -11,7 +11,14 @@
       "title": "代理集合",
       "actions": {
         "updateAll": "更新全部",
-        "update": "更新"
+        "update": "更新",
+        "healthCheck": "健康检查"
+      },
+      "health": {
+        "healthy": "正常",
+        "unhealthy": "异常",
+        "unknown": "未知",
+        "lastChecked": "上次检查"
       }
     },
     "rules": {

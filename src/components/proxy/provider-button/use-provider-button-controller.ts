@@ -1,9 +1,14 @@
 import { useLockFn } from 'ahooks'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
-import { updateRuntimeProxyProvider } from '@/services/proxy-runtime'
+import {
+  getRuntimeProviderHealthState,
+  healthcheckRuntimeProxyProvider,
+  updateRuntimeProxyProvider,
+  type RuntimeProviderHealthRecord,
+} from '@/services/proxy-runtime'
 import type { ProxyProvider } from '@/types/mihomo'
 
 import { buildUpdatingMap } from './utils'
@@ -11,8 +16,25 @@ import { buildUpdatingMap } from './utils'
 export const useProviderButtonController = () => {
   const [open, setOpen] = useState(false)
   const [updating, setUpdating] = useState<Record<string, boolean>>({})
+  const [checking, setChecking] = useState<Record<string, boolean>>({})
+  const [health, setHealth] = useState<
+    Record<string, RuntimeProviderHealthRecord>
+  >({})
   const { proxyProviders } = useProxiesData()
   const { refreshProxy, refreshProxyProviders } = useAppRefreshers()
+
+  const refreshHealth = useCallback(async () => {
+    try {
+      const { records } = await getRuntimeProviderHealthState()
+      setHealth(
+        Object.fromEntries(
+          records.map((record) => [record.providerName, record]),
+        ),
+      )
+    } catch (error) {
+      console.warn('failed to load provider health state', error)
+    }
+  }, [])
 
   const providers = useMemo(
     () =>
@@ -34,6 +56,7 @@ export const useProviderButtonController = () => {
       setUpdating((prev) => ({ ...prev, [name]: true }))
       await updateRuntimeProxyProvider(name)
       await refreshProviderData()
+      await refreshHealth()
 
       showNotice.success(
         'proxies.feedback.notifications.provider.updateSuccess',
@@ -69,6 +92,7 @@ export const useProviderButtonController = () => {
       }
 
       await refreshProviderData()
+      await refreshHealth()
       showNotice.success('proxies.feedback.notifications.provider.allUpdated')
     } catch (error) {
       showNotice.error('proxies.feedback.notifications.provider.genericError', {
@@ -79,14 +103,36 @@ export const useProviderButtonController = () => {
     }
   })
 
+  const checkProvider = useLockFn(async (name: string) => {
+    try {
+      setChecking((prev) => ({ ...prev, [name]: true }))
+      await healthcheckRuntimeProxyProvider(name)
+      await refreshHealth()
+    } catch (error) {
+      showNotice.error('proxies.feedback.notifications.provider.genericError', {
+        message: String(error),
+      })
+    } finally {
+      setChecking((prev) => ({ ...prev, [name]: false }))
+    }
+  })
+
+  const openDialog = () => {
+    setOpen(true)
+    void refreshHealth()
+  }
+
   return {
     open,
     hasProviders,
     providers,
     updating,
-    openDialog: () => setOpen(true),
+    checking,
+    health,
+    openDialog,
     closeDialog: () => setOpen(false),
     updateProvider,
     updateAllProviders,
+    checkProvider,
   }
 }
