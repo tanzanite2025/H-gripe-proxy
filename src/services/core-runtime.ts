@@ -1,9 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
   BaseConfig,
+  BufferPoolStats,
   CoreUpdaterChannel,
   DnsMetrics,
+  EngineStats,
+  HotReloadStatus,
   MihomoVersion,
+  PerfStats,
+  RuleTrafficSnapshot,
+  XDPStatus,
 } from 'tauri-plugin-mihomo-api'
 
 export async function getRuntimeVersion() {
@@ -32,6 +38,30 @@ export async function runtimeDnsWarmup() {
 
 export async function reloadRuntimeConfig() {
   await invoke<void>('reload_runtime_config')
+}
+
+export async function getRuntimeEngineStats() {
+  return invoke<EngineStats>('get_runtime_engine_stats')
+}
+
+export async function getRuntimePerfStats() {
+  return invoke<PerfStats>('get_runtime_perf_stats')
+}
+
+export async function getRuntimeBufferPoolStats() {
+  return invoke<BufferPoolStats>('get_runtime_buffer_pool_stats')
+}
+
+export async function getRuntimeHotReloadStatus() {
+  return invoke<HotReloadStatus>('get_runtime_hot_reload_status')
+}
+
+export async function getRuntimeXdpStatus() {
+  return invoke<XDPStatus>('get_runtime_xdp_status')
+}
+
+export async function getRuntimeRuleTraffic() {
+  return invoke<Record<string, RuleTrafficSnapshot>>('get_runtime_rule_traffic')
 }
 
 export interface RuntimeLifecycleRecord {

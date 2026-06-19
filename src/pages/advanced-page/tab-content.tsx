@@ -10,6 +10,7 @@ import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
 import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
 import { SecurityConfigPanel } from '@/components/advanced/security-config-panel'
 import { SecurityPolicyPanel } from '@/components/advanced/security-policy-panel'
+import { TelemetryDiagnosticsPanel } from '@/components/advanced/telemetry-diagnostics-panel'
 import { TimezoneSpoofPanel } from '@/components/advanced/timezone-spoof-panel'
 import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { IngressCountermeasurePanel } from '@/components/security/ingress-countermeasure-panel'
@@ -122,6 +123,7 @@ export function AdvancedTabContent({
         <div className="space-y-4">
           <AppRuntimePlanningPanel />
           <CoreUpgradePanel />
+          <TelemetryDiagnosticsPanel />
           <LifecycleAuditLogPanel />
         </div>
       </AdvancedTabPanel>

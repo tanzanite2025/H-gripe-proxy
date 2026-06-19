@@ -20,8 +20,8 @@ use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tauri_plugin_mihomo::models::{
-    BaseConfig, CoreUpdaterChannel, DnsMetrics, MihomoVersion, Proxies, ProxyDelay, ProxyProviders, RuleProviders,
-    Rules,
+    BaseConfig, BufferPoolStats, CoreUpdaterChannel, DnsMetrics, EngineStats, HotReloadStatus, MihomoVersion,
+    PerfStats, Proxies, ProxyDelay, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, XDPStatus,
 };
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
@@ -95,6 +95,36 @@ pub async fn get_runtime_dns_metrics() -> CmdResult<DnsMetrics> {
 #[tauri::command]
 pub async fn runtime_dns_warmup() -> CmdResult<()> {
     Handle::mihomo().await.dns_warmup().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_engine_stats() -> CmdResult<EngineStats> {
+    Handle::mihomo().await.get_engine_stats().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_perf_stats() -> CmdResult<PerfStats> {
+    Handle::mihomo().await.get_perf_stats().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_buffer_pool_stats() -> CmdResult<BufferPoolStats> {
+    Handle::mihomo().await.get_buffer_pool_stats().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_hot_reload_status() -> CmdResult<HotReloadStatus> {
+    Handle::mihomo().await.get_hot_reload_status().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_xdp_status() -> CmdResult<XDPStatus> {
+    Handle::mihomo().await.get_xdp_status().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_rule_traffic() -> CmdResult<HashMap<std::string::String, RuleTrafficSnapshot>> {
+    Handle::mihomo().await.get_rule_traffic().await.stringify_err()
 }
 
 #[tauri::command]
