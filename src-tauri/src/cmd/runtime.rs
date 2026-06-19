@@ -42,6 +42,11 @@ pub async fn get_runtime_kernel_apply_preflight(
     Ok(mihomo_kernel_apply_preflight(artifact_id).await)
 }
 
+#[tauri::command]
+pub async fn get_runtime_kernel_shadow_components() -> CmdResult<KernelShadowComponentsReport> {
+    Ok(mihomo_kernel_shadow_components().await)
+}
+
 /// 获取运行时配置
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {

@@ -126,6 +126,25 @@ export interface RuntimeKernelPreflightReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelShadowComponent {
+  component: string
+  kernelArea: string
+  status: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  evidence: string[]
+  nextStep: string
+}
+
+export interface RuntimeKernelShadowComponentsReport {
+  runtimeId: string
+  activeKernel: string
+  mutatesRuntime: boolean
+  components: RuntimeKernelShadowComponent[]
+  liveExecutionBlockers: RuntimeKernelReplacementBlocker[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelReplacementReadiness {
   mutatesRuntime: boolean
   activeKernel: string
@@ -146,5 +165,11 @@ export async function getRuntimeKernelApplyPreflight(artifactId?: string) {
   return invoke<RuntimeKernelPreflightReport>(
     'get_runtime_kernel_apply_preflight',
     { artifactId },
+  )
+}
+
+export async function getRuntimeKernelShadowComponents() {
+  return invoke<RuntimeKernelShadowComponentsReport>(
+    'get_runtime_kernel_shadow_components',
   )
 }

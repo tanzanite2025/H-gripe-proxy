@@ -222,6 +222,7 @@ mod app_init {
             cmd::get_runtime_rule_traffic,
             cmd::get_runtime_kernel_replacement_readiness,
             cmd::get_runtime_kernel_apply_preflight,
+            cmd::get_runtime_kernel_shadow_components,
             cmd::get_runtime_tls_fingerprint_stats,
             cmd::force_runtime_tls_rotation,
             cmd::get_runtime_lifecycle_state,
