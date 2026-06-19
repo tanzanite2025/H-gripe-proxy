@@ -2,7 +2,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
 use smartstring::alias::String;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::TcpListener,
+};
 use tauri_plugin_mihomo::models::Protocol;
 
 use crate::{
@@ -189,6 +192,37 @@ pub struct KernelConnectionSessionShadowReport {
     pub connection_type_counts: BTreeMap<String, usize>,
     pub rule_counts: BTreeMap<String, usize>,
     pub samples: Vec<KernelConnectionSessionSample>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedListenerPortCheck {
+    pub host: String,
+    pub port: u16,
+    pub available: bool,
+    pub conflicts_with_runtime_port: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedListenerPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub port_check: KernelIsolatedListenerPortCheck,
+    pub runtime_ports: BTreeMap<String, u16>,
+    pub system_proxy_enabled: bool,
+    pub tun_enabled: bool,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -504,6 +538,75 @@ pub async fn mihomo_kernel_connection_session_shadow() -> Result<KernelConnectio
     })
 }
 
+pub async fn mihomo_kernel_isolated_listener_preflight(
+    port: Option<u16>,
+) -> Result<KernelIsolatedListenerPreflightReport> {
+    let requested_host: String = "127.0.0.1".into();
+    let requested_port = port.unwrap_or(19090);
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+    let runtime_ports = kernel_runtime_ports(config);
+    let verge = Config::verge().await.latest_arc();
+    let system_proxy_enabled = verge.enable_system_proxy.unwrap_or(false);
+    let tun_enabled = verge.enable_tun_mode.unwrap_or(false);
+    let conflicts_with_runtime_port = runtime_ports.values().any(|port| *port == requested_port);
+    let available = kernel_loopback_port_available(requested_port);
+    let mut notes = vec!["loopback-only candidate; preflight does not start a listener".into()];
+    if conflicts_with_runtime_port {
+        notes.push("candidate port matches an existing Mihomo runtime port".into());
+    }
+    if !available {
+        notes.push("candidate port is unavailable on 127.0.0.1".into());
+    }
+    let mut blockers =
+        vec!["Rust isolated listener remains opt-in only; this preflight must not start forwarding".into()];
+    if conflicts_with_runtime_port {
+        blockers.push("choose a port that does not overlap Mihomo runtime listeners".into());
+    }
+    if !available {
+        blockers.push("choose an unused loopback port before enabling a test listener".into());
+    }
+    let mut warnings = Vec::new();
+    if system_proxy_enabled {
+        warnings.push("system proxy is currently enabled; R3 listener must not become the default proxy".into());
+    }
+    if tun_enabled {
+        warnings.push("TUN is currently enabled; R3 listener must not attach to transparent proxy routing".into());
+    }
+
+    Ok(KernelIsolatedListenerPreflightReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "isolated-test-listener-preflight".into(),
+        kernel_area: "listener".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        requested_host,
+        requested_port,
+        can_start_after_opt_in: available && !conflicts_with_runtime_port,
+        port_check: KernelIsolatedListenerPortCheck {
+            host: "127.0.0.1".into(),
+            port: requested_port,
+            available,
+            conflicts_with_runtime_port,
+            notes,
+        },
+        runtime_ports,
+        system_proxy_enabled,
+        tun_enabled,
+        blockers,
+        warnings,
+        facts: vec![
+            "preflight reads runtime listener configuration and checks loopback port availability".into(),
+            "R3 may only use a bounded loopback test path with Mihomo fallback preserved".into(),
+        ],
+        next_safe_batch: "loopback-test-listener-opt-in".into(),
+    })
+}
+
 fn active_kernel_label() -> String {
     match CoreManager::global().get_running_mode().as_ref() {
         RunningMode::Service => "mihomo-service",
@@ -687,4 +790,26 @@ fn connection_session_sample(
         uploaded_bytes: session.upload,
         downloaded_bytes: session.download,
     }
+}
+
+fn kernel_runtime_ports(config: &serde_yaml_ng::Mapping) -> BTreeMap<String, u16> {
+    let mut ports = BTreeMap::new();
+    for key in ["port", "socks-port", "mixed-port", "redir-port", "tproxy-port"] {
+        if let Some(port) = kernel_runtime_port(config, key) {
+            ports.insert(key.into(), port);
+        }
+    }
+    ports
+}
+
+fn kernel_runtime_port(config: &serde_yaml_ng::Mapping, key: &str) -> Option<u16> {
+    config
+        .get(key)
+        .and_then(serde_yaml_ng::Value::as_i64)
+        .and_then(|port| u16::try_from(port).ok())
+        .filter(|port| *port > 0)
+}
+
+fn kernel_loopback_port_available(port: u16) -> bool {
+    port > 0 && TcpListener::bind(("127.0.0.1", port)).is_ok()
 }

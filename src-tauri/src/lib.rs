@@ -227,6 +227,7 @@ mod app_init {
             cmd::get_runtime_kernel_rule_shadow_evidence,
             cmd::get_runtime_kernel_adapter_capability_report,
             cmd::get_runtime_kernel_connection_session_shadow,
+            cmd::get_runtime_kernel_isolated_listener_preflight,
             cmd::get_runtime_tls_fingerprint_stats,
             cmd::force_runtime_tls_rotation,
             cmd::get_runtime_lifecycle_state,
