@@ -20,7 +20,8 @@ use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tauri_plugin_mihomo::models::{
-    BaseConfig, DnsMetrics, MihomoVersion, Proxies, ProxyDelay, ProxyProviders, RuleProviders, Rules,
+    BaseConfig, CoreUpdaterChannel, DnsMetrics, MihomoVersion, Proxies, ProxyDelay, ProxyProviders, RuleProviders,
+    Rules,
 };
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
@@ -166,6 +167,77 @@ const LIFECYCLE_RESTART_CORE: &str = "restart_core";
 const LIFECYCLE_RESTART_APP: &str = "restart_app";
 const LIFECYCLE_RELOAD_CONFIG: &str = "reload_config";
 const LIFECYCLE_UPDATE_GEO: &str = "update_geo";
+
+const UPGRADE_CORE: &str = "core";
+const UPGRADE_UI: &str = "ui";
+const UPGRADE_GEO: &str = "geo";
+
+#[tauri::command]
+pub async fn get_runtime_upgrade_history() -> CmdResult<crate::core::runtime_snapshot::RuntimeUpgradeHistoryState> {
+    crate::core::runtime_snapshot::load_runtime_upgrade_history_from_disk().stringify_err()?;
+    Ok(crate::core::runtime_snapshot::runtime_upgrade_history_state())
+}
+
+/// 升级 Mihomo 内核（app-owned 门禁，记录升级历史）
+#[tauri::command]
+pub async fn upgrade_runtime_core(channel: CoreUpdaterChannel, force: bool) -> CmdResult<()> {
+    let detail = Some(format!("{channel} · force={force}"));
+    match Handle::mihomo().await.upgrade_core(channel, force).await {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(UPGRADE_CORE, true, None, detail);
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(
+                UPGRADE_CORE,
+                false,
+                Some(error.to_string()),
+                detail,
+            );
+            Err(error).stringify_err()
+        }
+    }
+}
+
+/// 升级 Mihomo 控制面板 UI（app-owned 门禁，记录升级历史）
+#[tauri::command]
+pub async fn upgrade_runtime_ui() -> CmdResult<()> {
+    match Handle::mihomo().await.upgrade_ui().await {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(UPGRADE_UI, true, None, None);
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(
+                UPGRADE_UI,
+                false,
+                Some(error.to_string()),
+                None,
+            );
+            Err(error).stringify_err()
+        }
+    }
+}
+
+/// 升级 Geo 数据库（app-owned 门禁，记录升级历史）
+#[tauri::command]
+pub async fn upgrade_runtime_geo() -> CmdResult<()> {
+    match Handle::mihomo().await.upgrade_geo().await {
+        Ok(()) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(UPGRADE_GEO, true, None, None);
+            Ok(())
+        }
+        Err(error) => {
+            crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(
+                UPGRADE_GEO,
+                false,
+                Some(error.to_string()),
+                None,
+            );
+            Err(error).stringify_err()
+        }
+    }
+}
 
 #[tauri::command]
 pub async fn get_runtime_lifecycle_state() -> CmdResult<crate::core::runtime_snapshot::RuntimeLifecycleState> {

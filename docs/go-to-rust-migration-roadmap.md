@@ -2105,11 +2105,31 @@ phase 1 的生命周期审计只覆盖 `restart_core` / `reload_config` / `resta
 - `RuntimeLifecycleRecord` 新增可选字段 `detail`（`#[serde(default)]` 兼容旧 yaml），`record_and_persist_runtime_lifecycle_event` 增加 `detail: Option<String>` 入参。
 - 前端 `RuntimeLifecycleRecord` 接口与 `LifecycleAuditLogPanel` 同步：新增 kind / detail 的中文标签映射并在记录行展示 detail。
 
-### 第二阶段后续批次（规划）
+### B4: Mihomo core / UI / geo 升级的 Rust gate + 升级历史
 
-- B2: sub-rules 走 Rust 运行时命令（`get_runtime_sub_rules` / `delete_runtime_sub_rule`）。
-- B3: proxy 全局类型（`IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem`）迁到生成绑定。
-- B4: Mihomo core / UI / geo 升级的 Rust gate + 升级历史。
+Mihomo 插件暴露了 `upgrade_core(channel, force)` / `upgrade_ui` / `upgrade_geo`，但此前**既无 app-owned Rust 命令也未在前端接线**——属于最关键的、仍未 gate 的 Go 二进制操作。本批用 Rust gate 包装这三项升级并记录升级历史。
+
+新增 Rust 命令（`cmd/runtime.rs`，经 `Handle::mihomo()` 调用插件）：
+
+- `upgrade_runtime_core(channel: CoreUpdaterChannel, force: bool)` — kind `core`，detail 记录 `channel · force=...`。
+- `upgrade_runtime_ui()` — kind `ui`。
+- `upgrade_runtime_geo()` — kind `geo`（区别于运行时 `update_geo` 的 geo 数据刷新，这里是 geo 数据库升级）。
+- `get_runtime_upgrade_history()` — 读取持久化升级历史。
+
+持久化（`core/runtime_snapshot.rs`）：
+
+- 新增独立的 `RuntimeUpgradeHistoryState`（复用 `RuntimeLifecycleRecord` 元素结构），落盘到 `app-runtime/core-upgrade-history.yaml`，保留最近 50 条，与生命周期审计分开存储避免互相刷屏。
+- `record_and_persist_runtime_upgrade_event(kind, success, error, detail)` 镜像生命周期审计的写入/裁剪/持久化逻辑。
+
+前端：
+
+- `core-runtime.ts` 新增 `getRuntimeUpgradeHistory` / `upgradeRuntimeCore` / `upgradeRuntimeUi` / `upgradeRuntimeGeo`。
+- 新增 `CoreUpgradePanel`（高级页 app-runtime 标签，位于审计面板上方）：展示当前内核版本、channel 选择（auto/release/alpha）+ 强制覆盖开关 + 三个升级按钮，并列出升级历史（成功/失败 Chip）。
+
+### 第二阶段后续批次（规划 / 调整）
+
+- ~~B2: sub-rules 走 Rust 运行时命令~~ — **取消**：前端无 sub-rules 读/删功能，`getSubRules` / `deleteSubRuleBySource` 是插件里未被前端使用的函数；唯一 sub-rule 路径（createRule 的 `subRule` 入参）已走 `create_runtime_rule`。加命令只会是死代码。
+- B3（重新评估）: `IProxyItem` / `IProxyGroupItem` / `IProxyProviderItem` 是前端**刻意精简的视图模型**（字段更少、含 `provider`/`fixed` 等自定义字段，`all` 形状不同），并非生成绑定的简单副本；是否迁移待定，强行替换可能引入语义错误。
 - B5: 数据面遥测（engine / perf / buffer / hot-reload / xdp / rule-traffic）的 Rust 命令 + 诊断面板。
 - B6: 敏感配置变更（controller / secret）的 gate + 审计。
 - B7: TLS 指纹实时统计的归一。
