@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams and R2 shadow evidence are complete. R3 has a loopback-only opt-in test listener; it does not forward traffic or become default route. |
-| Next safe batch | `listener-smoke-evidence` | Verify start/status/local 204/stop behavior and confirm no system proxy, TUN, Mihomo config, DNS, or outbound forwarding mutation. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams and R2 shadow evidence are complete. R3 has a loopback-only opt-in test listener and smoke evidence command; neither forwards traffic or becomes default route. |
+| Next safe batch | `loopback-dns-or-forwarding-decision` | Decide whether to do loopback DNS or a still-isolated forwarding experiment; TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -143,7 +143,8 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R2 adapter capability evidence | Complete | Read-only | `get_runtime_kernel_adapter_capability_report` compares proxy/adapter inventory without dialing endpoints. |
 | R2 connection/session shape evidence | Complete | Read-only | `get_runtime_kernel_connection_session_shadow` summarizes Mihomo connection shape without closing or migrating sessions. |
 | R3 isolated listener preflight | Complete | Read-only | `get_runtime_kernel_isolated_listener_preflight` checks loopback port readiness and runtime-port overlap. |
-| R3 loopback test listener opt-in | In progress | Explicit opt-in, non-production only | `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, and `stop_runtime_kernel_isolated_test_listener` gate a local 204-only listener. |
+| R3 loopback test listener opt-in | Complete | Explicit opt-in, non-production only | `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, and `stop_runtime_kernel_isolated_test_listener` gate a local 204-only listener. |
+| R3 listener smoke evidence | In progress | Bounded local runtime mutation only | `get_runtime_kernel_isolated_test_listener_smoke_evidence` starts the listener, sends a local request, verifies status increment, stops it, and compares system proxy/TUN/runtime config before and after. |
 | R4 expanded opt-in | Blocked | Not allowed yet | Requires R3 smoke evidence, rollback drill, leak checks, platform matrix, and hold window. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
 
@@ -233,18 +234,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after R3 smoke evidence and explicit decision. Next safe high-risk batch is **not** TUN/protocol replacement; it is smoke evidence for the loopback listener:
-
-```text
-listener-smoke-evidence
-  -> start listener
-  -> local request receives 204
-  -> status increments accepted connection count
-  -> stop listener
-  -> verify no system proxy/TUN/Mihomo config/outbound mutation
-```
-
-After that, a separate decision is required before any loopback DNS or forwarding path.
+Allowed only after R3 smoke evidence and explicit decision. After `get_runtime_kernel_isolated_test_listener_smoke_evidence`, a separate decision is required before any loopback DNS or forwarding path. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 

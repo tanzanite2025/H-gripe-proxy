@@ -159,6 +159,33 @@ export interface RuntimeKernelIsolatedTestListenerStatus {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelIsolatedTestListenerSmokeEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  requestedHost: string
+  requestedPort: number
+  startedBySmoke: boolean
+  responseStatus?: string | null
+  acceptedConnectionsBefore: number
+  acceptedConnectionsAfter: number
+  statusIncremented: boolean
+  stoppedAfterSmoke: boolean
+  systemProxyUnchanged: boolean
+  tunUnchanged: boolean
+  runtimeConfigUnchanged: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelIsolatedListenerPortCheck {
   host: string
   port: number
@@ -380,5 +407,14 @@ export async function startRuntimeKernelIsolatedTestListener(port?: number) {
 export async function stopRuntimeKernelIsolatedTestListener() {
   return invoke<RuntimeKernelIsolatedTestListenerStatus>(
     'stop_runtime_kernel_isolated_test_listener',
+  )
+}
+
+export async function getRuntimeKernelIsolatedTestListenerSmokeEvidence(
+  port?: number,
+) {
+  return invoke<RuntimeKernelIsolatedTestListenerSmokeEvidenceReport>(
+    'get_runtime_kernel_isolated_test_listener_smoke_evidence',
+    { port },
   )
 }

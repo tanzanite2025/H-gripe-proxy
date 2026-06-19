@@ -13,7 +13,12 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri_plugin_mihomo::models::Protocol;
-use tokio::{io::AsyncWriteExt, net::TcpListener as TokioTcpListener, sync::oneshot};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener as TokioTcpListener, TcpStream},
+    sync::oneshot,
+    time::{Duration, timeout},
+};
 
 use crate::{
     config::Config,
@@ -264,6 +269,35 @@ pub struct KernelIsolatedTestListenerStatus {
     pub default_route: bool,
     pub forwards_traffic: bool,
     pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedTestListenerSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub started_by_smoke: bool,
+    pub response_status: Option<String>,
+    pub accepted_connections_before: u64,
+    pub accepted_connections_after: u64,
+    pub status_incremented: bool,
+    pub stopped_after_smoke: bool,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -583,7 +617,7 @@ pub async fn mihomo_kernel_isolated_listener_preflight(
     port: Option<u16>,
 ) -> Result<KernelIsolatedListenerPreflightReport> {
     let requested_host: String = "127.0.0.1".into();
-    let requested_port = port.unwrap_or(19090);
+    let requested_port = port.unwrap_or(DEFAULT_ISOLATED_TEST_LISTENER_PORT);
     let runtime = Config::runtime().await;
     let runtime = runtime.latest_arc();
     let config = runtime
@@ -716,6 +750,101 @@ pub async fn mihomo_kernel_stop_isolated_test_listener() -> KernelIsolatedTestLi
         return isolated_test_listener_status(vec!["isolated test listener stopped".into()]);
     }
     isolated_test_listener_status(vec!["isolated test listener was not running".into()])
+}
+
+pub async fn mihomo_kernel_isolated_test_listener_smoke_evidence(
+    port: Option<u16>,
+) -> Result<KernelIsolatedTestListenerSmokeEvidenceReport> {
+    let requested_port = port.unwrap_or(DEFAULT_ISOLATED_TEST_LISTENER_PORT);
+    let before_status = mihomo_kernel_isolated_test_listener_status().await;
+    let before_runtime_config = kernel_runtime_config_snapshot().await?;
+    let before_verge = Config::verge().await.latest_arc();
+    let before_system_proxy = before_verge.enable_system_proxy.unwrap_or(false);
+    let before_tun = before_verge.enable_tun_mode.unwrap_or(false);
+
+    if before_status.running {
+        return Ok(kernel_listener_smoke_report(
+            requested_port,
+            false,
+            None,
+            before_status.accepted_connections,
+            before_status.accepted_connections,
+            false,
+            false,
+            true,
+            true,
+            true,
+            vec!["isolated test listener is already running; smoke evidence did not take lifecycle ownership".into()],
+            Vec::new(),
+        ));
+    }
+
+    let start_status = mihomo_kernel_start_isolated_test_listener(Some(requested_port)).await?;
+    let accepted_connections_before = start_status.accepted_connections;
+    let mut warnings = start_status.warnings.clone();
+    let mut blockers = Vec::new();
+    if !start_status.running {
+        blockers.push("isolated test listener did not enter running state".into());
+    }
+
+    let response_status = if start_status.running {
+        match isolated_test_listener_smoke_request(requested_port).await {
+            Ok(status) => Some(status),
+            Err(err) => {
+                blockers.push(format!("local smoke request failed: {err}").into());
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let after_request_status = mihomo_kernel_isolated_test_listener_status().await;
+    let accepted_connections_after = after_request_status.accepted_connections;
+    let status_incremented = accepted_connections_after > accepted_connections_before;
+    if !status_incremented {
+        blockers.push("accepted connection count did not increase after local request".into());
+    }
+    if response_status.as_deref() != Some("HTTP/1.1 204 No Content") {
+        blockers.push("local listener did not return HTTP 204 smoke response".into());
+    }
+
+    let stop_status = mihomo_kernel_stop_isolated_test_listener().await;
+    warnings.extend(stop_status.warnings);
+    let stopped_after_smoke = !stop_status.running;
+    if !stopped_after_smoke {
+        blockers.push("isolated test listener remained running after stop".into());
+    }
+
+    let after_runtime_config = kernel_runtime_config_snapshot().await?;
+    let after_verge = Config::verge().await.latest_arc();
+    let system_proxy_unchanged = before_system_proxy == after_verge.enable_system_proxy.unwrap_or(false);
+    let tun_unchanged = before_tun == after_verge.enable_tun_mode.unwrap_or(false);
+    let runtime_config_unchanged = before_runtime_config == after_runtime_config;
+    if !system_proxy_unchanged {
+        blockers.push("system proxy setting changed during smoke evidence".into());
+    }
+    if !tun_unchanged {
+        blockers.push("TUN setting changed during smoke evidence".into());
+    }
+    if !runtime_config_unchanged {
+        blockers.push("runtime config changed during smoke evidence".into());
+    }
+
+    Ok(kernel_listener_smoke_report(
+        requested_port,
+        true,
+        response_status,
+        accepted_connections_before,
+        accepted_connections_after,
+        status_incremented,
+        stopped_after_smoke,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        blockers,
+        warnings,
+    ))
 }
 
 fn active_kernel_label() -> String {
@@ -992,4 +1121,85 @@ fn current_epoch_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
         .unwrap_or_default()
+}
+
+async fn isolated_test_listener_smoke_request(port: u16) -> Result<String> {
+    let mut stream = timeout(
+        Duration::from_secs(2),
+        TcpStream::connect((ISOLATED_TEST_LISTENER_HOST, port)),
+    )
+    .await??;
+    stream
+        .write_all(b"GET /kernel-smoke HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        .await?;
+    let mut response = [0_u8; 128];
+    let bytes_read = timeout(Duration::from_secs(2), stream.read(&mut response)).await??;
+    let response = std::string::String::from_utf8_lossy(&response[..bytes_read]);
+    Ok(response.lines().next().unwrap_or_default().into())
+}
+
+async fn kernel_runtime_config_snapshot() -> Result<Option<String>> {
+    Config::runtime()
+        .await
+        .latest_arc()
+        .config
+        .as_ref()
+        .map(serde_yaml_ng::to_string)
+        .transpose()
+        .map(|snapshot| snapshot.map(Into::into))
+        .map_err(Into::into)
+}
+
+fn kernel_listener_smoke_report(
+    requested_port: u16,
+    started_by_smoke: bool,
+    response_status: Option<String>,
+    accepted_connections_before: u64,
+    accepted_connections_after: u64,
+    status_incremented: bool,
+    stopped_after_smoke: bool,
+    system_proxy_unchanged: bool,
+    tun_unchanged: bool,
+    runtime_config_unchanged: bool,
+    blockers: Vec<String>,
+    warnings: Vec<String>,
+) -> KernelIsolatedTestListenerSmokeEvidenceReport {
+    let passed = started_by_smoke
+        && response_status.as_deref() == Some("HTTP/1.1 204 No Content")
+        && status_incremented
+        && stopped_after_smoke
+        && system_proxy_unchanged
+        && tun_unchanged
+        && runtime_config_unchanged
+        && blockers.is_empty();
+    KernelIsolatedTestListenerSmokeEvidenceReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "listener-smoke-evidence".into(),
+        kernel_area: "listener".into(),
+        mutates_runtime: started_by_smoke,
+        live_execution_allowed: true,
+        requested_host: ISOLATED_TEST_LISTENER_HOST.into(),
+        requested_port,
+        started_by_smoke,
+        response_status,
+        accepted_connections_before,
+        accepted_connections_after,
+        status_incremented,
+        stopped_after_smoke,
+        system_proxy_unchanged,
+        tun_unchanged,
+        runtime_config_unchanged,
+        default_route: false,
+        forwards_traffic: false,
+        mihomo_fallback: true,
+        passed,
+        blockers,
+        warnings,
+        facts: vec![
+            "smoke evidence starts and stops only the loopback test listener".into(),
+            "local smoke request must receive 204 and must not use outbound forwarding".into(),
+            "runtime config, system proxy, and TUN settings are compared before and after".into(),
+        ],
+        next_safe_batch: "loopback-dns-or-forwarding-decision".into(),
+    }
 }
