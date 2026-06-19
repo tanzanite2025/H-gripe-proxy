@@ -3,6 +3,7 @@ import { BlackholeBreakerPanel } from '@/components/advanced/blackhole-breaker-p
 import { EgressIdentityPanel } from '@/components/advanced/egress-identity-panel'
 import { EgressMonitorPanel } from '@/components/advanced/egress-monitor-panel'
 import { IpReputationPanel } from '@/components/advanced/ip-reputation-panel'
+import { LifecycleAuditLogPanel } from '@/components/advanced/lifecycle-audit-log-panel'
 import { MultipathConfigPanel } from '@/components/advanced/multipath-config-panel'
 import { PerformanceMonitor } from '@/components/advanced/performance-monitor'
 import { ResidentialPoolPanel } from '@/components/advanced/residential-pool-panel'
@@ -117,7 +118,10 @@ export function AdvancedTabContent({
         activeTab={activeTab}
         tabId={ADVANCED_TAB_IDS.appRuntime}
       >
-        <AppRuntimePlanningPanel />
+        <div className="space-y-4">
+          <AppRuntimePlanningPanel />
+          <LifecycleAuditLogPanel />
+        </div>
       </AdvancedTabPanel>
 
       <AdvancedTabPanel
