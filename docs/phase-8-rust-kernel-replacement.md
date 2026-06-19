@@ -86,7 +86,7 @@ A mutation is not allowed if it cannot be rolled back to Mihomo without restarti
 
 ### R0: Kernel seam inventory and capability manifest
 
-Status: started. This plan introduces the first read-only command, `get_runtime_kernel_replacement_readiness`.
+Status: complete. `get_runtime_kernel_replacement_readiness` reports the current Mihomo-backed kernel seam without mutating runtime.
 
 Add a Rust-owned read-only report that describes current kernel ownership and replacement readiness. It must not start, stop, or mutate the kernel.
 
@@ -100,13 +100,15 @@ RustKernelReplacementReadiness {
     rustOwnedControlPlane: Vec<String>,
     mihomoOwnedDataPlane: Vec<String>,
     blockedReplacementAreas: Vec<KernelReplacementBlocker>,
-    nextSafeBatch: "kernel-runtime-capability-trait",
+    nextSafeBatch: "rust-shadow-components",
 }
 ```
 
 UI can expose this later in diagnostics, but the first batch can stay Rust command + tests + docs.
 
 ### R1: Kernel runtime capability trait
+
+Status: complete. The first implementation is `MihomoKernelRuntime`, an adapter over existing `CoreManager` / `tauri-plugin-mihomo` behavior.
 
 Introduce an internal Rust abstraction without changing behavior:
 
@@ -118,7 +120,7 @@ trait KernelRuntime {
 }
 ```
 
-The only implementation in R1 should be `MihomoKernelRuntime`. It delegates to existing `CoreManager` / `tauri-plugin-mihomo` paths. This creates a seam for later Rust-native implementations while preserving current behavior.
+The only implementation in R1 is `MihomoKernelRuntime`. It delegates to existing `CoreManager` / `tauri-plugin-mihomo` paths and exposes read-only readiness/preflight reports. This creates a seam for later Rust-native implementations while preserving current behavior.
 
 ### R2: Rust shadow components, no live forwarding
 

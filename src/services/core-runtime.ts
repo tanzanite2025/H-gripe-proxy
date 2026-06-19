@@ -115,6 +115,17 @@ export interface RuntimeKernelReplacementBlocker {
   requiredNextStep: string
 }
 
+export interface RuntimeKernelPreflightReport {
+  runtimeId: string
+  artifactId?: string | null
+  mutatesRuntime: boolean
+  canApplyWithRustKernel: boolean
+  mihomoFallback: boolean
+  facts: string[]
+  blockedReplacementAreas: RuntimeKernelReplacementBlocker[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelReplacementReadiness {
   mutatesRuntime: boolean
   activeKernel: string
@@ -128,5 +139,12 @@ export interface RuntimeKernelReplacementReadiness {
 export async function getRuntimeKernelReplacementReadiness() {
   return invoke<RuntimeKernelReplacementReadiness>(
     'get_runtime_kernel_replacement_readiness',
+  )
+}
+
+export async function getRuntimeKernelApplyPreflight(artifactId?: string) {
+  return invoke<RuntimeKernelPreflightReport>(
+    'get_runtime_kernel_apply_preflight',
+    { artifactId },
   )
 }
