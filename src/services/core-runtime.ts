@@ -186,6 +186,29 @@ export interface RuntimeKernelIsolatedTestListenerSmokeEvidenceReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackForwardingLeakCheckReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  listenerPort: number
+  targetPort: number
+  listenerPortReleased: boolean
+  targetPortReleased: boolean
+  isolatedTestListenerRunning: boolean
+  preflight: RuntimeKernelLoopbackForwardingPreflightReport
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -603,6 +626,16 @@ export async function getRuntimeKernelLoopbackForwardingRollbackDrill(
 ) {
   return invoke<RuntimeKernelLoopbackForwardingRollbackDrillReport>(
     'get_runtime_kernel_loopback_forwarding_rollback_drill',
+    { listenerPort, targetPort },
+  )
+}
+
+export async function getRuntimeKernelLoopbackForwardingLeakCheck(
+  listenerPort?: number,
+  targetPort?: number,
+) {
+  return invoke<RuntimeKernelLoopbackForwardingLeakCheckReport>(
+    'get_runtime_kernel_loopback_forwarding_leak_check',
     { listenerPort, targetPort },
   )
 }

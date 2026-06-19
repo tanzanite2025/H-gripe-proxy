@@ -468,6 +468,31 @@ pub struct KernelLoopbackForwardingRollbackDrillReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingLeakCheckReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub listener_port_released: bool,
+    pub target_port_released: bool,
+    pub isolated_test_listener_running: bool,
+    pub preflight: KernelLoopbackForwardingPreflightReport,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1276,6 +1301,57 @@ pub async fn mihomo_kernel_loopback_forwarding_rollback_drill(
             "runtime config, system proxy, and TUN settings are compared before and after".into(),
         ],
         next_safe_batch: "loopback-forwarding-leak-check".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_forwarding_leak_check(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+) -> Result<KernelLoopbackForwardingLeakCheckReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let preflight = mihomo_kernel_loopback_forwarding_preflight(Some(listener_port), Some(target_port)).await?;
+    let isolated_status = mihomo_kernel_isolated_test_listener_status().await;
+    let listener_port_released = preflight.port_check.listener_available;
+    let target_port_released = preflight.port_check.target_available;
+    let isolated_test_listener_running = isolated_status.running;
+    let mut blockers = Vec::new();
+    if !listener_port_released {
+        blockers.push("loopback forwarding listener port is still occupied".into());
+    }
+    if !target_port_released {
+        blockers.push("loopback forwarding target port is still occupied".into());
+    }
+    if isolated_test_listener_running {
+        blockers.push("isolated test listener is still running during forwarding leak check".into());
+    }
+    let passed = blockers.is_empty();
+
+    Ok(KernelLoopbackForwardingLeakCheckReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-forwarding-leak-check".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        listener_port,
+        target_port,
+        listener_port_released,
+        target_port_released,
+        isolated_test_listener_running,
+        preflight,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed,
+        blockers,
+        warnings: vec!["leak check is local state evidence only and does not prove platform routing safety".into()],
+        facts: vec![
+            "checks forwarding smoke listener and target ports are available after rollback drill".into(),
+            "checks the isolated test listener persistent state is not running".into(),
+            "does not bind persistent sockets, dial adapters, or mutate runtime state".into(),
+        ],
+        next_safe_batch: "loopback-platform-matrix".into(),
     })
 }
 
