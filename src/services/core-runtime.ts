@@ -707,6 +707,82 @@ export interface RuntimeKernelLoopbackR4ExpandedOptInCloseoutReadinessReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR4ExpandedOptInCloseoutReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  requestedExecution: boolean
+  explicitDecision: boolean
+  closeoutDecision: boolean
+  closeoutReady: boolean
+  r4CloseoutComplete: boolean
+  limitedRolloutAllowed: boolean
+  expandedOptInAllowed: boolean
+  closeoutReadiness: RuntimeKernelLoopbackR4ExpandedOptInCloseoutReadinessReport
+  evidence: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInCompletionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  r4Complete: boolean
+  completedBatches: string[]
+  openBoundaries: string[]
+  nextPhaseCandidate: string
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  closeoutReport: RuntimeKernelLoopbackR4ExpandedOptInCloseoutReport
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInNextPhaseHandoffReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  handoffDecision: boolean
+  handoffReady: boolean
+  nextPhase: string
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  completion: RuntimeKernelLoopbackR4ExpandedOptInCompletionReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -1389,6 +1465,107 @@ export async function getRuntimeKernelLoopbackR4ExpandedOptInCloseoutReadiness(
       canaryScope,
       maxCanarySessions,
       closeoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInCloseoutReport(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInCloseoutReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_report',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInCompletionSummary(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInCompletionReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_completion_summary',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInNextPhaseHandoff(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInNextPhaseHandoffReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_next_phase_handoff',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
     },
   )
 }
