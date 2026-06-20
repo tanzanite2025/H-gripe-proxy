@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, and platform rollback evidence and R4 expanded opt-in preflight, execution planning, execution guard, safety planning, synthetic execution closeout, post-execution hold, and decision readiness are complete. Current step is limited rollout gate. |
-| Next safe batch | `loopback-r4-expanded-opt-in-limited-rollout-gate` | Add a limited rollout gate after post-execution hold and decision readiness. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, and platform rollback evidence and R4 expanded opt-in preflight, execution planning, execution guard, safety planning, synthetic execution closeout, post-execution hold, decision readiness, limited rollout gate, rollout audit, and closeout readiness are complete. Current step is closeout report. |
+| Next safe batch | `loopback-r4-expanded-opt-in-closeout-report` | Produce the R4 closeout report from limited rollout gate, rollout audit, and closeout readiness evidence. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -160,7 +160,10 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R4 synthetic execution closeout | Complete | Synthetic loopback only | `get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution` runs only guarded 127.0.0.1 rollback-drill evidence and immediate leak closeout when all guard inputs pass. |
 | R4 post-execution hold | Complete | Synthetic loopback only | `get_runtime_kernel_loopback_r4_expanded_opt_in_post_execution_hold` requires a second hold window after synthetic closeout before any wider decision. |
 | R4 decision readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness` combines post-execution hold and explicit wider decision while keeping expanded opt-in disabled. |
-| R4 expanded opt-in | Blocked | Not allowed yet | Requires a limited rollout gate. Default cutover remains blocked. |
+| R4 limited rollout gate | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate` checks decision readiness, explicit limited-rollout decision, loopback-only canary scope, and session cap without starting rollout. |
+| R4 rollout audit | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_rollout_audit` records gate, rollback binding, and default-cutover boundary audit rows. |
+| R4 closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_readiness` combines rollout audit with an explicit closeout decision before the closeout report. |
+| R4 expanded opt-in | Blocked | Not allowed yet | Requires closeout report. Default cutover remains blocked. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
 
 ### Current R3 loopback listener boundary
@@ -249,7 +252,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r4-expanded-opt-in-post-execution-hold`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r4-expanded-opt-in-limited-rollout-gate`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 
