@@ -238,6 +238,7 @@ mod app_init {
             cmd::get_runtime_kernel_loopback_forwarding_leak_check,
             cmd::get_runtime_kernel_loopback_platform_matrix,
             cmd::get_runtime_kernel_loopback_hold_window,
+            cmd::get_runtime_kernel_loopback_platform_rollback_drills,
             cmd::start_runtime_kernel_isolated_test_listener,
             cmd::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,
