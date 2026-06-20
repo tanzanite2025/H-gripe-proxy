@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, and platform rollback evidence and R4 expanded opt-in preflight, execution planning, execution guard, and safety planning are complete. Current step is synthetic execution. |
-| Next safe batch | `loopback-r4-expanded-opt-in-synthetic-execution` | Add guarded synthetic loopback execution using the established verification and rollback plan. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, and platform rollback evidence and R4 expanded opt-in preflight, execution planning, execution guard, safety planning, and synthetic execution closeout are complete. Current step is post-execution hold. |
+| Next safe batch | `loopback-r4-expanded-opt-in-post-execution-hold` | Add a hold window after synthetic execution evidence before any wider opt-in decision. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -156,8 +156,9 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R3 loopback platform rollback drills | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_platform_rollback_drills` wraps rollback drill evidence with Windows/macOS/Linux matrix rows while keeping expanded opt-in blocked. |
 | R4 expanded opt-in preflight | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_preflight` checks hold-window, supplied platform rollback evidence, and explicit decision without enabling execution. |
 | R4 expanded opt-in execution plan | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan` returns a loopback-only execution sequence while keeping execution disabled. |
-| R4 expanded opt-in execution guard | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard` bundles guard checks plus verification and rollback plans while keeping execution disabled. |
-| R4 expanded opt-in | Blocked | Not allowed yet | Requires a dedicated synthetic execution batch after the guard. Default cutover remains blocked. |
+| R4 expanded opt-in execution guard | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard` bundles guard checks plus verification and rollback plans while keeping default cutover disabled. |
+| R4 synthetic execution closeout | Complete | Synthetic loopback only | `get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution` runs only guarded 127.0.0.1 rollback-drill evidence and immediate leak closeout when all guard inputs pass. |
+| R4 expanded opt-in | Blocked | Not allowed yet | Requires post-execution hold and explicit wider opt-in decision. Default cutover remains blocked. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
 
 ### Current R3 loopback listener boundary
@@ -246,7 +247,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r4-expanded-opt-in-guard-batch`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r4-expanded-opt-in-synthetic-execution`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 
