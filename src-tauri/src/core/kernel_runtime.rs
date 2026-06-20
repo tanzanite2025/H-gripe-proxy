@@ -1214,6 +1214,98 @@ pub struct KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverExecutionPlanStep {
+    pub order: u8,
+    pub name: String,
+    pub phase: String,
+    pub allowed: bool,
+    pub mutates_runtime: bool,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverExecutionPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub execution_plan_decision: bool,
+    pub execution_plan_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub rollback_abort_plan: KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport,
+    pub steps: Vec<KernelLoopbackR5DefaultCutoverExecutionPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub guard_decision: bool,
+    pub guard_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub execution_plan: KernelLoopbackR5DefaultCutoverExecutionPlanReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverDryRunReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub dry_run_decision: bool,
+    pub dry_run_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub guard: KernelLoopbackR5DefaultCutoverGuardReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -4188,6 +4280,329 @@ pub async fn mihomo_kernel_loopback_r5_default_cutover_rollback_abort_plan(
             "keeps all production network ownership with Mihomo".into(),
         ],
         next_safe_batch: "loopback-r5-default-cutover-execution-plan".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_execution_plan(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverExecutionPlanReport> {
+    let execution_plan_decision = execution_plan_decision.unwrap_or(false);
+    let rollback_abort_plan = mihomo_kernel_loopback_r5_default_cutover_rollback_abort_plan(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+    )
+    .await?;
+    let steps = vec![
+        KernelLoopbackR5DefaultCutoverExecutionPlanStep {
+            order: 1,
+            name: "snapshotCurrentRuntimeState".into(),
+            phase: "preflight".into(),
+            allowed: true,
+            mutates_runtime: false,
+            facts: vec!["capture config, system proxy, TUN, route, and listener state before any dry run".into()],
+        },
+        KernelLoopbackR5DefaultCutoverExecutionPlanStep {
+            order: 2,
+            name: "simulateCutoverPlan".into(),
+            phase: "dryRunOnly".into(),
+            allowed: true,
+            mutates_runtime: false,
+            facts: vec!["build an in-memory cutover intent without installing adapters or routes".into()],
+        },
+        KernelLoopbackR5DefaultCutoverExecutionPlanStep {
+            order: 3,
+            name: "verifyAbortCriteria".into(),
+            phase: "dryRunOnly".into(),
+            allowed: true,
+            mutates_runtime: false,
+            facts: vec!["evaluate route/TUN/system proxy/protocol/adapter drift abort criteria".into()],
+        },
+        KernelLoopbackR5DefaultCutoverExecutionPlanStep {
+            order: 4,
+            name: "productionMutation".into(),
+            phase: "blocked".into(),
+            allowed: false,
+            mutates_runtime: false,
+            facts: vec!["default route, system proxy, TUN, protocol, and real adapter mutation stay blocked".into()],
+        },
+    ];
+    let execution_plan_ready = rollback_abort_plan.rollback_abort_ready && execution_plan_decision;
+    let mut blockers = if rollback_abort_plan.rollback_abort_ready {
+        Vec::new()
+    } else {
+        rollback_abort_plan.blockers.clone()
+    };
+    if !execution_plan_decision {
+        blockers.push("R5 execution plan requires an explicit planning decision".into());
+    }
+
+    Ok(KernelLoopbackR5DefaultCutoverExecutionPlanReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-execution-plan".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: rollback_abort_plan.current_platform.clone(),
+        current_arch: rollback_abort_plan.current_arch.clone(),
+        execution_plan_decision,
+        execution_plan_ready,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        rollback_abort_plan,
+        steps,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: execution_plan_ready,
+        blockers,
+        warnings: vec!["execution plan is dry-run planning only; production mutation remains blocked".into()],
+        facts: vec![
+            "defines R5 order of operations without executing default cutover".into(),
+            "keeps Mihomo as the production data plane".into(),
+        ],
+        next_safe_batch: "loopback-r5-default-cutover-execution-guard".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_guard(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverGuardReport> {
+    let guard_decision = guard_decision.unwrap_or(false);
+    let execution_plan = mihomo_kernel_loopback_r5_default_cutover_execution_plan(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+    )
+    .await?;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "executionPlanReady".into(),
+            status: if execution_plan.execution_plan_ready {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: execution_plan.execution_plan_ready,
+            blockers: if execution_plan.execution_plan_ready {
+                Vec::new()
+            } else {
+                execution_plan.blockers.clone()
+            },
+            facts: vec!["guard requires completed R5 execution plan evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "guardDecision".into(),
+            status: if guard_decision { "passed" } else { "blocked" }.into(),
+            passed: guard_decision,
+            blockers: if guard_decision {
+                Vec::new()
+            } else {
+                vec!["R5 execution guard requires an explicit guard decision".into()]
+            },
+            facts: vec!["guard decision authorizes dry-run readiness only".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "mutationFence".into(),
+            status: "passed".into(),
+            passed: true,
+            blockers: Vec::new(),
+            facts: vec!["guard keeps production mutation fenced until dry-run evidence exists".into()],
+        },
+    ];
+    let guard_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR5DefaultCutoverGuardReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-execution-guard".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: execution_plan.current_platform.clone(),
+        current_arch: execution_plan.current_arch.clone(),
+        guard_decision,
+        guard_ready,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        execution_plan,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: guard_ready,
+        blockers,
+        warnings: vec!["guard readiness is not permission to mutate production networking".into()],
+        facts: vec!["gates R5 dry-run readiness behind execution plan and explicit guard decision".into()],
+        next_safe_batch: "loopback-r5-default-cutover-dry-run-readiness".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_dry_run_readiness(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverDryRunReadinessReport> {
+    let dry_run_decision = dry_run_decision.unwrap_or(false);
+    let guard = mihomo_kernel_loopback_r5_default_cutover_guard(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+    )
+    .await?;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "guardReady".into(),
+            status: if guard.guard_ready { "passed" } else { "blocked" }.into(),
+            passed: guard.guard_ready,
+            blockers: if guard.guard_ready {
+                Vec::new()
+            } else {
+                guard.blockers.clone()
+            },
+            facts: vec!["dry-run readiness requires guard evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "dryRunDecision".into(),
+            status: if dry_run_decision { "passed" } else { "blocked" }.into(),
+            passed: dry_run_decision,
+            blockers: if dry_run_decision {
+                Vec::new()
+            } else {
+                vec!["R5 dry-run readiness requires an explicit dry-run decision".into()]
+            },
+            facts: vec!["dry-run decision allows later synthetic dry-run evidence only".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "dryRunScope".into(),
+            status: "passed".into(),
+            passed: true,
+            blockers: Vec::new(),
+            facts: vec![
+                "dry run must remain in-memory and may not install routes, TUN, proxy, protocols, or adapters".into(),
+            ],
+        },
+    ];
+    let dry_run_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR5DefaultCutoverDryRunReadinessReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-dry-run-readiness".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: guard.current_platform.clone(),
+        current_arch: guard.current_arch.clone(),
+        dry_run_decision,
+        dry_run_ready,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        guard,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: dry_run_ready,
+        blockers,
+        warnings: vec!["dry-run readiness still does not perform dry-run execution".into()],
+        facts: vec!["prepares a future dry-run evidence batch while keeping production networking unchanged".into()],
+        next_safe_batch: "loopback-r5-default-cutover-dry-run-evidence".into(),
     })
 }
 
