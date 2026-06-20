@@ -856,6 +856,82 @@ pub struct KernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInPostExecutionHoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub post_execution_hold_started_at_epoch_ms: u64,
+    pub observed_at_epoch_ms: u64,
+    pub minimum_hold_seconds: u64,
+    pub elapsed_hold_seconds: u64,
+    pub post_execution_hold_satisfied: bool,
+    pub execution_attempted: bool,
+    pub synthetic_execution_passed: bool,
+    pub closeout_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub synthetic_execution: KernelLoopbackR4ExpandedOptInSyntheticExecutionReport,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInDecisionReadinessCheck {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInDecisionReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub wider_opt_in_decision: bool,
+    pub decision_ready: bool,
+    pub wider_opt_in_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub post_execution_hold: KernelLoopbackR4ExpandedOptInPostExecutionHoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInDecisionReadinessCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -2757,6 +2833,192 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution(
             "runs closeout leak evidence immediately after synthetic execution".into(),
         ],
         next_safe_batch: "loopback-r4-expanded-opt-in-post-execution-hold".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_post_execution_hold(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+) -> Result<KernelLoopbackR4ExpandedOptInPostExecutionHoldReport> {
+    let requested_execution = requested_execution.unwrap_or(false);
+    let synthetic_execution = mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        Some(requested_execution),
+    )
+    .await?;
+    let observed_at_epoch_ms = current_epoch_ms();
+    let post_execution_hold_started_at_epoch_ms =
+        post_execution_hold_started_at_epoch_ms.unwrap_or(observed_at_epoch_ms);
+    let hold_start_in_future = post_execution_hold_started_at_epoch_ms > observed_at_epoch_ms;
+    let elapsed_hold_seconds = observed_at_epoch_ms
+        .saturating_sub(post_execution_hold_started_at_epoch_ms)
+        .saturating_div(1000);
+    let post_execution_hold_satisfied = !hold_start_in_future
+        && synthetic_execution.passed
+        && synthetic_execution.execution_attempted
+        && elapsed_hold_seconds >= LOOPBACK_HOLD_WINDOW_MIN_SECONDS;
+
+    let mut blockers = Vec::new();
+    if hold_start_in_future {
+        blockers.push("post-execution hold start timestamp is later than observation time".into());
+    }
+    if !synthetic_execution.execution_attempted {
+        blockers.push("synthetic execution was not attempted before post-execution hold".into());
+    }
+    if !synthetic_execution.passed {
+        blockers.extend(synthetic_execution.blockers.clone());
+    }
+    if elapsed_hold_seconds < LOOPBACK_HOLD_WINDOW_MIN_SECONDS {
+        blockers.push(
+            format!("observe at least {LOOPBACK_HOLD_WINDOW_MIN_SECONDS} second(s) after synthetic execution closeout")
+                .into(),
+        );
+    }
+
+    Ok(KernelLoopbackR4ExpandedOptInPostExecutionHoldReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-post-execution-hold".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: synthetic_execution.execution_attempted,
+        live_execution_allowed: synthetic_execution.synthetic_execution_allowed,
+        current_platform: synthetic_execution.current_platform.clone(),
+        current_arch: synthetic_execution.current_arch.clone(),
+        listener_port: synthetic_execution.listener_port,
+        target_port: synthetic_execution.target_port,
+        requested_execution,
+        explicit_decision: synthetic_execution.explicit_decision,
+        post_execution_hold_started_at_epoch_ms,
+        observed_at_epoch_ms,
+        minimum_hold_seconds: LOOPBACK_HOLD_WINDOW_MIN_SECONDS,
+        elapsed_hold_seconds,
+        post_execution_hold_satisfied,
+        execution_attempted: synthetic_execution.execution_attempted,
+        synthetic_execution_passed: synthetic_execution.passed,
+        closeout_passed: synthetic_execution.closeout.passed,
+        expanded_opt_in_allowed: false,
+        synthetic_execution,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: post_execution_hold_satisfied,
+        blockers,
+        warnings: vec![
+            "post-execution hold observes only synthetic loopback closeout evidence".into(),
+            "wider opt-in remains blocked until a separate decision-readiness gate".into(),
+        ],
+        facts: vec![
+            "post-execution hold is independent from the preflight hold window".into(),
+            "hold evidence does not authorize real adapters, TUN, protocol handlers, or default cutover".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-decision-readiness".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_decision_readiness(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInDecisionReadinessReport> {
+    let wider_opt_in_decision = wider_opt_in_decision.unwrap_or(false);
+    let requested_execution = requested_execution.unwrap_or(false);
+    let post_execution_hold = mihomo_kernel_loopback_r4_expanded_opt_in_post_execution_hold(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        Some(requested_execution),
+        post_execution_hold_started_at_epoch_ms,
+    )
+    .await?;
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInDecisionReadinessCheck {
+            name: "postExecutionHold".into(),
+            status: if post_execution_hold.post_execution_hold_satisfied {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: post_execution_hold.post_execution_hold_satisfied,
+            blockers: if post_execution_hold.post_execution_hold_satisfied {
+                Vec::new()
+            } else {
+                post_execution_hold.blockers.clone()
+            },
+            facts: vec!["synthetic execution closeout must remain stable through the hold window".into()],
+        },
+        KernelLoopbackR4ExpandedOptInDecisionReadinessCheck {
+            name: "widerOptInDecision".into(),
+            status: if wider_opt_in_decision { "passed" } else { "blocked" }.into(),
+            passed: wider_opt_in_decision,
+            blockers: if wider_opt_in_decision {
+                Vec::new()
+            } else {
+                vec!["wider R4 opt-in requires an explicit decision after post-execution hold".into()]
+            },
+            facts: vec!["synthetic success alone is not wider opt-in permission".into()],
+        },
+        KernelLoopbackR4ExpandedOptInDecisionReadinessCheck {
+            name: "defaultCutoverBoundary".into(),
+            status: "passed".into(),
+            passed: true,
+            blockers: Vec::new(),
+            facts: vec!["decision readiness can only target bounded loopback-expanded opt-in".into()],
+        },
+    ];
+    let decision_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR4ExpandedOptInDecisionReadinessReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-decision-readiness".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: post_execution_hold.mutates_runtime,
+        live_execution_allowed: post_execution_hold.live_execution_allowed,
+        current_platform: post_execution_hold.current_platform.clone(),
+        current_arch: post_execution_hold.current_arch.clone(),
+        listener_port: post_execution_hold.listener_port,
+        target_port: post_execution_hold.target_port,
+        requested_execution,
+        explicit_decision: post_execution_hold.explicit_decision,
+        wider_opt_in_decision,
+        decision_ready,
+        wider_opt_in_allowed: false,
+        expanded_opt_in_allowed: false,
+        post_execution_hold,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: decision_ready,
+        blockers,
+        warnings: vec!["decision readiness is still not default cutover or production forwarding permission".into()],
+        facts: vec![
+            "bundles post-execution hold and explicit wider-decision readiness".into(),
+            "keeps real adapter/TUN/protocol/default route replacement blocked".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-limited-rollout-gate".into(),
     })
 }
 
