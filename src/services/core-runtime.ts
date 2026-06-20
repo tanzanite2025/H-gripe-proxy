@@ -351,6 +351,55 @@ export interface RuntimeKernelLoopbackPlatformRollbackDrillsReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR4ExpandedOptInPreflightCheck {
+  name: string
+  status: string
+  passed: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInPreflightRow {
+  platform: string
+  currentPlatform: boolean
+  rollbackDrillObserved: boolean
+  holdWindowSatisfied?: boolean | null
+  evidenceStatus: string
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  explicitDecision: boolean
+  requiredPlatforms: string[]
+  observedRollbackPlatforms: string[]
+  pendingRollbackPlatforms: string[]
+  currentPlatformHoldWindowSatisfied: boolean
+  preflightPassed: boolean
+  expandedOptInAllowed: boolean
+  holdWindow: RuntimeKernelLoopbackHoldWindowReport
+  rows: RuntimeKernelLoopbackR4ExpandedOptInPreflightRow[]
+  checks: RuntimeKernelLoopbackR4ExpandedOptInPreflightCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -811,5 +860,24 @@ export async function getRuntimeKernelLoopbackPlatformRollbackDrills(
   return invoke<RuntimeKernelLoopbackPlatformRollbackDrillsReport>(
     'get_runtime_kernel_loopback_platform_rollback_drills',
     { listenerPort, targetPort, holdStartedAtEpochMs },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInPreflight(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInPreflightReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_preflight',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+    },
   )
 }
