@@ -400,6 +400,45 @@ export interface RuntimeKernelLoopbackR4ExpandedOptInPreflightReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanStep {
+  order: number
+  name: string
+  action: string
+  mutatesRuntime: boolean
+  requiresExplicitDecision: boolean
+  enabledInThisBatch: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  candidateScope: string
+  explicitDecision: boolean
+  planReady: boolean
+  executionAllowed: boolean
+  expandedOptInAllowed: boolean
+  preflight: RuntimeKernelLoopbackR4ExpandedOptInPreflightReport
+  steps: RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanStep[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -872,6 +911,25 @@ export async function getRuntimeKernelLoopbackR4ExpandedOptInPreflight(
 ) {
   return invoke<RuntimeKernelLoopbackR4ExpandedOptInPreflightReport>(
     'get_runtime_kernel_loopback_r4_expanded_opt_in_preflight',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInExecutionPlan(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan',
     {
       listenerPort,
       targetPort,

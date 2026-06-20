@@ -704,6 +704,49 @@ pub struct KernelLoopbackR4ExpandedOptInPreflightReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionPlanStep {
+    pub order: u8,
+    pub name: String,
+    pub action: String,
+    pub mutates_runtime: bool,
+    pub requires_explicit_decision: bool,
+    pub enabled_in_this_batch: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub candidate_scope: String,
+    pub explicit_decision: bool,
+    pub plan_ready: bool,
+    pub execution_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub preflight: KernelLoopbackR4ExpandedOptInPreflightReport,
+    pub steps: Vec<KernelLoopbackR4ExpandedOptInExecutionPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -2175,6 +2218,110 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_preflight(
             "keeps expanded opt-in execution blocked for a dedicated later batch".into(),
         ],
         next_safe_batch: "loopback-r4-expanded-opt-in-execution-plan".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_plan(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInExecutionPlanReport> {
+    let preflight = mihomo_kernel_loopback_r4_expanded_opt_in_preflight(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+    )
+    .await?;
+    let explicit_decision = preflight.explicit_decision;
+    let plan_ready = preflight.preflight_passed;
+
+    let steps = vec![
+        KernelLoopbackR4ExpandedOptInExecutionPlanStep {
+            order: 1,
+            name: "revalidateReadOnlyPreflight".into(),
+            action: "call get_runtime_kernel_loopback_r4_expanded_opt_in_preflight before any execution attempt".into(),
+            mutates_runtime: false,
+            requires_explicit_decision: false,
+            enabled_in_this_batch: true,
+            blockers: Vec::new(),
+            facts: vec!["preflight must stay fresh and read-only".into()],
+        },
+        KernelLoopbackR4ExpandedOptInExecutionPlanStep {
+            order: 2,
+            name: "requireExplicitExpandedOptInDecision".into(),
+            action: "require a separate user decision scoped to R4 expanded opt-in".into(),
+            mutates_runtime: false,
+            requires_explicit_decision: true,
+            enabled_in_this_batch: true,
+            blockers: if explicit_decision {
+                Vec::new()
+            } else {
+                vec!["explicit R4 decision is missing".into()]
+            },
+            facts: vec!["evidence readiness is not rollout permission".into()],
+        },
+        KernelLoopbackR4ExpandedOptInExecutionPlanStep {
+            order: 3,
+            name: "executeLoopbackOnlyExpandedRuntime".into(),
+            action: "future batch may run only bounded loopback synthetic forwarding with rollback state capture"
+                .into(),
+            mutates_runtime: true,
+            requires_explicit_decision: true,
+            enabled_in_this_batch: false,
+            blockers: vec!["execution guard is not implemented in this planning batch".into()],
+            facts: vec!["real adapters, TUN, protocol handlers, and default route remain out of scope".into()],
+        },
+        KernelLoopbackR4ExpandedOptInExecutionPlanStep {
+            order: 4,
+            name: "verifyAndRollback".into(),
+            action: "future batch must verify no leaked sockets or config drift and provide explicit rollback".into(),
+            mutates_runtime: true,
+            requires_explicit_decision: true,
+            enabled_in_this_batch: false,
+            blockers: vec!["verification and rollback execution are reserved for a dedicated batch".into()],
+            facts: vec!["default cutover cannot be part of R4 expanded opt-in execution".into()],
+        },
+    ];
+
+    let mut blockers = preflight.blockers.clone();
+    blockers.push("execution plan is descriptive only; expanded opt-in execution remains blocked".into());
+
+    Ok(KernelLoopbackR4ExpandedOptInExecutionPlanReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-execution-plan".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: preflight.current_platform.clone(),
+        current_arch: preflight.current_arch.clone(),
+        listener_port: preflight.listener_port,
+        target_port: preflight.target_port,
+        candidate_scope: "loopbackSyntheticOnly".into(),
+        explicit_decision,
+        plan_ready,
+        execution_allowed: false,
+        expanded_opt_in_allowed: false,
+        preflight,
+        steps,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: false,
+        blockers,
+        warnings: vec![
+            "execution plan is read-only documentation in data form and does not authorize runtime mutation".into(),
+        ],
+        facts: vec![
+            "keeps R4 execution split from readiness preflight".into(),
+            "limits any future execution candidate to synthetic loopback scope".into(),
+            "keeps default cutover blocked for a later dedicated phase".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-execution-guard".into(),
     })
 }
 
