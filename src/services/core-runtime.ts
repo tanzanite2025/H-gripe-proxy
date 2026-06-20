@@ -538,6 +538,76 @@ export interface RuntimeKernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR4ExpandedOptInPostExecutionHoldReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  requestedExecution: boolean
+  explicitDecision: boolean
+  postExecutionHoldStartedAtEpochMs: number
+  observedAtEpochMs: number
+  minimumHoldSeconds: number
+  elapsedHoldSeconds: number
+  postExecutionHoldSatisfied: boolean
+  executionAttempted: boolean
+  syntheticExecutionPassed: boolean
+  closeoutPassed: boolean
+  expandedOptInAllowed: boolean
+  syntheticExecution: RuntimeKernelLoopbackR4ExpandedOptInSyntheticExecutionReport
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInDecisionReadinessCheck {
+  name: string
+  status: string
+  passed: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInDecisionReadinessReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  requestedExecution: boolean
+  explicitDecision: boolean
+  widerOptInDecision: boolean
+  decisionReady: boolean
+  widerOptInAllowed: boolean
+  expandedOptInAllowed: boolean
+  postExecutionHold: RuntimeKernelLoopbackR4ExpandedOptInPostExecutionHoldReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInDecisionReadinessCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -1077,6 +1147,54 @@ export async function getRuntimeKernelLoopbackR4ExpandedOptInSyntheticExecution(
       observedRollbackPlatforms,
       explicitDecision,
       requestedExecution,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInPostExecutionHold(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInPostExecutionHoldReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_post_execution_hold',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInDecisionReadiness(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInDecisionReadinessReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
     },
   )
 }

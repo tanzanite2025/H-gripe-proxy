@@ -13,8 +13,9 @@ use crate::{
             KernelLoopbackForwardingLeakCheckReport, KernelLoopbackForwardingPreflightReport,
             KernelLoopbackForwardingRollbackDrillReport, KernelLoopbackForwardingSmokeEvidenceReport,
             KernelLoopbackHoldWindowReport, KernelLoopbackPlatformMatrixReport,
-            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInExecutionGuardReport,
-            KernelLoopbackR4ExpandedOptInExecutionPlanReport, KernelLoopbackR4ExpandedOptInPreflightReport,
+            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInDecisionReadinessReport,
+            KernelLoopbackR4ExpandedOptInExecutionGuardReport, KernelLoopbackR4ExpandedOptInExecutionPlanReport,
+            KernelLoopbackR4ExpandedOptInPostExecutionHoldReport, KernelLoopbackR4ExpandedOptInPreflightReport,
             KernelLoopbackR4ExpandedOptInSyntheticExecutionReport, KernelReplacementReadiness,
             KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelShadowComponentsReport,
             mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
@@ -25,8 +26,10 @@ use crate::{
             mihomo_kernel_loopback_forwarding_preflight, mihomo_kernel_loopback_forwarding_rollback_drill,
             mihomo_kernel_loopback_forwarding_smoke_evidence, mihomo_kernel_loopback_hold_window,
             mihomo_kernel_loopback_platform_matrix, mihomo_kernel_loopback_platform_rollback_drills,
+            mihomo_kernel_loopback_r4_expanded_opt_in_decision_readiness,
             mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard,
             mihomo_kernel_loopback_r4_expanded_opt_in_execution_plan,
+            mihomo_kernel_loopback_r4_expanded_opt_in_post_execution_hold,
             mihomo_kernel_loopback_r4_expanded_opt_in_preflight,
             mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution, mihomo_kernel_replacement_readiness,
             mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
@@ -260,6 +263,54 @@ pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution(
         observed_rollback_platforms,
         explicit_decision,
         requested_execution,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_post_execution_hold(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+) -> CmdResult<KernelLoopbackR4ExpandedOptInPostExecutionHoldReport> {
+    mihomo_kernel_loopback_r4_expanded_opt_in_post_execution_hold(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR4ExpandedOptInDecisionReadinessReport> {
+    mihomo_kernel_loopback_r4_expanded_opt_in_decision_readiness(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
     )
     .await
     .stringify_err()
