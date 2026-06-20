@@ -304,6 +304,53 @@ export interface RuntimeKernelLoopbackHoldWindowReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackPlatformRollbackDrillRow {
+  platform: string
+  currentPlatform: boolean
+  evidenceStatus: string
+  smokePassed?: boolean | null
+  portsReleased?: boolean | null
+  systemProxyUnchanged?: boolean | null
+  tunUnchanged?: boolean | null
+  runtimeConfigUnchanged?: boolean | null
+  holdWindowSatisfied?: boolean | null
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackPlatformRollbackDrillsReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  requiredPlatforms: string[]
+  coveredRollbackPlatforms: string[]
+  pendingRollbackPlatforms: string[]
+  currentPlatformPassed: boolean
+  expandedOptInAllowed: boolean
+  holdWindow: RuntimeKernelLoopbackHoldWindowReport
+  rollbackDrill: RuntimeKernelLoopbackForwardingRollbackDrillReport
+  rows: RuntimeKernelLoopbackPlatformRollbackDrillRow[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -752,6 +799,17 @@ export async function getRuntimeKernelLoopbackHoldWindow(
 ) {
   return invoke<RuntimeKernelLoopbackHoldWindowReport>(
     'get_runtime_kernel_loopback_hold_window',
+    { listenerPort, targetPort, holdStartedAtEpochMs },
+  )
+}
+
+export async function getRuntimeKernelLoopbackPlatformRollbackDrills(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+) {
+  return invoke<RuntimeKernelLoopbackPlatformRollbackDrillsReport>(
+    'get_runtime_kernel_loopback_platform_rollback_drills',
     { listenerPort, targetPort, holdStartedAtEpochMs },
   )
 }

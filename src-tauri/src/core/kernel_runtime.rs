@@ -598,6 +598,57 @@ pub struct KernelLoopbackHoldWindowReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformRollbackDrillRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub evidence_status: String,
+    pub smoke_passed: Option<bool>,
+    pub ports_released: Option<bool>,
+    pub system_proxy_unchanged: Option<bool>,
+    pub tun_unchanged: Option<bool>,
+    pub runtime_config_unchanged: Option<bool>,
+    pub hold_window_satisfied: Option<bool>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformRollbackDrillsReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub required_platforms: Vec<String>,
+    pub covered_rollback_platforms: Vec<String>,
+    pub pending_rollback_platforms: Vec<String>,
+    pub current_platform_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub hold_window: KernelLoopbackHoldWindowReport,
+    pub rollback_drill: KernelLoopbackForwardingRollbackDrillReport,
+    pub rows: Vec<KernelLoopbackPlatformRollbackDrillRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1758,6 +1809,156 @@ pub async fn mihomo_kernel_loopback_hold_window(
             "keeps expanded opt-in blocked after hold-window evidence until platform rollback evidence exists".into(),
         ],
         next_safe_batch: "loopback-platform-rollback-drills".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_platform_rollback_drills(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+) -> Result<KernelLoopbackPlatformRollbackDrillsReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let hold_window =
+        mihomo_kernel_loopback_hold_window(Some(listener_port), Some(target_port), hold_started_at_epoch_ms).await?;
+    let rollback_drill =
+        mihomo_kernel_loopback_forwarding_rollback_drill(Some(listener_port), Some(target_port)).await?;
+    let current_platform = hold_window.current_platform.clone();
+    let current_arch = hold_window.current_arch.clone();
+    let current_platform_supported = LOOPBACK_PLATFORM_MATRIX_PLATFORMS.contains(&current_platform.as_str());
+    let current_platform_passed = current_platform_supported && rollback_drill.passed;
+    let required_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+
+    let rows = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .map(|platform| {
+            let is_current_platform = *platform == current_platform;
+            if is_current_platform {
+                let mut facts = rollback_drill.facts.clone();
+                facts.push(
+                    format!("recorded loopback rollback drill evidence on {current_platform}/{current_arch}").into(),
+                );
+
+                KernelLoopbackPlatformRollbackDrillRow {
+                    platform: (*platform).into(),
+                    current_platform: true,
+                    evidence_status: if rollback_drill.passed {
+                        "observed".into()
+                    } else {
+                        "blocked".into()
+                    },
+                    smoke_passed: Some(rollback_drill.smoke_passed),
+                    ports_released: Some(rollback_drill.ports_released),
+                    system_proxy_unchanged: Some(rollback_drill.system_proxy_unchanged),
+                    tun_unchanged: Some(rollback_drill.tun_unchanged),
+                    runtime_config_unchanged: Some(rollback_drill.runtime_config_unchanged),
+                    hold_window_satisfied: Some(hold_window.current_platform_hold_window_satisfied),
+                    default_route: rollback_drill.default_route,
+                    forwards_traffic: rollback_drill.forwards_traffic,
+                    outbound_adapters_used: rollback_drill.outbound_adapters_used,
+                    mihomo_fallback: rollback_drill.mihomo_fallback,
+                    blockers: rollback_drill.blockers.clone(),
+                    facts,
+                }
+            } else {
+                KernelLoopbackPlatformRollbackDrillRow {
+                    platform: (*platform).into(),
+                    current_platform: false,
+                    evidence_status: "pending".into(),
+                    smoke_passed: None,
+                    ports_released: None,
+                    system_proxy_unchanged: None,
+                    tun_unchanged: None,
+                    runtime_config_unchanged: None,
+                    hold_window_satisfied: None,
+                    default_route: false,
+                    forwards_traffic: false,
+                    outbound_adapters_used: false,
+                    mihomo_fallback: true,
+                    blockers: vec![
+                        format!("run loopback platform rollback drills on {platform} before expanded opt-in").into(),
+                    ],
+                    facts: vec!["pending rollback drill row records no runtime evidence".into()],
+                }
+            }
+        })
+        .collect::<Vec<KernelLoopbackPlatformRollbackDrillRow>>();
+
+    let covered_rollback_platforms = if current_platform_passed {
+        vec![current_platform.clone()]
+    } else {
+        Vec::new()
+    };
+    let pending_rollback_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .filter(|platform| !covered_rollback_platforms.iter().any(|covered| covered == **platform))
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+
+    let mut blockers = vec![
+        "R4 expanded opt-in remains blocked until Windows, macOS, and Linux rollback drill rows are observed".into(),
+        "R4 expanded opt-in still requires an explicit decision and dedicated preflight".into(),
+    ];
+    if !current_platform_supported {
+        blockers.push(format!("current platform {current_platform} is not in the required rollback matrix").into());
+    }
+    if !rollback_drill.passed {
+        blockers.extend(rollback_drill.blockers.clone());
+    }
+    if !hold_window.current_platform_hold_window_satisfied {
+        blockers.push("current platform hold-window evidence is not satisfied".into());
+    }
+    if !pending_rollback_platforms.is_empty() {
+        blockers.push(
+            format!(
+                "pending rollback drill platform evidence: {}",
+                pending_rollback_platforms.join(", ")
+            )
+            .into(),
+        );
+    }
+
+    let mut warnings = rollback_drill.warnings.clone();
+    warnings.extend(hold_window.warnings.clone());
+    warnings.push(
+        "platform rollback drills are still synthetic loopback-only evidence and do not permit real adapter/TUN/protocol cutover"
+            .into(),
+    );
+
+    Ok(KernelLoopbackPlatformRollbackDrillsReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-platform-rollback-drills".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: true,
+        live_execution_allowed: true,
+        current_platform,
+        current_arch,
+        listener_port,
+        target_port,
+        required_platforms,
+        covered_rollback_platforms,
+        pending_rollback_platforms,
+        current_platform_passed,
+        expanded_opt_in_allowed: false,
+        hold_window,
+        rollback_drill,
+        rows,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: current_platform_passed,
+        blockers,
+        warnings,
+        facts: vec![
+            "wraps loopback forwarding rollback drill evidence with required platform rows".into(),
+            "records only the current platform; other platform rows stay pending until run there".into(),
+            "keeps expanded opt-in blocked until a dedicated R4 preflight and explicit decision".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-preflight".into(),
     })
 }
 
