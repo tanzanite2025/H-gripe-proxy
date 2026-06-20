@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R5 preflight in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, platform rollback evidence, and R4 closeout are complete. R5 default-cutover preflight, risk matrix, and rollback/abort planning are complete. Current step is R5 execution plan. |
-| Next safe batch | `loopback-r5-default-cutover-execution-plan` | Draft a guarded R5 execution plan after preflight, risk matrix, and rollback/abort planning. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R5 dry-run pending | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, platform rollback evidence, and R4 closeout are complete. R5 default-cutover preflight, risk matrix, rollback/abort planning, execution plan, execution guard, and dry-run readiness are complete. Current step is R5 dry-run evidence. |
+| Next safe batch | `loopback-r5-default-cutover-dry-run-evidence` | Collect bounded R5 dry-run evidence after execution plan, guard, and dry-run readiness. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -170,7 +170,10 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R5 default cutover preflight | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_preflight` requires R4 handoff and explicit R5 preflight decision while keeping default cutover disabled. |
 | R5 default cutover risk matrix | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_risk_matrix` catalogs default route, system proxy, TUN, protocol handler, and real adapter risks as blocked. |
 | R5 rollback/abort plan | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan` records abort criteria and rollback boundaries before any R5 execution plan. |
-| R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after execution plan, guard, dry-run evidence, hold windows, and independent rollback. |
+| R5 default cutover execution plan | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_execution_plan` defines dry-run-only execution order after rollback/abort planning. |
+| R5 default cutover execution guard | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_guard` gates dry-run readiness behind execution plan and explicit guard decision. |
+| R5 default cutover dry-run readiness | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_dry_run_readiness` scopes the next evidence batch to in-memory dry-run only. |
+| R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after dry-run evidence, hold windows, and independent rollback. |
 
 ### Current R3 loopback listener boundary
 
@@ -258,7 +261,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r5-default-cutover-preflight`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r5-default-cutover-execution-plan`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 
