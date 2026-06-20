@@ -19,9 +19,10 @@ use crate::{
             KernelLoopbackR4ExpandedOptInExecutionPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport,
             KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport, KernelLoopbackR4ExpandedOptInPostExecutionHoldReport,
             KernelLoopbackR4ExpandedOptInPreflightReport, KernelLoopbackR4ExpandedOptInRolloutAuditReport,
-            KernelLoopbackR4ExpandedOptInSyntheticExecutionReport, KernelReplacementReadiness,
-            KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelShadowComponentsReport,
-            mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
+            KernelLoopbackR4ExpandedOptInSyntheticExecutionReport, KernelLoopbackR5DefaultCutoverPreflightReport,
+            KernelLoopbackR5DefaultCutoverRiskMatrixReport, KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport,
+            KernelReplacementReadiness, KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport,
+            KernelShadowComponentsReport, mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
             mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
             mihomo_kernel_isolated_listener_preflight, mihomo_kernel_isolated_test_listener_smoke_evidence,
             mihomo_kernel_isolated_test_listener_status, mihomo_kernel_loopback_dns_preflight,
@@ -40,7 +41,9 @@ use crate::{
             mihomo_kernel_loopback_r4_expanded_opt_in_post_execution_hold,
             mihomo_kernel_loopback_r4_expanded_opt_in_preflight,
             mihomo_kernel_loopback_r4_expanded_opt_in_rollout_audit,
-            mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution, mihomo_kernel_replacement_readiness,
+            mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution,
+            mihomo_kernel_loopback_r5_default_cutover_preflight, mihomo_kernel_loopback_r5_default_cutover_risk_matrix,
+            mihomo_kernel_loopback_r5_default_cutover_rollback_abort_plan, mihomo_kernel_replacement_readiness,
             mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
             mihomo_kernel_start_isolated_test_listener, mihomo_kernel_stop_isolated_test_listener,
         },
@@ -516,6 +519,119 @@ pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_next_phase_handoff(
         max_canary_sessions,
         closeout_decision,
         handoff_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r5_default_cutover_preflight(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR5DefaultCutoverPreflightReport> {
+    mihomo_kernel_loopback_r5_default_cutover_preflight(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r5_default_cutover_risk_matrix(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR5DefaultCutoverRiskMatrixReport> {
+    mihomo_kernel_loopback_r5_default_cutover_risk_matrix(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport> {
+    mihomo_kernel_loopback_r5_default_cutover_rollback_abort_plan(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
     )
     .await
     .stringify_err()

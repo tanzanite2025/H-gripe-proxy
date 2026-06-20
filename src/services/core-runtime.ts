@@ -783,6 +783,89 @@ export interface RuntimeKernelLoopbackR4ExpandedOptInNextPhaseHandoffReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR5DefaultCutoverPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  r5PreflightDecision: boolean
+  preflightReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  handoff: RuntimeKernelLoopbackR4ExpandedOptInNextPhaseHandoffReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverRiskRow {
+  name: string
+  severity: string
+  status: string
+  passed: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverRiskMatrixReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  riskMatrixReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  preflight: RuntimeKernelLoopbackR5DefaultCutoverPreflightReport
+  rows: RuntimeKernelLoopbackR5DefaultCutoverRiskRow[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverRollbackAbortPlanReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  rollbackPlanDecision: boolean
+  rollbackAbortReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  riskMatrix: RuntimeKernelLoopbackR5DefaultCutoverRiskMatrixReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -1566,6 +1649,119 @@ export async function getRuntimeKernelLoopbackR4ExpandedOptInNextPhaseHandoff(
       maxCanarySessions,
       closeoutDecision,
       handoffDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverPreflight(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverPreflightReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_preflight',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverRiskMatrix(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverRiskMatrixReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_risk_matrix',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverRollbackAbortPlan(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverRollbackAbortPlanReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
     },
   )
 }

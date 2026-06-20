@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R4 closeout complete | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, and platform rollback evidence and R4 expanded opt-in preflight, execution planning, execution guard, safety planning, synthetic execution closeout, post-execution hold, decision readiness, limited rollout gate, rollout audit, closeout readiness, closeout report, completion summary, and next-phase handoff are complete. Current step is R5 default-cutover preflight. |
-| Next safe batch | `loopback-r5-default-cutover-preflight` | Start the next phase with a separate preflight before any default cutover work. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R5 preflight in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, platform rollback evidence, and R4 closeout are complete. R5 default-cutover preflight, risk matrix, and rollback/abort planning are complete. Current step is R5 execution plan. |
+| Next safe batch | `loopback-r5-default-cutover-execution-plan` | Draft a guarded R5 execution plan after preflight, risk matrix, and rollback/abort planning. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -167,7 +167,10 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R4 completion summary | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_completion_summary` records completed R4 batches and open production boundaries. |
 | R4 next-phase handoff | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_next_phase_handoff` requires explicit handoff before entering R5 preflight. |
 | R4 expanded opt-in | Complete | Readiness only | R4 closes with synthetic loopback evidence only; default cutover remains blocked until a separate R5 phase. |
-| R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
+| R5 default cutover preflight | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_preflight` requires R4 handoff and explicit R5 preflight decision while keeping default cutover disabled. |
+| R5 default cutover risk matrix | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_risk_matrix` catalogs default route, system proxy, TUN, protocol handler, and real adapter risks as blocked. |
+| R5 rollback/abort plan | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan` records abort criteria and rollback boundaries before any R5 execution plan. |
+| R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after execution plan, guard, dry-run evidence, hold windows, and independent rollback. |
 
 ### Current R3 loopback listener boundary
 
@@ -255,7 +258,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r4-expanded-opt-in-closeout-report`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r5-default-cutover-preflight`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 
