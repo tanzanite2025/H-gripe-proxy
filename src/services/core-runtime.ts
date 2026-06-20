@@ -472,12 +472,61 @@ export interface RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardReport {
   requestedExecution: boolean
   explicitDecision: boolean
   guardReady: boolean
+  syntheticExecutionAllowed: boolean
   executionAllowed: boolean
   expandedOptInAllowed: boolean
   plan: RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanReport
   guardChecks: RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardCheck[]
   verificationPlan: RuntimeKernelLoopbackR4ExpandedOptInSafetyPlanStep[]
   rollbackPlan: RuntimeKernelLoopbackR4ExpandedOptInSafetyPlanStep[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout {
+  rollbackDrillPassed: boolean
+  leakCheckPassed: boolean
+  portsReleased: boolean
+  systemProxyUnchanged: boolean
+  tunUnchanged: boolean
+  runtimeConfigUnchanged: boolean
+  isolatedTestListenerStopped: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  requestedExecution: boolean
+  explicitDecision: boolean
+  syntheticExecutionAllowed: boolean
+  executionAttempted: boolean
+  expandedOptInAllowed: boolean
+  guard: RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardReport
+  rollbackDrill?: RuntimeKernelLoopbackForwardingRollbackDrillReport | null
+  leakCheck?: RuntimeKernelLoopbackForwardingLeakCheckReport | null
+  closeout: RuntimeKernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout
   defaultRoute: boolean
   forwardsTraffic: boolean
   outboundAdaptersUsed: boolean
@@ -1000,6 +1049,27 @@ export async function getRuntimeKernelLoopbackR4ExpandedOptInExecutionGuard(
 ) {
   return invoke<RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardReport>(
     'get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInSyntheticExecution(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInSyntheticExecutionReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution',
     {
       listenerPort,
       targetPort,

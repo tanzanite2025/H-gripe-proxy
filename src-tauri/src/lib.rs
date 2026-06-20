@@ -242,6 +242,7 @@ mod app_init {
             cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_preflight,
             cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan,
             cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard,
+            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution,
             cmd::start_runtime_kernel_isolated_test_listener,
             cmd::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,

@@ -784,12 +784,65 @@ pub struct KernelLoopbackR4ExpandedOptInExecutionGuardReport {
     pub requested_execution: bool,
     pub explicit_decision: bool,
     pub guard_ready: bool,
+    pub synthetic_execution_allowed: bool,
     pub execution_allowed: bool,
     pub expanded_opt_in_allowed: bool,
     pub plan: KernelLoopbackR4ExpandedOptInExecutionPlanReport,
     pub guard_checks: Vec<KernelLoopbackR4ExpandedOptInExecutionGuardCheck>,
     pub verification_plan: Vec<KernelLoopbackR4ExpandedOptInSafetyPlanStep>,
     pub rollback_plan: Vec<KernelLoopbackR4ExpandedOptInSafetyPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout {
+    pub rollback_drill_passed: bool,
+    pub leak_check_passed: bool,
+    pub ports_released: bool,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub isolated_test_listener_stopped: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub synthetic_execution_allowed: bool,
+    pub execution_attempted: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub guard: KernelLoopbackR4ExpandedOptInExecutionGuardReport,
+    pub rollback_drill: Option<KernelLoopbackForwardingRollbackDrillReport>,
+    pub leak_check: Option<KernelLoopbackForwardingLeakCheckReport>,
+    pub closeout: KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout,
     pub default_route: bool,
     pub forwards_traffic: bool,
     pub outbound_adapters_used: bool,
@@ -2440,11 +2493,11 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
         },
         KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
             name: "implementationBoundary".into(),
-            status: "blocked".into(),
-            passed: false,
+            status: "passed".into(),
+            passed: true,
             required_for_execution: true,
-            blockers: vec!["synthetic expanded execution is intentionally not implemented in this guard batch".into()],
-            facts: vec!["this command records guard, verification, and rollback requirements only".into()],
+            blockers: Vec::new(),
+            facts: vec!["synthetic loopback execution is implemented behind this guard".into()],
         },
     ];
 
@@ -2505,11 +2558,11 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
     ];
 
     let guard_ready = guard_checks.iter().all(|check| check.passed);
-    let mut blockers = guard_checks
+    let synthetic_execution_allowed = guard_ready;
+    let blockers = guard_checks
         .iter()
         .flat_map(|check| check.blockers.clone())
         .collect::<Vec<String>>();
-    blockers.push("execution remains disabled until a dedicated synthetic execution batch".into());
 
     Ok(KernelLoopbackR4ExpandedOptInExecutionGuardReport {
         runtime_id: MIHOMO_RUNTIME_ID.into(),
@@ -2524,6 +2577,7 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
         requested_execution,
         explicit_decision,
         guard_ready,
+        synthetic_execution_allowed,
         execution_allowed: false,
         expanded_opt_in_allowed: false,
         plan,
@@ -2534,15 +2588,175 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
         forwards_traffic: false,
         outbound_adapters_used: false,
         mihomo_fallback: true,
-        passed: false,
+        passed: guard_ready,
         blockers,
-        warnings: vec!["execution guard is read-only and does not start expanded opt-in execution".into()],
+        warnings: vec![
+            "execution guard is read-only and does not start expanded opt-in execution".into(),
+            "synthetic execution permission is not default cutover permission".into(),
+        ],
         facts: vec![
             "bundles execution guard checks with verification and rollback plans".into(),
             "keeps future execution constrained to synthetic loopback scope".into(),
             "keeps default cutover, real adapters, TUN, and protocol handlers blocked".into(),
         ],
         next_safe_batch: "loopback-r4-expanded-opt-in-synthetic-execution".into(),
+    })
+}
+
+fn build_blocked_r4_synthetic_execution_closeout(
+    blockers: Vec<String>,
+) -> KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout {
+    KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout {
+        rollback_drill_passed: false,
+        leak_check_passed: false,
+        ports_released: false,
+        system_proxy_unchanged: false,
+        tun_unchanged: false,
+        runtime_config_unchanged: false,
+        isolated_test_listener_stopped: false,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: false,
+        blockers,
+        warnings: vec!["synthetic execution was not attempted because guard checks blocked it".into()],
+        facts: vec!["blocked closeout records no runtime mutation evidence".into()],
+    }
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInSyntheticExecutionReport> {
+    let requested_execution = requested_execution.unwrap_or(false);
+    let guard = mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        Some(requested_execution),
+    )
+    .await?;
+    let synthetic_execution_allowed = guard.synthetic_execution_allowed && requested_execution;
+    let listener_port = guard.listener_port;
+    let target_port = guard.target_port;
+
+    if !synthetic_execution_allowed {
+        let blockers = guard.blockers.clone();
+        return Ok(KernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
+            runtime_id: MIHOMO_RUNTIME_ID.into(),
+            component: "loopback-r4-expanded-opt-in-synthetic-execution".into(),
+            kernel_area: "forwarding".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            current_platform: guard.current_platform.clone(),
+            current_arch: guard.current_arch.clone(),
+            listener_port,
+            target_port,
+            requested_execution,
+            explicit_decision: guard.explicit_decision,
+            synthetic_execution_allowed,
+            execution_attempted: false,
+            expanded_opt_in_allowed: false,
+            closeout: build_blocked_r4_synthetic_execution_closeout(blockers.clone()),
+            guard,
+            rollback_drill: None,
+            leak_check: None,
+            default_route: false,
+            forwards_traffic: false,
+            outbound_adapters_used: false,
+            mihomo_fallback: true,
+            passed: false,
+            blockers,
+            warnings: vec!["R4 synthetic execution remains blocked until guard checks pass".into()],
+            facts: vec!["no sockets were opened because execution was not allowed".into()],
+            next_safe_batch: "loopback-r4-expanded-opt-in-synthetic-execution".into(),
+        });
+    }
+
+    let rollback_drill =
+        mihomo_kernel_loopback_forwarding_rollback_drill(Some(listener_port), Some(target_port)).await?;
+    let leak_check = mihomo_kernel_loopback_forwarding_leak_check(Some(listener_port), Some(target_port)).await?;
+    let ports_released =
+        rollback_drill.ports_released && leak_check.listener_port_released && leak_check.target_port_released;
+    let isolated_test_listener_stopped = !leak_check.isolated_test_listener_running;
+
+    let mut closeout_blockers = Vec::new();
+    if !rollback_drill.passed {
+        closeout_blockers.extend(rollback_drill.blockers.clone());
+    }
+    if !leak_check.passed {
+        closeout_blockers.extend(leak_check.blockers.clone());
+    }
+    if !ports_released {
+        closeout_blockers.push("synthetic execution ports were not released after closeout".into());
+    }
+    if !isolated_test_listener_stopped {
+        closeout_blockers.push("isolated test listener remained running after synthetic execution".into());
+    }
+
+    let closeout_passed = closeout_blockers.is_empty();
+    let closeout = KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout {
+        rollback_drill_passed: rollback_drill.passed,
+        leak_check_passed: leak_check.passed,
+        ports_released,
+        system_proxy_unchanged: rollback_drill.system_proxy_unchanged,
+        tun_unchanged: rollback_drill.tun_unchanged,
+        runtime_config_unchanged: rollback_drill.runtime_config_unchanged,
+        isolated_test_listener_stopped,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: closeout_passed,
+        blockers: closeout_blockers.clone(),
+        warnings: vec!["closeout proves only synthetic loopback execution cleanup".into()],
+        facts: vec![
+            "synthetic execution delegates to the loopback forwarding rollback drill".into(),
+            "leak check revalidates listener, target, and isolated listener state after execution".into(),
+        ],
+    };
+
+    Ok(KernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-synthetic-execution".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: true,
+        live_execution_allowed: true,
+        current_platform: guard.current_platform.clone(),
+        current_arch: guard.current_arch.clone(),
+        listener_port,
+        target_port,
+        requested_execution,
+        explicit_decision: guard.explicit_decision,
+        synthetic_execution_allowed,
+        execution_attempted: true,
+        expanded_opt_in_allowed: false,
+        guard,
+        rollback_drill: Some(rollback_drill),
+        leak_check: Some(leak_check),
+        closeout,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: closeout_passed,
+        blockers: closeout_blockers,
+        warnings: vec![
+            "synthetic execution uses loopback-only rollback drill evidence and is not production forwarding".into(),
+            "expanded opt-in remains blocked for real adapters, TUN, protocol handlers, and default cutover".into(),
+        ],
+        facts: vec![
+            "executes only temporary 127.0.0.1 listener and target sockets".into(),
+            "runs closeout leak evidence immediately after synthetic execution".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-post-execution-hold".into(),
     })
 }
 
