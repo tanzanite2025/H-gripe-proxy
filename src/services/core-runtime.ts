@@ -252,6 +252,58 @@ export interface RuntimeKernelLoopbackPlatformMatrixReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackHoldWindowRow {
+  platform: string
+  currentPlatform: boolean
+  evidenceStatus: string
+  holdStartedAtEpochMs?: number | null
+  observedAtEpochMs?: number | null
+  minimumHoldSeconds: number
+  elapsedHoldSeconds?: number | null
+  holdWindowSatisfied: boolean
+  platformMatrixPassed?: boolean | null
+  leakCheckPassed?: boolean | null
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackHoldWindowReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  holdStartedAtEpochMs: number
+  observedAtEpochMs: number
+  minimumHoldSeconds: number
+  elapsedHoldSeconds: number
+  requiredPlatforms: string[]
+  coveredHoldPlatforms: string[]
+  pendingHoldPlatforms: string[]
+  currentPlatformPassed: boolean
+  currentPlatformHoldWindowSatisfied: boolean
+  expandedOptInAllowed: boolean
+  platformMatrix: RuntimeKernelLoopbackPlatformMatrixReport
+  rows: RuntimeKernelLoopbackHoldWindowRow[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -690,5 +742,16 @@ export async function getRuntimeKernelLoopbackPlatformMatrix(
   return invoke<RuntimeKernelLoopbackPlatformMatrixReport>(
     'get_runtime_kernel_loopback_platform_matrix',
     { listenerPort, targetPort },
+  )
+}
+
+export async function getRuntimeKernelLoopbackHoldWindow(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+) {
+  return invoke<RuntimeKernelLoopbackHoldWindowReport>(
+    'get_runtime_kernel_loopback_hold_window',
+    { listenerPort, targetPort, holdStartedAtEpochMs },
   )
 }

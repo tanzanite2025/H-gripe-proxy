@@ -41,6 +41,7 @@ const LOOPBACK_DNS_SMOKE_QUERY: &str = "kernel-smoke.invalid";
 const DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT: u16 = 19180;
 const DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT: u16 = 19181;
 const LOOPBACK_PLATFORM_MATRIX_PLATFORMS: [&str; 3] = ["windows", "macos", "linux"];
+const LOOPBACK_HOLD_WINDOW_MIN_SECONDS: u64 = 300;
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
@@ -528,6 +529,62 @@ pub struct KernelLoopbackPlatformMatrixReport {
     pub expanded_opt_in_allowed: bool,
     pub leak_check: KernelLoopbackForwardingLeakCheckReport,
     pub rows: Vec<KernelLoopbackPlatformMatrixRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackHoldWindowRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub evidence_status: String,
+    pub hold_started_at_epoch_ms: Option<u64>,
+    pub observed_at_epoch_ms: Option<u64>,
+    pub minimum_hold_seconds: u64,
+    pub elapsed_hold_seconds: Option<u64>,
+    pub hold_window_satisfied: bool,
+    pub platform_matrix_passed: Option<bool>,
+    pub leak_check_passed: Option<bool>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackHoldWindowReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub hold_started_at_epoch_ms: u64,
+    pub observed_at_epoch_ms: u64,
+    pub minimum_hold_seconds: u64,
+    pub elapsed_hold_seconds: u64,
+    pub required_platforms: Vec<String>,
+    pub covered_hold_platforms: Vec<String>,
+    pub pending_hold_platforms: Vec<String>,
+    pub current_platform_passed: bool,
+    pub current_platform_hold_window_satisfied: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub platform_matrix: KernelLoopbackPlatformMatrixReport,
+    pub rows: Vec<KernelLoopbackHoldWindowRow>,
     pub default_route: bool,
     pub forwards_traffic: bool,
     pub outbound_adapters_used: bool,
@@ -1532,6 +1589,175 @@ pub async fn mihomo_kernel_loopback_platform_matrix(
             "keeps R4 expanded opt-in blocked until matrix, rollback, and hold-window evidence exist".into(),
         ],
         next_safe_batch: "loopback-hold-window".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_hold_window(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+) -> Result<KernelLoopbackHoldWindowReport> {
+    let listener_port = listener_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT);
+    let target_port = target_port.unwrap_or(DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT);
+    let platform_matrix = mihomo_kernel_loopback_platform_matrix(Some(listener_port), Some(target_port)).await?;
+    let observed_at_epoch_ms = current_epoch_ms();
+    let hold_started_at_epoch_ms = hold_started_at_epoch_ms.unwrap_or(observed_at_epoch_ms);
+    let hold_start_in_future = hold_started_at_epoch_ms > observed_at_epoch_ms;
+    let elapsed_hold_seconds = observed_at_epoch_ms
+        .saturating_sub(hold_started_at_epoch_ms)
+        .saturating_div(1000);
+    let current_platform_hold_window_satisfied =
+        !hold_start_in_future && elapsed_hold_seconds >= LOOPBACK_HOLD_WINDOW_MIN_SECONDS;
+
+    let rows = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .map(|platform| {
+            let is_current_platform = *platform == platform_matrix.current_platform;
+            if is_current_platform {
+                let mut blockers = Vec::new();
+                if !platform_matrix.current_platform_passed {
+                    blockers.push("platform matrix evidence must pass before hold-window evidence is usable".into());
+                }
+                if hold_start_in_future {
+                    blockers.push("hold window start timestamp is later than the observation timestamp".into());
+                }
+                if !current_platform_hold_window_satisfied {
+                    blockers.push(format!(
+                        "observe at least {LOOPBACK_HOLD_WINDOW_MIN_SECONDS} second(s) before treating hold-window evidence as satisfied"
+                    ).into());
+                }
+
+                KernelLoopbackHoldWindowRow {
+                    platform: (*platform).into(),
+                    current_platform: true,
+                    evidence_status: if !platform_matrix.current_platform_passed || hold_start_in_future {
+                        "blocked".into()
+                    } else if current_platform_hold_window_satisfied {
+                        "observed".into()
+                    } else {
+                        "holding".into()
+                    },
+                    hold_started_at_epoch_ms: Some(hold_started_at_epoch_ms),
+                    observed_at_epoch_ms: Some(observed_at_epoch_ms),
+                    minimum_hold_seconds: LOOPBACK_HOLD_WINDOW_MIN_SECONDS,
+                    elapsed_hold_seconds: Some(elapsed_hold_seconds),
+                    hold_window_satisfied: current_platform_hold_window_satisfied,
+                    platform_matrix_passed: Some(platform_matrix.current_platform_passed),
+                    leak_check_passed: Some(platform_matrix.leak_check.passed),
+                    default_route: false,
+                    forwards_traffic: false,
+                    outbound_adapters_used: false,
+                    mihomo_fallback: true,
+                    blockers,
+                    facts: vec![
+                        format!(
+                            "recorded loopback hold-window observation on {}/{}",
+                            platform_matrix.current_platform, platform_matrix.current_arch
+                        )
+                        .into(),
+                        "hold-window evidence is read-only and does not keep sockets or listeners open".into(),
+                    ],
+                }
+            } else {
+                KernelLoopbackHoldWindowRow {
+                    platform: (*platform).into(),
+                    current_platform: false,
+                    evidence_status: "pending".into(),
+                    hold_started_at_epoch_ms: None,
+                    observed_at_epoch_ms: None,
+                    minimum_hold_seconds: LOOPBACK_HOLD_WINDOW_MIN_SECONDS,
+                    elapsed_hold_seconds: None,
+                    hold_window_satisfied: false,
+                    platform_matrix_passed: None,
+                    leak_check_passed: None,
+                    default_route: false,
+                    forwards_traffic: false,
+                    outbound_adapters_used: false,
+                    mihomo_fallback: true,
+                    blockers: vec![
+                        format!("run loopback hold-window evidence on {platform} before expanded opt-in").into(),
+                    ],
+                    facts: vec!["pending hold-window row records no runtime evidence".into()],
+                }
+            }
+        })
+        .collect::<Vec<KernelLoopbackHoldWindowRow>>();
+
+    let covered_hold_platforms = rows
+        .iter()
+        .filter(|row| row.hold_window_satisfied)
+        .map(|row| row.platform.clone())
+        .collect::<Vec<String>>();
+    let pending_hold_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .filter(|platform| !covered_hold_platforms.iter().any(|covered| covered == **platform))
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+
+    let mut blockers = vec![
+        "R4 expanded opt-in remains blocked until Windows, macOS, and Linux hold-window rows are observed".into(),
+        "platform-specific rollback drills are still required before broader opt-in".into(),
+    ];
+    if !platform_matrix.current_platform_passed {
+        blockers.push("current platform matrix evidence is not passing".into());
+    }
+    if hold_start_in_future {
+        blockers.push("hold window start timestamp is later than the observation timestamp".into());
+    }
+    if !current_platform_hold_window_satisfied {
+        blockers.push(
+            format!("current platform hold window has not reached {LOOPBACK_HOLD_WINDOW_MIN_SECONDS} second(s)").into(),
+        );
+    }
+    if !pending_hold_platforms.is_empty() {
+        blockers.push(
+            format!(
+                "pending hold-window platform evidence: {}",
+                pending_hold_platforms.join(", ")
+            )
+            .into(),
+        );
+    }
+
+    let mut warnings = platform_matrix.warnings.clone();
+    warnings
+        .push("hold-window timestamps are evidence only and do not enable adapter/TUN/protocol/default cutover".into());
+
+    Ok(KernelLoopbackHoldWindowReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-hold-window".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: platform_matrix.current_platform.clone(),
+        current_arch: platform_matrix.current_arch.clone(),
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_at_epoch_ms,
+        minimum_hold_seconds: LOOPBACK_HOLD_WINDOW_MIN_SECONDS,
+        elapsed_hold_seconds,
+        required_platforms: platform_matrix.required_platforms.clone(),
+        covered_hold_platforms,
+        pending_hold_platforms,
+        current_platform_passed: platform_matrix.current_platform_passed,
+        current_platform_hold_window_satisfied,
+        expanded_opt_in_allowed: false,
+        platform_matrix,
+        rows,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: current_platform_hold_window_satisfied,
+        blockers,
+        warnings,
+        facts: vec![
+            "wraps loopback platform matrix evidence with a time-window observation".into(),
+            "records the current platform only; other platforms remain pending until run there".into(),
+            "keeps expanded opt-in blocked after hold-window evidence until platform rollback evidence exists".into(),
+        ],
+        next_safe_batch: "loopback-platform-rollback-drills".into(),
     })
 }
 
