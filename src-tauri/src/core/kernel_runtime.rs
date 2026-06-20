@@ -747,6 +747,62 @@ pub struct KernelLoopbackR4ExpandedOptInExecutionPlanReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub required_for_execution: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+    pub order: u8,
+    pub phase: String,
+    pub action: String,
+    pub mutates_runtime: bool,
+    pub required_before_expansion: bool,
+    pub enabled_in_this_batch: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub guard_ready: bool,
+    pub execution_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub plan: KernelLoopbackR4ExpandedOptInExecutionPlanReport,
+    pub guard_checks: Vec<KernelLoopbackR4ExpandedOptInExecutionGuardCheck>,
+    pub verification_plan: Vec<KernelLoopbackR4ExpandedOptInSafetyPlanStep>,
+    pub rollback_plan: Vec<KernelLoopbackR4ExpandedOptInSafetyPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -2322,6 +2378,171 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_plan(
             "keeps default cutover blocked for a later dedicated phase".into(),
         ],
         next_safe_batch: "loopback-r4-expanded-opt-in-execution-guard".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInExecutionGuardReport> {
+    let requested_execution = requested_execution.unwrap_or(false);
+    let plan = mihomo_kernel_loopback_r4_expanded_opt_in_execution_plan(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+    )
+    .await?;
+    let explicit_decision = plan.explicit_decision;
+    let plan_ready = plan.plan_ready;
+
+    let guard_checks = vec![
+        KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+            name: "executionRequested".into(),
+            status: if requested_execution { "passed" } else { "blocked" }.into(),
+            passed: requested_execution,
+            required_for_execution: true,
+            blockers: if requested_execution {
+                Vec::new()
+            } else {
+                vec!["guard requires an explicit execution request separate from evidence collection".into()]
+            },
+            facts: vec!["preflight and planning commands do not imply execution intent".into()],
+        },
+        KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+            name: "executionPlanReady".into(),
+            status: if plan_ready { "passed" } else { "blocked" }.into(),
+            passed: plan_ready,
+            required_for_execution: true,
+            blockers: if plan_ready {
+                Vec::new()
+            } else {
+                vec!["execution plan is not ready because one or more preflight gates are blocked".into()]
+            },
+            facts: vec!["guard consumes the read-only R4 execution plan".into()],
+        },
+        KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+            name: "explicitDecision".into(),
+            status: if explicit_decision { "passed" } else { "blocked" }.into(),
+            passed: explicit_decision,
+            required_for_execution: true,
+            blockers: if explicit_decision {
+                Vec::new()
+            } else {
+                vec!["explicit R4 expanded opt-in decision is missing".into()]
+            },
+            facts: vec!["execution intent must be distinct from roadmap progress".into()],
+        },
+        KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+            name: "implementationBoundary".into(),
+            status: "blocked".into(),
+            passed: false,
+            required_for_execution: true,
+            blockers: vec!["synthetic expanded execution is intentionally not implemented in this guard batch".into()],
+            facts: vec!["this command records guard, verification, and rollback requirements only".into()],
+        },
+    ];
+
+    let verification_plan = vec![
+        KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+            order: 1,
+            phase: "preExecution".into(),
+            action: "capture runtime config, system proxy, TUN, and loopback port state".into(),
+            mutates_runtime: false,
+            required_before_expansion: true,
+            enabled_in_this_batch: true,
+            blockers: Vec::new(),
+            facts: vec!["verification must compare the same state after execution".into()],
+        },
+        KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+            order: 2,
+            phase: "postExecution".into(),
+            action: "verify synthetic listener and target ports are released and no isolated listener remains running"
+                .into(),
+            mutates_runtime: false,
+            required_before_expansion: true,
+            enabled_in_this_batch: true,
+            blockers: Vec::new(),
+            facts: vec!["port release remains the primary loopback leak signal".into()],
+        },
+        KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+            order: 3,
+            phase: "postExecution".into(),
+            action: "verify system proxy, TUN, runtime config, and Mihomo fallback boundaries are unchanged".into(),
+            mutates_runtime: false,
+            required_before_expansion: true,
+            enabled_in_this_batch: true,
+            blockers: Vec::new(),
+            facts: vec!["R4 loopback expansion must not become default cutover".into()],
+        },
+    ];
+    let rollback_plan = vec![
+        KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+            order: 1,
+            phase: "rollback".into(),
+            action: "stop any app-owned loopback listener and release synthetic target sockets".into(),
+            mutates_runtime: true,
+            required_before_expansion: true,
+            enabled_in_this_batch: false,
+            blockers: vec!["rollback execution is reserved for the synthetic execution batch".into()],
+            facts: vec!["rollback must not call Mihomo adapter or TUN mutation paths".into()],
+        },
+        KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+            order: 2,
+            phase: "rollback".into(),
+            action: "restore captured runtime config if a future synthetic execution changes it".into(),
+            mutates_runtime: true,
+            required_before_expansion: true,
+            enabled_in_this_batch: false,
+            blockers: vec!["runtime restore is not needed until execution is implemented".into()],
+            facts: vec!["the current guard command does not mutate runtime state".into()],
+        },
+    ];
+
+    let guard_ready = guard_checks.iter().all(|check| check.passed);
+    let mut blockers = guard_checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+    blockers.push("execution remains disabled until a dedicated synthetic execution batch".into());
+
+    Ok(KernelLoopbackR4ExpandedOptInExecutionGuardReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-execution-guard".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: plan.current_platform.clone(),
+        current_arch: plan.current_arch.clone(),
+        listener_port: plan.listener_port,
+        target_port: plan.target_port,
+        requested_execution,
+        explicit_decision,
+        guard_ready,
+        execution_allowed: false,
+        expanded_opt_in_allowed: false,
+        plan,
+        guard_checks,
+        verification_plan,
+        rollback_plan,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: false,
+        blockers,
+        warnings: vec!["execution guard is read-only and does not start expanded opt-in execution".into()],
+        facts: vec![
+            "bundles execution guard checks with verification and rollback plans".into(),
+            "keeps future execution constrained to synthetic loopback scope".into(),
+            "keeps default cutover, real adapters, TUN, and protocol handlers blocked".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-synthetic-execution".into(),
     })
 }
 

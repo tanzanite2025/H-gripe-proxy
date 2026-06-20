@@ -439,6 +439,56 @@ export interface RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+  name: string
+  status: string
+  passed: boolean
+  requiredForExecution: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInSafetyPlanStep {
+  order: number
+  phase: string
+  action: string
+  mutatesRuntime: boolean
+  requiredBeforeExpansion: boolean
+  enabledInThisBatch: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  listenerPort: number
+  targetPort: number
+  requestedExecution: boolean
+  explicitDecision: boolean
+  guardReady: boolean
+  executionAllowed: boolean
+  expandedOptInAllowed: boolean
+  plan: RuntimeKernelLoopbackR4ExpandedOptInExecutionPlanReport
+  guardChecks: RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardCheck[]
+  verificationPlan: RuntimeKernelLoopbackR4ExpandedOptInSafetyPlanStep[]
+  rollbackPlan: RuntimeKernelLoopbackR4ExpandedOptInSafetyPlanStep[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -936,6 +986,27 @@ export async function getRuntimeKernelLoopbackR4ExpandedOptInExecutionPlan(
       holdStartedAtEpochMs,
       observedRollbackPlatforms,
       explicitDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR4ExpandedOptInExecutionGuard(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR4ExpandedOptInExecutionGuardReport>(
+    'get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
     },
   )
 }

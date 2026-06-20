@@ -13,16 +13,18 @@ use crate::{
             KernelLoopbackForwardingLeakCheckReport, KernelLoopbackForwardingPreflightReport,
             KernelLoopbackForwardingRollbackDrillReport, KernelLoopbackForwardingSmokeEvidenceReport,
             KernelLoopbackHoldWindowReport, KernelLoopbackPlatformMatrixReport,
-            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInExecutionPlanReport,
-            KernelLoopbackR4ExpandedOptInPreflightReport, KernelReplacementReadiness, KernelRuleShadowEvidenceReport,
-            KernelRuntimePreflightReport, KernelShadowComponentsReport, mihomo_kernel_adapter_capability_report,
-            mihomo_kernel_apply_preflight, mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
+            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInExecutionGuardReport,
+            KernelLoopbackR4ExpandedOptInExecutionPlanReport, KernelLoopbackR4ExpandedOptInPreflightReport,
+            KernelReplacementReadiness, KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport,
+            KernelShadowComponentsReport, mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
+            mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
             mihomo_kernel_isolated_listener_preflight, mihomo_kernel_isolated_test_listener_smoke_evidence,
             mihomo_kernel_isolated_test_listener_status, mihomo_kernel_loopback_dns_preflight,
             mihomo_kernel_loopback_dns_smoke_evidence, mihomo_kernel_loopback_forwarding_leak_check,
             mihomo_kernel_loopback_forwarding_preflight, mihomo_kernel_loopback_forwarding_rollback_drill,
             mihomo_kernel_loopback_forwarding_smoke_evidence, mihomo_kernel_loopback_hold_window,
             mihomo_kernel_loopback_platform_matrix, mihomo_kernel_loopback_platform_rollback_drills,
+            mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard,
             mihomo_kernel_loopback_r4_expanded_opt_in_execution_plan,
             mihomo_kernel_loopback_r4_expanded_opt_in_preflight, mihomo_kernel_replacement_readiness,
             mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
@@ -214,6 +216,27 @@ pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan(
         hold_started_at_epoch_ms,
         observed_rollback_platforms,
         explicit_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+) -> CmdResult<KernelLoopbackR4ExpandedOptInExecutionGuardReport> {
+    mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
     )
     .await
     .stringify_err()
