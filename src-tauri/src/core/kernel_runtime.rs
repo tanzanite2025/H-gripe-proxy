@@ -1041,6 +1041,88 @@ pub struct KernelLoopbackR4ExpandedOptInCloseoutReadinessReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub closeout_decision: bool,
+    pub closeout_ready: bool,
+    pub r4_closeout_complete: bool,
+    pub limited_rollout_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout_readiness: KernelLoopbackR4ExpandedOptInCloseoutReadinessReport,
+    pub evidence: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInCompletionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r4_complete: bool,
+    pub completed_batches: Vec<String>,
+    pub open_boundaries: Vec<String>,
+    pub next_phase_candidate: String,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout_report: KernelLoopbackR4ExpandedOptInCloseoutReport,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub handoff_decision: bool,
+    pub handoff_ready: bool,
+    pub next_phase: String,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub completion: KernelLoopbackR4ExpandedOptInCompletionReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -3430,6 +3512,260 @@ pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_closeout_readiness(
             "leaves Go Mihomo data plane ownership unchanged".into(),
         ],
         next_safe_batch: "loopback-r4-expanded-opt-in-closeout-report".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_closeout_report(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInCloseoutReport> {
+    let requested_execution = requested_execution.unwrap_or(false);
+    let closeout_readiness = mihomo_kernel_loopback_r4_expanded_opt_in_closeout_readiness(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        Some(requested_execution),
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+    )
+    .await?;
+    let r4_closeout_complete = closeout_readiness.closeout_ready;
+    let mut evidence = Vec::new();
+    evidence.extend(closeout_readiness.checks.clone());
+    evidence.push(KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+        name: "r4Boundary".into(),
+        status: "passed".into(),
+        passed: true,
+        blockers: Vec::new(),
+        facts: vec!["R4 closeout report keeps R4 bounded to synthetic loopback evidence".into()],
+    });
+    evidence.push(KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+        name: "goDataPlaneBoundary".into(),
+        status: "passed".into(),
+        passed: true,
+        blockers: Vec::new(),
+        facts: vec!["Mihomo remains the production data plane after R4 closeout".into()],
+    });
+    let blockers = evidence
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR4ExpandedOptInCloseoutReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-closeout-report".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: closeout_readiness.mutates_runtime,
+        live_execution_allowed: closeout_readiness.live_execution_allowed,
+        current_platform: closeout_readiness.current_platform.clone(),
+        current_arch: closeout_readiness.current_arch.clone(),
+        requested_execution,
+        explicit_decision: closeout_readiness.audit.gate.decision_readiness.explicit_decision,
+        closeout_decision: closeout_readiness.closeout_decision,
+        closeout_ready: closeout_readiness.closeout_ready,
+        r4_closeout_complete,
+        limited_rollout_allowed: false,
+        expanded_opt_in_allowed: false,
+        closeout_readiness,
+        evidence,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: r4_closeout_complete,
+        blockers,
+        warnings: vec!["R4 closeout is not default cutover or production forwarding permission".into()],
+        facts: vec![
+            "summarizes R4 synthetic execution, hold, decision, rollout gate, audit, and closeout readiness".into(),
+            "keeps real adapters, TUN, protocol handlers, system proxy, and default route blocked".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-completion-summary".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_completion_summary(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInCompletionReport> {
+    let closeout_report = mihomo_kernel_loopback_r4_expanded_opt_in_closeout_report(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+    )
+    .await?;
+    let r4_complete = closeout_report.r4_closeout_complete;
+    let blockers = if r4_complete {
+        Vec::new()
+    } else {
+        closeout_report.blockers.clone()
+    };
+
+    Ok(KernelLoopbackR4ExpandedOptInCompletionReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-completion-summary".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: closeout_report.mutates_runtime,
+        live_execution_allowed: closeout_report.live_execution_allowed,
+        current_platform: closeout_report.current_platform.clone(),
+        current_arch: closeout_report.current_arch.clone(),
+        r4_complete,
+        completed_batches: vec![
+            "loopback-r4-expanded-opt-in-preflight".into(),
+            "loopback-r4-expanded-opt-in-execution-plan".into(),
+            "loopback-r4-expanded-opt-in-execution-guard".into(),
+            "loopback-r4-expanded-opt-in-synthetic-execution".into(),
+            "loopback-r4-expanded-opt-in-post-execution-hold".into(),
+            "loopback-r4-expanded-opt-in-decision-readiness".into(),
+            "loopback-r4-expanded-opt-in-limited-rollout-gate".into(),
+            "loopback-r4-expanded-opt-in-rollout-audit".into(),
+            "loopback-r4-expanded-opt-in-closeout-readiness".into(),
+            "loopback-r4-expanded-opt-in-closeout-report".into(),
+        ],
+        open_boundaries: vec![
+            "realAdapterForwarding".into(),
+            "tunForwarding".into(),
+            "protocolHandlers".into(),
+            "systemProxyCutover".into(),
+            "defaultRouteCutover".into(),
+        ],
+        next_phase_candidate: "loopback-r5-default-cutover-preflight".into(),
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        closeout_report,
+        passed: r4_complete,
+        blockers,
+        warnings: vec!["R4 completion summary does not enter R5 automatically".into()],
+        facts: vec![
+            "R4 completion is a documentation and evidence boundary only".into(),
+            "R5 must start with a separate preflight before any default cutover work".into(),
+        ],
+        next_safe_batch: "loopback-r4-expanded-opt-in-next-phase-handoff".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r4_expanded_opt_in_next_phase_handoff(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+) -> Result<KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport> {
+    let handoff_decision = handoff_decision.unwrap_or(false);
+    let completion = mihomo_kernel_loopback_r4_expanded_opt_in_completion_summary(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+    )
+    .await?;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r4Completion".into(),
+            status: if completion.r4_complete { "passed" } else { "blocked" }.into(),
+            passed: completion.r4_complete,
+            blockers: if completion.r4_complete {
+                Vec::new()
+            } else {
+                completion.blockers.clone()
+            },
+            facts: vec!["handoff requires completed R4 closeout report evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "handoffDecision".into(),
+            status: if handoff_decision { "passed" } else { "blocked" }.into(),
+            passed: handoff_decision,
+            blockers: if handoff_decision {
+                Vec::new()
+            } else {
+                vec!["next phase handoff requires an explicit handoff decision".into()]
+            },
+            facts: vec!["handoff decision only allows planning the next preflight".into()],
+        },
+    ];
+    let handoff_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r4-expanded-opt-in-next-phase-handoff".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: completion.mutates_runtime,
+        live_execution_allowed: completion.live_execution_allowed,
+        current_platform: completion.current_platform.clone(),
+        current_arch: completion.current_arch.clone(),
+        handoff_decision,
+        handoff_ready,
+        next_phase: completion.next_phase_candidate.clone(),
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        completion,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: handoff_ready,
+        blockers,
+        warnings: vec!["handoff readiness does not authorize R5 execution or default cutover".into()],
+        facts: vec![
+            "next phase starts at preflight only".into(),
+            "Mihomo remains the active kernel and production data plane".into(),
+        ],
+        next_safe_batch: "loopback-r5-default-cutover-preflight".into(),
     })
 }
 
