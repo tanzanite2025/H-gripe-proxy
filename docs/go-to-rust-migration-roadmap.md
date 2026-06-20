@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, and platform matrix are complete. Current step is hold-window evidence. |
-| Next safe batch | `loopback-hold-window` | Record platform-specific hold-window evidence before any broader opt-in. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R3 in progress | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, and hold-window evidence are complete. Current step is platform rollback evidence. |
+| Next safe batch | `loopback-platform-rollback-drills` | Record platform-specific rollback drill evidence before any broader opt-in. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -152,6 +152,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R3 loopback forwarding rollback drill | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_forwarding_rollback_drill` runs forwarding smoke evidence, then re-runs preflight to prove the loopback ports are released and runtime/TUN/system proxy state is unchanged. |
 | R3 loopback forwarding leak check | Complete | Read-only | `get_runtime_kernel_loopback_forwarding_leak_check` checks candidate loopback ports are free and no isolated listener state remains running after rollback evidence. |
 | R3 loopback platform matrix | Complete | Read-only | `get_runtime_kernel_loopback_platform_matrix` wraps loopback forwarding leak evidence with Windows/macOS/Linux matrix rows and records the current platform without allowing expanded opt-in. |
+| R3 loopback hold window | Complete | Read-only | `get_runtime_kernel_loopback_hold_window` wraps platform matrix evidence with a time-window observation row while keeping expanded opt-in blocked. |
 | R4 expanded opt-in | Blocked | Not allowed yet | Requires loopback forwarding leak checks, platform matrix, platform-specific rollback drills, and hold window. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after all high-risk areas have independent evidence and rollback. |
 
@@ -241,7 +242,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-platform-matrix`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-hold-window`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 

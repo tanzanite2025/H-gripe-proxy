@@ -12,15 +12,17 @@ use crate::{
             KernelIsolatedTestListenerStatus, KernelLoopbackDnsPreflightReport, KernelLoopbackDnsSmokeEvidenceReport,
             KernelLoopbackForwardingLeakCheckReport, KernelLoopbackForwardingPreflightReport,
             KernelLoopbackForwardingRollbackDrillReport, KernelLoopbackForwardingSmokeEvidenceReport,
-            KernelLoopbackPlatformMatrixReport, KernelReplacementReadiness, KernelRuleShadowEvidenceReport,
-            KernelRuntimePreflightReport, KernelShadowComponentsReport, mihomo_kernel_adapter_capability_report,
-            mihomo_kernel_apply_preflight, mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
+            KernelLoopbackHoldWindowReport, KernelLoopbackPlatformMatrixReport, KernelReplacementReadiness,
+            KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelShadowComponentsReport,
+            mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
+            mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
             mihomo_kernel_isolated_listener_preflight, mihomo_kernel_isolated_test_listener_smoke_evidence,
             mihomo_kernel_isolated_test_listener_status, mihomo_kernel_loopback_dns_preflight,
             mihomo_kernel_loopback_dns_smoke_evidence, mihomo_kernel_loopback_forwarding_leak_check,
             mihomo_kernel_loopback_forwarding_preflight, mihomo_kernel_loopback_forwarding_rollback_drill,
-            mihomo_kernel_loopback_forwarding_smoke_evidence, mihomo_kernel_loopback_platform_matrix,
-            mihomo_kernel_replacement_readiness, mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
+            mihomo_kernel_loopback_forwarding_smoke_evidence, mihomo_kernel_loopback_hold_window,
+            mihomo_kernel_loopback_platform_matrix, mihomo_kernel_replacement_readiness,
+            mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
             mihomo_kernel_start_isolated_test_listener, mihomo_kernel_stop_isolated_test_listener,
         },
         runtime_diagnostics::{
@@ -150,6 +152,17 @@ pub async fn get_runtime_kernel_loopback_platform_matrix(
     target_port: Option<u16>,
 ) -> CmdResult<KernelLoopbackPlatformMatrixReport> {
     mihomo_kernel_loopback_platform_matrix(listener_port, target_port)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_hold_window(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+) -> CmdResult<KernelLoopbackHoldWindowReport> {
+    mihomo_kernel_loopback_hold_window(listener_port, target_port, hold_started_at_epoch_ms)
         .await
         .stringify_err()
 }
