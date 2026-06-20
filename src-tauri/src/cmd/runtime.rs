@@ -13,12 +13,13 @@ use crate::{
             KernelLoopbackForwardingLeakCheckReport, KernelLoopbackForwardingPreflightReport,
             KernelLoopbackForwardingRollbackDrillReport, KernelLoopbackForwardingSmokeEvidenceReport,
             KernelLoopbackHoldWindowReport, KernelLoopbackPlatformMatrixReport,
-            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInDecisionReadinessReport,
-            KernelLoopbackR4ExpandedOptInExecutionGuardReport, KernelLoopbackR4ExpandedOptInExecutionPlanReport,
+            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInCloseoutReadinessReport,
+            KernelLoopbackR4ExpandedOptInDecisionReadinessReport, KernelLoopbackR4ExpandedOptInExecutionGuardReport,
+            KernelLoopbackR4ExpandedOptInExecutionPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport,
             KernelLoopbackR4ExpandedOptInPostExecutionHoldReport, KernelLoopbackR4ExpandedOptInPreflightReport,
-            KernelLoopbackR4ExpandedOptInSyntheticExecutionReport, KernelReplacementReadiness,
-            KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelShadowComponentsReport,
-            mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
+            KernelLoopbackR4ExpandedOptInRolloutAuditReport, KernelLoopbackR4ExpandedOptInSyntheticExecutionReport,
+            KernelReplacementReadiness, KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport,
+            KernelShadowComponentsReport, mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
             mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
             mihomo_kernel_isolated_listener_preflight, mihomo_kernel_isolated_test_listener_smoke_evidence,
             mihomo_kernel_isolated_test_listener_status, mihomo_kernel_loopback_dns_preflight,
@@ -26,11 +27,14 @@ use crate::{
             mihomo_kernel_loopback_forwarding_preflight, mihomo_kernel_loopback_forwarding_rollback_drill,
             mihomo_kernel_loopback_forwarding_smoke_evidence, mihomo_kernel_loopback_hold_window,
             mihomo_kernel_loopback_platform_matrix, mihomo_kernel_loopback_platform_rollback_drills,
+            mihomo_kernel_loopback_r4_expanded_opt_in_closeout_readiness,
             mihomo_kernel_loopback_r4_expanded_opt_in_decision_readiness,
             mihomo_kernel_loopback_r4_expanded_opt_in_execution_guard,
             mihomo_kernel_loopback_r4_expanded_opt_in_execution_plan,
+            mihomo_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate,
             mihomo_kernel_loopback_r4_expanded_opt_in_post_execution_hold,
             mihomo_kernel_loopback_r4_expanded_opt_in_preflight,
+            mihomo_kernel_loopback_r4_expanded_opt_in_rollout_audit,
             mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution, mihomo_kernel_replacement_readiness,
             mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
             mihomo_kernel_start_isolated_test_listener, mihomo_kernel_stop_isolated_test_listener,
@@ -311,6 +315,101 @@ pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness(
         requested_execution,
         post_execution_hold_started_at_epoch_ms,
         wider_opt_in_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+) -> CmdResult<KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport> {
+    mihomo_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_rollout_audit(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+) -> CmdResult<KernelLoopbackR4ExpandedOptInRolloutAuditReport> {
+    mihomo_kernel_loopback_r4_expanded_opt_in_rollout_audit(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_readiness(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR4ExpandedOptInCloseoutReadinessReport> {
+    mihomo_kernel_loopback_r4_expanded_opt_in_closeout_readiness(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
     )
     .await
     .stringify_err()
