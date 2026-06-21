@@ -1428,6 +1428,38 @@ export interface RuntimeKernelLoopbackFullRustRuntimeHardeningReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementSurfaceAuditReport {
+  runtimeId: string
+  component: string
+  sidecarSourceAuditPassed: boolean
+  bundledMihomoAuditPassed: boolean
+  ipcFallbackAuditPassed: boolean
+  docsAuditPassed: boolean
+  emergencyRollbackRetained: boolean
+  auditComplete: boolean
+  remainingSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementAuditReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  fullRustRuntimeHardened: boolean
+  surfaceAudit: RuntimeRustKernelRuntimeGoMihomoRetirementSurfaceAuditReport
+  finalRetirementAuditDecision: boolean
+  goMihomoRetirementAuditComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3486,6 +3518,29 @@ export async function getRuntimeKernelLoopbackFullRustRuntimeHardening(
       macosServiceHardeningDecision,
       linuxServiceHardeningDecision,
       finalHardeningDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementAudit(
+  fullRustRuntimeHardenedDecision?: boolean,
+  sidecarSourceAuditDecision?: boolean,
+  bundledMihomoAuditDecision?: boolean,
+  ipcFallbackAuditDecision?: boolean,
+  docsAuditDecision?: boolean,
+  emergencyRollbackRetained?: boolean,
+  finalRetirementAuditDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementAuditReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_audit',
+    {
+      fullRustRuntimeHardenedDecision,
+      sidecarSourceAuditDecision,
+      bundledMihomoAuditDecision,
+      ipcFallbackAuditDecision,
+      docsAuditDecision,
+      emergencyRollbackRetained,
+      finalRetirementAuditDecision,
     },
   )
 }

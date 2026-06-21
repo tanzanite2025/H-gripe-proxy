@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Rust default cutover supported for the safe profile; fallback retirement gated | The supported profile can select Rust by default after R6/R7 evidence; Mihomo fallback retirement remains blocked unless protocol/TUN/adapter/DNS parity, rollback drills, soak evidence, and emergency rollback all pass. |
-| Kernel replacement track | Full Rust runtime hardening gate complete | `get_runtime_kernel_loopback_full_rust_runtime_hardening` requires the R7 fallback retirement gate plus extended soak, rollback telemetry closeout, platform hardening follow-up, and explicit final hardening decision before Rust can be treated as fully hardened. |
-| Next safe batch | `go-mihomo-retirement-audit` | Only after full Rust runtime hardening passes, audit remaining Go/Mihomo retirement surfaces without removing emergency rollback prematurely. |
+| Kernel replacement track | Go/Mihomo retirement audit gate complete | `get_runtime_kernel_loopback_go_mihomo_retirement_audit` inventories source, bundled artifacts, IPC fallback commands, docs/runbooks, and retained emergency rollback after full Rust runtime hardening. |
+| Next safe batch | `go-mihomo-retirement-plan` | Only after the retirement audit passes, plan actual Go/Mihomo removal in a dedicated batch while keeping emergency rollback explicit. |
 
 ## Acceleration plan
 
@@ -62,6 +62,7 @@ RustKernelRuntime selected by default
 | 4 | `r7-rust-default-cutover` | Complete: promote Rust runtime to default for the supported profile after canary closeout; keep Mihomo fallback for unsupported protocols/TUN until parity is complete. | Complete; Rust default for supported profile. |
 | 5 | `r7-mihomo-fallback-retirement` | Complete: gate fallback dependence removal behind protocol/TUN/adapter/DNS parity, cross-platform rollback drills, soak evidence, explicit retirement decision, and emergency rollback. | Full replacement candidate, blocked by default. |
 | 6 | `full-rust-runtime-hardening` | Complete: gate full Rust runtime hardening behind R7 fallback retirement readiness, extended soak, rollback telemetry, platform hardening follow-up, and explicit final decision. | Full Rust hardening candidate, blocked by default. |
+| 7 | `go-mihomo-retirement-audit` | Complete: inventory remaining Go/Mihomo source, bundled artifacts, fallback IPC, docs/runbooks, and retained emergency rollback before any removal plan. | Audit only; no removal. |
 
 ### Completed R7 PR scope
 
@@ -235,6 +236,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R7 Rust default cutover | Complete | Rust default for supported profile | `get_runtime_kernel_loopback_r7_rust_default_cutover` promotes Rust after canary closeout and rollback hold; Mihomo remains fallback for unsupported protocols/TUN and one-switch rollback. |
 | R7 fallback retirement | Gate complete | Full replacement candidate | `get_runtime_kernel_loopback_r7_mihomo_fallback_retirement` retires fallback readiness only after R7 cutover, protocol/TUN/adapter/DNS parity, cross-platform rollback drills, soak evidence, explicit decision, and emergency rollback all pass. |
 | Full Rust runtime hardening | Gate complete | Full Rust hardening candidate | `get_runtime_kernel_loopback_full_rust_runtime_hardening` closes the hardening gate only after R7 fallback retirement readiness, extended soak, rollback telemetry closeout, OS-specific hardening follow-up, and explicit final hardening decision all pass. |
+| Go/Mihomo retirement audit | Gate complete | Audit only | `get_runtime_kernel_loopback_go_mihomo_retirement_audit` requires full Rust runtime hardening plus source/artifact/IPC/docs inventory and retained emergency rollback before advancing to a removal plan. |
 
 ### Current R3 loopback listener boundary
 
@@ -324,7 +326,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-audit`; the next implementation may audit remaining Go/Mihomo retirement surfaces only after full Rust runtime hardening reports extended soak, rollback telemetry, platform follow-up, and explicit hardening closeout.
+Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-plan`; the next implementation may plan actual removal only after the Go/Mihomo retirement audit inventories all source, bundled artifacts, IPC fallback, docs/runbooks, and retained emergency rollback surfaces.
 
 ## PR checklist for future changes
 
