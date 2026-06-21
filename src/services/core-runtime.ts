@@ -1023,6 +1023,82 @@ export interface RuntimeKernelLoopbackR5DefaultCutoverPostDryRunHoldReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR5DefaultCutoverDecisionReadinessReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  decisionReadinessDecision: boolean
+  decisionReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  postDryRunHold: RuntimeKernelLoopbackR5DefaultCutoverPostDryRunHoldReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverFinalGateReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  finalGateDecision: boolean
+  finalGateReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  decisionReadiness: RuntimeKernelLoopbackR5DefaultCutoverDecisionReadinessReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverNextStepHandoffReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  r5HandoffDecision: boolean
+  handoffReady: boolean
+  nextStep: string
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  finalGate: RuntimeKernelLoopbackR5DefaultCutoverFinalGateReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -2193,6 +2269,171 @@ export async function getRuntimeKernelLoopbackR5DefaultCutoverPostDryRunHold(
       dryRunExecutionDecision,
       postDryRunHoldStartedAtEpochMs,
       holdDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverDecisionReadiness(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverDecisionReadinessReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_decision_readiness',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverFinalGate(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverFinalGateReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_final_gate',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverNextStepHandoff(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverNextStepHandoffReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_next_step_handoff',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
     },
   )
 }
