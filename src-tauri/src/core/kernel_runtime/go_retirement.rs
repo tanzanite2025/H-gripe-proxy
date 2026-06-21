@@ -2,8 +2,9 @@ use anyhow::Result;
 use smartstring::alias::String;
 
 use super::{
-    KernelLoopbackGoMihomoRetirementExecutionGuardReport, KernelLoopbackGoMihomoRetirementPlanReport,
-    KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelRuntimeKind, RUST_RUNTIME_ID,
+    KernelLoopbackGoMihomoRetirementDryRunReport, KernelLoopbackGoMihomoRetirementExecutionGuardReport,
+    KernelLoopbackGoMihomoRetirementPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck,
+    KernelRuntimeKind, RUST_RUNTIME_ID, RustKernelRuntimeGoMihomoRetirementDryRunReport,
     RustKernelRuntimeGoMihomoRetirementExecutionGuardReport, RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
 };
 
@@ -316,6 +317,155 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_execution_guard(
             "go-mihomo-retirement-dry-run".into()
         } else {
             "go-mihomo-retirement-execution-guard".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_go_mihomo_retirement_dry_run_report(
+    dry_run_manifest_replay_decision: bool,
+    no_source_mutations_decision: bool,
+    no_bundled_artifact_mutations_decision: bool,
+    rollback_rehearsal_decision: bool,
+    dry_run_report_archived_decision: bool,
+) -> RustKernelRuntimeGoMihomoRetirementDryRunReport {
+    let mut blockers = Vec::new();
+    let mut simulated_removal_surfaces = Vec::new();
+
+    if dry_run_manifest_replay_decision {
+        simulated_removal_surfaces.push("removal manifest replay".into());
+    } else {
+        blockers.push("Go/Mihomo retirement dry run requires manifest replay evidence".into());
+    }
+    if no_source_mutations_decision {
+        simulated_removal_surfaces.push("sidecar source mutation check".into());
+    } else {
+        blockers.push("Go/Mihomo retirement dry run must prove no source mutations".into());
+    }
+    if no_bundled_artifact_mutations_decision {
+        simulated_removal_surfaces.push("bundled artifact mutation check".into());
+    } else {
+        blockers.push("Go/Mihomo retirement dry run must prove no artifact mutations".into());
+    }
+    if !rollback_rehearsal_decision {
+        blockers.push("Go/Mihomo retirement dry run requires rollback rehearsal evidence".into());
+    }
+    if !dry_run_report_archived_decision {
+        blockers.push("Go/Mihomo retirement dry run requires archived dry-run evidence".into());
+    }
+
+    RustKernelRuntimeGoMihomoRetirementDryRunReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-dry-run-detail".into(),
+        dry_run_manifest_replayed: dry_run_manifest_replay_decision,
+        no_source_mutations_observed: no_source_mutations_decision,
+        no_bundled_artifact_mutations_observed: no_bundled_artifact_mutations_decision,
+        rollback_rehearsal_passed: rollback_rehearsal_decision,
+        dry_run_report_archived: dry_run_report_archived_decision,
+        dry_run_complete: blockers.is_empty(),
+        simulated_removal_surfaces,
+        blockers,
+        facts: vec![
+            "this dry run simulates retirement without deleting Go/Mihomo assets".into(),
+            "mutation checks must remain clean before any real removal closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_go_mihomo_retirement_dry_run(
+    go_mihomo_retirement_execution_guard_complete_decision: Option<bool>,
+    dry_run_manifest_replay_decision: Option<bool>,
+    no_source_mutations_decision: Option<bool>,
+    no_bundled_artifact_mutations_decision: Option<bool>,
+    rollback_rehearsal_decision: Option<bool>,
+    dry_run_report_archived_decision: Option<bool>,
+    final_dry_run_decision: Option<bool>,
+) -> Result<KernelLoopbackGoMihomoRetirementDryRunReport> {
+    let go_mihomo_retirement_execution_guard_complete =
+        go_mihomo_retirement_execution_guard_complete_decision.unwrap_or(false);
+    let final_dry_run_decision = final_dry_run_decision.unwrap_or(false);
+    let dry_run = rust_kernel_runtime_go_mihomo_retirement_dry_run_report(
+        dry_run_manifest_replay_decision.unwrap_or(false),
+        no_source_mutations_decision.unwrap_or(false),
+        no_bundled_artifact_mutations_decision.unwrap_or(false),
+        rollback_rehearsal_decision.unwrap_or(false),
+        dry_run_report_archived_decision.unwrap_or(false),
+    );
+    let mut guard_blockers = Vec::new();
+
+    if !go_mihomo_retirement_execution_guard_complete {
+        guard_blockers.push("Go/Mihomo retirement dry run requires the execution guard to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRetirementExecutionGuardComplete".into(),
+            status: if go_mihomo_retirement_execution_guard_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: go_mihomo_retirement_execution_guard_complete,
+            blockers: guard_blockers,
+            facts: vec!["dry run starts only after execution guard readiness".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRetirementDryRunComplete".into(),
+            status: if dry_run.dry_run_complete { "passed" } else { "blocked" }.into(),
+            passed: dry_run.dry_run_complete,
+            blockers: dry_run.blockers.clone(),
+            facts: vec![
+                "manifest replay, mutation checks, rollback rehearsal, and archived evidence are evaluated together"
+                    .into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalDryRunDecision".into(),
+            status: if final_dry_run_decision { "passed" } else { "blocked" }.into(),
+            passed: final_dry_run_decision,
+            blockers: if final_dry_run_decision {
+                Vec::new()
+            } else {
+                vec!["Go/Mihomo retirement dry run requires an explicit final dry-run decision".into()]
+            },
+            facts: vec!["the dry run is explicit and does not execute removal".into()],
+        },
+    ];
+    let go_mihomo_retirement_dry_run_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackGoMihomoRetirementDryRunReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-dry-run".into(),
+        mutates_runtime: false,
+        live_execution_allowed: go_mihomo_retirement_dry_run_complete,
+        go_mihomo_retirement_execution_guard_complete,
+        dry_run,
+        final_dry_run_decision,
+        go_mihomo_retirement_dry_run_complete,
+        selected_runtime_kind: if go_mihomo_retirement_dry_run_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this dry run does not delete Mihomo source, binaries, IPC commands, or rollback paths".into(),
+            "actual removal still requires a later closeout and final removal gate".into(),
+        ],
+        facts: vec![
+            "Go/Mihomo retirement dry run follows the execution guard gate".into(),
+            "successful dry run advances to closeout instead of direct deletion".into(),
+        ],
+        next_safe_batch: if go_mihomo_retirement_dry_run_complete {
+            "go-mihomo-retirement-closeout".into()
+        } else {
+            "go-mihomo-retirement-dry-run".into()
         },
     })
 }
