@@ -271,6 +271,7 @@ mod app_init {
             cmd::get_runtime_kernel_loopback_r5_default_cutover_closeout_report,
             cmd::get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold,
             cmd::get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp,
+            cmd::get_runtime_kernel_loopback_r6_rust_default_canary,
             cmd::start_runtime_kernel_isolated_test_listener,
             cmd::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,
