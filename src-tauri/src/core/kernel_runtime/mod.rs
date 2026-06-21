@@ -31,7 +31,7 @@ use crate::{
 };
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
-const RUST_RUNTIME_ID: &str = "rust-kernel-runtime";
+pub(super) const RUST_RUNTIME_ID: &str = "rust-kernel-runtime";
 const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
 const NEXT_SHADOW_BATCH: &str = "loopback-test-listener-opt-in";
 const ISOLATED_TEST_LISTENER_HOST: &str = "127.0.0.1";
@@ -46,7 +46,9 @@ const FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS: u32 = 72;
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
+mod go_retirement;
 mod types;
+pub use self::go_retirement::*;
 use self::types::KernelIsolatedTestListenerState;
 pub use self::types::*;
 

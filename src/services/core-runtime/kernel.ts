@@ -1460,6 +1460,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementAuditReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementRemovalPlanReport {
+  runtimeId: string
+  component: string
+  sidecarSourceRemovalPlan: boolean
+  bundledArtifactDeprecationPlan: boolean
+  ipcFallbackReplacementPlan: boolean
+  emergencyRollbackPreservationPlan: boolean
+  releaseRolloutPlan: boolean
+  removalPlanComplete: boolean
+  plannedRemovalSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementPlanReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementAuditComplete: boolean
+  removalPlan: RuntimeRustKernelRuntimeGoMihomoRetirementRemovalPlanReport
+  finalRetirementPlanDecision: boolean
+  goMihomoRetirementPlanComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3541,6 +3573,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementAudit(
       docsAuditDecision,
       emergencyRollbackRetained,
       finalRetirementAuditDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementPlan(
+  goMihomoRetirementAuditCompleteDecision?: boolean,
+  sidecarSourceRemovalPlanDecision?: boolean,
+  bundledArtifactDeprecationPlanDecision?: boolean,
+  ipcFallbackReplacementPlanDecision?: boolean,
+  emergencyRollbackPreservationPlanDecision?: boolean,
+  releaseRolloutPlanDecision?: boolean,
+  finalRetirementPlanDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementPlanReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_plan',
+    {
+      goMihomoRetirementAuditCompleteDecision,
+      sidecarSourceRemovalPlanDecision,
+      bundledArtifactDeprecationPlanDecision,
+      ipcFallbackReplacementPlanDecision,
+      emergencyRollbackPreservationPlanDecision,
+      releaseRolloutPlanDecision,
+      finalRetirementPlanDecision,
     },
   )
 }

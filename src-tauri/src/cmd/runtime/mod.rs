@@ -13,19 +13,20 @@ use crate::{
             KernelLoopbackForwardingLeakCheckReport, KernelLoopbackForwardingPreflightReport,
             KernelLoopbackForwardingRollbackDrillReport, KernelLoopbackForwardingSmokeEvidenceReport,
             KernelLoopbackFullRustRuntimeHardeningReport, KernelLoopbackGoMihomoRetirementAuditReport,
-            KernelLoopbackHoldWindowReport, KernelLoopbackPlatformMatrixReport,
-            KernelLoopbackPlatformRollbackDrillsReport, KernelLoopbackR4ExpandedOptInCloseoutReadinessReport,
-            KernelLoopbackR4ExpandedOptInCloseoutReport, KernelLoopbackR4ExpandedOptInCompletionReport,
-            KernelLoopbackR4ExpandedOptInDecisionReadinessReport, KernelLoopbackR4ExpandedOptInExecutionGuardReport,
-            KernelLoopbackR4ExpandedOptInExecutionPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport,
-            KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport, KernelLoopbackR4ExpandedOptInPostExecutionHoldReport,
-            KernelLoopbackR4ExpandedOptInPreflightReport, KernelLoopbackR4ExpandedOptInRolloutAuditReport,
-            KernelLoopbackR4ExpandedOptInSyntheticExecutionReport, KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport,
-            KernelLoopbackR5DefaultCutoverCloseoutReadinessReport, KernelLoopbackR5DefaultCutoverCloseoutReport,
-            KernelLoopbackR5DefaultCutoverDecisionReadinessReport, KernelLoopbackR5DefaultCutoverDryRunCloseoutReport,
-            KernelLoopbackR5DefaultCutoverDryRunEvidenceReport, KernelLoopbackR5DefaultCutoverDryRunReadinessReport,
-            KernelLoopbackR5DefaultCutoverExecutionPlanReport, KernelLoopbackR5DefaultCutoverFinalGateReport,
-            KernelLoopbackR5DefaultCutoverFinalHoldReport, KernelLoopbackR5DefaultCutoverGuardReport,
+            KernelLoopbackGoMihomoRetirementPlanReport, KernelLoopbackHoldWindowReport,
+            KernelLoopbackPlatformMatrixReport, KernelLoopbackPlatformRollbackDrillsReport,
+            KernelLoopbackR4ExpandedOptInCloseoutReadinessReport, KernelLoopbackR4ExpandedOptInCloseoutReport,
+            KernelLoopbackR4ExpandedOptInCompletionReport, KernelLoopbackR4ExpandedOptInDecisionReadinessReport,
+            KernelLoopbackR4ExpandedOptInExecutionGuardReport, KernelLoopbackR4ExpandedOptInExecutionPlanReport,
+            KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport, KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport,
+            KernelLoopbackR4ExpandedOptInPostExecutionHoldReport, KernelLoopbackR4ExpandedOptInPreflightReport,
+            KernelLoopbackR4ExpandedOptInRolloutAuditReport, KernelLoopbackR4ExpandedOptInSyntheticExecutionReport,
+            KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport, KernelLoopbackR5DefaultCutoverCloseoutReadinessReport,
+            KernelLoopbackR5DefaultCutoverCloseoutReport, KernelLoopbackR5DefaultCutoverDecisionReadinessReport,
+            KernelLoopbackR5DefaultCutoverDryRunCloseoutReport, KernelLoopbackR5DefaultCutoverDryRunEvidenceReport,
+            KernelLoopbackR5DefaultCutoverDryRunReadinessReport, KernelLoopbackR5DefaultCutoverExecutionPlanReport,
+            KernelLoopbackR5DefaultCutoverFinalGateReport, KernelLoopbackR5DefaultCutoverFinalHoldReport,
+            KernelLoopbackR5DefaultCutoverGuardReport,
             KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport,
             KernelLoopbackR5DefaultCutoverNextStepHandoffReport, KernelLoopbackR5DefaultCutoverPostDryRunHoldReport,
             KernelLoopbackR5DefaultCutoverPreflightReport, KernelLoopbackR5DefaultCutoverRiskMatrixReport,
@@ -72,9 +73,9 @@ use crate::{
             mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
             mihomo_kernel_start_isolated_test_listener, mihomo_kernel_stop_isolated_test_listener,
             rust_kernel_runtime_candidate_report, rust_kernel_runtime_full_rust_runtime_hardening,
-            rust_kernel_runtime_go_mihomo_retirement_audit, rust_kernel_runtime_r6_default_canary,
-            rust_kernel_runtime_r6_opt_in_mvp, rust_kernel_runtime_r7_default_cutover,
-            rust_kernel_runtime_r7_mihomo_fallback_retirement,
+            rust_kernel_runtime_go_mihomo_retirement_audit, rust_kernel_runtime_go_mihomo_retirement_plan,
+            rust_kernel_runtime_r6_default_canary, rust_kernel_runtime_r6_opt_in_mvp,
+            rust_kernel_runtime_r7_default_cutover, rust_kernel_runtime_r7_mihomo_fallback_retirement,
         },
         runtime_diagnostics::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
@@ -205,7 +206,7 @@ pub async fn get_runtime_tls_fingerprint_stats() -> CmdResult<TLSFingerprintStat
     Handle::mihomo().await.get_tls_fingerprint_stats().await.stringify_err()
 }
 
-/// ÃƒÂ¥Ã‚Â¼Ã‚ÂºÃƒÂ¥Ã‹â€ Ã‚Â¶ÃƒÂ¨Ã‚Â½Ã‚Â®ÃƒÂ¦Ã‚ÂÃ‚Â¢ TLS ÃƒÂ¦Ã…â€™Ã¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â¹ÃƒÂ¯Ã‚Â¼Ã‹â€ app-owned ÃƒÂ©Ã¢â‚¬â€Ã‚Â¨ÃƒÂ§Ã‚Â¦Ã‚ÂÃƒÂ¯Ã‚Â¼Ã…â€™ÃƒÂ¨Ã‚Â®Ã‚Â°ÃƒÂ¥Ã‚Â½Ã¢â‚¬Â¢ÃƒÂ§Ã¢â‚¬ÂÃ…Â¸ÃƒÂ¥Ã¢â‚¬ËœÃ‚Â½ÃƒÂ¥Ã¢â‚¬ËœÃ‚Â¨ÃƒÂ¦Ã…â€œÃ…Â¸ÃƒÂ¥Ã‚Â®Ã‚Â¡ÃƒÂ¨Ã‚Â®Ã‚Â¡ÃƒÂ¯Ã‚Â¼Ã¢â‚¬Â°
+/// ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â¼Ãƒâ€šÃ‚ÂºÃƒÆ’Ã‚Â¥Ãƒâ€¹Ã¢â‚¬Â Ãƒâ€šÃ‚Â¶ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â½Ãƒâ€šÃ‚Â®ÃƒÆ’Ã‚Â¦Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â¢ TLS ÃƒÆ’Ã‚Â¦Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¹ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¹Ã¢â‚¬Â app-owned ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¦Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÆ’Ã‚Â§ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€¦Ã‚Â¸ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â½ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â¦Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€¦Ã‚Â¸ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°
 #[tauri::command]
 pub async fn force_runtime_tls_rotation() -> CmdResult<TLSRotationResult> {
     match Handle::mihomo().await.force_tls_rotation().await {
@@ -256,7 +257,7 @@ pub async fn get_current_egress_identity(app_handle: tauri::AppHandle) -> CmdRes
     build_current_egress_identity(Some(&app_handle)).await.stringify_err()
 }
 
-/// ÃƒÂ¨Ã…Â½Ã‚Â·ÃƒÂ¥Ã‚ÂÃ¢â‚¬â€œÃƒÂ¨Ã‚Â¿Ã‚ÂÃƒÂ¨Ã‚Â¡Ã…â€™ÃƒÂ¦Ã¢â‚¬â€Ã‚Â¶ÃƒÂ¥Ã‚Â­Ã‹Å“ÃƒÂ¥Ã…â€œÃ‚Â¨ÃƒÂ§Ã…Â¡Ã¢â‚¬Å¾ÃƒÂ©Ã¢â‚¬ÂÃ‚Â®
+/// ÃƒÆ’Ã‚Â¨Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â·ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â¡Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¶ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â­Ãƒâ€¹Ã…â€œÃƒÆ’Ã‚Â¥Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€¦Ã‚Â¡ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â®
 #[tauri::command]
 pub async fn get_runtime_exists() -> CmdResult<HashSet<String>> {
     Ok(Config::runtime().await.latest_arc().exists_keys.clone())
@@ -312,10 +313,10 @@ pub async fn get_runtime_upgrade_history() -> CmdResult<crate::core::runtime_sna
     Ok(crate::core::runtime_snapshot::runtime_upgrade_history_state())
 }
 
-/// ÃƒÂ¥Ã‚ÂÃ¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â§ Mihomo ÃƒÂ¥Ã¢â‚¬Â Ã¢â‚¬Â¦ÃƒÂ¦Ã‚Â Ã‚Â¸ÃƒÂ¯Ã‚Â¼Ã‹â€ app-owned ÃƒÂ©Ã¢â‚¬â€Ã‚Â¨ÃƒÂ§Ã‚Â¦Ã‚ÂÃƒÂ¯Ã‚Â¼Ã…â€™ÃƒÂ¨Ã‚Â®Ã‚Â°ÃƒÂ¥Ã‚Â½Ã¢â‚¬Â¢ÃƒÂ¥Ã‚ÂÃ¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â§ÃƒÂ¥Ã…Â½Ã¢â‚¬Â ÃƒÂ¥Ã‚ÂÃ‚Â²ÃƒÂ¯Ã‚Â¼Ã¢â‚¬Â°
+/// ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§ Mihomo ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¦Ãƒâ€šÃ‚Â Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¹Ã¢â‚¬Â app-owned ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¦Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§ÃƒÆ’Ã‚Â¥Ãƒâ€¦Ã‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â²ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°
 #[tauri::command]
 pub async fn upgrade_runtime_core(channel: CoreUpdaterChannel, force: bool) -> CmdResult<()> {
-    let detail = Some(format!("{channel} Ãƒâ€šÃ‚Â· force={force}"));
+    let detail = Some(format!("{channel} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· force={force}"));
     match Handle::mihomo().await.upgrade_core(channel, force).await {
         Ok(()) => {
             crate::core::runtime_snapshot::record_and_persist_runtime_upgrade_event(UPGRADE_CORE, true, None, detail);
@@ -333,7 +334,7 @@ pub async fn upgrade_runtime_core(channel: CoreUpdaterChannel, force: bool) -> C
     }
 }
 
-/// ÃƒÂ¥Ã‚ÂÃ¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â§ Mihomo ÃƒÂ¦Ã…Â½Ã‚Â§ÃƒÂ¥Ã‹â€ Ã‚Â¶ÃƒÂ©Ã‚ÂÃ‚Â¢ÃƒÂ¦Ã‚ÂÃ‚Â¿ UIÃƒÂ¯Ã‚Â¼Ã‹â€ app-owned ÃƒÂ©Ã¢â‚¬â€Ã‚Â¨ÃƒÂ§Ã‚Â¦Ã‚ÂÃƒÂ¯Ã‚Â¼Ã…â€™ÃƒÂ¨Ã‚Â®Ã‚Â°ÃƒÂ¥Ã‚Â½Ã¢â‚¬Â¢ÃƒÂ¥Ã‚ÂÃ¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â§ÃƒÂ¥Ã…Â½Ã¢â‚¬Â ÃƒÂ¥Ã‚ÂÃ‚Â²ÃƒÂ¯Ã‚Â¼Ã¢â‚¬Â°
+/// ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§ Mihomo ÃƒÆ’Ã‚Â¦Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â§ÃƒÆ’Ã‚Â¥Ãƒâ€¹Ã¢â‚¬Â Ãƒâ€šÃ‚Â¶ÃƒÆ’Ã‚Â©Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¦Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â¿ UIÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¹Ã¢â‚¬Â app-owned ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¦Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§ÃƒÆ’Ã‚Â¥Ãƒâ€¦Ã‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â²ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°
 #[tauri::command]
 pub async fn upgrade_runtime_ui() -> CmdResult<()> {
     match Handle::mihomo().await.upgrade_ui().await {
@@ -353,7 +354,7 @@ pub async fn upgrade_runtime_ui() -> CmdResult<()> {
     }
 }
 
-/// ÃƒÂ¥Ã‚ÂÃ¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â§ Geo ÃƒÂ¦Ã¢â‚¬Â¢Ã‚Â°ÃƒÂ¦Ã‚ÂÃ‚Â®ÃƒÂ¥Ã‚ÂºÃ¢â‚¬Å“ÃƒÂ¯Ã‚Â¼Ã‹â€ app-owned ÃƒÂ©Ã¢â‚¬â€Ã‚Â¨ÃƒÂ§Ã‚Â¦Ã‚ÂÃƒÂ¯Ã‚Â¼Ã…â€™ÃƒÂ¨Ã‚Â®Ã‚Â°ÃƒÂ¥Ã‚Â½Ã¢â‚¬Â¢ÃƒÂ¥Ã‚ÂÃ¢â‚¬Â¡ÃƒÂ§Ã‚ÂºÃ‚Â§ÃƒÂ¥Ã…Â½Ã¢â‚¬Â ÃƒÂ¥Ã‚ÂÃ‚Â²ÃƒÂ¯Ã‚Â¼Ã¢â‚¬Â°
+/// ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§ Geo ÃƒÆ’Ã‚Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¦Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â®ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂºÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¹Ã¢â‚¬Â app-owned ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¦Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§ÃƒÆ’Ã‚Â¥Ãƒâ€¦Ã‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â²ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°
 #[tauri::command]
 pub async fn upgrade_runtime_geo() -> CmdResult<()> {
     match Handle::mihomo().await.upgrade_geo().await {
@@ -379,7 +380,7 @@ pub async fn get_runtime_lifecycle_state() -> CmdResult<crate::core::runtime_sna
     Ok(crate::core::runtime_snapshot::runtime_lifecycle_state())
 }
 
-/// ÃƒÂ©Ã¢â‚¬Â¡Ã‚ÂÃƒÂ¥Ã‚ÂÃ‚Â¯ÃƒÂ¦Ã‚Â Ã‚Â¸ÃƒÂ¥Ã‚Â¿Ã†â€™ÃƒÂ¯Ã‚Â¼Ã‹â€ app-owned ÃƒÂ§Ã¢â‚¬ÂÃ…Â¸ÃƒÂ¥Ã¢â‚¬ËœÃ‚Â½ÃƒÂ¥Ã¢â‚¬ËœÃ‚Â¨ÃƒÂ¦Ã…â€œÃ…Â¸ÃƒÂ©Ã¢â‚¬â€Ã‚Â¨ÃƒÂ§Ã‚Â¦Ã‚ÂÃƒÂ¯Ã‚Â¼Ã…â€™ÃƒÂ¨Ã‚Â®Ã‚Â°ÃƒÂ¥Ã‚Â½Ã¢â‚¬Â¢ÃƒÂ¥Ã‚Â®Ã‚Â¡ÃƒÂ¨Ã‚Â®Ã‚Â¡ÃƒÂ¯Ã‚Â¼Ã¢â‚¬Â°
+/// ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â¯ÃƒÆ’Ã‚Â¦Ãƒâ€šÃ‚Â Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â¿Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¹Ã¢â‚¬Â app-owned ÃƒÆ’Ã‚Â§ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€¦Ã‚Â¸ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â½ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â¦Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€¦Ã‚Â¸ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¦Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°
 #[tauri::command]
 pub async fn restart_runtime_core() -> CmdResult<()> {
     match crate::app::runtime::restart_core().await {
@@ -439,7 +440,7 @@ pub async fn reload_runtime_config() -> CmdResult<()> {
     }
 }
 
-/// ÃƒÂ©Ã¢â‚¬Â¡Ã‚ÂÃƒÂ¥Ã‚ÂÃ‚Â¯ÃƒÂ¥Ã‚ÂºÃ¢â‚¬ÂÃƒÂ§Ã¢â‚¬ÂÃ‚Â¨ÃƒÂ¯Ã‚Â¼Ã‹â€ app-owned ÃƒÂ§Ã¢â‚¬ÂÃ…Â¸ÃƒÂ¥Ã¢â‚¬ËœÃ‚Â½ÃƒÂ¥Ã¢â‚¬ËœÃ‚Â¨ÃƒÂ¦Ã…â€œÃ…Â¸ÃƒÂ©Ã¢â‚¬â€Ã‚Â¨ÃƒÂ§Ã‚Â¦Ã‚ÂÃƒÂ¯Ã‚Â¼Ã…â€™ÃƒÂ¨Ã‚Â®Ã‚Â°ÃƒÂ¥Ã‚Â½Ã¢â‚¬Â¢ÃƒÂ¥Ã‚Â®Ã‚Â¡ÃƒÂ¨Ã‚Â®Ã‚Â¡ÃƒÂ¥Ã‚ÂÃ…Â½ÃƒÂ¥Ã¢â‚¬Â Ã‚ÂÃƒÂ©Ã¢â‚¬Â¡Ã‚ÂÃƒÂ¥Ã‚ÂÃ‚Â¯ÃƒÂ¯Ã‚Â¼Ã¢â‚¬Â°
+/// ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â¯ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂºÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã‚Â§ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¹Ã¢â‚¬Â app-owned ÃƒÆ’Ã‚Â§ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€¦Ã‚Â¸ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â½ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â¦Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€¦Ã‚Â¸ÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¨ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¦Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â®Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€¦Ã‚Â½ÃƒÆ’Ã‚Â¥ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â©ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â¯ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¼ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°
 #[tauri::command]
 pub async fn restart_runtime_app() -> CmdResult<()> {
     crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(LIFECYCLE_RESTART_APP, true, None, None);
@@ -635,7 +636,7 @@ pub async fn update_runtime_rule_provider(provider_name: String) -> CmdResult<()
         .stringify_err()
 }
 
-/// ÃƒÂ¨Ã…Â½Ã‚Â·ÃƒÂ¥Ã‚ÂÃ¢â‚¬â€œÃƒÂ¨Ã‚Â¿Ã‚ÂÃƒÂ¨Ã‚Â¡Ã…â€™ÃƒÂ¦Ã¢â‚¬â€Ã‚Â¶ÃƒÂ¦Ã¢â‚¬â€Ã‚Â¥ÃƒÂ¥Ã‚Â¿Ã¢â‚¬â€
+/// ÃƒÆ’Ã‚Â¨Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â·ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¨Ãƒâ€šÃ‚Â¡Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¶ÃƒÆ’Ã‚Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€šÃ‚Â¥ÃƒÆ’Ã‚Â¥Ãƒâ€šÃ‚Â¿ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
 #[tauri::command]
 pub async fn get_runtime_logs() -> CmdResult<HashMap<String, Vec<(String, String)>>> {
     Ok(Config::runtime().await.latest_arc().chain_logs.clone())
@@ -672,7 +673,7 @@ pub async fn get_runtime_proxy_chain_config(proxy_chain_exit_node: String) -> Cm
             .find(|proxy| proxy.get("name").map(|x| x.as_str()) == proxy_name)
             && !proxies_chain.is_empty()
         {
-            // ÃƒÂ¦Ã‚Â·Ã‚Â»ÃƒÂ¥Ã…Â Ã‚Â ÃƒÂ§Ã‚Â¬Ã‚Â¬ÃƒÂ¤Ã‚Â¸Ã¢â€šÂ¬ÃƒÂ¤Ã‚Â¸Ã‚ÂªÃƒÂ¨Ã…Â Ã¢â‚¬Å¡ÃƒÂ§Ã¢â‚¬Å¡Ã‚Â¹
+            // ÃƒÆ’Ã‚Â¦Ãƒâ€šÃ‚Â·Ãƒâ€šÃ‚Â»ÃƒÆ’Ã‚Â¥Ãƒâ€¦Ã‚Â Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â§Ãƒâ€šÃ‚Â¬Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¤Ãƒâ€šÃ‚Â¸ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¤Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚ÂªÃƒÆ’Ã‚Â¨Ãƒâ€¦Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã‚Â§ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¹
             proxies_chain.push(entry_proxy.to_owned());
         }
 
