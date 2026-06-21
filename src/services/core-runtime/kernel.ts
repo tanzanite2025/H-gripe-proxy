@@ -1620,6 +1620,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementFinalRemovalGateReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementExecutionReport {
+  runtimeId: string
+  component: string
+  rollbackCheckpointCreated: boolean
+  executionManifestApplied: boolean
+  sourceRemovalRecorded: boolean
+  artifactRemovalRecorded: boolean
+  postExecutionValidationPassed: boolean
+  executionComplete: boolean
+  executedSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementExecutionReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementFinalRemovalGateComplete: boolean
+  execution: RuntimeRustKernelRuntimeGoMihomoRetirementExecutionReport
+  finalExecutionDecision: boolean
+  goMihomoRetirementExecutionComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3816,6 +3848,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementFinalRemovalGate
       releaseBlockerReviewDecision,
       finalOperatorApprovalDecision,
       finalRemovalDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementExecution(
+  goMihomoRetirementFinalRemovalGateCompleteDecision?: boolean,
+  rollbackCheckpointCreatedDecision?: boolean,
+  executionManifestApplicationDecision?: boolean,
+  sourceRemovalRecordDecision?: boolean,
+  artifactRemovalRecordDecision?: boolean,
+  postExecutionValidationDecision?: boolean,
+  finalExecutionDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementExecutionReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_execution',
+    {
+      goMihomoRetirementFinalRemovalGateCompleteDecision,
+      rollbackCheckpointCreatedDecision,
+      executionManifestApplicationDecision,
+      sourceRemovalRecordDecision,
+      artifactRemovalRecordDecision,
+      postExecutionValidationDecision,
+      finalExecutionDecision,
     },
   )
 }
