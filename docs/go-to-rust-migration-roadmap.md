@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Rust default cutover supported for the safe profile; fallback retirement gated | The supported profile can select Rust by default after R6/R7 evidence; Mihomo fallback retirement remains blocked unless protocol/TUN/adapter/DNS parity, rollback drills, soak evidence, and emergency rollback all pass. |
-| Kernel replacement track | Go/Mihomo retirement execution batch complete | `get_runtime_kernel_loopback_go_mihomo_retirement_execution` requires the final removal gate, rollback checkpoint, execution manifest application, source/artifact removal records, post-execution validation, and explicit final execution decision before verification. |
-| Next safe batch | `go-mihomo-retirement-post-execution-verification` | Only after execution evidence passes, verify the resulting Rust-only boundary and retained rollback checkpoint before retiring rollback surfaces. |
+| Kernel replacement track | Go/Mihomo post-execution verification complete | `get_runtime_kernel_loopback_go_mihomo_retirement_post_execution_verification` requires execution evidence, Rust-only boundary verification, retained rollback checkpoint, source/artifact removal verification, fallback IPC absence verification, and final verification decision before rollback surface retirement. |
+| Next safe batch | `go-mihomo-retirement-rollback-surface-retirement` | Only after post-execution verification passes, plan retirement of rollback surfaces without weakening recovery boundaries. |
 
 ## Acceleration plan
 
@@ -69,6 +69,7 @@ RustKernelRuntime selected by default
 | 11 | `go-mihomo-retirement-closeout` | Complete: review dry-run evidence, archive closeout report, verify rollback checkpoint, freeze artifact inventory, prove no removal mutations, and require final closeout decision. | Closeout only; no removal. |
 | 12 | `go-mihomo-retirement-final-removal-gate` | Complete: accept closeout evidence, lock rollback boundary, lock removal scope, pass release blocker review, require final operator approval, and explicit final removal decision. | Final gate only; no removal. |
 | 13 | `go-mihomo-retirement-execution` | Complete: require final removal gate, rollback checkpoint, execution manifest application, source/artifact removal records, post-execution validation, and final execution decision. | Execution evidence only; no direct runtime mutation. |
+| 14 | `go-mihomo-retirement-post-execution-verification` | Complete: verify execution evidence, Rust-only boundary, retained rollback checkpoint, source/artifact removal, fallback IPC absence, and final verification decision. | Verification only; no rollback retirement. |
 
 ### Completed R7 PR scope
 
@@ -249,6 +250,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | Go/Mihomo retirement closeout | Gate complete | Closeout only | `get_runtime_kernel_loopback_go_mihomo_retirement_closeout` requires the dry run plus evidence review, archived closeout report, rollback checkpoint, frozen inventory, clean mutation checks, and final closeout decision before any final removal gate. |
 | Go/Mihomo final removal gate | Gate complete | Final gate only | `get_runtime_kernel_loopback_go_mihomo_retirement_final_removal_gate` requires closeout plus accepted evidence, locked rollback boundary, locked removal scope, release blocker review, final operator approval, and explicit final removal decision before an execution batch. |
 | Go/Mihomo retirement execution | Batch complete | Execution evidence only | `get_runtime_kernel_loopback_go_mihomo_retirement_execution` requires the final removal gate plus rollback checkpoint, execution manifest application, source/artifact removal records, post-execution validation, and explicit final execution decision before verification. |
+| Go/Mihomo post-execution verification | Gate complete | Verification only | `get_runtime_kernel_loopback_go_mihomo_retirement_post_execution_verification` requires execution plus Rust-only boundary verification, retained rollback checkpoint, source/artifact removal verification, fallback IPC absence verification, and final verification decision before rollback surface retirement. |
 
 ### Current R3 loopback listener boundary
 
@@ -338,7 +340,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-post-execution-verification`; the next implementation may verify the Rust-only boundary only after execution records rollback checkpointing, manifest application, source/artifact removal records, post-execution validation, and final execution approval.
+Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-rollback-surface-retirement`; the next implementation may plan rollback surface retirement only after post-execution verification proves the Rust-only boundary, retained rollback checkpoint, source/artifact removal, fallback IPC absence, and final verification approval.
 
 ## PR checklist for future changes
 
