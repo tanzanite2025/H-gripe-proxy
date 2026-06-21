@@ -1524,6 +1524,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementExecutionGuardReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementDryRunReport {
+  runtimeId: string
+  component: string
+  dryRunManifestReplayed: boolean
+  noSourceMutationsObserved: boolean
+  noBundledArtifactMutationsObserved: boolean
+  rollbackRehearsalPassed: boolean
+  dryRunReportArchived: boolean
+  dryRunComplete: boolean
+  simulatedRemovalSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementDryRunReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementExecutionGuardComplete: boolean
+  dryRun: RuntimeRustKernelRuntimeGoMihomoRetirementDryRunReport
+  finalDryRunDecision: boolean
+  goMihomoRetirementDryRunComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3651,6 +3683,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementExecutionGuard(
       emergencyRollbackDrillDecision,
       operatorAcknowledgementDecision,
       finalExecutionGuardDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementDryRun(
+  goMihomoRetirementExecutionGuardCompleteDecision?: boolean,
+  dryRunManifestReplayDecision?: boolean,
+  noSourceMutationsDecision?: boolean,
+  noBundledArtifactMutationsDecision?: boolean,
+  rollbackRehearsalDecision?: boolean,
+  dryRunReportArchivedDecision?: boolean,
+  finalDryRunDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementDryRunReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_dry_run',
+    {
+      goMihomoRetirementExecutionGuardCompleteDecision,
+      dryRunManifestReplayDecision,
+      noSourceMutationsDecision,
+      noBundledArtifactMutationsDecision,
+      rollbackRehearsalDecision,
+      dryRunReportArchivedDecision,
+      finalDryRunDecision,
     },
   )
 }
