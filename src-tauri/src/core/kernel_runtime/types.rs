@@ -2210,6 +2210,42 @@ pub struct KernelLoopbackGoMihomoRetirementPostExecutionVerificationReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub post_execution_verification_reviewed: bool,
+    pub replacement_recovery_path_verified: bool,
+    pub rollback_surface_inventory_locked: bool,
+    pub rollback_surface_retirement_plan_archived: bool,
+    pub emergency_recovery_drill_passed: bool,
+    pub rollback_surface_retirement_complete: bool,
+    pub planned_retirement_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackGoMihomoRetirementRollbackSurfaceRetirementReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub go_mihomo_retirement_post_execution_verification_complete: bool,
+    pub rollback_surface_retirement: RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport,
+    pub final_rollback_surface_retirement_decision: bool,
+    pub go_mihomo_retirement_rollback_surface_retirement_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
