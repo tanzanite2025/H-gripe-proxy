@@ -1842,6 +1842,61 @@ pub struct KernelLoopbackR7RustDefaultCutoverReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeFallbackRetirementParityReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub protocol_parity_passed: bool,
+    pub tun_parity_passed: bool,
+    pub adapter_parity_passed: bool,
+    pub dns_runtime_parity_passed: bool,
+    pub cross_platform_rollback_passed: bool,
+    pub soak_evidence_passed: bool,
+    pub parity_complete: bool,
+    pub retained_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeFallbackRetirementPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub fallback_retirement_decision: bool,
+    pub emergency_rollback_decision: bool,
+    pub rollback_switch_requested: bool,
+    pub fallback_retirement_allowed: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub restart_required: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR7MihomoFallbackRetirementReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub r7_cutover: KernelLoopbackR7RustDefaultCutoverReport,
+    pub parity: RustKernelRuntimeFallbackRetirementParityReport,
+    pub retirement_plan: RustKernelRuntimeFallbackRetirementPlanReport,
+    pub production_default_allowed: bool,
+    pub mihomo_fallback_retired: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -7537,6 +7592,323 @@ pub async fn rust_kernel_runtime_r7_default_cutover(
             "Mihomo fallback remains available for unsupported paths and one-switch rollback".into(),
         ],
         next_safe_batch: "r7-mihomo-fallback-retirement".into(),
+    })
+}
+
+fn rust_kernel_runtime_r7_fallback_retirement_parity_report(
+    r7_cutover: &KernelLoopbackR7RustDefaultCutoverReport,
+    protocol_parity_decision: bool,
+    tun_parity_decision: bool,
+    adapter_parity_decision: bool,
+    dns_runtime_parity_decision: bool,
+    cross_platform_rollback_decision: bool,
+    soak_evidence_decision: bool,
+) -> RustKernelRuntimeFallbackRetirementParityReport {
+    let mut blockers = Vec::new();
+
+    if !r7_cutover.supported_profile_default_allowed {
+        blockers.push("fallback retirement requires R7 supported profile cutover to be ready".into());
+    }
+    if !protocol_parity_decision {
+        blockers.push("fallback retirement requires outbound and inbound protocol parity evidence".into());
+    }
+    if !tun_parity_decision {
+        blockers.push("fallback retirement requires TUN and transparent proxy parity evidence".into());
+    }
+    if !adapter_parity_decision {
+        blockers.push("fallback retirement requires production adapter runtime parity evidence".into());
+    }
+    if !dns_runtime_parity_decision {
+        blockers.push("fallback retirement requires default DNS runtime parity evidence".into());
+    }
+    if !cross_platform_rollback_decision {
+        blockers.push("fallback retirement requires cross-platform rollback drills".into());
+    }
+    if !soak_evidence_decision {
+        blockers.push("fallback retirement requires cross-platform soak evidence".into());
+    }
+
+    RustKernelRuntimeFallbackRetirementParityReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-mihomo-fallback-retirement-parity".into(),
+        protocol_parity_passed: protocol_parity_decision,
+        tun_parity_passed: tun_parity_decision,
+        adapter_parity_passed: adapter_parity_decision,
+        dns_runtime_parity_passed: dns_runtime_parity_decision,
+        cross_platform_rollback_passed: cross_platform_rollback_decision,
+        soak_evidence_passed: soak_evidence_decision,
+        parity_complete: blockers.is_empty(),
+        retained_boundaries: vec![
+            "protocol stacks remain blocked until explicit parity evidence passes".into(),
+            "TUN and transparent proxy remain blocked until explicit parity evidence passes".into(),
+            "adapter runtime and default DNS remain blocked until explicit parity evidence passes".into(),
+        ],
+        blockers,
+        facts: vec![
+            "fallback retirement consumes R7 cutover readiness before evaluating data-plane parity".into(),
+            "fallback retirement is blocked by default; every high-risk data-plane area needs explicit evidence".into(),
+        ],
+    }
+}
+
+fn rust_kernel_runtime_r7_fallback_retirement_plan_report(
+    parity: &RustKernelRuntimeFallbackRetirementParityReport,
+    fallback_retirement_decision: bool,
+    emergency_rollback_decision: bool,
+    rollback_switch_requested: bool,
+) -> RustKernelRuntimeFallbackRetirementPlanReport {
+    let mut blockers = parity.blockers.clone();
+    let mut warnings = Vec::new();
+
+    if !fallback_retirement_decision {
+        blockers.push("Mihomo fallback retirement requires an explicit retirement decision".into());
+    }
+    if !emergency_rollback_decision {
+        blockers.push("Mihomo fallback retirement requires an emergency rollback decision".into());
+    }
+    if rollback_switch_requested {
+        blockers.push("one-switch rollback currently keeps Mihomo as the selected runtime".into());
+    }
+
+    if parity.parity_complete && !fallback_retirement_decision {
+        warnings.push(
+            "parity evidence is present, but fallback retirement remains disabled until explicitly decided".into(),
+        );
+    }
+
+    let fallback_retirement_allowed = blockers.is_empty();
+
+    RustKernelRuntimeFallbackRetirementPlanReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-mihomo-fallback-retirement-plan".into(),
+        fallback_retirement_decision,
+        emergency_rollback_decision,
+        rollback_switch_requested,
+        fallback_retirement_allowed,
+        selected_runtime_kind: if fallback_retirement_allowed {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        restart_required: false,
+        blockers,
+        warnings,
+        facts: vec![
+            "emergency rollback remains a one-switch Mihomo selection and does not require app restart".into(),
+            "retirement only removes fallback dependence after parity, rollback drills, and soak evidence pass".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_r7_mihomo_fallback_retirement(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+    rust_runtime_scaffold_decision: Option<bool>,
+    canary_default_decision: Option<bool>,
+    health_check_passed: Option<bool>,
+    rollback_triggered: Option<bool>,
+    r7_cutover_decision: Option<bool>,
+    rollback_hold_decision: Option<bool>,
+    rollback_switch_requested: Option<bool>,
+    profile_scope: Option<String>,
+    protocol_parity_decision: Option<bool>,
+    tun_parity_decision: Option<bool>,
+    adapter_parity_decision: Option<bool>,
+    dns_runtime_parity_decision: Option<bool>,
+    cross_platform_rollback_decision: Option<bool>,
+    soak_evidence_decision: Option<bool>,
+    fallback_retirement_decision: Option<bool>,
+    emergency_rollback_decision: Option<bool>,
+) -> Result<KernelLoopbackR7MihomoFallbackRetirementReport> {
+    let protocol_parity_decision = protocol_parity_decision.unwrap_or(false);
+    let tun_parity_decision = tun_parity_decision.unwrap_or(false);
+    let adapter_parity_decision = adapter_parity_decision.unwrap_or(false);
+    let dns_runtime_parity_decision = dns_runtime_parity_decision.unwrap_or(false);
+    let cross_platform_rollback_decision = cross_platform_rollback_decision.unwrap_or(false);
+    let soak_evidence_decision = soak_evidence_decision.unwrap_or(false);
+    let fallback_retirement_decision = fallback_retirement_decision.unwrap_or(false);
+    let emergency_rollback_decision = emergency_rollback_decision.unwrap_or(false);
+    let rollback_switch_requested_value = rollback_switch_requested.unwrap_or(false);
+    let r7_cutover = Box::pin(rust_kernel_runtime_r7_default_cutover(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+        requested_runtime_kind,
+        rust_runtime_opt_in_decision,
+        rust_runtime_scaffold_decision,
+        canary_default_decision,
+        health_check_passed,
+        rollback_triggered,
+        r7_cutover_decision,
+        rollback_hold_decision,
+        Some(rollback_switch_requested_value),
+        profile_scope,
+    ))
+    .await?;
+    let parity = rust_kernel_runtime_r7_fallback_retirement_parity_report(
+        &r7_cutover,
+        protocol_parity_decision,
+        tun_parity_decision,
+        adapter_parity_decision,
+        dns_runtime_parity_decision,
+        cross_platform_rollback_decision,
+        soak_evidence_decision,
+    );
+    let retirement_plan = rust_kernel_runtime_r7_fallback_retirement_plan_report(
+        &parity,
+        fallback_retirement_decision,
+        emergency_rollback_decision,
+        rollback_switch_requested_value,
+    );
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r7SupportedProfileCutover".into(),
+            status: if r7_cutover.supported_profile_default_allowed {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: r7_cutover.supported_profile_default_allowed,
+            blockers: r7_cutover.blockers.clone(),
+            facts: vec!["Mihomo fallback cannot retire before R7 supported profile cutover is ready".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "protocolTunAdapterDnsParity".into(),
+            status: if parity.parity_complete { "passed" } else { "blocked" }.into(),
+            passed: parity.parity_complete,
+            blockers: parity.blockers.clone(),
+            facts: vec!["protocol, TUN, adapter, DNS, rollback drill, and soak evidence are evaluated together".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "fallbackRetirementDecision".into(),
+            status: if fallback_retirement_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: fallback_retirement_decision,
+            blockers: if fallback_retirement_decision {
+                Vec::new()
+            } else {
+                vec!["explicit Mihomo fallback retirement decision is required".into()]
+            },
+            facts: vec!["retirement is an explicit high-risk data-plane decision".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "emergencyRollbackPath".into(),
+            status: if emergency_rollback_decision && !retirement_plan.restart_required {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: emergency_rollback_decision && !retirement_plan.restart_required,
+            blockers: if emergency_rollback_decision {
+                Vec::new()
+            } else {
+                vec!["emergency one-switch Mihomo rollback path must remain available".into()]
+            },
+            facts: vec!["fallback retirement keeps a restart-free rollback selector".into()],
+        },
+    ];
+    let mihomo_fallback_retired =
+        checks.iter().all(|check| check.passed) && retirement_plan.fallback_retirement_allowed;
+    let selected_runtime_kind = if mihomo_fallback_retired {
+        KernelRuntimeKind::Rust
+    } else {
+        KernelRuntimeKind::Mihomo
+    };
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR7MihomoFallbackRetirementReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-mihomo-fallback-retirement".into(),
+        mutates_runtime: false,
+        live_execution_allowed: mihomo_fallback_retired,
+        r7_cutover,
+        parity,
+        retirement_plan,
+        production_default_allowed: mihomo_fallback_retired,
+        mihomo_fallback_retired,
+        selected_runtime_kind,
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "fallback retirement is blocked by default and requires protocol/TUN/adapter/DNS parity evidence".into(),
+            "this IPC surface reports retirement readiness; production mutation remains app-owned and explicitly gated"
+                .into(),
+        ],
+        facts: vec![
+            "R7 fallback retirement consumes R7 cutover readiness before considering full replacement".into(),
+            "Mihomo remains the rollback runtime even when retirement readiness passes".into(),
+        ],
+        next_safe_batch: if mihomo_fallback_retired {
+            "full-rust-runtime-hardening".into()
+        } else {
+            "r7-mihomo-fallback-retirement".into()
+        },
     })
 }
 

@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust default cutover supported for the safe profile | The supported profile can select Rust by default only after R6 canary closeout and rollback hold evidence; unsupported protocol/TUN/adapter paths still fall through to Mihomo. |
-| Kernel replacement track | R7 Rust default cutover complete | `get_runtime_kernel_loopback_r7_rust_default_cutover` promotes Rust from capped canary default to supported profile default with queryable fallback state and one-switch Mihomo rollback. |
-| Next safe batch | `r7-mihomo-fallback-retirement` | Retire Mihomo fallback only after protocol/TUN/adapter parity, cross-platform rollback drills, and soak evidence. |
+| Production data plane | Rust default cutover supported for the safe profile; fallback retirement gated | The supported profile can select Rust by default after R6/R7 evidence; Mihomo fallback retirement remains blocked unless protocol/TUN/adapter/DNS parity, rollback drills, soak evidence, and emergency rollback all pass. |
+| Kernel replacement track | R7 Mihomo fallback retirement gate complete | `get_runtime_kernel_loopback_r7_mihomo_fallback_retirement` consumes R7 cutover readiness and reports whether Mihomo fallback can be retired without losing one-switch Mihomo rollback. |
+| Next safe batch | `full-rust-runtime-hardening` | Only after the fallback retirement gate passes, harden the Rust runtime with extended soak, rollback telemetry, and platform-specific parity follow-up. |
 
 ## Acceleration plan
 
@@ -60,7 +60,7 @@ RustKernelRuntime selected by default
 | 2 | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. | Complete; opt-in only. |
 | 3 | `r6-rust-default-canary` | Make Rust runtime default for a capped safe canary profile with automatic fallback on health/rollback triggers. | Complete; limited default for canary profile. |
 | 4 | `r7-rust-default-cutover` | Complete: promote Rust runtime to default for the supported profile after canary closeout; keep Mihomo fallback for unsupported protocols/TUN until parity is complete. | Complete; Rust default for supported profile. |
-| 5 | `r7-mihomo-fallback-retirement` | Remove fallback dependence only after protocol/TUN/adapter parity, cross-platform rollback drills, and soak evidence. | Full replacement candidate. |
+| 5 | `r7-mihomo-fallback-retirement` | Complete: gate fallback dependence removal behind protocol/TUN/adapter/DNS parity, cross-platform rollback drills, soak evidence, explicit retirement decision, and emergency rollback. | Full replacement candidate, blocked by default. |
 
 ### Completed R7 PR scope
 
@@ -232,7 +232,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R6 opt-in Rust runtime MVP | Complete | Explicit opt-in only | `get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp` selects Rust only after explicit opt-in, supported-subset decision ownership, loopback forwarding rollback evidence, health state, and Mihomo fallback readiness. |
 | R6 Rust default canary | Complete | Limited default canary | `get_runtime_kernel_loopback_r6_rust_default_canary` selects Rust only inside the capped safe canary profile after R6 opt-in, canary decision, health, rollback, and automatic Mihomo fallback checks pass. |
 | R7 Rust default cutover | Complete | Rust default for supported profile | `get_runtime_kernel_loopback_r7_rust_default_cutover` promotes Rust after canary closeout and rollback hold; Mihomo remains fallback for unsupported protocols/TUN and one-switch rollback. |
-| R7 fallback retirement | Planned | Full replacement candidate | Retire Mihomo fallback only after protocol/TUN/adapter parity and cross-platform soak. |
+| R7 fallback retirement | Gate complete | Full replacement candidate | `get_runtime_kernel_loopback_r7_mihomo_fallback_retirement` retires fallback readiness only after R7 cutover, protocol/TUN/adapter/DNS parity, cross-platform rollback drills, soak evidence, explicit decision, and emergency rollback all pass. |
 
 ### Current R3 loopback listener boundary
 
@@ -322,7 +322,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `r7-mihomo-fallback-retirement`; the next implementation may retire Mihomo fallback only after protocol/TUN/adapter parity, cross-platform rollback drills, and soak evidence. TUN/protocol fallback retirement remains blocked until that evidence exists.
+Allowed only through the accelerated sequence above. The current branch is `full-rust-runtime-hardening`; the next implementation may harden the full Rust runtime only after the R7 fallback retirement gate reports complete parity, cross-platform rollback drills, soak evidence, and emergency rollback readiness.
 
 ## PR checklist for future changes
 
