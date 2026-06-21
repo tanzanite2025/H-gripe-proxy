@@ -6,12 +6,14 @@ use super::{
     KernelLoopbackGoMihomoRetirementExecutionGuardReport, KernelLoopbackGoMihomoRetirementExecutionReport,
     KernelLoopbackGoMihomoRetirementFinalRemovalGateReport, KernelLoopbackGoMihomoRetirementPlanReport,
     KernelLoopbackGoMihomoRetirementPostExecutionVerificationReport,
+    KernelLoopbackGoMihomoRetirementRollbackSurfaceRetirementReport,
     KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelRuntimeKind, RUST_RUNTIME_ID,
     RustKernelRuntimeGoMihomoRetirementCloseoutReport, RustKernelRuntimeGoMihomoRetirementDryRunReport,
     RustKernelRuntimeGoMihomoRetirementExecutionGuardReport, RustKernelRuntimeGoMihomoRetirementExecutionReport,
     RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport,
     RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport,
     RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
+    RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport,
 };
 
 fn rust_kernel_runtime_go_mihomo_retirement_removal_plan_report(
@@ -1111,6 +1113,172 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_post_execution_verificatio
             "go-mihomo-retirement-rollback-surface-retirement".into()
         } else {
             "go-mihomo-retirement-post-execution-verification".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retirement_report(
+    post_execution_verification_review_decision: bool,
+    replacement_recovery_path_verification_decision: bool,
+    rollback_surface_inventory_lock_decision: bool,
+    rollback_surface_retirement_plan_archive_decision: bool,
+    emergency_recovery_drill_decision: bool,
+) -> RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport {
+    let mut blockers = Vec::new();
+    let mut planned_retirement_surfaces = Vec::new();
+
+    if post_execution_verification_review_decision {
+        planned_retirement_surfaces.push("post-execution verification review".into());
+    } else {
+        blockers.push("Go/Mihomo rollback surface retirement requires reviewed post-execution verification".into());
+    }
+    if replacement_recovery_path_verification_decision {
+        planned_retirement_surfaces.push("replacement recovery path".into());
+    } else {
+        blockers.push("Go/Mihomo rollback surface retirement requires replacement recovery path verification".into());
+    }
+    if rollback_surface_inventory_lock_decision {
+        planned_retirement_surfaces.push("locked rollback surface inventory".into());
+    } else {
+        blockers.push("Go/Mihomo rollback surface retirement requires locked rollback surface inventory".into());
+    }
+    if rollback_surface_retirement_plan_archive_decision {
+        planned_retirement_surfaces.push("archived rollback surface retirement plan".into());
+    } else {
+        blockers.push("Go/Mihomo rollback surface retirement requires archived retirement plan evidence".into());
+    }
+    if !emergency_recovery_drill_decision {
+        blockers.push("Go/Mihomo rollback surface retirement requires emergency recovery drill evidence".into());
+    }
+
+    RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-rollback-surface-retirement-detail".into(),
+        post_execution_verification_reviewed: post_execution_verification_review_decision,
+        replacement_recovery_path_verified: replacement_recovery_path_verification_decision,
+        rollback_surface_inventory_locked: rollback_surface_inventory_lock_decision,
+        rollback_surface_retirement_plan_archived: rollback_surface_retirement_plan_archive_decision,
+        emergency_recovery_drill_passed: emergency_recovery_drill_decision,
+        rollback_surface_retirement_complete: blockers.is_empty(),
+        planned_retirement_surfaces,
+        blockers,
+        facts: vec![
+            "rollback surface retirement is planned only after replacement recovery is verified".into(),
+            "emergency recovery evidence must remain available before completion closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retirement(
+    go_mihomo_retirement_post_execution_verification_complete_decision: Option<bool>,
+    post_execution_verification_review_decision: Option<bool>,
+    replacement_recovery_path_verification_decision: Option<bool>,
+    rollback_surface_inventory_lock_decision: Option<bool>,
+    rollback_surface_retirement_plan_archive_decision: Option<bool>,
+    emergency_recovery_drill_decision: Option<bool>,
+    final_rollback_surface_retirement_decision: Option<bool>,
+) -> Result<KernelLoopbackGoMihomoRetirementRollbackSurfaceRetirementReport> {
+    let go_mihomo_retirement_post_execution_verification_complete =
+        go_mihomo_retirement_post_execution_verification_complete_decision.unwrap_or(false);
+    let final_rollback_surface_retirement_decision = final_rollback_surface_retirement_decision.unwrap_or(false);
+    let rollback_surface_retirement = rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retirement_report(
+        post_execution_verification_review_decision.unwrap_or(false),
+        replacement_recovery_path_verification_decision.unwrap_or(false),
+        rollback_surface_inventory_lock_decision.unwrap_or(false),
+        rollback_surface_retirement_plan_archive_decision.unwrap_or(false),
+        emergency_recovery_drill_decision.unwrap_or(false),
+    );
+    let mut verification_blockers = Vec::new();
+
+    if !go_mihomo_retirement_post_execution_verification_complete {
+        verification_blockers
+            .push("Go/Mihomo rollback surface retirement requires post-execution verification to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoPostExecutionVerificationComplete".into(),
+            status: if go_mihomo_retirement_post_execution_verification_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: go_mihomo_retirement_post_execution_verification_complete,
+            blockers: verification_blockers,
+            facts: vec![
+                "rollback surface retirement starts only after post-execution verification".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRollbackSurfaceRetirementComplete".into(),
+            status: if rollback_surface_retirement.rollback_surface_retirement_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rollback_surface_retirement.rollback_surface_retirement_complete,
+            blockers: rollback_surface_retirement.blockers.clone(),
+            facts: vec![
+                "verification review, replacement recovery, inventory lock, archived plan, and emergency drill are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalRollbackSurfaceRetirementDecision".into(),
+            status: if final_rollback_surface_retirement_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_rollback_surface_retirement_decision,
+            blockers: if final_rollback_surface_retirement_decision {
+                Vec::new()
+            } else {
+                vec![
+                    "Go/Mihomo rollback surface retirement requires an explicit final retirement decision"
+                        .into(),
+                ]
+            },
+            facts: vec!["rollback surface retirement is explicit before completion closeout".into()],
+        },
+    ];
+    let go_mihomo_retirement_rollback_surface_retirement_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackGoMihomoRetirementRollbackSurfaceRetirementReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-rollback-surface-retirement".into(),
+        mutates_runtime: false,
+        live_execution_allowed: go_mihomo_retirement_rollback_surface_retirement_complete,
+        go_mihomo_retirement_post_execution_verification_complete,
+        rollback_surface_retirement,
+        final_rollback_surface_retirement_decision,
+        go_mihomo_retirement_rollback_surface_retirement_complete,
+        selected_runtime_kind: if go_mihomo_retirement_rollback_surface_retirement_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this command plans rollback surface retirement and does not remove emergency recovery assets".into(),
+            "completion closeout must verify recovery boundaries before the migration is declared done".into(),
+        ],
+        facts: vec![
+            "Go/Mihomo rollback surface retirement follows post-execution verification".into(),
+            "successful retirement advances to completion closeout".into(),
+        ],
+        next_safe_batch: if go_mihomo_retirement_rollback_surface_retirement_complete {
+            "go-mihomo-retirement-completion-closeout".into()
+        } else {
+            "go-mihomo-retirement-rollback-surface-retirement".into()
         },
     })
 }

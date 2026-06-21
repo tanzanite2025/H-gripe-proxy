@@ -1684,6 +1684,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementPostExecutionVerificatio
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport {
+  runtimeId: string
+  component: string
+  postExecutionVerificationReviewed: boolean
+  replacementRecoveryPathVerified: boolean
+  rollbackSurfaceInventoryLocked: boolean
+  rollbackSurfaceRetirementPlanArchived: boolean
+  emergencyRecoveryDrillPassed: boolean
+  rollbackSurfaceRetirementComplete: boolean
+  plannedRetirementSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementRollbackSurfaceRetirementReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementPostExecutionVerificationComplete: boolean
+  rollbackSurfaceRetirement: RuntimeRustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport
+  finalRollbackSurfaceRetirementDecision: boolean
+  goMihomoRetirementRollbackSurfaceRetirementComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3926,6 +3958,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementPostExecutionVer
       artifactRemovalVerificationDecision,
       fallbackIpcAbsenceVerificationDecision,
       finalVerificationDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementRollbackSurfaceRetirement(
+  goMihomoRetirementPostExecutionVerificationCompleteDecision?: boolean,
+  postExecutionVerificationReviewDecision?: boolean,
+  replacementRecoveryPathVerificationDecision?: boolean,
+  rollbackSurfaceInventoryLockDecision?: boolean,
+  rollbackSurfaceRetirementPlanArchiveDecision?: boolean,
+  emergencyRecoveryDrillDecision?: boolean,
+  finalRollbackSurfaceRetirementDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementRollbackSurfaceRetirementReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_rollback_surface_retirement',
+    {
+      goMihomoRetirementPostExecutionVerificationCompleteDecision,
+      postExecutionVerificationReviewDecision,
+      replacementRecoveryPathVerificationDecision,
+      rollbackSurfaceInventoryLockDecision,
+      rollbackSurfaceRetirementPlanArchiveDecision,
+      emergencyRecoveryDrillDecision,
+      finalRollbackSurfaceRetirementDecision,
     },
   )
 }
