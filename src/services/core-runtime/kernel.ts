@@ -1492,6 +1492,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementPlanReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementExecutionGuardReport {
+  runtimeId: string
+  component: string
+  removalManifestReady: boolean
+  abortPlanReady: boolean
+  stagedRolloutGuardReady: boolean
+  emergencyRollbackDrillPassed: boolean
+  operatorAcknowledgement: boolean
+  executionGuardComplete: boolean
+  guardedExecutionSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementExecutionGuardReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementPlanComplete: boolean
+  executionGuard: RuntimeRustKernelRuntimeGoMihomoRetirementExecutionGuardReport
+  finalExecutionGuardDecision: boolean
+  goMihomoRetirementExecutionGuardComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3596,6 +3628,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementPlan(
       emergencyRollbackPreservationPlanDecision,
       releaseRolloutPlanDecision,
       finalRetirementPlanDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementExecutionGuard(
+  goMihomoRetirementPlanCompleteDecision?: boolean,
+  removalManifestDecision?: boolean,
+  abortPlanDecision?: boolean,
+  stagedRolloutGuardDecision?: boolean,
+  emergencyRollbackDrillDecision?: boolean,
+  operatorAcknowledgementDecision?: boolean,
+  finalExecutionGuardDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementExecutionGuardReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_execution_guard',
+    {
+      goMihomoRetirementPlanCompleteDecision,
+      removalManifestDecision,
+      abortPlanDecision,
+      stagedRolloutGuardDecision,
+      emergencyRollbackDrillDecision,
+      operatorAcknowledgementDecision,
+      finalExecutionGuardDecision,
     },
   )
 }

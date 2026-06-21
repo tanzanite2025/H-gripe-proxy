@@ -1994,6 +1994,42 @@ pub struct KernelLoopbackGoMihomoRetirementPlanReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeGoMihomoRetirementExecutionGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub removal_manifest_ready: bool,
+    pub abort_plan_ready: bool,
+    pub staged_rollout_guard_ready: bool,
+    pub emergency_rollback_drill_passed: bool,
+    pub operator_acknowledgement: bool,
+    pub execution_guard_complete: bool,
+    pub guarded_execution_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackGoMihomoRetirementExecutionGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub go_mihomo_retirement_plan_complete: bool,
+    pub execution_guard: RustKernelRuntimeGoMihomoRetirementExecutionGuardReport,
+    pub final_execution_guard_decision: bool,
+    pub go_mihomo_retirement_execution_guard_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
