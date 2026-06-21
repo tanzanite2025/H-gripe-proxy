@@ -1748,6 +1748,40 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementCompletionCloseoutReport
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningBoundaryReport {
+  runtimeId: string
+  component: string
+  protocolParityInventoryComplete: boolean
+  tunBoundaryInventoryComplete: boolean
+  adapterCompatibilityMatrixComplete: boolean
+  dnsLeakVerificationPlanComplete: boolean
+  rollbackDrillPlanComplete: boolean
+  optInExecutionBoundaryLocked: boolean
+  preflightBoundaryComplete: boolean
+  evidenceSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningPreflightReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  goMihomoRetirementComplete: boolean
+  boundary: RuntimeRustKernelRuntimeDataPlaneHardeningBoundaryReport
+  finalPreflightDecision: boolean
+  rustDataPlaneHardeningPreflightComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -4036,6 +4070,31 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementCompletionCloseo
       releaseNotesUpdateDecision,
       migrationStateFreezeDecision,
       finalCompletionDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningPreflight(
+  goMihomoRetirementCompleteDecision?: boolean,
+  protocolParityInventoryDecision?: boolean,
+  tunBoundaryInventoryDecision?: boolean,
+  adapterCompatibilityMatrixDecision?: boolean,
+  dnsLeakVerificationPlanDecision?: boolean,
+  rollbackDrillPlanDecision?: boolean,
+  optInExecutionBoundaryDecision?: boolean,
+  finalPreflightDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningPreflightReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_preflight',
+    {
+      goMihomoRetirementCompleteDecision,
+      protocolParityInventoryDecision,
+      tunBoundaryInventoryDecision,
+      adapterCompatibilityMatrixDecision,
+      dnsLeakVerificationPlanDecision,
+      rollbackDrillPlanDecision,
+      optInExecutionBoundaryDecision,
+      finalPreflightDecision,
     },
   )
 }

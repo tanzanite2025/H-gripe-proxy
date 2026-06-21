@@ -2282,6 +2282,44 @@ pub struct KernelLoopbackGoMihomoRetirementCompletionCloseoutReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningBoundaryReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub protocol_parity_inventory_complete: bool,
+    pub tun_boundary_inventory_complete: bool,
+    pub adapter_compatibility_matrix_complete: bool,
+    pub dns_leak_verification_plan_complete: bool,
+    pub rollback_drill_plan_complete: bool,
+    pub opt_in_execution_boundary_locked: bool,
+    pub preflight_boundary_complete: bool,
+    pub evidence_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub go_mihomo_retirement_complete: bool,
+    pub boundary: RustKernelRuntimeDataPlaneHardeningBoundaryReport,
+    pub final_preflight_decision: bool,
+    pub rust_data_plane_hardening_preflight_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
