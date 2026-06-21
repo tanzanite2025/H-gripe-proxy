@@ -950,6 +950,79 @@ export interface RuntimeKernelLoopbackR5DefaultCutoverDryRunReadinessReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR5DefaultCutoverDryRunEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  dryRunExecuted: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  readiness: RuntimeKernelLoopbackR5DefaultCutoverDryRunReadinessReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverDryRunCloseoutReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  dryRunCloseoutReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  evidence: RuntimeKernelLoopbackR5DefaultCutoverDryRunEvidenceReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverPostDryRunHoldReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  holdDecision: boolean
+  holdReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  closeout: RuntimeKernelLoopbackR5DefaultCutoverDryRunCloseoutReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -1975,6 +2048,151 @@ export async function getRuntimeKernelLoopbackR5DefaultCutoverDryRunReadiness(
       executionPlanDecision,
       guardDecision,
       dryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverDryRunEvidence(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverDryRunEvidenceReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_dry_run_evidence',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverDryRunCloseout(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverDryRunCloseoutReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_dry_run_closeout',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverPostDryRunHold(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverPostDryRunHoldReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_post_dry_run_hold',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
     },
   )
 }
