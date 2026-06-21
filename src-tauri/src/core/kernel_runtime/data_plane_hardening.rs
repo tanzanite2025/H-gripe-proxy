@@ -3,8 +3,9 @@ use smartstring::alias::String;
 
 use super::{
     KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelLoopbackRustDataPlaneHardeningBoundaryAuditReport,
-    KernelLoopbackRustDataPlaneHardeningPreflightReport, KernelRuntimeKind, RUST_RUNTIME_ID,
-    RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport, RustKernelRuntimeDataPlaneHardeningBoundaryReport,
+    KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport, KernelLoopbackRustDataPlaneHardeningPreflightReport,
+    KernelRuntimeKind, RUST_RUNTIME_ID, RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport,
+    RustKernelRuntimeDataPlaneHardeningBoundaryReport, RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
 };
 
 fn rust_kernel_runtime_data_plane_hardening_boundary_report(
@@ -351,6 +352,189 @@ pub async fn rust_kernel_runtime_data_plane_hardening_boundary_audit(
             "rust-data-plane-hardening-opt-in-execution-guard".into()
         } else {
             "rust-data-plane-hardening-boundary-audit".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard_report(
+    boundary_audit_review_decision: bool,
+    opt_in_scope_lock_decision: bool,
+    rollout_guard_definition_decision: bool,
+    abort_plan_approval_decision: bool,
+    telemetry_watch_configuration_decision: bool,
+    rollback_switch_verification_decision: bool,
+    operator_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport {
+    let mut blockers = Vec::new();
+    let mut guarded_surfaces = Vec::new();
+
+    if boundary_audit_review_decision {
+        guarded_surfaces.push("boundary audit review".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires reviewed boundary audit".into());
+    }
+    if opt_in_scope_lock_decision {
+        guarded_surfaces.push("locked opt-in execution scope".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires locked opt-in scope".into());
+    }
+    if rollout_guard_definition_decision {
+        guarded_surfaces.push("rollout guard definition".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires rollout guard definition".into());
+    }
+    if abort_plan_approval_decision {
+        guarded_surfaces.push("approved abort plan".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires approved abort plan".into());
+    }
+    if telemetry_watch_configuration_decision {
+        guarded_surfaces.push("telemetry watch configuration".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires telemetry watch configuration".into());
+    }
+    if rollback_switch_verification_decision {
+        guarded_surfaces.push("rollback switch verification".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires rollback switch verification".into());
+    }
+    if operator_acknowledgement_decision {
+        guarded_surfaces.push("operator acknowledgement".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires operator acknowledgement".into());
+    }
+
+    RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-opt-in-execution-guard-detail".into(),
+        boundary_audit_reviewed: boundary_audit_review_decision,
+        opt_in_scope_locked: opt_in_scope_lock_decision,
+        rollout_guard_defined: rollout_guard_definition_decision,
+        abort_plan_approved: abort_plan_approval_decision,
+        telemetry_watch_configured: telemetry_watch_configuration_decision,
+        rollback_switch_verified: rollback_switch_verification_decision,
+        operator_acknowledged: operator_acknowledgement_decision,
+        opt_in_execution_guard_complete: blockers.is_empty(),
+        guarded_surfaces,
+        blockers,
+        facts: vec![
+            "opt-in execution guard defines the allowed execution envelope without applying it".into(),
+            "production data-plane forwarding remains blocked until a separate execution batch".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard(
+    rust_data_plane_hardening_boundary_audit_complete_decision: Option<bool>,
+    boundary_audit_review_decision: Option<bool>,
+    opt_in_scope_lock_decision: Option<bool>,
+    rollout_guard_definition_decision: Option<bool>,
+    abort_plan_approval_decision: Option<bool>,
+    telemetry_watch_configuration_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    operator_acknowledgement_decision: Option<bool>,
+    final_execution_guard_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport> {
+    let rust_data_plane_hardening_boundary_audit_complete =
+        rust_data_plane_hardening_boundary_audit_complete_decision.unwrap_or(false);
+    let final_execution_guard_decision = final_execution_guard_decision.unwrap_or(false);
+    let opt_in_execution_guard = rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard_report(
+        boundary_audit_review_decision.unwrap_or(false),
+        opt_in_scope_lock_decision.unwrap_or(false),
+        rollout_guard_definition_decision.unwrap_or(false),
+        abort_plan_approval_decision.unwrap_or(false),
+        telemetry_watch_configuration_decision.unwrap_or(false),
+        rollback_switch_verification_decision.unwrap_or(false),
+        operator_acknowledgement_decision.unwrap_or(false),
+    );
+    let mut boundary_audit_blockers = Vec::new();
+
+    if !rust_data_plane_hardening_boundary_audit_complete {
+        boundary_audit_blockers
+            .push("Rust data-plane opt-in execution guard requires boundary audit to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningBoundaryAuditComplete".into(),
+            status: if rust_data_plane_hardening_boundary_audit_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_data_plane_hardening_boundary_audit_complete,
+            blockers: boundary_audit_blockers,
+            facts: vec!["opt-in execution guard starts only after boundary audit".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningOptInExecutionGuardComplete".into(),
+            status: if opt_in_execution_guard.opt_in_execution_guard_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: opt_in_execution_guard.opt_in_execution_guard_complete,
+            blockers: opt_in_execution_guard.blockers.clone(),
+            facts: vec![
+                "boundary review, scope lock, rollout guard, abort plan, telemetry, rollback, and acknowledgement are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalExecutionGuardDecision".into(),
+            status: if final_execution_guard_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_execution_guard_decision,
+            blockers: if final_execution_guard_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane opt-in execution guard requires an explicit final decision".into()]
+            },
+            facts: vec!["execution guard completion is explicit before any opt-in dry run".into()],
+        },
+    ];
+    let rust_data_plane_hardening_opt_in_execution_guard_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-opt-in-execution-guard".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        production_data_plane_mutation_allowed: false,
+        rust_data_plane_hardening_boundary_audit_complete,
+        opt_in_execution_guard,
+        final_execution_guard_decision,
+        rust_data_plane_hardening_opt_in_execution_guard_complete,
+        selected_runtime_kind: if rust_data_plane_hardening_opt_in_execution_guard_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this execution guard does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config"
+                .into(),
+            "production data-plane mutation remains blocked until a separate opt-in dry-run or execution batch".into(),
+        ],
+        facts: vec![
+            "Rust data-plane hardening opt-in execution guard follows boundary audit".into(),
+            "successful guard advances only to opt-in dry-run readiness".into(),
+        ],
+        next_safe_batch: if rust_data_plane_hardening_opt_in_execution_guard_complete {
+            "rust-data-plane-hardening-opt-in-dry-run".into()
+        } else {
+            "rust-data-plane-hardening-opt-in-execution-guard".into()
         },
     })
 }

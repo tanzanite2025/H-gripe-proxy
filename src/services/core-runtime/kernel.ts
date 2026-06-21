@@ -1817,6 +1817,41 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningBoundaryAuditReport 
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport {
+  runtimeId: string
+  component: string
+  boundaryAuditReviewed: boolean
+  optInScopeLocked: boolean
+  rolloutGuardDefined: boolean
+  abortPlanApproved: boolean
+  telemetryWatchConfigured: boolean
+  rollbackSwitchVerified: boolean
+  operatorAcknowledged: boolean
+  optInExecutionGuardComplete: boolean
+  guardedSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningBoundaryAuditComplete: boolean
+  optInExecutionGuard: RuntimeRustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport
+  finalExecutionGuardDecision: boolean
+  rustDataPlaneHardeningOptInExecutionGuardComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -4157,6 +4192,33 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningBoundaryAudi
       rollbackBoundaryAuditDecision,
       optInBoundaryAuditDecision,
       finalBoundaryAuditDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningOptInExecutionGuard(
+  rustDataPlaneHardeningBoundaryAuditCompleteDecision?: boolean,
+  boundaryAuditReviewDecision?: boolean,
+  optInScopeLockDecision?: boolean,
+  rolloutGuardDefinitionDecision?: boolean,
+  abortPlanApprovalDecision?: boolean,
+  telemetryWatchConfigurationDecision?: boolean,
+  rollbackSwitchVerificationDecision?: boolean,
+  operatorAcknowledgementDecision?: boolean,
+  finalExecutionGuardDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execution_guard',
+    {
+      rustDataPlaneHardeningBoundaryAuditCompleteDecision,
+      boundaryAuditReviewDecision,
+      optInScopeLockDecision,
+      rolloutGuardDefinitionDecision,
+      abortPlanApprovalDecision,
+      telemetryWatchConfigurationDecision,
+      rollbackSwitchVerificationDecision,
+      operatorAcknowledgementDecision,
+      finalExecutionGuardDecision,
     },
   )
 }
