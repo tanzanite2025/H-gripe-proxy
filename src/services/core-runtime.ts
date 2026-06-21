@@ -1432,6 +1432,55 @@ export interface RuntimeKernelLoopbackR7RustDefaultCutoverReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeFallbackRetirementParityReport {
+  runtimeId: string
+  component: string
+  protocolParityPassed: boolean
+  tunParityPassed: boolean
+  adapterParityPassed: boolean
+  dnsRuntimeParityPassed: boolean
+  crossPlatformRollbackPassed: boolean
+  soakEvidencePassed: boolean
+  parityComplete: boolean
+  retainedBoundaries: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeRustKernelRuntimeFallbackRetirementPlanReport {
+  runtimeId: string
+  component: string
+  fallbackRetirementDecision: boolean
+  emergencyRollbackDecision: boolean
+  rollbackSwitchRequested: boolean
+  fallbackRetirementAllowed: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  restartRequired: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackR7MihomoFallbackRetirementReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  r7Cutover: RuntimeKernelLoopbackR7RustDefaultCutoverReport
+  parity: RuntimeRustKernelRuntimeFallbackRetirementParityReport
+  retirementPlan: RuntimeRustKernelRuntimeFallbackRetirementPlanReport
+  productionDefaultAllowed: boolean
+  mihomoFallbackRetired: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3354,6 +3403,109 @@ export async function getRuntimeKernelLoopbackR7RustDefaultCutover(
       rollbackHoldDecision,
       rollbackSwitchRequested,
       profileScope,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR7MihomoFallbackRetirement(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+  finalHoldStartedAtEpochMs?: number,
+  finalHoldDecision?: boolean,
+  independentRollbackDecision?: boolean,
+  r5CloseoutDecision?: boolean,
+  r5CloseoutReportDecision?: boolean,
+  requestedRuntimeKind?: RuntimeKernelRuntimeKind,
+  rustRuntimeOptInDecision?: boolean,
+  rustRuntimeScaffoldDecision?: boolean,
+  canaryDefaultDecision?: boolean,
+  healthCheckPassed?: boolean,
+  rollbackTriggered?: boolean,
+  r7CutoverDecision?: boolean,
+  rollbackHoldDecision?: boolean,
+  rollbackSwitchRequested?: boolean,
+  profileScope?: string,
+  protocolParityDecision?: boolean,
+  tunParityDecision?: boolean,
+  adapterParityDecision?: boolean,
+  dnsRuntimeParityDecision?: boolean,
+  crossPlatformRollbackDecision?: boolean,
+  soakEvidenceDecision?: boolean,
+  fallbackRetirementDecision?: boolean,
+  emergencyRollbackDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR7MihomoFallbackRetirementReport>(
+    'get_runtime_kernel_loopback_r7_mihomo_fallback_retirement',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
+      finalHoldStartedAtEpochMs,
+      finalHoldDecision,
+      independentRollbackDecision,
+      r5CloseoutDecision,
+      r5CloseoutReportDecision,
+      requestedRuntimeKind,
+      rustRuntimeOptInDecision,
+      rustRuntimeScaffoldDecision,
+      canaryDefaultDecision,
+      healthCheckPassed,
+      rollbackTriggered,
+      r7CutoverDecision,
+      rollbackHoldDecision,
+      rollbackSwitchRequested,
+      profileScope,
+      protocolParityDecision,
+      tunParityDecision,
+      adapterParityDecision,
+      dnsRuntimeParityDecision,
+      crossPlatformRollbackDecision,
+      soakEvidenceDecision,
+      fallbackRetirementDecision,
+      emergencyRollbackDecision,
     },
   )
 }
