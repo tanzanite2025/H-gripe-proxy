@@ -3,10 +3,11 @@ use smartstring::alias::String;
 
 use super::{
     KernelLoopbackGoMihomoRetirementCloseoutReport, KernelLoopbackGoMihomoRetirementDryRunReport,
-    KernelLoopbackGoMihomoRetirementExecutionGuardReport, KernelLoopbackGoMihomoRetirementFinalRemovalGateReport,
-    KernelLoopbackGoMihomoRetirementPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck,
-    KernelRuntimeKind, RUST_RUNTIME_ID, RustKernelRuntimeGoMihomoRetirementCloseoutReport,
-    RustKernelRuntimeGoMihomoRetirementDryRunReport, RustKernelRuntimeGoMihomoRetirementExecutionGuardReport,
+    KernelLoopbackGoMihomoRetirementExecutionGuardReport, KernelLoopbackGoMihomoRetirementExecutionReport,
+    KernelLoopbackGoMihomoRetirementFinalRemovalGateReport, KernelLoopbackGoMihomoRetirementPlanReport,
+    KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelRuntimeKind, RUST_RUNTIME_ID,
+    RustKernelRuntimeGoMihomoRetirementCloseoutReport, RustKernelRuntimeGoMihomoRetirementDryRunReport,
+    RustKernelRuntimeGoMihomoRetirementExecutionGuardReport, RustKernelRuntimeGoMihomoRetirementExecutionReport,
     RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport, RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
 };
 
@@ -784,6 +785,166 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_final_removal_gate(
             "go-mihomo-retirement-execution".into()
         } else {
             "go-mihomo-retirement-final-removal-gate".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_go_mihomo_retirement_execution_report(
+    rollback_checkpoint_created_decision: bool,
+    execution_manifest_application_decision: bool,
+    source_removal_record_decision: bool,
+    artifact_removal_record_decision: bool,
+    post_execution_validation_decision: bool,
+) -> RustKernelRuntimeGoMihomoRetirementExecutionReport {
+    let mut blockers = Vec::new();
+    let mut executed_surfaces = Vec::new();
+
+    if rollback_checkpoint_created_decision {
+        executed_surfaces.push("rollback checkpoint".into());
+    } else {
+        blockers.push("Go/Mihomo retirement execution requires a rollback checkpoint".into());
+    }
+    if execution_manifest_application_decision {
+        executed_surfaces.push("execution manifest application".into());
+    } else {
+        blockers.push("Go/Mihomo retirement execution requires manifest application evidence".into());
+    }
+    if source_removal_record_decision {
+        executed_surfaces.push("source removal record".into());
+    } else {
+        blockers.push("Go/Mihomo retirement execution requires source removal record evidence".into());
+    }
+    if artifact_removal_record_decision {
+        executed_surfaces.push("artifact removal record".into());
+    } else {
+        blockers.push("Go/Mihomo retirement execution requires artifact removal record evidence".into());
+    }
+    if !post_execution_validation_decision {
+        blockers.push("Go/Mihomo retirement execution requires post-execution validation".into());
+    }
+
+    RustKernelRuntimeGoMihomoRetirementExecutionReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-execution-detail".into(),
+        rollback_checkpoint_created: rollback_checkpoint_created_decision,
+        execution_manifest_applied: execution_manifest_application_decision,
+        source_removal_recorded: source_removal_record_decision,
+        artifact_removal_recorded: artifact_removal_record_decision,
+        post_execution_validation_passed: post_execution_validation_decision,
+        execution_complete: blockers.is_empty(),
+        executed_surfaces,
+        blockers,
+        facts: vec![
+            "this execution report records batch evidence without mutating runtime state".into(),
+            "source and artifact removal records must be reviewed before post-execution verification".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_go_mihomo_retirement_execution(
+    go_mihomo_retirement_final_removal_gate_complete_decision: Option<bool>,
+    rollback_checkpoint_created_decision: Option<bool>,
+    execution_manifest_application_decision: Option<bool>,
+    source_removal_record_decision: Option<bool>,
+    artifact_removal_record_decision: Option<bool>,
+    post_execution_validation_decision: Option<bool>,
+    final_execution_decision: Option<bool>,
+) -> Result<KernelLoopbackGoMihomoRetirementExecutionReport> {
+    let go_mihomo_retirement_final_removal_gate_complete =
+        go_mihomo_retirement_final_removal_gate_complete_decision.unwrap_or(false);
+    let final_execution_decision = final_execution_decision.unwrap_or(false);
+    let execution = rust_kernel_runtime_go_mihomo_retirement_execution_report(
+        rollback_checkpoint_created_decision.unwrap_or(false),
+        execution_manifest_application_decision.unwrap_or(false),
+        source_removal_record_decision.unwrap_or(false),
+        artifact_removal_record_decision.unwrap_or(false),
+        post_execution_validation_decision.unwrap_or(false),
+    );
+    let mut final_gate_blockers = Vec::new();
+
+    if !go_mihomo_retirement_final_removal_gate_complete {
+        final_gate_blockers.push("Go/Mihomo retirement execution requires the final removal gate to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoFinalRemovalGateComplete".into(),
+            status: if go_mihomo_retirement_final_removal_gate_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: go_mihomo_retirement_final_removal_gate_complete,
+            blockers: final_gate_blockers,
+            facts: vec!["execution starts only after final removal gate readiness".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRetirementExecutionComplete".into(),
+            status: if execution.execution_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: execution.execution_complete,
+            blockers: execution.blockers.clone(),
+            facts: vec![
+                "rollback checkpoint, manifest application, removal records, and post-execution validation are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalExecutionDecision".into(),
+            status: if final_execution_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_execution_decision,
+            blockers: if final_execution_decision {
+                Vec::new()
+            } else {
+                vec!["Go/Mihomo retirement execution requires an explicit final execution decision".into()]
+            },
+            facts: vec!["the execution batch remains explicit and auditable".into()],
+        },
+    ];
+    let go_mihomo_retirement_execution_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackGoMihomoRetirementExecutionReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-execution".into(),
+        mutates_runtime: false,
+        live_execution_allowed: go_mihomo_retirement_execution_complete,
+        go_mihomo_retirement_final_removal_gate_complete,
+        execution,
+        final_execution_decision,
+        go_mihomo_retirement_execution_complete,
+        selected_runtime_kind: if go_mihomo_retirement_execution_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this command reports execution evidence and does not delete Mihomo assets by itself".into(),
+            "post-execution verification must pass before rollback surfaces can be retired".into(),
+        ],
+        facts: vec![
+            "Go/Mihomo retirement execution follows the final removal gate".into(),
+            "successful execution advances to post-execution verification".into(),
+        ],
+        next_safe_batch: if go_mihomo_retirement_execution_complete {
+            "go-mihomo-retirement-post-execution-verification".into()
+        } else {
+            "go-mihomo-retirement-execution".into()
         },
     })
 }
