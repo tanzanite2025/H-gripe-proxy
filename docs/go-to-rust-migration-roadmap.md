@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned by default, but now on accelerated Rust cutover path | The first Rust default must be a guarded Rust runtime with Mihomo fallback for unsupported protocol/TUN/adapter paths; full TUN/protocol replacement is not required for the first default switch. |
-| Kernel replacement track | R6 opt-in Rust runtime MVP complete | The Rust runtime can now be explicitly selected for the supported safe subset with Rust-owned rule/DNS/adapter decisions, bounded loopback forwarding evidence, health state, rollback state, and Mihomo fallback boundaries. |
-| Next safe batch | `r6-rust-default-canary` | Promote the supported safe subset from explicit opt-in to a capped canary default profile with automatic health/fallback rollback. |
+| Kernel replacement track | R6 Rust default canary complete | The Rust runtime can now be selected as the default inside a capped safe canary profile after explicit opt-in, health checks, rollback arming, and automatic Mihomo fallback checks pass. |
+| Next safe batch | `r7-rust-default-cutover` | Promote Rust runtime from capped canary default to the supported profile default only after canary closeout evidence and rollback hold pass. |
 
 ## Acceleration plan
 
@@ -58,19 +58,19 @@ RustKernelRuntime selected by default
 | --- | --- | --- | --- |
 | 1 | `r5-closeout-r6-rust-runtime-scaffold` | Bundle the R5 closeout report with `RustKernelRuntime`/runtime-selection scaffolding, fallback boundary, and frontend/IPC types. | No default change. |
 | 2 | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. | Complete; opt-in only. |
-| 3 | `r6-rust-default-canary` | Make Rust runtime default for a capped safe canary profile with automatic fallback on health/rollback triggers. | Limited default for canary profile. |
+| 3 | `r6-rust-default-canary` | Make Rust runtime default for a capped safe canary profile with automatic fallback on health/rollback triggers. | Complete; limited default for canary profile. |
 | 4 | `r7-rust-default-cutover` | Promote Rust runtime to default for the supported profile after canary closeout; keep Mihomo fallback for unsupported protocols/TUN until parity is complete. | Rust default for supported profile. |
 | 5 | `r7-mihomo-fallback-retirement` | Remove fallback dependence only after protocol/TUN/adapter parity, cross-platform rollback drills, and soak evidence. | Full replacement candidate. |
 
 ### Immediate next PR scope
 
-The next PR should not be another report-only gate. It should include:
+The next PR should not retire Mihomo fallback or TUN/protocol boundaries. It should include:
 
-- R5 closeout report summary using the already-complete R5 evidence chain.
-- `KernelRuntimeKind` / runtime selection scaffold with `Mihomo` and `Rust` variants.
-- A disabled-by-default `RustKernelRuntime` implementation that exposes capability and fallback boundaries.
-- IPC/TypeScript types for selecting/querying the candidate runtime.
-- Roadmap advancement directly to `r6-opt-in-rust-runtime-mvp` (complete).
+- Canary closeout summary from `get_runtime_kernel_loopback_r6_rust_default_canary`.
+- Wider default selection only for the supported profile after canary health and rollback hold pass.
+- A one-switch rollback path that restores Mihomo default selection without app restart.
+- IPC/TypeScript types for querying cutover readiness and fallback state.
+- Roadmap advancement directly to `r7-rust-default-cutover` (complete).
 
 ## Non-negotiable boundaries
 
@@ -230,7 +230,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R5 default cutover closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness` prepares report-only closeout while keeping live default cutover blocked. |
 | R5 closeout report + R6 Rust runtime scaffold | Complete | No default change | `get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold` bundles final R5 closeout with `RustKernelRuntime` scaffolding and runtime selection boundaries; next batch is R6 MVP. |
 | R6 opt-in Rust runtime MVP | Complete | Explicit opt-in only | `get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp` selects Rust only after explicit opt-in, supported-subset decision ownership, loopback forwarding rollback evidence, health state, and Mihomo fallback readiness. |
-| R6 Rust default canary | Planned | Limited default canary | Default Rust runtime only for a capped safe profile with automatic fallback. |
+| R6 Rust default canary | Complete | Limited default canary | `get_runtime_kernel_loopback_r6_rust_default_canary` selects Rust only inside the capped safe canary profile after R6 opt-in, canary decision, health, rollback, and automatic Mihomo fallback checks pass. |
 | R7 Rust default cutover | Planned | Rust default for supported profile | Promote Rust runtime after canary closeout; Mihomo remains fallback for unsupported protocols/TUN. |
 | R7 fallback retirement | Planned | Full replacement candidate | Retire Mihomo fallback only after protocol/TUN/adapter parity and cross-platform soak. |
 
@@ -322,7 +322,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `r6-rust-default-canary`; the next implementation may make Rust the default only for a capped safe canary profile with automatic health/fallback rollback. TUN/protocol fallback retirement remains blocked.
+Allowed only through the accelerated sequence above. The current branch is `r7-rust-default-cutover`; the next implementation may promote Rust from capped canary default to the supported profile default after canary closeout and rollback hold evidence. TUN/protocol fallback retirement remains blocked.
 
 ## PR checklist for future changes
 

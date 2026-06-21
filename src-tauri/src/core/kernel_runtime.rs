@@ -1710,6 +1710,62 @@ pub struct KernelLoopbackR6OptInRustRuntimeMvpReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeCanaryProfileReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub canary_scope: String,
+    pub max_canary_sessions: u16,
+    pub capped_profile: bool,
+    pub supported_safe_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeAutomaticFallbackReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub health_check_passed: bool,
+    pub rollback_triggered: bool,
+    pub health_ready: bool,
+    pub rollback_armed: bool,
+    pub fallback_activated: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub fallback_runtime_kind: KernelRuntimeKind,
+    pub triggers: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR6RustDefaultCanaryReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_opt_in_decision: bool,
+    pub canary_default_decision: bool,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub canary_default_allowed: bool,
+    pub production_default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub r6_opt_in: KernelLoopbackR6OptInRustRuntimeMvpReport,
+    pub canary_profile: RustKernelRuntimeCanaryProfileReport,
+    pub automatic_fallback: RustKernelRuntimeAutomaticFallbackReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1822,7 +1878,7 @@ impl KernelRuntime for RustKernelRuntime {
             rust_owned_control_plane: rust_owned_control_plane(),
             mihomo_owned_data_plane: rust_runtime_fallback_boundaries(),
             blocked_replacement_areas: blocked_replacement_areas(),
-            next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+            next_safe_batch: "r6-rust-default-canary".into(),
         }
     }
 
@@ -1833,7 +1889,7 @@ impl KernelRuntime for RustKernelRuntime {
             mutates_runtime: false,
             components: shadow_components(),
             live_execution_blockers: blocked_replacement_areas(),
-            next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+            next_safe_batch: "r6-rust-default-canary".into(),
         }
     }
 
@@ -1845,12 +1901,12 @@ impl KernelRuntime for RustKernelRuntime {
             can_apply_with_rust_kernel: false,
             mihomo_fallback: true,
             facts: vec![
-                "RustKernelRuntime is scaffolded but disabled by default".into(),
-                "R6 MVP must add opt-in execution before Rust runtime can apply projections".into(),
+                "RustKernelRuntime is selectable only through explicit opt-in or canary gates".into(),
+                "R6 default canary must keep automatic Mihomo fallback armed before any wider cutover".into(),
                 "Unsupported protocol, TUN, and adapter paths remain Mihomo fallback boundaries".into(),
             ],
             blocked_replacement_areas: blocked_replacement_areas(),
-            next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+            next_safe_batch: "r6-rust-default-canary".into(),
         }
     }
 }
@@ -1885,17 +1941,17 @@ fn rust_runtime_capabilities() -> Vec<KernelRuntimeCapability> {
         },
         KernelRuntimeCapability {
             name: "supportedSubsetDecisionPath".into(),
-            status: "planned".into(),
-            supported: false,
+            status: "opt-in-ready".into(),
+            supported: true,
             fallback_required: true,
-            facts: vec!["R6 MVP must implement Rust-owned rule, DNS, and adapter decisions".into()],
+            facts: vec!["R6 MVP owns rule, DNS, and adapter decisions for the supported safe subset".into()],
         },
         KernelRuntimeCapability {
             name: "productionForwarding".into(),
-            status: "blocked".into(),
+            status: "fallback-required".into(),
             supported: false,
             fallback_required: true,
-            facts: vec!["production forwarding remains Mihomo-owned until opt-in Rust MVP evidence exists".into()],
+            facts: vec!["production forwarding still falls back to Mihomo outside the capped canary subset".into()],
         },
     ]
 }
@@ -1913,22 +1969,19 @@ pub async fn rust_kernel_runtime_candidate_report() -> RustKernelRuntimeCandidat
         runtime_id: RUST_RUNTIME_ID.into(),
         kind: KernelRuntimeKind::Rust,
         mutates_runtime: false,
-        selectable: false,
+        selectable: true,
         default_allowed: false,
         mihomo_fallback: true,
         supported_safe_subset: rust_runtime_supported_safe_subset(),
         fallback_boundaries: rust_runtime_fallback_boundaries(),
         capabilities: rust_runtime_capabilities(),
-        blockers: vec![
-            "R6 opt-in Rust runtime MVP is not implemented yet".into(),
-            "Rust runtime cannot become default until canary and rollback evidence exist".into(),
-        ],
-        warnings: vec!["candidate scaffold does not start, stop, reload, or replace Mihomo".into()],
+        blockers: vec!["Rust runtime cannot become default until canary and rollback evidence exist".into()],
+        warnings: vec!["candidate remains non-default outside explicit opt-in or capped canary gates".into()],
         facts: vec![
-            "Rust runtime kind is now modeled as a candidate alongside Mihomo".into(),
-            "Mihomo remains the selected default runtime in this batch".into(),
+            "Rust runtime MVP is selectable for the supported safe subset".into(),
+            "Mihomo remains fallback for unsupported protocols, TUN, adapters, and rollback".into(),
         ],
-        next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+        next_safe_batch: "r6-rust-default-canary".into(),
     }
 }
 
@@ -1940,20 +1993,26 @@ pub async fn kernel_runtime_selection_scaffold(
     let rust_runtime_opt_in_decision = rust_runtime_opt_in_decision.unwrap_or(false);
     let rust_candidate = rust_kernel_runtime_candidate_report().await;
     let mut blockers = Vec::new();
+    let requested_rust = matches!(requested_runtime_kind, KernelRuntimeKind::Rust);
 
-    if matches!(requested_runtime_kind, KernelRuntimeKind::Rust) {
-        blockers.push("Rust runtime selection is represented but blocked until R6 opt-in MVP".into());
+    if requested_rust && !rust_runtime_opt_in_decision {
+        blockers.push("Rust runtime selection requires an explicit opt-in decision".into());
     }
-    if rust_runtime_opt_in_decision {
-        blockers.push("Rust runtime opt-in decision is recorded but cannot select Rust before R6 MVP".into());
+    if !requested_rust && rust_runtime_opt_in_decision {
+        blockers.push("Rust runtime opt-in decision requires requested_runtime_kind=rust".into());
     }
+    let selected_runtime_kind = if requested_rust && rust_runtime_opt_in_decision && blockers.is_empty() {
+        KernelRuntimeKind::Rust
+    } else {
+        KernelRuntimeKind::Mihomo
+    };
 
     KernelRuntimeSelectionScaffoldReport {
         runtime_id: MIHOMO_RUNTIME_ID.into(),
         component: "kernel-runtime-selection-scaffold".into(),
         mutates_runtime: false,
         current_default_runtime_kind: KernelRuntimeKind::Mihomo,
-        selected_runtime_kind: KernelRuntimeKind::Mihomo,
+        selected_runtime_kind,
         requested_runtime_kind,
         rust_runtime_opt_in_decision,
         rust_candidate_available: true,
@@ -1961,12 +2020,12 @@ pub async fn kernel_runtime_selection_scaffold(
         mihomo_fallback: true,
         rust_candidate,
         blockers,
-        warnings: vec!["runtime selection scaffold keeps Mihomo as the only selectable default".into()],
+        warnings: vec!["runtime selection keeps Mihomo as the non-canary default".into()],
         facts: vec![
-            "Rust runtime selection is now an explicit modeled boundary".into(),
-            "R6 MVP will turn this scaffold into explicit opt-in selection".into(),
+            "Rust runtime selection is explicit and bounded to supported safe subset gates".into(),
+            "R6 canary is the next step before any wider default cutover".into(),
         ],
-        next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+        next_safe_batch: "r6-rust-default-canary".into(),
     }
 }
 
@@ -6799,6 +6858,261 @@ pub async fn rust_kernel_runtime_r6_opt_in_mvp(
             "Mihomo fallback remains active for unsupported protocols, TUN, adapters, and emergency rollback".into(),
         ],
         next_safe_batch: "r6-rust-default-canary".into(),
+    })
+}
+
+fn rust_kernel_runtime_canary_profile_report(
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+) -> RustKernelRuntimeCanaryProfileReport {
+    let canary_scope = canary_scope.unwrap_or_else(|| "loopbackSyntheticCanary".into());
+    let max_canary_sessions = max_canary_sessions.unwrap_or(1);
+    let mut blockers = Vec::new();
+
+    if canary_scope != "loopbackSyntheticCanary" {
+        blockers.push("R6 default canary is capped to loopbackSyntheticCanary".into());
+    }
+    if !(1..=3).contains(&max_canary_sessions) {
+        blockers.push("R6 default canary allows 1 to 3 synthetic sessions only".into());
+    }
+
+    RustKernelRuntimeCanaryProfileReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r6-rust-default-canary-profile".into(),
+        canary_scope,
+        max_canary_sessions,
+        capped_profile: blockers.is_empty(),
+        supported_safe_subset: rust_runtime_supported_safe_subset(),
+        fallback_boundaries: rust_runtime_fallback_boundaries(),
+        blockers,
+        warnings: vec!["canary profile is a bounded default for the supported safe subset only".into()],
+        facts: vec![
+            "unsupported protocols, TUN, and production adapter egress remain Mihomo fallback".into(),
+            "canary scope reuses the existing loopback-only safety cap".into(),
+        ],
+    }
+}
+
+fn rust_kernel_runtime_automatic_fallback_report(
+    r6_opt_in: &KernelLoopbackR6OptInRustRuntimeMvpReport,
+    health_check_passed: Option<bool>,
+    rollback_triggered: Option<bool>,
+) -> RustKernelRuntimeAutomaticFallbackReport {
+    let health_check_passed = health_check_passed.unwrap_or(r6_opt_in.health_state.health_ready);
+    let rollback_triggered = rollback_triggered.unwrap_or(false);
+    let health_ready = r6_opt_in.health_state.health_ready && health_check_passed;
+    let rollback_armed = r6_opt_in.health_state.rollback_armed && r6_opt_in.mihomo_fallback;
+    let mut triggers = Vec::new();
+
+    if !r6_opt_in.opt_in_ready {
+        triggers.push("r6-opt-in-not-ready".into());
+    }
+    if !health_ready {
+        triggers.push("health-check-not-ready".into());
+    }
+    if rollback_triggered {
+        triggers.push("rollback-triggered".into());
+    }
+    if !rollback_armed {
+        triggers.push("rollback-not-armed".into());
+    }
+
+    let fallback_activated = !triggers.is_empty();
+    let selected_runtime_kind = if fallback_activated {
+        KernelRuntimeKind::Mihomo
+    } else {
+        KernelRuntimeKind::Rust
+    };
+    let blockers = if fallback_activated {
+        triggers
+            .iter()
+            .map(|trigger| format!("automatic fallback selected Mihomo: {trigger}").into())
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    RustKernelRuntimeAutomaticFallbackReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r6-rust-default-canary-automatic-fallback".into(),
+        health_check_passed,
+        rollback_triggered,
+        health_ready,
+        rollback_armed,
+        fallback_activated,
+        selected_runtime_kind,
+        fallback_runtime_kind: KernelRuntimeKind::Mihomo,
+        triggers,
+        blockers,
+        facts: vec![
+            "Rust canary default selects Mihomo immediately on health or rollback triggers".into(),
+            "fallback does not retire the Mihomo sidecar or unsupported runtime paths".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_r6_default_canary(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+    rust_runtime_scaffold_decision: Option<bool>,
+    canary_default_decision: Option<bool>,
+    health_check_passed: Option<bool>,
+    rollback_triggered: Option<bool>,
+) -> Result<KernelLoopbackR6RustDefaultCanaryReport> {
+    let canary_default_decision = canary_default_decision.unwrap_or(false);
+    let requested_runtime_kind_for_parse = requested_runtime_kind.clone();
+    let r6_opt_in = Box::pin(rust_kernel_runtime_r6_opt_in_mvp(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope.clone(),
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+        requested_runtime_kind,
+        rust_runtime_opt_in_decision,
+        rust_runtime_scaffold_decision,
+    ))
+    .await?;
+    let canary_profile = rust_kernel_runtime_canary_profile_report(canary_scope, max_canary_sessions);
+    let automatic_fallback =
+        rust_kernel_runtime_automatic_fallback_report(&r6_opt_in, health_check_passed, rollback_triggered);
+    let requested_runtime_kind = parse_kernel_runtime_kind(requested_runtime_kind_for_parse);
+    let fallback_ready = automatic_fallback.rollback_armed && !automatic_fallback.fallback_activated;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r6OptInReady".into(),
+            status: if r6_opt_in.opt_in_ready { "passed" } else { "blocked" }.into(),
+            passed: r6_opt_in.opt_in_ready,
+            blockers: r6_opt_in.blockers.clone(),
+            facts: vec!["R6 default canary builds on the explicit opt-in MVP".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "canaryDefaultDecision".into(),
+            status: if canary_default_decision { "passed" } else { "blocked" }.into(),
+            passed: canary_default_decision,
+            blockers: if canary_default_decision {
+                Vec::new()
+            } else {
+                vec!["R6 Rust default canary requires an explicit canary default decision".into()]
+            },
+            facts: vec!["the canary decision is separate from production default cutover".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "cappedCanaryProfile".into(),
+            status: if canary_profile.capped_profile {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: canary_profile.capped_profile,
+            blockers: canary_profile.blockers.clone(),
+            facts: vec!["canary scope and session cap keep the default bounded".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "automaticFallbackHealthy".into(),
+            status: if fallback_ready { "passed" } else { "blocked" }.into(),
+            passed: fallback_ready,
+            blockers: automatic_fallback.blockers.clone(),
+            facts: vec!["health and rollback triggers return selection to Mihomo".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "productionDefaultBlocked".into(),
+            status: "passed".into(),
+            passed: true,
+            blockers: Vec::new(),
+            facts: vec!["R6 canary does not authorize R7 production default cutover".into()],
+        },
+    ];
+    let canary_default_allowed = checks.iter().all(|check| check.passed);
+    let selected_runtime_kind = if canary_default_allowed {
+        KernelRuntimeKind::Rust
+    } else {
+        KernelRuntimeKind::Mihomo
+    };
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR6RustDefaultCanaryReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r6-rust-default-canary".into(),
+        mutates_runtime: r6_opt_in.mutates_runtime,
+        live_execution_allowed: canary_default_allowed,
+        rust_runtime_opt_in_decision: r6_opt_in.rust_runtime_opt_in_decision,
+        canary_default_decision,
+        requested_runtime_kind,
+        selected_runtime_kind,
+        canary_default_allowed,
+        production_default_allowed: false,
+        mihomo_fallback: true,
+        r6_opt_in,
+        canary_profile,
+        automatic_fallback,
+        checks,
+        blockers,
+        warnings: vec![
+            "R6 canary default is limited to the capped safe subset".into(),
+            "R7 must complete canary closeout before Rust can become the wider default".into(),
+        ],
+        facts: vec![
+            "Rust runtime is the selected default only inside the capped canary when all health gates pass".into(),
+            "Mihomo fallback remains the selected runtime for unsupported paths and rollback triggers".into(),
+        ],
+        next_safe_batch: "r7-rust-default-cutover".into(),
     })
 }
 
