@@ -22,9 +22,55 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R5 final-hold complete | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, platform rollback evidence, and R4 closeout are complete. R5 default-cutover preflight, risk matrix, rollback/abort planning, execution plan, execution guard, dry-run readiness, dry-run evidence, dry-run closeout, post-dry-run hold, decision readiness, final gate, next-step handoff, final hold, independent rollback validation, and closeout readiness are complete. |
-| Next safe batch | `loopback-r5-default-cutover-closeout-report` | Produce R5 closeout report before any broader cutover decision. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Production data plane | Still Mihomo-owned by default, but now on accelerated Rust cutover path | The first Rust default must be a guarded Rust runtime with Mihomo fallback for unsupported protocol/TUN/adapter paths; full TUN/protocol replacement is not required for the first default switch. |
+| Kernel replacement track | Phase 8 R5 final-hold complete; acceleration plan active | R0-R5 safety evidence is now sufficient to stop adding small evidence-only gates. Next work should bundle R5 closeout with R6 Rust runtime scaffold and then move directly into opt-in/default Rust cutover batches. |
+| Next safe batch | `r5-closeout-r6-rust-runtime-scaffold` | Combine R5 closeout report with the first real R6 Rust runtime scaffold. Do not spend another standalone PR on report-only evidence unless it also creates the next Rust cutover surface. |
+
+## Acceleration plan
+
+The prior R3-R5 path intentionally used many small safety gates. That proved safety, but it is now too slow for the actual Go-to-Rust switch. From this point forward, stop creating standalone PRs that only add another read-only evidence command unless that PR also closes a phase or introduces a real Rust cutover surface.
+
+### Accelerated completion target
+
+The first "fully cut to Rust" milestone means the app selects a Rust-owned kernel runtime by default for the supported safe data-plane subset, while unsupported protocol/TUN/adapter paths still fall through to Mihomo without app restart or connectivity loss. Full replacement of every Mihomo protocol stack is a later hardening phase, not a blocker for the first Rust-default milestone.
+
+Required properties for that first Rust-default milestone:
+
+```text
+RustKernelRuntime selected by default
+  -> Rust-owned rule / DNS / adapter decision path for supported traffic
+  -> MihomoFallbackRuntime for unsupported protocols, TUN, and emergency rollback
+  -> explicit audit + health + rollback state
+  -> one-switch rollback to Mihomo default
+```
+
+### Batch-size rule from now on
+
+- No more single-gate roadmap PRs.
+- Each PR must either add a real Rust runtime/cutover capability or close multiple remaining gates at once.
+- Prefer 3-5 large PRs over another long chain of evidence-only batches.
+- Keep safety booleans explicit, but remove duplicate "readiness of readiness" steps.
+- If a gate only restates already-captured R5 evidence, fold it into the next implementation PR.
+
+### Fast-track PR sequence
+
+| Order | Batch | Purpose | Default impact |
+| --- | --- | --- | --- |
+| 1 | `r5-closeout-r6-rust-runtime-scaffold` | Bundle the R5 closeout report with `RustKernelRuntime`/runtime-selection scaffolding, fallback boundary, and frontend/IPC types. | No default change. |
+| 2 | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. | Opt-in only. |
+| 3 | `r6-rust-default-canary` | Make Rust runtime default for a capped safe canary profile with automatic fallback on health/rollback triggers. | Limited default for canary profile. |
+| 4 | `r7-rust-default-cutover` | Promote Rust runtime to default for the supported profile after canary closeout; keep Mihomo fallback for unsupported protocols/TUN until parity is complete. | Rust default for supported profile. |
+| 5 | `r7-mihomo-fallback-retirement` | Remove fallback dependence only after protocol/TUN/adapter parity, cross-platform rollback drills, and soak evidence. | Full replacement candidate. |
+
+### Immediate next PR scope
+
+The next PR should not be another report-only gate. It should include:
+
+- R5 closeout report summary using the already-complete R5 evidence chain.
+- `KernelRuntimeKind` / runtime selection scaffold with `Mihomo` and `Rust` variants.
+- A disabled-by-default `RustKernelRuntime` implementation that exposes capability and fallback boundaries.
+- IPC/TypeScript types for selecting/querying the candidate runtime.
+- Roadmap advancement directly to `r6-opt-in-rust-runtime-mvp`.
 
 ## Non-negotiable boundaries
 
@@ -42,7 +88,7 @@ Forbidden patterns:
 
 ### 2. Mihomo remains the production data plane
 
-These areas stay owned by Mihomo/Go unless a dedicated high-risk PR series explicitly changes them:
+These areas stay owned by Mihomo/Go unless a dedicated high-risk PR series explicitly changes them. The accelerated Rust default may still route unsupported paths through Mihomo fallback; fallback retirement is the high-risk change, not the first Rust-default switch:
 
 - outbound / inbound protocol stacks
 - adapter runtime
@@ -130,7 +176,7 @@ inventory current Mihomo kernel seams
   -> default cutover only after hold windows pass
 ```
 
-Default behavior remains Mihomo-backed until a specific phase explicitly changes it.
+Default behavior remains Mihomo-backed until a specific phase explicitly changes it. The remaining migration now follows the acceleration plan above: one closeout/scaffold PR, then Rust runtime MVP, canary default, and production default.
 
 ### Phase 8 status
 
@@ -182,7 +228,11 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R5 default cutover final hold | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_final_hold` requires a final observation window after final gate handoff. |
 | R5 default cutover independent rollback validation | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation` verifies platform-complete rollback evidence after final hold. |
 | R5 default cutover closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness` prepares report-only closeout while keeping live default cutover blocked. |
-| R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after decision readiness, final hold windows, and independent rollback. |
+| R5 closeout report + R6 Rust runtime scaffold | Next | No default change | Bundle final R5 closeout with `RustKernelRuntime` scaffolding and runtime selection boundaries; advance directly to R6 MVP. |
+| R6 opt-in Rust runtime MVP | Planned | Explicit opt-in only | Implement supported Rust data-plane subset with Mihomo fallback and health/rollback telemetry. |
+| R6 Rust default canary | Planned | Limited default canary | Default Rust runtime only for a capped safe profile with automatic fallback. |
+| R7 Rust default cutover | Planned | Rust default for supported profile | Promote Rust runtime after canary closeout; Mihomo remains fallback for unsupported protocols/TUN. |
+| R7 fallback retirement | Planned | Full replacement candidate | Retire Mihomo fallback only after protocol/TUN/adapter parity and cross-platform soak. |
 
 ### Current R3 loopback listener boundary
 
@@ -230,9 +280,9 @@ mihomoFallback=true
 - Proxy and provider view-model boundary.
 - Kernel runtime readiness, shadow evidence, and loopback-only R3 listener/platform evidence gates.
 
-## Hard blockers before production TUN/protocol replacement
+## Remaining blockers and acceleration boundaries
 
-Do not replace TUN, adapter runtime, protocol stacks, or real forwarding until all of these exist:
+The first Rust-default milestone can ship before full TUN/protocol replacement by keeping Mihomo fallback. Do not retire Mihomo fallback or claim full replacement until all of these exist:
 
 - Mihomo fallback with no app restart and no connectivity loss.
 - Platform-specific rollback drill for Windows service, sidecar, macOS, and Linux paths.
@@ -241,6 +291,8 @@ Do not replace TUN, adapter runtime, protocol stacks, or real forwarding until a
 - Repeated shadow evidence for rules, DNS, adapters, and connection/session shape.
 - Opt-in execution history with hold windows and rollback closeout.
 - Dedicated PR that does not include unrelated cleanup.
+
+These blockers do not prevent the accelerated R6 Rust-default canary for the supported subset; they prevent fallback retirement and full protocol/TUN replacement.
 
 ## Removed from this document
 
@@ -270,7 +322,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r5-default-cutover-final-hold`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only through the accelerated sequence above. The current branch is `r5-closeout-r6-rust-runtime-scaffold`; the next implementation must create the Rust runtime selection surface instead of adding another standalone evidence-only gate. TUN/protocol fallback retirement remains blocked.
 
 ## PR checklist for future changes
 
