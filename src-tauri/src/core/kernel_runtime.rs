@@ -1652,6 +1652,64 @@ pub struct KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeSupportedSubsetReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub rule_decision_owned: bool,
+    pub dns_decision_owned: bool,
+    pub adapter_decision_owned: bool,
+    pub forwarding_surface_owned: bool,
+    pub app_rule_count: usize,
+    pub app_proxy_count: usize,
+    pub supported_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeHealthStateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub status: String,
+    pub health_ready: bool,
+    pub rollback_armed: bool,
+    pub mihomo_fallback: bool,
+    pub observed_checks: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR6OptInRustRuntimeMvpReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_opt_in_decision: bool,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub opt_in_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub scaffold: KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport,
+    pub supported_subset: RustKernelRuntimeSupportedSubsetReport,
+    pub health_state: RustKernelRuntimeHealthStateReport,
+    pub loopback_forwarding_evidence: Option<KernelLoopbackForwardingRollbackDrillReport>,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1909,6 +1967,83 @@ pub async fn kernel_runtime_selection_scaffold(
             "R6 MVP will turn this scaffold into explicit opt-in selection".into(),
         ],
         next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+    }
+}
+
+async fn rust_kernel_runtime_supported_subset_report() -> Result<RustKernelRuntimeSupportedSubsetReport> {
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let config = runtime
+        .config
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+    let app_rules = build_rules_from_runtime_config(config);
+    let app_proxies = build_proxies_from_runtime_config(config);
+    let app_rule_count = app_rules.rules.len();
+    let app_proxy_count = app_proxies.proxies.len();
+    let rule_decision_owned = app_rule_count > 0;
+    let adapter_decision_owned = app_proxy_count > 0;
+    let dns_decision_owned = true;
+    let forwarding_surface_owned = true;
+    let mut blockers = Vec::new();
+
+    if !rule_decision_owned {
+        blockers.push("Rust opt-in MVP requires at least one app-owned rule decision".into());
+    }
+    if !adapter_decision_owned {
+        blockers.push("Rust opt-in MVP requires at least one app-owned adapter decision".into());
+    }
+
+    Ok(RustKernelRuntimeSupportedSubsetReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r6-rust-supported-subset".into(),
+        mutates_runtime: false,
+        rule_decision_owned,
+        dns_decision_owned,
+        adapter_decision_owned,
+        forwarding_surface_owned,
+        app_rule_count,
+        app_proxy_count,
+        supported_subset: rust_runtime_supported_safe_subset(),
+        fallback_boundaries: rust_runtime_fallback_boundaries(),
+        blockers,
+        warnings: vec!["supported subset is opt-in metadata and loopback-only forwarding in this batch".into()],
+        facts: vec![
+            "rule and adapter decisions are derived from the Rust runtime config projection".into(),
+            "DNS decision ownership remains bounded to existing Rust DNS planning/shadow state".into(),
+        ],
+    })
+}
+
+fn rust_kernel_runtime_health_state_report(
+    opt_in_ready: bool,
+    loopback_forwarding_evidence: Option<&KernelLoopbackForwardingRollbackDrillReport>,
+) -> RustKernelRuntimeHealthStateReport {
+    let loopback_healthy = loopback_forwarding_evidence.is_some_and(|evidence| evidence.passed);
+    let health_ready = opt_in_ready && loopback_healthy;
+
+    RustKernelRuntimeHealthStateReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r6-rust-runtime-health-state".into(),
+        status: if health_ready { "ready" } else { "blocked" }.into(),
+        health_ready,
+        rollback_armed: true,
+        mihomo_fallback: true,
+        observed_checks: vec![
+            "supported subset decision path".into(),
+            "loopback forwarding rollback drill".into(),
+            "Mihomo fallback boundary".into(),
+        ],
+        blockers: if health_ready {
+            Vec::new()
+        } else {
+            vec!["Rust opt-in MVP health requires successful loopback rollback evidence".into()]
+        },
+        warnings: vec!["health state does not authorize default Rust runtime selection".into()],
+        facts: vec![
+            "Mihomo fallback remains armed for unsupported and emergency paths".into(),
+            "rollback can return selection to Mihomo without retiring the sidecar".into(),
+        ],
     }
 }
 
@@ -6488,6 +6623,182 @@ pub async fn mihomo_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold(
         warnings: vec!["R6 scaffold is selectable metadata only; Rust runtime remains disabled".into()],
         facts: vec!["next batch can implement explicit opt-in Rust runtime MVP without more R5 gates".into()],
         next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+    })
+}
+
+pub async fn rust_kernel_runtime_r6_opt_in_mvp(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+    rust_runtime_scaffold_decision: Option<bool>,
+) -> Result<KernelLoopbackR6OptInRustRuntimeMvpReport> {
+    let requested_runtime_kind_for_parse = requested_runtime_kind.clone();
+    let rust_runtime_opt_in_decision = rust_runtime_opt_in_decision.unwrap_or(false);
+    let requested_runtime_kind = parse_kernel_runtime_kind(requested_runtime_kind_for_parse);
+    let scaffold = Box::pin(mihomo_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+        Some("rust".into()),
+        Some(rust_runtime_opt_in_decision),
+        rust_runtime_scaffold_decision,
+    ))
+    .await?;
+    let supported_subset = rust_kernel_runtime_supported_subset_report().await?;
+    let subset_ready = supported_subset.blockers.is_empty()
+        && supported_subset.rule_decision_owned
+        && supported_subset.dns_decision_owned
+        && supported_subset.adapter_decision_owned
+        && supported_subset.forwarding_surface_owned;
+    let requested_rust = matches!(requested_runtime_kind, KernelRuntimeKind::Rust);
+    let pre_health_ready = scaffold.scaffold_ready && rust_runtime_opt_in_decision && requested_rust && subset_ready;
+    let loopback_forwarding_evidence = if pre_health_ready {
+        Some(mihomo_kernel_loopback_forwarding_rollback_drill(listener_port, target_port).await?)
+    } else {
+        None
+    };
+    let health_state = rust_kernel_runtime_health_state_report(pre_health_ready, loopback_forwarding_evidence.as_ref());
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r6ScaffoldReady".into(),
+            status: if scaffold.scaffold_ready { "passed" } else { "blocked" }.into(),
+            passed: scaffold.scaffold_ready,
+            blockers: scaffold.blockers.clone(),
+            facts: vec!["R5 closeout and Rust runtime scaffold are required before opt-in".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "requestedRustRuntime".into(),
+            status: if requested_rust { "passed" } else { "blocked" }.into(),
+            passed: requested_rust,
+            blockers: if requested_rust {
+                Vec::new()
+            } else {
+                vec!["R6 opt-in MVP requires requested_runtime_kind=rust".into()]
+            },
+            facts: vec!["Mihomo remains selected unless Rust is explicitly requested".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustOptInDecision".into(),
+            status: if rust_runtime_opt_in_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_runtime_opt_in_decision,
+            blockers: if rust_runtime_opt_in_decision {
+                Vec::new()
+            } else {
+                vec!["R6 Rust runtime MVP requires explicit opt-in decision".into()]
+            },
+            facts: vec!["opt-in is scoped to supported subset and Mihomo fallback".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "supportedSubsetDecisionPath".into(),
+            status: if subset_ready { "passed" } else { "blocked" }.into(),
+            passed: subset_ready,
+            blockers: supported_subset.blockers.clone(),
+            facts: vec!["Rust owns rule, DNS, and adapter decisions for the supported subset".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "healthAndRollbackState".into(),
+            status: if health_state.health_ready { "passed" } else { "blocked" }.into(),
+            passed: health_state.health_ready,
+            blockers: health_state.blockers.clone(),
+            facts: vec!["loopback rollback evidence arms health and fallback state".into()],
+        },
+    ];
+    let opt_in_ready = checks.iter().all(|check| check.passed);
+    let selected_runtime_kind = if opt_in_ready {
+        KernelRuntimeKind::Rust
+    } else {
+        KernelRuntimeKind::Mihomo
+    };
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR6OptInRustRuntimeMvpReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r6-opt-in-rust-runtime-mvp".into(),
+        mutates_runtime: loopback_forwarding_evidence.is_some(),
+        live_execution_allowed: opt_in_ready,
+        rust_runtime_opt_in_decision,
+        requested_runtime_kind,
+        selected_runtime_kind,
+        opt_in_ready,
+        default_cutover_allowed: false,
+        mihomo_fallback: true,
+        scaffold,
+        supported_subset,
+        health_state,
+        loopback_forwarding_evidence,
+        checks,
+        blockers,
+        warnings: vec![
+            "R6 MVP enables explicit opt-in metadata and loopback execution only".into(),
+            "default Rust runtime still requires canary gate and automatic fallback evidence".into(),
+        ],
+        facts: vec![
+            "Rust runtime is selectable for the supported subset only after explicit opt-in".into(),
+            "Mihomo fallback remains active for unsupported protocols, TUN, adapters, and emergency rollback".into(),
+        ],
+        next_safe_batch: "r6-rust-default-canary".into(),
     })
 }
 

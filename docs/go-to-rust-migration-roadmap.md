@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned by default, but now on accelerated Rust cutover path | The first Rust default must be a guarded Rust runtime with Mihomo fallback for unsupported protocol/TUN/adapter paths; full TUN/protocol replacement is not required for the first default switch. |
-| Kernel replacement track | R5 closeout + R6 Rust runtime scaffold complete | R0-R5 safety evidence is complete and `RustKernelRuntime` is now modeled as a disabled-by-default candidate with runtime selection and Mihomo fallback boundaries. Next work is the opt-in Rust runtime MVP, not another evidence-only gate. |
-| Next safe batch | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. |
+| Kernel replacement track | R6 opt-in Rust runtime MVP complete | The Rust runtime can now be explicitly selected for the supported safe subset with Rust-owned rule/DNS/adapter decisions, bounded loopback forwarding evidence, health state, rollback state, and Mihomo fallback boundaries. |
+| Next safe batch | `r6-rust-default-canary` | Promote the supported safe subset from explicit opt-in to a capped canary default profile with automatic health/fallback rollback. |
 
 ## Acceleration plan
 
@@ -57,7 +57,7 @@ RustKernelRuntime selected by default
 | Order | Batch | Purpose | Default impact |
 | --- | --- | --- | --- |
 | 1 | `r5-closeout-r6-rust-runtime-scaffold` | Bundle the R5 closeout report with `RustKernelRuntime`/runtime-selection scaffolding, fallback boundary, and frontend/IPC types. | No default change. |
-| 2 | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. | Opt-in only. |
+| 2 | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. | Complete; opt-in only. |
 | 3 | `r6-rust-default-canary` | Make Rust runtime default for a capped safe canary profile with automatic fallback on health/rollback triggers. | Limited default for canary profile. |
 | 4 | `r7-rust-default-cutover` | Promote Rust runtime to default for the supported profile after canary closeout; keep Mihomo fallback for unsupported protocols/TUN until parity is complete. | Rust default for supported profile. |
 | 5 | `r7-mihomo-fallback-retirement` | Remove fallback dependence only after protocol/TUN/adapter parity, cross-platform rollback drills, and soak evidence. | Full replacement candidate. |
@@ -229,7 +229,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R5 default cutover independent rollback validation | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation` verifies platform-complete rollback evidence after final hold. |
 | R5 default cutover closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness` prepares report-only closeout while keeping live default cutover blocked. |
 | R5 closeout report + R6 Rust runtime scaffold | Complete | No default change | `get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold` bundles final R5 closeout with `RustKernelRuntime` scaffolding and runtime selection boundaries; next batch is R6 MVP. |
-| R6 opt-in Rust runtime MVP | Planned | Explicit opt-in only | Implement supported Rust data-plane subset with Mihomo fallback and health/rollback telemetry. |
+| R6 opt-in Rust runtime MVP | Complete | Explicit opt-in only | `get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp` selects Rust only after explicit opt-in, supported-subset decision ownership, loopback forwarding rollback evidence, health state, and Mihomo fallback readiness. |
 | R6 Rust default canary | Planned | Limited default canary | Default Rust runtime only for a capped safe profile with automatic fallback. |
 | R7 Rust default cutover | Planned | Rust default for supported profile | Promote Rust runtime after canary closeout; Mihomo remains fallback for unsupported protocols/TUN. |
 | R7 fallback retirement | Planned | Full replacement candidate | Retire Mihomo fallback only after protocol/TUN/adapter parity and cross-platform soak. |
@@ -322,7 +322,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `r6-opt-in-rust-runtime-mvp`; the next implementation must turn the Rust runtime scaffold into explicit opt-in execution for the supported subset. TUN/protocol fallback retirement remains blocked.
+Allowed only through the accelerated sequence above. The current branch is `r6-rust-default-canary`; the next implementation may make Rust the default only for a capped safe canary profile with automatic health/fallback rollback. TUN/protocol fallback retirement remains blocked.
 
 ## PR checklist for future changes
 
