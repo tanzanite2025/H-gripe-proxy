@@ -2,9 +2,10 @@ use anyhow::Result;
 use smartstring::alias::String;
 
 use super::{
-    KernelLoopbackGoMihomoRetirementDryRunReport, KernelLoopbackGoMihomoRetirementExecutionGuardReport,
-    KernelLoopbackGoMihomoRetirementPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck,
-    KernelRuntimeKind, RUST_RUNTIME_ID, RustKernelRuntimeGoMihomoRetirementDryRunReport,
+    KernelLoopbackGoMihomoRetirementCloseoutReport, KernelLoopbackGoMihomoRetirementDryRunReport,
+    KernelLoopbackGoMihomoRetirementExecutionGuardReport, KernelLoopbackGoMihomoRetirementPlanReport,
+    KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelRuntimeKind, RUST_RUNTIME_ID,
+    RustKernelRuntimeGoMihomoRetirementCloseoutReport, RustKernelRuntimeGoMihomoRetirementDryRunReport,
     RustKernelRuntimeGoMihomoRetirementExecutionGuardReport, RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
 };
 
@@ -466,6 +467,165 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_dry_run(
             "go-mihomo-retirement-closeout".into()
         } else {
             "go-mihomo-retirement-dry-run".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_go_mihomo_retirement_closeout_report(
+    dry_run_evidence_review_decision: bool,
+    closeout_report_archived_decision: bool,
+    rollback_checkpoint_verified_decision: bool,
+    artifact_inventory_frozen_decision: bool,
+    no_removal_mutations_decision: bool,
+) -> RustKernelRuntimeGoMihomoRetirementCloseoutReport {
+    let mut blockers = Vec::new();
+    let mut closed_out_surfaces = Vec::new();
+
+    if dry_run_evidence_review_decision {
+        closed_out_surfaces.push("dry-run evidence review".into());
+    } else {
+        blockers.push("Go/Mihomo retirement closeout requires reviewed dry-run evidence".into());
+    }
+    if closeout_report_archived_decision {
+        closed_out_surfaces.push("closeout report archive".into());
+    } else {
+        blockers.push("Go/Mihomo retirement closeout requires archived closeout report".into());
+    }
+    if rollback_checkpoint_verified_decision {
+        closed_out_surfaces.push("rollback checkpoint verification".into());
+    } else {
+        blockers.push("Go/Mihomo retirement closeout requires rollback checkpoint verification".into());
+    }
+    if artifact_inventory_frozen_decision {
+        closed_out_surfaces.push("frozen artifact inventory".into());
+    } else {
+        blockers.push("Go/Mihomo retirement closeout requires frozen artifact inventory".into());
+    }
+    if !no_removal_mutations_decision {
+        blockers.push("Go/Mihomo retirement closeout must prove no removal mutations".into());
+    }
+
+    RustKernelRuntimeGoMihomoRetirementCloseoutReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-closeout-detail".into(),
+        dry_run_evidence_reviewed: dry_run_evidence_review_decision,
+        closeout_report_archived: closeout_report_archived_decision,
+        rollback_checkpoint_verified: rollback_checkpoint_verified_decision,
+        artifact_inventory_frozen: artifact_inventory_frozen_decision,
+        no_removal_mutations_observed: no_removal_mutations_decision,
+        closeout_complete: blockers.is_empty(),
+        closed_out_surfaces,
+        blockers,
+        facts: vec![
+            "this closeout summarizes dry-run evidence without deleting Go/Mihomo assets".into(),
+            "frozen inventory and rollback checkpoint evidence gate any later final removal".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_go_mihomo_retirement_closeout(
+    go_mihomo_retirement_dry_run_complete_decision: Option<bool>,
+    dry_run_evidence_review_decision: Option<bool>,
+    closeout_report_archived_decision: Option<bool>,
+    rollback_checkpoint_verified_decision: Option<bool>,
+    artifact_inventory_frozen_decision: Option<bool>,
+    no_removal_mutations_decision: Option<bool>,
+    final_closeout_decision: Option<bool>,
+) -> Result<KernelLoopbackGoMihomoRetirementCloseoutReport> {
+    let go_mihomo_retirement_dry_run_complete = go_mihomo_retirement_dry_run_complete_decision.unwrap_or(false);
+    let final_closeout_decision = final_closeout_decision.unwrap_or(false);
+    let closeout = rust_kernel_runtime_go_mihomo_retirement_closeout_report(
+        dry_run_evidence_review_decision.unwrap_or(false),
+        closeout_report_archived_decision.unwrap_or(false),
+        rollback_checkpoint_verified_decision.unwrap_or(false),
+        artifact_inventory_frozen_decision.unwrap_or(false),
+        no_removal_mutations_decision.unwrap_or(false),
+    );
+    let mut dry_run_blockers = Vec::new();
+
+    if !go_mihomo_retirement_dry_run_complete {
+        dry_run_blockers.push("Go/Mihomo retirement closeout requires the dry run to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRetirementDryRunComplete".into(),
+            status: if go_mihomo_retirement_dry_run_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: go_mihomo_retirement_dry_run_complete,
+            blockers: dry_run_blockers,
+            facts: vec!["closeout starts only after dry-run readiness".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRetirementCloseoutComplete".into(),
+            status: if closeout.closeout_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: closeout.closeout_complete,
+            blockers: closeout.blockers.clone(),
+            facts: vec![
+                "evidence review, archived report, rollback checkpoint, frozen inventory, and mutation checks are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalCloseoutDecision".into(),
+            status: if final_closeout_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_closeout_decision,
+            blockers: if final_closeout_decision {
+                Vec::new()
+            } else {
+                vec!["Go/Mihomo retirement closeout requires an explicit final closeout decision".into()]
+            },
+            facts: vec!["the closeout is explicit and does not execute removal".into()],
+        },
+    ];
+    let go_mihomo_retirement_closeout_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackGoMihomoRetirementCloseoutReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-closeout".into(),
+        mutates_runtime: false,
+        live_execution_allowed: go_mihomo_retirement_closeout_complete,
+        go_mihomo_retirement_dry_run_complete,
+        closeout,
+        final_closeout_decision,
+        go_mihomo_retirement_closeout_complete,
+        selected_runtime_kind: if go_mihomo_retirement_closeout_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this closeout does not delete Mihomo source, binaries, IPC commands, or rollback paths".into(),
+            "actual removal still requires a final removal gate and explicit rollback boundary".into(),
+        ],
+        facts: vec![
+            "Go/Mihomo retirement closeout follows the dry-run gate".into(),
+            "successful closeout advances to final removal gate readiness instead of direct deletion".into(),
+        ],
+        next_safe_batch: if go_mihomo_retirement_closeout_complete {
+            "go-mihomo-retirement-final-removal-gate".into()
+        } else {
+            "go-mihomo-retirement-closeout".into()
         },
     })
 }

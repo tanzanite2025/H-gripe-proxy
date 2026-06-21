@@ -1556,6 +1556,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementDryRunReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementCloseoutReport {
+  runtimeId: string
+  component: string
+  dryRunEvidenceReviewed: boolean
+  closeoutReportArchived: boolean
+  rollbackCheckpointVerified: boolean
+  artifactInventoryFrozen: boolean
+  noRemovalMutationsObserved: boolean
+  closeoutComplete: boolean
+  closedOutSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementCloseoutReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementDryRunComplete: boolean
+  closeout: RuntimeRustKernelRuntimeGoMihomoRetirementCloseoutReport
+  finalCloseoutDecision: boolean
+  goMihomoRetirementCloseoutComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3706,6 +3738,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementDryRun(
       rollbackRehearsalDecision,
       dryRunReportArchivedDecision,
       finalDryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementCloseout(
+  goMihomoRetirementDryRunCompleteDecision?: boolean,
+  dryRunEvidenceReviewDecision?: boolean,
+  closeoutReportArchivedDecision?: boolean,
+  rollbackCheckpointVerifiedDecision?: boolean,
+  artifactInventoryFrozenDecision?: boolean,
+  noRemovalMutationsDecision?: boolean,
+  finalCloseoutDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementCloseoutReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_closeout',
+    {
+      goMihomoRetirementDryRunCompleteDecision,
+      dryRunEvidenceReviewDecision,
+      closeoutReportArchivedDecision,
+      rollbackCheckpointVerifiedDecision,
+      artifactInventoryFrozenDecision,
+      noRemovalMutationsDecision,
+      finalCloseoutDecision,
     },
   )
 }
