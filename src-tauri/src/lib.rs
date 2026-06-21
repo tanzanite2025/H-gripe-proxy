@@ -1,4 +1,4 @@
-#![allow(dead_code, non_snake_case)]
+﻿#![allow(dead_code, non_snake_case)]
 #![allow(
     clippy::all,
     clippy::clone_on_ref_ptr,
@@ -69,7 +69,7 @@ mod app_init {
     /// Initialize singleton monitoring for other instances
     pub fn init_singleton_check() -> Result<()> {
         AsyncHandler::block_on(async move {
-            logging!(info, Type::Setup, "开始检查单例实例...");
+            logging!(info, Type::Setup, "å¼€å§‹æ£€æŸ¥å•ä¾‹å®žä¾‹...");
             server::check_singleton().await?;
             Ok(())
         })
@@ -121,7 +121,7 @@ mod app_init {
     pub fn setup_deep_links(app: &tauri::App) {
         #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
         {
-            logging!(info, Type::Setup, "注册深层链接...");
+            logging!(info, Type::Setup, "æ³¨å†Œæ·±å±‚é“¾æŽ¥...");
             let _ = app.deep_link().register_all();
         }
 
@@ -156,7 +156,7 @@ mod app_init {
 
     /// Setup window state management
     pub fn setup_window_state(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-        logging!(info, Type::Setup, "初始化窗口状态管理...");
+        logging!(info, Type::Setup, "åˆå§‹åŒ–çª—å£çŠ¶æ€ç®¡ç†...");
         let window_state_plugin = tauri_plugin_window_state::Builder::new()
             .with_filename(files::WINDOW_STATE)
             .with_state_flags(
@@ -220,62 +220,62 @@ mod app_init {
             cmd::get_runtime_hot_reload_status,
             cmd::get_runtime_xdp_status,
             cmd::get_runtime_rule_traffic,
-            cmd::get_runtime_kernel_replacement_readiness,
-            cmd::get_runtime_kernel_apply_preflight,
-            cmd::get_runtime_kernel_shadow_components,
-            cmd::get_runtime_kernel_rust_runtime_candidate,
-            cmd::get_runtime_kernel_runtime_selection_scaffold,
-            cmd::get_runtime_kernel_dns_shadow_evidence,
-            cmd::get_runtime_kernel_rule_shadow_evidence,
-            cmd::get_runtime_kernel_adapter_capability_report,
-            cmd::get_runtime_kernel_connection_session_shadow,
-            cmd::get_runtime_kernel_isolated_listener_preflight,
-            cmd::get_runtime_kernel_isolated_test_listener_status,
-            cmd::get_runtime_kernel_isolated_test_listener_smoke_evidence,
-            cmd::get_runtime_kernel_loopback_dns_preflight,
-            cmd::get_runtime_kernel_loopback_dns_smoke_evidence,
-            cmd::get_runtime_kernel_loopback_forwarding_preflight,
-            cmd::get_runtime_kernel_loopback_forwarding_smoke_evidence,
-            cmd::get_runtime_kernel_loopback_forwarding_rollback_drill,
-            cmd::get_runtime_kernel_loopback_forwarding_leak_check,
-            cmd::get_runtime_kernel_loopback_platform_matrix,
-            cmd::get_runtime_kernel_loopback_hold_window,
-            cmd::get_runtime_kernel_loopback_platform_rollback_drills,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_preflight,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_post_execution_hold,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_rollout_audit,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_readiness,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_report,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_completion_summary,
-            cmd::get_runtime_kernel_loopback_r4_expanded_opt_in_next_phase_handoff,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_preflight,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_risk_matrix,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_execution_plan,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_guard,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_dry_run_readiness,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_dry_run_evidence,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_dry_run_closeout,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_post_dry_run_hold,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_decision_readiness,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_final_gate,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_next_step_handoff,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_final_hold,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness,
-            cmd::get_runtime_kernel_loopback_r5_default_cutover_closeout_report,
-            cmd::get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold,
-            cmd::get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp,
-            cmd::get_runtime_kernel_loopback_r6_rust_default_canary,
-            cmd::get_runtime_kernel_loopback_r7_rust_default_cutover,
-            cmd::get_runtime_kernel_loopback_r7_mihomo_fallback_retirement,
-            cmd::start_runtime_kernel_isolated_test_listener,
-            cmd::stop_runtime_kernel_isolated_test_listener,
+            cmd::runtime::kernel::get_runtime_kernel_replacement_readiness,
+            cmd::runtime::kernel::get_runtime_kernel_apply_preflight,
+            cmd::runtime::kernel::get_runtime_kernel_shadow_components,
+            cmd::runtime::kernel::get_runtime_kernel_rust_runtime_candidate,
+            cmd::runtime::kernel::get_runtime_kernel_runtime_selection_scaffold,
+            cmd::runtime::kernel::get_runtime_kernel_dns_shadow_evidence,
+            cmd::runtime::kernel::get_runtime_kernel_rule_shadow_evidence,
+            cmd::runtime::kernel::get_runtime_kernel_adapter_capability_report,
+            cmd::runtime::kernel::get_runtime_kernel_connection_session_shadow,
+            cmd::runtime::kernel::get_runtime_kernel_isolated_listener_preflight,
+            cmd::runtime::kernel::get_runtime_kernel_isolated_test_listener_status,
+            cmd::runtime::kernel::get_runtime_kernel_isolated_test_listener_smoke_evidence,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_dns_preflight,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_dns_smoke_evidence,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_forwarding_preflight,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_forwarding_smoke_evidence,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_forwarding_rollback_drill,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_forwarding_leak_check,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_preflight,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_post_execution_hold,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_rollout_audit,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_readiness,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_report,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_completion_summary,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r4_expanded_opt_in_next_phase_handoff,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_preflight,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_risk_matrix,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_execution_plan,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_guard,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_dry_run_readiness,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_dry_run_evidence,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_dry_run_closeout,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_post_dry_run_hold,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_decision_readiness,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_final_gate,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_next_step_handoff,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_final_hold,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_default_cutover_closeout_report,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r6_rust_default_canary,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r7_rust_default_cutover,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_r7_mihomo_fallback_retirement,
+            cmd::runtime::kernel::start_runtime_kernel_isolated_test_listener,
+            cmd::runtime::kernel::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,
             cmd::force_runtime_tls_rotation,
             cmd::get_runtime_lifecycle_state,
@@ -641,7 +641,7 @@ pub fn run() {
                 );
             }
 
-            logging!(info, Type::Setup, "开始应用初始化...");
+            logging!(info, Type::Setup, "å¼€å§‹åº”ç”¨åˆå§‹åŒ–...");
             if let Err(e) = app_init::setup_autostart(app) {
                 logging!(error, Type::Setup, "Failed to setup autostart: {}", e);
             }
@@ -656,14 +656,14 @@ pub fn run() {
             resolve::resolve_setup_sync();
             resolve::init_signal();
 
-            // 初始化核心协调器（会加载 advanced.yaml 到内存）
-            logging!(info, Type::Setup, "初始化核心协调器...");
+            // åˆå§‹åŒ–æ ¸å¿ƒåè°ƒå™¨ï¼ˆä¼šåŠ è½½ advanced.yaml åˆ°å†…å­˜ï¼‰
+            logging!(info, Type::Setup, "åˆå§‹åŒ–æ ¸å¿ƒåè°ƒå™¨...");
             let coordinator = crate::core::coordinator::get_coordinator();
             if let Err(e) = coordinator.initialize() {
                 logging!(error, Type::Setup, "Failed to initialize coordinator: {}", e);
             }
 
-            // 从协调器内存配置读取流量混淆配置并应用
+            // ä»Žåè°ƒå™¨å†…å­˜é…ç½®è¯»å–æµé‡æ··æ·†é…ç½®å¹¶åº”ç”¨
             let cfg = coordinator.get_advanced_config();
             let obf_cfg = if cfg.traffic_obfuscation.enabled {
                 Some(cfg.traffic_obfuscation)
@@ -688,11 +688,11 @@ pub fn run() {
                 });
             }
 
-            // 启动会话绑定清理任务
-            logging!(info, Type::Setup, "启动会话绑定清理任务...");
+            // å¯åŠ¨ä¼šè¯ç»‘å®šæ¸…ç†ä»»åŠ¡
+            logging!(info, Type::Setup, "å¯åŠ¨ä¼šè¯ç»‘å®šæ¸…ç†ä»»åŠ¡...");
             crate::core::session_affinity::get_session_affinity_manager().start_cleanup_task();
 
-            logging!(info, Type::Setup, "初始化已启动");
+            logging!(info, Type::Setup, "åˆå§‹åŒ–å·²å¯åŠ¨");
             Ok(())
         })
         .invoke_handler(app_init::generate_handlers());
@@ -711,11 +711,11 @@ pub fn run() {
 
         pub fn handle_ready_resumed(_app_handle: &AppHandle) {
             if handle::Handle::global().is_exiting() {
-                logging!(debug, Type::System, "应用正在退出，跳过处理");
+                logging!(debug, Type::System, "åº”ç”¨æ­£åœ¨é€€å‡ºï¼Œè·³è¿‡å¤„ç†");
                 return;
             }
 
-            logging!(info, Type::System, "应用就绪");
+            logging!(info, Type::System, "åº”ç”¨å°±ç»ª");
         }
 
         #[cfg(target_os = "macos")]

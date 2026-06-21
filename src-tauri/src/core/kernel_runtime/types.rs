@@ -1,0 +1,1869 @@
+﻿use crate::core::dns_runtime::DnsDefaultRuntimeShadowEvidenceReport;
+use serde::Serialize;
+use smartstring::alias::String;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, atomic::AtomicU64},
+};
+use tokio::sync::oneshot;
+
+pub(super) struct KernelIsolatedTestListenerState {
+    pub(super) port: u16,
+    pub(super) started_at_epoch_ms: u64,
+    pub(super) accepted_connections: Arc<AtomicU64>,
+    pub(super) stop_tx: oneshot::Sender<()>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelReplacementBlocker {
+    pub area: String,
+    pub reason: String,
+    pub required_next_step: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuntimeStatus {
+    pub runtime_id: String,
+    pub active_kernel: String,
+    pub controller_transport: String,
+    pub mutates_runtime: bool,
+    pub mihomo_fallback: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuntimePreflightReport {
+    pub runtime_id: String,
+    pub artifact_id: Option<String>,
+    pub mutates_runtime: bool,
+    pub can_apply_with_rust_kernel: bool,
+    pub mihomo_fallback: bool,
+    pub facts: Vec<String>,
+    pub blocked_replacement_areas: Vec<KernelReplacementBlocker>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelShadowComponent {
+    pub component: String,
+    pub kernel_area: String,
+    pub status: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub evidence: Vec<String>,
+    pub next_step: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelShadowComponentsReport {
+    pub runtime_id: String,
+    pub active_kernel: String,
+    pub mutates_runtime: bool,
+    pub components: Vec<KernelShadowComponent>,
+    pub live_execution_blockers: Vec<KernelReplacementBlocker>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelDnsShadowEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub evidence: DnsDefaultRuntimeShadowEvidenceReport,
+    pub blockers: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuleShadowRule {
+    pub index: i32,
+    pub rule_type: String,
+    pub payload: String,
+    pub proxy: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuleShadowSample {
+    pub sample_index: usize,
+    pub app_rule: Option<KernelRuleShadowRule>,
+    pub mihomo_rule: Option<KernelRuleShadowRule>,
+    pub matched: bool,
+    pub mismatch_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuleShadowEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub status: String,
+    pub app_rule_count: usize,
+    pub mihomo_rule_count: usize,
+    pub compared_sample_size: usize,
+    pub matched_sample_count: usize,
+    pub mismatched_sample_count: usize,
+    pub samples: Vec<KernelRuleShadowSample>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelAdapterCapabilityEntry {
+    pub proxy_type: String,
+    pub app_count: usize,
+    pub mihomo_count: usize,
+    pub inventory_matched: bool,
+    pub rust_shadow_supported: bool,
+    pub live_execution_allowed: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelAdapterCapabilityReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub app_proxy_count: usize,
+    pub mihomo_proxy_count: usize,
+    pub capabilities: Vec<KernelAdapterCapabilityEntry>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelConnectionSessionSample {
+    pub sample_index: usize,
+    pub network: String,
+    pub connection_type: String,
+    pub chain_len: usize,
+    pub provider_chain_len: usize,
+    pub has_host: bool,
+    pub has_process: bool,
+    pub has_remote_destination: bool,
+    pub rule: String,
+    pub uploaded_bytes: u64,
+    pub downloaded_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelConnectionSessionShadowReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub connection_count: usize,
+    pub upload_total: u64,
+    pub download_total: u64,
+    pub memory: u32,
+    pub network_counts: BTreeMap<String, usize>,
+    pub connection_type_counts: BTreeMap<String, usize>,
+    pub rule_counts: BTreeMap<String, usize>,
+    pub samples: Vec<KernelConnectionSessionSample>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedListenerPortCheck {
+    pub host: String,
+    pub port: u16,
+    pub available: bool,
+    pub conflicts_with_runtime_port: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedListenerPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub port_check: KernelIsolatedListenerPortCheck,
+    pub runtime_ports: BTreeMap<String, u16>,
+    pub system_proxy_enabled: bool,
+    pub tun_enabled: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedTestListenerStatus {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub running: bool,
+    pub host: String,
+    pub port: Option<u16>,
+    pub started_at_epoch_ms: Option<u64>,
+    pub accepted_connections: u64,
+    pub loopback_only: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelIsolatedTestListenerSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub started_by_smoke: bool,
+    pub response_status: Option<String>,
+    pub accepted_connections_before: u64,
+    pub accepted_connections_after: u64,
+    pub status_incremented: bool,
+    pub stopped_after_smoke: bool,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackDnsPortCheck {
+    pub host: String,
+    pub port: u16,
+    pub udp_available: bool,
+    pub tcp_available: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackDnsPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub port_check: KernelLoopbackDnsPortCheck,
+    pub runtime_dns_present: bool,
+    pub app_dns_settings_enabled: bool,
+    pub system_proxy_enabled: bool,
+    pub tun_enabled: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackDnsSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub requested_port: u16,
+    pub query_name: String,
+    pub udp_bound: bool,
+    pub local_response_received: bool,
+    pub response_address: Option<String>,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingPortCheck {
+    pub host: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub listener_available: bool,
+    pub target_available: bool,
+    pub target_loopback_only: bool,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub port_check: KernelLoopbackForwardingPortCheck,
+    pub system_proxy_enabled: bool,
+    pub tun_enabled: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub requested_host: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub request_path: String,
+    pub listener_accepted: bool,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub bytes_from_client: u64,
+    pub bytes_from_target: u64,
+    pub loopback_forwarded: bool,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingRollbackDrillReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub smoke_passed: bool,
+    pub ports_released: bool,
+    pub post_preflight: KernelLoopbackForwardingPreflightReport,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackForwardingLeakCheckReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub listener_port_released: bool,
+    pub target_port_released: bool,
+    pub isolated_test_listener_running: bool,
+    pub preflight: KernelLoopbackForwardingPreflightReport,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformMatrixRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub evidence_status: String,
+    pub listener_port_released: Option<bool>,
+    pub target_port_released: Option<bool>,
+    pub isolated_test_listener_stopped: Option<bool>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformMatrixReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub required_platforms: Vec<String>,
+    pub covered_platforms: Vec<String>,
+    pub pending_platforms: Vec<String>,
+    pub current_platform_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub leak_check: KernelLoopbackForwardingLeakCheckReport,
+    pub rows: Vec<KernelLoopbackPlatformMatrixRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackHoldWindowRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub evidence_status: String,
+    pub hold_started_at_epoch_ms: Option<u64>,
+    pub observed_at_epoch_ms: Option<u64>,
+    pub minimum_hold_seconds: u64,
+    pub elapsed_hold_seconds: Option<u64>,
+    pub hold_window_satisfied: bool,
+    pub platform_matrix_passed: Option<bool>,
+    pub leak_check_passed: Option<bool>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackHoldWindowReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub hold_started_at_epoch_ms: u64,
+    pub observed_at_epoch_ms: u64,
+    pub minimum_hold_seconds: u64,
+    pub elapsed_hold_seconds: u64,
+    pub required_platforms: Vec<String>,
+    pub covered_hold_platforms: Vec<String>,
+    pub pending_hold_platforms: Vec<String>,
+    pub current_platform_passed: bool,
+    pub current_platform_hold_window_satisfied: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub platform_matrix: KernelLoopbackPlatformMatrixReport,
+    pub rows: Vec<KernelLoopbackHoldWindowRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformRollbackDrillRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub evidence_status: String,
+    pub smoke_passed: Option<bool>,
+    pub ports_released: Option<bool>,
+    pub system_proxy_unchanged: Option<bool>,
+    pub tun_unchanged: Option<bool>,
+    pub runtime_config_unchanged: Option<bool>,
+    pub hold_window_satisfied: Option<bool>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackPlatformRollbackDrillsReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub required_platforms: Vec<String>,
+    pub covered_rollback_platforms: Vec<String>,
+    pub pending_rollback_platforms: Vec<String>,
+    pub current_platform_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub hold_window: KernelLoopbackHoldWindowReport,
+    pub rollback_drill: KernelLoopbackForwardingRollbackDrillReport,
+    pub rows: Vec<KernelLoopbackPlatformRollbackDrillRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInPreflightCheck {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInPreflightRow {
+    pub platform: String,
+    pub current_platform: bool,
+    pub rollback_drill_observed: bool,
+    pub hold_window_satisfied: Option<bool>,
+    pub evidence_status: String,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub explicit_decision: bool,
+    pub required_platforms: Vec<String>,
+    pub observed_rollback_platforms: Vec<String>,
+    pub pending_rollback_platforms: Vec<String>,
+    pub current_platform_hold_window_satisfied: bool,
+    pub preflight_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub hold_window: KernelLoopbackHoldWindowReport,
+    pub rows: Vec<KernelLoopbackR4ExpandedOptInPreflightRow>,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInPreflightCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionPlanStep {
+    pub order: u8,
+    pub name: String,
+    pub action: String,
+    pub mutates_runtime: bool,
+    pub requires_explicit_decision: bool,
+    pub enabled_in_this_batch: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub candidate_scope: String,
+    pub explicit_decision: bool,
+    pub plan_ready: bool,
+    pub execution_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub preflight: KernelLoopbackR4ExpandedOptInPreflightReport,
+    pub steps: Vec<KernelLoopbackR4ExpandedOptInExecutionPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionGuardCheck {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub required_for_execution: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInSafetyPlanStep {
+    pub order: u8,
+    pub phase: String,
+    pub action: String,
+    pub mutates_runtime: bool,
+    pub required_before_expansion: bool,
+    pub enabled_in_this_batch: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInExecutionGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub guard_ready: bool,
+    pub synthetic_execution_allowed: bool,
+    pub execution_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub plan: KernelLoopbackR4ExpandedOptInExecutionPlanReport,
+    pub guard_checks: Vec<KernelLoopbackR4ExpandedOptInExecutionGuardCheck>,
+    pub verification_plan: Vec<KernelLoopbackR4ExpandedOptInSafetyPlanStep>,
+    pub rollback_plan: Vec<KernelLoopbackR4ExpandedOptInSafetyPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout {
+    pub rollback_drill_passed: bool,
+    pub leak_check_passed: bool,
+    pub ports_released: bool,
+    pub system_proxy_unchanged: bool,
+    pub tun_unchanged: bool,
+    pub runtime_config_unchanged: bool,
+    pub isolated_test_listener_stopped: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInSyntheticExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub synthetic_execution_allowed: bool,
+    pub execution_attempted: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub guard: KernelLoopbackR4ExpandedOptInExecutionGuardReport,
+    pub rollback_drill: Option<KernelLoopbackForwardingRollbackDrillReport>,
+    pub leak_check: Option<KernelLoopbackForwardingLeakCheckReport>,
+    pub closeout: KernelLoopbackR4ExpandedOptInSyntheticExecutionCloseout,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInPostExecutionHoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub post_execution_hold_started_at_epoch_ms: u64,
+    pub observed_at_epoch_ms: u64,
+    pub minimum_hold_seconds: u64,
+    pub elapsed_hold_seconds: u64,
+    pub post_execution_hold_satisfied: bool,
+    pub execution_attempted: bool,
+    pub synthetic_execution_passed: bool,
+    pub closeout_passed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub synthetic_execution: KernelLoopbackR4ExpandedOptInSyntheticExecutionReport,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInDecisionReadinessCheck {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInDecisionReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub wider_opt_in_decision: bool,
+    pub decision_ready: bool,
+    pub wider_opt_in_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub post_execution_hold: KernelLoopbackR4ExpandedOptInPostExecutionHoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInDecisionReadinessCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub wider_opt_in_decision: bool,
+    pub limited_rollout_decision: bool,
+    pub canary_scope: String,
+    pub max_canary_sessions: u16,
+    pub gate_ready: bool,
+    pub limited_rollout_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub decision_readiness: KernelLoopbackR4ExpandedOptInDecisionReadinessReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInRolloutAuditRow {
+    pub name: String,
+    pub status: String,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInRolloutAuditReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub canary_scope: String,
+    pub max_canary_sessions: u16,
+    pub audit_ready: bool,
+    pub limited_rollout_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub gate: KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport,
+    pub rows: Vec<KernelLoopbackR4ExpandedOptInRolloutAuditRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInCloseoutReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub closeout_decision: bool,
+    pub closeout_ready: bool,
+    pub limited_rollout_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub audit: KernelLoopbackR4ExpandedOptInRolloutAuditReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub requested_execution: bool,
+    pub explicit_decision: bool,
+    pub closeout_decision: bool,
+    pub closeout_ready: bool,
+    pub r4_closeout_complete: bool,
+    pub limited_rollout_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout_readiness: KernelLoopbackR4ExpandedOptInCloseoutReadinessReport,
+    pub evidence: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInCompletionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r4_complete: bool,
+    pub completed_batches: Vec<String>,
+    pub open_boundaries: Vec<String>,
+    pub next_phase_candidate: String,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout_report: KernelLoopbackR4ExpandedOptInCloseoutReport,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub handoff_decision: bool,
+    pub handoff_ready: bool,
+    pub next_phase: String,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub completion: KernelLoopbackR4ExpandedOptInCompletionReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r5_preflight_decision: bool,
+    pub preflight_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub handoff: KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverRiskRow {
+    pub name: String,
+    pub severity: String,
+    pub status: String,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverRiskMatrixReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub risk_matrix_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub preflight: KernelLoopbackR5DefaultCutoverPreflightReport,
+    pub rows: Vec<KernelLoopbackR5DefaultCutoverRiskRow>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub rollback_plan_decision: bool,
+    pub rollback_abort_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub risk_matrix: KernelLoopbackR5DefaultCutoverRiskMatrixReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverExecutionPlanStep {
+    pub order: u8,
+    pub name: String,
+    pub phase: String,
+    pub allowed: bool,
+    pub mutates_runtime: bool,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverExecutionPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub execution_plan_decision: bool,
+    pub execution_plan_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub rollback_abort_plan: KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport,
+    pub steps: Vec<KernelLoopbackR5DefaultCutoverExecutionPlanStep>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub guard_decision: bool,
+    pub guard_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub execution_plan: KernelLoopbackR5DefaultCutoverExecutionPlanReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverDryRunReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub dry_run_decision: bool,
+    pub dry_run_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub guard: KernelLoopbackR5DefaultCutoverGuardReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverDryRunEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub dry_run_executed: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub readiness: KernelLoopbackR5DefaultCutoverDryRunReadinessReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverDryRunCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub dry_run_closeout_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub evidence: KernelLoopbackR5DefaultCutoverDryRunEvidenceReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverPostDryRunHoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub hold_decision: bool,
+    pub hold_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout: KernelLoopbackR5DefaultCutoverDryRunCloseoutReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverDecisionReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub decision_readiness_decision: bool,
+    pub decision_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub post_dry_run_hold: KernelLoopbackR5DefaultCutoverPostDryRunHoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverFinalGateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub final_gate_decision: bool,
+    pub final_gate_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub decision_readiness: KernelLoopbackR5DefaultCutoverDecisionReadinessReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverNextStepHandoffReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r5_handoff_decision: bool,
+    pub handoff_ready: bool,
+    pub next_step: String,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub final_gate: KernelLoopbackR5DefaultCutoverFinalGateReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverFinalHoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub final_hold_started_at_epoch_ms: Option<u64>,
+    pub final_hold_elapsed_seconds: u64,
+    pub final_hold_decision: bool,
+    pub final_hold_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub handoff: KernelLoopbackR5DefaultCutoverNextStepHandoffReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub independent_rollback_decision: bool,
+    pub rollback_validation_ready: bool,
+    pub required_platforms: Vec<String>,
+    pub observed_rollback_platforms: Vec<String>,
+    pub pending_rollback_platforms: Vec<String>,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub final_hold: KernelLoopbackR5DefaultCutoverFinalHoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverCloseoutReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r5_closeout_decision: bool,
+    pub closeout_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub rollback_validation: KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r5_closeout_report_decision: bool,
+    pub r5_closeout_complete: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout_readiness: KernelLoopbackR5DefaultCutoverCloseoutReadinessReport,
+    pub completed_evidence_batches: Vec<String>,
+    pub open_boundaries: Vec<String>,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KernelRuntimeKind {
+    Mihomo,
+    Rust,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuntimeCapability {
+    pub name: String,
+    pub status: String,
+    pub supported: bool,
+    pub fallback_required: bool,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeCandidateReport {
+    pub runtime_id: String,
+    pub kind: KernelRuntimeKind,
+    pub mutates_runtime: bool,
+    pub selectable: bool,
+    pub default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub supported_safe_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub capabilities: Vec<KernelRuntimeCapability>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuntimeSelectionScaffoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub current_default_runtime_kind: KernelRuntimeKind,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rust_runtime_opt_in_decision: bool,
+    pub rust_candidate_available: bool,
+    pub rust_candidate_default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub rust_candidate: RustKernelRuntimeCandidateReport,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_scaffold_decision: bool,
+    pub scaffold_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub r5_closeout: KernelLoopbackR5DefaultCutoverCloseoutReport,
+    pub runtime_selection: KernelRuntimeSelectionScaffoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeSupportedSubsetReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub rule_decision_owned: bool,
+    pub dns_decision_owned: bool,
+    pub adapter_decision_owned: bool,
+    pub forwarding_surface_owned: bool,
+    pub app_rule_count: usize,
+    pub app_proxy_count: usize,
+    pub supported_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeHealthStateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub status: String,
+    pub health_ready: bool,
+    pub rollback_armed: bool,
+    pub mihomo_fallback: bool,
+    pub observed_checks: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR6OptInRustRuntimeMvpReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_opt_in_decision: bool,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub opt_in_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub scaffold: KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport,
+    pub supported_subset: RustKernelRuntimeSupportedSubsetReport,
+    pub health_state: RustKernelRuntimeHealthStateReport,
+    pub loopback_forwarding_evidence: Option<KernelLoopbackForwardingRollbackDrillReport>,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeCanaryProfileReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub canary_scope: String,
+    pub max_canary_sessions: u16,
+    pub capped_profile: bool,
+    pub supported_safe_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeAutomaticFallbackReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub health_check_passed: bool,
+    pub rollback_triggered: bool,
+    pub health_ready: bool,
+    pub rollback_armed: bool,
+    pub fallback_activated: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub fallback_runtime_kind: KernelRuntimeKind,
+    pub triggers: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR6RustDefaultCanaryReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_opt_in_decision: bool,
+    pub canary_default_decision: bool,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub canary_default_allowed: bool,
+    pub production_default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub r6_opt_in: KernelLoopbackR6OptInRustRuntimeMvpReport,
+    pub canary_profile: RustKernelRuntimeCanaryProfileReport,
+    pub automatic_fallback: RustKernelRuntimeAutomaticFallbackReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeCanaryCloseoutSummaryReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub canary_default_allowed: bool,
+    pub canary_health_ready: bool,
+    pub automatic_fallback_armed: bool,
+    pub rollback_hold_passed: bool,
+    pub closeout_ready: bool,
+    pub evidence: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeSupportedProfileDefaultReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub profile_scope: String,
+    pub supported_profile_default: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub fallback_runtime_kind: KernelRuntimeKind,
+    pub supported_safe_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeFallbackStateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub rollback_switch_requested: bool,
+    pub restart_required: bool,
+    pub health_ready: bool,
+    pub rollback_armed: bool,
+    pub fallback_active: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub fallback_runtime_kind: KernelRuntimeKind,
+    pub triggers: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR7RustDefaultCutoverReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_opt_in_decision: bool,
+    pub canary_default_decision: bool,
+    pub r7_cutover_decision: bool,
+    pub rollback_hold_decision: bool,
+    pub rollback_switch_requested: bool,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub supported_profile_default_allowed: bool,
+    pub production_default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub r6_canary: KernelLoopbackR6RustDefaultCanaryReport,
+    pub canary_closeout: RustKernelRuntimeCanaryCloseoutSummaryReport,
+    pub supported_profile: RustKernelRuntimeSupportedProfileDefaultReport,
+    pub fallback_state: RustKernelRuntimeFallbackStateReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeFallbackRetirementParityReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub protocol_parity_passed: bool,
+    pub tun_parity_passed: bool,
+    pub adapter_parity_passed: bool,
+    pub dns_runtime_parity_passed: bool,
+    pub cross_platform_rollback_passed: bool,
+    pub soak_evidence_passed: bool,
+    pub parity_complete: bool,
+    pub retained_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeFallbackRetirementPlanReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub fallback_retirement_decision: bool,
+    pub emergency_rollback_decision: bool,
+    pub rollback_switch_requested: bool,
+    pub fallback_retirement_allowed: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub restart_required: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR7MihomoFallbackRetirementReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub r7_cutover: KernelLoopbackR7RustDefaultCutoverReport,
+    pub parity: RustKernelRuntimeFallbackRetirementParityReport,
+    pub retirement_plan: RustKernelRuntimeFallbackRetirementPlanReport,
+    pub production_default_allowed: bool,
+    pub mihomo_fallback_retired: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelReplacementReadiness {
+    pub mutates_runtime: bool,
+    pub active_kernel: String,
+    pub controller_transport: String,
+    pub rust_owned_control_plane: Vec<String>,
+    pub mihomo_owned_data_plane: Vec<String>,
+    pub blocked_replacement_areas: Vec<KernelReplacementBlocker>,
+    pub next_safe_batch: String,
+}
