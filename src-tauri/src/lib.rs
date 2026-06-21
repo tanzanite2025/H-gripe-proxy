@@ -287,6 +287,7 @@ mod app_init {
             cmd::runtime::kernel::get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout,
             cmd::runtime::kernel::get_runtime_kernel_loopback_rust_data_plane_hardening_preflight,
             cmd::runtime::kernel::get_runtime_kernel_loopback_rust_data_plane_hardening_boundary_audit,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execution_guard,
             cmd::runtime::kernel::start_runtime_kernel_isolated_test_listener,
             cmd::runtime::kernel::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,
