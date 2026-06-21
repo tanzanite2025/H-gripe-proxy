@@ -1588,6 +1588,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementCloseoutReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport {
+  runtimeId: string
+  component: string
+  closeoutEvidenceAccepted: boolean
+  rollbackBoundaryLocked: boolean
+  removalScopeLocked: boolean
+  releaseBlockerReviewPassed: boolean
+  finalOperatorApproval: boolean
+  finalRemovalGateComplete: boolean
+  approvedRemovalSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementFinalRemovalGateReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementCloseoutComplete: boolean
+  finalRemovalGate: RuntimeRustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport
+  finalRemovalDecision: boolean
+  goMihomoRetirementFinalRemovalGateComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3761,6 +3793,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementCloseout(
       artifactInventoryFrozenDecision,
       noRemovalMutationsDecision,
       finalCloseoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementFinalRemovalGate(
+  goMihomoRetirementCloseoutCompleteDecision?: boolean,
+  closeoutEvidenceAcceptanceDecision?: boolean,
+  rollbackBoundaryLockDecision?: boolean,
+  removalScopeLockDecision?: boolean,
+  releaseBlockerReviewDecision?: boolean,
+  finalOperatorApprovalDecision?: boolean,
+  finalRemovalDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementFinalRemovalGateReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_final_removal_gate',
+    {
+      goMihomoRetirementCloseoutCompleteDecision,
+      closeoutEvidenceAcceptanceDecision,
+      rollbackBoundaryLockDecision,
+      removalScopeLockDecision,
+      releaseBlockerReviewDecision,
+      finalOperatorApprovalDecision,
+      finalRemovalDecision,
     },
   )
 }
