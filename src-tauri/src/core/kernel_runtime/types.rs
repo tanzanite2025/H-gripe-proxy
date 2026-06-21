@@ -2102,6 +2102,42 @@ pub struct KernelLoopbackGoMihomoRetirementCloseoutReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub closeout_evidence_accepted: bool,
+    pub rollback_boundary_locked: bool,
+    pub removal_scope_locked: bool,
+    pub release_blocker_review_passed: bool,
+    pub final_operator_approval: bool,
+    pub final_removal_gate_complete: bool,
+    pub approved_removal_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackGoMihomoRetirementFinalRemovalGateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub go_mihomo_retirement_closeout_complete: bool,
+    pub final_removal_gate: RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport,
+    pub final_removal_decision: bool,
+    pub go_mihomo_retirement_final_removal_gate_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
