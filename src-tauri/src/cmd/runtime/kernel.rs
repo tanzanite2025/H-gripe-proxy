@@ -1958,6 +1958,31 @@ pub async fn get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeou
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_preflight(
+    go_mihomo_retirement_complete_decision: Option<bool>,
+    protocol_parity_inventory_decision: Option<bool>,
+    tun_boundary_inventory_decision: Option<bool>,
+    adapter_compatibility_matrix_decision: Option<bool>,
+    dns_leak_verification_plan_decision: Option<bool>,
+    rollback_drill_plan_decision: Option<bool>,
+    opt_in_execution_boundary_decision: Option<bool>,
+    final_preflight_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningPreflightReport> {
+    rust_kernel_runtime_data_plane_hardening_preflight(
+        go_mihomo_retirement_complete_decision,
+        protocol_parity_inventory_decision,
+        tun_boundary_inventory_decision,
+        adapter_compatibility_matrix_decision,
+        dns_leak_verification_plan_decision,
+        rollback_drill_plan_decision,
+        opt_in_execution_boundary_decision,
+        final_preflight_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }

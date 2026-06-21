@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust default cutover supported for the safe profile; fallback retirement gated | The supported profile can select Rust by default after R6/R7 evidence; Mihomo fallback retirement remains blocked unless protocol/TUN/adapter/DNS parity, rollback drills, soak evidence, and emergency rollback all pass. |
+| Production data plane | Rust data-plane hardening preflight gate complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_preflight` requires Go/Mihomo retirement closeout, protocol/TUN/adapter/DNS leak evidence plans, rollback drill plan, locked opt-in boundary, and final preflight decision before boundary audit. |
 | Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `go-mihomo-retirement-complete` | No additional Go/Mihomo retirement batch is required after completion closeout; future Rust hardening must stay separate. |
+| Next safe batch | `rust-data-plane-hardening-boundary-audit` | Only after preflight passes, audit the Rust data-plane hardening boundary; production forwarding mutation remains blocked. |
 
 ## Acceleration plan
 
@@ -72,6 +72,7 @@ RustKernelRuntime selected by default
 | 14 | `go-mihomo-retirement-post-execution-verification` | Complete: verify execution evidence, Rust-only boundary, retained rollback checkpoint, source/artifact removal, fallback IPC absence, and final verification decision. | Verification only; no rollback retirement. |
 | 15 | `go-mihomo-retirement-rollback-surface-retirement` | Complete: review post-execution verification, verify replacement recovery path, lock rollback surface inventory, archive retirement plan, pass emergency recovery drill, and require final retirement decision. | Retirement gate only; no emergency recovery removal. |
 | 16 | `go-mihomo-retirement-completion-closeout` | Complete: review rollback surface retirement, retain recovery boundary evidence, archive completion report, update release notes, freeze migration state, and require final completion decision. | Completion closeout only; no future hardening mixed in. |
+| 17 | `rust-data-plane-hardening-preflight` | Complete: require Go/Mihomo retirement closeout, protocol parity inventory, TUN boundary inventory, adapter compatibility matrix, DNS leak verification plan, rollback drill plan, locked opt-in execution boundary, and final preflight decision. | Preflight only; no production forwarding mutation. |
 
 ### Completed R7 PR scope
 
@@ -344,7 +345,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-complete`; Go/Mihomo retirement is complete after completion closeout records rollback surface retirement review, retained recovery evidence, archived completion report, release notes, frozen migration state, and final completion approval. Future Rust hardening work must be tracked separately.
+Allowed only through the accelerated sequence above. The current branch is `rust-data-plane-hardening-boundary-audit`; Rust data-plane hardening may continue only after preflight records Go/Mihomo retirement closeout, protocol parity inventory, TUN boundary inventory, adapter compatibility matrix, DNS leak verification plan, rollback drill plan, locked opt-in execution boundary, and final preflight approval. Production forwarding mutation remains blocked until a dedicated opt-in execution PR.
 
 ## PR checklist for future changes
 

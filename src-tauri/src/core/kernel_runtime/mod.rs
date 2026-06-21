@@ -46,8 +46,10 @@ const FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS: u32 = 72;
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
+mod data_plane_hardening;
 mod go_retirement;
 mod types;
+pub use self::data_plane_hardening::*;
 pub use self::go_retirement::*;
 use self::types::KernelIsolatedTestListenerState;
 pub use self::types::*;
