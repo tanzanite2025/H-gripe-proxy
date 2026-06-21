@@ -1983,6 +1983,33 @@ pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_preflight(
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_boundary_audit(
+    rust_data_plane_hardening_preflight_complete_decision: Option<bool>,
+    preflight_review_decision: Option<bool>,
+    protocol_boundary_audit_decision: Option<bool>,
+    tun_boundary_audit_decision: Option<bool>,
+    adapter_boundary_audit_decision: Option<bool>,
+    dns_leak_boundary_audit_decision: Option<bool>,
+    rollback_boundary_audit_decision: Option<bool>,
+    opt_in_boundary_audit_decision: Option<bool>,
+    final_boundary_audit_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningBoundaryAuditReport> {
+    rust_kernel_runtime_data_plane_hardening_boundary_audit(
+        rust_data_plane_hardening_preflight_complete_decision,
+        preflight_review_decision,
+        protocol_boundary_audit_decision,
+        tun_boundary_audit_decision,
+        adapter_boundary_audit_decision,
+        dns_leak_boundary_audit_decision,
+        rollback_boundary_audit_decision,
+        opt_in_boundary_audit_decision,
+        final_boundary_audit_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
