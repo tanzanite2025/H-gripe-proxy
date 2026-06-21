@@ -1,4 +1,4 @@
-﻿use anyhow::{Result, bail};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use smartstring::alias::String;
@@ -42,6 +42,7 @@ const DEFAULT_LOOPBACK_FORWARDING_LISTENER_PORT: u16 = 19180;
 const DEFAULT_LOOPBACK_FORWARDING_TARGET_PORT: u16 = 19181;
 const LOOPBACK_PLATFORM_MATRIX_PLATFORMS: [&str; 3] = ["windows", "macos", "linux"];
 const LOOPBACK_HOLD_WINDOW_MIN_SECONDS: u64 = 300;
+const FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS: u32 = 72;
 
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
@@ -6050,6 +6051,258 @@ pub async fn rust_kernel_runtime_r7_mihomo_fallback_retirement(
             "full-rust-runtime-hardening".into()
         } else {
             "r7-mihomo-fallback-retirement".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_full_hardening_extended_soak_report(
+    observed_soak_hours: Option<u32>,
+    health_regression_count: Option<u32>,
+    rollback_trigger_count: Option<u32>,
+) -> RustKernelRuntimeExtendedSoakReport {
+    let observed_soak_hours = observed_soak_hours.unwrap_or(0);
+    let health_regression_count = health_regression_count.unwrap_or(0);
+    let rollback_trigger_count = rollback_trigger_count.unwrap_or(0);
+    let mut blockers = Vec::new();
+
+    if observed_soak_hours < FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS {
+        blockers.push(
+            format!(
+                "full Rust runtime hardening requires at least {} soak hours",
+                FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS
+            )
+            .into(),
+        );
+    }
+    if health_regression_count > 0 {
+        blockers.push("full Rust runtime hardening requires zero health regressions during soak".into());
+    }
+    if rollback_trigger_count > 0 {
+        blockers.push("full Rust runtime hardening requires zero rollback triggers during soak".into());
+    }
+
+    RustKernelRuntimeExtendedSoakReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "full-rust-runtime-hardening-extended-soak".into(),
+        min_soak_hours: FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS,
+        observed_soak_hours,
+        health_regression_count,
+        rollback_trigger_count,
+        soak_complete: blockers.is_empty(),
+        blockers,
+        facts: vec![
+            "hardening requires extended soak after R7 fallback retirement readiness".into(),
+            "soak evidence is blocked by default and must be supplied explicitly".into(),
+        ],
+    }
+}
+
+fn rust_kernel_runtime_full_hardening_rollback_telemetry_report(
+    rollback_telemetry_decision: bool,
+    emergency_rollback_ready: bool,
+    rollback_event_count: Option<u32>,
+    last_rollback_event_ts: Option<u64>,
+) -> RustKernelRuntimeRollbackTelemetryReport {
+    let rollback_event_count = rollback_event_count.unwrap_or(0);
+    let mut blockers = Vec::new();
+
+    if !rollback_telemetry_decision {
+        blockers.push("full Rust runtime hardening requires explicit rollback telemetry closeout".into());
+    }
+    if !emergency_rollback_ready {
+        blockers.push("full Rust runtime hardening requires emergency Mihomo rollback readiness".into());
+    }
+    if rollback_event_count > 0 {
+        blockers.push("full Rust runtime hardening requires zero unresolved rollback events".into());
+    }
+
+    RustKernelRuntimeRollbackTelemetryReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "full-rust-runtime-hardening-rollback-telemetry".into(),
+        rollback_telemetry_decision,
+        emergency_rollback_ready,
+        rollback_event_count,
+        last_rollback_event_ts,
+        telemetry_complete: blockers.is_empty(),
+        blockers,
+        facts: vec![
+            "rollback telemetry must remain queryable after fallback retirement readiness".into(),
+            "Mihomo remains the restart-free emergency rollback runtime during hardening".into(),
+        ],
+    }
+}
+
+fn rust_kernel_runtime_full_hardening_platform_follow_up_report(
+    windows_service_hardening: bool,
+    macos_service_hardening: bool,
+    linux_service_hardening: bool,
+) -> RustKernelRuntimePlatformHardeningFollowUpReport {
+    let mut blockers = Vec::new();
+
+    if !windows_service_hardening {
+        blockers.push("Windows service hardening follow-up is required".into());
+    }
+    if !macos_service_hardening {
+        blockers.push("macOS service hardening follow-up is required".into());
+    }
+    if !linux_service_hardening {
+        blockers.push("Linux service hardening follow-up is required".into());
+    }
+
+    RustKernelRuntimePlatformHardeningFollowUpReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "full-rust-runtime-hardening-platform-follow-up".into(),
+        windows_service_hardening,
+        macos_service_hardening,
+        linux_service_hardening,
+        platform_follow_up_complete: blockers.is_empty(),
+        blockers,
+        facts: vec![
+            "platform hardening follows up service, sidecar, and rollback semantics per OS".into(),
+            "all platform decisions are explicit to avoid silently retiring Go/Mihomo boundaries".into(),
+        ],
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn rust_kernel_runtime_full_rust_runtime_hardening(
+    r7_fallback_retirement_passed: Option<bool>,
+    observed_soak_hours: Option<u32>,
+    health_regression_count: Option<u32>,
+    rollback_trigger_count: Option<u32>,
+    rollback_event_count: Option<u32>,
+    last_rollback_event_ts: Option<u64>,
+    rollback_telemetry_decision: Option<bool>,
+    emergency_rollback_decision: Option<bool>,
+    windows_service_hardening_decision: Option<bool>,
+    macos_service_hardening_decision: Option<bool>,
+    linux_service_hardening_decision: Option<bool>,
+    final_hardening_decision: Option<bool>,
+) -> Result<KernelLoopbackFullRustRuntimeHardeningReport> {
+    let r7_fallback_retirement_passed = r7_fallback_retirement_passed.unwrap_or(false);
+    let hardening_decision = final_hardening_decision.unwrap_or(false);
+    let extended_soak = rust_kernel_runtime_full_hardening_extended_soak_report(
+        observed_soak_hours,
+        health_regression_count,
+        rollback_trigger_count,
+    );
+    let rollback_telemetry = rust_kernel_runtime_full_hardening_rollback_telemetry_report(
+        rollback_telemetry_decision.unwrap_or(false),
+        emergency_rollback_decision.unwrap_or(false),
+        rollback_event_count,
+        last_rollback_event_ts,
+    );
+    let platform_follow_up = rust_kernel_runtime_full_hardening_platform_follow_up_report(
+        windows_service_hardening_decision.unwrap_or(false),
+        macos_service_hardening_decision.unwrap_or(false),
+        linux_service_hardening_decision.unwrap_or(false),
+    );
+    let mut r7_blockers = Vec::new();
+
+    if !r7_fallback_retirement_passed {
+        r7_blockers.push("full Rust runtime hardening requires the R7 fallback retirement gate to pass".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r7FallbackRetirementReady".into(),
+            status: if r7_fallback_retirement_passed {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: r7_fallback_retirement_passed,
+            blockers: r7_blockers,
+            facts: vec!["full Rust runtime hardening consumes the R7 retirement gate".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "extendedSoakComplete".into(),
+            status: if extended_soak.soak_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: extended_soak.soak_complete,
+            blockers: extended_soak.blockers.clone(),
+            facts: vec!["extended soak must show no health regression or rollback trigger".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rollbackTelemetryComplete".into(),
+            status: if rollback_telemetry.telemetry_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rollback_telemetry.telemetry_complete,
+            blockers: rollback_telemetry.blockers.clone(),
+            facts: vec!["rollback telemetry stays available after hardening".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "platformHardeningFollowUp".into(),
+            status: if platform_follow_up.platform_follow_up_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: platform_follow_up.platform_follow_up_complete,
+            blockers: platform_follow_up.blockers.clone(),
+            facts: vec!["Windows, macOS, and Linux service hardening must all pass".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalHardeningDecision".into(),
+            status: if hardening_decision { "passed" } else { "blocked" }.into(),
+            passed: hardening_decision,
+            blockers: if hardening_decision {
+                Vec::new()
+            } else {
+                vec!["full Rust runtime hardening requires an explicit final decision".into()]
+            },
+            facts: vec!["final hardening is an explicit app-owned Rust gate".into()],
+        },
+    ];
+    let full_rust_runtime_hardened = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackFullRustRuntimeHardeningReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "full-rust-runtime-hardening".into(),
+        mutates_runtime: false,
+        live_execution_allowed: full_rust_runtime_hardened,
+        hardening_decision,
+        r7_fallback_retirement_passed,
+        extended_soak,
+        rollback_telemetry,
+        platform_follow_up,
+        full_rust_runtime_hardened,
+        production_default_allowed: full_rust_runtime_hardened,
+        selected_runtime_kind: if full_rust_runtime_hardened {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "full Rust runtime hardening is blocked by default and does not mutate runtime state"
+                .into(),
+            "Mihomo remains the emergency rollback runtime until hardening closeout passes".into(),
+        ],
+        facts: vec![
+            "this gate follows R7 fallback retirement and closes extended soak, rollback telemetry, and platform follow-up together".into(),
+            "successful hardening advances the roadmap beyond Go/Mihomo fallback dependence".into(),
+        ],
+        next_safe_batch: if full_rust_runtime_hardened {
+            "go-mihomo-retirement-audit".into()
+        } else {
+            "full-rust-runtime-hardening".into()
         },
     })
 }

@@ -274,6 +274,7 @@ mod app_init {
             cmd::runtime::kernel::get_runtime_kernel_loopback_r6_rust_default_canary,
             cmd::runtime::kernel::get_runtime_kernel_loopback_r7_rust_default_cutover,
             cmd::runtime::kernel::get_runtime_kernel_loopback_r7_mihomo_fallback_retirement,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_full_rust_runtime_hardening,
             cmd::runtime::kernel::start_runtime_kernel_isolated_test_listener,
             cmd::runtime::kernel::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,
