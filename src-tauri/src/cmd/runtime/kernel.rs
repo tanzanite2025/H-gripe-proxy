@@ -1695,6 +1695,39 @@ pub async fn get_runtime_kernel_loopback_r7_mihomo_fallback_retirement(
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_full_rust_runtime_hardening(
+    r7_fallback_retirement_passed: Option<bool>,
+    observed_soak_hours: Option<u32>,
+    health_regression_count: Option<u32>,
+    rollback_trigger_count: Option<u32>,
+    rollback_event_count: Option<u32>,
+    last_rollback_event_ts: Option<u64>,
+    rollback_telemetry_decision: Option<bool>,
+    emergency_rollback_decision: Option<bool>,
+    windows_service_hardening_decision: Option<bool>,
+    macos_service_hardening_decision: Option<bool>,
+    linux_service_hardening_decision: Option<bool>,
+    final_hardening_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackFullRustRuntimeHardeningReport> {
+    rust_kernel_runtime_full_rust_runtime_hardening(
+        r7_fallback_retirement_passed,
+        observed_soak_hours,
+        health_regression_count,
+        rollback_trigger_count,
+        rollback_event_count,
+        last_rollback_event_ts,
+        rollback_telemetry_decision,
+        emergency_rollback_decision,
+        windows_service_hardening_decision,
+        macos_service_hardening_decision,
+        linux_service_hardening_decision,
+        final_hardening_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }

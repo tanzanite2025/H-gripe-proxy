@@ -1372,6 +1372,62 @@ export interface RuntimeKernelLoopbackR7MihomoFallbackRetirementReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeExtendedSoakReport {
+  runtimeId: string
+  component: string
+  minSoakHours: number
+  observedSoakHours: number
+  healthRegressionCount: number
+  rollbackTriggerCount: number
+  soakComplete: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeRustKernelRuntimeRollbackTelemetryReport {
+  runtimeId: string
+  component: string
+  rollbackTelemetryDecision: boolean
+  emergencyRollbackReady: boolean
+  rollbackEventCount: number
+  lastRollbackEventTs?: number | null
+  telemetryComplete: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeRustKernelRuntimePlatformHardeningFollowUpReport {
+  runtimeId: string
+  component: string
+  windowsServiceHardening: boolean
+  macosServiceHardening: boolean
+  linuxServiceHardening: boolean
+  platformFollowUpComplete: boolean
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackFullRustRuntimeHardeningReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  hardeningDecision: boolean
+  r7FallbackRetirementPassed: boolean
+  extendedSoak: RuntimeRustKernelRuntimeExtendedSoakReport
+  rollbackTelemetry: RuntimeRustKernelRuntimeRollbackTelemetryReport
+  platformFollowUp: RuntimeRustKernelRuntimePlatformHardeningFollowUpReport
+  fullRustRuntimeHardened: boolean
+  productionDefaultAllowed: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3397,6 +3453,39 @@ export async function getRuntimeKernelLoopbackR7MihomoFallbackRetirement(
       soakEvidenceDecision,
       fallbackRetirementDecision,
       emergencyRollbackDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackFullRustRuntimeHardening(
+  r7FallbackRetirementPassed?: boolean,
+  observedSoakHours?: number,
+  healthRegressionCount?: number,
+  rollbackTriggerCount?: number,
+  rollbackEventCount?: number,
+  lastRollbackEventTs?: number,
+  rollbackTelemetryDecision?: boolean,
+  emergencyRollbackDecision?: boolean,
+  windowsServiceHardeningDecision?: boolean,
+  macosServiceHardeningDecision?: boolean,
+  linuxServiceHardeningDecision?: boolean,
+  finalHardeningDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackFullRustRuntimeHardeningReport>(
+    'get_runtime_kernel_loopback_full_rust_runtime_hardening',
+    {
+      r7FallbackRetirementPassed,
+      observedSoakHours,
+      healthRegressionCount,
+      rollbackTriggerCount,
+      rollbackEventCount,
+      lastRollbackEventTs,
+      rollbackTelemetryDecision,
+      emergencyRollbackDecision,
+      windowsServiceHardeningDecision,
+      macosServiceHardeningDecision,
+      linuxServiceHardeningDecision,
+      finalHardeningDecision,
     },
   )
 }
