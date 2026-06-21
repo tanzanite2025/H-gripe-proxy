@@ -279,6 +279,7 @@ mod app_init {
             cmd::runtime::kernel::get_runtime_kernel_loopback_go_mihomo_retirement_plan,
             cmd::runtime::kernel::get_runtime_kernel_loopback_go_mihomo_retirement_execution_guard,
             cmd::runtime::kernel::get_runtime_kernel_loopback_go_mihomo_retirement_dry_run,
+            cmd::runtime::kernel::get_runtime_kernel_loopback_go_mihomo_retirement_closeout,
             cmd::runtime::kernel::start_runtime_kernel_isolated_test_listener,
             cmd::runtime::kernel::stop_runtime_kernel_isolated_test_listener,
             cmd::get_runtime_tls_fingerprint_stats,

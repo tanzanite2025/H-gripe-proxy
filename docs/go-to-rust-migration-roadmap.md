@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Rust default cutover supported for the safe profile; fallback retirement gated | The supported profile can select Rust by default after R6/R7 evidence; Mihomo fallback retirement remains blocked unless protocol/TUN/adapter/DNS parity, rollback drills, soak evidence, and emergency rollback all pass. |
-| Kernel replacement track | Go/Mihomo retirement dry-run gate complete | `get_runtime_kernel_loopback_go_mihomo_retirement_dry_run` requires manifest replay, clean source/artifact mutation checks, rollback rehearsal, archived evidence, and final dry-run decision before closeout. |
-| Next safe batch | `go-mihomo-retirement-closeout` | Only after the dry run passes, prepare closeout for the simulated removal; do not delete Go/Mihomo surfaces yet. |
+| Kernel replacement track | Go/Mihomo retirement closeout gate complete | `get_runtime_kernel_loopback_go_mihomo_retirement_closeout` requires reviewed dry-run evidence, archived closeout report, rollback checkpoint, frozen artifact inventory, clean mutation checks, and final closeout decision before any final removal gate. |
+| Next safe batch | `go-mihomo-retirement-final-removal-gate` | Only after closeout passes, prepare a final removal gate with explicit rollback boundaries; do not delete Go/Mihomo surfaces yet. |
 
 ## Acceleration plan
 
@@ -66,6 +66,7 @@ RustKernelRuntime selected by default
 | 8 | `go-mihomo-retirement-plan` | Complete: plan source removal, bundled artifact deprecation, IPC fallback replacement, emergency rollback preservation, and release rollout before any execution guard. | Plan only; no removal. |
 | 9 | `go-mihomo-retirement-execution-guard` | Complete: require removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decision before any dry-run. | Guard only; no removal. |
 | 10 | `go-mihomo-retirement-dry-run` | Complete: replay removal manifest and verify no source/artifact mutations, rollback rehearsal, archived evidence, and final dry-run decision before closeout. | Dry-run only; no removal. |
+| 11 | `go-mihomo-retirement-closeout` | Complete: review dry-run evidence, archive closeout report, verify rollback checkpoint, freeze artifact inventory, prove no removal mutations, and require final closeout decision. | Closeout only; no removal. |
 
 ### Completed R7 PR scope
 
@@ -243,6 +244,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | Go/Mihomo retirement plan | Gate complete | Plan only | `get_runtime_kernel_loopback_go_mihomo_retirement_plan` requires the audit plus source removal, artifact deprecation, IPC fallback replacement, rollback preservation, release rollout, and explicit final plan decisions before any execution guard. |
 | Go/Mihomo retirement execution guard | Gate complete | Guard only | `get_runtime_kernel_loopback_go_mihomo_retirement_execution_guard` requires the plan plus removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decisions before dry-run removal. |
 | Go/Mihomo retirement dry run | Gate complete | Dry-run only | `get_runtime_kernel_loopback_go_mihomo_retirement_dry_run` requires the execution guard plus manifest replay, clean mutation checks, rollback rehearsal, archived evidence, and final dry-run decision before closeout. |
+| Go/Mihomo retirement closeout | Gate complete | Closeout only | `get_runtime_kernel_loopback_go_mihomo_retirement_closeout` requires the dry run plus evidence review, archived closeout report, rollback checkpoint, frozen inventory, clean mutation checks, and final closeout decision before any final removal gate. |
 
 ### Current R3 loopback listener boundary
 
@@ -332,7 +334,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-closeout`; the next implementation may prepare closeout only after dry-run evidence proves manifest replay, clean source/artifact mutation checks, rollback rehearsal, archived evidence, and final dry-run readiness.
+Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-final-removal-gate`; the next implementation may prepare a final removal gate only after closeout proves reviewed dry-run evidence, archived closeout report, rollback checkpoint, frozen artifact inventory, clean mutation checks, and final closeout readiness.
 
 ## PR checklist for future changes
 
