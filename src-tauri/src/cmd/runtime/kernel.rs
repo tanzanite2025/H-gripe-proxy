@@ -1751,6 +1751,29 @@ pub async fn get_runtime_kernel_loopback_go_mihomo_retirement_audit(
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_go_mihomo_retirement_plan(
+    go_mihomo_retirement_audit_complete_decision: Option<bool>,
+    sidecar_source_removal_plan_decision: Option<bool>,
+    bundled_artifact_deprecation_plan_decision: Option<bool>,
+    ipc_fallback_replacement_plan_decision: Option<bool>,
+    emergency_rollback_preservation_plan_decision: Option<bool>,
+    release_rollout_plan_decision: Option<bool>,
+    final_retirement_plan_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackGoMihomoRetirementPlanReport> {
+    rust_kernel_runtime_go_mihomo_retirement_plan(
+        go_mihomo_retirement_audit_complete_decision,
+        sidecar_source_removal_plan_decision,
+        bundled_artifact_deprecation_plan_decision,
+        ipc_fallback_replacement_plan_decision,
+        emergency_rollback_preservation_plan_decision,
+        release_rollout_plan_decision,
+        final_retirement_plan_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
