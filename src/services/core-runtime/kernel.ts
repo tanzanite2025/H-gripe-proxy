@@ -1782,6 +1782,41 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningPreflightReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningBoundaryAuditReport {
+  runtimeId: string
+  component: string
+  preflightReviewed: boolean
+  protocolBoundaryAudited: boolean
+  tunBoundaryAudited: boolean
+  adapterBoundaryAudited: boolean
+  dnsLeakBoundaryAudited: boolean
+  rollbackBoundaryAudited: boolean
+  optInBoundaryAudited: boolean
+  boundaryAuditComplete: boolean
+  auditedSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningBoundaryAuditReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningPreflightComplete: boolean
+  boundaryAudit: RuntimeRustKernelRuntimeDataPlaneHardeningBoundaryAuditReport
+  finalBoundaryAuditDecision: boolean
+  rustDataPlaneHardeningBoundaryAuditComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -4095,6 +4130,33 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningPreflight(
       rollbackDrillPlanDecision,
       optInExecutionBoundaryDecision,
       finalPreflightDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningBoundaryAudit(
+  rustDataPlaneHardeningPreflightCompleteDecision?: boolean,
+  preflightReviewDecision?: boolean,
+  protocolBoundaryAuditDecision?: boolean,
+  tunBoundaryAuditDecision?: boolean,
+  adapterBoundaryAuditDecision?: boolean,
+  dnsLeakBoundaryAuditDecision?: boolean,
+  rollbackBoundaryAuditDecision?: boolean,
+  optInBoundaryAuditDecision?: boolean,
+  finalBoundaryAuditDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningBoundaryAuditReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_boundary_audit',
+    {
+      rustDataPlaneHardeningPreflightCompleteDecision,
+      preflightReviewDecision,
+      protocolBoundaryAuditDecision,
+      tunBoundaryAuditDecision,
+      adapterBoundaryAuditDecision,
+      dnsLeakBoundaryAuditDecision,
+      rollbackBoundaryAuditDecision,
+      optInBoundaryAuditDecision,
+      finalBoundaryAuditDecision,
     },
   )
 }

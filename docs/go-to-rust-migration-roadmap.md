@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust data-plane hardening preflight gate complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_preflight` requires Go/Mihomo retirement closeout, protocol/TUN/adapter/DNS leak evidence plans, rollback drill plan, locked opt-in boundary, and final preflight decision before boundary audit. |
+| Production data plane | Rust data-plane hardening boundary audit complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_boundary_audit` requires hardening preflight, reviewed protocol/TUN/adapter/DNS leak/rollback/opt-in boundaries, and final boundary audit decision before opt-in execution guard planning. |
 | Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `rust-data-plane-hardening-boundary-audit` | Only after preflight passes, audit the Rust data-plane hardening boundary; production forwarding mutation remains blocked. |
+| Next safe batch | `rust-data-plane-hardening-opt-in-execution-guard` | Only after boundary audit passes, plan an opt-in execution guard; production forwarding mutation remains blocked. |
 
 ## Acceleration plan
 
@@ -73,6 +73,7 @@ RustKernelRuntime selected by default
 | 15 | `go-mihomo-retirement-rollback-surface-retirement` | Complete: review post-execution verification, verify replacement recovery path, lock rollback surface inventory, archive retirement plan, pass emergency recovery drill, and require final retirement decision. | Retirement gate only; no emergency recovery removal. |
 | 16 | `go-mihomo-retirement-completion-closeout` | Complete: review rollback surface retirement, retain recovery boundary evidence, archive completion report, update release notes, freeze migration state, and require final completion decision. | Completion closeout only; no future hardening mixed in. |
 | 17 | `rust-data-plane-hardening-preflight` | Complete: require Go/Mihomo retirement closeout, protocol parity inventory, TUN boundary inventory, adapter compatibility matrix, DNS leak verification plan, rollback drill plan, locked opt-in execution boundary, and final preflight decision. | Preflight only; no production forwarding mutation. |
+| 18 | `rust-data-plane-hardening-boundary-audit` | Complete: review hardening preflight and audit protocol, TUN, adapter, DNS leak, rollback, and opt-in execution boundaries before guard planning. | Boundary audit only; no production forwarding mutation. |
 
 ### Completed R7 PR scope
 
@@ -345,7 +346,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `rust-data-plane-hardening-boundary-audit`; Rust data-plane hardening may continue only after preflight records Go/Mihomo retirement closeout, protocol parity inventory, TUN boundary inventory, adapter compatibility matrix, DNS leak verification plan, rollback drill plan, locked opt-in execution boundary, and final preflight approval. Production forwarding mutation remains blocked until a dedicated opt-in execution PR.
+Allowed only through the accelerated sequence above. The current branch is `rust-data-plane-hardening-opt-in-execution-guard`; Rust data-plane hardening may continue only after boundary audit reviews the preflight and audits protocol, TUN, adapter, DNS leak, rollback, and opt-in execution boundaries. Production forwarding mutation remains blocked until a dedicated opt-in execution PR.
 
 ## PR checklist for future changes
 
