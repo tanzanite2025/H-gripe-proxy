@@ -1099,6 +1099,86 @@ export interface RuntimeKernelLoopbackR5DefaultCutoverNextStepHandoffReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR5DefaultCutoverFinalHoldReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  finalHoldStartedAtEpochMs?: number | null
+  finalHoldElapsedSeconds: number
+  finalHoldDecision: boolean
+  finalHoldReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  handoff: RuntimeKernelLoopbackR5DefaultCutoverNextStepHandoffReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  independentRollbackDecision: boolean
+  rollbackValidationReady: boolean
+  requiredPlatforms: string[]
+  observedRollbackPlatforms: string[]
+  pendingRollbackPlatforms: string[]
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  finalHold: RuntimeKernelLoopbackR5DefaultCutoverFinalHoldReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5DefaultCutoverCloseoutReadinessReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  r5CloseoutDecision: boolean
+  closeoutReady: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  rollbackValidation: RuntimeKernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -2434,6 +2514,195 @@ export async function getRuntimeKernelLoopbackR5DefaultCutoverNextStepHandoff(
       decisionReadinessDecision,
       finalGateDecision,
       r5HandoffDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverFinalHold(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+  finalHoldStartedAtEpochMs?: number,
+  finalHoldDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverFinalHoldReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_final_hold',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
+      finalHoldStartedAtEpochMs,
+      finalHoldDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverIndependentRollbackValidation(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+  finalHoldStartedAtEpochMs?: number,
+  finalHoldDecision?: boolean,
+  independentRollbackDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
+      finalHoldStartedAtEpochMs,
+      finalHoldDecision,
+      independentRollbackDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverCloseoutReadiness(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+  finalHoldStartedAtEpochMs?: number,
+  finalHoldDecision?: boolean,
+  independentRollbackDecision?: boolean,
+  r5CloseoutDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverCloseoutReadinessReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
+      finalHoldStartedAtEpochMs,
+      finalHoldDecision,
+      independentRollbackDecision,
+      r5CloseoutDecision,
     },
   )
 }

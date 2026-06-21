@@ -1467,6 +1467,92 @@ pub struct KernelLoopbackR5DefaultCutoverNextStepHandoffReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverFinalHoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub final_hold_started_at_epoch_ms: Option<u64>,
+    pub final_hold_elapsed_seconds: u64,
+    pub final_hold_decision: bool,
+    pub final_hold_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub handoff: KernelLoopbackR5DefaultCutoverNextStepHandoffReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub independent_rollback_decision: bool,
+    pub rollback_validation_ready: bool,
+    pub required_platforms: Vec<String>,
+    pub observed_rollback_platforms: Vec<String>,
+    pub pending_rollback_platforms: Vec<String>,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub final_hold: KernelLoopbackR5DefaultCutoverFinalHoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverCloseoutReadinessReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r5_closeout_decision: bool,
+    pub closeout_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub rollback_validation: KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -5469,6 +5555,438 @@ pub async fn mihomo_kernel_loopback_r5_default_cutover_next_step_handoff(
         warnings: vec!["next-step handoff still does not authorize live default cutover".into()],
         facts: vec!["moves R5 toward final hold and independent rollback validation only".into()],
         next_safe_batch: next_step,
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_final_hold(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverFinalHoldReport> {
+    let final_hold_decision = final_hold_decision.unwrap_or(false);
+    let handoff = mihomo_kernel_loopback_r5_default_cutover_next_step_handoff(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+    )
+    .await?;
+    let now_ms = current_epoch_ms();
+    let final_hold_elapsed_seconds = final_hold_started_at_epoch_ms
+        .map(|started| now_ms.saturating_sub(started) / 1000)
+        .unwrap_or(0);
+    let final_hold_window_passed =
+        final_hold_started_at_epoch_ms.is_some() && final_hold_elapsed_seconds >= LOOPBACK_HOLD_WINDOW_MIN_SECONDS;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "handoffReady".into(),
+            status: if handoff.handoff_ready { "passed" } else { "blocked" }.into(),
+            passed: handoff.handoff_ready,
+            blockers: if handoff.handoff_ready {
+                Vec::new()
+            } else {
+                handoff.blockers.clone()
+            },
+            facts: vec!["final hold requires next-step handoff evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalHoldWindow".into(),
+            status: if final_hold_window_passed { "passed" } else { "blocked" }.into(),
+            passed: final_hold_window_passed,
+            blockers: if final_hold_window_passed {
+                Vec::new()
+            } else {
+                vec!["final hold window has not reached the minimum observation period".into()]
+            },
+            facts: vec![format!("observed final hold window seconds: {final_hold_elapsed_seconds}").into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalHoldDecision".into(),
+            status: if final_hold_decision { "passed" } else { "blocked" }.into(),
+            passed: final_hold_decision,
+            blockers: if final_hold_decision {
+                Vec::new()
+            } else {
+                vec!["R5 final hold requires an explicit hold decision".into()]
+            },
+            facts: vec!["final hold permits independent rollback validation only".into()],
+        },
+    ];
+    let final_hold_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR5DefaultCutoverFinalHoldReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-final-hold".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: handoff.current_platform.clone(),
+        current_arch: handoff.current_arch.clone(),
+        final_hold_started_at_epoch_ms,
+        final_hold_elapsed_seconds,
+        final_hold_decision,
+        final_hold_ready,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        handoff,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: final_hold_ready,
+        blockers,
+        warnings: vec!["final hold does not authorize live default cutover".into()],
+        facts: vec!["requires a bounded observation period after final gate handoff".into()],
+        next_safe_batch: "loopback-r5-default-cutover-independent-rollback-validation".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_independent_rollback_validation(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport> {
+    let independent_rollback_decision = independent_rollback_decision.unwrap_or(false);
+    let observed_rollback_platforms_input = observed_rollback_platforms.clone();
+    let final_hold = mihomo_kernel_loopback_r5_default_cutover_final_hold(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+    )
+    .await?;
+    let required_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+    let observed_rollback_platforms = observed_rollback_platforms_input
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|platform| LOOPBACK_PLATFORM_MATRIX_PLATFORMS.contains(&platform.as_str()))
+        .collect::<BTreeSet<String>>();
+    let pending_rollback_platforms = LOOPBACK_PLATFORM_MATRIX_PLATFORMS
+        .iter()
+        .filter(|platform| !observed_rollback_platforms.contains(**platform))
+        .map(|platform| (*platform).into())
+        .collect::<Vec<String>>();
+    let observed_rollback_platforms = observed_rollback_platforms.into_iter().collect::<Vec<String>>();
+    let rollback_platforms_ready = pending_rollback_platforms.is_empty();
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalHoldReady".into(),
+            status: if final_hold.final_hold_ready {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_hold.final_hold_ready,
+            blockers: if final_hold.final_hold_ready {
+                Vec::new()
+            } else {
+                final_hold.blockers.clone()
+            },
+            facts: vec!["independent rollback validation requires final hold evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rollbackPlatforms".into(),
+            status: if rollback_platforms_ready { "passed" } else { "blocked" }.into(),
+            passed: rollback_platforms_ready,
+            blockers: if rollback_platforms_ready {
+                Vec::new()
+            } else {
+                vec![
+                    format!(
+                        "missing independent rollback validation for platforms: {}",
+                        pending_rollback_platforms.join(", ")
+                    )
+                    .into(),
+                ]
+            },
+            facts: vec![
+                format!(
+                    "observed independent rollback platforms: {}",
+                    if observed_rollback_platforms.is_empty() {
+                        "none".into()
+                    } else {
+                        observed_rollback_platforms.join(", ")
+                    }
+                )
+                .into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "independentRollbackDecision".into(),
+            status: if independent_rollback_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: independent_rollback_decision,
+            blockers: if independent_rollback_decision {
+                Vec::new()
+            } else {
+                vec!["R5 independent rollback validation requires an explicit decision".into()]
+            },
+            facts: vec!["validation remains read-only and loopback scoped".into()],
+        },
+    ];
+    let rollback_validation_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR5DefaultCutoverIndependentRollbackValidationReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-independent-rollback-validation".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: final_hold.current_platform.clone(),
+        current_arch: final_hold.current_arch.clone(),
+        independent_rollback_decision,
+        rollback_validation_ready,
+        required_platforms,
+        observed_rollback_platforms,
+        pending_rollback_platforms,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        final_hold,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: rollback_validation_ready,
+        blockers,
+        warnings: vec!["independent rollback validation does not authorize default cutover".into()],
+        facts: vec!["requires platform-complete rollback evidence after final hold".into()],
+        next_safe_batch: "loopback-r5-default-cutover-closeout-readiness".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_closeout_readiness(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverCloseoutReadinessReport> {
+    let r5_closeout_decision = r5_closeout_decision.unwrap_or(false);
+    let rollback_validation = mihomo_kernel_loopback_r5_default_cutover_independent_rollback_validation(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+    )
+    .await?;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rollbackValidationReady".into(),
+            status: if rollback_validation.rollback_validation_ready {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rollback_validation.rollback_validation_ready,
+            blockers: if rollback_validation.rollback_validation_ready {
+                Vec::new()
+            } else {
+                rollback_validation.blockers.clone()
+            },
+            facts: vec!["closeout readiness requires independent rollback validation".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r5CloseoutDecision".into(),
+            status: if r5_closeout_decision { "passed" } else { "blocked" }.into(),
+            passed: r5_closeout_decision,
+            blockers: if r5_closeout_decision {
+                Vec::new()
+            } else {
+                vec!["R5 closeout readiness requires an explicit closeout decision".into()]
+            },
+            facts: vec!["closeout readiness prepares a report-only batch".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "defaultCutoverStillBlocked".into(),
+            status: "passed".into(),
+            passed: true,
+            blockers: Vec::new(),
+            facts: vec!["real adapter, TUN, protocol, and default route cutover remain blocked".into()],
+        },
+    ];
+    let closeout_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR5DefaultCutoverCloseoutReadinessReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-closeout-readiness".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: rollback_validation.current_platform.clone(),
+        current_arch: rollback_validation.current_arch.clone(),
+        r5_closeout_decision,
+        closeout_ready,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        rollback_validation,
+        checks,
+        default_route: false,
+        forwards_traffic: false,
+        outbound_adapters_used: false,
+        mihomo_fallback: true,
+        passed: closeout_ready,
+        blockers,
+        warnings: vec!["closeout readiness does not authorize live default cutover".into()],
+        facts: vec!["next batch is report-only closeout evidence for R5".into()],
+        next_safe_batch: "loopback-r5-default-cutover-closeout-report".into(),
     })
 }
 

@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned | Protocol stacks, adapter runtime, TUN, transparent proxy, DNS default runtime, and real forwarding remain Mihomo-owned by default. |
-| Kernel replacement track | Phase 8 R5 decision-readiness complete | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, platform rollback evidence, and R4 closeout are complete. R5 default-cutover preflight, risk matrix, rollback/abort planning, execution plan, execution guard, dry-run readiness, dry-run evidence, dry-run closeout, post-dry-run hold, decision readiness, final gate, and next-step handoff are complete. |
-| Next safe batch | `loopback-r5-default-cutover-final-hold` | Run final hold and independent rollback validation before any broader cutover decision. Real adapters/TUN/protocol/default cutover remain blocked. |
+| Kernel replacement track | Phase 8 R5 final-hold complete | R0/R1 seams, R2 shadow evidence, listener/DNS evidence, forwarding smoke evidence, rollback drill, leak check, platform matrix, hold-window evidence, platform rollback evidence, and R4 closeout are complete. R5 default-cutover preflight, risk matrix, rollback/abort planning, execution plan, execution guard, dry-run readiness, dry-run evidence, dry-run closeout, post-dry-run hold, decision readiness, final gate, next-step handoff, final hold, independent rollback validation, and closeout readiness are complete. |
+| Next safe batch | `loopback-r5-default-cutover-closeout-report` | Produce R5 closeout report before any broader cutover decision. Real adapters/TUN/protocol/default cutover remain blocked. |
 
 ## Non-negotiable boundaries
 
@@ -179,6 +179,9 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R5 default cutover decision readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_decision_readiness` summarizes post-dry-run hold evidence before final gate evaluation. |
 | R5 default cutover final gate | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_final_gate` keeps default cutover blocked while permitting only final hold/rollback validation. |
 | R5 default cutover next-step handoff | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_next_step_handoff` advances the safe batch to final hold evidence without enabling live default cutover. |
+| R5 default cutover final hold | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_final_hold` requires a final observation window after final gate handoff. |
+| R5 default cutover independent rollback validation | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation` verifies platform-complete rollback evidence after final hold. |
+| R5 default cutover closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness` prepares report-only closeout while keeping live default cutover blocked. |
 | R5 default cutover | Blocked | Not allowed yet | Must be a dedicated PR after decision readiness, final hold windows, and independent rollback. |
 
 ### Current R3 loopback listener boundary
@@ -267,7 +270,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r5-default-cutover-decision-readiness`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
+Allowed only after isolated R3 evidence and explicit decision. The current branch is `loopback-r5-default-cutover-final-hold`; forwarding remains synthetic 127.0.0.1 only. TUN/protocol/default cutover remain blocked.
 
 ## PR checklist for future changes
 
