@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Still Mihomo-owned by default, but now on accelerated Rust cutover path | The first Rust default must be a guarded Rust runtime with Mihomo fallback for unsupported protocol/TUN/adapter paths; full TUN/protocol replacement is not required for the first default switch. |
-| Kernel replacement track | Phase 8 R5 final-hold complete; acceleration plan active | R0-R5 safety evidence is now sufficient to stop adding small evidence-only gates. Next work should bundle R5 closeout with R6 Rust runtime scaffold and then move directly into opt-in/default Rust cutover batches. |
-| Next safe batch | `r5-closeout-r6-rust-runtime-scaffold` | Combine R5 closeout report with the first real R6 Rust runtime scaffold. Do not spend another standalone PR on report-only evidence unless it also creates the next Rust cutover surface. |
+| Kernel replacement track | R5 closeout + R6 Rust runtime scaffold complete | R0-R5 safety evidence is complete and `RustKernelRuntime` is now modeled as a disabled-by-default candidate with runtime selection and Mihomo fallback boundaries. Next work is the opt-in Rust runtime MVP, not another evidence-only gate. |
+| Next safe batch | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. |
 
 ## Acceleration plan
 
@@ -70,7 +70,7 @@ The next PR should not be another report-only gate. It should include:
 - `KernelRuntimeKind` / runtime selection scaffold with `Mihomo` and `Rust` variants.
 - A disabled-by-default `RustKernelRuntime` implementation that exposes capability and fallback boundaries.
 - IPC/TypeScript types for selecting/querying the candidate runtime.
-- Roadmap advancement directly to `r6-opt-in-rust-runtime-mvp`.
+- Roadmap advancement directly to `r6-opt-in-rust-runtime-mvp` (complete).
 
 ## Non-negotiable boundaries
 
@@ -228,7 +228,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | R5 default cutover final hold | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_final_hold` requires a final observation window after final gate handoff. |
 | R5 default cutover independent rollback validation | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation` verifies platform-complete rollback evidence after final hold. |
 | R5 default cutover closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness` prepares report-only closeout while keeping live default cutover blocked. |
-| R5 closeout report + R6 Rust runtime scaffold | Next | No default change | Bundle final R5 closeout with `RustKernelRuntime` scaffolding and runtime selection boundaries; advance directly to R6 MVP. |
+| R5 closeout report + R6 Rust runtime scaffold | Complete | No default change | `get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold` bundles final R5 closeout with `RustKernelRuntime` scaffolding and runtime selection boundaries; next batch is R6 MVP. |
 | R6 opt-in Rust runtime MVP | Planned | Explicit opt-in only | Implement supported Rust data-plane subset with Mihomo fallback and health/rollback telemetry. |
 | R6 Rust default canary | Planned | Limited default canary | Default Rust runtime only for a capped safe profile with automatic fallback. |
 | R7 Rust default cutover | Planned | Rust default for supported profile | Promote Rust runtime after canary closeout; Mihomo remains fallback for unsupported protocols/TUN. |
@@ -322,7 +322,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `r5-closeout-r6-rust-runtime-scaffold`; the next implementation must create the Rust runtime selection surface instead of adding another standalone evidence-only gate. TUN/protocol fallback retirement remains blocked.
+Allowed only through the accelerated sequence above. The current branch is `r6-opt-in-rust-runtime-mvp`; the next implementation must turn the Rust runtime scaffold into explicit opt-in execution for the supported subset. TUN/protocol fallback retirement remains blocked.
 
 ## PR checklist for future changes
 

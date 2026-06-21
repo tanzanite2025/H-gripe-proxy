@@ -32,6 +32,7 @@ use crate::{
 };
 
 const MIHOMO_RUNTIME_ID: &str = "mihomo-kernel-runtime";
+const RUST_RUNTIME_ID: &str = "rust-kernel-runtime";
 const NEXT_SAFE_BATCH: &str = "rust-shadow-components";
 const NEXT_SHADOW_BATCH: &str = "loopback-test-listener-opt-in";
 const ISOLATED_TEST_LISTENER_HOST: &str = "127.0.0.1";
@@ -1553,6 +1554,104 @@ pub struct KernelLoopbackR5DefaultCutoverCloseoutReadinessReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5DefaultCutoverCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub current_platform: String,
+    pub current_arch: String,
+    pub r5_closeout_report_decision: bool,
+    pub r5_closeout_complete: bool,
+    pub default_cutover_allowed: bool,
+    pub expanded_opt_in_allowed: bool,
+    pub closeout_readiness: KernelLoopbackR5DefaultCutoverCloseoutReadinessReport,
+    pub completed_evidence_batches: Vec<String>,
+    pub open_boundaries: Vec<String>,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KernelRuntimeKind {
+    Mihomo,
+    Rust,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuntimeCapability {
+    pub name: String,
+    pub status: String,
+    pub supported: bool,
+    pub fallback_required: bool,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeCandidateReport {
+    pub runtime_id: String,
+    pub kind: KernelRuntimeKind,
+    pub mutates_runtime: bool,
+    pub selectable: bool,
+    pub default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub supported_safe_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub capabilities: Vec<KernelRuntimeCapability>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelRuntimeSelectionScaffoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub current_default_runtime_kind: KernelRuntimeKind,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rust_runtime_opt_in_decision: bool,
+    pub rust_candidate_available: bool,
+    pub rust_candidate_default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub rust_candidate: RustKernelRuntimeCandidateReport,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_scaffold_decision: bool,
+    pub scaffold_ready: bool,
+    pub default_cutover_allowed: bool,
+    pub r5_closeout: KernelLoopbackR5DefaultCutoverCloseoutReport,
+    pub runtime_selection: KernelRuntimeSelectionScaffoldReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -1635,6 +1734,181 @@ impl KernelRuntime for MihomoKernelRuntime {
             blocked_replacement_areas: blocked_replacement_areas(),
             next_safe_batch: NEXT_SAFE_BATCH.into(),
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct RustKernelRuntime;
+
+#[async_trait]
+impl KernelRuntime for RustKernelRuntime {
+    fn runtime_id(&self) -> &'static str {
+        RUST_RUNTIME_ID
+    }
+
+    async fn status(&self) -> KernelRuntimeStatus {
+        KernelRuntimeStatus {
+            runtime_id: self.runtime_id().into(),
+            active_kernel: "rust-kernel-runtime-candidate".into(),
+            controller_transport: "rust-runtime-scaffold".into(),
+            mutates_runtime: false,
+            mihomo_fallback: true,
+        }
+    }
+
+    async fn replacement_readiness(&self) -> KernelReplacementReadiness {
+        KernelReplacementReadiness {
+            mutates_runtime: false,
+            active_kernel: "rust-kernel-runtime-candidate".into(),
+            controller_transport: "rust-runtime-scaffold".into(),
+            rust_owned_control_plane: rust_owned_control_plane(),
+            mihomo_owned_data_plane: rust_runtime_fallback_boundaries(),
+            blocked_replacement_areas: blocked_replacement_areas(),
+            next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+        }
+    }
+
+    async fn shadow_components(&self) -> KernelShadowComponentsReport {
+        KernelShadowComponentsReport {
+            runtime_id: self.runtime_id().into(),
+            active_kernel: "rust-kernel-runtime-candidate".into(),
+            mutates_runtime: false,
+            components: shadow_components(),
+            live_execution_blockers: blocked_replacement_areas(),
+            next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+        }
+    }
+
+    async fn apply_projection_preflight(&self, artifact_id: Option<String>) -> KernelRuntimePreflightReport {
+        KernelRuntimePreflightReport {
+            runtime_id: self.runtime_id().into(),
+            artifact_id,
+            mutates_runtime: false,
+            can_apply_with_rust_kernel: false,
+            mihomo_fallback: true,
+            facts: vec![
+                "RustKernelRuntime is scaffolded but disabled by default".into(),
+                "R6 MVP must add opt-in execution before Rust runtime can apply projections".into(),
+                "Unsupported protocol, TUN, and adapter paths remain Mihomo fallback boundaries".into(),
+            ],
+            blocked_replacement_areas: blocked_replacement_areas(),
+            next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+        }
+    }
+}
+
+fn rust_runtime_supported_safe_subset() -> Vec<String> {
+    vec![
+        "rule-decision-projection".into(),
+        "dns-decision-projection".into(),
+        "adapter-capability-classification".into(),
+        "loopback-only-forwarding-surface".into(),
+        "health-and-rollback-state".into(),
+    ]
+}
+
+fn rust_runtime_fallback_boundaries() -> Vec<String> {
+    vec![
+        "unsupported outbound and inbound protocols".into(),
+        "TUN and transparent proxy packet capture".into(),
+        "real adapter dialing and production egress".into(),
+        "emergency rollback to Mihomo default".into(),
+    ]
+}
+
+fn rust_runtime_capabilities() -> Vec<KernelRuntimeCapability> {
+    vec![
+        KernelRuntimeCapability {
+            name: "runtimeSelection".into(),
+            status: "scaffolded".into(),
+            supported: true,
+            fallback_required: false,
+            facts: vec!["Mihomo and Rust runtime kinds can be represented without changing defaults".into()],
+        },
+        KernelRuntimeCapability {
+            name: "supportedSubsetDecisionPath".into(),
+            status: "planned".into(),
+            supported: false,
+            fallback_required: true,
+            facts: vec!["R6 MVP must implement Rust-owned rule, DNS, and adapter decisions".into()],
+        },
+        KernelRuntimeCapability {
+            name: "productionForwarding".into(),
+            status: "blocked".into(),
+            supported: false,
+            fallback_required: true,
+            facts: vec!["production forwarding remains Mihomo-owned until opt-in Rust MVP evidence exists".into()],
+        },
+    ]
+}
+
+fn parse_kernel_runtime_kind(requested_runtime_kind: Option<String>) -> KernelRuntimeKind {
+    let requested_runtime_kind = requested_runtime_kind.unwrap_or_default().trim().to_ascii_lowercase();
+    match requested_runtime_kind.as_str() {
+        "rust" | "rust-kernel-runtime" => KernelRuntimeKind::Rust,
+        _ => KernelRuntimeKind::Mihomo,
+    }
+}
+
+pub async fn rust_kernel_runtime_candidate_report() -> RustKernelRuntimeCandidateReport {
+    RustKernelRuntimeCandidateReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        kind: KernelRuntimeKind::Rust,
+        mutates_runtime: false,
+        selectable: false,
+        default_allowed: false,
+        mihomo_fallback: true,
+        supported_safe_subset: rust_runtime_supported_safe_subset(),
+        fallback_boundaries: rust_runtime_fallback_boundaries(),
+        capabilities: rust_runtime_capabilities(),
+        blockers: vec![
+            "R6 opt-in Rust runtime MVP is not implemented yet".into(),
+            "Rust runtime cannot become default until canary and rollback evidence exist".into(),
+        ],
+        warnings: vec!["candidate scaffold does not start, stop, reload, or replace Mihomo".into()],
+        facts: vec![
+            "Rust runtime kind is now modeled as a candidate alongside Mihomo".into(),
+            "Mihomo remains the selected default runtime in this batch".into(),
+        ],
+        next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
+    }
+}
+
+pub async fn kernel_runtime_selection_scaffold(
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+) -> KernelRuntimeSelectionScaffoldReport {
+    let requested_runtime_kind = parse_kernel_runtime_kind(requested_runtime_kind);
+    let rust_runtime_opt_in_decision = rust_runtime_opt_in_decision.unwrap_or(false);
+    let rust_candidate = rust_kernel_runtime_candidate_report().await;
+    let mut blockers = Vec::new();
+
+    if matches!(requested_runtime_kind, KernelRuntimeKind::Rust) {
+        blockers.push("Rust runtime selection is represented but blocked until R6 opt-in MVP".into());
+    }
+    if rust_runtime_opt_in_decision {
+        blockers.push("Rust runtime opt-in decision is recorded but cannot select Rust before R6 MVP".into());
+    }
+
+    KernelRuntimeSelectionScaffoldReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "kernel-runtime-selection-scaffold".into(),
+        mutates_runtime: false,
+        current_default_runtime_kind: KernelRuntimeKind::Mihomo,
+        selected_runtime_kind: KernelRuntimeKind::Mihomo,
+        requested_runtime_kind,
+        rust_runtime_opt_in_decision,
+        rust_candidate_available: true,
+        rust_candidate_default_allowed: false,
+        mihomo_fallback: true,
+        rust_candidate,
+        blockers,
+        warnings: vec!["runtime selection scaffold keeps Mihomo as the only selectable default".into()],
+        facts: vec![
+            "Rust runtime selection is now an explicit modeled boundary".into(),
+            "R6 MVP will turn this scaffold into explicit opt-in selection".into(),
+        ],
+        next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
     }
 }
 
@@ -5987,6 +6261,233 @@ pub async fn mihomo_kernel_loopback_r5_default_cutover_closeout_readiness(
         warnings: vec!["closeout readiness does not authorize live default cutover".into()],
         facts: vec!["next batch is report-only closeout evidence for R5".into()],
         next_safe_batch: "loopback-r5-default-cutover-closeout-report".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_default_cutover_closeout_report(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+) -> Result<KernelLoopbackR5DefaultCutoverCloseoutReport> {
+    let r5_closeout_report_decision = r5_closeout_report_decision.unwrap_or(false);
+    let closeout_readiness = mihomo_kernel_loopback_r5_default_cutover_closeout_readiness(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+    )
+    .await?;
+    let r5_closeout_complete = closeout_readiness.passed && r5_closeout_report_decision;
+    let blockers = if r5_closeout_complete {
+        Vec::new()
+    } else {
+        let mut blockers = closeout_readiness.blockers.clone();
+        if !r5_closeout_report_decision {
+            blockers.push("R5 closeout report requires an explicit report decision".into());
+        }
+        blockers
+    };
+
+    Ok(KernelLoopbackR5DefaultCutoverCloseoutReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "loopback-r5-default-cutover-closeout-report".into(),
+        kernel_area: "forwarding".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        current_platform: closeout_readiness.current_platform.clone(),
+        current_arch: closeout_readiness.current_arch.clone(),
+        r5_closeout_report_decision,
+        r5_closeout_complete,
+        default_cutover_allowed: false,
+        expanded_opt_in_allowed: false,
+        closeout_readiness,
+        completed_evidence_batches: vec![
+            "r3-loopback-listener-dns-forwarding-evidence".into(),
+            "r4-expanded-opt-in-synthetic-execution-and-closeout".into(),
+            "r5-default-cutover-preflight-through-final-hold".into(),
+            "r5-independent-rollback-validation-and-closeout-readiness".into(),
+        ],
+        open_boundaries: rust_runtime_fallback_boundaries(),
+        passed: r5_closeout_complete,
+        blockers,
+        warnings: vec!["R5 closeout report closes evidence gates but does not select Rust runtime".into()],
+        facts: vec!["R5 evidence is ready to hand off to R6 Rust runtime implementation".into()],
+        next_safe_batch: "r5-closeout-r6-rust-runtime-scaffold".into(),
+    })
+}
+
+pub async fn mihomo_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+    rust_runtime_scaffold_decision: Option<bool>,
+) -> Result<KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport> {
+    let rust_runtime_scaffold_decision = rust_runtime_scaffold_decision.unwrap_or(false);
+    let r5_closeout = mihomo_kernel_loopback_r5_default_cutover_closeout_report(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+    )
+    .await?;
+    let runtime_selection =
+        kernel_runtime_selection_scaffold(requested_runtime_kind, rust_runtime_opt_in_decision).await;
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r5CloseoutComplete".into(),
+            status: if r5_closeout.passed { "passed" } else { "blocked" }.into(),
+            passed: r5_closeout.passed,
+            blockers: r5_closeout.blockers.clone(),
+            facts: vec!["R5 closeout report is bundled with R6 scaffold".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustRuntimeScaffoldDecision".into(),
+            status: if rust_runtime_scaffold_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_runtime_scaffold_decision,
+            blockers: if rust_runtime_scaffold_decision {
+                Vec::new()
+            } else {
+                vec!["R6 Rust runtime scaffold requires an explicit scaffold decision".into()]
+            },
+            facts: vec!["Rust runtime kind and fallback boundaries are modeled".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "mihomoRemainsSelectedDefault".into(),
+            status: "passed".into(),
+            passed: true,
+            blockers: Vec::new(),
+            facts: vec!["scaffold does not change the selected default runtime".into()],
+        },
+    ];
+    let scaffold_ready = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport {
+        runtime_id: MIHOMO_RUNTIME_ID.into(),
+        component: "r5-closeout-r6-rust-runtime-scaffold".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        rust_runtime_scaffold_decision,
+        scaffold_ready,
+        default_cutover_allowed: false,
+        r5_closeout,
+        runtime_selection,
+        checks,
+        blockers,
+        warnings: vec!["R6 scaffold is selectable metadata only; Rust runtime remains disabled".into()],
+        facts: vec!["next batch can implement explicit opt-in Rust runtime MVP without more R5 gates".into()],
+        next_safe_batch: "r6-opt-in-rust-runtime-mvp".into(),
     })
 }
 
