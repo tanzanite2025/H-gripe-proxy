@@ -1935,6 +1935,29 @@ pub async fn get_runtime_kernel_loopback_go_mihomo_retirement_rollback_surface_r
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout(
+    go_mihomo_retirement_rollback_surface_retirement_complete_decision: Option<bool>,
+    rollback_surface_retirement_review_decision: Option<bool>,
+    recovery_boundary_evidence_retention_decision: Option<bool>,
+    completion_report_archive_decision: Option<bool>,
+    release_notes_update_decision: Option<bool>,
+    migration_state_freeze_decision: Option<bool>,
+    final_completion_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackGoMihomoRetirementCompletionCloseoutReport> {
+    rust_kernel_runtime_go_mihomo_retirement_completion_closeout(
+        go_mihomo_retirement_rollback_surface_retirement_complete_decision,
+        rollback_surface_retirement_review_decision,
+        recovery_boundary_evidence_retention_decision,
+        completion_report_archive_decision,
+        release_notes_update_decision,
+        migration_state_freeze_decision,
+        final_completion_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
