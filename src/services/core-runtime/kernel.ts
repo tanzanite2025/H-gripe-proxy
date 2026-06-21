@@ -1716,6 +1716,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementRollbackSurfaceRetiremen
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementCompletionCloseoutReport {
+  runtimeId: string
+  component: string
+  rollbackSurfaceRetirementReviewed: boolean
+  recoveryBoundaryEvidenceRetained: boolean
+  completionReportArchived: boolean
+  releaseNotesUpdated: boolean
+  migrationStateFrozen: boolean
+  completionCloseoutComplete: boolean
+  closeoutSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementCompletionCloseoutReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementRollbackSurfaceRetirementComplete: boolean
+  completionCloseout: RuntimeRustKernelRuntimeGoMihomoRetirementCompletionCloseoutReport
+  finalCompletionDecision: boolean
+  goMihomoRetirementCompletionCloseoutComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3981,6 +4013,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementRollbackSurfaceR
       rollbackSurfaceRetirementPlanArchiveDecision,
       emergencyRecoveryDrillDecision,
       finalRollbackSurfaceRetirementDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementCompletionCloseout(
+  goMihomoRetirementRollbackSurfaceRetirementCompleteDecision?: boolean,
+  rollbackSurfaceRetirementReviewDecision?: boolean,
+  recoveryBoundaryEvidenceRetentionDecision?: boolean,
+  completionReportArchiveDecision?: boolean,
+  releaseNotesUpdateDecision?: boolean,
+  migrationStateFreezeDecision?: boolean,
+  finalCompletionDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementCompletionCloseoutReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout',
+    {
+      goMihomoRetirementRollbackSurfaceRetirementCompleteDecision,
+      rollbackSurfaceRetirementReviewDecision,
+      recoveryBoundaryEvidenceRetentionDecision,
+      completionReportArchiveDecision,
+      releaseNotesUpdateDecision,
+      migrationStateFreezeDecision,
+      finalCompletionDecision,
     },
   )
 }
