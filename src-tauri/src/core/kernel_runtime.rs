@@ -1766,6 +1766,82 @@ pub struct KernelLoopbackR6RustDefaultCanaryReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeCanaryCloseoutSummaryReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub canary_default_allowed: bool,
+    pub canary_health_ready: bool,
+    pub automatic_fallback_armed: bool,
+    pub rollback_hold_passed: bool,
+    pub closeout_ready: bool,
+    pub evidence: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeSupportedProfileDefaultReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub profile_scope: String,
+    pub supported_profile_default: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub fallback_runtime_kind: KernelRuntimeKind,
+    pub supported_safe_subset: Vec<String>,
+    pub fallback_boundaries: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeFallbackStateReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub rollback_switch_requested: bool,
+    pub restart_required: bool,
+    pub health_ready: bool,
+    pub rollback_armed: bool,
+    pub fallback_active: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub fallback_runtime_kind: KernelRuntimeKind,
+    pub triggers: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackR7RustDefaultCutoverReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub rust_runtime_opt_in_decision: bool,
+    pub canary_default_decision: bool,
+    pub r7_cutover_decision: bool,
+    pub rollback_hold_decision: bool,
+    pub rollback_switch_requested: bool,
+    pub requested_runtime_kind: KernelRuntimeKind,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub supported_profile_default_allowed: bool,
+    pub production_default_allowed: bool,
+    pub mihomo_fallback: bool,
+    pub r6_canary: KernelLoopbackR6RustDefaultCanaryReport,
+    pub canary_closeout: RustKernelRuntimeCanaryCloseoutSummaryReport,
+    pub supported_profile: RustKernelRuntimeSupportedProfileDefaultReport,
+    pub fallback_state: RustKernelRuntimeFallbackStateReport,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
@@ -7113,6 +7189,354 @@ pub async fn rust_kernel_runtime_r6_default_canary(
             "Mihomo fallback remains the selected runtime for unsupported paths and rollback triggers".into(),
         ],
         next_safe_batch: "r7-rust-default-cutover".into(),
+    })
+}
+
+fn rust_kernel_runtime_r7_canary_closeout_summary(
+    r6_canary: &KernelLoopbackR6RustDefaultCanaryReport,
+    rollback_hold_decision: bool,
+) -> RustKernelRuntimeCanaryCloseoutSummaryReport {
+    let canary_health_ready = r6_canary.automatic_fallback.health_ready
+        && r6_canary.automatic_fallback.health_check_passed
+        && !r6_canary.automatic_fallback.rollback_triggered;
+    let automatic_fallback_armed = r6_canary.automatic_fallback.rollback_armed
+        && matches!(
+            r6_canary.automatic_fallback.fallback_runtime_kind,
+            KernelRuntimeKind::Mihomo
+        );
+    let closeout_ready =
+        r6_canary.canary_default_allowed && canary_health_ready && automatic_fallback_armed && rollback_hold_decision;
+    let mut blockers = Vec::new();
+
+    if !r6_canary.canary_default_allowed {
+        blockers.push("R7 cutover requires a passing R6 Rust default canary".into());
+    }
+    if !canary_health_ready {
+        blockers.push("R7 cutover requires canary health checks to remain ready".into());
+    }
+    if !automatic_fallback_armed {
+        blockers.push("R7 cutover requires automatic Mihomo fallback to stay armed".into());
+    }
+    if !rollback_hold_decision {
+        blockers.push("R7 cutover requires rollback hold evidence before widening the default".into());
+    }
+
+    RustKernelRuntimeCanaryCloseoutSummaryReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-rust-default-cutover-canary-closeout".into(),
+        canary_default_allowed: r6_canary.canary_default_allowed,
+        canary_health_ready,
+        automatic_fallback_armed,
+        rollback_hold_passed: rollback_hold_decision,
+        closeout_ready,
+        evidence: vec![
+            "get_runtime_kernel_loopback_r6_rust_default_canary".into(),
+            "canary health check".into(),
+            "automatic Mihomo fallback state".into(),
+            "rollback hold decision".into(),
+        ],
+        blockers,
+        facts: vec![
+            "R7 consumes R6 canary closeout evidence instead of retiring Mihomo fallback".into(),
+            "rollback hold is required before Rust becomes the supported profile default".into(),
+        ],
+    }
+}
+
+fn rust_kernel_runtime_supported_profile_default_report(
+    profile_scope: Option<String>,
+    canary_closeout: &RustKernelRuntimeCanaryCloseoutSummaryReport,
+    r7_cutover_decision: bool,
+    rollback_switch_requested: bool,
+) -> RustKernelRuntimeSupportedProfileDefaultReport {
+    let profile_scope = profile_scope.unwrap_or_else(|| "supportedDefaultProfile".into());
+    let mut blockers = Vec::new();
+
+    if profile_scope != "supportedDefaultProfile" {
+        blockers.push("R7 Rust default cutover is limited to supportedDefaultProfile".into());
+    }
+    if !canary_closeout.closeout_ready {
+        blockers.extend(canary_closeout.blockers.clone());
+    }
+    if !r7_cutover_decision {
+        blockers.push("R7 Rust default cutover requires an explicit cutover decision".into());
+    }
+    if rollback_switch_requested {
+        blockers.push("one-switch rollback currently selects Mihomo as the default".into());
+    }
+
+    let supported_profile_default = blockers.is_empty();
+    let selected_runtime_kind = if supported_profile_default {
+        KernelRuntimeKind::Rust
+    } else {
+        KernelRuntimeKind::Mihomo
+    };
+
+    RustKernelRuntimeSupportedProfileDefaultReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-rust-supported-profile-default".into(),
+        profile_scope,
+        supported_profile_default,
+        selected_runtime_kind,
+        fallback_runtime_kind: KernelRuntimeKind::Mihomo,
+        supported_safe_subset: rust_runtime_supported_safe_subset(),
+        fallback_boundaries: rust_runtime_fallback_boundaries(),
+        blockers,
+        warnings: vec![
+            "R7 default applies only to the supported profile; unsupported protocol, TUN, and adapter paths stay on Mihomo fallback".into(),
+        ],
+        facts: vec![
+            "Rust runtime is selected as the wider default only after canary closeout and rollback hold pass".into(),
+            "Mihomo remains available without app restart through the rollback switch".into(),
+        ],
+    }
+}
+
+fn rust_kernel_runtime_r7_fallback_state_report(
+    r6_canary: &KernelLoopbackR6RustDefaultCanaryReport,
+    rollback_switch_requested: bool,
+    supported_profile_default: bool,
+) -> RustKernelRuntimeFallbackStateReport {
+    let health_ready = r6_canary.automatic_fallback.health_ready
+        && r6_canary.automatic_fallback.health_check_passed
+        && !r6_canary.automatic_fallback.rollback_triggered;
+    let rollback_armed = r6_canary.automatic_fallback.rollback_armed && r6_canary.mihomo_fallback;
+    let mut triggers = Vec::new();
+
+    if rollback_switch_requested {
+        triggers.push("rollback-switch-requested".into());
+    }
+    if !supported_profile_default {
+        triggers.push("supported-profile-default-not-ready".into());
+    }
+    if !health_ready {
+        triggers.push("health-check-not-ready".into());
+    }
+    if !rollback_armed {
+        triggers.push("rollback-not-armed".into());
+    }
+
+    let fallback_active = !triggers.is_empty();
+    let selected_runtime_kind = if fallback_active {
+        KernelRuntimeKind::Mihomo
+    } else {
+        KernelRuntimeKind::Rust
+    };
+    let blockers = if fallback_active && !rollback_switch_requested {
+        triggers
+            .iter()
+            .map(|trigger| format!("R7 fallback keeps Mihomo selected: {trigger}").into())
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    RustKernelRuntimeFallbackStateReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-rust-default-cutover-fallback-state".into(),
+        rollback_switch_requested,
+        restart_required: false,
+        health_ready,
+        rollback_armed,
+        fallback_active,
+        selected_runtime_kind,
+        fallback_runtime_kind: KernelRuntimeKind::Mihomo,
+        triggers,
+        blockers,
+        facts: vec![
+            "one-switch rollback restores Mihomo default selection without app restart".into(),
+            "fallback state is queryable over IPC before and after R7 cutover".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_r7_default_cutover(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+    rust_runtime_scaffold_decision: Option<bool>,
+    canary_default_decision: Option<bool>,
+    health_check_passed: Option<bool>,
+    rollback_triggered: Option<bool>,
+    r7_cutover_decision: Option<bool>,
+    rollback_hold_decision: Option<bool>,
+    rollback_switch_requested: Option<bool>,
+    profile_scope: Option<String>,
+) -> Result<KernelLoopbackR7RustDefaultCutoverReport> {
+    let r7_cutover_decision = r7_cutover_decision.unwrap_or(false);
+    let rollback_hold_decision = rollback_hold_decision.unwrap_or(false);
+    let rollback_switch_requested = rollback_switch_requested.unwrap_or(false);
+    let requested_runtime_kind_for_parse = requested_runtime_kind.clone();
+    let r6_canary = Box::pin(rust_kernel_runtime_r6_default_canary(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+        requested_runtime_kind,
+        rust_runtime_opt_in_decision,
+        rust_runtime_scaffold_decision,
+        canary_default_decision,
+        health_check_passed,
+        rollback_triggered,
+    ))
+    .await?;
+    let canary_closeout = rust_kernel_runtime_r7_canary_closeout_summary(&r6_canary, rollback_hold_decision);
+    let supported_profile = rust_kernel_runtime_supported_profile_default_report(
+        profile_scope,
+        &canary_closeout,
+        r7_cutover_decision,
+        rollback_switch_requested,
+    );
+    let fallback_state = rust_kernel_runtime_r7_fallback_state_report(
+        &r6_canary,
+        rollback_switch_requested,
+        supported_profile.supported_profile_default,
+    );
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r6CanaryCloseoutReady".into(),
+            status: if canary_closeout.closeout_ready {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: canary_closeout.closeout_ready,
+            blockers: canary_closeout.blockers.clone(),
+            facts: vec!["R7 cutover consumes R6 canary health and rollback hold evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "r7CutoverDecision".into(),
+            status: if r7_cutover_decision { "passed" } else { "blocked" }.into(),
+            passed: r7_cutover_decision,
+            blockers: if r7_cutover_decision {
+                Vec::new()
+            } else {
+                vec!["R7 Rust default cutover requires an explicit cutover decision".into()]
+            },
+            facts: vec!["cutover decision widens Rust default selection only for supported profile".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "supportedProfileDefault".into(),
+            status: if supported_profile.supported_profile_default {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: supported_profile.supported_profile_default,
+            blockers: supported_profile.blockers.clone(),
+            facts: vec!["unsupported protocol, TUN, and adapter paths remain Mihomo fallback".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "oneSwitchRollbackPath".into(),
+            status: if fallback_state.rollback_armed && !fallback_state.restart_required {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: fallback_state.rollback_armed && !fallback_state.restart_required,
+            blockers: fallback_state.blockers.clone(),
+            facts: vec!["rollback switch restores Mihomo default without app restart".into()],
+        },
+    ];
+    let supported_profile_default_allowed = checks.iter().all(|check| check.passed) && !fallback_state.fallback_active;
+    let selected_runtime_kind = if supported_profile_default_allowed {
+        KernelRuntimeKind::Rust
+    } else {
+        KernelRuntimeKind::Mihomo
+    };
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackR7RustDefaultCutoverReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "r7-rust-default-cutover".into(),
+        mutates_runtime: r6_canary.mutates_runtime,
+        live_execution_allowed: supported_profile_default_allowed,
+        rust_runtime_opt_in_decision: r6_canary.rust_runtime_opt_in_decision,
+        canary_default_decision: r6_canary.canary_default_decision,
+        r7_cutover_decision,
+        rollback_hold_decision,
+        rollback_switch_requested,
+        requested_runtime_kind: parse_kernel_runtime_kind(requested_runtime_kind_for_parse),
+        selected_runtime_kind,
+        supported_profile_default_allowed,
+        production_default_allowed: false,
+        mihomo_fallback: true,
+        r6_canary,
+        canary_closeout,
+        supported_profile,
+        fallback_state,
+        checks,
+        blockers,
+        warnings: vec![
+            "R7 selects Rust only for the supported profile; full Mihomo fallback retirement remains blocked".into(),
+            "TUN, transparent proxy, protocol stacks, and production adapter egress are not replaced in this batch"
+                .into(),
+        ],
+        facts: vec![
+            "Rust runtime becomes the supported profile default only after canary closeout and rollback hold pass"
+                .into(),
+            "Mihomo fallback remains available for unsupported paths and one-switch rollback".into(),
+        ],
+        next_safe_batch: "r7-mihomo-fallback-retirement".into(),
     })
 }
 
