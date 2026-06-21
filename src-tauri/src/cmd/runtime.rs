@@ -19,8 +19,8 @@ use crate::{
             KernelLoopbackR4ExpandedOptInExecutionPlanReport, KernelLoopbackR4ExpandedOptInLimitedRolloutGateReport,
             KernelLoopbackR4ExpandedOptInNextPhaseHandoffReport, KernelLoopbackR4ExpandedOptInPostExecutionHoldReport,
             KernelLoopbackR4ExpandedOptInPreflightReport, KernelLoopbackR4ExpandedOptInRolloutAuditReport,
-            KernelLoopbackR4ExpandedOptInSyntheticExecutionReport,
-            KernelLoopbackR5DefaultCutoverCloseoutReadinessReport,
+            KernelLoopbackR4ExpandedOptInSyntheticExecutionReport, KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport,
+            KernelLoopbackR5DefaultCutoverCloseoutReadinessReport, KernelLoopbackR5DefaultCutoverCloseoutReport,
             KernelLoopbackR5DefaultCutoverDecisionReadinessReport, KernelLoopbackR5DefaultCutoverDryRunCloseoutReport,
             KernelLoopbackR5DefaultCutoverDryRunEvidenceReport, KernelLoopbackR5DefaultCutoverDryRunReadinessReport,
             KernelLoopbackR5DefaultCutoverExecutionPlanReport, KernelLoopbackR5DefaultCutoverFinalGateReport,
@@ -29,7 +29,8 @@ use crate::{
             KernelLoopbackR5DefaultCutoverNextStepHandoffReport, KernelLoopbackR5DefaultCutoverPostDryRunHoldReport,
             KernelLoopbackR5DefaultCutoverPreflightReport, KernelLoopbackR5DefaultCutoverRiskMatrixReport,
             KernelLoopbackR5DefaultCutoverRollbackAbortPlanReport, KernelReplacementReadiness,
-            KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelShadowComponentsReport,
+            KernelRuleShadowEvidenceReport, KernelRuntimePreflightReport, KernelRuntimeSelectionScaffoldReport,
+            KernelShadowComponentsReport, RustKernelRuntimeCandidateReport, kernel_runtime_selection_scaffold,
             mihomo_kernel_adapter_capability_report, mihomo_kernel_apply_preflight,
             mihomo_kernel_connection_session_shadow, mihomo_kernel_dns_shadow_evidence,
             mihomo_kernel_isolated_listener_preflight, mihomo_kernel_isolated_test_listener_smoke_evidence,
@@ -50,7 +51,9 @@ use crate::{
             mihomo_kernel_loopback_r4_expanded_opt_in_preflight,
             mihomo_kernel_loopback_r4_expanded_opt_in_rollout_audit,
             mihomo_kernel_loopback_r4_expanded_opt_in_synthetic_execution,
+            mihomo_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold,
             mihomo_kernel_loopback_r5_default_cutover_closeout_readiness,
+            mihomo_kernel_loopback_r5_default_cutover_closeout_report,
             mihomo_kernel_loopback_r5_default_cutover_decision_readiness,
             mihomo_kernel_loopback_r5_default_cutover_dry_run_closeout,
             mihomo_kernel_loopback_r5_default_cutover_dry_run_evidence,
@@ -65,6 +68,7 @@ use crate::{
             mihomo_kernel_loopback_r5_default_cutover_rollback_abort_plan, mihomo_kernel_replacement_readiness,
             mihomo_kernel_rule_shadow_evidence, mihomo_kernel_shadow_components,
             mihomo_kernel_start_isolated_test_listener, mihomo_kernel_stop_isolated_test_listener,
+            rust_kernel_runtime_candidate_report,
         },
         runtime_diagnostics::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
@@ -101,6 +105,19 @@ pub async fn get_runtime_kernel_apply_preflight(
 #[tauri::command]
 pub async fn get_runtime_kernel_shadow_components() -> CmdResult<KernelShadowComponentsReport> {
     Ok(mihomo_kernel_shadow_components().await)
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_runtime_candidate() -> CmdResult<RustKernelRuntimeCandidateReport> {
+    Ok(rust_kernel_runtime_candidate_report().await)
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_runtime_selection_scaffold(
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+) -> CmdResult<KernelRuntimeSelectionScaffoldReport> {
+    Ok(kernel_runtime_selection_scaffold(requested_runtime_kind, rust_runtime_opt_in_decision).await)
 }
 
 #[tauri::command]
@@ -1280,6 +1297,146 @@ pub async fn get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness(
         independent_rollback_decision,
         r5_closeout_decision,
     )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r5_default_cutover_closeout_report(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR5DefaultCutoverCloseoutReport> {
+    mihomo_kernel_loopback_r5_default_cutover_closeout_report(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+    hold_started_at_epoch_ms: Option<u64>,
+    observed_rollback_platforms: Option<Vec<String>>,
+    explicit_decision: Option<bool>,
+    requested_execution: Option<bool>,
+    post_execution_hold_started_at_epoch_ms: Option<u64>,
+    wider_opt_in_decision: Option<bool>,
+    limited_rollout_decision: Option<bool>,
+    canary_scope: Option<String>,
+    max_canary_sessions: Option<u16>,
+    closeout_decision: Option<bool>,
+    handoff_decision: Option<bool>,
+    r5_preflight_decision: Option<bool>,
+    rollback_plan_decision: Option<bool>,
+    execution_plan_decision: Option<bool>,
+    guard_decision: Option<bool>,
+    dry_run_decision: Option<bool>,
+    dry_run_execution_decision: Option<bool>,
+    post_dry_run_hold_started_at_epoch_ms: Option<u64>,
+    hold_decision: Option<bool>,
+    decision_readiness_decision: Option<bool>,
+    final_gate_decision: Option<bool>,
+    r5_handoff_decision: Option<bool>,
+    final_hold_started_at_epoch_ms: Option<u64>,
+    final_hold_decision: Option<bool>,
+    independent_rollback_decision: Option<bool>,
+    r5_closeout_decision: Option<bool>,
+    r5_closeout_report_decision: Option<bool>,
+    requested_runtime_kind: Option<String>,
+    rust_runtime_opt_in_decision: Option<bool>,
+    rust_runtime_scaffold_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport> {
+    Box::pin(mihomo_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold(
+        listener_port,
+        target_port,
+        hold_started_at_epoch_ms,
+        observed_rollback_platforms,
+        explicit_decision,
+        requested_execution,
+        post_execution_hold_started_at_epoch_ms,
+        wider_opt_in_decision,
+        limited_rollout_decision,
+        canary_scope,
+        max_canary_sessions,
+        closeout_decision,
+        handoff_decision,
+        r5_preflight_decision,
+        rollback_plan_decision,
+        execution_plan_decision,
+        guard_decision,
+        dry_run_decision,
+        dry_run_execution_decision,
+        post_dry_run_hold_started_at_epoch_ms,
+        hold_decision,
+        decision_readiness_decision,
+        final_gate_decision,
+        r5_handoff_decision,
+        final_hold_started_at_epoch_ms,
+        final_hold_decision,
+        independent_rollback_decision,
+        r5_closeout_decision,
+        r5_closeout_report_decision,
+        requested_runtime_kind,
+        rust_runtime_opt_in_decision,
+        rust_runtime_scaffold_decision,
+    ))
     .await
     .stringify_err()
 }

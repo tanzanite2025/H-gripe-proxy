@@ -1179,6 +1179,89 @@ export interface RuntimeKernelLoopbackR5DefaultCutoverCloseoutReadinessReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeKernelLoopbackR5DefaultCutoverCloseoutReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  currentPlatform: string
+  currentArch: string
+  r5CloseoutReportDecision: boolean
+  r5CloseoutComplete: boolean
+  defaultCutoverAllowed: boolean
+  expandedOptInAllowed: boolean
+  closeoutReadiness: RuntimeKernelLoopbackR5DefaultCutoverCloseoutReadinessReport
+  completedEvidenceBatches: string[]
+  openBoundaries: string[]
+  passed: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export type RuntimeKernelRuntimeKind = 'mihomo' | 'rust'
+
+export interface RuntimeKernelRuntimeCapability {
+  name: string
+  status: string
+  supported: boolean
+  fallbackRequired: boolean
+  facts: string[]
+}
+
+export interface RuntimeRustKernelRuntimeCandidateReport {
+  runtimeId: string
+  kind: RuntimeKernelRuntimeKind
+  mutatesRuntime: boolean
+  selectable: boolean
+  defaultAllowed: boolean
+  mihomoFallback: boolean
+  supportedSafeSubset: string[]
+  fallbackBoundaries: string[]
+  capabilities: RuntimeKernelRuntimeCapability[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelRuntimeSelectionScaffoldReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  currentDefaultRuntimeKind: RuntimeKernelRuntimeKind
+  requestedRuntimeKind: RuntimeKernelRuntimeKind
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rustRuntimeOptInDecision: boolean
+  rustCandidateAvailable: boolean
+  rustCandidateDefaultAllowed: boolean
+  mihomoFallback: boolean
+  rustCandidate: RuntimeRustKernelRuntimeCandidateReport
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeKernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  rustRuntimeScaffoldDecision: boolean
+  scaffoldReady: boolean
+  defaultCutoverAllowed: boolean
+  r5Closeout: RuntimeKernelLoopbackR5DefaultCutoverCloseoutReport
+  runtimeSelection: RuntimeKernelRuntimeSelectionScaffoldReport
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -2703,6 +2786,165 @@ export async function getRuntimeKernelLoopbackR5DefaultCutoverCloseoutReadiness(
       finalHoldDecision,
       independentRollbackDecision,
       r5CloseoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelRustRuntimeCandidate() {
+  return invoke<RuntimeRustKernelRuntimeCandidateReport>(
+    'get_runtime_kernel_rust_runtime_candidate',
+  )
+}
+
+export async function getRuntimeKernelRuntimeSelectionScaffold(
+  requestedRuntimeKind?: RuntimeKernelRuntimeKind,
+  rustRuntimeOptInDecision?: boolean,
+) {
+  return invoke<RuntimeKernelRuntimeSelectionScaffoldReport>(
+    'get_runtime_kernel_runtime_selection_scaffold',
+    {
+      requestedRuntimeKind,
+      rustRuntimeOptInDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5DefaultCutoverCloseoutReport(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+  finalHoldStartedAtEpochMs?: number,
+  finalHoldDecision?: boolean,
+  independentRollbackDecision?: boolean,
+  r5CloseoutDecision?: boolean,
+  r5CloseoutReportDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5DefaultCutoverCloseoutReport>(
+    'get_runtime_kernel_loopback_r5_default_cutover_closeout_report',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
+      finalHoldStartedAtEpochMs,
+      finalHoldDecision,
+      independentRollbackDecision,
+      r5CloseoutDecision,
+      r5CloseoutReportDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackR5CloseoutR6RustRuntimeScaffold(
+  listenerPort?: number,
+  targetPort?: number,
+  holdStartedAtEpochMs?: number,
+  observedRollbackPlatforms?: string[],
+  explicitDecision?: boolean,
+  requestedExecution?: boolean,
+  postExecutionHoldStartedAtEpochMs?: number,
+  widerOptInDecision?: boolean,
+  limitedRolloutDecision?: boolean,
+  canaryScope?: string,
+  maxCanarySessions?: number,
+  closeoutDecision?: boolean,
+  handoffDecision?: boolean,
+  r5PreflightDecision?: boolean,
+  rollbackPlanDecision?: boolean,
+  executionPlanDecision?: boolean,
+  guardDecision?: boolean,
+  dryRunDecision?: boolean,
+  dryRunExecutionDecision?: boolean,
+  postDryRunHoldStartedAtEpochMs?: number,
+  holdDecision?: boolean,
+  decisionReadinessDecision?: boolean,
+  finalGateDecision?: boolean,
+  r5HandoffDecision?: boolean,
+  finalHoldStartedAtEpochMs?: number,
+  finalHoldDecision?: boolean,
+  independentRollbackDecision?: boolean,
+  r5CloseoutDecision?: boolean,
+  r5CloseoutReportDecision?: boolean,
+  requestedRuntimeKind?: RuntimeKernelRuntimeKind,
+  rustRuntimeOptInDecision?: boolean,
+  rustRuntimeScaffoldDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackR5CloseoutR6RustRuntimeScaffoldReport>(
+    'get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold',
+    {
+      listenerPort,
+      targetPort,
+      holdStartedAtEpochMs,
+      observedRollbackPlatforms,
+      explicitDecision,
+      requestedExecution,
+      postExecutionHoldStartedAtEpochMs,
+      widerOptInDecision,
+      limitedRolloutDecision,
+      canaryScope,
+      maxCanarySessions,
+      closeoutDecision,
+      handoffDecision,
+      r5PreflightDecision,
+      rollbackPlanDecision,
+      executionPlanDecision,
+      guardDecision,
+      dryRunDecision,
+      dryRunExecutionDecision,
+      postDryRunHoldStartedAtEpochMs,
+      holdDecision,
+      decisionReadinessDecision,
+      finalGateDecision,
+      r5HandoffDecision,
+      finalHoldStartedAtEpochMs,
+      finalHoldDecision,
+      independentRollbackDecision,
+      r5CloseoutDecision,
+      r5CloseoutReportDecision,
+      requestedRuntimeKind,
+      rustRuntimeOptInDecision,
+      rustRuntimeScaffoldDecision,
     },
   )
 }
