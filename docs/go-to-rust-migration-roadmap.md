@@ -23,8 +23,8 @@ App registry / policy / node pool / DNS / security profile
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
 | Production data plane | Rust default cutover supported for the safe profile; fallback retirement gated | The supported profile can select Rust by default after R6/R7 evidence; Mihomo fallback retirement remains blocked unless protocol/TUN/adapter/DNS parity, rollback drills, soak evidence, and emergency rollback all pass. |
-| Kernel replacement track | Go/Mihomo retirement plan gate complete | `get_runtime_kernel_loopback_go_mihomo_retirement_plan` plans future source, artifact, IPC fallback, rollback preservation, and release rollout work after the retirement audit. |
-| Next safe batch | `go-mihomo-retirement-execution-guard` | Only after the removal plan passes, prepare an execution guard and abort plan; do not delete Go/Mihomo surfaces without that guard. |
+| Kernel replacement track | Go/Mihomo retirement execution guard complete | `get_runtime_kernel_loopback_go_mihomo_retirement_execution_guard` requires a removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decision before any dry-run removal. |
+| Next safe batch | `go-mihomo-retirement-dry-run` | Only after the execution guard passes, prepare a non-destructive dry-run removal batch; do not delete Go/Mihomo surfaces yet. |
 
 ## Acceleration plan
 
@@ -64,6 +64,7 @@ RustKernelRuntime selected by default
 | 6 | `full-rust-runtime-hardening` | Complete: gate full Rust runtime hardening behind R7 fallback retirement readiness, extended soak, rollback telemetry, platform hardening follow-up, and explicit final decision. | Full Rust hardening candidate, blocked by default. |
 | 7 | `go-mihomo-retirement-audit` | Complete: inventory remaining Go/Mihomo source, bundled artifacts, fallback IPC, docs/runbooks, and retained emergency rollback before any removal plan. | Audit only; no removal. |
 | 8 | `go-mihomo-retirement-plan` | Complete: plan source removal, bundled artifact deprecation, IPC fallback replacement, emergency rollback preservation, and release rollout before any execution guard. | Plan only; no removal. |
+| 9 | `go-mihomo-retirement-execution-guard` | Complete: require removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decision before any dry-run. | Guard only; no removal. |
 
 ### Completed R7 PR scope
 
@@ -239,6 +240,7 @@ Default behavior remains Mihomo-backed until a specific phase explicitly changes
 | Full Rust runtime hardening | Gate complete | Full Rust hardening candidate | `get_runtime_kernel_loopback_full_rust_runtime_hardening` closes the hardening gate only after R7 fallback retirement readiness, extended soak, rollback telemetry closeout, OS-specific hardening follow-up, and explicit final hardening decision all pass. |
 | Go/Mihomo retirement audit | Gate complete | Audit only | `get_runtime_kernel_loopback_go_mihomo_retirement_audit` requires full Rust runtime hardening plus source/artifact/IPC/docs inventory and retained emergency rollback before advancing to a removal plan. |
 | Go/Mihomo retirement plan | Gate complete | Plan only | `get_runtime_kernel_loopback_go_mihomo_retirement_plan` requires the audit plus source removal, artifact deprecation, IPC fallback replacement, rollback preservation, release rollout, and explicit final plan decisions before any execution guard. |
+| Go/Mihomo retirement execution guard | Gate complete | Guard only | `get_runtime_kernel_loopback_go_mihomo_retirement_execution_guard` requires the plan plus removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decisions before dry-run removal. |
 
 ### Current R3 loopback listener boundary
 
@@ -328,7 +330,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-execution-guard`; the next implementation may prepare an execution guard only after the Go/Mihomo retirement plan defines source removal, artifact deprecation, IPC fallback replacement, rollback preservation, release rollout, and explicit abort boundaries.
+Allowed only through the accelerated sequence above. The current branch is `go-mihomo-retirement-dry-run`; the next implementation may prepare a non-destructive dry-run only after the execution guard proves manifest, abort, rollout, emergency rollback drill, operator acknowledgement, and final guard readiness.
 
 ## PR checklist for future changes
 
