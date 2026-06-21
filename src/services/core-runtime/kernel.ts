@@ -1652,6 +1652,38 @@ export interface RuntimeKernelLoopbackGoMihomoRetirementExecutionReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport {
+  runtimeId: string
+  component: string
+  rustOnlyBoundaryVerified: boolean
+  rollbackCheckpointRetained: boolean
+  sourceRemovalVerified: boolean
+  artifactRemovalVerified: boolean
+  fallbackIpcAbsenceVerified: boolean
+  postExecutionVerificationComplete: boolean
+  verifiedSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackGoMihomoRetirementPostExecutionVerificationReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  goMihomoRetirementExecutionComplete: boolean
+  postExecutionVerification: RuntimeRustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport
+  finalVerificationDecision: boolean
+  goMihomoRetirementPostExecutionVerificationComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -3871,6 +3903,29 @@ export async function getRuntimeKernelLoopbackGoMihomoRetirementExecution(
       artifactRemovalRecordDecision,
       postExecutionValidationDecision,
       finalExecutionDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackGoMihomoRetirementPostExecutionVerification(
+  goMihomoRetirementExecutionCompleteDecision?: boolean,
+  rustOnlyBoundaryVerificationDecision?: boolean,
+  rollbackCheckpointRetentionDecision?: boolean,
+  sourceRemovalVerificationDecision?: boolean,
+  artifactRemovalVerificationDecision?: boolean,
+  fallbackIpcAbsenceVerificationDecision?: boolean,
+  finalVerificationDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackGoMihomoRetirementPostExecutionVerificationReport>(
+    'get_runtime_kernel_loopback_go_mihomo_retirement_post_execution_verification',
+    {
+      goMihomoRetirementExecutionCompleteDecision,
+      rustOnlyBoundaryVerificationDecision,
+      rollbackCheckpointRetentionDecision,
+      sourceRemovalVerificationDecision,
+      artifactRemovalVerificationDecision,
+      fallbackIpcAbsenceVerificationDecision,
+      finalVerificationDecision,
     },
   )
 }

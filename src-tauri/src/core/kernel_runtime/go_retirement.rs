@@ -5,10 +5,13 @@ use super::{
     KernelLoopbackGoMihomoRetirementCloseoutReport, KernelLoopbackGoMihomoRetirementDryRunReport,
     KernelLoopbackGoMihomoRetirementExecutionGuardReport, KernelLoopbackGoMihomoRetirementExecutionReport,
     KernelLoopbackGoMihomoRetirementFinalRemovalGateReport, KernelLoopbackGoMihomoRetirementPlanReport,
+    KernelLoopbackGoMihomoRetirementPostExecutionVerificationReport,
     KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelRuntimeKind, RUST_RUNTIME_ID,
     RustKernelRuntimeGoMihomoRetirementCloseoutReport, RustKernelRuntimeGoMihomoRetirementDryRunReport,
     RustKernelRuntimeGoMihomoRetirementExecutionGuardReport, RustKernelRuntimeGoMihomoRetirementExecutionReport,
-    RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport, RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
+    RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport,
+    RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport,
+    RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
 };
 
 fn rust_kernel_runtime_go_mihomo_retirement_removal_plan_report(
@@ -945,6 +948,169 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_execution(
             "go-mihomo-retirement-post-execution-verification".into()
         } else {
             "go-mihomo-retirement-execution".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_go_mihomo_retirement_post_execution_verification_report(
+    rust_only_boundary_verification_decision: bool,
+    rollback_checkpoint_retention_decision: bool,
+    source_removal_verification_decision: bool,
+    artifact_removal_verification_decision: bool,
+    fallback_ipc_absence_verification_decision: bool,
+) -> RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport {
+    let mut blockers = Vec::new();
+    let mut verified_surfaces = Vec::new();
+
+    if rust_only_boundary_verification_decision {
+        verified_surfaces.push("Rust-only boundary".into());
+    } else {
+        blockers.push("Go/Mihomo post-execution verification requires Rust-only boundary evidence".into());
+    }
+    if rollback_checkpoint_retention_decision {
+        verified_surfaces.push("retained rollback checkpoint".into());
+    } else {
+        blockers.push("Go/Mihomo post-execution verification requires retained rollback checkpoint evidence".into());
+    }
+    if source_removal_verification_decision {
+        verified_surfaces.push("source removal verification".into());
+    } else {
+        blockers.push("Go/Mihomo post-execution verification requires source removal verification".into());
+    }
+    if artifact_removal_verification_decision {
+        verified_surfaces.push("artifact removal verification".into());
+    } else {
+        blockers.push("Go/Mihomo post-execution verification requires artifact removal verification".into());
+    }
+    if !fallback_ipc_absence_verification_decision {
+        blockers.push("Go/Mihomo post-execution verification requires fallback IPC absence verification".into());
+    }
+
+    RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-post-execution-verification-detail".into(),
+        rust_only_boundary_verified: rust_only_boundary_verification_decision,
+        rollback_checkpoint_retained: rollback_checkpoint_retention_decision,
+        source_removal_verified: source_removal_verification_decision,
+        artifact_removal_verified: artifact_removal_verification_decision,
+        fallback_ipc_absence_verified: fallback_ipc_absence_verification_decision,
+        post_execution_verification_complete: blockers.is_empty(),
+        verified_surfaces,
+        blockers,
+        facts: vec![
+            "post-execution verification confirms the Rust-only boundary before rollback retirement".into(),
+            "rollback checkpoint retention must stay verified until rollback surfaces are retired".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_go_mihomo_retirement_post_execution_verification(
+    go_mihomo_retirement_execution_complete_decision: Option<bool>,
+    rust_only_boundary_verification_decision: Option<bool>,
+    rollback_checkpoint_retention_decision: Option<bool>,
+    source_removal_verification_decision: Option<bool>,
+    artifact_removal_verification_decision: Option<bool>,
+    fallback_ipc_absence_verification_decision: Option<bool>,
+    final_verification_decision: Option<bool>,
+) -> Result<KernelLoopbackGoMihomoRetirementPostExecutionVerificationReport> {
+    let go_mihomo_retirement_execution_complete = go_mihomo_retirement_execution_complete_decision.unwrap_or(false);
+    let final_verification_decision = final_verification_decision.unwrap_or(false);
+    let post_execution_verification = rust_kernel_runtime_go_mihomo_retirement_post_execution_verification_report(
+        rust_only_boundary_verification_decision.unwrap_or(false),
+        rollback_checkpoint_retention_decision.unwrap_or(false),
+        source_removal_verification_decision.unwrap_or(false),
+        artifact_removal_verification_decision.unwrap_or(false),
+        fallback_ipc_absence_verification_decision.unwrap_or(false),
+    );
+    let mut execution_blockers = Vec::new();
+
+    if !go_mihomo_retirement_execution_complete {
+        execution_blockers
+            .push("Go/Mihomo post-execution verification requires retirement execution to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoRetirementExecutionComplete".into(),
+            status: if go_mihomo_retirement_execution_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: go_mihomo_retirement_execution_complete,
+            blockers: execution_blockers,
+            facts: vec!["post-execution verification starts only after execution evidence".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoPostExecutionVerificationComplete".into(),
+            status: if post_execution_verification.post_execution_verification_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: post_execution_verification.post_execution_verification_complete,
+            blockers: post_execution_verification.blockers.clone(),
+            facts: vec![
+                "Rust-only boundary, rollback checkpoint, source/artifact removal, and fallback IPC absence are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalVerificationDecision".into(),
+            status: if final_verification_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_verification_decision,
+            blockers: if final_verification_decision {
+                Vec::new()
+            } else {
+                vec![
+                    "Go/Mihomo post-execution verification requires an explicit final verification decision"
+                        .into(),
+                ]
+            },
+            facts: vec!["verification is explicit before rollback retirement planning".into()],
+        },
+    ];
+    let go_mihomo_retirement_post_execution_verification_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackGoMihomoRetirementPostExecutionVerificationReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-post-execution-verification".into(),
+        mutates_runtime: false,
+        live_execution_allowed: go_mihomo_retirement_post_execution_verification_complete,
+        go_mihomo_retirement_execution_complete,
+        post_execution_verification,
+        final_verification_decision,
+        go_mihomo_retirement_post_execution_verification_complete,
+        selected_runtime_kind: if go_mihomo_retirement_post_execution_verification_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this command verifies execution evidence and does not retire rollback surfaces".into(),
+            "rollback surface retirement requires a separate gate after this verification".into(),
+        ],
+        facts: vec![
+            "Go/Mihomo post-execution verification follows execution evidence".into(),
+            "successful verification advances to rollback surface retirement planning".into(),
+        ],
+        next_safe_batch: if go_mihomo_retirement_post_execution_verification_complete {
+            "go-mihomo-retirement-rollback-surface-retirement".into()
+        } else {
+            "go-mihomo-retirement-post-execution-verification".into()
         },
     })
 }

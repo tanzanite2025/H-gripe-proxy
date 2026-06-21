@@ -1,4 +1,4 @@
-﻿use crate::core::dns_runtime::DnsDefaultRuntimeShadowEvidenceReport;
+use crate::core::dns_runtime::DnsDefaultRuntimeShadowEvidenceReport;
 use serde::Serialize;
 use smartstring::alias::String;
 use std::{
@@ -2163,6 +2163,42 @@ pub struct KernelLoopbackGoMihomoRetirementExecutionReport {
     pub execution: RustKernelRuntimeGoMihomoRetirementExecutionReport,
     pub final_execution_decision: bool,
     pub go_mihomo_retirement_execution_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub rust_only_boundary_verified: bool,
+    pub rollback_checkpoint_retained: bool,
+    pub source_removal_verified: bool,
+    pub artifact_removal_verified: bool,
+    pub fallback_ipc_absence_verified: bool,
+    pub post_execution_verification_complete: bool,
+    pub verified_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackGoMihomoRetirementPostExecutionVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub go_mihomo_retirement_execution_complete: bool,
+    pub post_execution_verification: RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport,
+    pub final_verification_decision: bool,
+    pub go_mihomo_retirement_post_execution_verification_complete: bool,
     pub selected_runtime_kind: KernelRuntimeKind,
     pub rollback_runtime_kind: KernelRuntimeKind,
     pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
