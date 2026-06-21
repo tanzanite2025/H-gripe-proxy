@@ -1922,6 +1922,42 @@ pub struct KernelLoopbackFullRustRuntimeHardeningReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeGoMihomoRetirementSurfaceAuditReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub sidecar_source_audit_passed: bool,
+    pub bundled_mihomo_audit_passed: bool,
+    pub ipc_fallback_audit_passed: bool,
+    pub docs_audit_passed: bool,
+    pub emergency_rollback_retained: bool,
+    pub audit_complete: bool,
+    pub remaining_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackGoMihomoRetirementAuditReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub full_rust_runtime_hardened: bool,
+    pub surface_audit: RustKernelRuntimeGoMihomoRetirementSurfaceAuditReport,
+    pub final_retirement_audit_decision: bool,
+    pub go_mihomo_retirement_audit_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,

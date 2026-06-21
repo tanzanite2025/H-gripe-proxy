@@ -6307,6 +6307,159 @@ pub async fn rust_kernel_runtime_full_rust_runtime_hardening(
     })
 }
 
+fn rust_kernel_runtime_go_mihomo_retirement_surface_audit_report(
+    sidecar_source_audit_decision: bool,
+    bundled_mihomo_audit_decision: bool,
+    ipc_fallback_audit_decision: bool,
+    docs_audit_decision: bool,
+    emergency_rollback_retained: bool,
+) -> RustKernelRuntimeGoMihomoRetirementSurfaceAuditReport {
+    let mut blockers = Vec::new();
+    let mut remaining_surfaces = Vec::new();
+
+    if !sidecar_source_audit_decision {
+        remaining_surfaces.push("mihomo sidecar source tree".into());
+        blockers.push("Go/Mihomo retirement audit requires sidecar source inventory".into());
+    }
+    if !bundled_mihomo_audit_decision {
+        remaining_surfaces.push("bundled Mihomo binary and updater artifacts".into());
+        blockers.push("Go/Mihomo retirement audit requires bundled artifact inventory".into());
+    }
+    if !ipc_fallback_audit_decision {
+        remaining_surfaces.push("IPC fallback and emergency rollback commands".into());
+        blockers.push("Go/Mihomo retirement audit requires IPC fallback surface inventory".into());
+    }
+    if !docs_audit_decision {
+        remaining_surfaces.push("operator docs and migration rollback runbooks".into());
+        blockers.push("Go/Mihomo retirement audit requires docs and runbook inventory".into());
+    }
+    if !emergency_rollback_retained {
+        blockers.push("Go/Mihomo retirement audit must retain emergency rollback until a later removal plan".into());
+    }
+
+    RustKernelRuntimeGoMihomoRetirementSurfaceAuditReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-surface-audit".into(),
+        sidecar_source_audit_passed: sidecar_source_audit_decision,
+        bundled_mihomo_audit_passed: bundled_mihomo_audit_decision,
+        ipc_fallback_audit_passed: ipc_fallback_audit_decision,
+        docs_audit_passed: docs_audit_decision,
+        emergency_rollback_retained,
+        audit_complete: blockers.is_empty(),
+        remaining_surfaces,
+        blockers,
+        facts: vec![
+            "this audit inventories Go/Mihomo surfaces without deleting source, binaries, or rollback paths".into(),
+            "emergency rollback remains a required retained surface for the next planning batch".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_go_mihomo_retirement_audit(
+    full_rust_runtime_hardened_decision: Option<bool>,
+    sidecar_source_audit_decision: Option<bool>,
+    bundled_mihomo_audit_decision: Option<bool>,
+    ipc_fallback_audit_decision: Option<bool>,
+    docs_audit_decision: Option<bool>,
+    emergency_rollback_retained: Option<bool>,
+    final_retirement_audit_decision: Option<bool>,
+) -> Result<KernelLoopbackGoMihomoRetirementAuditReport> {
+    let full_rust_runtime_hardened = full_rust_runtime_hardened_decision.unwrap_or(false);
+    let final_retirement_audit_decision = final_retirement_audit_decision.unwrap_or(false);
+    let surface_audit = rust_kernel_runtime_go_mihomo_retirement_surface_audit_report(
+        sidecar_source_audit_decision.unwrap_or(false),
+        bundled_mihomo_audit_decision.unwrap_or(false),
+        ipc_fallback_audit_decision.unwrap_or(false),
+        docs_audit_decision.unwrap_or(false),
+        emergency_rollback_retained.unwrap_or(false),
+    );
+    let mut hardening_blockers = Vec::new();
+
+    if !full_rust_runtime_hardened {
+        hardening_blockers.push("Go/Mihomo retirement audit requires full Rust runtime hardening to pass".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "fullRustRuntimeHardened".into(),
+            status: if full_rust_runtime_hardened {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: full_rust_runtime_hardened,
+            blockers: hardening_blockers,
+            facts: vec!["retirement audit starts only after full Rust runtime hardening".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "goMihomoSurfaceAuditComplete".into(),
+            status: if surface_audit.audit_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: surface_audit.audit_complete,
+            blockers: surface_audit.blockers.clone(),
+            facts: vec!["source, artifact, IPC, docs, and rollback surfaces are audited together".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalRetirementAuditDecision".into(),
+            status: if final_retirement_audit_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_retirement_audit_decision,
+            blockers: if final_retirement_audit_decision {
+                Vec::new()
+            } else {
+                vec!["Go/Mihomo retirement audit requires an explicit final audit decision".into()]
+            },
+            facts: vec!["the audit is explicit and does not remove Mihomo".into()],
+        },
+    ];
+    let go_mihomo_retirement_audit_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackGoMihomoRetirementAuditReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "go-mihomo-retirement-audit".into(),
+        mutates_runtime: false,
+        live_execution_allowed: go_mihomo_retirement_audit_complete,
+        full_rust_runtime_hardened,
+        surface_audit,
+        final_retirement_audit_decision,
+        go_mihomo_retirement_audit_complete,
+        selected_runtime_kind: if go_mihomo_retirement_audit_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this audit does not delete Mihomo source, binaries, IPC commands, or rollback paths".into(),
+            "emergency rollback must stay retained until a dedicated retirement plan passes".into(),
+        ],
+        facts: vec![
+            "Go/Mihomo retirement audit is the first post-hardening inventory gate".into(),
+            "successful audit advances to a separate retirement plan rather than direct removal".into(),
+        ],
+        next_safe_batch: if go_mihomo_retirement_audit_complete {
+            "go-mihomo-retirement-plan".into()
+        } else {
+            "go-mihomo-retirement-audit".into()
+        },
+    })
+}
+
 pub async fn mihomo_kernel_isolated_test_listener_status() -> KernelIsolatedTestListenerStatus {
     isolated_test_listener_status(Vec::new())
 }
