@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust data-plane hardening opt-in execution complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execution` requires dry-run review, locked execution manifest, staged opt-in window, active telemetry watch, armed rollback switch, retained production mutation guard, operator acknowledgement, and final execution decision before post-execution verification. |
+| Production data plane | Rust data-plane hardening opt-in execution verification complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execution_verification` requires execution record review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived verification evidence, and final verification decision before controlled rollout guard planning. |
 | Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `rust-data-plane-hardening-opt-in-execution-verification` | Only after opt-in execution completes with the production mutation guard retained, verify the recorded execution envelope; production forwarding mutation remains blocked. |
+| Next safe batch | `rust-data-plane-hardening-controlled-rollout-guard` | Only after opt-in execution verification passes, plan controlled rollout guard boundaries; production forwarding mutation remains blocked. |
 
 ## Acceleration plan
 
@@ -77,6 +77,7 @@ RustKernelRuntime selected by default
 | 19 | `rust-data-plane-hardening-opt-in-execution-guard` | Complete: require boundary audit, locked opt-in scope, rollout guard definition, approved abort plan, telemetry watch configuration, verified rollback switch, operator acknowledgement, and final execution guard decision. | Guard only; no production forwarding mutation. |
 | 20 | `rust-data-plane-hardening-opt-in-dry-run` | Complete: require execution guard review, locked dry-run scope, manifest replay, synthetic flow plan, leak watch plan verification, rollback rehearsal, unchanged production forwarding verification, archived dry-run evidence, and final dry-run decision. | Non-production dry-run only; no production forwarding mutation. |
 | 21 | `rust-data-plane-hardening-opt-in-execution` | Complete: require dry-run review, locked execution manifest, staged opt-in window, active telemetry watch, armed rollback switch, retained production mutation guard, operator execution acknowledgement, and final execution decision. | Execution gate only; production forwarding mutation remains blocked. |
+| 22 | `rust-data-plane-hardening-opt-in-execution-verification` | Complete: require execution record review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived verification evidence, and final verification decision. | Verification only; no production forwarding mutation. |
 
 ### Completed R7 PR scope
 
@@ -349,7 +350,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `rust-data-plane-hardening-opt-in-execution-verification`; Rust data-plane hardening may continue only after opt-in execution records dry-run review, locked execution manifest, staged opt-in window, active telemetry watch, armed rollback switch, retained production mutation guard, operator execution acknowledgement, and final execution approval. Production forwarding mutation remains blocked.
+Allowed only through the accelerated sequence above. The current branch is `rust-data-plane-hardening-controlled-rollout-guard`; Rust data-plane hardening may continue only after opt-in execution verification records execution review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived evidence, and final verification approval. Production forwarding mutation remains blocked.
 
 ## PR checklist for future changes
 

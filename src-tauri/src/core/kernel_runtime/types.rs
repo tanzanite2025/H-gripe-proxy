@@ -2477,6 +2477,45 @@ pub struct KernelLoopbackRustDataPlaneHardeningOptInExecutionReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub execution_record_reviewed: bool,
+    pub telemetry_sample_reviewed: bool,
+    pub rollback_readiness_verified: bool,
+    pub production_mutation_guard_still_retained: bool,
+    pub production_forwarding_unchanged_verified: bool,
+    pub leak_regression_absence_verified: bool,
+    pub verification_evidence_archived: bool,
+    pub opt_in_execution_verification_complete: bool,
+    pub verification_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningOptInExecutionVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_opt_in_execution_complete: bool,
+    pub opt_in_execution_verification: RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport,
+    pub final_verification_decision: bool,
+    pub rust_data_plane_hardening_opt_in_execution_verification_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
