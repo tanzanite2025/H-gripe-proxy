@@ -1888,6 +1888,41 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningOptInDryRunReport {
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningOptInExecutionReport {
+  runtimeId: string
+  component: string
+  dryRunReviewed: boolean
+  executionManifestLocked: boolean
+  stagedOptInWindowDefined: boolean
+  telemetryWatchActive: boolean
+  rollbackSwitchArmed: boolean
+  productionMutationGuardRetained: boolean
+  operatorExecutionAcknowledged: boolean
+  optInExecutionComplete: boolean
+  executionSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningOptInExecutionReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningOptInDryRunComplete: boolean
+  optInExecution: RuntimeRustKernelRuntimeDataPlaneHardeningOptInExecutionReport
+  finalExecutionDecision: boolean
+  rustDataPlaneHardeningOptInExecutionComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -4284,6 +4319,33 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningOptInDryRun(
       productionForwardingUnchangedVerificationDecision,
       dryRunEvidenceArchiveDecision,
       finalDryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningOptInExecution(
+  rustDataPlaneHardeningOptInDryRunCompleteDecision?: boolean,
+  dryRunReviewDecision?: boolean,
+  executionManifestLockDecision?: boolean,
+  stagedOptInWindowDecision?: boolean,
+  telemetryWatchActivationDecision?: boolean,
+  rollbackSwitchArmDecision?: boolean,
+  productionMutationGuardRetentionDecision?: boolean,
+  operatorExecutionAcknowledgementDecision?: boolean,
+  finalExecutionDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningOptInExecutionReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execution',
+    {
+      rustDataPlaneHardeningOptInDryRunCompleteDecision,
+      dryRunReviewDecision,
+      executionManifestLockDecision,
+      stagedOptInWindowDecision,
+      telemetryWatchActivationDecision,
+      rollbackSwitchArmDecision,
+      productionMutationGuardRetentionDecision,
+      operatorExecutionAcknowledgementDecision,
+      finalExecutionDecision,
     },
   )
 }

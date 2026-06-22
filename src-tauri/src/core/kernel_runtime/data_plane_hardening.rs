@@ -4,10 +4,12 @@ use smartstring::alias::String;
 use super::{
     KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelLoopbackRustDataPlaneHardeningBoundaryAuditReport,
     KernelLoopbackRustDataPlaneHardeningOptInDryRunReport,
-    KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport, KernelLoopbackRustDataPlaneHardeningPreflightReport,
+    KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport,
+    KernelLoopbackRustDataPlaneHardeningOptInExecutionReport, KernelLoopbackRustDataPlaneHardeningPreflightReport,
     KernelRuntimeKind, RUST_RUNTIME_ID, RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport,
     RustKernelRuntimeDataPlaneHardeningBoundaryReport, RustKernelRuntimeDataPlaneHardeningOptInDryRunReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
+    RustKernelRuntimeDataPlaneHardeningOptInExecutionReport,
 };
 
 fn rust_kernel_runtime_data_plane_hardening_boundary_report(
@@ -727,6 +729,187 @@ pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_dry_run(
             "rust-data-plane-hardening-opt-in-execution".into()
         } else {
             "rust-data-plane-hardening-opt-in-dry-run".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_report(
+    dry_run_review_decision: bool,
+    execution_manifest_lock_decision: bool,
+    staged_opt_in_window_decision: bool,
+    telemetry_watch_activation_decision: bool,
+    rollback_switch_arm_decision: bool,
+    production_mutation_guard_retention_decision: bool,
+    operator_execution_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningOptInExecutionReport {
+    let mut blockers = Vec::new();
+    let mut execution_surfaces = Vec::new();
+
+    if dry_run_review_decision {
+        execution_surfaces.push("dry-run review".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires reviewed dry-run evidence".into());
+    }
+    if execution_manifest_lock_decision {
+        execution_surfaces.push("locked execution manifest".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires locked execution manifest".into());
+    }
+    if staged_opt_in_window_decision {
+        execution_surfaces.push("staged opt-in window".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires staged opt-in window definition".into());
+    }
+    if telemetry_watch_activation_decision {
+        execution_surfaces.push("active telemetry watch".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires active telemetry watch".into());
+    }
+    if rollback_switch_arm_decision {
+        execution_surfaces.push("armed rollback switch".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires armed rollback switch".into());
+    }
+    if production_mutation_guard_retention_decision {
+        execution_surfaces.push("retained production mutation guard".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires retained production mutation guard".into());
+    }
+    if operator_execution_acknowledgement_decision {
+        execution_surfaces.push("operator execution acknowledgement".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution requires operator acknowledgement".into());
+    }
+
+    RustKernelRuntimeDataPlaneHardeningOptInExecutionReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-opt-in-execution-detail".into(),
+        dry_run_reviewed: dry_run_review_decision,
+        execution_manifest_locked: execution_manifest_lock_decision,
+        staged_opt_in_window_defined: staged_opt_in_window_decision,
+        telemetry_watch_active: telemetry_watch_activation_decision,
+        rollback_switch_armed: rollback_switch_arm_decision,
+        production_mutation_guard_retained: production_mutation_guard_retention_decision,
+        operator_execution_acknowledged: operator_execution_acknowledgement_decision,
+        opt_in_execution_complete: blockers.is_empty(),
+        execution_surfaces,
+        blockers,
+        facts: vec![
+            "opt-in execution gate records the staged envelope without changing production forwarding".into(),
+            "production data-plane mutation remains blocked by an explicit retained guard".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution(
+    rust_data_plane_hardening_opt_in_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    execution_manifest_lock_decision: Option<bool>,
+    staged_opt_in_window_decision: Option<bool>,
+    telemetry_watch_activation_decision: Option<bool>,
+    rollback_switch_arm_decision: Option<bool>,
+    production_mutation_guard_retention_decision: Option<bool>,
+    operator_execution_acknowledgement_decision: Option<bool>,
+    final_execution_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningOptInExecutionReport> {
+    let rust_data_plane_hardening_opt_in_dry_run_complete =
+        rust_data_plane_hardening_opt_in_dry_run_complete_decision.unwrap_or(false);
+    let final_execution_decision = final_execution_decision.unwrap_or(false);
+    let opt_in_execution = rust_kernel_runtime_data_plane_hardening_opt_in_execution_report(
+        dry_run_review_decision.unwrap_or(false),
+        execution_manifest_lock_decision.unwrap_or(false),
+        staged_opt_in_window_decision.unwrap_or(false),
+        telemetry_watch_activation_decision.unwrap_or(false),
+        rollback_switch_arm_decision.unwrap_or(false),
+        production_mutation_guard_retention_decision.unwrap_or(false),
+        operator_execution_acknowledgement_decision.unwrap_or(false),
+    );
+    let mut dry_run_blockers = Vec::new();
+
+    if !rust_data_plane_hardening_opt_in_dry_run_complete {
+        dry_run_blockers.push("Rust data-plane opt-in execution requires dry-run to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningOptInDryRunComplete".into(),
+            status: if rust_data_plane_hardening_opt_in_dry_run_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_data_plane_hardening_opt_in_dry_run_complete,
+            blockers: dry_run_blockers,
+            facts: vec!["opt-in execution starts only after the dry-run gate".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningOptInExecutionComplete".into(),
+            status: if opt_in_execution.opt_in_execution_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: opt_in_execution.opt_in_execution_complete,
+            blockers: opt_in_execution.blockers.clone(),
+            facts: vec![
+                "dry-run review, locked manifest, staged window, telemetry, rollback, retained mutation guard, and operator acknowledgement are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalExecutionDecision".into(),
+            status: if final_execution_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_execution_decision,
+            blockers: if final_execution_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane opt-in execution requires an explicit final decision".into()]
+            },
+            facts: vec!["opt-in execution completion is explicit before any verification batch".into()],
+        },
+    ];
+    let rust_data_plane_hardening_opt_in_execution_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackRustDataPlaneHardeningOptInExecutionReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-opt-in-execution".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        production_data_plane_mutation_allowed: false,
+        rust_data_plane_hardening_opt_in_dry_run_complete,
+        opt_in_execution,
+        final_execution_decision,
+        rust_data_plane_hardening_opt_in_execution_complete,
+        selected_runtime_kind: if rust_data_plane_hardening_opt_in_execution_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this opt-in execution gate does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config".into(),
+            "production data-plane mutation remains blocked by the retained production mutation guard".into(),
+        ],
+        facts: vec![
+            "Rust data-plane hardening opt-in execution follows the non-production dry-run".into(),
+            "successful opt-in execution advances only to post-execution verification".into(),
+        ],
+        next_safe_batch: if rust_data_plane_hardening_opt_in_execution_complete {
+            "rust-data-plane-hardening-opt-in-execution-verification".into()
+        } else {
+            "rust-data-plane-hardening-opt-in-execution".into()
         },
     })
 }
