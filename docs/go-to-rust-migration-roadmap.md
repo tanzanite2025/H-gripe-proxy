@@ -26,10 +26,10 @@ The migration has too many completed control-plane gates and not enough real dat
 | Rust control plane | Mature | Validation, planning, projection artifacts, audit, telemetry, and frontend type surfaces are Rust-owned enough to support real data-plane work. Stop adding more read-only gate-only PRs here. |
 | DNS runtime | Bounded opt-in parity path in progress | Rust now synthesizes a dns/hosts runtime patch, probes supported resolvers, blocks unsupported fake-ip/fallback-filter/nameserver-policy execution, and applies through an explicit opt-in bridge with rollback. Mihomo still owns default DNS until canary evidence passes. |
 | Adapter / egress runtime | Bounded opt-in parity path in progress | Rust now chooses DIRECT/REJECT/proxy-group adapter targets from app runtime state, validates candidate protocol compatibility, patches proxy-groups/rules through an explicit opt-in bridge, and keeps Mihomo fallback/rollback. |
-| Protocol forwarding | Remote-adapter Rust subset in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT adapter policy, and bounded TCP CONNECT-style remote adapter transport evidence with byte accounting. Mihomo still owns encrypted proxy protocols, SOCKS UDP, TUN, and default forwarding. |
+| Protocol forwarding | HTTP CONNECT Rust adapter subset in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT adapter policy, bounded remote transport, and an HTTP CONNECT-compatible tunnel adapter with byte accounting. Mihomo still owns encrypted proxy protocols, SOCKS UDP, TUN, and default forwarding. |
 | TUN / system proxy | Bounded Rust parity in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, and rollback apply. Mihomo/service still owns packet capture and transparent forwarding. |
 | Mihomo fallback retirement | Scoped execution in progress | Rust now writes a scoped execution manifest and emergency rollback checkpoint to retire fallback only for the bounded canary scope. Unsupported SOCKS, remote adapters, packet capture, and transparent proxy fallback remain Mihomo-owned. |
-| Next real batch | `rust-http-connect-proxy-adapter` | Turn the bounded remote transport evidence into an HTTP CONNECT-compatible adapter path before encrypted proxy protocols. |
+| Next real batch | `rust-encrypted-proxy-protocol-preflight` | Start bounded Rust handling for encrypted proxy protocol framing/handshake preflight before real remote encrypted data-plane ownership. |
 
 ## Acceleration plan
 
@@ -164,7 +164,7 @@ Phase 8 should no longer be managed as a long list of synthetic gates. The prior
 | Seam inventory / runtime selection | Complete enough | Do not add more inventory-only gates unless required by a real implementation PR. |
 | DNS | Bounded opt-in parity path in progress | Keep collecting canary evidence; do not make DNS default until adapter/protocol/TUN rollback boundaries are ready. |
 | Adapter / egress | Bounded opt-in parity path in progress | Keep canarying supported adapter decisions; move next to real protocol forwarding subset. |
-| Protocol forwarding | Remote-adapter Rust TCP subset in progress | DIRECT/REJECT and bounded TCP CONNECT-style remote transport are Rust-owned; encrypted proxy protocols and UDP remain Mihomo fallback. |
+| Protocol forwarding | HTTP CONNECT Rust adapter subset in progress | DIRECT/REJECT, bounded remote transport, and HTTP CONNECT TCP tunnel are Rust-owned; encrypted proxy protocols and UDP remain Mihomo fallback. |
 | TUN / system proxy | Bounded Rust route-mode parity in progress | Packet capture still uses Mihomo/service; collect platform rollback/leak evidence before claiming replacement. |
 | Mihomo fallback retirement | Scoped execution in progress | Supported canary fallback can be retired through manifest/checkpoint; unsupported fallback and packet capture remain Mihomo-owned. |
 
@@ -204,7 +204,7 @@ The next blocker is not another readiness gate; it is missing implementation. Do
 - Mihomo fallback that preserves connectivity without app restart for every unsupported path.
 - Post-canary hold evidence that covers DNS leaks, fallback triggers, rollback, and health telemetry.
 
-These blockers allow one useful next PR: `rust-http-connect-proxy-adapter`. They block full protocol replacement and any claim that packet capture is Rust-owned.
+These blockers allow one useful next PR: `rust-encrypted-proxy-protocol-preflight`. They block full protocol replacement and any claim that packet capture is Rust-owned.
 
 ## Removed from this document
 
@@ -234,7 +234,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-http-connect-proxy-adapter`; keep execution scoped to supported canary evidence and retain unsupported fallback.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-encrypted-proxy-protocol-preflight`; keep execution scoped to supported canary evidence and retain unsupported fallback.
 
 ## PR checklist for future changes
 
