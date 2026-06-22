@@ -289,7 +289,7 @@ fn supported_execution_scope() -> Vec<MihomoFallbackRetirementExecutionScope> {
 
 fn retained_fallback_scope() -> Vec<String> {
     vec![
-        "SOCKS protocol handling".into(),
+        "SOCKS authentication, TCP command negotiation, non-loopback UDP, and fragmented UDP".into(),
         "remote adapter protocols beyond bounded TCP CONNECT".into(),
         "system-wide TUN packet capture".into(),
         "OS route install and transparent proxy defaults".into(),

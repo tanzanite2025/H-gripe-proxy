@@ -3140,6 +3140,57 @@ export interface RustDefaultDataPlaneCloseoutReport {
   nextSafeBatch: string
 }
 
+export type RustSocksUdpAssociateExecutionStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustSocksUdpAssociatePacketEvidence {
+  requestAtyp: string
+  targetAddr: string
+  targetPort: number
+  requestPayloadBytes: number
+  responsePayloadBytes: number
+  responsePayloadPrefix: string
+  datagramRoundTrip: boolean
+  fragSupported: boolean
+  loopbackOnly: boolean
+}
+
+export interface RustSocksUdpAssociateRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustSocksUdpAssociateLeakEvidence {
+  passed: boolean
+  noSystemPacketCapture: boolean
+  noNonLoopbackTarget: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustSocksUdpAssociateExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustSocksUdpAssociateExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  packetEvidence?: RustSocksUdpAssociatePacketEvidence | null
+  rollbackEvidence?: RustSocksUdpAssociateRollbackEvidence | null
+  leakEvidence?: RustSocksUdpAssociateLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustProtocolAdapterForwardingStatus =
   | 'passed'
   | 'failed'
@@ -4040,6 +4091,15 @@ export async function closeoutRuntimeKernelRustDefaultDataPlane(
 ) {
   return invoke<RustDefaultDataPlaneCloseoutReport>(
     'closeout_runtime_kernel_rust_default_data_plane',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustSocksUdpAssociateExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustSocksUdpAssociateExecutionReport>(
+    'run_runtime_kernel_rust_socks_udp_associate_execution',
     { explicitOptIn },
   )
 }
