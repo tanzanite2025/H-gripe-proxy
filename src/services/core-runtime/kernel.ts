@@ -3191,6 +3191,59 @@ export interface RustSocksUdpAssociateExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustSocksAuthExecutionStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustSocksAuthExecutionEvidence {
+  listenerAddr: string
+  selectedMethod: string
+  usernameBytes: number
+  passwordBytes: number
+  authVersion: number
+  methodNegotiated: boolean
+  authAccepted: boolean
+  connectCommand: string
+  connectAtyp: string
+  connectRequestValidated: boolean
+  loopbackOnly: boolean
+}
+
+export interface RustSocksAuthRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustSocksAuthLeakEvidence {
+  passed: boolean
+  noSystemPacketCapture: boolean
+  noNonLoopbackTarget: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustSocksAuthExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustSocksAuthExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  authEvidence?: RustSocksAuthExecutionEvidence | null
+  rollbackEvidence?: RustSocksAuthRollbackEvidence | null
+  leakEvidence?: RustSocksAuthLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustProtocolAdapterForwardingStatus =
   | 'passed'
   | 'failed'
@@ -4091,6 +4144,15 @@ export async function closeoutRuntimeKernelRustDefaultDataPlane(
 ) {
   return invoke<RustDefaultDataPlaneCloseoutReport>(
     'closeout_runtime_kernel_rust_default_data_plane',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustSocksAuthExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustSocksAuthExecutionReport>(
+    'run_runtime_kernel_rust_socks_auth_execution',
     { explicitOptIn },
   )
 }

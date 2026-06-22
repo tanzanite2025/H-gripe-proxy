@@ -943,6 +943,70 @@ pub struct RustSocksUdpAssociateExecutionReport {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum RustSocksAuthExecutionStatus {
+    Planned,
+    Executed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksAuthExecutionEvidence {
+    pub listener_addr: String,
+    pub selected_method: String,
+    pub username_bytes: usize,
+    pub password_bytes: usize,
+    pub auth_version: u8,
+    pub method_negotiated: bool,
+    pub auth_accepted: bool,
+    pub connect_command: String,
+    pub connect_atyp: String,
+    pub connect_request_validated: bool,
+    pub loopback_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksAuthRollbackEvidence {
+    pub checkpoint_path: String,
+    pub fallback_retained_for: Vec<String>,
+    pub created_at_epoch_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksAuthLeakEvidence {
+    pub passed: bool,
+    pub no_system_packet_capture: bool,
+    pub no_non_loopback_target: bool,
+    pub no_mihomo_binary_removal: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksAuthExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustSocksAuthExecutionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub rust_owned_scope: String,
+    pub mutates_runtime: bool,
+    pub writes_evidence: bool,
+    pub evidence_path: Option<String>,
+    pub auth_evidence: Option<RustSocksAuthExecutionEvidence>,
+    pub rollback_evidence: Option<RustSocksAuthRollbackEvidence>,
+    pub leak_evidence: Option<RustSocksAuthLeakEvidence>,
+    pub mihomo_fallback_retained_for: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RustProtocolAdapterForwardingStatus {
     Passed,
     Failed,
