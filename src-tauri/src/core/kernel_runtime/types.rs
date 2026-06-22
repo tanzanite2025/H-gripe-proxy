@@ -1,5 +1,5 @@
 use crate::core::dns_runtime::DnsDefaultRuntimeShadowEvidenceReport;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
 use std::{
     collections::BTreeMap,
@@ -455,7 +455,7 @@ pub struct KernelLoopbackForwardingLeakCheckReport {
     pub next_safe_batch: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum RustProtocolForwardingSubsetStatus {
     Ready,
@@ -581,6 +581,107 @@ pub struct RustProtocolForwardingSubsetSmokeEvidenceReport {
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
     pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustTunSystemProxyMode {
+    Off,
+    SystemProxy,
+    Tun,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustTunSystemProxyParityStatus {
+    Ready,
+    Applied,
+    Restored,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunSystemProxyRouteSnapshot {
+    pub enable_system_proxy: bool,
+    pub enable_tun_mode: bool,
+    pub proxy_auto_config: bool,
+    pub proxy_host: Option<String>,
+    pub mixed_port: u16,
+    pub system_proxy_bypass: Option<String>,
+    pub use_default_bypass: bool,
+    pub os_system_proxy_enabled: Option<bool>,
+    pub os_system_proxy_server: Option<String>,
+    pub clash_tun_enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunSystemProxyRoutePatch {
+    pub enable_system_proxy: bool,
+    pub enable_tun_mode: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunSystemProxyParityPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustTunSystemProxyParityStatus,
+    pub reason: String,
+    pub requested_mode: RustTunSystemProxyMode,
+    pub current_snapshot: RustTunSystemProxyRouteSnapshot,
+    pub route_patch: RustTunSystemProxyRoutePatch,
+    pub explicit_opt_in_required: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub system_proxy_os_apply: bool,
+    pub tun_runtime_apply: bool,
+    pub mihomo_fallback: bool,
+    pub rollback_supported: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunSystemProxyParityApplyReport {
+    pub status: RustTunSystemProxyParityStatus,
+    pub reason: String,
+    pub requested_mode: RustTunSystemProxyMode,
+    pub preflight: RustTunSystemProxyParityPreflightReport,
+    pub previous_snapshot: RustTunSystemProxyRouteSnapshot,
+    pub applied_snapshot: RustTunSystemProxyRouteSnapshot,
+    pub rollback_record_path: Option<String>,
+    pub explicit_opt_in: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub system_proxy_os_apply: bool,
+    pub tun_runtime_apply: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunSystemProxyParityRollbackReport {
+    pub status: RustTunSystemProxyParityStatus,
+    pub reason: String,
+    pub restored_snapshot: RustTunSystemProxyRouteSnapshot,
+    pub rollback_record_path: Option<String>,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub system_proxy_os_apply: bool,
+    pub tun_runtime_apply: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

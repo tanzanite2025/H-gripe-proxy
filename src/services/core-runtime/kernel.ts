@@ -2834,6 +2834,88 @@ export interface RustProtocolForwardingSubsetSmokeEvidenceReport {
   nextSafeBatch: string
 }
 
+export type RustTunSystemProxyMode = 'off' | 'systemProxy' | 'tun'
+
+export type RustTunSystemProxyParityStatus =
+  | 'ready'
+  | 'applied'
+  | 'restored'
+  | 'blocked'
+
+export interface RustTunSystemProxyRouteSnapshot {
+  enableSystemProxy: boolean
+  enableTunMode: boolean
+  proxyAutoConfig: boolean
+  proxyHost?: string | null
+  mixedPort: number
+  systemProxyBypass?: string | null
+  useDefaultBypass: boolean
+  osSystemProxyEnabled?: boolean | null
+  osSystemProxyServer?: string | null
+  clashTunEnabled?: boolean | null
+}
+
+export interface RustTunSystemProxyRoutePatch {
+  enableSystemProxy: boolean
+  enableTunMode: boolean
+}
+
+export interface RustTunSystemProxyParityPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustTunSystemProxyParityStatus
+  reason: string
+  requestedMode: RustTunSystemProxyMode
+  currentSnapshot: RustTunSystemProxyRouteSnapshot
+  routePatch: RustTunSystemProxyRoutePatch
+  explicitOptInRequired: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  systemProxyOsApply: boolean
+  tunRuntimeApply: boolean
+  mihomoFallback: boolean
+  rollbackSupported: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RustTunSystemProxyParityApplyReport {
+  status: RustTunSystemProxyParityStatus
+  reason: string
+  requestedMode: RustTunSystemProxyMode
+  preflight: RustTunSystemProxyParityPreflightReport
+  previousSnapshot: RustTunSystemProxyRouteSnapshot
+  appliedSnapshot: RustTunSystemProxyRouteSnapshot
+  rollbackRecordPath?: string | null
+  explicitOptIn: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  systemProxyOsApply: boolean
+  tunRuntimeApply: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface RustTunSystemProxyParityRollbackReport {
+  status: RustTunSystemProxyParityStatus
+  reason: string
+  restoredSnapshot: RustTunSystemProxyRouteSnapshot
+  rollbackRecordPath?: string | null
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  systemProxyOsApply: boolean
+  tunRuntimeApply: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3219,6 +3301,31 @@ export async function getRuntimeKernelRustProtocolForwardingSubsetSmokeEvidence(
   return invoke<RustProtocolForwardingSubsetSmokeEvidenceReport>(
     'get_runtime_kernel_rust_protocol_forwarding_subset_smoke_evidence',
     { listenerPort, targetPort },
+  )
+}
+
+export async function getRuntimeKernelRustTunSystemProxyParityPreflight(
+  requestedMode?: RustTunSystemProxyMode,
+) {
+  return invoke<RustTunSystemProxyParityPreflightReport>(
+    'get_runtime_kernel_rust_tun_system_proxy_parity_preflight',
+    { requestedMode },
+  )
+}
+
+export async function applyRuntimeKernelRustTunSystemProxyParity(
+  requestedMode?: RustTunSystemProxyMode,
+  explicitOptIn = false,
+) {
+  return invoke<RustTunSystemProxyParityApplyReport>(
+    'apply_runtime_kernel_rust_tun_system_proxy_parity',
+    { requestedMode, explicitOptIn },
+  )
+}
+
+export async function rollbackRuntimeKernelRustTunSystemProxyParity() {
+  return invoke<RustTunSystemProxyParityRollbackReport>(
+    'rollback_runtime_kernel_rust_tun_system_proxy_parity',
   )
 }
 
