@@ -2965,6 +2965,32 @@ export interface RustFallbackRetirementReadinessLockReport {
   facts: string[]
 }
 
+export type RustRuntimeRealCanaryStatus = 'passed' | 'failed' | 'blocked'
+
+export interface RustRuntimeRealCanaryEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustRuntimeRealCanaryStatus
+  reason: string
+  canaryProfile: string
+  startedAtEpochSeconds: number
+  explicitOptIn: boolean
+  dnsSmokeEvidence?: RuntimeKernelLoopbackDnsSmokeEvidenceReport | null
+  protocolForwardingEvidence?: RustProtocolForwardingSubsetSmokeEvidenceReport | null
+  tunSystemProxyPreflight?: RustTunSystemProxyParityPreflightReport | null
+  fallbackReadinessManifest?: RustFallbackRetirementReadinessManifest | null
+  evidencePath?: string | null
+  mutatesRuntime: boolean
+  writesEvidenceArtifact: boolean
+  removesMihomoFallback: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3390,6 +3416,16 @@ export async function lockRuntimeKernelRustFallbackRetirementReadiness(
   return invoke<RustFallbackRetirementReadinessLockReport>(
     'lock_runtime_kernel_rust_fallback_retirement_readiness',
     { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustRuntimeRealCanary(
+  canaryProfile?: string,
+  explicitOptIn = false,
+) {
+  return invoke<RustRuntimeRealCanaryEvidenceReport>(
+    'run_runtime_kernel_rust_runtime_real_canary',
+    { canaryProfile, explicitOptIn },
   )
 }
 

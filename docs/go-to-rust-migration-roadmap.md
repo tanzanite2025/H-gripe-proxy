@@ -28,8 +28,8 @@ The migration has too many completed control-plane gates and not enough real dat
 | Adapter / egress runtime | Bounded opt-in parity path in progress | Rust now chooses DIRECT/REJECT/proxy-group adapter targets from app runtime state, validates candidate protocol compatibility, patches proxy-groups/rules through an explicit opt-in bridge, and keeps Mihomo fallback/rollback. |
 | Protocol forwarding | Bounded Rust subset in progress | Rust now owns an opt-in loopback TCP/HTTP forwarding subset with a real accept loop, byte forwarding, session accounting, smoke evidence, and stop/rollback surface. Mihomo still owns SOCKS, remote adapters, TUN, and default forwarding. |
 | TUN / system proxy | Bounded Rust parity in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, and rollback apply. Mihomo/service still owns packet capture and transparent forwarding. |
-| Mihomo fallback retirement | Readiness manifest in progress | Rust now builds/locks a fallback-retirement readiness manifest from concrete parity rollback artifacts and supported/unsupported scope. Execution remains blocked until real canary evidence passes. |
-| Next real batch | `rust-runtime-real-canary` | Run the bounded Rust-owned paths under a capped canary profile and collect leak, rollback, health, and unsupported fallback evidence. |
+| Mihomo fallback retirement | Canary evidence path in progress | Rust now builds/locks fallback readiness and can run a bounded real canary that exercises loopback DNS, Rust protocol forwarding, route preflight, and writes durable evidence. Execution remains blocked for unsupported fallback scope. |
+| Next real batch | `mihomo-fallback-retirement-execution` | Only retire fallback inside the supported canary scope with an execution manifest and emergency rollback checkpoint; keep unsupported fallback. |
 
 ## Acceleration plan
 
@@ -50,7 +50,7 @@ Course correction: the previous roadmap drifted into dozens of IPC/readiness gat
 | 2 | `rust-adapter-egress-parity` | Complete: Rust-owned DIRECT/REJECT/proxy-group target decisions, adapter candidate compatibility checks, explicit opt-in proxy-groups/rules runtime patching, and one-switch rollback. | Opt-in for supported profiles only; Mihomo remains protocol/forwarding fallback. |
 | 3 | `rust-protocol-forwarding-subset` | Complete: Rust-owned loopback TCP/HTTP accept loop, bidirectional byte forwarding, connection/session accounting, smoke evidence, stop/rollback surface, and Mihomo fallback for unsupported protocols. | Capped canary only after DNS + adapter parity. |
 | 4 | `rust-tun-system-proxy-parity` | Complete: Rust-owned off/system-proxy/TUN route-mode decision, explicit opt-in apply, OS system-proxy path, TUN config/restart bridge, rollback record, and rollback apply. | No broad default until platform rollback passes. |
-| 5 | `rust-runtime-real-canary` | Use the above implemented paths for real traffic in a capped canary profile; collect hold-window health, leak, rollback, and unsupported fallback evidence. | Limited default for canary profile. |
+| 5 | `rust-runtime-real-canary` | Complete: runs bounded canary evidence across loopback DNS, Rust protocol forwarding, TUN/system-proxy route preflight, fallback readiness, and persists evidence.yaml. | Limited default for canary profile. |
 | 6 | `mihomo-fallback-retirement-execution` | Only after real parity exists, remove fallback dependence in the supported scope with an execution manifest, emergency rollback checkpoint, and post-execution verification. | Full replacement candidate for supported scope only. |
 
 ### Definition of done for future PRs
@@ -166,7 +166,7 @@ Phase 8 should no longer be managed as a long list of synthetic gates. The prior
 | Adapter / egress | Bounded opt-in parity path in progress | Keep canarying supported adapter decisions; move next to real protocol forwarding subset. |
 | Protocol forwarding | Bounded opt-in Rust loopback TCP/HTTP subset in progress | Keep expanding only after canary evidence; TUN/system proxy remains next. |
 | TUN / system proxy | Bounded Rust route-mode parity in progress | Packet capture still uses Mihomo/service; collect platform rollback/leak evidence before claiming replacement. |
-| Mihomo fallback retirement | Readiness manifest in progress | Execution remains blocked until the manifest has canary evidence and emergency rollback artifacts. |
+| Mihomo fallback retirement | Canary evidence path in progress | Execution remains scoped; unsupported fallback and packet capture remain Mihomo-owned. |
 
 ### Retained historical value
 
@@ -204,7 +204,7 @@ The next blocker is not another readiness gate; it is missing implementation. Do
 - Mihomo fallback that preserves connectivity without app restart for every unsupported path.
 - Post-canary hold evidence that covers DNS leaks, fallback triggers, rollback, and health telemetry.
 
-These blockers allow one useful next PR: `rust-runtime-real-canary`. They block fallback retirement execution, full protocol replacement, and any claim that packet capture is Rust-owned.
+These blockers allow one useful next PR: `mihomo-fallback-retirement-execution`. They block full protocol replacement and any claim that packet capture is Rust-owned.
 
 ## Removed from this document
 
@@ -234,7 +234,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-runtime-real-canary`; do not open fallback-retirement execution until DNS, adapter, protocol, and TUN/system-proxy opt-in parity have canary evidence.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `mihomo-fallback-retirement-execution`; keep execution scoped to supported canary evidence and retain unsupported fallback.
 
 ## PR checklist for future changes
 

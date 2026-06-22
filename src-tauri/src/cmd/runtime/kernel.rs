@@ -3,12 +3,12 @@ use crate::core::kernel_runtime::{
     RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
     RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
     RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
-    RustProtocolForwardingSubsetStopReport, RustTunSystemProxyParityApplyReport,
+    RustProtocolForwardingSubsetStopReport, RustRuntimeRealCanaryEvidenceReport, RustTunSystemProxyParityApplyReport,
     RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
     apply_rust_tun_system_proxy_parity, lock_rust_fallback_retirement_readiness, rollback_rust_tun_system_proxy_parity,
     rust_fallback_retirement_readiness_manifest, rust_protocol_forwarding_subset_preflight,
     rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
-    rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
+    rust_runtime_real_canary_evidence, rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
     stop_rust_protocol_forwarding_subset,
 };
 
@@ -206,6 +206,16 @@ pub async fn lock_runtime_kernel_rust_fallback_retirement_readiness(
     explicit_opt_in: bool,
 ) -> CmdResult<RustFallbackRetirementReadinessLockReport> {
     lock_rust_fallback_retirement_readiness(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_runtime_real_canary(
+    canary_profile: Option<String>,
+    explicit_opt_in: bool,
+) -> CmdResult<RustRuntimeRealCanaryEvidenceReport> {
+    rust_runtime_real_canary_evidence(canary_profile, explicit_opt_in)
         .await
         .stringify_err()
 }

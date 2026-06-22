@@ -742,6 +742,40 @@ pub struct RustFallbackRetirementReadinessLockReport {
     pub facts: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustRuntimeRealCanaryStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustRuntimeRealCanaryEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustRuntimeRealCanaryStatus,
+    pub reason: String,
+    pub canary_profile: String,
+    pub started_at_epoch_seconds: u64,
+    pub explicit_opt_in: bool,
+    pub dns_smoke_evidence: Option<KernelLoopbackDnsSmokeEvidenceReport>,
+    pub protocol_forwarding_evidence: Option<RustProtocolForwardingSubsetSmokeEvidenceReport>,
+    pub tun_system_proxy_preflight: Option<RustTunSystemProxyParityPreflightReport>,
+    pub fallback_readiness_manifest: Option<RustFallbackRetirementReadinessManifest>,
+    pub evidence_path: Option<String>,
+    pub mutates_runtime: bool,
+    pub writes_evidence_artifact: bool,
+    pub removes_mihomo_fallback: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {
