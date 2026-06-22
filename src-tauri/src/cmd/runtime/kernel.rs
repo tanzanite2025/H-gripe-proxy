@@ -1,11 +1,13 @@
 use super::*;
 use crate::core::kernel_runtime::{
-    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
-    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
-    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
-    RustProtocolForwardingSubsetStopReport, RustRuntimeRealCanaryEvidenceReport, RustTunSystemProxyParityApplyReport,
-    RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
-    apply_rust_tun_system_proxy_parity, lock_rust_fallback_retirement_readiness, rollback_rust_tun_system_proxy_parity,
+    MihomoFallbackRetirementExecutionReport, RustFallbackRetirementReadinessLockReport,
+    RustFallbackRetirementReadinessManifest, RustProtocolForwardingSubsetPreflightReport,
+    RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
+    RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport,
+    RustRuntimeRealCanaryEvidenceReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
+    RustTunSystemProxyParityRollbackReport, apply_rust_tun_system_proxy_parity, execute_mihomo_fallback_retirement,
+    lock_rust_fallback_retirement_readiness, mihomo_fallback_retirement_execution_plan,
+    rollback_mihomo_fallback_retirement_execution, rollback_rust_tun_system_proxy_parity,
     rust_fallback_retirement_readiness_manifest, rust_protocol_forwarding_subset_preflight,
     rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
     rust_runtime_real_canary_evidence, rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
@@ -218,6 +220,28 @@ pub async fn run_runtime_kernel_rust_runtime_real_canary(
     rust_runtime_real_canary_evidence(canary_profile, explicit_opt_in)
         .await
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_mihomo_fallback_retirement_execution_plan()
+-> CmdResult<MihomoFallbackRetirementExecutionReport> {
+    mihomo_fallback_retirement_execution_plan().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn execute_runtime_kernel_mihomo_fallback_retirement(
+    explicit_opt_in: bool,
+    run_canary: bool,
+) -> CmdResult<MihomoFallbackRetirementExecutionReport> {
+    execute_mihomo_fallback_retirement(explicit_opt_in, run_canary)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rollback_runtime_kernel_mihomo_fallback_retirement_execution()
+-> CmdResult<MihomoFallbackRetirementExecutionReport> {
+    rollback_mihomo_fallback_retirement_execution().await.stringify_err()
 }
 
 #[tauri::command]

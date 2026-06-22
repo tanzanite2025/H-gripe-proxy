@@ -2991,6 +2991,49 @@ export interface RustRuntimeRealCanaryEvidenceReport {
   nextSafeBatch: string
 }
 
+export type MihomoFallbackRetirementExecutionStatus =
+  | 'planned'
+  | 'executed'
+  | 'restored'
+  | 'blocked'
+
+export interface MihomoFallbackRetirementExecutionScope {
+  scope: string
+  rustOwnedPath: string
+  fallbackRetiredForScope: boolean
+  mihomoFallbackRetainedFor: string[]
+  evidence: string[]
+}
+
+export interface MihomoFallbackRetirementEmergencyCheckpoint {
+  checkpointPath?: string | null
+  canaryEvidencePath?: string | null
+  previousExecutionManifestPath?: string | null
+  retainedFallbackScope: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface MihomoFallbackRetirementExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: MihomoFallbackRetirementExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  supportedScope: MihomoFallbackRetirementExecutionScope[]
+  emergencyCheckpoint: MihomoFallbackRetirementEmergencyCheckpoint
+  executionManifestPath?: string | null
+  mutatesRuntime: boolean
+  writesExecutionManifest: boolean
+  retiresSupportedFallback: boolean
+  removesMihomoFallbackBinary: boolean
+  unsupportedMihomoFallbackRetained: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3426,6 +3469,28 @@ export async function runRuntimeKernelRustRuntimeRealCanary(
   return invoke<RustRuntimeRealCanaryEvidenceReport>(
     'run_runtime_kernel_rust_runtime_real_canary',
     { canaryProfile, explicitOptIn },
+  )
+}
+
+export async function getRuntimeKernelMihomoFallbackRetirementExecutionPlan() {
+  return invoke<MihomoFallbackRetirementExecutionReport>(
+    'get_runtime_kernel_mihomo_fallback_retirement_execution_plan',
+  )
+}
+
+export async function executeRuntimeKernelMihomoFallbackRetirement(
+  explicitOptIn = false,
+  runCanary = false,
+) {
+  return invoke<MihomoFallbackRetirementExecutionReport>(
+    'execute_runtime_kernel_mihomo_fallback_retirement',
+    { explicitOptIn, runCanary },
+  )
+}
+
+export async function rollbackRuntimeKernelMihomoFallbackRetirementExecution() {
+  return invoke<MihomoFallbackRetirementExecutionReport>(
+    'rollback_runtime_kernel_mihomo_fallback_retirement_execution',
   )
 }
 

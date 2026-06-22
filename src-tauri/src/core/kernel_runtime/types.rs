@@ -776,6 +776,58 @@ pub struct RustRuntimeRealCanaryEvidenceReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MihomoFallbackRetirementExecutionStatus {
+    Planned,
+    Executed,
+    Restored,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MihomoFallbackRetirementExecutionScope {
+    pub scope: String,
+    pub rust_owned_path: String,
+    pub fallback_retired_for_scope: bool,
+    pub mihomo_fallback_retained_for: Vec<String>,
+    pub evidence: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MihomoFallbackRetirementEmergencyCheckpoint {
+    pub checkpoint_path: Option<String>,
+    pub canary_evidence_path: Option<String>,
+    pub previous_execution_manifest_path: Option<String>,
+    pub retained_fallback_scope: Vec<String>,
+    pub created_at_epoch_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MihomoFallbackRetirementExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: MihomoFallbackRetirementExecutionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub supported_scope: Vec<MihomoFallbackRetirementExecutionScope>,
+    pub emergency_checkpoint: MihomoFallbackRetirementEmergencyCheckpoint,
+    pub execution_manifest_path: Option<String>,
+    pub mutates_runtime: bool,
+    pub writes_execution_manifest: bool,
+    pub retires_supported_fallback: bool,
+    pub removes_mihomo_fallback_binary: bool,
+    pub unsupported_mihomo_fallback_retained: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {
