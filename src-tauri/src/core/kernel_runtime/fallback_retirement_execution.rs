@@ -211,7 +211,7 @@ async fn build_mihomo_fallback_retirement_execution_report(
         blockers,
         warnings: vec![
             "execution scope is limited to bounded Rust DNS, adapter, protocol, encrypted-session, and transparent packet evidence".into(),
-            "Mihomo remains fallback for SOCKS TCP data forwarding/BIND/non-loopback UDP/fragments, unsupported encrypted protocols, packet capture, route install, and full binary removal".into(),
+            "Mihomo remains fallback for SOCKS BIND/non-loopback UDP/fragments, unsupported encrypted protocols, packet capture, route install, and full binary removal".into(),
         ],
         facts: vec![
             "execution can run the wider evidence suite before writing a durable manifest and emergency rollback checkpoint".into(),
@@ -289,7 +289,7 @@ fn supported_execution_scope() -> Vec<MihomoFallbackRetirementExecutionScope> {
 
 fn retained_fallback_scope() -> Vec<String> {
     vec![
-        "SOCKS TCP data forwarding, BIND, non-loopback UDP, and fragmented UDP".into(),
+        "SOCKS BIND, non-loopback UDP, and fragmented UDP".into(),
         "remote adapter protocols beyond bounded TCP CONNECT".into(),
         "system-wide TUN packet capture".into(),
         "OS route install and transparent proxy defaults".into(),
