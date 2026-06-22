@@ -248,6 +248,7 @@ mod app_init {
             cmd::runtime::kernel::rollback_runtime_kernel_rust_tun_system_proxy_parity,
             cmd::runtime::kernel::get_runtime_kernel_rust_fallback_retirement_readiness_manifest,
             cmd::runtime::kernel::lock_runtime_kernel_rust_fallback_retirement_readiness,
+            cmd::runtime::kernel::run_runtime_kernel_rust_runtime_real_canary,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,
