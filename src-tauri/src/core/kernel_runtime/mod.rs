@@ -48,6 +48,7 @@ static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState
 
 mod data_plane_hardening;
 mod encrypted_proxy_protocol;
+mod encrypted_proxy_session;
 mod fallback_retirement_execution;
 mod fallback_retirement_readiness;
 mod go_retirement;
@@ -62,6 +63,7 @@ mod tun_system_proxy;
 mod types;
 pub use self::data_plane_hardening::*;
 pub use self::encrypted_proxy_protocol::*;
+pub use self::encrypted_proxy_session::*;
 pub use self::fallback_retirement_execution::*;
 pub use self::fallback_retirement_readiness::*;
 pub use self::go_retirement::*;

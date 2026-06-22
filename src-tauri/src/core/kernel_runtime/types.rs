@@ -1173,6 +1173,84 @@ pub struct RustShadowsocksAeadAdapterCanaryReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustEncryptedProxySessionExpansionStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustEncryptedProxySessionChunkEvidence {
+    pub chunk_index: u16,
+    pub request_marker: String,
+    pub response_marker: Option<String>,
+    pub encrypted_request_bytes: u64,
+    pub decrypted_request_bytes: u64,
+    pub target_response_bytes: u64,
+    pub encrypted_response_bytes: u64,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustEncryptedProxySessionEvidence {
+    pub protocol: RustEncryptedProxyProtocolKind,
+    pub adapter_name: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub target_address: String,
+    pub address_frame_validated: bool,
+    pub session_established: bool,
+    pub chunks_forwarded: u64,
+    pub encrypted_request_bytes: u64,
+    pub decrypted_request_bytes: u64,
+    pub encrypted_response_bytes: u64,
+    pub decrypted_response_bytes: u64,
+    pub target_sessions: u64,
+    pub target_chunks_received: u64,
+    pub chunk_evidence: Vec<RustEncryptedProxySessionChunkEvidence>,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustEncryptedProxySessionFallbackEvidence {
+    pub unsupported_protocols: Vec<String>,
+    pub fallback_retained: bool,
+    pub unsupported_sessions_bypassed: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustEncryptedProxySessionExpansionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustEncryptedProxySessionExpansionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub session_evidence: Option<RustEncryptedProxySessionEvidence>,
+    pub fallback_evidence: Option<RustEncryptedProxySessionFallbackEvidence>,
+    pub evidence_path: Option<String>,
+    pub loopback_remote_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {

@@ -3324,6 +3324,73 @@ export interface RustShadowsocksAeadAdapterCanaryReport {
   nextSafeBatch: string
 }
 
+export type RustEncryptedProxySessionExpansionStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export interface RustEncryptedProxySessionChunkEvidence {
+  chunkIndex: number
+  requestMarker: string
+  responseMarker?: string | null
+  encryptedRequestBytes: number
+  decryptedRequestBytes: number
+  targetResponseBytes: number
+  encryptedResponseBytes: number
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustEncryptedProxySessionEvidence {
+  protocol: RustEncryptedProxyProtocolKind
+  adapterName: string
+  listenerPort: number
+  targetPort: number
+  targetAddress: string
+  addressFrameValidated: boolean
+  sessionEstablished: boolean
+  chunksForwarded: number
+  encryptedRequestBytes: number
+  decryptedRequestBytes: number
+  encryptedResponseBytes: number
+  decryptedResponseBytes: number
+  targetSessions: number
+  targetChunksReceived: number
+  chunkEvidence: RustEncryptedProxySessionChunkEvidence[]
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustEncryptedProxySessionFallbackEvidence {
+  unsupportedProtocols: string[]
+  fallbackRetained: boolean
+  unsupportedSessionsBypassed: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustEncryptedProxySessionExpansionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustEncryptedProxySessionExpansionStatus
+  reason: string
+  explicitOptIn: boolean
+  sessionEvidence?: RustEncryptedProxySessionEvidence | null
+  fallbackEvidence?: RustEncryptedProxySessionFallbackEvidence | null
+  evidencePath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3794,6 +3861,15 @@ export async function runRuntimeKernelRustEncryptedProxyProtocolPreflight(
 ) {
   return invoke<RustEncryptedProxyProtocolPreflightReport>(
     'run_runtime_kernel_rust_encrypted_proxy_protocol_preflight',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustEncryptedProxySessionExpansion(
+  explicitOptIn = false,
+) {
+  return invoke<RustEncryptedProxySessionExpansionReport>(
+    'run_runtime_kernel_rust_encrypted_proxy_session_expansion',
     { explicitOptIn },
   )
 }
