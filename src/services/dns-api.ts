@@ -359,6 +359,58 @@ export interface RustDnsFallbackFilterRuntimeReport {
   nextSafeBatch: string
 }
 
+export type RustDnsNameserverPolicyRuntimeStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustDnsNameserverPolicyRuleEvidence {
+  ruleType: string
+  rule: string
+  nameservers: string[]
+  matched: boolean
+}
+
+export interface RustDnsNameserverPolicyDecisionEvidence {
+  domain: string
+  selectedNameservers: string[]
+  matchedRules: RustDnsNameserverPolicyRuleEvidence[]
+  evaluatedRuleCount: number
+  defaultNameserversRetained: boolean
+}
+
+export interface RustDnsNameserverPolicyRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustDnsNameserverPolicyLeakEvidence {
+  passed: boolean
+  noUpstreamQuery: boolean
+  noSystemResolverMutation: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustDnsNameserverPolicyRuntimeReport {
+  component: string
+  status: RustDnsNameserverPolicyRuntimeStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  decisionEvidence?: RustDnsNameserverPolicyDecisionEvidence | null
+  rollbackEvidence?: RustDnsNameserverPolicyRollbackEvidence | null
+  leakEvidence?: RustDnsNameserverPolicyLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type DnsDefaultRuntimeReadinessStatus =
   | 'ready'
   | 'degraded'
@@ -1244,6 +1296,26 @@ export async function rustDnsFallbackFilterRuntimeExecution(
     )
   } catch (err) {
     console.error('Rust DNS fallback-filter runtime execution failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsNameserverPolicyRuntimeExecution(
+  yaml: string,
+  domain: string,
+  explicitOptIn = false,
+): Promise<RustDnsNameserverPolicyRuntimeReport> {
+  try {
+    return await invoke<RustDnsNameserverPolicyRuntimeReport>(
+      'rust_dns_nameserver_policy_runtime_execution',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('Rust DNS nameserver-policy runtime execution failed:', err)
     throw err
   }
 }

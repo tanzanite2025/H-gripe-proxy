@@ -16,8 +16,9 @@ use crate::core::dns_runtime::{
     DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport,
     DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
     DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
-    RustDnsFakeIpRuntimeReport, RustDnsFallbackFilterRuntimeReport, RustDnsRuntimeParityReport,
-    build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    RustDnsFakeIpRuntimeReport, RustDnsFallbackFilterRuntimeReport, RustDnsNameserverPolicyRuntimeReport,
+    RustDnsRuntimeParityReport, build_dns_resolver_plan as build_resolver_plan,
+    dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
     dns_default_runtime_expanded_control_plane_completion as build_dns_default_runtime_expanded_control_plane_completion,
     dns_default_runtime_expanded_hold_policy as build_dns_default_runtime_expanded_hold_policy,
     dns_default_runtime_expanded_lifecycle_closeout as build_dns_default_runtime_expanded_lifecycle_closeout,
@@ -43,14 +44,15 @@ use crate::core::dns_runtime::{
     dns_runtime_query as run_dns_runtime_query, list_dns_server_provider_registrations, probe_dns_server_provider,
     rust_dns_fake_ip_runtime_execution as build_rust_dns_fake_ip_runtime_execution,
     rust_dns_fallback_filter_runtime_execution as build_rust_dns_fallback_filter_runtime_execution,
+    rust_dns_nameserver_policy_runtime_execution as build_rust_dns_nameserver_policy_runtime_execution,
     rust_dns_runtime_parity as build_rust_dns_runtime_parity,
     rust_dns_runtime_parity_rollback as build_rust_dns_runtime_parity_rollback,
 };
 use log::error;
 
-/// DNS 查询
+/// DNS æŸ¥è¯¢
 ///
-/// 支持自定义 DNS 服务器和协议（UDP/TCP/DoH/DoT）
+/// æ”¯æŒè‡ªå®šä¹‰ DNS æœåŠ¡å™¨å’Œåè®®ï¼ˆUDP/TCP/DoH/DoTï¼‰
 #[tauri::command]
 pub async fn dns_query(
     domain: String,
@@ -60,9 +62,9 @@ pub async fn dns_query(
     build_dns_query(domain, server, protocol).await.stringify_err()
 }
 
-/// DNS 服务器健康检查
+/// DNS æœåŠ¡å™¨å¥åº·æ£€æŸ¥
 ///
-/// 使用指定的测试域名检查 DNS 服务器的健康状态
+/// ä½¿ç”¨æŒ‡å®šçš„æµ‹è¯•åŸŸåæ£€æŸ¥ DNS æœåŠ¡å™¨çš„å¥åº·çŠ¶æ€
 #[tauri::command]
 pub async fn dns_health_check(
     server: String,
@@ -74,7 +76,7 @@ pub async fn dns_health_check(
         .stringify_err()
 }
 
-/// 批量 DNS 查询
+/// æ‰¹é‡ DNS æŸ¥è¯¢
 #[tauri::command]
 pub async fn dns_batch_query(
     domains: Vec<String>,
@@ -95,7 +97,7 @@ pub async fn dns_batch_query(
     Ok(results)
 }
 
-/// 批量 DNS 健康检查
+/// æ‰¹é‡ DNS å¥åº·æ£€æŸ¥
 #[tauri::command]
 pub async fn dns_batch_health_check(
     servers: Vec<String>,
@@ -192,6 +194,17 @@ pub async fn rust_dns_fallback_filter_runtime_execution(
     explicit_opt_in: bool,
 ) -> CmdResult<RustDnsFallbackFilterRuntimeReport> {
     build_rust_dns_fallback_filter_runtime_execution(yaml, domain, candidate_ip, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rust_dns_nameserver_policy_runtime_execution(
+    yaml: String,
+    domain: String,
+    explicit_opt_in: bool,
+) -> CmdResult<RustDnsNameserverPolicyRuntimeReport> {
+    build_rust_dns_nameserver_policy_runtime_execution(yaml, domain, explicit_opt_in)
         .await
         .stringify_err()
 }
