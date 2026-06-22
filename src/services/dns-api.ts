@@ -308,6 +308,57 @@ export interface RustDnsFakeIpRuntimeReport {
   nextSafeBatch: string
 }
 
+export type RustDnsFallbackFilterRuntimeStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustDnsFallbackFilterRuleEvidence {
+  ruleType: string
+  rule: string
+  matched: boolean
+}
+
+export interface RustDnsFallbackFilterDecisionEvidence {
+  domain: string
+  candidateIp: string
+  fallbackRequired: boolean
+  matchedRules: RustDnsFallbackFilterRuleEvidence[]
+  evaluatedRuleCount: number
+}
+
+export interface RustDnsFallbackFilterRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustDnsFallbackFilterLeakEvidence {
+  passed: boolean
+  noUpstreamQuery: boolean
+  noSystemResolverMutation: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustDnsFallbackFilterRuntimeReport {
+  component: string
+  status: RustDnsFallbackFilterRuntimeStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  decisionEvidence?: RustDnsFallbackFilterDecisionEvidence | null
+  rollbackEvidence?: RustDnsFallbackFilterRollbackEvidence | null
+  leakEvidence?: RustDnsFallbackFilterLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type DnsDefaultRuntimeReadinessStatus =
   | 'ready'
   | 'degraded'
@@ -1171,6 +1222,28 @@ export async function rustDnsFakeIpRuntimeExecution(
     )
   } catch (err) {
     console.error('Rust DNS fake-ip runtime execution failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsFallbackFilterRuntimeExecution(
+  yaml: string,
+  domain: string,
+  candidateIp: string,
+  explicitOptIn = false,
+): Promise<RustDnsFallbackFilterRuntimeReport> {
+  try {
+    return await invoke<RustDnsFallbackFilterRuntimeReport>(
+      'rust_dns_fallback_filter_runtime_execution',
+      {
+        yaml,
+        domain,
+        candidateIp,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('Rust DNS fallback-filter runtime execution failed:', err)
     throw err
   }
 }
