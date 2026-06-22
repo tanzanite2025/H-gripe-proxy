@@ -264,6 +264,7 @@ mod app_init {
             cmd::runtime::kernel::closeout_runtime_kernel_rust_default_data_plane,
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_auth_execution,
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_tcp_connect_execution,
+            cmd::runtime::kernel::run_runtime_kernel_rust_socks_bind_execution,
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_udp_associate_execution,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,

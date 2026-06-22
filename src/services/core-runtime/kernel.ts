@@ -3298,6 +3298,63 @@ export interface RustSocksTcpConnectExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustSocksBindExecutionStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustSocksBindForwardEvidence {
+  proxyListenerAddr: string
+  bindAddr: string
+  peerAddr: string
+  selectedMethod: string
+  authNegotiated: boolean
+  bindCommand: string
+  bindAtyp: string
+  firstReplySent: boolean
+  secondReplySent: boolean
+  requestBytes: number
+  peerReceivedBytes: number
+  responseBytes: number
+  responsePrefix: string
+  dataForwarded: boolean
+  loopbackOnly: boolean
+}
+
+export interface RustSocksBindRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustSocksBindLeakEvidence {
+  passed: boolean
+  noSystemPacketCapture: boolean
+  noNonLoopbackPeer: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustSocksBindExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustSocksBindExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  forwardEvidence?: RustSocksBindForwardEvidence | null
+  rollbackEvidence?: RustSocksBindRollbackEvidence | null
+  leakEvidence?: RustSocksBindLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustProtocolAdapterForwardingStatus =
   | 'passed'
   | 'failed'
@@ -4216,6 +4273,15 @@ export async function runRuntimeKernelRustSocksTcpConnectExecution(
 ) {
   return invoke<RustSocksTcpConnectExecutionReport>(
     'run_runtime_kernel_rust_socks_tcp_connect_execution',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustSocksBindExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustSocksBindExecutionReport>(
+    'run_runtime_kernel_rust_socks_bind_execution',
     { explicitOptIn },
   )
 }
