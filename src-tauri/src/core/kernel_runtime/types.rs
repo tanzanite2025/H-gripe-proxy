@@ -830,6 +830,57 @@ pub struct MihomoFallbackRetirementExecutionReport {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum RustDefaultDataPlaneCloseoutStatus {
+    Ready,
+    ClosedOut,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustDefaultDataPlaneCloseoutEvidenceOwnership {
+    pub scope: String,
+    pub rust_owned_path: String,
+    pub evidence: Vec<String>,
+    pub mihomo_fallback_retained_for: Vec<String>,
+    pub default_eligible: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustDefaultDataPlaneUnsupportedBlocker {
+    pub blocker: String,
+    pub mihomo_owner: String,
+    pub retirement_requirement: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustDefaultDataPlaneCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustDefaultDataPlaneCloseoutStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub mutates_runtime: bool,
+    pub writes_closeout_manifest: bool,
+    pub closeout_manifest_path: Option<String>,
+    pub fallback_retirement_manifest_path: Option<String>,
+    pub evidence_ownership: Vec<RustDefaultDataPlaneCloseoutEvidenceOwnership>,
+    pub unsupported_blockers: Vec<RustDefaultDataPlaneUnsupportedBlocker>,
+    pub ownership_reconciled: bool,
+    pub default_scope_locked_to_passed_evidence: bool,
+    pub unsupported_mihomo_fallback_retained: bool,
+    pub removes_mihomo_fallback_binary: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RustProtocolAdapterForwardingStatus {
     Passed,
     Failed,
