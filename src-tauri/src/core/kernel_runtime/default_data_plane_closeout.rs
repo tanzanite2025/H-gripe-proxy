@@ -198,9 +198,9 @@ fn rust_default_data_plane_unsupported_blockers() -> Vec<RustDefaultDataPlaneUns
                     .into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {
-            blocker: "DNS fake-ip cache/reverse mapping, fallback-filter, and nameserver-policy execution".into(),
+            blocker: "DNS fake-ip cache/reverse mapping, fallback-filter geoip/upstream execution, and nameserver-policy execution".into(),
             mihomo_owner: "Mihomo DNS runtime".into(),
-            retirement_requirement: "fake-ip cache/filter parity plus resolver/upstream parity with DNS leak evidence while Rust adapters are active"
+            retirement_requirement: "fake-ip cache/filter parity, fallback-filter geoip/upstream parity, and nameserver-policy evidence while Rust adapters are active"
                 .into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {
