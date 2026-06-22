@@ -24,12 +24,12 @@ The migration has too many completed control-plane gates and not enough real dat
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Mature | Validation, planning, projection artifacts, audit, telemetry, and frontend type surfaces are Rust-owned enough to support real data-plane work. Stop adding more read-only gate-only PRs here. |
-| DNS runtime | Not started as a replacement | Rust has DNS planning/shadow/probe evidence, but Mihomo still owns production DNS runtime. Next real work starts here. |
+| DNS runtime | Bounded opt-in parity path in progress | Rust now synthesizes a dns/hosts runtime patch, probes supported resolvers, blocks unsupported fake-ip/fallback-filter/nameserver-policy execution, and applies through an explicit opt-in bridge with rollback. Mihomo still owns default DNS until canary evidence passes. |
 | Adapter / egress runtime | Not started as a replacement | Rust has inventory and capability reports, but production adapter dialing and egress selection still fall through Mihomo. |
 | Protocol forwarding | Not started as a replacement | HTTP/SOCKS/TUN/inbound/outbound protocol stacks remain Mihomo-owned. Rust loopback listeners are evidence only. |
 | TUN / system proxy | Not started as a replacement | Rust audits and gates TUN/system-proxy changes, but does not own OS packet capture or transparent proxy forwarding. |
 | Mihomo fallback retirement | Blocked | Do not execute fallback retirement until DNS, adapter, protocol, TUN/system-proxy parity and rollback drills exist as implementation PRs. |
-| Next real batch | `rust-dns-runtime-parity` | Implement Rust-owned DNS runtime parity for a bounded supported subset with leak tests and Mihomo fallback, not another gate-only command. |
+| Next real batch | `rust-adapter-egress-parity` | Build supported adapter/egress execution in Rust. DNS parity remains opt-in and must collect canary evidence before any fallback retirement. |
 
 ## Acceleration plan
 
@@ -46,7 +46,7 @@ Course correction: the previous roadmap drifted into dozens of IPC/readiness gat
 
 | Order | Batch | Required implementation | Default impact |
 | --- | --- | --- | --- |
-| 1 | `rust-dns-runtime-parity` | Build the Rust-owned DNS runtime path for the supported subset: config synthesis, resolver/upstream selection, fake-ip/hosts/rules behavior where supported, leak tests, shadow comparison against Mihomo DNS, and one-switch fallback. | Opt-in/shadow first; Mihomo remains default DNS until parity evidence passes. |
+| 1 | `rust-dns-runtime-parity` | Complete: Rust-owned dns/hosts patch synthesis, resolver/upstream selection, controlled resolver probe, unsupported fake-ip/fallback-filter/nameserver-policy blockers, explicit opt-in apply, and one-switch rollback. | Opt-in only; Mihomo remains default DNS until canary evidence passes. |
 | 2 | `rust-adapter-egress-parity` | Move supported DIRECT/REJECT/proxy egress decisions and adapter compatibility checks into Rust execution paths; keep unsupported adapters and failed health paths on Mihomo fallback. | Opt-in for supported profiles only. |
 | 3 | `rust-protocol-forwarding-subset` | Implement real Rust forwarding for the smallest safe protocol subset, with connection/session accounting, health telemetry, rollback, and Mihomo fallback for unsupported protocols. | Capped canary only after DNS + adapter parity. |
 | 4 | `rust-tun-system-proxy-boundary` | Implement or explicitly bind platform TUN/system-proxy ownership boundaries: Windows/macOS/Linux rollback drills, DNS leak checks, route restoration, and emergency recovery. | No broad default until platform rollback passes. |
@@ -162,7 +162,7 @@ Phase 8 should no longer be managed as a long list of synthetic gates. The prior
 | Track | Current status | Next useful work |
 | --- | --- | --- |
 | Seam inventory / runtime selection | Complete enough | Do not add more inventory-only gates unless required by a real implementation PR. |
-| DNS | Planning and shadow evidence only | Implement `rust-dns-runtime-parity` with leak tests and fallback. |
+| DNS | Bounded opt-in parity path in progress | Keep collecting canary evidence; do not make DNS default until adapter/protocol/TUN rollback boundaries are ready. |
 | Adapter / egress | Capability inventory only | Implement supported adapter/egress execution in Rust. |
 | Protocol forwarding | Loopback evidence only | Implement a real bounded forwarding subset, not another loopback-only listener. |
 | TUN / system proxy | Audit/rollback metadata only | Implement platform rollback/leak boundaries before claiming replacement. |
@@ -204,7 +204,7 @@ The next blocker is not another readiness gate; it is missing implementation. Do
 - Mihomo fallback that preserves connectivity without app restart for every unsupported path.
 - Post-canary hold evidence that covers DNS leaks, fallback triggers, rollback, and health telemetry.
 
-These blockers allow one useful next PR: `rust-dns-runtime-parity`. They block fallback retirement, full protocol replacement, and any claim that DNS/TUN/adapter work is complete.
+These blockers allow one useful next PR: `rust-adapter-egress-parity`. They block fallback retirement, full protocol replacement, and any claim that DNS/TUN/adapter work is complete.
 
 ## Removed from this document
 
@@ -234,7 +234,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-dns-runtime-parity`; do not open another fallback-retirement or gate-only PR until DNS runtime parity has real implementation and tests. Adapter, protocol, and TUN/system-proxy parity follow DNS.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-adapter-egress-parity`; do not open another fallback-retirement or gate-only PR until DNS opt-in parity has canary evidence and adapter/protocol/TUN/system-proxy parity follow.
 
 ## PR checklist for future changes
 

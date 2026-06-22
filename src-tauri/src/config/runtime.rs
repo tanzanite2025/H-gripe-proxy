@@ -69,6 +69,25 @@ impl IRuntime {
         }
     }
 
+    #[inline]
+    pub fn patch_dns_runtime_config(&mut self, patch: &Mapping) {
+        let config = if let Some(config) = self.config.as_mut() {
+            config
+        } else {
+            return;
+        };
+
+        for key in ["dns", "hosts"] {
+            if let Some(value) = patch.get(key) {
+                if matches!(value, Value::Null) {
+                    config.remove(key);
+                } else {
+                    config.insert(key.into(), value.clone());
+                }
+            }
+        }
+    }
+
     /// 更新链式代理配置
     ///
     /// 该函数更新 `proxies` 和 `proxy-groups` 配置，并处理链式代理的修改或(传入 None )删除。
@@ -188,5 +207,50 @@ mod tests {
 
         let config = runtime.config.as_ref().unwrap();
         assert_eq!(config.get("mode").and_then(Value::as_str), Some("rule"));
+    }
+
+    #[test]
+    fn patch_dns_runtime_config_updates_dns_and_hosts() {
+        let mut runtime = IRuntime {
+            config: Some(Mapping::new()),
+            ..IRuntime::default()
+        };
+        let mut dns = Mapping::new();
+        dns.insert("enable".into(), true.into());
+        dns.insert(
+            "nameserver".into(),
+            Value::Sequence(vec!["1.1.1.1".into(), "8.8.8.8".into()]),
+        );
+        let mut hosts = Mapping::new();
+        hosts.insert("example.test".into(), "127.0.0.1".into());
+        let mut patch = Mapping::new();
+        patch.insert("dns".into(), Value::Mapping(dns));
+        patch.insert("hosts".into(), Value::Mapping(hosts));
+
+        runtime.patch_dns_runtime_config(&patch);
+
+        let config = runtime.config.as_ref().unwrap();
+        assert!(config.get("dns").and_then(Value::as_mapping).is_some());
+        assert!(config.get("hosts").and_then(Value::as_mapping).is_some());
+    }
+
+    #[test]
+    fn patch_dns_runtime_config_can_remove_dns_and_hosts_for_rollback() {
+        let mut config = Mapping::new();
+        config.insert("dns".into(), Value::Mapping(Mapping::new()));
+        config.insert("hosts".into(), Value::Mapping(Mapping::new()));
+        let mut runtime = IRuntime {
+            config: Some(config),
+            ..IRuntime::default()
+        };
+        let mut patch = Mapping::new();
+        patch.insert("dns".into(), Value::Null);
+        patch.insert("hosts".into(), Value::Null);
+
+        runtime.patch_dns_runtime_config(&patch);
+
+        let config = runtime.config.as_ref().unwrap();
+        assert!(config.get("dns").is_none());
+        assert!(config.get("hosts").is_none());
     }
 }

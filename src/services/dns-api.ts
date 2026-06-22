@@ -227,6 +227,41 @@ export interface DnsResolverRuntimeProbeReport {
   warnings: string[]
 }
 
+export type RustDnsRuntimeParityStatus =
+  | 'ready'
+  | 'applied'
+  | 'restored'
+  | 'blocked'
+
+export interface RustDnsRuntimePatchPlan {
+  patchYaml: string
+  dnsKeys: string[]
+  hostsKeys: string[]
+  nameservers: string[]
+  supportedNameservers: string[]
+  unsupportedNameservers: string[]
+  preservedFeatures: string[]
+  blockedFeatures: string[]
+}
+
+export interface RustDnsRuntimeParityReport {
+  status: RustDnsRuntimeParityStatus
+  reason: string
+  plan: DnsResolverPlan
+  probe?: DnsResolverRuntimeProbeReport | null
+  patch: RustDnsRuntimePatchPlan
+  previousPatchYaml?: string | null
+  rollbackRecordPath?: string | null
+  explicitOptIn: boolean
+  applyRuntime: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  mihomoFallbackRetained: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export type DnsDefaultRuntimeReadinessStatus =
   | 'ready'
   | 'degraded'
@@ -1051,6 +1086,36 @@ export async function dnsControlledRuntimeProbe(
     )
   } catch (err) {
     console.error('DNS controlled runtime probe failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsRuntimeParity(
+  yaml: string,
+  testDomain?: string,
+  explicitOptIn = false,
+  applyRuntime = false,
+): Promise<RustDnsRuntimeParityReport> {
+  try {
+    return await invoke<RustDnsRuntimeParityReport>('rust_dns_runtime_parity', {
+      yaml,
+      testDomain,
+      explicitOptIn,
+      applyRuntime,
+    })
+  } catch (err) {
+    console.error('Rust DNS runtime parity failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsRuntimeParityRollback(): Promise<RustDnsRuntimeParityReport> {
+  try {
+    return await invoke<RustDnsRuntimeParityReport>(
+      'rust_dns_runtime_parity_rollback',
+    )
+  } catch (err) {
+    console.error('Rust DNS runtime parity rollback failed:', err)
     throw err
   }
 }
