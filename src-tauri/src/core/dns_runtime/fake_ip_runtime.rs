@@ -3,8 +3,6 @@ use anyhow::{Context as _, Result, anyhow};
 use hickory_proto::rr::Name;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 
@@ -202,9 +200,7 @@ impl FakeIpRange {
     fn allocate(self, domain: &str) -> std::net::Ipv4Addr {
         let host_bits = 32 - self.prefix;
         let usable = (1_u64 << host_bits) - 2;
-        let mut hasher = DefaultHasher::new();
-        domain.hash(&mut hasher);
-        let host = (hasher.finish() % usable) + 1;
+        let host = (stable_domain_hash(domain) % usable) + 1;
         std::net::Ipv4Addr::from(self.network + host as u32)
     }
 
@@ -212,6 +208,12 @@ impl FakeIpRange {
         let mask = u32::MAX << (32 - self.prefix);
         (u32::from(ip) & mask) == self.network
     }
+}
+
+fn stable_domain_hash(domain: &str) -> u64 {
+    domain.bytes().fold(0xcbf29ce484222325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    })
 }
 
 impl std::fmt::Display for FakeIpRange {
