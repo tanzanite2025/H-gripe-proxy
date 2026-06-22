@@ -3098,6 +3098,48 @@ export interface MihomoFallbackRetirementExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustDefaultDataPlaneCloseoutStatus =
+  | 'ready'
+  | 'closedOut'
+  | 'blocked'
+
+export interface RustDefaultDataPlaneCloseoutEvidenceOwnership {
+  scope: string
+  rustOwnedPath: string
+  evidence: string[]
+  mihomoFallbackRetainedFor: string[]
+  defaultEligible: boolean
+}
+
+export interface RustDefaultDataPlaneUnsupportedBlocker {
+  blocker: string
+  mihomoOwner: string
+  retirementRequirement: string
+}
+
+export interface RustDefaultDataPlaneCloseoutReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustDefaultDataPlaneCloseoutStatus
+  reason: string
+  explicitOptIn: boolean
+  mutatesRuntime: boolean
+  writesCloseoutManifest: boolean
+  closeoutManifestPath?: string | null
+  fallbackRetirementManifestPath?: string | null
+  evidenceOwnership: RustDefaultDataPlaneCloseoutEvidenceOwnership[]
+  unsupportedBlockers: RustDefaultDataPlaneUnsupportedBlocker[]
+  ownershipReconciled: boolean
+  defaultScopeLockedToPassedEvidence: boolean
+  unsupportedMihomoFallbackRetained: boolean
+  removesMihomoFallbackBinary: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustProtocolAdapterForwardingStatus =
   | 'passed'
   | 'failed'
@@ -3984,6 +4026,21 @@ export async function executeRuntimeKernelMihomoFallbackRetirement(
 export async function rollbackRuntimeKernelMihomoFallbackRetirementExecution() {
   return invoke<MihomoFallbackRetirementExecutionReport>(
     'rollback_runtime_kernel_mihomo_fallback_retirement_execution',
+  )
+}
+
+export async function getRuntimeKernelRustDefaultDataPlaneCloseoutPlan() {
+  return invoke<RustDefaultDataPlaneCloseoutReport>(
+    'get_runtime_kernel_rust_default_data_plane_closeout_plan',
+  )
+}
+
+export async function closeoutRuntimeKernelRustDefaultDataPlane(
+  explicitOptIn = false,
+) {
+  return invoke<RustDefaultDataPlaneCloseoutReport>(
+    'closeout_runtime_kernel_rust_default_data_plane',
+    { explicitOptIn },
   )
 }
 

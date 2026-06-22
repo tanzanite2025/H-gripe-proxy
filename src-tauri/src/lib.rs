@@ -260,6 +260,8 @@ mod app_init {
             cmd::runtime::kernel::get_runtime_kernel_mihomo_fallback_retirement_execution_plan,
             cmd::runtime::kernel::execute_runtime_kernel_mihomo_fallback_retirement,
             cmd::runtime::kernel::rollback_runtime_kernel_mihomo_fallback_retirement_execution,
+            cmd::runtime::kernel::get_runtime_kernel_rust_default_data_plane_closeout_plan,
+            cmd::runtime::kernel::closeout_runtime_kernel_rust_default_data_plane,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,

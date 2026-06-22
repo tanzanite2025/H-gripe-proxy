@@ -1,23 +1,25 @@
 use super::*;
 use crate::core::kernel_runtime::{
-    MihomoFallbackRetirementExecutionReport, RustEncryptedProxyProtocolPreflightReport,
-    RustEncryptedProxySessionExpansionReport, RustFallbackRetirementReadinessLockReport,
-    RustFallbackRetirementReadinessManifest, RustHttpConnectProxyAdapterReport,
-    RustProtocolAdapterForwardingExpansionReport, RustProtocolForwardingSubsetPreflightReport,
-    RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
-    RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport,
-    RustRemoteAdapterTransportExpansionReport, RustRuntimeRealCanaryEvidenceReport,
-    RustShadowsocksAeadAdapterCanaryReport, RustShadowsocksAeadAdapterExecutionReport,
-    RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
-    RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
-    apply_rust_tun_system_proxy_parity, execute_mihomo_fallback_retirement, lock_rust_fallback_retirement_readiness,
+    MihomoFallbackRetirementExecutionReport, RustDefaultDataPlaneCloseoutReport,
+    RustEncryptedProxyProtocolPreflightReport, RustEncryptedProxySessionExpansionReport,
+    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
+    RustHttpConnectProxyAdapterReport, RustProtocolAdapterForwardingExpansionReport,
+    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
+    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
+    RustProtocolForwardingSubsetStopReport, RustRemoteAdapterTransportExpansionReport,
+    RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
+    RustShadowsocksAeadAdapterExecutionReport, RustTunSystemProxyParityApplyReport,
+    RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
+    RustTunTransparentRoutingExecutionReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
+    execute_mihomo_fallback_retirement, lock_rust_fallback_retirement_readiness,
     mihomo_fallback_retirement_execution_plan, rollback_mihomo_fallback_retirement_execution,
-    rollback_rust_tun_system_proxy_parity, rust_encrypted_proxy_protocol_preflight_evidence,
-    rust_encrypted_proxy_session_expansion, rust_fallback_retirement_readiness_manifest,
-    rust_http_connect_proxy_adapter_evidence, rust_protocol_adapter_forwarding_expansion_evidence,
-    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
-    rust_protocol_forwarding_subset_status, rust_remote_adapter_transport_expansion_evidence,
-    rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
+    rollback_rust_tun_system_proxy_parity, rust_default_data_plane_closeout_plan,
+    rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
+    rust_fallback_retirement_readiness_manifest, rust_http_connect_proxy_adapter_evidence,
+    rust_protocol_adapter_forwarding_expansion_evidence, rust_protocol_forwarding_subset_preflight,
+    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
+    rust_remote_adapter_transport_expansion_evidence, rust_runtime_real_canary_evidence,
+    rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_tun_system_proxy_parity_preflight, rust_tun_transparent_routing_execution,
     start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
 };
@@ -322,6 +324,19 @@ pub async fn execute_runtime_kernel_mihomo_fallback_retirement(
 pub async fn rollback_runtime_kernel_mihomo_fallback_retirement_execution()
 -> CmdResult<MihomoFallbackRetirementExecutionReport> {
     rollback_mihomo_fallback_retirement_execution().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_default_data_plane_closeout_plan() -> CmdResult<RustDefaultDataPlaneCloseoutReport>
+{
+    rust_default_data_plane_closeout_plan().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn closeout_runtime_kernel_rust_default_data_plane(
+    explicit_opt_in: bool,
+) -> CmdResult<RustDefaultDataPlaneCloseoutReport> {
+    closeout_rust_default_data_plane(explicit_opt_in).await.stringify_err()
 }
 
 #[tauri::command]
