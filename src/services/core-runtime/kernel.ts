@@ -3079,6 +3079,51 @@ export interface RustProtocolAdapterForwardingExpansionReport {
   nextSafeBatch: string
 }
 
+export type RustRemoteAdapterTransportStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export type RustRemoteAdapterTransportKind =
+  | 'tcpConnect'
+  | 'unsupportedProxyProtocol'
+
+export interface RustRemoteAdapterTransportEvidence {
+  transportKind: RustRemoteAdapterTransportKind
+  adapterName: string
+  controlPort?: number | null
+  targetPort?: number | null
+  targetReceived: boolean
+  responseStatus?: string | null
+  bytesToRemote: number
+  bytesFromRemote: number
+  fallbackRetained: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustRemoteAdapterTransportExpansionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustRemoteAdapterTransportStatus
+  reason: string
+  explicitOptIn: boolean
+  tcpConnectEvidence?: RustRemoteAdapterTransportEvidence | null
+  unsupportedProtocolEvidence?: RustRemoteAdapterTransportEvidence | null
+  evidencePath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3522,6 +3567,15 @@ export async function runRuntimeKernelRustProtocolAdapterForwardingExpansion(
 ) {
   return invoke<RustProtocolAdapterForwardingExpansionReport>(
     'run_runtime_kernel_rust_protocol_adapter_forwarding_expansion',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustRemoteAdapterTransportExpansion(
+  explicitOptIn = false,
+) {
+  return invoke<RustRemoteAdapterTransportExpansionReport>(
+    'run_runtime_kernel_rust_remote_adapter_transport_expansion',
     { explicitOptIn },
   )
 }

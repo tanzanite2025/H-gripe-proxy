@@ -883,6 +883,61 @@ pub struct RustProtocolAdapterForwardingExpansionReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustRemoteAdapterTransportStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustRemoteAdapterTransportKind {
+    TcpConnect,
+    UnsupportedProxyProtocol,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustRemoteAdapterTransportEvidence {
+    pub transport_kind: RustRemoteAdapterTransportKind,
+    pub adapter_name: String,
+    pub control_port: Option<u16>,
+    pub target_port: Option<u16>,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub bytes_to_remote: u64,
+    pub bytes_from_remote: u64,
+    pub fallback_retained: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustRemoteAdapterTransportExpansionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustRemoteAdapterTransportStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub tcp_connect_evidence: Option<RustRemoteAdapterTransportEvidence>,
+    pub unsupported_protocol_evidence: Option<RustRemoteAdapterTransportEvidence>,
+    pub evidence_path: Option<String>,
+    pub loopback_remote_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {

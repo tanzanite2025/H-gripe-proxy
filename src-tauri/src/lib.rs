@@ -250,6 +250,7 @@ mod app_init {
             cmd::runtime::kernel::lock_runtime_kernel_rust_fallback_retirement_readiness,
             cmd::runtime::kernel::run_runtime_kernel_rust_runtime_real_canary,
             cmd::runtime::kernel::run_runtime_kernel_rust_protocol_adapter_forwarding_expansion,
+            cmd::runtime::kernel::run_runtime_kernel_rust_remote_adapter_transport_expansion,
             cmd::runtime::kernel::get_runtime_kernel_mihomo_fallback_retirement_execution_plan,
             cmd::runtime::kernel::execute_runtime_kernel_mihomo_fallback_retirement,
             cmd::runtime::kernel::rollback_runtime_kernel_mihomo_fallback_retirement_execution,
