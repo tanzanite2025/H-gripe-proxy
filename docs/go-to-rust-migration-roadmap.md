@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust data-plane hardening canary-to-default promotion dry-run bundle complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_promotion_dry_run` requires controlled canary execution, canary verification, supported default promotion guard, default selection manifest replay, supported profile simulation, fallback rehearsal, rollback rehearsal, unchanged forwarding verification, archived dry-run evidence, and final dry-run decision before supported default cutover. |
+| Production data plane | Rust data-plane hardening supported default cutover closeout bundle complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_closeout` requires supported default cutover, post-cutover verification, hold-window review, supported default state documentation, rollback owner acknowledgement, retained fallback-retirement boundary, release notes, archived closeout evidence, and final closeout decision before expanded default rollout. |
 | Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `rust-data-plane-hardening-supported-default-cutover` | Only after supported default promotion dry-run passes, plan the separate cutover surface for the supported profile; production forwarding mutation remains blocked unless that later explicit apply PR changes it. |
+| Next safe batch | `rust-data-plane-hardening-expanded-default-rollout-guard` | Only after supported default cutover closeout passes, plan expanded default rollout guard boundaries; Mihomo fallback and unsupported data-plane ownership remain retained. |
 
 ## Acceleration plan
 
@@ -85,6 +85,10 @@ RustKernelRuntime selected by default
 | 27 | `rust-data-plane-hardening-controlled-rollout-canary-verification` | Complete: require canary execution record review, health telemetry samples, fallback result review, unsupported traffic fallback verification, leak regression absence verification, rollback readiness verification, retained mutation guard verification, archived evidence, and final verification decision. | Verification only; no default promotion. |
 | 28 | `rust-data-plane-hardening-supported-default-promotion-guard` | Complete: require canary verification review, locked supported profile scope, retained fallback matrix, verified rollback switch, telemetry soak window, release blocker review, retained mutation guard, operator acknowledgement, and final promotion guard decision. | Guard only; no default promotion. |
 | 29 | `rust-data-plane-hardening-supported-default-promotion-dry-run` | Complete: require promotion guard review, default selection manifest replay, supported profile simulation, fallback rehearsal, rollback rehearsal, unchanged forwarding verification, archived dry-run evidence, and final dry-run decision. | Dry-run only; cutover remains a separate PR. |
+| 30 | `rust-data-plane-hardening-supported-default-cutover` | Complete: require dry-run review, locked cutover manifest, supported profile default selection confirmation, unsupported paths bound to Mihomo fallback, armed rollback switch, active telemetry soak watch, operator acknowledgement, recorded mutation guard transition, and final cutover decision. | Supported-profile cutover surface only; no TUN/DNS/adapter or Mihomo config ownership change. |
+| 31 | `rust-data-plane-hardening-supported-default-cutover-verification` | Complete: require cutover record review, supported traffic sample review, unsupported fallback verification, rollback switch verification, telemetry soak review, leak regression absence verification, archived mutation audit record, and final verification decision. | Verification only; no fallback retirement. |
+| 32 | `rust-data-plane-hardening-supported-default-cutover-hold-window` | Complete: require verification review, elapsed soak window, health budget satisfaction, fallback incident review, still-armed rollback, retained Mihomo fallback, archived hold evidence, and final hold decision. | Hold window only; expanded rollout remains blocked. |
+| 33 | `rust-data-plane-hardening-supported-default-cutover-closeout` | Complete: require hold window review, supported default state documentation, rollback owner acknowledgement, retained fallback retirement boundary, release notes, archived closeout evidence, and final closeout decision. | Closeout only; fallback retirement remains a separate high-risk phase. |
 
 ### Completed R7 PR scope
 
@@ -357,7 +361,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current next batch is `rust-data-plane-hardening-supported-default-cutover`; Rust data-plane hardening may continue only after supported default promotion dry-run records promotion guard review, default selection manifest replay, supported profile simulation, fallback rehearsal, rollback rehearsal, unchanged forwarding verification, archived dry-run evidence, and final dry-run approval. Production forwarding mutation remains blocked unless that later explicit apply PR changes it.
+Allowed only through the accelerated sequence above. The current next batch is `rust-data-plane-hardening-expanded-default-rollout-guard`; Rust data-plane hardening may continue only after supported default cutover closeout records hold window review, supported default state documentation, rollback owner acknowledgement, retained fallback retirement boundary, release notes, archived closeout evidence, and final closeout approval. Mihomo fallback and unsupported data-plane ownership remain retained.
 
 ## PR checklist for future changes
 

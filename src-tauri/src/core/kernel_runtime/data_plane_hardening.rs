@@ -13,6 +13,10 @@ use super::{
     KernelLoopbackRustDataPlaneHardeningOptInExecutionReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionVerificationReport,
     KernelLoopbackRustDataPlaneHardeningPreflightReport,
+    KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport,
+    KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport,
+    KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport,
+    KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport,
     KernelLoopbackRustDataPlaneHardeningSupportedDefaultPromotionDryRunReport,
     KernelLoopbackRustDataPlaneHardeningSupportedDefaultPromotionGuardReport, KernelRuntimeKind, RUST_RUNTIME_ID,
     RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport, RustKernelRuntimeDataPlaneHardeningBoundaryReport,
@@ -24,6 +28,10 @@ use super::{
     RustKernelRuntimeDataPlaneHardeningOptInDryRunReport, RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport,
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport,
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport,
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport,
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport,
     RustKernelRuntimeDataPlaneHardeningSupportedDefaultPromotionDryRunReport,
     RustKernelRuntimeDataPlaneHardeningSupportedDefaultPromotionGuardReport,
 };
@@ -2448,6 +2456,668 @@ pub async fn rust_kernel_runtime_data_plane_hardening_supported_default_promotio
                 "rust-data-plane-hardening-supported-default-cutover".into()
             } else {
                 "rust-data-plane-hardening-supported-default-promotion-dry-run".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_report(
+    dry_run_review_decision: bool,
+    cutover_manifest_lock_decision: bool,
+    supported_profile_default_selection_confirmation_decision: bool,
+    unsupported_paths_mihomo_fallback_binding_decision: bool,
+    rollback_switch_arm_decision: bool,
+    telemetry_soak_watch_activation_decision: bool,
+    operator_cutover_acknowledgement_decision: bool,
+    production_mutation_guard_transition_record_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport {
+    let (cutover_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "supported default promotion dry-run review",
+            dry_run_review_decision,
+            "Rust data-plane supported default cutover requires promotion dry-run review",
+        ),
+        (
+            "locked supported default cutover manifest",
+            cutover_manifest_lock_decision,
+            "Rust data-plane supported default cutover requires a locked cutover manifest",
+        ),
+        (
+            "supported profile default selection confirmation",
+            supported_profile_default_selection_confirmation_decision,
+            "Rust data-plane supported default cutover requires supported profile default selection confirmation",
+        ),
+        (
+            "unsupported paths bound to Mihomo fallback",
+            unsupported_paths_mihomo_fallback_binding_decision,
+            "Rust data-plane supported default cutover requires unsupported paths to remain bound to Mihomo fallback",
+        ),
+        (
+            "armed rollback switch",
+            rollback_switch_arm_decision,
+            "Rust data-plane supported default cutover requires an armed rollback switch",
+        ),
+        (
+            "active telemetry soak watch",
+            telemetry_soak_watch_activation_decision,
+            "Rust data-plane supported default cutover requires active telemetry soak watch",
+        ),
+        (
+            "operator supported default cutover acknowledgement",
+            operator_cutover_acknowledgement_decision,
+            "Rust data-plane supported default cutover requires operator acknowledgement",
+        ),
+        (
+            "production mutation guard transition record",
+            production_mutation_guard_transition_record_decision,
+            "Rust data-plane supported default cutover requires a recorded production mutation guard transition",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-supported-default-cutover-detail".into(),
+        dry_run_reviewed: dry_run_review_decision,
+        cutover_manifest_locked: cutover_manifest_lock_decision,
+        supported_profile_default_selection_confirmed:
+            supported_profile_default_selection_confirmation_decision,
+        unsupported_paths_bound_to_mihomo_fallback:
+            unsupported_paths_mihomo_fallback_binding_decision,
+        rollback_switch_armed: rollback_switch_arm_decision,
+        telemetry_soak_watch_active: telemetry_soak_watch_activation_decision,
+        operator_cutover_acknowledged: operator_cutover_acknowledgement_decision,
+        production_mutation_guard_transition_recorded:
+            production_mutation_guard_transition_record_decision,
+        supported_default_cutover_complete: blockers.is_empty(),
+        cutover_surfaces,
+        blockers,
+        facts: vec![
+            "supported default cutover is limited to the supported profile and keeps unsupported paths on Mihomo fallback".into(),
+            "the command records the gated cutover envelope; rollback remains one switch back to Mihomo".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover(
+    rust_data_plane_hardening_supported_default_promotion_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    cutover_manifest_lock_decision: Option<bool>,
+    supported_profile_default_selection_confirmation_decision: Option<bool>,
+    unsupported_paths_mihomo_fallback_binding_decision: Option<bool>,
+    rollback_switch_arm_decision: Option<bool>,
+    telemetry_soak_watch_activation_decision: Option<bool>,
+    operator_cutover_acknowledgement_decision: Option<bool>,
+    production_mutation_guard_transition_record_decision: Option<bool>,
+    final_supported_default_cutover_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport> {
+    let rust_data_plane_hardening_supported_default_promotion_dry_run_complete =
+        rust_data_plane_hardening_supported_default_promotion_dry_run_complete_decision.unwrap_or(false);
+    let final_supported_default_cutover_decision = final_supported_default_cutover_decision.unwrap_or(false);
+    let supported_default_cutover = rust_kernel_runtime_data_plane_hardening_supported_default_cutover_report(
+        dry_run_review_decision.unwrap_or(false),
+        cutover_manifest_lock_decision.unwrap_or(false),
+        supported_profile_default_selection_confirmation_decision.unwrap_or(false),
+        unsupported_paths_mihomo_fallback_binding_decision.unwrap_or(false),
+        rollback_switch_arm_decision.unwrap_or(false),
+        telemetry_soak_watch_activation_decision.unwrap_or(false),
+        operator_cutover_acknowledgement_decision.unwrap_or(false),
+        production_mutation_guard_transition_record_decision.unwrap_or(false),
+    );
+    let dry_run_blockers = if rust_data_plane_hardening_supported_default_promotion_dry_run_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane supported default cutover requires promotion dry-run to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningSupportedDefaultPromotionDryRunComplete",
+            rust_data_plane_hardening_supported_default_promotion_dry_run_complete,
+            dry_run_blockers,
+            "supported default cutover starts only after promotion dry-run",
+        ),
+        data_plane_hardening_gate_check(
+            "supportedDefaultCutoverComplete",
+            supported_default_cutover.supported_default_cutover_complete,
+            supported_default_cutover.blockers.clone(),
+            "cutover manifest, supported default selection, fallback, rollback, telemetry, acknowledgement, and mutation guard transition are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalSupportedDefaultCutoverDecision",
+            final_supported_default_cutover_decision,
+            if final_supported_default_cutover_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane supported default cutover requires an explicit final decision".into()]
+            },
+            "supported default cutover completion is explicit before verification",
+        ),
+    ];
+    let rust_data_plane_hardening_supported_default_cutover_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-supported-default-cutover".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        production_data_plane_mutation_allowed: false,
+        rust_data_plane_hardening_supported_default_promotion_dry_run_complete,
+        supported_default_cutover,
+        final_supported_default_cutover_decision,
+        rust_data_plane_hardening_supported_default_cutover_complete,
+        selected_runtime_kind: if rust_data_plane_hardening_supported_default_cutover_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this supported default cutover surface does not touch TUN, DNS, adapter forwarding, or Mihomo config"
+                .into(),
+            "unsupported paths and emergency rollback remain bound to Mihomo fallback".into(),
+        ],
+        facts: vec![
+            "Rust data-plane hardening supported default cutover follows promotion dry-run".into(),
+            "successful cutover advances only to post-cutover verification".into(),
+        ],
+        next_safe_batch: if rust_data_plane_hardening_supported_default_cutover_complete {
+            "rust-data-plane-hardening-supported-default-cutover-verification".into()
+        } else {
+            "rust-data-plane-hardening-supported-default-cutover".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_verification_report(
+    cutover_record_review_decision: bool,
+    supported_profile_traffic_sample_review_decision: bool,
+    unsupported_path_fallback_verification_decision: bool,
+    rollback_switch_verification_decision: bool,
+    telemetry_soak_sample_review_decision: bool,
+    leak_regression_absence_verification_decision: bool,
+    mutation_audit_record_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+    let (verification_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "supported default cutover record review",
+            cutover_record_review_decision,
+            "Rust data-plane supported default cutover verification requires cutover record review",
+        ),
+        (
+            "supported profile traffic sample review",
+            supported_profile_traffic_sample_review_decision,
+            "Rust data-plane supported default cutover verification requires supported profile traffic sample review",
+        ),
+        (
+            "unsupported path fallback verification",
+            unsupported_path_fallback_verification_decision,
+            "Rust data-plane supported default cutover verification requires unsupported path fallback verification",
+        ),
+        (
+            "rollback switch verification",
+            rollback_switch_verification_decision,
+            "Rust data-plane supported default cutover verification requires rollback switch verification",
+        ),
+        (
+            "telemetry soak sample review",
+            telemetry_soak_sample_review_decision,
+            "Rust data-plane supported default cutover verification requires telemetry soak sample review",
+        ),
+        (
+            "leak regression absence verification",
+            leak_regression_absence_verification_decision,
+            "Rust data-plane supported default cutover verification requires leak regression absence verification",
+        ),
+        (
+            "archived mutation audit record",
+            mutation_audit_record_archive_decision,
+            "Rust data-plane supported default cutover verification requires archived mutation audit record",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-supported-default-cutover-verification-detail".into(),
+        cutover_record_reviewed: cutover_record_review_decision,
+        supported_profile_traffic_sample_reviewed: supported_profile_traffic_sample_review_decision,
+        unsupported_path_fallback_verified: unsupported_path_fallback_verification_decision,
+        rollback_switch_verified: rollback_switch_verification_decision,
+        telemetry_soak_sample_reviewed: telemetry_soak_sample_review_decision,
+        leak_regression_absence_verified: leak_regression_absence_verification_decision,
+        mutation_audit_record_archived: mutation_audit_record_archive_decision,
+        cutover_verification_complete: blockers.is_empty(),
+        verification_surfaces,
+        blockers,
+        facts: vec![
+            "supported default cutover verification checks supported profile samples and unsupported fallback together"
+                .into(),
+            "verification success advances only to a hold window before closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_verification(
+    rust_data_plane_hardening_supported_default_cutover_complete_decision: Option<bool>,
+    cutover_record_review_decision: Option<bool>,
+    supported_profile_traffic_sample_review_decision: Option<bool>,
+    unsupported_path_fallback_verification_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    telemetry_soak_sample_review_decision: Option<bool>,
+    leak_regression_absence_verification_decision: Option<bool>,
+    mutation_audit_record_archive_decision: Option<bool>,
+    final_supported_default_cutover_verification_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport> {
+    let rust_data_plane_hardening_supported_default_cutover_complete =
+        rust_data_plane_hardening_supported_default_cutover_complete_decision.unwrap_or(false);
+    let final_supported_default_cutover_verification_decision =
+        final_supported_default_cutover_verification_decision.unwrap_or(false);
+    let supported_default_cutover_verification =
+        rust_kernel_runtime_data_plane_hardening_supported_default_cutover_verification_report(
+            cutover_record_review_decision.unwrap_or(false),
+            supported_profile_traffic_sample_review_decision.unwrap_or(false),
+            unsupported_path_fallback_verification_decision.unwrap_or(false),
+            rollback_switch_verification_decision.unwrap_or(false),
+            telemetry_soak_sample_review_decision.unwrap_or(false),
+            leak_regression_absence_verification_decision.unwrap_or(false),
+            mutation_audit_record_archive_decision.unwrap_or(false),
+        );
+    let cutover_blockers = if rust_data_plane_hardening_supported_default_cutover_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane supported default cutover verification requires cutover to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningSupportedDefaultCutoverComplete",
+            rust_data_plane_hardening_supported_default_cutover_complete,
+            cutover_blockers,
+            "supported default cutover verification starts only after cutover",
+        ),
+        data_plane_hardening_gate_check(
+            "supportedDefaultCutoverVerificationComplete",
+            supported_default_cutover_verification.cutover_verification_complete,
+            supported_default_cutover_verification.blockers.clone(),
+            "cutover record, supported samples, fallback, rollback, telemetry, leak, and audit evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalSupportedDefaultCutoverVerificationDecision",
+            final_supported_default_cutover_verification_decision,
+            if final_supported_default_cutover_verification_decision {
+                Vec::new()
+            } else {
+                vec![
+                    "Rust data-plane supported default cutover verification requires an explicit final decision".into(),
+                ]
+            },
+            "supported default cutover verification completion is explicit before hold window",
+        ),
+    ];
+    let rust_data_plane_hardening_supported_default_cutover_verification_complete =
+        checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-supported-default-cutover-verification".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_supported_default_cutover_complete,
+            supported_default_cutover_verification,
+            final_supported_default_cutover_verification_decision,
+            rust_data_plane_hardening_supported_default_cutover_verification_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_supported_default_cutover_verification_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this supported default cutover verification surface does not mutate runtime or retire Mihomo fallback"
+                    .into(),
+                "hold window and closeout remain required before expanding beyond the supported profile".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening supported default cutover verification follows cutover".into(),
+                "successful verification advances only to a hold window".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_supported_default_cutover_verification_complete {
+                "rust-data-plane-hardening-supported-default-cutover-hold-window".into()
+            } else {
+                "rust-data-plane-hardening-supported-default-cutover-verification".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_hold_window_report(
+    verification_review_decision: bool,
+    soak_window_elapsed_decision: bool,
+    health_budget_satisfied_decision: bool,
+    fallback_incident_review_decision: bool,
+    rollback_switch_still_armed_decision: bool,
+    mihomo_fallback_retention_decision: bool,
+    hold_window_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+    let (hold_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "supported default cutover verification review",
+            verification_review_decision,
+            "Rust data-plane supported default cutover hold window requires verification review",
+        ),
+        (
+            "elapsed soak window",
+            soak_window_elapsed_decision,
+            "Rust data-plane supported default cutover hold window requires elapsed soak window",
+        ),
+        (
+            "satisfied health budget",
+            health_budget_satisfied_decision,
+            "Rust data-plane supported default cutover hold window requires satisfied health budget",
+        ),
+        (
+            "fallback incident review",
+            fallback_incident_review_decision,
+            "Rust data-plane supported default cutover hold window requires fallback incident review",
+        ),
+        (
+            "still-armed rollback switch",
+            rollback_switch_still_armed_decision,
+            "Rust data-plane supported default cutover hold window requires rollback switch to remain armed",
+        ),
+        (
+            "retained Mihomo fallback",
+            mihomo_fallback_retention_decision,
+            "Rust data-plane supported default cutover hold window requires retained Mihomo fallback",
+        ),
+        (
+            "archived hold window evidence",
+            hold_window_evidence_archive_decision,
+            "Rust data-plane supported default cutover hold window requires archived evidence",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-supported-default-cutover-hold-window-detail".into(),
+        verification_reviewed: verification_review_decision,
+        soak_window_elapsed: soak_window_elapsed_decision,
+        health_budget_satisfied: health_budget_satisfied_decision,
+        fallback_incidents_reviewed: fallback_incident_review_decision,
+        rollback_switch_still_armed: rollback_switch_still_armed_decision,
+        mihomo_fallback_still_retained: mihomo_fallback_retention_decision,
+        hold_window_evidence_archived: hold_window_evidence_archive_decision,
+        cutover_hold_window_complete: blockers.is_empty(),
+        hold_surfaces,
+        blockers,
+        facts: vec![
+            "supported default cutover hold window keeps rollback and Mihomo fallback alive through soak".into(),
+            "hold success advances only to closeout, not fallback retirement".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_hold_window(
+    rust_data_plane_hardening_supported_default_cutover_verification_complete_decision: Option<bool>,
+    verification_review_decision: Option<bool>,
+    soak_window_elapsed_decision: Option<bool>,
+    health_budget_satisfied_decision: Option<bool>,
+    fallback_incident_review_decision: Option<bool>,
+    rollback_switch_still_armed_decision: Option<bool>,
+    mihomo_fallback_retention_decision: Option<bool>,
+    hold_window_evidence_archive_decision: Option<bool>,
+    final_supported_default_cutover_hold_window_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport> {
+    let rust_data_plane_hardening_supported_default_cutover_verification_complete =
+        rust_data_plane_hardening_supported_default_cutover_verification_complete_decision.unwrap_or(false);
+    let final_supported_default_cutover_hold_window_decision =
+        final_supported_default_cutover_hold_window_decision.unwrap_or(false);
+    let supported_default_cutover_hold_window =
+        rust_kernel_runtime_data_plane_hardening_supported_default_cutover_hold_window_report(
+            verification_review_decision.unwrap_or(false),
+            soak_window_elapsed_decision.unwrap_or(false),
+            health_budget_satisfied_decision.unwrap_or(false),
+            fallback_incident_review_decision.unwrap_or(false),
+            rollback_switch_still_armed_decision.unwrap_or(false),
+            mihomo_fallback_retention_decision.unwrap_or(false),
+            hold_window_evidence_archive_decision.unwrap_or(false),
+        );
+    let verification_blockers = if rust_data_plane_hardening_supported_default_cutover_verification_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane supported default cutover hold window requires verification to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningSupportedDefaultCutoverVerificationComplete",
+            rust_data_plane_hardening_supported_default_cutover_verification_complete,
+            verification_blockers,
+            "supported default cutover hold window starts only after verification",
+        ),
+        data_plane_hardening_gate_check(
+            "supportedDefaultCutoverHoldWindowComplete",
+            supported_default_cutover_hold_window.cutover_hold_window_complete,
+            supported_default_cutover_hold_window.blockers.clone(),
+            "verification review, soak, health, fallback incidents, rollback, Mihomo fallback, and evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalSupportedDefaultCutoverHoldWindowDecision",
+            final_supported_default_cutover_hold_window_decision,
+            if final_supported_default_cutover_hold_window_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane supported default cutover hold window requires an explicit final decision".into()]
+            },
+            "supported default cutover hold completion is explicit before closeout",
+        ),
+    ];
+    let rust_data_plane_hardening_supported_default_cutover_hold_window_complete =
+        checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-supported-default-cutover-hold-window".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_supported_default_cutover_verification_complete,
+            supported_default_cutover_hold_window,
+            final_supported_default_cutover_hold_window_decision,
+            rust_data_plane_hardening_supported_default_cutover_hold_window_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_supported_default_cutover_hold_window_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this hold window surface does not mutate runtime or retire Mihomo fallback".into(),
+                "expanded default rollout remains blocked until closeout completes".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening supported default cutover hold window follows verification".into(),
+                "successful hold advances only to supported default cutover closeout".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_supported_default_cutover_hold_window_complete {
+                "rust-data-plane-hardening-supported-default-cutover-closeout".into()
+            } else {
+                "rust-data-plane-hardening-supported-default-cutover-hold-window".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_closeout_report(
+    hold_window_review_decision: bool,
+    supported_default_state_documentation_decision: bool,
+    rollback_owner_acknowledgement_decision: bool,
+    fallback_retirement_boundary_retention_decision: bool,
+    release_notes_update_decision: bool,
+    closeout_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+    let (closeout_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "supported default cutover hold window review",
+            hold_window_review_decision,
+            "Rust data-plane supported default cutover closeout requires hold window review",
+        ),
+        (
+            "supported default state documentation",
+            supported_default_state_documentation_decision,
+            "Rust data-plane supported default cutover closeout requires supported default state documentation",
+        ),
+        (
+            "rollback owner acknowledgement",
+            rollback_owner_acknowledgement_decision,
+            "Rust data-plane supported default cutover closeout requires rollback owner acknowledgement",
+        ),
+        (
+            "retained fallback retirement boundary",
+            fallback_retirement_boundary_retention_decision,
+            "Rust data-plane supported default cutover closeout requires retained fallback retirement boundary",
+        ),
+        (
+            "updated release notes",
+            release_notes_update_decision,
+            "Rust data-plane supported default cutover closeout requires release notes update",
+        ),
+        (
+            "archived closeout evidence",
+            closeout_evidence_archive_decision,
+            "Rust data-plane supported default cutover closeout requires archived evidence",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-supported-default-cutover-closeout-detail".into(),
+        hold_window_reviewed: hold_window_review_decision,
+        supported_default_state_documented: supported_default_state_documentation_decision,
+        rollback_owner_acknowledged: rollback_owner_acknowledgement_decision,
+        fallback_retirement_boundary_retained: fallback_retirement_boundary_retention_decision,
+        release_notes_updated: release_notes_update_decision,
+        closeout_evidence_archived: closeout_evidence_archive_decision,
+        supported_default_cutover_closeout_complete: blockers.is_empty(),
+        closeout_surfaces,
+        blockers,
+        facts: vec![
+            "supported default cutover closeout documents the supported-profile default state".into(),
+            "fallback retirement remains a separate high-risk phase after closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_closeout(
+    rust_data_plane_hardening_supported_default_cutover_hold_window_complete_decision: Option<bool>,
+    hold_window_review_decision: Option<bool>,
+    supported_default_state_documentation_decision: Option<bool>,
+    rollback_owner_acknowledgement_decision: Option<bool>,
+    fallback_retirement_boundary_retention_decision: Option<bool>,
+    release_notes_update_decision: Option<bool>,
+    closeout_evidence_archive_decision: Option<bool>,
+    final_supported_default_cutover_closeout_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport> {
+    let rust_data_plane_hardening_supported_default_cutover_hold_window_complete =
+        rust_data_plane_hardening_supported_default_cutover_hold_window_complete_decision.unwrap_or(false);
+    let final_supported_default_cutover_closeout_decision =
+        final_supported_default_cutover_closeout_decision.unwrap_or(false);
+    let supported_default_cutover_closeout =
+        rust_kernel_runtime_data_plane_hardening_supported_default_cutover_closeout_report(
+            hold_window_review_decision.unwrap_or(false),
+            supported_default_state_documentation_decision.unwrap_or(false),
+            rollback_owner_acknowledgement_decision.unwrap_or(false),
+            fallback_retirement_boundary_retention_decision.unwrap_or(false),
+            release_notes_update_decision.unwrap_or(false),
+            closeout_evidence_archive_decision.unwrap_or(false),
+        );
+    let hold_blockers = if rust_data_plane_hardening_supported_default_cutover_hold_window_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane supported default cutover closeout requires hold window to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningSupportedDefaultCutoverHoldWindowComplete",
+            rust_data_plane_hardening_supported_default_cutover_hold_window_complete,
+            hold_blockers,
+            "supported default cutover closeout starts only after the hold window",
+        ),
+        data_plane_hardening_gate_check(
+            "supportedDefaultCutoverCloseoutComplete",
+            supported_default_cutover_closeout.supported_default_cutover_closeout_complete,
+            supported_default_cutover_closeout.blockers.clone(),
+            "hold review, documentation, rollback ownership, fallback retirement boundary, release notes, and evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalSupportedDefaultCutoverCloseoutDecision",
+            final_supported_default_cutover_closeout_decision,
+            if final_supported_default_cutover_closeout_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane supported default cutover closeout requires an explicit final decision".into()]
+            },
+            "supported default cutover closeout completion is explicit before expanded default rollout",
+        ),
+    ];
+    let rust_data_plane_hardening_supported_default_cutover_closeout_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-supported-default-cutover-closeout".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_supported_default_cutover_hold_window_complete,
+            supported_default_cutover_closeout,
+            final_supported_default_cutover_closeout_decision,
+            rust_data_plane_hardening_supported_default_cutover_closeout_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_supported_default_cutover_closeout_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this closeout surface does not mutate runtime or retire Mihomo fallback".into(),
+                "fallback retirement and unsupported data-plane ownership remain separate high-risk phases".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening supported default cutover closeout follows the hold window".into(),
+                "successful closeout advances only to expanded default rollout guard planning".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_supported_default_cutover_closeout_complete {
+                "rust-data-plane-hardening-expanded-default-rollout-guard".into()
+            } else {
+                "rust-data-plane-hardening-supported-default-cutover-closeout".into()
             },
         },
     )

@@ -2323,6 +2323,114 @@ pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_supported_def
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover(
+    rust_data_plane_hardening_supported_default_promotion_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    cutover_manifest_lock_decision: Option<bool>,
+    supported_profile_default_selection_confirmation_decision: Option<bool>,
+    unsupported_paths_mihomo_fallback_binding_decision: Option<bool>,
+    rollback_switch_arm_decision: Option<bool>,
+    telemetry_soak_watch_activation_decision: Option<bool>,
+    operator_cutover_acknowledgement_decision: Option<bool>,
+    production_mutation_guard_transition_record_decision: Option<bool>,
+    final_supported_default_cutover_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport> {
+    rust_kernel_runtime_data_plane_hardening_supported_default_cutover(
+        rust_data_plane_hardening_supported_default_promotion_dry_run_complete_decision,
+        dry_run_review_decision,
+        cutover_manifest_lock_decision,
+        supported_profile_default_selection_confirmation_decision,
+        unsupported_paths_mihomo_fallback_binding_decision,
+        rollback_switch_arm_decision,
+        telemetry_soak_watch_activation_decision,
+        operator_cutover_acknowledgement_decision,
+        production_mutation_guard_transition_record_decision,
+        final_supported_default_cutover_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_verification(
+    rust_data_plane_hardening_supported_default_cutover_complete_decision: Option<bool>,
+    cutover_record_review_decision: Option<bool>,
+    supported_profile_traffic_sample_review_decision: Option<bool>,
+    unsupported_path_fallback_verification_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    telemetry_soak_sample_review_decision: Option<bool>,
+    leak_regression_absence_verification_decision: Option<bool>,
+    mutation_audit_record_archive_decision: Option<bool>,
+    final_supported_default_cutover_verification_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport> {
+    rust_kernel_runtime_data_plane_hardening_supported_default_cutover_verification(
+        rust_data_plane_hardening_supported_default_cutover_complete_decision,
+        cutover_record_review_decision,
+        supported_profile_traffic_sample_review_decision,
+        unsupported_path_fallback_verification_decision,
+        rollback_switch_verification_decision,
+        telemetry_soak_sample_review_decision,
+        leak_regression_absence_verification_decision,
+        mutation_audit_record_archive_decision,
+        final_supported_default_cutover_verification_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_hold_window(
+    rust_data_plane_hardening_supported_default_cutover_verification_complete_decision: Option<bool>,
+    verification_review_decision: Option<bool>,
+    soak_window_elapsed_decision: Option<bool>,
+    health_budget_satisfied_decision: Option<bool>,
+    fallback_incident_review_decision: Option<bool>,
+    rollback_switch_still_armed_decision: Option<bool>,
+    mihomo_fallback_retention_decision: Option<bool>,
+    hold_window_evidence_archive_decision: Option<bool>,
+    final_supported_default_cutover_hold_window_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport> {
+    rust_kernel_runtime_data_plane_hardening_supported_default_cutover_hold_window(
+        rust_data_plane_hardening_supported_default_cutover_verification_complete_decision,
+        verification_review_decision,
+        soak_window_elapsed_decision,
+        health_budget_satisfied_decision,
+        fallback_incident_review_decision,
+        rollback_switch_still_armed_decision,
+        mihomo_fallback_retention_decision,
+        hold_window_evidence_archive_decision,
+        final_supported_default_cutover_hold_window_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_closeout(
+    rust_data_plane_hardening_supported_default_cutover_hold_window_complete_decision: Option<bool>,
+    hold_window_review_decision: Option<bool>,
+    supported_default_state_documentation_decision: Option<bool>,
+    rollback_owner_acknowledgement_decision: Option<bool>,
+    fallback_retirement_boundary_retention_decision: Option<bool>,
+    release_notes_update_decision: Option<bool>,
+    closeout_evidence_archive_decision: Option<bool>,
+    final_supported_default_cutover_closeout_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport> {
+    rust_kernel_runtime_data_plane_hardening_supported_default_cutover_closeout(
+        rust_data_plane_hardening_supported_default_cutover_hold_window_complete_decision,
+        hold_window_review_decision,
+        supported_default_state_documentation_decision,
+        rollback_owner_acknowledgement_decision,
+        fallback_retirement_boundary_retention_decision,
+        release_notes_update_decision,
+        closeout_evidence_archive_decision,
+        final_supported_default_cutover_closeout_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
