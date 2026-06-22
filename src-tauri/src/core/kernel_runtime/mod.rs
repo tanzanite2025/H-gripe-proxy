@@ -47,6 +47,7 @@ const FULL_RUST_RUNTIME_HARDENING_MIN_SOAK_HOURS: u32 = 72;
 static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState>>> = Lazy::new(|| Mutex::new(None));
 
 mod data_plane_hardening;
+mod fallback_retirement_execution;
 mod fallback_retirement_readiness;
 mod go_retirement;
 mod protocol_forwarding;
@@ -54,6 +55,7 @@ mod runtime_real_canary;
 mod tun_system_proxy;
 mod types;
 pub use self::data_plane_hardening::*;
+pub use self::fallback_retirement_execution::*;
 pub use self::fallback_retirement_readiness::*;
 pub use self::go_retirement::*;
 pub use self::protocol_forwarding::*;
