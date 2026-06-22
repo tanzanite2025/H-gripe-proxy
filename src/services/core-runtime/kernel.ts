@@ -2492,6 +2492,147 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRollo
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
+  runtimeId: string
+  component: string
+  verificationReviewed: boolean
+  expandedRolloutStateDocumented: boolean
+  rollbackOwnerAcknowledged: boolean
+  fallbackMatrixRetained: boolean
+  unsupportedPathBoundaryRetained: boolean
+  releaseNotesUpdated: boolean
+  closeoutEvidenceArchived: boolean
+  expandedDefaultRolloutCloseoutComplete: boolean
+  closeoutSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutVerificationComplete: boolean
+  expandedDefaultRolloutCloseout: RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport
+  finalExpandedDefaultRolloutCloseoutDecision: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutCloseoutComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport {
+  runtimeId: string
+  component: string
+  expandedRolloutCloseoutReviewed: boolean
+  protocolParityScopeLocked: boolean
+  tunParityScopeLocked: boolean
+  adapterParityScopeLocked: boolean
+  dnsParityScopeLocked: boolean
+  emergencyRollbackRetained: boolean
+  crossPlatformDrillPlanDefined: boolean
+  operatorRetirementAcknowledged: boolean
+  mihomoFallbackRetirementGuardComplete: boolean
+  guardSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuardReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutCloseoutComplete: boolean
+  mihomoFallbackRetirementGuard: RuntimeRustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport
+  finalMihomoFallbackRetirementGuardDecision: boolean
+  rustDataPlaneHardeningMihomoFallbackRetirementGuardComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
+  runtimeId: string
+  component: string
+  guardReviewed: boolean
+  parityManifestReplayed: boolean
+  crossPlatformRollbackRehearsed: boolean
+  fallbackDependencyInventoryReplayed: boolean
+  emergencyRecoveryRehearsed: boolean
+  productionForwardingUnchangedVerified: boolean
+  dryRunEvidenceArchived: boolean
+  mihomoFallbackRetirementDryRunComplete: boolean
+  dryRunSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningMihomoFallbackRetirementGuardComplete: boolean
+  mihomoFallbackRetirementDryRun: RuntimeRustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport
+  finalMihomoFallbackRetirementDryRunDecision: boolean
+  rustDataPlaneHardeningMihomoFallbackRetirementDryRunComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
+  runtimeId: string
+  component: string
+  dryRunReviewed: boolean
+  protocolParityEvidenceArchived: boolean
+  tunParityEvidenceArchived: boolean
+  adapterParityEvidenceArchived: boolean
+  dnsParityEvidenceArchived: boolean
+  soakEvidenceArchived: boolean
+  emergencyRollbackOwnerAcknowledged: boolean
+  mihomoFallbackRetirementReadinessComplete: boolean
+  readinessSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningMihomoFallbackRetirementDryRunComplete: boolean
+  mihomoFallbackRetirementReadiness: RuntimeRustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport
+  finalMihomoFallbackRetirementReadinessDecision: boolean
+  rustDataPlaneHardeningMihomoFallbackRetirementReadinessComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -5365,6 +5506,116 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefa
       leakRegressionAbsenceVerificationDecision,
       verificationEvidenceArchiveDecision,
       finalExpandedDefaultRolloutVerificationDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseout(
+  rustDataPlaneHardeningExpandedDefaultRolloutVerificationCompleteDecision?: boolean,
+  verificationReviewDecision?: boolean,
+  expandedRolloutStateDocumentationDecision?: boolean,
+  rollbackOwnerAcknowledgementDecision?: boolean,
+  fallbackMatrixRetentionDecision?: boolean,
+  unsupportedPathBoundaryRetentionDecision?: boolean,
+  releaseNotesUpdateDecision?: boolean,
+  closeoutEvidenceArchiveDecision?: boolean,
+  finalExpandedDefaultRolloutCloseoutDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseoutReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_closeout',
+    {
+      rustDataPlaneHardeningExpandedDefaultRolloutVerificationCompleteDecision,
+      verificationReviewDecision,
+      expandedRolloutStateDocumentationDecision,
+      rollbackOwnerAcknowledgementDecision,
+      fallbackMatrixRetentionDecision,
+      unsupportedPathBoundaryRetentionDecision,
+      releaseNotesUpdateDecision,
+      closeoutEvidenceArchiveDecision,
+      finalExpandedDefaultRolloutCloseoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuard(
+  rustDataPlaneHardeningExpandedDefaultRolloutCloseoutCompleteDecision?: boolean,
+  expandedRolloutCloseoutReviewDecision?: boolean,
+  protocolParityScopeLockDecision?: boolean,
+  tunParityScopeLockDecision?: boolean,
+  adapterParityScopeLockDecision?: boolean,
+  dnsParityScopeLockDecision?: boolean,
+  emergencyRollbackRetentionDecision?: boolean,
+  crossPlatformDrillPlanDefinitionDecision?: boolean,
+  operatorRetirementAcknowledgementDecision?: boolean,
+  finalMihomoFallbackRetirementGuardDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuardReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_guard',
+    {
+      rustDataPlaneHardeningExpandedDefaultRolloutCloseoutCompleteDecision,
+      expandedRolloutCloseoutReviewDecision,
+      protocolParityScopeLockDecision,
+      tunParityScopeLockDecision,
+      adapterParityScopeLockDecision,
+      dnsParityScopeLockDecision,
+      emergencyRollbackRetentionDecision,
+      crossPlatformDrillPlanDefinitionDecision,
+      operatorRetirementAcknowledgementDecision,
+      finalMihomoFallbackRetirementGuardDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRun(
+  rustDataPlaneHardeningMihomoFallbackRetirementGuardCompleteDecision?: boolean,
+  guardReviewDecision?: boolean,
+  parityManifestReplayDecision?: boolean,
+  crossPlatformRollbackRehearsalDecision?: boolean,
+  fallbackDependencyInventoryReplayDecision?: boolean,
+  emergencyRecoveryRehearsalDecision?: boolean,
+  productionForwardingUnchangedVerificationDecision?: boolean,
+  dryRunEvidenceArchiveDecision?: boolean,
+  finalMihomoFallbackRetirementDryRunDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRunReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_dry_run',
+    {
+      rustDataPlaneHardeningMihomoFallbackRetirementGuardCompleteDecision,
+      guardReviewDecision,
+      parityManifestReplayDecision,
+      crossPlatformRollbackRehearsalDecision,
+      fallbackDependencyInventoryReplayDecision,
+      emergencyRecoveryRehearsalDecision,
+      productionForwardingUnchangedVerificationDecision,
+      dryRunEvidenceArchiveDecision,
+      finalMihomoFallbackRetirementDryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadiness(
+  rustDataPlaneHardeningMihomoFallbackRetirementDryRunCompleteDecision?: boolean,
+  dryRunReviewDecision?: boolean,
+  protocolParityEvidenceArchiveDecision?: boolean,
+  tunParityEvidenceArchiveDecision?: boolean,
+  adapterParityEvidenceArchiveDecision?: boolean,
+  dnsParityEvidenceArchiveDecision?: boolean,
+  soakEvidenceArchiveDecision?: boolean,
+  emergencyRollbackOwnerAcknowledgementDecision?: boolean,
+  finalMihomoFallbackRetirementReadinessDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadinessReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_readiness',
+    {
+      rustDataPlaneHardeningMihomoFallbackRetirementDryRunCompleteDecision,
+      dryRunReviewDecision,
+      protocolParityEvidenceArchiveDecision,
+      tunParityEvidenceArchiveDecision,
+      adapterParityEvidenceArchiveDecision,
+      dnsParityEvidenceArchiveDecision,
+      soakEvidenceArchiveDecision,
+      emergencyRollbackOwnerAcknowledgementDecision,
+      finalMihomoFallbackRetirementReadinessDecision,
     },
   )
 }
