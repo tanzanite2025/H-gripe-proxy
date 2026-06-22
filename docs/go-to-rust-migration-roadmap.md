@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust data-plane hardening opt-in execution verification complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execution_verification` requires execution record review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived verification evidence, and final verification decision before controlled rollout guard planning. |
+| Production data plane | Rust data-plane hardening controlled rollout readiness bundle complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_readiness_closeout` requires opt-in verification review, controlled rollout guard, dry-run replay, capped canary simulation, fallback rehearsal, telemetry hold review, rollback ownership, retained production mutation guard, archived closeout evidence, and final readiness decision before any canary execution surface. |
 | Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `rust-data-plane-hardening-controlled-rollout-guard` | Only after opt-in execution verification passes, plan controlled rollout guard boundaries; production forwarding mutation remains blocked. |
+| Next safe batch | `rust-data-plane-hardening-controlled-rollout-canary-execution` | Only after controlled rollout readiness closeout passes, plan the separate canary execution surface; production forwarding mutation remains blocked unless a later explicit apply PR changes it. |
 
 ## Acceleration plan
 
@@ -78,6 +78,9 @@ RustKernelRuntime selected by default
 | 20 | `rust-data-plane-hardening-opt-in-dry-run` | Complete: require execution guard review, locked dry-run scope, manifest replay, synthetic flow plan, leak watch plan verification, rollback rehearsal, unchanged production forwarding verification, archived dry-run evidence, and final dry-run decision. | Non-production dry-run only; no production forwarding mutation. |
 | 21 | `rust-data-plane-hardening-opt-in-execution` | Complete: require dry-run review, locked execution manifest, staged opt-in window, active telemetry watch, armed rollback switch, retained production mutation guard, operator execution acknowledgement, and final execution decision. | Execution gate only; production forwarding mutation remains blocked. |
 | 22 | `rust-data-plane-hardening-opt-in-execution-verification` | Complete: require execution record review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived verification evidence, and final verification decision. | Verification only; no production forwarding mutation. |
+| 23 | `rust-data-plane-hardening-controlled-rollout-guard` | Complete: require opt-in verification review, locked rollout scope, canary population cap, health rollback triggers, telemetry hold, retained Mihomo fallback, retained production mutation guard, operator acknowledgement, and final guard decision. | Guard only; no production forwarding mutation. |
+| 24 | `rust-data-plane-hardening-controlled-rollout-dry-run` | Complete: require guard review, rollout manifest replay, capped canary simulation, fallback trigger rehearsal, telemetry hold sample review, rollback switch rehearsal, unchanged forwarding verification, archived dry-run evidence, and final dry-run decision. | Non-production dry-run only; no production forwarding mutation. |
+| 25 | `rust-data-plane-hardening-controlled-rollout-readiness-closeout` | Complete: require dry-run review, rollout window approval, enforced canary population cap, armed automatic fallback, active telemetry watch, rollback owner acknowledgement, retained production mutation guard, archived closeout evidence, and final readiness decision. | Readiness closeout only; canary execution remains a separate PR. |
 
 ### Completed R7 PR scope
 
@@ -350,7 +353,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current branch is `rust-data-plane-hardening-controlled-rollout-guard`; Rust data-plane hardening may continue only after opt-in execution verification records execution review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived evidence, and final verification approval. Production forwarding mutation remains blocked.
+Allowed only through the accelerated sequence above. The current next batch is `rust-data-plane-hardening-controlled-rollout-canary-execution`; Rust data-plane hardening may continue only after controlled rollout readiness closeout records dry-run review, rollout window approval, enforced canary population cap, armed automatic fallback, active telemetry watch, rollback owner acknowledgement, retained production mutation guard, archived closeout evidence, and final readiness approval. Production forwarding mutation remains blocked unless a later explicit apply PR changes it.
 
 ## PR checklist for future changes
 

@@ -3,12 +3,18 @@ use smartstring::alias::String;
 
 use super::{
     KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelLoopbackRustDataPlaneHardeningBoundaryAuditReport,
+    KernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport,
+    KernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport,
+    KernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport,
     KernelLoopbackRustDataPlaneHardeningOptInDryRunReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionVerificationReport,
     KernelLoopbackRustDataPlaneHardeningPreflightReport, KernelRuntimeKind, RUST_RUNTIME_ID,
     RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport, RustKernelRuntimeDataPlaneHardeningBoundaryReport,
+    RustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport,
+    RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport,
+    RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport,
     RustKernelRuntimeDataPlaneHardeningOptInDryRunReport, RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport,
@@ -1104,4 +1110,598 @@ pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verificat
             "rust-data-plane-hardening-opt-in-execution-verification".into()
         },
     })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard_report(
+    opt_in_verification_review_decision: bool,
+    controlled_rollout_scope_lock_decision: bool,
+    canary_population_cap_definition_decision: bool,
+    health_rollback_trigger_definition_decision: bool,
+    telemetry_hold_window_configuration_decision: bool,
+    mihomo_fallback_retention_decision: bool,
+    production_mutation_guard_retention_decision: bool,
+    operator_rollout_guard_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport {
+    let mut blockers = Vec::new();
+    let mut guarded_surfaces = Vec::new();
+
+    if opt_in_verification_review_decision {
+        guarded_surfaces.push("opt-in execution verification review".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires reviewed opt-in verification".into());
+    }
+    if controlled_rollout_scope_lock_decision {
+        guarded_surfaces.push("controlled rollout scope lock".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires a locked rollout scope".into());
+    }
+    if canary_population_cap_definition_decision {
+        guarded_surfaces.push("canary population cap".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires a defined canary population cap".into());
+    }
+    if health_rollback_trigger_definition_decision {
+        guarded_surfaces.push("health rollback triggers".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires health rollback triggers".into());
+    }
+    if telemetry_hold_window_configuration_decision {
+        guarded_surfaces.push("telemetry hold window".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires a configured telemetry hold window".into());
+    }
+    if mihomo_fallback_retention_decision {
+        guarded_surfaces.push("retained Mihomo fallback".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires retained Mihomo fallback".into());
+    }
+    if production_mutation_guard_retention_decision {
+        guarded_surfaces.push("retained production mutation guard".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires retained production mutation guard".into());
+    }
+    if operator_rollout_guard_acknowledgement_decision {
+        guarded_surfaces.push("operator rollout guard acknowledgement".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires operator acknowledgement".into());
+    }
+
+    RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-controlled-rollout-guard-detail".into(),
+        opt_in_verification_reviewed: opt_in_verification_review_decision,
+        controlled_rollout_scope_locked: controlled_rollout_scope_lock_decision,
+        canary_population_cap_defined: canary_population_cap_definition_decision,
+        health_rollback_triggers_defined: health_rollback_trigger_definition_decision,
+        telemetry_hold_window_configured: telemetry_hold_window_configuration_decision,
+        mihomo_fallback_retained: mihomo_fallback_retention_decision,
+        production_mutation_guard_retained: production_mutation_guard_retention_decision,
+        operator_rollout_guard_acknowledged: operator_rollout_guard_acknowledgement_decision,
+        controlled_rollout_guard_complete: blockers.is_empty(),
+        guarded_surfaces,
+        blockers,
+        facts: vec![
+            "controlled rollout guard bundles rollout scope, canary cap, telemetry hold, fallback, and mutation guard decisions".into(),
+            "the guard does not change production forwarding or remove Mihomo fallback".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard(
+    rust_data_plane_hardening_opt_in_execution_verification_complete_decision: Option<bool>,
+    opt_in_verification_review_decision: Option<bool>,
+    controlled_rollout_scope_lock_decision: Option<bool>,
+    canary_population_cap_definition_decision: Option<bool>,
+    health_rollback_trigger_definition_decision: Option<bool>,
+    telemetry_hold_window_configuration_decision: Option<bool>,
+    mihomo_fallback_retention_decision: Option<bool>,
+    production_mutation_guard_retention_decision: Option<bool>,
+    operator_rollout_guard_acknowledgement_decision: Option<bool>,
+    final_controlled_rollout_guard_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport> {
+    let rust_data_plane_hardening_opt_in_execution_verification_complete =
+        rust_data_plane_hardening_opt_in_execution_verification_complete_decision.unwrap_or(false);
+    let final_controlled_rollout_guard_decision = final_controlled_rollout_guard_decision.unwrap_or(false);
+    let controlled_rollout_guard = rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard_report(
+        opt_in_verification_review_decision.unwrap_or(false),
+        controlled_rollout_scope_lock_decision.unwrap_or(false),
+        canary_population_cap_definition_decision.unwrap_or(false),
+        health_rollback_trigger_definition_decision.unwrap_or(false),
+        telemetry_hold_window_configuration_decision.unwrap_or(false),
+        mihomo_fallback_retention_decision.unwrap_or(false),
+        production_mutation_guard_retention_decision.unwrap_or(false),
+        operator_rollout_guard_acknowledgement_decision.unwrap_or(false),
+    );
+    let mut verification_blockers = Vec::new();
+
+    if !rust_data_plane_hardening_opt_in_execution_verification_complete {
+        verification_blockers.push(
+            "Rust data-plane controlled rollout guard requires opt-in execution verification to pass first".into(),
+        );
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningOptInExecutionVerificationComplete".into(),
+            status: if rust_data_plane_hardening_opt_in_execution_verification_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_data_plane_hardening_opt_in_execution_verification_complete,
+            blockers: verification_blockers,
+            facts: vec![
+                "controlled rollout guard starts only after opt-in execution verification"
+                    .into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "controlledRolloutGuardComplete".into(),
+            status: if controlled_rollout_guard.controlled_rollout_guard_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: controlled_rollout_guard.controlled_rollout_guard_complete,
+            blockers: controlled_rollout_guard.blockers.clone(),
+            facts: vec![
+                "scope, canary cap, health rollback, telemetry hold, fallback, mutation guard, and acknowledgement are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalControlledRolloutGuardDecision".into(),
+            status: if final_controlled_rollout_guard_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_controlled_rollout_guard_decision,
+            blockers: if final_controlled_rollout_guard_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane controlled rollout guard requires an explicit final decision".into()]
+            },
+            facts: vec!["controlled rollout guard completion is explicit before dry-run".into()],
+        },
+    ];
+    let rust_data_plane_hardening_controlled_rollout_guard_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-controlled-rollout-guard".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        production_data_plane_mutation_allowed: false,
+        rust_data_plane_hardening_opt_in_execution_verification_complete,
+        controlled_rollout_guard,
+        final_controlled_rollout_guard_decision,
+        rust_data_plane_hardening_controlled_rollout_guard_complete,
+        selected_runtime_kind: if rust_data_plane_hardening_controlled_rollout_guard_complete
+        {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this controlled rollout guard does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config".into(),
+            "Mihomo fallback and the production mutation guard remain mandatory".into(),
+        ],
+        facts: vec![
+            "Rust data-plane hardening controlled rollout guard follows opt-in execution verification".into(),
+            "successful guard completion advances only to controlled rollout dry-run".into(),
+        ],
+        next_safe_batch: if rust_data_plane_hardening_controlled_rollout_guard_complete {
+            "rust-data-plane-hardening-controlled-rollout-dry-run".into()
+        } else {
+            "rust-data-plane-hardening-controlled-rollout-guard".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_dry_run_report(
+    guard_review_decision: bool,
+    dry_run_manifest_replay_decision: bool,
+    capped_canary_simulation_decision: bool,
+    fallback_trigger_rehearsal_decision: bool,
+    telemetry_hold_sample_review_decision: bool,
+    rollback_switch_rehearsal_decision: bool,
+    production_forwarding_unchanged_verification_decision: bool,
+    dry_run_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport {
+    let mut blockers = Vec::new();
+    let mut dry_run_surfaces = Vec::new();
+
+    if guard_review_decision {
+        dry_run_surfaces.push("controlled rollout guard review".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires guard review".into());
+    }
+    if dry_run_manifest_replay_decision {
+        dry_run_surfaces.push("dry-run manifest replay".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires manifest replay".into());
+    }
+    if capped_canary_simulation_decision {
+        dry_run_surfaces.push("capped canary simulation".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires capped canary simulation".into());
+    }
+    if fallback_trigger_rehearsal_decision {
+        dry_run_surfaces.push("fallback trigger rehearsal".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires fallback trigger rehearsal".into());
+    }
+    if telemetry_hold_sample_review_decision {
+        dry_run_surfaces.push("telemetry hold sample review".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires telemetry hold sample review".into());
+    }
+    if rollback_switch_rehearsal_decision {
+        dry_run_surfaces.push("rollback switch rehearsal".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires rollback switch rehearsal".into());
+    }
+    if production_forwarding_unchanged_verification_decision {
+        dry_run_surfaces.push("production forwarding unchanged verification".into());
+    } else {
+        blockers.push(
+            "Rust data-plane controlled rollout dry-run requires production forwarding unchanged verification".into(),
+        );
+    }
+    if dry_run_evidence_archive_decision {
+        dry_run_surfaces.push("archived dry-run evidence".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout dry-run requires archived evidence".into());
+    }
+
+    RustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-controlled-rollout-dry-run-detail".into(),
+        guard_reviewed: guard_review_decision,
+        dry_run_manifest_replayed: dry_run_manifest_replay_decision,
+        capped_canary_simulation_completed: capped_canary_simulation_decision,
+        fallback_trigger_rehearsed: fallback_trigger_rehearsal_decision,
+        telemetry_hold_sample_reviewed: telemetry_hold_sample_review_decision,
+        rollback_switch_rehearsed: rollback_switch_rehearsal_decision,
+        production_forwarding_unchanged_verified: production_forwarding_unchanged_verification_decision,
+        dry_run_evidence_archived: dry_run_evidence_archive_decision,
+        controlled_rollout_dry_run_complete: blockers.is_empty(),
+        dry_run_surfaces,
+        blockers,
+        facts: vec![
+            "controlled rollout dry-run replays the rollout manifest without applying runtime changes".into(),
+            "fallback rehearsal and unchanged forwarding checks remain required before readiness closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_dry_run(
+    rust_data_plane_hardening_controlled_rollout_guard_complete_decision: Option<bool>,
+    guard_review_decision: Option<bool>,
+    dry_run_manifest_replay_decision: Option<bool>,
+    capped_canary_simulation_decision: Option<bool>,
+    fallback_trigger_rehearsal_decision: Option<bool>,
+    telemetry_hold_sample_review_decision: Option<bool>,
+    rollback_switch_rehearsal_decision: Option<bool>,
+    production_forwarding_unchanged_verification_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_controlled_rollout_dry_run_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport> {
+    let rust_data_plane_hardening_controlled_rollout_guard_complete =
+        rust_data_plane_hardening_controlled_rollout_guard_complete_decision.unwrap_or(false);
+    let final_controlled_rollout_dry_run_decision = final_controlled_rollout_dry_run_decision.unwrap_or(false);
+    let controlled_rollout_dry_run = rust_kernel_runtime_data_plane_hardening_controlled_rollout_dry_run_report(
+        guard_review_decision.unwrap_or(false),
+        dry_run_manifest_replay_decision.unwrap_or(false),
+        capped_canary_simulation_decision.unwrap_or(false),
+        fallback_trigger_rehearsal_decision.unwrap_or(false),
+        telemetry_hold_sample_review_decision.unwrap_or(false),
+        rollback_switch_rehearsal_decision.unwrap_or(false),
+        production_forwarding_unchanged_verification_decision.unwrap_or(false),
+        dry_run_evidence_archive_decision.unwrap_or(false),
+    );
+    let mut guard_blockers = Vec::new();
+
+    if !rust_data_plane_hardening_controlled_rollout_guard_complete {
+        guard_blockers
+            .push("Rust data-plane controlled rollout dry-run requires controlled rollout guard to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningControlledRolloutGuardComplete".into(),
+            status: if rust_data_plane_hardening_controlled_rollout_guard_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_data_plane_hardening_controlled_rollout_guard_complete,
+            blockers: guard_blockers,
+            facts: vec!["controlled rollout dry-run starts only after the rollout guard".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "controlledRolloutDryRunComplete".into(),
+            status: if controlled_rollout_dry_run.controlled_rollout_dry_run_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: controlled_rollout_dry_run.controlled_rollout_dry_run_complete,
+            blockers: controlled_rollout_dry_run.blockers.clone(),
+            facts: vec![
+                "manifest replay, capped canary simulation, fallback rehearsal, telemetry hold, rollback switch, unchanged forwarding, and archival are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalControlledRolloutDryRunDecision".into(),
+            status: if final_controlled_rollout_dry_run_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_controlled_rollout_dry_run_decision,
+            blockers: if final_controlled_rollout_dry_run_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane controlled rollout dry-run requires an explicit final decision".into()]
+            },
+            facts: vec!["controlled rollout dry-run completion is explicit before readiness closeout".into()],
+        },
+    ];
+    let rust_data_plane_hardening_controlled_rollout_dry_run_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-controlled-rollout-dry-run".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        production_data_plane_mutation_allowed: false,
+        rust_data_plane_hardening_controlled_rollout_guard_complete,
+        controlled_rollout_dry_run,
+        final_controlled_rollout_dry_run_decision,
+        rust_data_plane_hardening_controlled_rollout_dry_run_complete,
+        selected_runtime_kind: if rust_data_plane_hardening_controlled_rollout_dry_run_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this controlled rollout dry-run does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config".into(),
+            "dry-run success does not authorize production forwarding mutation".into(),
+        ],
+        facts: vec![
+            "Rust data-plane hardening controlled rollout dry-run follows the rollout guard".into(),
+            "successful dry-run advances only to readiness closeout".into(),
+        ],
+        next_safe_batch: if rust_data_plane_hardening_controlled_rollout_dry_run_complete {
+            "rust-data-plane-hardening-controlled-rollout-readiness-closeout".into()
+        } else {
+            "rust-data-plane-hardening-controlled-rollout-dry-run".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeout_report(
+    dry_run_review_decision: bool,
+    rollout_window_approval_decision: bool,
+    canary_population_cap_enforcement_decision: bool,
+    automatic_fallback_arm_decision: bool,
+    telemetry_watch_activation_decision: bool,
+    rollback_owner_acknowledgement_decision: bool,
+    production_mutation_guard_retention_decision: bool,
+    closeout_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
+    let mut blockers = Vec::new();
+    let mut closeout_surfaces = Vec::new();
+
+    if dry_run_review_decision {
+        closeout_surfaces.push("controlled rollout dry-run review".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires dry-run review".into());
+    }
+    if rollout_window_approval_decision {
+        closeout_surfaces.push("rollout window approval".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires rollout window approval".into());
+    }
+    if canary_population_cap_enforcement_decision {
+        closeout_surfaces.push("canary population cap enforcement".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires enforced canary cap".into());
+    }
+    if automatic_fallback_arm_decision {
+        closeout_surfaces.push("armed automatic fallback".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires armed automatic fallback".into());
+    }
+    if telemetry_watch_activation_decision {
+        closeout_surfaces.push("active telemetry watch".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires active telemetry watch".into());
+    }
+    if rollback_owner_acknowledgement_decision {
+        closeout_surfaces.push("rollback owner acknowledgement".into());
+    } else {
+        blockers.push(
+            "Rust data-plane controlled rollout readiness closeout requires rollback owner acknowledgement".into(),
+        );
+    }
+    if production_mutation_guard_retention_decision {
+        closeout_surfaces.push("retained production mutation guard".into());
+    } else {
+        blockers.push(
+            "Rust data-plane controlled rollout readiness closeout requires retained production mutation guard".into(),
+        );
+    }
+    if closeout_evidence_archive_decision {
+        closeout_surfaces.push("archived readiness closeout evidence".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires archived evidence".into());
+    }
+
+    RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-controlled-rollout-readiness-closeout-detail".into(),
+        dry_run_reviewed: dry_run_review_decision,
+        rollout_window_approved: rollout_window_approval_decision,
+        canary_population_cap_enforced: canary_population_cap_enforcement_decision,
+        automatic_fallback_armed: automatic_fallback_arm_decision,
+        telemetry_watch_active: telemetry_watch_activation_decision,
+        rollback_owner_acknowledged: rollback_owner_acknowledgement_decision,
+        production_mutation_guard_retained: production_mutation_guard_retention_decision,
+        closeout_evidence_archived: closeout_evidence_archive_decision,
+        controlled_rollout_readiness_closeout_complete: blockers.is_empty(),
+        closeout_surfaces,
+        blockers,
+        facts: vec![
+            "controlled rollout readiness closeout bundles dry-run review, rollout window, canary cap, fallback, telemetry, rollback ownership, mutation guard, and archival".into(),
+            "readiness closeout is the last non-mutating gate before a separate canary execution PR".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeout(
+    rust_data_plane_hardening_controlled_rollout_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    rollout_window_approval_decision: Option<bool>,
+    canary_population_cap_enforcement_decision: Option<bool>,
+    automatic_fallback_arm_decision: Option<bool>,
+    telemetry_watch_activation_decision: Option<bool>,
+    rollback_owner_acknowledgement_decision: Option<bool>,
+    production_mutation_guard_retention_decision: Option<bool>,
+    closeout_evidence_archive_decision: Option<bool>,
+    final_controlled_rollout_readiness_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport> {
+    let rust_data_plane_hardening_controlled_rollout_dry_run_complete =
+        rust_data_plane_hardening_controlled_rollout_dry_run_complete_decision.unwrap_or(false);
+    let final_controlled_rollout_readiness_decision = final_controlled_rollout_readiness_decision.unwrap_or(false);
+    let controlled_rollout_readiness_closeout =
+        rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeout_report(
+            dry_run_review_decision.unwrap_or(false),
+            rollout_window_approval_decision.unwrap_or(false),
+            canary_population_cap_enforcement_decision.unwrap_or(false),
+            automatic_fallback_arm_decision.unwrap_or(false),
+            telemetry_watch_activation_decision.unwrap_or(false),
+            rollback_owner_acknowledgement_decision.unwrap_or(false),
+            production_mutation_guard_retention_decision.unwrap_or(false),
+            closeout_evidence_archive_decision.unwrap_or(false),
+        );
+    let mut dry_run_blockers = Vec::new();
+
+    if !rust_data_plane_hardening_controlled_rollout_dry_run_complete {
+        dry_run_blockers
+            .push("Rust data-plane controlled rollout readiness closeout requires dry-run to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningControlledRolloutDryRunComplete".into(),
+            status: if rust_data_plane_hardening_controlled_rollout_dry_run_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_data_plane_hardening_controlled_rollout_dry_run_complete,
+            blockers: dry_run_blockers,
+            facts: vec!["readiness closeout starts only after controlled rollout dry-run".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "controlledRolloutReadinessCloseoutComplete".into(),
+            status: if controlled_rollout_readiness_closeout
+                .controlled_rollout_readiness_closeout_complete
+            {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: controlled_rollout_readiness_closeout
+                .controlled_rollout_readiness_closeout_complete,
+            blockers: controlled_rollout_readiness_closeout.blockers.clone(),
+            facts: vec![
+                "dry-run review, rollout window, canary cap, fallback, telemetry, rollback ownership, mutation guard, and archival are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalControlledRolloutReadinessDecision".into(),
+            status: if final_controlled_rollout_readiness_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_controlled_rollout_readiness_decision,
+            blockers: if final_controlled_rollout_readiness_decision {
+                Vec::new()
+            } else {
+                vec![
+                    "Rust data-plane controlled rollout readiness closeout requires an explicit final decision".into(),
+                ]
+            },
+            facts: vec!["readiness closeout completion is explicit before canary execution".into()],
+        },
+    ];
+    let rust_data_plane_hardening_controlled_rollout_readiness_closeout_complete =
+        checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-controlled-rollout-readiness-closeout".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_controlled_rollout_dry_run_complete,
+            controlled_rollout_readiness_closeout,
+            final_controlled_rollout_readiness_decision,
+            rust_data_plane_hardening_controlled_rollout_readiness_closeout_complete,
+            selected_runtime_kind:
+                if rust_data_plane_hardening_controlled_rollout_readiness_closeout_complete {
+                    KernelRuntimeKind::Rust
+                } else {
+                    KernelRuntimeKind::Mihomo
+                },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this controlled rollout readiness closeout does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config".into(),
+                "a later canary execution PR must preserve Mihomo fallback and explicit rollback".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening controlled rollout readiness closeout follows the dry-run".into(),
+                "successful closeout advances only to a separate canary execution surface".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_controlled_rollout_readiness_closeout_complete {
+                "rust-data-plane-hardening-controlled-rollout-canary-execution".into()
+            } else {
+                "rust-data-plane-hardening-controlled-rollout-readiness-closeout".into()
+            },
+        },
+    )
 }

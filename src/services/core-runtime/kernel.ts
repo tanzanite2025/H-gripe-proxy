@@ -1958,6 +1958,114 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningOptInExecutionVerifi
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport {
+  runtimeId: string
+  component: string
+  optInVerificationReviewed: boolean
+  controlledRolloutScopeLocked: boolean
+  canaryPopulationCapDefined: boolean
+  healthRollbackTriggersDefined: boolean
+  telemetryHoldWindowConfigured: boolean
+  mihomoFallbackRetained: boolean
+  productionMutationGuardRetained: boolean
+  operatorRolloutGuardAcknowledged: boolean
+  controlledRolloutGuardComplete: boolean
+  guardedSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningOptInExecutionVerificationComplete: boolean
+  controlledRolloutGuard: RuntimeRustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport
+  finalControlledRolloutGuardDecision: boolean
+  rustDataPlaneHardeningControlledRolloutGuardComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport {
+  runtimeId: string
+  component: string
+  guardReviewed: boolean
+  dryRunManifestReplayed: boolean
+  cappedCanarySimulationCompleted: boolean
+  fallbackTriggerRehearsed: boolean
+  telemetryHoldSampleReviewed: boolean
+  rollbackSwitchRehearsed: boolean
+  productionForwardingUnchangedVerified: boolean
+  dryRunEvidenceArchived: boolean
+  controlledRolloutDryRunComplete: boolean
+  dryRunSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningControlledRolloutGuardComplete: boolean
+  controlledRolloutDryRun: RuntimeRustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport
+  finalControlledRolloutDryRunDecision: boolean
+  rustDataPlaneHardeningControlledRolloutDryRunComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
+  runtimeId: string
+  component: string
+  dryRunReviewed: boolean
+  rolloutWindowApproved: boolean
+  canaryPopulationCapEnforced: boolean
+  automaticFallbackArmed: boolean
+  telemetryWatchActive: boolean
+  rollbackOwnerAcknowledged: boolean
+  productionMutationGuardRetained: boolean
+  closeoutEvidenceArchived: boolean
+  controlledRolloutReadinessCloseoutComplete: boolean
+  closeoutSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningControlledRolloutDryRunComplete: boolean
+  controlledRolloutReadinessCloseout: RuntimeRustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport
+  finalControlledRolloutReadinessDecision: boolean
+  rustDataPlaneHardeningControlledRolloutReadinessCloseoutComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -4408,6 +4516,93 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningOptInExecuti
       leakRegressionAbsenceVerificationDecision,
       verificationEvidenceArchiveDecision,
       finalVerificationDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutGuard(
+  rustDataPlaneHardeningOptInExecutionVerificationCompleteDecision?: boolean,
+  optInVerificationReviewDecision?: boolean,
+  controlledRolloutScopeLockDecision?: boolean,
+  canaryPopulationCapDefinitionDecision?: boolean,
+  healthRollbackTriggerDefinitionDecision?: boolean,
+  telemetryHoldWindowConfigurationDecision?: boolean,
+  mihomoFallbackRetentionDecision?: boolean,
+  productionMutationGuardRetentionDecision?: boolean,
+  operatorRolloutGuardAcknowledgementDecision?: boolean,
+  finalControlledRolloutGuardDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_guard',
+    {
+      rustDataPlaneHardeningOptInExecutionVerificationCompleteDecision,
+      optInVerificationReviewDecision,
+      controlledRolloutScopeLockDecision,
+      canaryPopulationCapDefinitionDecision,
+      healthRollbackTriggerDefinitionDecision,
+      telemetryHoldWindowConfigurationDecision,
+      mihomoFallbackRetentionDecision,
+      productionMutationGuardRetentionDecision,
+      operatorRolloutGuardAcknowledgementDecision,
+      finalControlledRolloutGuardDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutDryRun(
+  rustDataPlaneHardeningControlledRolloutGuardCompleteDecision?: boolean,
+  guardReviewDecision?: boolean,
+  dryRunManifestReplayDecision?: boolean,
+  cappedCanarySimulationDecision?: boolean,
+  fallbackTriggerRehearsalDecision?: boolean,
+  telemetryHoldSampleReviewDecision?: boolean,
+  rollbackSwitchRehearsalDecision?: boolean,
+  productionForwardingUnchangedVerificationDecision?: boolean,
+  dryRunEvidenceArchiveDecision?: boolean,
+  finalControlledRolloutDryRunDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_dry_run',
+    {
+      rustDataPlaneHardeningControlledRolloutGuardCompleteDecision,
+      guardReviewDecision,
+      dryRunManifestReplayDecision,
+      cappedCanarySimulationDecision,
+      fallbackTriggerRehearsalDecision,
+      telemetryHoldSampleReviewDecision,
+      rollbackSwitchRehearsalDecision,
+      productionForwardingUnchangedVerificationDecision,
+      dryRunEvidenceArchiveDecision,
+      finalControlledRolloutDryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseout(
+  rustDataPlaneHardeningControlledRolloutDryRunCompleteDecision?: boolean,
+  dryRunReviewDecision?: boolean,
+  rolloutWindowApprovalDecision?: boolean,
+  canaryPopulationCapEnforcementDecision?: boolean,
+  automaticFallbackArmDecision?: boolean,
+  telemetryWatchActivationDecision?: boolean,
+  rollbackOwnerAcknowledgementDecision?: boolean,
+  productionMutationGuardRetentionDecision?: boolean,
+  closeoutEvidenceArchiveDecision?: boolean,
+  finalControlledRolloutReadinessDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_readiness_closeout',
+    {
+      rustDataPlaneHardeningControlledRolloutDryRunCompleteDecision,
+      dryRunReviewDecision,
+      rolloutWindowApprovalDecision,
+      canaryPopulationCapEnforcementDecision,
+      automaticFallbackArmDecision,
+      telemetryWatchActivationDecision,
+      rollbackOwnerAcknowledgementDecision,
+      productionMutationGuardRetentionDecision,
+      closeoutEvidenceArchiveDecision,
+      finalControlledRolloutReadinessDecision,
     },
   )
 }

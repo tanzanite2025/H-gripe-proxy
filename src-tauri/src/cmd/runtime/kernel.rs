@@ -2120,6 +2120,93 @@ pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execut
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_guard(
+    rust_data_plane_hardening_opt_in_execution_verification_complete_decision: Option<bool>,
+    opt_in_verification_review_decision: Option<bool>,
+    controlled_rollout_scope_lock_decision: Option<bool>,
+    canary_population_cap_definition_decision: Option<bool>,
+    health_rollback_trigger_definition_decision: Option<bool>,
+    telemetry_hold_window_configuration_decision: Option<bool>,
+    mihomo_fallback_retention_decision: Option<bool>,
+    production_mutation_guard_retention_decision: Option<bool>,
+    operator_rollout_guard_acknowledgement_decision: Option<bool>,
+    final_controlled_rollout_guard_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport> {
+    rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard(
+        rust_data_plane_hardening_opt_in_execution_verification_complete_decision,
+        opt_in_verification_review_decision,
+        controlled_rollout_scope_lock_decision,
+        canary_population_cap_definition_decision,
+        health_rollback_trigger_definition_decision,
+        telemetry_hold_window_configuration_decision,
+        mihomo_fallback_retention_decision,
+        production_mutation_guard_retention_decision,
+        operator_rollout_guard_acknowledgement_decision,
+        final_controlled_rollout_guard_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_dry_run(
+    rust_data_plane_hardening_controlled_rollout_guard_complete_decision: Option<bool>,
+    guard_review_decision: Option<bool>,
+    dry_run_manifest_replay_decision: Option<bool>,
+    capped_canary_simulation_decision: Option<bool>,
+    fallback_trigger_rehearsal_decision: Option<bool>,
+    telemetry_hold_sample_review_decision: Option<bool>,
+    rollback_switch_rehearsal_decision: Option<bool>,
+    production_forwarding_unchanged_verification_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_controlled_rollout_dry_run_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport> {
+    rust_kernel_runtime_data_plane_hardening_controlled_rollout_dry_run(
+        rust_data_plane_hardening_controlled_rollout_guard_complete_decision,
+        guard_review_decision,
+        dry_run_manifest_replay_decision,
+        capped_canary_simulation_decision,
+        fallback_trigger_rehearsal_decision,
+        telemetry_hold_sample_review_decision,
+        rollback_switch_rehearsal_decision,
+        production_forwarding_unchanged_verification_decision,
+        dry_run_evidence_archive_decision,
+        final_controlled_rollout_dry_run_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_controlled_rollout_readiness_closeout(
+    rust_data_plane_hardening_controlled_rollout_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    rollout_window_approval_decision: Option<bool>,
+    canary_population_cap_enforcement_decision: Option<bool>,
+    automatic_fallback_arm_decision: Option<bool>,
+    telemetry_watch_activation_decision: Option<bool>,
+    rollback_owner_acknowledgement_decision: Option<bool>,
+    production_mutation_guard_retention_decision: Option<bool>,
+    closeout_evidence_archive_decision: Option<bool>,
+    final_controlled_rollout_readiness_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport> {
+    rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeout(
+        rust_data_plane_hardening_controlled_rollout_dry_run_complete_decision,
+        dry_run_review_decision,
+        rollout_window_approval_decision,
+        canary_population_cap_enforcement_decision,
+        automatic_fallback_arm_decision,
+        telemetry_watch_activation_decision,
+        rollback_owner_acknowledgement_decision,
+        production_mutation_guard_retention_decision,
+        closeout_evidence_archive_decision,
+        final_controlled_rollout_readiness_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
