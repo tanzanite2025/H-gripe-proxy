@@ -48,9 +48,11 @@ static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState
 
 mod data_plane_hardening;
 mod go_retirement;
+mod protocol_forwarding;
 mod types;
 pub use self::data_plane_hardening::*;
 pub use self::go_retirement::*;
+pub use self::protocol_forwarding::*;
 use self::types::KernelIsolatedTestListenerState;
 pub use self::types::*;
 
