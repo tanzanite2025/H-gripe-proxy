@@ -19,17 +19,17 @@ App registry / policy / node pool / DNS / security profile
 
 ## Current state
 
-Status is current through PR #261. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, and scoped Shadowsocks AEAD execution. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
+Status is current through the scoped Shadowsocks AEAD adapter canary work. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, and AEAD canary evidence. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
 
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Mature | Validation, planning, projection artifacts, audit, telemetry, and frontend type surfaces are Rust-owned enough to support real data-plane work. Stop adding more read-only gate-only PRs here. |
 | DNS runtime | Bounded opt-in parity path in progress | Rust now synthesizes a dns/hosts runtime patch, probes supported resolvers, blocks unsupported fake-ip/fallback-filter/nameserver-policy execution, and applies through an explicit opt-in bridge with rollback. Mihomo still owns default DNS until canary evidence passes. |
 | Adapter / egress runtime | Bounded opt-in parity path in progress | Rust now chooses DIRECT/REJECT/proxy-group adapter targets from app runtime state, validates candidate protocol compatibility, patches proxy-groups/rules through an explicit opt-in bridge, and keeps Mihomo fallback/rollback. |
-| Protocol forwarding | Shadowsocks AEAD Rust execution in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT policy, bounded remote transport, HTTP CONNECT tunneling, encrypted framing preflight, and scoped Shadowsocks AEAD adapter execution. Mihomo still owns full encrypted remote sessions, SOCKS UDP, TUN, and default forwarding. |
+| Protocol forwarding | Shadowsocks AEAD Rust canary in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT policy, bounded remote transport, HTTP CONNECT tunneling, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, and AEAD canary evidence across execution/fallback/rollback/health boundaries. Mihomo still owns full encrypted remote sessions, SOCKS UDP, TUN, and default forwarding. |
 | TUN / system proxy | Bounded Rust parity in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, and rollback apply. Mihomo/service still owns packet capture and transparent forwarding. |
 | Mihomo fallback retirement | Scoped execution in progress | Rust now writes a scoped execution manifest and emergency rollback checkpoint to retire fallback only for the bounded canary scope. Unsupported SOCKS, remote adapters, packet capture, and transparent proxy fallback remain Mihomo-owned. |
-| Next real batch | `rust-shadowsocks-aead-adapter-canary` | Run scoped Shadowsocks AEAD adapter canary evidence across rollback/fallback boundaries before expanding encrypted protocol ownership. |
+| Next real batch | `rust-encrypted-proxy-session-expansion` | Expand from scoped Shadowsocks AEAD canary into broader encrypted-session handling while keeping VMess/VLESS/Trojan and UDP fallback separately bounded. |
 
 ## Acceleration plan
 
@@ -59,8 +59,8 @@ This table is the authoritative batch map. Completed rows are real implementatio
 | 9 | `rust-http-connect-proxy-adapter` | Complete | Rust accepts HTTP CONNECT, validates authority/Host, establishes a target TCP stream, tunnels bytes bidirectionally, and records target 204 evidence. | HTTP CONNECT TCP only; encrypted outbound protocols and UDP remain Mihomo-owned. |
 | 10 | `rust-encrypted-proxy-protocol-preflight` | Complete | Rust runs Shadowsocks-style AES-256-GCM address-frame evidence and Trojan SHA224 auth-frame evidence over loopback, including decrypt/validate/forward/response checks. | Framing/auth preflight only; full encrypted sessions stay Mihomo fallback. |
 | 11 | `rust-shadowsocks-aead-adapter-execution` | Complete | Rust executes a scoped Shadowsocks AEAD adapter path: decrypt address frame, validate loopback target, dial target, forward HTTP request, encrypt response, and write rollback checkpoint. | Scoped loopback TCP Shadowsocks AEAD only; UDP, plugin transports, VMess/VLESS/Trojan, and packet capture stay Mihomo fallback. |
-| 12 | `rust-shadowsocks-aead-adapter-canary` | Next | Run canary evidence for the scoped AEAD adapter across rollback checkpoint, fallback trigger, byte accounting, and post-run health boundaries. | Still opt-in; do not broaden default routing. |
-| 13 | `rust-encrypted-proxy-session-expansion` | Planned | Expand from one scoped AEAD execution into larger encrypted-session handling only after canary/rollback evidence is durable. | Keep VMess/VLESS/Trojan and UDP on fallback until separately implemented. |
+| 12 | `rust-shadowsocks-aead-adapter-canary` | Complete | Run canary evidence for the scoped AEAD adapter across rollback checkpoint, fallback trigger, byte accounting, and post-run health boundaries. | Still opt-in; do not broaden default routing. |
+| 13 | `rust-encrypted-proxy-session-expansion` | Next | Expand from one scoped AEAD execution into larger encrypted-session handling only after canary/rollback evidence is durable. | Keep VMess/VLESS/Trojan and UDP on fallback until separately implemented. |
 | 14 | `rust-tun-transparent-routing-execution` | Planned | Implement packet-capture/transparent-routing execution and rollback drills per platform before claiming TUN replacement. | High risk; must remain separate from adapter/protocol expansion. |
 | 15 | `mihomo-fallback-retirement-wider-scope` | Planned | Retire Mihomo fallback only for scopes with repeated passed canary, rollback, and hold evidence; retain fallback for all unsupported protocols. | Explicit opt-in and rollback required. |
 
@@ -175,7 +175,7 @@ Phase 8 should no longer be managed as a long list of synthetic gates. The prior
 | Seam inventory / runtime selection | Complete enough | Do not add more inventory-only gates unless required by a real implementation PR. |
 | DNS | Bounded opt-in parity path in progress | Keep collecting canary evidence; do not make DNS default until adapter/protocol/TUN rollback boundaries are ready. |
 | Adapter / egress | Bounded opt-in parity path in progress | Keep canarying supported adapter decisions; move next to real protocol forwarding subset. |
-| Protocol forwarding | Shadowsocks AEAD Rust execution in progress | DIRECT/REJECT, bounded remote transport, HTTP CONNECT, encrypted framing preflight, and scoped Shadowsocks AEAD adapter execution are Rust-owned; full encrypted sessions and UDP remain Mihomo fallback. |
+| Protocol forwarding | Shadowsocks AEAD Rust canary in progress | DIRECT/REJECT, bounded remote transport, HTTP CONNECT, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, and AEAD canary evidence are Rust-owned; full encrypted sessions and UDP remain Mihomo fallback. |
 | TUN / system proxy | Bounded Rust route-mode parity in progress | Packet capture still uses Mihomo/service; collect platform rollback/leak evidence before claiming replacement. |
 | Mihomo fallback retirement | Scoped execution in progress | Supported canary fallback can be retired through manifest/checkpoint; unsupported fallback and packet capture remain Mihomo-owned. |
 
@@ -199,15 +199,14 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 - Bounded remote adapter transport evidence for TCP target dialing and response accounting.
 - HTTP CONNECT bounded execution for CONNECT authority validation, target dialing, and tunnel byte forwarding.
 - Encrypted proxy preflight evidence for Shadowsocks-style AES-256-GCM address framing and Trojan SHA224 auth framing.
-- Scoped Shadowsocks AEAD adapter bounded execution for loopback TCP address frames, encrypted response handling, evidence.yaml, and rollback-checkpoint.yaml.
+- Scoped Shadowsocks AEAD adapter bounded execution for loopback TCP address frames, encrypted response handling, evidence.yaml, rollback-checkpoint.yaml, and canary readback across fallback/rollback/health evidence.
 - TUN/system-proxy bounded parity for route-mode planning, system proxy apply, TUN config/restart bridge, rollback records, and rollback apply.
 - Scoped Mihomo fallback retirement manifest/checkpoint for the bounded canary scope.
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is not another readiness gate; it is durable canary evidence for the scoped Rust Shadowsocks AEAD adapter that just landed. Do not retire Mihomo fallback or claim broad Rust data-plane replacement until all of these have landed as real code and tests:
+The next blocker is not another readiness gate; it is broader encrypted-session implementation after scoped Rust Shadowsocks AEAD canary evidence. Do not retire Mihomo fallback or claim broad Rust data-plane replacement until all of these have landed as real code and tests:
 
-- Shadowsocks AEAD adapter canary evidence across successful execution, forced fallback trigger, rollback checkpoint readback, and post-run health state.
 - DNS leak and resolver/upstream checks while Rust protocol/adapter canaries are active.
 - Connection/session accounting parity for traffic handled by Rust, including encrypted adapter bytes.
 - Platform TUN/system-proxy rollback and route restoration drills for Windows, macOS, and Linux.
@@ -216,7 +215,7 @@ The next blocker is not another readiness gate; it is durable canary evidence fo
 - Mihomo fallback that preserves connectivity without app restart for every unsupported path.
 - Post-canary hold evidence that covers fallback triggers, rollback, DNS leaks, and health telemetry.
 
-These blockers allow one useful next PR: `rust-shadowsocks-aead-adapter-canary`. They block full protocol replacement and any claim that packet capture is Rust-owned.
+These blockers allow one useful next PR: `rust-encrypted-proxy-session-expansion`. They block full protocol replacement and any claim that packet capture is Rust-owned.
 
 ## Removed from this document
 
@@ -246,7 +245,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-shadowsocks-aead-adapter-canary`; keep execution scoped to supported canary evidence and retain unsupported fallback.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-encrypted-proxy-session-expansion`; keep execution scoped to supported canary evidence and retain unsupported fallback.
 
 ## PR checklist for future changes
 

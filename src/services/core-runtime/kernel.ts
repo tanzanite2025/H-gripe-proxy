@@ -3262,6 +3262,68 @@ export interface RustShadowsocksAeadAdapterExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustShadowsocksAeadAdapterCanaryStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export interface RustShadowsocksAeadAdapterCanaryFallbackEvidence {
+  triggerName: string
+  unsupportedProtocol: string
+  fallbackTriggered: boolean
+  rustAdapterBypassed: boolean
+  mihomoFallbackRetained: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustShadowsocksAeadAdapterCanaryRollbackEvidence {
+  checkpointPath?: string | null
+  checkpointReadable: boolean
+  component?: string | null
+  adapterName?: string | null
+  fallbackRetainedForUnsupported: boolean
+  rollbackAction?: string | null
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustShadowsocksAeadAdapterCanaryHealthEvidence {
+  executionEvidencePath?: string | null
+  executionPassed: boolean
+  loopbackRemoteOnly: boolean
+  targetReceived: boolean
+  responseStatus?: string | null
+  byteAccountingPassed: boolean
+  noRuntimeMutation: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustShadowsocksAeadAdapterCanaryReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustShadowsocksAeadAdapterCanaryStatus
+  reason: string
+  explicitOptIn: boolean
+  executionReport?: RustShadowsocksAeadAdapterExecutionReport | null
+  fallbackTriggerEvidence?: RustShadowsocksAeadAdapterCanaryFallbackEvidence | null
+  rollbackCheckpointEvidence?: RustShadowsocksAeadAdapterCanaryRollbackEvidence | null
+  healthEvidence?: RustShadowsocksAeadAdapterCanaryHealthEvidence | null
+  evidencePath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3741,6 +3803,15 @@ export async function runRuntimeKernelRustShadowsocksAeadAdapterExecution(
 ) {
   return invoke<RustShadowsocksAeadAdapterExecutionReport>(
     'run_runtime_kernel_rust_shadowsocks_aead_adapter_execution',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustShadowsocksAeadAdapterCanary(
+  explicitOptIn = false,
+) {
+  return invoke<RustShadowsocksAeadAdapterCanaryReport>(
+    'run_runtime_kernel_rust_shadowsocks_aead_adapter_canary',
     { explicitOptIn },
   )
 }
