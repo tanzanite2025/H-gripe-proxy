@@ -74,10 +74,7 @@ pub async fn rust_socks_auth_execution(explicit_opt_in: bool) -> Result<RustSock
         leak_evidence: Some(leak_evidence),
         mihomo_fallback_retained_for: retained_socks_auth_fallback_scope(),
         blockers: Vec::new(),
-        warnings: vec![
-            "SOCKS TCP data forwarding, BIND, UDP fragments, non-loopback UDP, and packet capture remain Mihomo-owned"
-                .into(),
-        ],
+        warnings: vec!["SOCKS BIND, UDP fragments, non-loopback UDP, and packet capture remain Mihomo-owned".into()],
         facts: rust_socks_auth_facts(),
         next_safe_batch: NEXT_SAFE_BATCH.into(),
     };
@@ -338,7 +335,8 @@ fn rust_socks_auth_facts() -> Vec<String> {
     vec![
         "Rust negotiates SOCKS5 username/password method 0x02 over loopback TCP".into(),
         "Rust validates an RFC1929 username/password frame without persisting credential values".into(),
-        "Rust validates a loopback CONNECT preflight but does not claim TCP data forwarding".into(),
+        "Rust validates a loopback CONNECT preflight but does not claim TCP data forwarding at this batch boundary"
+            .into(),
         "Mihomo fallback remains retained for non-loopback UDP, fragments, plugin transports, and packet capture"
             .into(),
     ]

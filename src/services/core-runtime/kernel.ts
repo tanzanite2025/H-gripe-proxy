@@ -3244,6 +3244,60 @@ export interface RustSocksAuthExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustSocksTcpConnectExecutionStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustSocksTcpConnectForwardEvidence {
+  proxyListenerAddr: string
+  targetAddr: string
+  selectedMethod: string
+  authNegotiated: boolean
+  connectCommand: string
+  connectAtyp: string
+  requestBytes: number
+  targetReceivedBytes: number
+  responseBytes: number
+  responsePrefix: string
+  dataForwarded: boolean
+  loopbackOnly: boolean
+}
+
+export interface RustSocksTcpConnectRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustSocksTcpConnectLeakEvidence {
+  passed: boolean
+  noSystemPacketCapture: boolean
+  noNonLoopbackTarget: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustSocksTcpConnectExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustSocksTcpConnectExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  forwardEvidence?: RustSocksTcpConnectForwardEvidence | null
+  rollbackEvidence?: RustSocksTcpConnectRollbackEvidence | null
+  leakEvidence?: RustSocksTcpConnectLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustProtocolAdapterForwardingStatus =
   | 'passed'
   | 'failed'
@@ -4153,6 +4207,15 @@ export async function runRuntimeKernelRustSocksAuthExecution(
 ) {
   return invoke<RustSocksAuthExecutionReport>(
     'run_runtime_kernel_rust_socks_auth_execution',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustSocksTcpConnectExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustSocksTcpConnectExecutionReport>(
+    'run_runtime_kernel_rust_socks_tcp_connect_execution',
     { explicitOptIn },
   )
 }
