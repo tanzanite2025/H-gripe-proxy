@@ -489,6 +489,7 @@ mod app_init {
             cmd::dns_runtime_query,
             cmd::dns_controlled_runtime_probe,
             cmd::rust_dns_runtime_parity,
+            cmd::rust_dns_fake_ip_runtime_execution,
             cmd::rust_dns_runtime_parity_rollback,
             cmd::dns_default_runtime_readiness,
             cmd::dns_default_runtime_shadow_evidence,

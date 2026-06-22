@@ -1,4 +1,4 @@
-use super::{
+﻿use super::{
     MihomoFallbackRetirementExecutionReport, MihomoFallbackRetirementExecutionScope,
     MihomoFallbackRetirementExecutionStatus, RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutEvidenceOwnership,
     RustDefaultDataPlaneCloseoutReport, RustDefaultDataPlaneCloseoutStatus, RustDefaultDataPlaneUnsupportedBlocker,
@@ -198,9 +198,9 @@ fn rust_default_data_plane_unsupported_blockers() -> Vec<RustDefaultDataPlaneUns
                     .into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {
-            blocker: "DNS fake-ip, fallback-filter, and nameserver-policy execution".into(),
+            blocker: "DNS fake-ip cache/reverse mapping, fallback-filter, and nameserver-policy execution".into(),
             mihomo_owner: "Mihomo DNS runtime".into(),
-            retirement_requirement: "resolver/upstream parity with DNS leak evidence while Rust adapters are active"
+            retirement_requirement: "fake-ip cache/filter parity plus resolver/upstream parity with DNS leak evidence while Rust adapters are active"
                 .into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {

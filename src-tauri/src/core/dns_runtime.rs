@@ -14,10 +14,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::fs;
 
 mod default_runtime;
+mod fake_ip_runtime;
 mod runtime_parity;
 #[cfg(test)]
 use default_runtime::default_runtime_execution_superseded_state;
 pub use default_runtime::*;
+pub use fake_ip_runtime::*;
 pub use runtime_parity::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
