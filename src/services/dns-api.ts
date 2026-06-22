@@ -262,6 +262,52 @@ export interface RustDnsRuntimeParityReport {
   facts: string[]
 }
 
+export type RustDnsFakeIpRuntimeStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustDnsFakeIpRuntimeMappingEvidence {
+  domain: string
+  fakeIp: string
+  fakeIpRange: string
+  ttlSeconds: number
+  deterministic: boolean
+  rangeMember: boolean
+}
+
+export interface RustDnsFakeIpRuntimeRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustDnsFakeIpRuntimeLeakEvidence {
+  passed: boolean
+  noUpstreamQuery: boolean
+  noSystemResolverMutation: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustDnsFakeIpRuntimeReport {
+  component: string
+  status: RustDnsFakeIpRuntimeStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  mappingEvidence?: RustDnsFakeIpRuntimeMappingEvidence | null
+  rollbackEvidence?: RustDnsFakeIpRuntimeRollbackEvidence | null
+  leakEvidence?: RustDnsFakeIpRuntimeLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type DnsDefaultRuntimeReadinessStatus =
   | 'ready'
   | 'degraded'
@@ -1105,6 +1151,26 @@ export async function rustDnsRuntimeParity(
     })
   } catch (err) {
     console.error('Rust DNS runtime parity failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsFakeIpRuntimeExecution(
+  yaml: string,
+  domain: string,
+  explicitOptIn = false,
+): Promise<RustDnsFakeIpRuntimeReport> {
+  try {
+    return await invoke<RustDnsFakeIpRuntimeReport>(
+      'rust_dns_fake_ip_runtime_execution',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('Rust DNS fake-ip runtime execution failed:', err)
     throw err
   }
 }
