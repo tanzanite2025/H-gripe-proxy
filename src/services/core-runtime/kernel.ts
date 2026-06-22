@@ -2210,6 +2210,146 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultProm
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport {
+  runtimeId: string
+  component: string
+  dryRunReviewed: boolean
+  cutoverManifestLocked: boolean
+  supportedProfileDefaultSelectionConfirmed: boolean
+  unsupportedPathsBoundToMihomoFallback: boolean
+  rollbackSwitchArmed: boolean
+  telemetrySoakWatchActive: boolean
+  operatorCutoverAcknowledged: boolean
+  productionMutationGuardTransitionRecorded: boolean
+  supportedDefaultCutoverComplete: boolean
+  cutoverSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningSupportedDefaultPromotionDryRunComplete: boolean
+  supportedDefaultCutover: RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport
+  finalSupportedDefaultCutoverDecision: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+  runtimeId: string
+  component: string
+  cutoverRecordReviewed: boolean
+  supportedProfileTrafficSampleReviewed: boolean
+  unsupportedPathFallbackVerified: boolean
+  rollbackSwitchVerified: boolean
+  telemetrySoakSampleReviewed: boolean
+  leakRegressionAbsenceVerified: boolean
+  mutationAuditRecordArchived: boolean
+  cutoverVerificationComplete: boolean
+  verificationSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverComplete: boolean
+  supportedDefaultCutoverVerification: RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport
+  finalSupportedDefaultCutoverVerificationDecision: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverVerificationComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+  runtimeId: string
+  component: string
+  verificationReviewed: boolean
+  soakWindowElapsed: boolean
+  healthBudgetSatisfied: boolean
+  fallbackIncidentsReviewed: boolean
+  rollbackSwitchStillArmed: boolean
+  mihomoFallbackStillRetained: boolean
+  holdWindowEvidenceArchived: boolean
+  cutoverHoldWindowComplete: boolean
+  holdSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverVerificationComplete: boolean
+  supportedDefaultCutoverHoldWindow: RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport
+  finalSupportedDefaultCutoverHoldWindowDecision: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverHoldWindowComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+  runtimeId: string
+  component: string
+  holdWindowReviewed: boolean
+  supportedDefaultStateDocumented: boolean
+  rollbackOwnerAcknowledged: boolean
+  fallbackRetirementBoundaryRetained: boolean
+  releaseNotesUpdated: boolean
+  closeoutEvidenceArchived: boolean
+  supportedDefaultCutoverCloseoutComplete: boolean
+  closeoutSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverHoldWindowComplete: boolean
+  supportedDefaultCutoverCloseout: RuntimeRustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport
+  finalSupportedDefaultCutoverCloseoutDecision: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverCloseoutComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -4863,6 +5003,114 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningSupportedDef
       productionForwardingUnchangedVerificationDecision,
       dryRunEvidenceArchiveDecision,
       finalSupportedDefaultPromotionDryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutover(
+  rustDataPlaneHardeningSupportedDefaultPromotionDryRunCompleteDecision?: boolean,
+  dryRunReviewDecision?: boolean,
+  cutoverManifestLockDecision?: boolean,
+  supportedProfileDefaultSelectionConfirmationDecision?: boolean,
+  unsupportedPathsMihomoFallbackBindingDecision?: boolean,
+  rollbackSwitchArmDecision?: boolean,
+  telemetrySoakWatchActivationDecision?: boolean,
+  operatorCutoverAcknowledgementDecision?: boolean,
+  productionMutationGuardTransitionRecordDecision?: boolean,
+  finalSupportedDefaultCutoverDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover',
+    {
+      rustDataPlaneHardeningSupportedDefaultPromotionDryRunCompleteDecision,
+      dryRunReviewDecision,
+      cutoverManifestLockDecision,
+      supportedProfileDefaultSelectionConfirmationDecision,
+      unsupportedPathsMihomoFallbackBindingDecision,
+      rollbackSwitchArmDecision,
+      telemetrySoakWatchActivationDecision,
+      operatorCutoverAcknowledgementDecision,
+      productionMutationGuardTransitionRecordDecision,
+      finalSupportedDefaultCutoverDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerification(
+  rustDataPlaneHardeningSupportedDefaultCutoverCompleteDecision?: boolean,
+  cutoverRecordReviewDecision?: boolean,
+  supportedProfileTrafficSampleReviewDecision?: boolean,
+  unsupportedPathFallbackVerificationDecision?: boolean,
+  rollbackSwitchVerificationDecision?: boolean,
+  telemetrySoakSampleReviewDecision?: boolean,
+  leakRegressionAbsenceVerificationDecision?: boolean,
+  mutationAuditRecordArchiveDecision?: boolean,
+  finalSupportedDefaultCutoverVerificationDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_verification',
+    {
+      rustDataPlaneHardeningSupportedDefaultCutoverCompleteDecision,
+      cutoverRecordReviewDecision,
+      supportedProfileTrafficSampleReviewDecision,
+      unsupportedPathFallbackVerificationDecision,
+      rollbackSwitchVerificationDecision,
+      telemetrySoakSampleReviewDecision,
+      leakRegressionAbsenceVerificationDecision,
+      mutationAuditRecordArchiveDecision,
+      finalSupportedDefaultCutoverVerificationDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindow(
+  rustDataPlaneHardeningSupportedDefaultCutoverVerificationCompleteDecision?: boolean,
+  verificationReviewDecision?: boolean,
+  soakWindowElapsedDecision?: boolean,
+  healthBudgetSatisfiedDecision?: boolean,
+  fallbackIncidentReviewDecision?: boolean,
+  rollbackSwitchStillArmedDecision?: boolean,
+  mihomoFallbackRetentionDecision?: boolean,
+  holdWindowEvidenceArchiveDecision?: boolean,
+  finalSupportedDefaultCutoverHoldWindowDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_hold_window',
+    {
+      rustDataPlaneHardeningSupportedDefaultCutoverVerificationCompleteDecision,
+      verificationReviewDecision,
+      soakWindowElapsedDecision,
+      healthBudgetSatisfiedDecision,
+      fallbackIncidentReviewDecision,
+      rollbackSwitchStillArmedDecision,
+      mihomoFallbackRetentionDecision,
+      holdWindowEvidenceArchiveDecision,
+      finalSupportedDefaultCutoverHoldWindowDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseout(
+  rustDataPlaneHardeningSupportedDefaultCutoverHoldWindowCompleteDecision?: boolean,
+  holdWindowReviewDecision?: boolean,
+  supportedDefaultStateDocumentationDecision?: boolean,
+  rollbackOwnerAcknowledgementDecision?: boolean,
+  fallbackRetirementBoundaryRetentionDecision?: boolean,
+  releaseNotesUpdateDecision?: boolean,
+  closeoutEvidenceArchiveDecision?: boolean,
+  finalSupportedDefaultCutoverCloseoutDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_supported_default_cutover_closeout',
+    {
+      rustDataPlaneHardeningSupportedDefaultCutoverHoldWindowCompleteDecision,
+      holdWindowReviewDecision,
+      supportedDefaultStateDocumentationDecision,
+      rollbackOwnerAcknowledgementDecision,
+      fallbackRetirementBoundaryRetentionDecision,
+      releaseNotesUpdateDecision,
+      closeoutEvidenceArchiveDecision,
+      finalSupportedDefaultCutoverCloseoutDecision,
     },
   )
 }

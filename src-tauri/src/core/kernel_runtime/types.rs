@@ -2798,6 +2798,164 @@ pub struct KernelLoopbackRustDataPlaneHardeningSupportedDefaultPromotionDryRunRe
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub dry_run_reviewed: bool,
+    pub cutover_manifest_locked: bool,
+    pub supported_profile_default_selection_confirmed: bool,
+    pub unsupported_paths_bound_to_mihomo_fallback: bool,
+    pub rollback_switch_armed: bool,
+    pub telemetry_soak_watch_active: bool,
+    pub operator_cutover_acknowledged: bool,
+    pub production_mutation_guard_transition_recorded: bool,
+    pub supported_default_cutover_complete: bool,
+    pub cutover_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_supported_default_promotion_dry_run_complete: bool,
+    pub supported_default_cutover: RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverReport,
+    pub final_supported_default_cutover_decision: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub cutover_record_reviewed: bool,
+    pub supported_profile_traffic_sample_reviewed: bool,
+    pub unsupported_path_fallback_verified: bool,
+    pub rollback_switch_verified: bool,
+    pub telemetry_soak_sample_reviewed: bool,
+    pub leak_regression_absence_verified: bool,
+    pub mutation_audit_record_archived: bool,
+    pub cutover_verification_complete: bool,
+    pub verification_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_complete: bool,
+    pub supported_default_cutover_verification:
+        RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport,
+    pub final_supported_default_cutover_verification_decision: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_verification_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub verification_reviewed: bool,
+    pub soak_window_elapsed: bool,
+    pub health_budget_satisfied: bool,
+    pub fallback_incidents_reviewed: bool,
+    pub rollback_switch_still_armed: bool,
+    pub mihomo_fallback_still_retained: bool,
+    pub hold_window_evidence_archived: bool,
+    pub cutover_hold_window_complete: bool,
+    pub hold_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_verification_complete: bool,
+    pub supported_default_cutover_hold_window:
+        RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverHoldWindowReport,
+    pub final_supported_default_cutover_hold_window_decision: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_hold_window_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub hold_window_reviewed: bool,
+    pub supported_default_state_documented: bool,
+    pub rollback_owner_acknowledged: bool,
+    pub fallback_retirement_boundary_retained: bool,
+    pub release_notes_updated: bool,
+    pub closeout_evidence_archived: bool,
+    pub supported_default_cutover_closeout_complete: bool,
+    pub closeout_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_hold_window_complete: bool,
+    pub supported_default_cutover_closeout: RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverCloseoutReport,
+    pub final_supported_default_cutover_closeout_decision: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_closeout_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,
