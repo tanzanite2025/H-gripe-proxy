@@ -2916,6 +2916,70 @@ export interface RustTunSystemProxyParityRollbackReport {
   facts: string[]
 }
 
+export type RustTunTransparentRoutingExecutionStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export interface RustTunTransparentRoutingPacketEvidence {
+  packetSource: string
+  packetDestination: string
+  packetDestinationPort: number
+  ipv4PacketParsed: boolean
+  tcpDestinationExtracted: boolean
+  payloadBytes: number
+  targetReceived: boolean
+  responseStatus?: string | null
+  responseBytes: number
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustTunTransparentRoutingRollbackEvidence {
+  checkpointPath?: string | null
+  checkpointWritten: boolean
+  routeOwnerBefore: string
+  routeOwnerAfter: string
+  rollbackAction: string
+  packetCaptureDefaultUnchanged: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustTunTransparentRoutingLeakEvidence {
+  loopbackOnly: boolean
+  osRouteMutationAttempted: boolean
+  systemProxyMutationAttempted: boolean
+  tunDeviceMutationAttempted: boolean
+  unsupportedPacketCaptureFallback: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustTunTransparentRoutingExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustTunTransparentRoutingExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  packetEvidence?: RustTunTransparentRoutingPacketEvidence | null
+  rollbackEvidence?: RustTunTransparentRoutingRollbackEvidence | null
+  leakEvidence?: RustTunTransparentRoutingLeakEvidence | null
+  evidencePath?: string | null
+  rollbackCheckpointPath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  packetCaptureOwned: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustFallbackRetirementReadinessStatus =
   | 'ready'
   | 'locked'
@@ -3801,6 +3865,15 @@ export async function applyRuntimeKernelRustTunSystemProxyParity(
 export async function rollbackRuntimeKernelRustTunSystemProxyParity() {
   return invoke<RustTunSystemProxyParityRollbackReport>(
     'rollback_runtime_kernel_rust_tun_system_proxy_parity',
+  )
+}
+
+export async function runRuntimeKernelRustTunTransparentRoutingExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustTunTransparentRoutingExecutionReport>(
+    'run_runtime_kernel_rust_tun_transparent_routing_execution',
+    { explicitOptIn },
   )
 }
 
