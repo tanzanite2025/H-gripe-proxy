@@ -316,7 +316,7 @@ pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
         }
 
         Config::runtime().await.edit_draft(|d| {
-            d.patch_config(&patch);
+            d.patch_dns_runtime_config(&patch);
         });
 
         CoreManager::global().update_config_checked().await.map_err(|err| {
