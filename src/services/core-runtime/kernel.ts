@@ -2721,6 +2721,119 @@ export interface RuntimeKernelLoopbackForwardingPreflightReport {
   nextSafeBatch: string
 }
 
+export type RustProtocolForwardingSubsetStatus =
+  | 'ready'
+  | 'running'
+  | 'stopped'
+  | 'blocked'
+
+export interface RustProtocolForwardingSubsetAccounting {
+  acceptedConnections: number
+  completedConnections: number
+  failedConnections: number
+  bytesFromClient: number
+  bytesFromTarget: number
+  lastError?: string | null
+}
+
+export interface RustProtocolForwardingSubsetPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustProtocolForwardingSubsetStatus
+  reason: string
+  listenerHost: string
+  listenerPort: number
+  targetHost: string
+  targetPort: number
+  canStartAfterOptIn: boolean
+  explicitOptInRequired: boolean
+  loopbackOnly: boolean
+  supportedProtocols: string[]
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RustProtocolForwardingSubsetStatusReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustProtocolForwardingSubsetStatus
+  reason: string
+  running: boolean
+  listenerHost: string
+  listenerPort?: number | null
+  targetHost?: string | null
+  targetPort?: number | null
+  startedAtEpochMs?: number | null
+  accounting: RustProtocolForwardingSubsetAccounting
+  loopbackOnly: boolean
+  supportedProtocols: string[]
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RustProtocolForwardingSubsetStartReport {
+  preflight: RustProtocolForwardingSubsetPreflightReport
+  status: RustProtocolForwardingSubsetStatusReport
+  explicitOptIn: boolean
+  started: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface RustProtocolForwardingSubsetStopReport {
+  status: RustProtocolForwardingSubsetStatus
+  reason: string
+  stopped: boolean
+  previousStatus: RustProtocolForwardingSubsetStatusReport
+  afterStatus: RustProtocolForwardingSubsetStatusReport
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
+export interface RustProtocolForwardingSubsetSmokeEvidenceReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustProtocolForwardingSubsetStatus
+  listenerPort: number
+  targetPort: number
+  targetReceived: boolean
+  responseStatus?: string | null
+  accounting: RustProtocolForwardingSubsetAccounting
+  stopReport?: RustProtocolForwardingSubsetStopReport | null
+  passed: boolean
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  defaultRoute: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3060,6 +3173,51 @@ export async function getRuntimeKernelLoopbackForwardingLeakCheck(
 ) {
   return invoke<RuntimeKernelLoopbackForwardingLeakCheckReport>(
     'get_runtime_kernel_loopback_forwarding_leak_check',
+    { listenerPort, targetPort },
+  )
+}
+
+export async function getRuntimeKernelRustProtocolForwardingSubsetPreflight(
+  listenerPort?: number,
+  targetHost?: string,
+  targetPort?: number,
+) {
+  return invoke<RustProtocolForwardingSubsetPreflightReport>(
+    'get_runtime_kernel_rust_protocol_forwarding_subset_preflight',
+    { listenerPort, targetHost, targetPort },
+  )
+}
+
+export async function startRuntimeKernelRustProtocolForwardingSubset(
+  listenerPort?: number,
+  targetHost?: string,
+  targetPort?: number,
+  explicitOptIn = false,
+) {
+  return invoke<RustProtocolForwardingSubsetStartReport>(
+    'start_runtime_kernel_rust_protocol_forwarding_subset',
+    { listenerPort, targetHost, targetPort, explicitOptIn },
+  )
+}
+
+export async function getRuntimeKernelRustProtocolForwardingSubsetStatus() {
+  return invoke<RustProtocolForwardingSubsetStatusReport>(
+    'get_runtime_kernel_rust_protocol_forwarding_subset_status',
+  )
+}
+
+export async function stopRuntimeKernelRustProtocolForwardingSubset() {
+  return invoke<RustProtocolForwardingSubsetStopReport>(
+    'stop_runtime_kernel_rust_protocol_forwarding_subset',
+  )
+}
+
+export async function getRuntimeKernelRustProtocolForwardingSubsetSmokeEvidence(
+  listenerPort?: number,
+  targetPort?: number,
+) {
+  return invoke<RustProtocolForwardingSubsetSmokeEvidenceReport>(
+    'get_runtime_kernel_rust_protocol_forwarding_subset_smoke_evidence',
     { listenerPort, targetPort },
   )
 }

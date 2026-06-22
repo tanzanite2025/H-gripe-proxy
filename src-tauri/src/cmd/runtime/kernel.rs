@@ -1,4 +1,11 @@
-﻿use super::*;
+use super::*;
+use crate::core::kernel_runtime::{
+    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
+    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
+    RustProtocolForwardingSubsetStopReport, rust_protocol_forwarding_subset_preflight,
+    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
+    start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
+};
 
 #[tauri::command]
 
@@ -111,6 +118,49 @@ pub async fn get_runtime_kernel_loopback_forwarding_leak_check(
     target_port: Option<u16>,
 ) -> CmdResult<KernelLoopbackForwardingLeakCheckReport> {
     mihomo_kernel_loopback_forwarding_leak_check(listener_port, target_port)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_protocol_forwarding_subset_preflight(
+    listener_port: Option<u16>,
+    target_host: Option<String>,
+    target_port: Option<u16>,
+) -> CmdResult<RustProtocolForwardingSubsetPreflightReport> {
+    Ok(rust_protocol_forwarding_subset_preflight(listener_port, target_host, target_port).await)
+}
+
+#[tauri::command]
+pub async fn start_runtime_kernel_rust_protocol_forwarding_subset(
+    listener_port: Option<u16>,
+    target_host: Option<String>,
+    target_port: Option<u16>,
+    explicit_opt_in: bool,
+) -> CmdResult<RustProtocolForwardingSubsetStartReport> {
+    start_rust_protocol_forwarding_subset(listener_port, target_host, target_port, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_protocol_forwarding_subset_status()
+-> CmdResult<RustProtocolForwardingSubsetStatusReport> {
+    Ok(rust_protocol_forwarding_subset_status().await)
+}
+
+#[tauri::command]
+pub async fn stop_runtime_kernel_rust_protocol_forwarding_subset() -> CmdResult<RustProtocolForwardingSubsetStopReport>
+{
+    Ok(stop_rust_protocol_forwarding_subset().await)
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_protocol_forwarding_subset_smoke_evidence(
+    listener_port: Option<u16>,
+    target_port: Option<u16>,
+) -> CmdResult<RustProtocolForwardingSubsetSmokeEvidenceReport> {
+    rust_protocol_forwarding_subset_smoke_evidence(listener_port, target_port)
         .await
         .stringify_err()
 }

@@ -455,6 +455,134 @@ pub struct KernelLoopbackForwardingLeakCheckReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustProtocolForwardingSubsetStatus {
+    Ready,
+    Running,
+    Stopped,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolForwardingSubsetAccounting {
+    pub accepted_connections: u64,
+    pub completed_connections: u64,
+    pub failed_connections: u64,
+    pub bytes_from_client: u64,
+    pub bytes_from_target: u64,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolForwardingSubsetPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustProtocolForwardingSubsetStatus,
+    pub reason: String,
+    pub listener_host: String,
+    pub listener_port: u16,
+    pub target_host: String,
+    pub target_port: u16,
+    pub can_start_after_opt_in: bool,
+    pub explicit_opt_in_required: bool,
+    pub loopback_only: bool,
+    pub supported_protocols: Vec<String>,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolForwardingSubsetStatusReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustProtocolForwardingSubsetStatus,
+    pub reason: String,
+    pub running: bool,
+    pub listener_host: String,
+    pub listener_port: Option<u16>,
+    pub target_host: Option<String>,
+    pub target_port: Option<u16>,
+    pub started_at_epoch_ms: Option<u64>,
+    pub accounting: RustProtocolForwardingSubsetAccounting,
+    pub loopback_only: bool,
+    pub supported_protocols: Vec<String>,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolForwardingSubsetStartReport {
+    pub preflight: RustProtocolForwardingSubsetPreflightReport,
+    pub status: RustProtocolForwardingSubsetStatusReport,
+    pub explicit_opt_in: bool,
+    pub started: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolForwardingSubsetStopReport {
+    pub status: RustProtocolForwardingSubsetStatus,
+    pub reason: String,
+    pub stopped: bool,
+    pub previous_status: RustProtocolForwardingSubsetStatusReport,
+    pub after_status: RustProtocolForwardingSubsetStatusReport,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolForwardingSubsetSmokeEvidenceReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustProtocolForwardingSubsetStatus,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub accounting: RustProtocolForwardingSubsetAccounting,
+    pub stop_report: Option<RustProtocolForwardingSubsetStopReport>,
+    pub passed: bool,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub default_route: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {
