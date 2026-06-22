@@ -5,11 +5,13 @@ use super::{
     KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck, KernelLoopbackRustDataPlaneHardeningBoundaryAuditReport,
     KernelLoopbackRustDataPlaneHardeningOptInDryRunReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport,
-    KernelLoopbackRustDataPlaneHardeningOptInExecutionReport, KernelLoopbackRustDataPlaneHardeningPreflightReport,
-    KernelRuntimeKind, RUST_RUNTIME_ID, RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport,
-    RustKernelRuntimeDataPlaneHardeningBoundaryReport, RustKernelRuntimeDataPlaneHardeningOptInDryRunReport,
-    RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
+    KernelLoopbackRustDataPlaneHardeningOptInExecutionReport,
+    KernelLoopbackRustDataPlaneHardeningOptInExecutionVerificationReport,
+    KernelLoopbackRustDataPlaneHardeningPreflightReport, KernelRuntimeKind, RUST_RUNTIME_ID,
+    RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport, RustKernelRuntimeDataPlaneHardeningBoundaryReport,
+    RustKernelRuntimeDataPlaneHardeningOptInDryRunReport, RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionReport,
+    RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport,
 };
 
 fn rust_kernel_runtime_data_plane_hardening_boundary_report(
@@ -910,6 +912,196 @@ pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution(
             "rust-data-plane-hardening-opt-in-execution-verification".into()
         } else {
             "rust-data-plane-hardening-opt-in-execution".into()
+        },
+    })
+}
+
+fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verification_report(
+    execution_record_review_decision: bool,
+    telemetry_sample_review_decision: bool,
+    rollback_readiness_verification_decision: bool,
+    production_mutation_guard_retention_verification_decision: bool,
+    production_forwarding_unchanged_verification_decision: bool,
+    leak_regression_absence_verification_decision: bool,
+    verification_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport {
+    let mut blockers = Vec::new();
+    let mut verification_surfaces = Vec::new();
+
+    if execution_record_review_decision {
+        verification_surfaces.push("execution record review".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution verification requires reviewed execution records".into());
+    }
+    if telemetry_sample_review_decision {
+        verification_surfaces.push("telemetry sample review".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution verification requires reviewed telemetry samples".into());
+    }
+    if rollback_readiness_verification_decision {
+        verification_surfaces.push("rollback readiness verification".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution verification requires rollback readiness verification".into());
+    }
+    if production_mutation_guard_retention_verification_decision {
+        verification_surfaces.push("retained production mutation guard verification".into());
+    } else {
+        blockers.push(
+            "Rust data-plane opt-in execution verification requires retained production mutation guard verification"
+                .into(),
+        );
+    }
+    if production_forwarding_unchanged_verification_decision {
+        verification_surfaces.push("production forwarding unchanged verification".into());
+    } else {
+        blockers.push(
+            "Rust data-plane opt-in execution verification requires production forwarding unchanged verification"
+                .into(),
+        );
+    }
+    if leak_regression_absence_verification_decision {
+        verification_surfaces.push("leak regression absence verification".into());
+    } else {
+        blockers
+            .push("Rust data-plane opt-in execution verification requires leak regression absence verification".into());
+    }
+    if verification_evidence_archive_decision {
+        verification_surfaces.push("archived verification evidence".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution verification requires archived verification evidence".into());
+    }
+
+    RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-opt-in-execution-verification-detail".into(),
+        execution_record_reviewed: execution_record_review_decision,
+        telemetry_sample_reviewed: telemetry_sample_review_decision,
+        rollback_readiness_verified: rollback_readiness_verification_decision,
+        production_mutation_guard_still_retained: production_mutation_guard_retention_verification_decision,
+        production_forwarding_unchanged_verified: production_forwarding_unchanged_verification_decision,
+        leak_regression_absence_verified: leak_regression_absence_verification_decision,
+        verification_evidence_archived: verification_evidence_archive_decision,
+        opt_in_execution_verification_complete: blockers.is_empty(),
+        verification_surfaces,
+        blockers,
+        facts: vec![
+            "opt-in execution verification reviews the recorded envelope without changing production forwarding".into(),
+            "production data-plane mutation remains blocked after verification".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verification(
+    rust_data_plane_hardening_opt_in_execution_complete_decision: Option<bool>,
+    execution_record_review_decision: Option<bool>,
+    telemetry_sample_review_decision: Option<bool>,
+    rollback_readiness_verification_decision: Option<bool>,
+    production_mutation_guard_retention_verification_decision: Option<bool>,
+    production_forwarding_unchanged_verification_decision: Option<bool>,
+    leak_regression_absence_verification_decision: Option<bool>,
+    verification_evidence_archive_decision: Option<bool>,
+    final_verification_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningOptInExecutionVerificationReport> {
+    let rust_data_plane_hardening_opt_in_execution_complete =
+        rust_data_plane_hardening_opt_in_execution_complete_decision.unwrap_or(false);
+    let final_verification_decision = final_verification_decision.unwrap_or(false);
+    let opt_in_execution_verification = rust_kernel_runtime_data_plane_hardening_opt_in_execution_verification_report(
+        execution_record_review_decision.unwrap_or(false),
+        telemetry_sample_review_decision.unwrap_or(false),
+        rollback_readiness_verification_decision.unwrap_or(false),
+        production_mutation_guard_retention_verification_decision.unwrap_or(false),
+        production_forwarding_unchanged_verification_decision.unwrap_or(false),
+        leak_regression_absence_verification_decision.unwrap_or(false),
+        verification_evidence_archive_decision.unwrap_or(false),
+    );
+    let mut execution_blockers = Vec::new();
+
+    if !rust_data_plane_hardening_opt_in_execution_complete {
+        execution_blockers
+            .push("Rust data-plane opt-in execution verification requires opt-in execution to pass first".into());
+    }
+
+    let checks = vec![
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningOptInExecutionComplete".into(),
+            status: if rust_data_plane_hardening_opt_in_execution_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: rust_data_plane_hardening_opt_in_execution_complete,
+            blockers: execution_blockers,
+            facts: vec!["opt-in execution verification starts only after the execution gate".into()],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "rustDataPlaneHardeningOptInExecutionVerificationComplete".into(),
+            status: if opt_in_execution_verification.opt_in_execution_verification_complete {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: opt_in_execution_verification.opt_in_execution_verification_complete,
+            blockers: opt_in_execution_verification.blockers.clone(),
+            facts: vec![
+                "execution records, telemetry samples, rollback readiness, mutation guard retention, unchanged forwarding, leak regression absence, and evidence archival are evaluated together".into(),
+            ],
+        },
+        KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck {
+            name: "finalVerificationDecision".into(),
+            status: if final_verification_decision {
+                "passed"
+            } else {
+                "blocked"
+            }
+            .into(),
+            passed: final_verification_decision,
+            blockers: if final_verification_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane opt-in execution verification requires an explicit final decision".into()]
+            },
+            facts: vec!["verification completion is explicit before any controlled rollout guard".into()],
+        },
+    ];
+    let rust_data_plane_hardening_opt_in_execution_verification_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(KernelLoopbackRustDataPlaneHardeningOptInExecutionVerificationReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-opt-in-execution-verification".into(),
+        mutates_runtime: false,
+        live_execution_allowed: false,
+        production_data_plane_mutation_allowed: false,
+        rust_data_plane_hardening_opt_in_execution_complete,
+        opt_in_execution_verification,
+        final_verification_decision,
+        rust_data_plane_hardening_opt_in_execution_verification_complete,
+        selected_runtime_kind: if rust_data_plane_hardening_opt_in_execution_verification_complete {
+            KernelRuntimeKind::Rust
+        } else {
+            KernelRuntimeKind::Mihomo
+        },
+        rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+        checks,
+        blockers,
+        warnings: vec![
+            "this verification gate does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config"
+                .into(),
+            "production data-plane mutation remains blocked until a separate controlled rollout guard".into(),
+        ],
+        facts: vec![
+            "Rust data-plane hardening opt-in execution verification follows the opt-in execution gate".into(),
+            "successful verification advances only to controlled rollout guard planning".into(),
+        ],
+        next_safe_batch: if rust_data_plane_hardening_opt_in_execution_verification_complete {
+            "rust-data-plane-hardening-controlled-rollout-guard".into()
+        } else {
+            "rust-data-plane-hardening-opt-in-execution-verification".into()
         },
     })
 }
