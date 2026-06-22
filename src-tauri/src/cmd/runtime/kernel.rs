@@ -2037,6 +2037,35 @@ pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_execut
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_opt_in_dry_run(
+    rust_data_plane_hardening_opt_in_execution_guard_complete_decision: Option<bool>,
+    execution_guard_review_decision: Option<bool>,
+    dry_run_scope_lock_decision: Option<bool>,
+    manifest_replay_decision: Option<bool>,
+    synthetic_flow_plan_decision: Option<bool>,
+    leak_watch_plan_verification_decision: Option<bool>,
+    rollback_rehearsal_decision: Option<bool>,
+    production_forwarding_unchanged_verification_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_dry_run_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningOptInDryRunReport> {
+    rust_kernel_runtime_data_plane_hardening_opt_in_dry_run(
+        rust_data_plane_hardening_opt_in_execution_guard_complete_decision,
+        execution_guard_review_decision,
+        dry_run_scope_lock_decision,
+        manifest_replay_decision,
+        synthetic_flow_plan_decision,
+        leak_watch_plan_verification_decision,
+        rollback_rehearsal_decision,
+        production_forwarding_unchanged_verification_decision,
+        dry_run_evidence_archive_decision,
+        final_dry_run_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
