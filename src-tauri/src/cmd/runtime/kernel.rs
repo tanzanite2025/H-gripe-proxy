@@ -1,14 +1,15 @@
 use super::*;
 use crate::core::kernel_runtime::{
     MihomoFallbackRetirementExecutionReport, RustFallbackRetirementReadinessLockReport,
-    RustFallbackRetirementReadinessManifest, RustProtocolForwardingSubsetPreflightReport,
-    RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
-    RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport,
-    RustRuntimeRealCanaryEvidenceReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
-    RustTunSystemProxyParityRollbackReport, apply_rust_tun_system_proxy_parity, execute_mihomo_fallback_retirement,
-    lock_rust_fallback_retirement_readiness, mihomo_fallback_retirement_execution_plan,
-    rollback_mihomo_fallback_retirement_execution, rollback_rust_tun_system_proxy_parity,
-    rust_fallback_retirement_readiness_manifest, rust_protocol_forwarding_subset_preflight,
+    RustFallbackRetirementReadinessManifest, RustProtocolAdapterForwardingExpansionReport,
+    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
+    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
+    RustProtocolForwardingSubsetStopReport, RustRuntimeRealCanaryEvidenceReport, RustTunSystemProxyParityApplyReport,
+    RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
+    apply_rust_tun_system_proxy_parity, execute_mihomo_fallback_retirement, lock_rust_fallback_retirement_readiness,
+    mihomo_fallback_retirement_execution_plan, rollback_mihomo_fallback_retirement_execution,
+    rollback_rust_tun_system_proxy_parity, rust_fallback_retirement_readiness_manifest,
+    rust_protocol_adapter_forwarding_expansion_evidence, rust_protocol_forwarding_subset_preflight,
     rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
     rust_runtime_real_canary_evidence, rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
     stop_rust_protocol_forwarding_subset,
@@ -218,6 +219,15 @@ pub async fn run_runtime_kernel_rust_runtime_real_canary(
     explicit_opt_in: bool,
 ) -> CmdResult<RustRuntimeRealCanaryEvidenceReport> {
     rust_runtime_real_canary_evidence(canary_profile, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_protocol_adapter_forwarding_expansion(
+    explicit_opt_in: bool,
+) -> CmdResult<RustProtocolAdapterForwardingExpansionReport> {
+    rust_protocol_adapter_forwarding_expansion_evidence(explicit_opt_in)
         .await
         .stringify_err()
 }
