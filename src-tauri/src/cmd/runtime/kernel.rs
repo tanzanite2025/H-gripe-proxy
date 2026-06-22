@@ -1,20 +1,20 @@
 use super::*;
 use crate::core::kernel_runtime::{
-    MihomoFallbackRetirementExecutionReport, RustFallbackRetirementReadinessLockReport,
-    RustFallbackRetirementReadinessManifest, RustHttpConnectProxyAdapterReport,
-    RustProtocolAdapterForwardingExpansionReport, RustProtocolForwardingSubsetPreflightReport,
-    RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
-    RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport,
-    RustRemoteAdapterTransportExpansionReport, RustRuntimeRealCanaryEvidenceReport,
-    RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
+    MihomoFallbackRetirementExecutionReport, RustEncryptedProxyProtocolPreflightReport,
+    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
+    RustHttpConnectProxyAdapterReport, RustProtocolAdapterForwardingExpansionReport,
+    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
+    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
+    RustProtocolForwardingSubsetStopReport, RustRemoteAdapterTransportExpansionReport,
+    RustRuntimeRealCanaryEvidenceReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
     RustTunSystemProxyParityRollbackReport, apply_rust_tun_system_proxy_parity, execute_mihomo_fallback_retirement,
     lock_rust_fallback_retirement_readiness, mihomo_fallback_retirement_execution_plan,
     rollback_mihomo_fallback_retirement_execution, rollback_rust_tun_system_proxy_parity,
-    rust_fallback_retirement_readiness_manifest, rust_http_connect_proxy_adapter_evidence,
-    rust_protocol_adapter_forwarding_expansion_evidence, rust_protocol_forwarding_subset_preflight,
-    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
-    rust_remote_adapter_transport_expansion_evidence, rust_runtime_real_canary_evidence,
-    rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
+    rust_encrypted_proxy_protocol_preflight_evidence, rust_fallback_retirement_readiness_manifest,
+    rust_http_connect_proxy_adapter_evidence, rust_protocol_adapter_forwarding_expansion_evidence,
+    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
+    rust_protocol_forwarding_subset_status, rust_remote_adapter_transport_expansion_evidence,
+    rust_runtime_real_canary_evidence, rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
     stop_rust_protocol_forwarding_subset,
 };
 
@@ -249,6 +249,15 @@ pub async fn run_runtime_kernel_rust_http_connect_proxy_adapter(
     explicit_opt_in: bool,
 ) -> CmdResult<RustHttpConnectProxyAdapterReport> {
     rust_http_connect_proxy_adapter_evidence(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_encrypted_proxy_protocol_preflight(
+    explicit_opt_in: bool,
+) -> CmdResult<RustEncryptedProxyProtocolPreflightReport> {
+    rust_encrypted_proxy_protocol_preflight_evidence(explicit_opt_in)
         .await
         .stringify_err()
 }

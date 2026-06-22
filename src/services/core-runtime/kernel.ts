@@ -3165,6 +3165,55 @@ export interface RustHttpConnectProxyAdapterReport {
   nextSafeBatch: string
 }
 
+export type RustEncryptedProxyProtocolStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export type RustEncryptedProxyProtocolKind =
+  | 'shadowsocksAead'
+  | 'trojanAuth'
+  | 'unsupportedEncryptedProtocol'
+
+export interface RustEncryptedProxyProtocolEvidence {
+  protocol: RustEncryptedProxyProtocolKind
+  adapterName: string
+  listenerPort?: number | null
+  targetPort?: number | null
+  targetReceived: boolean
+  responseStatus?: string | null
+  encryptedRequestBytes: number
+  decryptedRequestBytes: number
+  encryptedResponseBytes: number
+  decryptedResponseBytes: number
+  fallbackRetained: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustEncryptedProxyProtocolPreflightReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustEncryptedProxyProtocolStatus
+  reason: string
+  explicitOptIn: boolean
+  shadowsocksAeadEvidence?: RustEncryptedProxyProtocolEvidence | null
+  trojanAuthEvidence?: RustEncryptedProxyProtocolEvidence | null
+  unsupportedProtocolEvidence: RustEncryptedProxyProtocolEvidence[]
+  evidencePath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3626,6 +3675,15 @@ export async function runRuntimeKernelRustHttpConnectProxyAdapter(
 ) {
   return invoke<RustHttpConnectProxyAdapterReport>(
     'run_runtime_kernel_rust_http_connect_proxy_adapter',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustEncryptedProxyProtocolPreflight(
+  explicitOptIn = false,
+) {
+  return invoke<RustEncryptedProxyProtocolPreflightReport>(
+    'run_runtime_kernel_rust_encrypted_proxy_protocol_preflight',
     { explicitOptIn },
   )
 }

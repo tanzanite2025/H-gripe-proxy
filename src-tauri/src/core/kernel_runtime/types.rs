@@ -986,6 +986,65 @@ pub struct RustHttpConnectProxyAdapterReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustEncryptedProxyProtocolStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustEncryptedProxyProtocolKind {
+    ShadowsocksAead,
+    TrojanAuth,
+    UnsupportedEncryptedProtocol,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustEncryptedProxyProtocolEvidence {
+    pub protocol: RustEncryptedProxyProtocolKind,
+    pub adapter_name: String,
+    pub listener_port: Option<u16>,
+    pub target_port: Option<u16>,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub encrypted_request_bytes: u64,
+    pub decrypted_request_bytes: u64,
+    pub encrypted_response_bytes: u64,
+    pub decrypted_response_bytes: u64,
+    pub fallback_retained: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustEncryptedProxyProtocolPreflightReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustEncryptedProxyProtocolStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub shadowsocks_aead_evidence: Option<RustEncryptedProxyProtocolEvidence>,
+    pub trojan_auth_evidence: Option<RustEncryptedProxyProtocolEvidence>,
+    pub unsupported_protocol_evidence: Vec<RustEncryptedProxyProtocolEvidence>,
+    pub evidence_path: Option<String>,
+    pub loopback_remote_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {
