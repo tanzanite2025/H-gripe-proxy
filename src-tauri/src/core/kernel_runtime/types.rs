@@ -1100,6 +1100,79 @@ pub struct RustShadowsocksAeadAdapterExecutionReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustShadowsocksAeadAdapterCanaryStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustShadowsocksAeadAdapterCanaryFallbackEvidence {
+    pub trigger_name: String,
+    pub unsupported_protocol: String,
+    pub fallback_triggered: bool,
+    pub rust_adapter_bypassed: bool,
+    pub mihomo_fallback_retained: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustShadowsocksAeadAdapterCanaryRollbackEvidence {
+    pub checkpoint_path: Option<String>,
+    pub checkpoint_readable: bool,
+    pub component: Option<String>,
+    pub adapter_name: Option<String>,
+    pub fallback_retained_for_unsupported: bool,
+    pub rollback_action: Option<String>,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustShadowsocksAeadAdapterCanaryHealthEvidence {
+    pub execution_evidence_path: Option<String>,
+    pub execution_passed: bool,
+    pub loopback_remote_only: bool,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub byte_accounting_passed: bool,
+    pub no_runtime_mutation: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustShadowsocksAeadAdapterCanaryReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustShadowsocksAeadAdapterCanaryStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub execution_report: Option<RustShadowsocksAeadAdapterExecutionReport>,
+    pub fallback_trigger_evidence: Option<RustShadowsocksAeadAdapterCanaryFallbackEvidence>,
+    pub rollback_checkpoint_evidence: Option<RustShadowsocksAeadAdapterCanaryRollbackEvidence>,
+    pub health_evidence: Option<RustShadowsocksAeadAdapterCanaryHealthEvidence>,
+    pub evidence_path: Option<String>,
+    pub loopback_remote_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {
