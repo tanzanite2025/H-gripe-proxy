@@ -19,94 +19,49 @@ App registry / policy / node pool / DNS / security profile
 
 ## Current state
 
+The migration has too many completed control-plane gates and not enough real data-plane replacement work. Treat the recent `rust-data-plane-hardening-*` IPC commands as safety metadata only; they do **not** mean Rust owns DNS runtime, TUN forwarding, adapter dialing, protocol stacks, or fallback retirement.
+
 | Area | State | Boundary |
 | --- | --- | --- |
-| Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust data-plane hardening Mihomo fallback retirement readiness bundle complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_readiness` requires expanded default rollout closeout, fallback retirement guard, dry-run replay, protocol/TUN/adapter/DNS parity evidence, soak evidence, emergency rollback ownership, and final readiness decision before any fallback retirement execution. |
-| Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `rust-data-plane-hardening-mihomo-fallback-retirement-execution` | Only after fallback retirement readiness passes, plan a separate explicit execution surface; Mihomo fallback is not removed by readiness, dry-run, or guard gates. |
+| Rust control plane | Mature | Validation, planning, projection artifacts, audit, telemetry, and frontend type surfaces are Rust-owned enough to support real data-plane work. Stop adding more read-only gate-only PRs here. |
+| DNS runtime | Not started as a replacement | Rust has DNS planning/shadow/probe evidence, but Mihomo still owns production DNS runtime. Next real work starts here. |
+| Adapter / egress runtime | Not started as a replacement | Rust has inventory and capability reports, but production adapter dialing and egress selection still fall through Mihomo. |
+| Protocol forwarding | Not started as a replacement | HTTP/SOCKS/TUN/inbound/outbound protocol stacks remain Mihomo-owned. Rust loopback listeners are evidence only. |
+| TUN / system proxy | Not started as a replacement | Rust audits and gates TUN/system-proxy changes, but does not own OS packet capture or transparent proxy forwarding. |
+| Mihomo fallback retirement | Blocked | Do not execute fallback retirement until DNS, adapter, protocol, TUN/system-proxy parity and rollback drills exist as implementation PRs. |
+| Next real batch | `rust-dns-runtime-parity` | Implement Rust-owned DNS runtime parity for a bounded supported subset with leak tests and Mihomo fallback, not another gate-only command. |
 
 ## Acceleration plan
 
-The prior R3-R5 path intentionally used many small safety gates. That proved safety, but it is now too slow for the actual Go-to-Rust switch. From this point forward, stop creating standalone PRs that only add another read-only evidence command unless that PR also closes a phase or introduces a real Rust cutover surface.
+Course correction: the previous roadmap drifted into dozens of IPC/readiness gates. That is no longer useful. From this point forward, roadmap progress is measured by shipped data-plane capability, not by another `*_guard`, `*_dry_run`, or `*_readiness` wrapper.
 
-### Accelerated completion target
+### Hard stop on gate-only PRs
 
-The first "fully cut to Rust" milestone means the app selects a Rust-owned kernel runtime by default for the supported safe data-plane subset, while unsupported protocol/TUN/adapter paths still fall through to Mihomo without app restart or connectivity loss. Full replacement of every Mihomo protocol stack is a later hardening phase, not a blocker for the first Rust-default milestone.
+- Do not create another PR whose only product change is a new read-only evidence/gate command.
+- A safety gate may be included only when it protects a real implementation in the same PR.
+- Every migration PR must name the concrete Mihomo-owned behavior it reduces: DNS runtime, adapter egress, protocol forwarding, TUN/system proxy, fallback dependency, or removal of Go/Mihomo artifacts.
+- Prefer 4-6 large implementation PRs over any new long sequence of numbered gates.
 
-Required properties for that first Rust-default milestone:
+### Real fast-track sequence
 
-```text
-RustKernelRuntime selected by default
-  -> Rust-owned rule / DNS / adapter decision path for supported traffic
-  -> MihomoFallbackRuntime for unsupported protocols, TUN, and emergency rollback
-  -> explicit audit + health + rollback state
-  -> one-switch rollback to Mihomo default
-```
-
-### Batch-size rule from now on
-
-- No more single-gate roadmap PRs.
-- Each PR must either add a real Rust runtime/cutover capability or close multiple remaining gates at once.
-- Prefer 3-5 large PRs over another long chain of evidence-only batches.
-- Keep safety booleans explicit, but remove duplicate "readiness of readiness" steps.
-- If a gate only restates already-captured R5 evidence, fold it into the next implementation PR.
-
-### Fast-track PR sequence
-
-| Order | Batch | Purpose | Default impact |
+| Order | Batch | Required implementation | Default impact |
 | --- | --- | --- | --- |
-| 1 | `r5-closeout-r6-rust-runtime-scaffold` | Bundle the R5 closeout report with `RustKernelRuntime`/runtime-selection scaffolding, fallback boundary, and frontend/IPC types. | No default change. |
-| 2 | `r6-opt-in-rust-runtime-mvp` | Implement the Rust-owned supported subset behind explicit opt-in: rule/DNS/adapter decision path, direct/local forwarding surface, health telemetry, and Mihomo fallback. | Complete; opt-in only. |
-| 3 | `r6-rust-default-canary` | Make Rust runtime default for a capped safe canary profile with automatic fallback on health/rollback triggers. | Complete; limited default for canary profile. |
-| 4 | `r7-rust-default-cutover` | Complete: promote Rust runtime to default for the supported profile after canary closeout; keep Mihomo fallback for unsupported protocols/TUN until parity is complete. | Complete; Rust default for supported profile. |
-| 5 | `r7-mihomo-fallback-retirement` | Complete: gate fallback dependence removal behind protocol/TUN/adapter/DNS parity, cross-platform rollback drills, soak evidence, explicit retirement decision, and emergency rollback. | Full replacement candidate, blocked by default. |
-| 6 | `full-rust-runtime-hardening` | Complete: gate full Rust runtime hardening behind R7 fallback retirement readiness, extended soak, rollback telemetry, platform hardening follow-up, and explicit final decision. | Full Rust hardening candidate, blocked by default. |
-| 7 | `go-mihomo-retirement-audit` | Complete: inventory remaining Go/Mihomo source, bundled artifacts, fallback IPC, docs/runbooks, and retained emergency rollback before any removal plan. | Audit only; no removal. |
-| 8 | `go-mihomo-retirement-plan` | Complete: plan source removal, bundled artifact deprecation, IPC fallback replacement, emergency rollback preservation, and release rollout before any execution guard. | Plan only; no removal. |
-| 9 | `go-mihomo-retirement-execution-guard` | Complete: require removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decision before any dry-run. | Guard only; no removal. |
-| 10 | `go-mihomo-retirement-dry-run` | Complete: replay removal manifest and verify no source/artifact mutations, rollback rehearsal, archived evidence, and final dry-run decision before closeout. | Dry-run only; no removal. |
-| 11 | `go-mihomo-retirement-closeout` | Complete: review dry-run evidence, archive closeout report, verify rollback checkpoint, freeze artifact inventory, prove no removal mutations, and require final closeout decision. | Closeout only; no removal. |
-| 12 | `go-mihomo-retirement-final-removal-gate` | Complete: accept closeout evidence, lock rollback boundary, lock removal scope, pass release blocker review, require final operator approval, and explicit final removal decision. | Final gate only; no removal. |
-| 13 | `go-mihomo-retirement-execution` | Complete: require final removal gate, rollback checkpoint, execution manifest application, source/artifact removal records, post-execution validation, and final execution decision. | Execution evidence only; no direct runtime mutation. |
-| 14 | `go-mihomo-retirement-post-execution-verification` | Complete: verify execution evidence, Rust-only boundary, retained rollback checkpoint, source/artifact removal, fallback IPC absence, and final verification decision. | Verification only; no rollback retirement. |
-| 15 | `go-mihomo-retirement-rollback-surface-retirement` | Complete: review post-execution verification, verify replacement recovery path, lock rollback surface inventory, archive retirement plan, pass emergency recovery drill, and require final retirement decision. | Retirement gate only; no emergency recovery removal. |
-| 16 | `go-mihomo-retirement-completion-closeout` | Complete: review rollback surface retirement, retain recovery boundary evidence, archive completion report, update release notes, freeze migration state, and require final completion decision. | Completion closeout only; no future hardening mixed in. |
-| 17 | `rust-data-plane-hardening-preflight` | Complete: require Go/Mihomo retirement closeout, protocol parity inventory, TUN boundary inventory, adapter compatibility matrix, DNS leak verification plan, rollback drill plan, locked opt-in execution boundary, and final preflight decision. | Preflight only; no production forwarding mutation. |
-| 18 | `rust-data-plane-hardening-boundary-audit` | Complete: review hardening preflight and audit protocol, TUN, adapter, DNS leak, rollback, and opt-in execution boundaries before guard planning. | Boundary audit only; no production forwarding mutation. |
-| 19 | `rust-data-plane-hardening-opt-in-execution-guard` | Complete: require boundary audit, locked opt-in scope, rollout guard definition, approved abort plan, telemetry watch configuration, verified rollback switch, operator acknowledgement, and final execution guard decision. | Guard only; no production forwarding mutation. |
-| 20 | `rust-data-plane-hardening-opt-in-dry-run` | Complete: require execution guard review, locked dry-run scope, manifest replay, synthetic flow plan, leak watch plan verification, rollback rehearsal, unchanged production forwarding verification, archived dry-run evidence, and final dry-run decision. | Non-production dry-run only; no production forwarding mutation. |
-| 21 | `rust-data-plane-hardening-opt-in-execution` | Complete: require dry-run review, locked execution manifest, staged opt-in window, active telemetry watch, armed rollback switch, retained production mutation guard, operator execution acknowledgement, and final execution decision. | Execution gate only; production forwarding mutation remains blocked. |
-| 22 | `rust-data-plane-hardening-opt-in-execution-verification` | Complete: require execution record review, telemetry sample review, rollback readiness verification, retained production mutation guard verification, unchanged production forwarding verification, leak regression absence verification, archived verification evidence, and final verification decision. | Verification only; no production forwarding mutation. |
-| 23 | `rust-data-plane-hardening-controlled-rollout-guard` | Complete: require opt-in verification review, locked rollout scope, canary population cap, health rollback triggers, telemetry hold, retained Mihomo fallback, retained production mutation guard, operator acknowledgement, and final guard decision. | Guard only; no production forwarding mutation. |
-| 24 | `rust-data-plane-hardening-controlled-rollout-dry-run` | Complete: require guard review, rollout manifest replay, capped canary simulation, fallback trigger rehearsal, telemetry hold sample review, rollback switch rehearsal, unchanged forwarding verification, archived dry-run evidence, and final dry-run decision. | Non-production dry-run only; no production forwarding mutation. |
-| 25 | `rust-data-plane-hardening-controlled-rollout-readiness-closeout` | Complete: require dry-run review, rollout window approval, enforced canary population cap, armed automatic fallback, active telemetry watch, rollback owner acknowledgement, retained production mutation guard, archived closeout evidence, and final readiness decision. | Readiness closeout only; canary execution remains a separate PR. |
-| 26 | `rust-data-plane-hardening-controlled-rollout-canary-execution` | Complete: require readiness closeout review, locked canary execution manifest, started capped canary window, enforced canary cap, active health telemetry, armed automatic fallback, retained Mihomo fallback, retained production mutation guard, operator acknowledgement, and final canary execution decision. | Canary execution surface only; no default promotion. |
-| 27 | `rust-data-plane-hardening-controlled-rollout-canary-verification` | Complete: require canary execution record review, health telemetry samples, fallback result review, unsupported traffic fallback verification, leak regression absence verification, rollback readiness verification, retained mutation guard verification, archived evidence, and final verification decision. | Verification only; no default promotion. |
-| 28 | `rust-data-plane-hardening-supported-default-promotion-guard` | Complete: require canary verification review, locked supported profile scope, retained fallback matrix, verified rollback switch, telemetry soak window, release blocker review, retained mutation guard, operator acknowledgement, and final promotion guard decision. | Guard only; no default promotion. |
-| 29 | `rust-data-plane-hardening-supported-default-promotion-dry-run` | Complete: require promotion guard review, default selection manifest replay, supported profile simulation, fallback rehearsal, rollback rehearsal, unchanged forwarding verification, archived dry-run evidence, and final dry-run decision. | Dry-run only; cutover remains a separate PR. |
-| 30 | `rust-data-plane-hardening-supported-default-cutover` | Complete: require dry-run review, locked cutover manifest, supported profile default selection confirmation, unsupported paths bound to Mihomo fallback, armed rollback switch, active telemetry soak watch, operator acknowledgement, recorded mutation guard transition, and final cutover decision. | Supported-profile cutover surface only; no TUN/DNS/adapter or Mihomo config ownership change. |
-| 31 | `rust-data-plane-hardening-supported-default-cutover-verification` | Complete: require cutover record review, supported traffic sample review, unsupported fallback verification, rollback switch verification, telemetry soak review, leak regression absence verification, archived mutation audit record, and final verification decision. | Verification only; no fallback retirement. |
-| 32 | `rust-data-plane-hardening-supported-default-cutover-hold-window` | Complete: require verification review, elapsed soak window, health budget satisfaction, fallback incident review, still-armed rollback, retained Mihomo fallback, archived hold evidence, and final hold decision. | Hold window only; expanded rollout remains blocked. |
-| 33 | `rust-data-plane-hardening-supported-default-cutover-closeout` | Complete: require hold window review, supported default state documentation, rollback owner acknowledgement, retained fallback retirement boundary, release notes, archived closeout evidence, and final closeout decision. | Closeout only; fallback retirement remains a separate high-risk phase. |
-| 34 | `rust-data-plane-hardening-expanded-default-rollout-guard` | Complete: require supported default cutover closeout review, locked expanded rollout scope, defined rollout cap, retained fallback matrix, verified rollback switch, telemetry soak plan, retained unsupported path boundary, operator acknowledgement, and final guard decision. | Guard only; no expanded execution. |
-| 35 | `rust-data-plane-hardening-expanded-default-rollout-dry-run` | Complete: require guard review, expanded manifest replay, representative profile simulation, fallback routing rehearsal, rollback rehearsal, telemetry soak sample review, archived dry-run evidence, and final dry-run decision. | Dry-run only; no runtime mutation. |
-| 36 | `rust-data-plane-hardening-expanded-default-rollout-execution` | Complete: require dry-run review, locked execution manifest, started rollout window, enforced expanded profile cap, active telemetry watch, armed rollback switch, retained Mihomo fallback, operator acknowledgement, and final execution decision. | Capped expanded execution surface; no fallback retirement or Mihomo config ownership change. |
-| 37 | `rust-data-plane-hardening-expanded-default-rollout-verification` | Complete: require execution record review, expanded profile traffic sample review, fallback path sample verification, rollback switch verification, telemetry health budget verification, leak regression absence verification, archived verification evidence, and final verification decision. | Verification only; closeout remains separate. |
-| 38 | `rust-data-plane-hardening-expanded-default-rollout-closeout` | Complete: require verification review, expanded rollout state documentation, rollback owner acknowledgement, retained fallback matrix, retained unsupported path boundary, release notes, archived closeout evidence, and final closeout decision. | Closeout only; fallback retirement remains separate. |
-| 39 | `rust-data-plane-hardening-mihomo-fallback-retirement-guard` | Complete: require expanded rollout closeout review, locked protocol/TUN/adapter/DNS parity scopes, retained emergency rollback, cross-platform drill plan, operator acknowledgement, and final guard decision. | Guard only; no fallback removal. |
-| 40 | `rust-data-plane-hardening-mihomo-fallback-retirement-dry-run` | Complete: require guard review, parity manifest replay, cross-platform rollback rehearsal, fallback dependency inventory replay, emergency recovery rehearsal, unchanged production forwarding verification, archived dry-run evidence, and final dry-run decision. | Dry-run only; no production forwarding mutation. |
-| 41 | `rust-data-plane-hardening-mihomo-fallback-retirement-readiness` | Complete: require dry-run review, archived protocol/TUN/adapter/DNS parity evidence, archived soak evidence, emergency rollback owner acknowledgement, and final readiness decision. | Readiness only; fallback retirement execution remains separate. |
+| 1 | `rust-dns-runtime-parity` | Build the Rust-owned DNS runtime path for the supported subset: config synthesis, resolver/upstream selection, fake-ip/hosts/rules behavior where supported, leak tests, shadow comparison against Mihomo DNS, and one-switch fallback. | Opt-in/shadow first; Mihomo remains default DNS until parity evidence passes. |
+| 2 | `rust-adapter-egress-parity` | Move supported DIRECT/REJECT/proxy egress decisions and adapter compatibility checks into Rust execution paths; keep unsupported adapters and failed health paths on Mihomo fallback. | Opt-in for supported profiles only. |
+| 3 | `rust-protocol-forwarding-subset` | Implement real Rust forwarding for the smallest safe protocol subset, with connection/session accounting, health telemetry, rollback, and Mihomo fallback for unsupported protocols. | Capped canary only after DNS + adapter parity. |
+| 4 | `rust-tun-system-proxy-boundary` | Implement or explicitly bind platform TUN/system-proxy ownership boundaries: Windows/macOS/Linux rollback drills, DNS leak checks, route restoration, and emergency recovery. | No broad default until platform rollback passes. |
+| 5 | `rust-runtime-real-canary` | Use the above implemented paths for real traffic in a capped canary profile; collect hold-window health, leak, rollback, and unsupported fallback evidence. | Limited default for canary profile. |
+| 6 | `mihomo-fallback-retirement-execution` | Only after real parity exists, remove fallback dependence in the supported scope with an execution manifest, emergency rollback checkpoint, and post-execution verification. | Full replacement candidate for supported scope only. |
 
-### Completed R7 PR scope
+### Definition of done for future PRs
 
-The R7 cutover PR does not retire Mihomo fallback or TUN/protocol boundaries. It includes:
+A PR counts as migration progress only if it contains at least one of:
 
-- Canary closeout summary from `get_runtime_kernel_loopback_r6_rust_default_canary`.
-- Wider default selection only for the supported profile after canary health and rollback hold pass.
-- A one-switch rollback path that restores Mihomo default selection without app restart.
-- IPC/TypeScript types for querying cutover readiness and fallback state.
-- Roadmap advancement directly to `r7-rust-default-cutover` (complete).
+- Rust code that handles real DNS, adapter, protocol, TUN/system-proxy, or fallback execution behavior.
+- Tests/fixtures that prove parity for one of those real behaviors.
+- Removal or deprecation of a Mihomo dependency after equivalent Rust behavior exists.
+
+Documentation-only PRs are allowed only to correct this roadmap or remove misleading status.
 
 ## Non-negotiable boundaries
 
@@ -200,116 +155,26 @@ tauri-plugin-mihomo-api
 
 ## Phase 8 kernel replacement track
 
-Phase 8 is not a direct Go/Mihomo kernel swap. The safe sequence is:
+Phase 8 should no longer be managed as a long list of synthetic gates. The prior R0-R7 artifacts are useful as audit history, but they do not replace production DNS, adapter, protocol, or TUN behavior.
 
-```text
-inventory current Mihomo kernel seams
-  -> introduce Rust kernel runtime capability boundaries
-  -> shadow Rust components without forwarding traffic
-  -> opt-in isolated execution
-  -> observed verification + rollback drill
-  -> expanded opt-in
-  -> default cutover only after hold windows pass
-```
+### Corrected Phase 8 status
 
-Default behavior remains Mihomo-backed until a specific phase explicitly changes it. The remaining migration now follows the acceleration plan above: one closeout/scaffold PR, then Rust runtime MVP, canary default, and production default.
+| Track | Current status | Next useful work |
+| --- | --- | --- |
+| Seam inventory / runtime selection | Complete enough | Do not add more inventory-only gates unless required by a real implementation PR. |
+| DNS | Planning and shadow evidence only | Implement `rust-dns-runtime-parity` with leak tests and fallback. |
+| Adapter / egress | Capability inventory only | Implement supported adapter/egress execution in Rust. |
+| Protocol forwarding | Loopback evidence only | Implement a real bounded forwarding subset, not another loopback-only listener. |
+| TUN / system proxy | Audit/rollback metadata only | Implement platform rollback/leak boundaries before claiming replacement. |
+| Mihomo fallback retirement | Not ready | Blocked until DNS, adapter, protocol, and TUN/system-proxy parity PRs land. |
 
-### Phase 8 status
+### Retained historical value
 
-| Batch | Status | Runtime impact | Commands / evidence |
-| --- | --- | --- | --- |
-| R0 kernel seam inventory | Complete | Read-only | `get_runtime_kernel_replacement_readiness` reports Mihomo-owned vs Rust-owned areas. |
-| R1 kernel runtime seam | Complete | No default behavior change | `KernelRuntime` exists; the only implementation delegates to `MihomoKernelRuntime`. |
-| R2 DNS shadow evidence | Complete | Read-only | `get_runtime_kernel_dns_shadow_evidence` wraps existing DNS shadow evidence. |
-| R2 rule shadow evidence | Complete | Read-only | `get_runtime_kernel_rule_shadow_evidence` compares app runtime rule projection with Mihomo rule inventory. |
-| R2 adapter capability evidence | Complete | Read-only | `get_runtime_kernel_adapter_capability_report` compares proxy/adapter inventory without dialing endpoints. |
-| R2 connection/session shape evidence | Complete | Read-only | `get_runtime_kernel_connection_session_shadow` summarizes Mihomo connection shape without closing or migrating sessions. |
-| R3 isolated listener preflight | Complete | Read-only | `get_runtime_kernel_isolated_listener_preflight` checks loopback port readiness and runtime-port overlap. |
-| R3 loopback test listener opt-in | Complete | Explicit opt-in, non-production only | `start_runtime_kernel_isolated_test_listener`, `get_runtime_kernel_isolated_test_listener_status`, and `stop_runtime_kernel_isolated_test_listener` gate a local 204-only listener. |
-| R3 listener smoke evidence | Complete | Bounded local runtime mutation only | `get_runtime_kernel_isolated_test_listener_smoke_evidence` starts the listener, sends a local request, verifies status increment, stops it, and compares system proxy/TUN/runtime config before and after. |
-| R3 loopback DNS preflight | Complete | Read-only | `get_runtime_kernel_loopback_dns_preflight` checks loopback UDP/TCP candidate port readiness and reports DNS/TUN/system proxy context without replacing default DNS. |
-| R3 loopback DNS smoke evidence | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_dns_smoke_evidence` binds a temporary loopback UDP DNS socket, answers one synthetic query locally, and compares runtime config/system proxy/TUN before and after. |
-| R3 loopback forwarding preflight | Complete | Read-only | `get_runtime_kernel_loopback_forwarding_preflight` checks candidate listener/target loopback TCP ports and reports that future smoke evidence must not use outbound adapters. |
-| R3 loopback forwarding smoke evidence | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_forwarding_smoke_evidence` forwards one synthetic HTTP request from a temporary 127.0.0.1 listener to a temporary 127.0.0.1 target and compares runtime config/system proxy/TUN before and after. |
-| R3 loopback forwarding rollback drill | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_forwarding_rollback_drill` runs forwarding smoke evidence, then re-runs preflight to prove the loopback ports are released and runtime/TUN/system proxy state is unchanged. |
-| R3 loopback forwarding leak check | Complete | Read-only | `get_runtime_kernel_loopback_forwarding_leak_check` checks candidate loopback ports are free and no isolated listener state remains running after rollback evidence. |
-| R3 loopback platform matrix | Complete | Read-only | `get_runtime_kernel_loopback_platform_matrix` wraps loopback forwarding leak evidence with Windows/macOS/Linux matrix rows and records the current platform without allowing expanded opt-in. |
-| R3 loopback hold window | Complete | Read-only | `get_runtime_kernel_loopback_hold_window` wraps platform matrix evidence with a time-window observation row while keeping expanded opt-in blocked. |
-| R3 loopback platform rollback drills | Complete | Bounded local runtime mutation only | `get_runtime_kernel_loopback_platform_rollback_drills` wraps rollback drill evidence with Windows/macOS/Linux matrix rows while keeping expanded opt-in blocked. |
-| R4 expanded opt-in preflight | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_preflight` checks hold-window, supplied platform rollback evidence, and explicit decision without enabling execution. |
-| R4 expanded opt-in execution plan | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_execution_plan` returns a loopback-only execution sequence while keeping execution disabled. |
-| R4 expanded opt-in execution guard | Complete | Read-only | `get_runtime_kernel_loopback_r4_expanded_opt_in_execution_guard` bundles guard checks plus verification and rollback plans while keeping default cutover disabled. |
-| R4 synthetic execution closeout | Complete | Synthetic loopback only | `get_runtime_kernel_loopback_r4_expanded_opt_in_synthetic_execution` runs only guarded 127.0.0.1 rollback-drill evidence and immediate leak closeout when all guard inputs pass. |
-| R4 post-execution hold | Complete | Synthetic loopback only | `get_runtime_kernel_loopback_r4_expanded_opt_in_post_execution_hold` requires a second hold window after synthetic closeout before any wider decision. |
-| R4 decision readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_decision_readiness` combines post-execution hold and explicit wider decision while keeping expanded opt-in disabled. |
-| R4 limited rollout gate | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_limited_rollout_gate` checks decision readiness, explicit limited-rollout decision, loopback-only canary scope, and session cap without starting rollout. |
-| R4 rollout audit | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_rollout_audit` records gate, rollback binding, and default-cutover boundary audit rows. |
-| R4 closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_readiness` combines rollout audit with an explicit closeout decision before the closeout report. |
-| R4 closeout report | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_closeout_report` summarizes R4 evidence while keeping production cutover blocked. |
-| R4 completion summary | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_completion_summary` records completed R4 batches and open production boundaries. |
-| R4 next-phase handoff | Complete | Readiness only | `get_runtime_kernel_loopback_r4_expanded_opt_in_next_phase_handoff` requires explicit handoff before entering R5 preflight. |
-| R4 expanded opt-in | Complete | Readiness only | R4 closes with synthetic loopback evidence only; default cutover remains blocked until a separate R5 phase. |
-| R5 default cutover preflight | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_preflight` requires R4 handoff and explicit R5 preflight decision while keeping default cutover disabled. |
-| R5 default cutover risk matrix | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_risk_matrix` catalogs default route, system proxy, TUN, protocol handler, and real adapter risks as blocked. |
-| R5 rollback/abort plan | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_rollback_abort_plan` records abort criteria and rollback boundaries before any R5 execution plan. |
-| R5 default cutover execution plan | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_execution_plan` defines dry-run-only execution order after rollback/abort planning. |
-| R5 default cutover execution guard | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_guard` gates dry-run readiness behind execution plan and explicit guard decision. |
-| R5 default cutover dry-run readiness | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_dry_run_readiness` scopes the next evidence batch to in-memory dry-run only. |
-| R5 default cutover dry-run evidence | Complete | Synthetic only | `get_runtime_kernel_loopback_r5_default_cutover_dry_run_evidence` validates the R5 cutover path as in-memory intent only. |
-| R5 default cutover dry-run closeout | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_dry_run_closeout` verifies the synthetic dry run left runtime and fallback state unchanged. |
-| R5 default cutover post-dry-run hold | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_post_dry_run_hold` requires bounded post-dry-run observation before decision readiness. |
-| R5 default cutover decision readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_decision_readiness` summarizes post-dry-run hold evidence before final gate evaluation. |
-| R5 default cutover final gate | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_final_gate` keeps default cutover blocked while permitting only final hold/rollback validation. |
-| R5 default cutover next-step handoff | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_next_step_handoff` advances the safe batch to final hold evidence without enabling live default cutover. |
-| R5 default cutover final hold | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_final_hold` requires a final observation window after final gate handoff. |
-| R5 default cutover independent rollback validation | Complete | Read-only | `get_runtime_kernel_loopback_r5_default_cutover_independent_rollback_validation` verifies platform-complete rollback evidence after final hold. |
-| R5 default cutover closeout readiness | Complete | Readiness only | `get_runtime_kernel_loopback_r5_default_cutover_closeout_readiness` prepares report-only closeout while keeping live default cutover blocked. |
-| R5 closeout report + R6 Rust runtime scaffold | Complete | No default change | `get_runtime_kernel_loopback_r5_closeout_r6_rust_runtime_scaffold` bundles final R5 closeout with `RustKernelRuntime` scaffolding and runtime selection boundaries; next batch is R6 MVP. |
-| R6 opt-in Rust runtime MVP | Complete | Explicit opt-in only | `get_runtime_kernel_loopback_r6_opt_in_rust_runtime_mvp` selects Rust only after explicit opt-in, supported-subset decision ownership, loopback forwarding rollback evidence, health state, and Mihomo fallback readiness. |
-| R6 Rust default canary | Complete | Limited default canary | `get_runtime_kernel_loopback_r6_rust_default_canary` selects Rust only inside the capped safe canary profile after R6 opt-in, canary decision, health, rollback, and automatic Mihomo fallback checks pass. |
-| R7 Rust default cutover | Complete | Rust default for supported profile | `get_runtime_kernel_loopback_r7_rust_default_cutover` promotes Rust after canary closeout and rollback hold; Mihomo remains fallback for unsupported protocols/TUN and one-switch rollback. |
-| R7 fallback retirement | Gate complete | Full replacement candidate | `get_runtime_kernel_loopback_r7_mihomo_fallback_retirement` retires fallback readiness only after R7 cutover, protocol/TUN/adapter/DNS parity, cross-platform rollback drills, soak evidence, explicit decision, and emergency rollback all pass. |
-| Full Rust runtime hardening | Gate complete | Full Rust hardening candidate | `get_runtime_kernel_loopback_full_rust_runtime_hardening` closes the hardening gate only after R7 fallback retirement readiness, extended soak, rollback telemetry closeout, OS-specific hardening follow-up, and explicit final hardening decision all pass. |
-| Go/Mihomo retirement audit | Gate complete | Audit only | `get_runtime_kernel_loopback_go_mihomo_retirement_audit` requires full Rust runtime hardening plus source/artifact/IPC/docs inventory and retained emergency rollback before advancing to a removal plan. |
-| Go/Mihomo retirement plan | Gate complete | Plan only | `get_runtime_kernel_loopback_go_mihomo_retirement_plan` requires the audit plus source removal, artifact deprecation, IPC fallback replacement, rollback preservation, release rollout, and explicit final plan decisions before any execution guard. |
-| Go/Mihomo retirement execution guard | Gate complete | Guard only | `get_runtime_kernel_loopback_go_mihomo_retirement_execution_guard` requires the plan plus removal manifest, abort plan, staged rollout guard, emergency rollback drill, operator acknowledgement, and final guard decisions before dry-run removal. |
-| Go/Mihomo retirement dry run | Gate complete | Dry-run only | `get_runtime_kernel_loopback_go_mihomo_retirement_dry_run` requires the execution guard plus manifest replay, clean mutation checks, rollback rehearsal, archived evidence, and final dry-run decision before closeout. |
-| Go/Mihomo retirement closeout | Gate complete | Closeout only | `get_runtime_kernel_loopback_go_mihomo_retirement_closeout` requires the dry run plus evidence review, archived closeout report, rollback checkpoint, frozen inventory, clean mutation checks, and final closeout decision before any final removal gate. |
-| Go/Mihomo final removal gate | Gate complete | Final gate only | `get_runtime_kernel_loopback_go_mihomo_retirement_final_removal_gate` requires closeout plus accepted evidence, locked rollback boundary, locked removal scope, release blocker review, final operator approval, and explicit final removal decision before an execution batch. |
-| Go/Mihomo retirement execution | Batch complete | Execution evidence only | `get_runtime_kernel_loopback_go_mihomo_retirement_execution` requires the final removal gate plus rollback checkpoint, execution manifest application, source/artifact removal records, post-execution validation, and explicit final execution decision before verification. |
-| Go/Mihomo post-execution verification | Gate complete | Verification only | `get_runtime_kernel_loopback_go_mihomo_retirement_post_execution_verification` requires execution plus Rust-only boundary verification, retained rollback checkpoint, source/artifact removal verification, fallback IPC absence verification, and final verification decision before rollback surface retirement. |
-| Go/Mihomo rollback surface retirement | Gate complete | Retirement gate only | `get_runtime_kernel_loopback_go_mihomo_retirement_rollback_surface_retirement` requires post-execution verification plus replacement recovery path, locked rollback inventory, archived retirement plan, emergency recovery drill, and final retirement decision before completion closeout. |
-| Go/Mihomo completion closeout | Gate complete | Completion only | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement plus retained recovery evidence, archived completion report, release notes, frozen migration state, and final completion decision before declaring retirement complete. |
-
-### Current R3 loopback listener boundary
-
-Allowed behavior:
-
-- bind only `127.0.0.1`
-- require preflight before start
-- return a local `204 No Content`
-- report status, accepted connection count, and safety flags
-- stop through an app-owned command
-
-Forbidden behavior:
-
-- no system proxy or TUN mutation
-- no Mihomo config patch
-- no DNS hijack or default route
-- no outbound adapter dialing
-- no packet forwarding
-- no production traffic ownership
-
-`KernelIsolatedTestListenerStatus` must continue to report:
-
-```text
-loopbackOnly=true
-defaultRoute=false
-forwardsTraffic=false
-mihomoFallback=true
-```
+Keep the existing gate commands as safety/audit surfaces, but stop treating them as the main roadmap. They are prerequisites and evidence channels, not deliverables by themselves.
 
 ## Current Rust-owned capability inventory
+
+These are control-plane and evidence capabilities unless explicitly called out as execution paths. They should not be counted as DNS/TUN/adapter/protocol replacement.
 
 - Config schema validation and rule engine.
 - Geodata, ASN, RULE-SET, and process metadata interpretation.
@@ -329,17 +194,17 @@ mihomoFallback=true
 
 ## Remaining blockers and acceleration boundaries
 
-The first Rust-default milestone can ship before full TUN/protocol replacement by keeping Mihomo fallback. Do not retire Mihomo fallback or claim full replacement until all of these exist:
+The next blocker is not another readiness gate; it is missing implementation. Do not retire Mihomo fallback or claim Rust data-plane replacement until all of these have landed as real code and tests:
 
-- Mihomo fallback with no app restart and no connectivity loss.
-- Platform-specific rollback drill for Windows service, sidecar, macOS, and Linux paths.
-- Leak verification for DNS, TUN, system proxy, and direct/proxy egress.
-- Adapter/protocol compatibility matrix.
-- Repeated shadow evidence for rules, DNS, adapters, and connection/session shape.
-- Opt-in execution history with hold windows and rollback closeout.
-- Dedicated PR that does not include unrelated cleanup.
+- Rust DNS runtime parity for the supported subset, including leak tests and resolver/upstream behavior.
+- Rust adapter/egress execution for supported DIRECT/REJECT/proxy paths.
+- Rust protocol forwarding for a bounded real traffic subset, not only loopback smoke listeners.
+- Platform TUN/system-proxy rollback and route restoration drills for Windows, macOS, and Linux.
+- Connection/session accounting parity for traffic handled by Rust.
+- Mihomo fallback that preserves connectivity without app restart for every unsupported path.
+- Post-canary hold evidence that covers DNS leaks, fallback triggers, rollback, and health telemetry.
 
-These blockers do not prevent the accelerated R6 Rust-default canary for the supported subset; they prevent fallback retirement and full protocol/TUN replacement.
+These blockers allow one useful next PR: `rust-dns-runtime-parity`. They block fallback retirement, full protocol replacement, and any claim that DNS/TUN/adapter work is complete.
 
 ## Removed from this document
 
@@ -364,12 +229,12 @@ Allowed cleanup:
 - remove dead frontend paths
 - keep generated types and app view models aligned
 - improve diagnostics wording
-- add read-only evidence commands
+- improve existing evidence commands when required by an implementation PR
 - improve audit/history rendering
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current next batch is `rust-data-plane-hardening-mihomo-fallback-retirement-execution`; Rust data-plane hardening may continue only after fallback retirement readiness records dry-run review, protocol/TUN/adapter/DNS parity evidence, soak evidence, emergency rollback owner acknowledgement, and final readiness approval. Mihomo fallback is not removed by guard, dry-run, or readiness gates.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-dns-runtime-parity`; do not open another fallback-retirement or gate-only PR until DNS runtime parity has real implementation and tests. Adapter, protocol, and TUN/system-proxy parity follow DNS.
 
 ## PR checklist for future changes
 
