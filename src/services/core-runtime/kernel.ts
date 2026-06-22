@@ -3124,6 +3124,47 @@ export interface RustRemoteAdapterTransportExpansionReport {
   nextSafeBatch: string
 }
 
+export type RustHttpConnectProxyAdapterStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export interface RustHttpConnectProxyAdapterEvidence {
+  adapterName: string
+  listenerPort: number
+  targetPort: number
+  connectAuthority: string
+  connectEstablished: boolean
+  targetReceived: boolean
+  responseStatus?: string | null
+  bytesFromClient: number
+  bytesFromTarget: number
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustHttpConnectProxyAdapterReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustHttpConnectProxyAdapterStatus
+  reason: string
+  explicitOptIn: boolean
+  connectEvidence?: RustHttpConnectProxyAdapterEvidence | null
+  unsupportedProtocols: string[]
+  evidencePath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3576,6 +3617,15 @@ export async function runRuntimeKernelRustRemoteAdapterTransportExpansion(
 ) {
   return invoke<RustRemoteAdapterTransportExpansionReport>(
     'run_runtime_kernel_rust_remote_adapter_transport_expansion',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustHttpConnectProxyAdapter(
+  explicitOptIn = false,
+) {
+  return invoke<RustHttpConnectProxyAdapterReport>(
+    'run_runtime_kernel_rust_http_connect_proxy_adapter',
     { explicitOptIn },
   )
 }
