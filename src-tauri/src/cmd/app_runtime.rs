@@ -10,7 +10,8 @@ use crate::core::app_runtime::{
     AppRuntimeRuntimeApplyBoundaryDecisionRequest, AppRuntimeSessionEvaluationReport, AppRuntimeSessionFinishRequest,
     AppRuntimeSessionLeakReport, AppRuntimeSessionRecord, AppRuntimeSessionStartReport,
     AppRuntimeStagedActivationCloseoutReport, AppRuntimeStagedActivationLifecycleReport, AppRuntimeStateDocument,
-    DnsProfile, NodePool, SecurityProfile, accept_app_runtime_dns_handoff as accept_app_runtime_dns_handoff_record,
+    DnsProfile, NodePool, RustAdapterEgressParityReport, SecurityProfile,
+    accept_app_runtime_dns_handoff as accept_app_runtime_dns_handoff_record,
     activate_app_runtime_projection_artifact as activate_app_runtime_projection_artifact_record,
     apply_app_runtime_projection_artifact_to_runtime as apply_app_runtime_projection_artifact_to_runtime_record,
     build_app_runtime_demo_seed_document,
@@ -36,6 +37,8 @@ use crate::core::app_runtime::{
     project_app_runtime_plan_to_mihomo as build_app_runtime_mihomo_projection, read_app_runtime_state_document,
     record_app_runtime_session_observation as record_app_runtime_session_observation_record,
     rollback_app_runtime_projection_activation as rollback_app_runtime_projection_activation_record,
+    rust_adapter_egress_parity as rust_adapter_egress_parity_record,
+    rust_adapter_egress_parity_rollback as rust_adapter_egress_parity_rollback_record,
     start_app_runtime_session as start_app_runtime_session_record,
     upsert_app_policy_binding as upsert_app_policy_binding_record,
     upsert_app_registry_entry as upsert_app_registry_entry_record, upsert_dns_profile as upsert_dns_profile_record,
@@ -165,6 +168,22 @@ pub async fn project_app_runtime_plan_to_mihomo(
 pub async fn diagnose_app_runtime(request: AppRuntimePlanRequest) -> CmdResult<AppRuntimeDiagnosticsReport> {
     let state = read_app_runtime_state_document().await.stringify_err()?;
     build_app_runtime_diagnostics(&state, request).stringify_err()
+}
+
+#[tauri::command]
+pub async fn rust_adapter_egress_parity(
+    request: AppRuntimePlanRequest,
+    explicit_opt_in: bool,
+    apply_runtime: bool,
+) -> CmdResult<RustAdapterEgressParityReport> {
+    rust_adapter_egress_parity_record(request, explicit_opt_in, apply_runtime)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rust_adapter_egress_parity_rollback() -> CmdResult<RustAdapterEgressParityReport> {
+    rust_adapter_egress_parity_rollback_record().await.stringify_err()
 }
 
 #[tauri::command]
