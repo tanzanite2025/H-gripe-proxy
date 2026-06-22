@@ -2,8 +2,11 @@ use super::*;
 use crate::core::kernel_runtime::{
     RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
     RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
-    RustProtocolForwardingSubsetStopReport, rust_protocol_forwarding_subset_preflight,
-    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
+    RustProtocolForwardingSubsetStopReport, RustTunSystemProxyParityApplyReport,
+    RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
+    apply_rust_tun_system_proxy_parity, rollback_rust_tun_system_proxy_parity,
+    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
+    rust_protocol_forwarding_subset_status, rust_tun_system_proxy_parity_preflight,
     start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
 };
 
@@ -163,6 +166,31 @@ pub async fn get_runtime_kernel_rust_protocol_forwarding_subset_smoke_evidence(
     rust_protocol_forwarding_subset_smoke_evidence(listener_port, target_port)
         .await
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_tun_system_proxy_parity_preflight(
+    requested_mode: Option<String>,
+) -> CmdResult<RustTunSystemProxyParityPreflightReport> {
+    rust_tun_system_proxy_parity_preflight(requested_mode)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn apply_runtime_kernel_rust_tun_system_proxy_parity(
+    requested_mode: Option<String>,
+    explicit_opt_in: bool,
+) -> CmdResult<RustTunSystemProxyParityApplyReport> {
+    apply_rust_tun_system_proxy_parity(requested_mode, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rollback_runtime_kernel_rust_tun_system_proxy_parity() -> CmdResult<RustTunSystemProxyParityRollbackReport>
+{
+    rollback_rust_tun_system_proxy_parity().await.stringify_err()
 }
 
 #[tauri::command]
