@@ -8,7 +8,7 @@ use crate::core::kernel_runtime::{
     RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
     RustProtocolForwardingSubsetStopReport, RustRemoteAdapterTransportExpansionReport,
     RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
-    RustShadowsocksAeadAdapterExecutionReport, RustSocksUdpAssociateExecutionReport,
+    RustShadowsocksAeadAdapterExecutionReport, RustSocksAuthExecutionReport, RustSocksUdpAssociateExecutionReport,
     RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
     RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
     apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane, execute_mihomo_fallback_retirement,
@@ -20,8 +20,9 @@ use crate::core::kernel_runtime::{
     rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
     rust_protocol_forwarding_subset_status, rust_remote_adapter_transport_expansion_evidence,
     rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
-    rust_socks_udp_associate_execution, rust_tun_system_proxy_parity_preflight, rust_tun_transparent_routing_execution,
-    start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
+    rust_socks_auth_execution, rust_socks_udp_associate_execution, rust_tun_system_proxy_parity_preflight,
+    rust_tun_transparent_routing_execution, start_rust_protocol_forwarding_subset,
+    stop_rust_protocol_forwarding_subset,
 };
 
 #[tauri::command]
@@ -337,6 +338,13 @@ pub async fn closeout_runtime_kernel_rust_default_data_plane(
     explicit_opt_in: bool,
 ) -> CmdResult<RustDefaultDataPlaneCloseoutReport> {
     closeout_rust_default_data_plane(explicit_opt_in).await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_socks_auth_execution(
+    explicit_opt_in: bool,
+) -> CmdResult<RustSocksAuthExecutionReport> {
+    rust_socks_auth_execution(explicit_opt_in).await.stringify_err()
 }
 
 #[tauri::command]

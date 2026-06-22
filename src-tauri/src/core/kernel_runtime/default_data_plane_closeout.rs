@@ -186,9 +186,9 @@ fn rust_default_data_plane_unsupported_blockers() -> Vec<RustDefaultDataPlaneUns
                 "separate Rust implementations with canary, rollback, hold, and byte-accounting evidence".into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {
-            blocker: "SOCKS authentication/non-loopback UDP/fragments plus Shadowsocks UDP associate and plugin transports".into(),
+            blocker: "SOCKS TCP data forwarding/BIND/non-loopback UDP/fragments plus Shadowsocks UDP associate and plugin transports".into(),
             mihomo_owner: "Mihomo adapter runtime".into(),
-            retirement_requirement: "bounded UDP/plugin execution, SOCKS auth coverage, non-loopback UDP evidence, and unsupported fallback preservation".into(),
+            retirement_requirement: "bounded TCP data forwarding, BIND, UDP/plugin execution, non-loopback UDP evidence, and unsupported fallback preservation".into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {
             blocker: "system-wide TUN packet capture and transparent routing defaults".into(),

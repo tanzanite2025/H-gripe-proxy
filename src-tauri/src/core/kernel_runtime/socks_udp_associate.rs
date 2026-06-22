@@ -1,4 +1,4 @@
-﻿use super::{
+use super::{
     RUST_RUNTIME_ID, RustSocksUdpAssociateExecutionReport, RustSocksUdpAssociateExecutionStatus,
     RustSocksUdpAssociateLeakEvidence, RustSocksUdpAssociatePacketEvidence, RustSocksUdpAssociateRollbackEvidence,
 };
@@ -51,11 +51,9 @@ pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result
         component: RUST_SOCKS_UDP_ASSOCIATE_COMPONENT.into(),
         kernel_area: RUST_SOCKS_UDP_ASSOCIATE_KERNEL_AREA.into(),
         status: RustSocksUdpAssociateExecutionStatus::Executed,
-        reason: "Rust executed a bounded SOCKS5 UDP ASSOCIATE datagram over loopback UDP"
-            .into(),
+        reason: "Rust executed a bounded SOCKS5 UDP ASSOCIATE datagram over loopback UDP".into(),
         explicit_opt_in,
-        rust_owned_scope: "SOCKS5 UDP ASSOCIATE datagram framing and loopback UDP forwarding"
-            .into(),
+        rust_owned_scope: "SOCKS5 UDP ASSOCIATE datagram framing and loopback UDP forwarding".into(),
         mutates_runtime: false,
         writes_evidence: true,
         evidence_path: Some(evidence_path.to_string_lossy().to_string().into()),
@@ -65,7 +63,7 @@ pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result
         mihomo_fallback_retained_for: retained_socks_udp_fallback_scope(),
         blockers: Vec::new(),
         warnings: vec![
-            "SOCKS authentication, TCP CONNECT/BIND command handling, fragmented UDP, and non-loopback UDP remain Mihomo-owned".into(),
+            "SOCKS TCP CONNECT/BIND data handling, fragmented UDP, and non-loopback UDP remain Mihomo-owned".into(),
         ],
         facts: rust_socks_udp_associate_facts(),
         next_safe_batch: NEXT_SAFE_BATCH.into(),
