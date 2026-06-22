@@ -684,6 +684,64 @@ pub struct RustTunSystemProxyParityRollbackReport {
     pub facts: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustFallbackRetirementReadinessStatus {
+    Ready,
+    Locked,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustFallbackRetirementScopeArea {
+    pub area: String,
+    pub rust_owned_capability: String,
+    pub mihomo_fallback_scope: String,
+    pub rollback_record_path: Option<String>,
+    pub rollback_record_present: bool,
+    pub canary_evidence_required: bool,
+    pub fallback_retirement_allowed: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustFallbackRetirementReadinessManifest {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustFallbackRetirementReadinessStatus,
+    pub generated_at_epoch_seconds: u64,
+    pub supported_scope: Vec<RustFallbackRetirementScopeArea>,
+    pub unsupported_fallback_scope: Vec<String>,
+    pub emergency_rollback_paths: Vec<String>,
+    pub manifest_path: Option<String>,
+    pub fallback_retirement_execution_allowed: bool,
+    pub mutates_runtime: bool,
+    pub removes_mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustFallbackRetirementReadinessLockReport {
+    pub status: RustFallbackRetirementReadinessStatus,
+    pub reason: String,
+    pub manifest: RustFallbackRetirementReadinessManifest,
+    pub explicit_opt_in: bool,
+    pub manifest_path: Option<String>,
+    pub mutates_runtime: bool,
+    pub removes_mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {

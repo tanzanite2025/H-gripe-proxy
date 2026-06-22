@@ -28,8 +28,8 @@ The migration has too many completed control-plane gates and not enough real dat
 | Adapter / egress runtime | Bounded opt-in parity path in progress | Rust now chooses DIRECT/REJECT/proxy-group adapter targets from app runtime state, validates candidate protocol compatibility, patches proxy-groups/rules through an explicit opt-in bridge, and keeps Mihomo fallback/rollback. |
 | Protocol forwarding | Bounded Rust subset in progress | Rust now owns an opt-in loopback TCP/HTTP forwarding subset with a real accept loop, byte forwarding, session accounting, smoke evidence, and stop/rollback surface. Mihomo still owns SOCKS, remote adapters, TUN, and default forwarding. |
 | TUN / system proxy | Bounded Rust parity in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, and rollback apply. Mihomo/service still owns packet capture and transparent forwarding. |
-| Mihomo fallback retirement | Blocked | Do not execute fallback retirement until DNS, adapter, protocol, TUN/system-proxy parity and rollback drills exist as implementation PRs. |
-| Next real batch | `rust-fallback-retirement-readiness` | After DNS, adapter/egress, protocol subset, and TUN/system-proxy bounded parity, begin fallback-retirement readiness only with canary/rollback evidence. |
+| Mihomo fallback retirement | Readiness manifest in progress | Rust now builds/locks a fallback-retirement readiness manifest from concrete parity rollback artifacts and supported/unsupported scope. Execution remains blocked until real canary evidence passes. |
+| Next real batch | `rust-runtime-real-canary` | Run the bounded Rust-owned paths under a capped canary profile and collect leak, rollback, health, and unsupported fallback evidence. |
 
 ## Acceleration plan
 
@@ -166,7 +166,7 @@ Phase 8 should no longer be managed as a long list of synthetic gates. The prior
 | Adapter / egress | Bounded opt-in parity path in progress | Keep canarying supported adapter decisions; move next to real protocol forwarding subset. |
 | Protocol forwarding | Bounded opt-in Rust loopback TCP/HTTP subset in progress | Keep expanding only after canary evidence; TUN/system proxy remains next. |
 | TUN / system proxy | Bounded Rust route-mode parity in progress | Packet capture still uses Mihomo/service; collect platform rollback/leak evidence before claiming replacement. |
-| Mihomo fallback retirement | Not ready | Blocked until DNS, adapter, protocol, and TUN/system-proxy parity PRs land. |
+| Mihomo fallback retirement | Readiness manifest in progress | Execution remains blocked until the manifest has canary evidence and emergency rollback artifacts. |
 
 ### Retained historical value
 
@@ -204,7 +204,7 @@ The next blocker is not another readiness gate; it is missing implementation. Do
 - Mihomo fallback that preserves connectivity without app restart for every unsupported path.
 - Post-canary hold evidence that covers DNS leaks, fallback triggers, rollback, and health telemetry.
 
-These blockers allow one useful next PR: `rust-fallback-retirement-readiness`. They block fallback retirement execution, full protocol replacement, and any claim that packet capture is Rust-owned.
+These blockers allow one useful next PR: `rust-runtime-real-canary`. They block fallback retirement execution, full protocol replacement, and any claim that packet capture is Rust-owned.
 
 ## Removed from this document
 
@@ -234,7 +234,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-fallback-retirement-readiness`; do not open fallback-retirement execution until DNS, adapter, protocol, and TUN/system-proxy opt-in parity have canary evidence.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-runtime-real-canary`; do not open fallback-retirement execution until DNS, adapter, protocol, and TUN/system-proxy opt-in parity have canary evidence.
 
 ## PR checklist for future changes
 

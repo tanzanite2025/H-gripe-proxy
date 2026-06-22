@@ -2916,6 +2916,55 @@ export interface RustTunSystemProxyParityRollbackReport {
   facts: string[]
 }
 
+export type RustFallbackRetirementReadinessStatus =
+  | 'ready'
+  | 'locked'
+  | 'blocked'
+
+export interface RustFallbackRetirementScopeArea {
+  area: string
+  rustOwnedCapability: string
+  mihomoFallbackScope: string
+  rollbackRecordPath?: string | null
+  rollbackRecordPresent: boolean
+  canaryEvidenceRequired: boolean
+  fallbackRetirementAllowed: boolean
+  blockers: string[]
+  warnings: string[]
+}
+
+export interface RustFallbackRetirementReadinessManifest {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustFallbackRetirementReadinessStatus
+  generatedAtEpochSeconds: number
+  supportedScope: RustFallbackRetirementScopeArea[]
+  unsupportedFallbackScope: string[]
+  emergencyRollbackPaths: string[]
+  manifestPath?: string | null
+  fallbackRetirementExecutionAllowed: boolean
+  mutatesRuntime: boolean
+  removesMihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RustFallbackRetirementReadinessLockReport {
+  status: RustFallbackRetirementReadinessStatus
+  reason: string
+  manifest: RustFallbackRetirementReadinessManifest
+  explicitOptIn: boolean
+  manifestPath?: string | null
+  mutatesRuntime: boolean
+  removesMihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3326,6 +3375,21 @@ export async function applyRuntimeKernelRustTunSystemProxyParity(
 export async function rollbackRuntimeKernelRustTunSystemProxyParity() {
   return invoke<RustTunSystemProxyParityRollbackReport>(
     'rollback_runtime_kernel_rust_tun_system_proxy_parity',
+  )
+}
+
+export async function getRuntimeKernelRustFallbackRetirementReadinessManifest() {
+  return invoke<RustFallbackRetirementReadinessManifest>(
+    'get_runtime_kernel_rust_fallback_retirement_readiness_manifest',
+  )
+}
+
+export async function lockRuntimeKernelRustFallbackRetirementReadiness(
+  explicitOptIn = false,
+) {
+  return invoke<RustFallbackRetirementReadinessLockReport>(
+    'lock_runtime_kernel_rust_fallback_retirement_readiness',
+    { explicitOptIn },
   )
 }
 

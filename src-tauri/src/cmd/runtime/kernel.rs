@@ -1,13 +1,15 @@
 use super::*;
 use crate::core::kernel_runtime::{
+    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
     RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
     RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
     RustProtocolForwardingSubsetStopReport, RustTunSystemProxyParityApplyReport,
     RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
-    apply_rust_tun_system_proxy_parity, rollback_rust_tun_system_proxy_parity,
-    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
-    rust_protocol_forwarding_subset_status, rust_tun_system_proxy_parity_preflight,
-    start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
+    apply_rust_tun_system_proxy_parity, lock_rust_fallback_retirement_readiness, rollback_rust_tun_system_proxy_parity,
+    rust_fallback_retirement_readiness_manifest, rust_protocol_forwarding_subset_preflight,
+    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
+    rust_tun_system_proxy_parity_preflight, start_rust_protocol_forwarding_subset,
+    stop_rust_protocol_forwarding_subset,
 };
 
 #[tauri::command]
@@ -191,6 +193,21 @@ pub async fn apply_runtime_kernel_rust_tun_system_proxy_parity(
 pub async fn rollback_runtime_kernel_rust_tun_system_proxy_parity() -> CmdResult<RustTunSystemProxyParityRollbackReport>
 {
     rollback_rust_tun_system_proxy_parity().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_rust_fallback_retirement_readiness_manifest()
+-> CmdResult<RustFallbackRetirementReadinessManifest> {
+    rust_fallback_retirement_readiness_manifest().await.stringify_err()
+}
+
+#[tauri::command]
+pub async fn lock_runtime_kernel_rust_fallback_retirement_readiness(
+    explicit_opt_in: bool,
+) -> CmdResult<RustFallbackRetirementReadinessLockReport> {
+    lock_rust_fallback_retirement_readiness(explicit_opt_in)
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]
