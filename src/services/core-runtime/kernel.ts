@@ -2350,6 +2350,148 @@ export interface RuntimeKernelLoopbackRustDataPlaneHardeningSupportedDefaultCuto
   nextSafeBatch: string
 }
 
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+  runtimeId: string
+  component: string
+  cutoverCloseoutReviewed: boolean
+  expandedScopeLocked: boolean
+  rolloutCapDefined: boolean
+  fallbackMatrixRetained: boolean
+  rollbackSwitchVerified: boolean
+  telemetrySoakPlanDefined: boolean
+  unsupportedPathBoundaryRetained: boolean
+  operatorRolloutAcknowledged: boolean
+  expandedDefaultRolloutGuardComplete: boolean
+  guardSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningSupportedDefaultCutoverCloseoutComplete: boolean
+  expandedDefaultRolloutGuard: RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport
+  finalExpandedDefaultRolloutGuardDecision: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutGuardComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+  runtimeId: string
+  component: string
+  guardReviewed: boolean
+  expandedManifestReplayed: boolean
+  representativeProfileSimulationCompleted: boolean
+  fallbackRoutingRehearsed: boolean
+  rollbackRehearsed: boolean
+  telemetrySoakSampleReviewed: boolean
+  dryRunEvidenceArchived: boolean
+  expandedDefaultRolloutDryRunComplete: boolean
+  dryRunSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutGuardComplete: boolean
+  expandedDefaultRolloutDryRun: RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport
+  finalExpandedDefaultRolloutDryRunDecision: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutDryRunComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+  runtimeId: string
+  component: string
+  dryRunReviewed: boolean
+  executionManifestLocked: boolean
+  rolloutWindowStarted: boolean
+  expandedProfileCapEnforced: boolean
+  activeTelemetryWatch: boolean
+  rollbackSwitchArmed: boolean
+  mihomoFallbackRetained: boolean
+  operatorExecutionAcknowledged: boolean
+  expandedDefaultRolloutExecutionComplete: boolean
+  executionSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutDryRunComplete: boolean
+  expandedDefaultRolloutExecution: RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport
+  finalExpandedDefaultRolloutExecutionDecision: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutExecutionComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
+export interface RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+  runtimeId: string
+  component: string
+  executionRecordReviewed: boolean
+  expandedProfileTrafficSampleReviewed: boolean
+  fallbackPathSampleVerified: boolean
+  rollbackSwitchVerified: boolean
+  telemetryHealthBudgetVerified: boolean
+  leakRegressionAbsenceVerified: boolean
+  verificationEvidenceArchived: boolean
+  expandedDefaultRolloutVerificationComplete: boolean
+  verificationSurfaces: string[]
+  blockers: string[]
+  facts: string[]
+}
+
+export interface RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+  runtimeId: string
+  component: string
+  mutatesRuntime: boolean
+  liveExecutionAllowed: boolean
+  productionDataPlaneMutationAllowed: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutExecutionComplete: boolean
+  expandedDefaultRolloutVerification: RuntimeRustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport
+  finalExpandedDefaultRolloutVerificationDecision: boolean
+  rustDataPlaneHardeningExpandedDefaultRolloutVerificationComplete: boolean
+  selectedRuntimeKind: RuntimeKernelRuntimeKind
+  rollbackRuntimeKind: RuntimeKernelRuntimeKind
+  checks: RuntimeKernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackForwardingRollbackDrillReport {
   runtimeId: string
   component: string
@@ -5111,6 +5253,118 @@ export async function getRuntimeKernelLoopbackRustDataPlaneHardeningSupportedDef
       releaseNotesUpdateDecision,
       closeoutEvidenceArchiveDecision,
       finalSupportedDefaultCutoverCloseoutDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuard(
+  rustDataPlaneHardeningSupportedDefaultCutoverCloseoutCompleteDecision?: boolean,
+  cutoverCloseoutReviewDecision?: boolean,
+  expandedScopeLockDecision?: boolean,
+  rolloutCapDefinitionDecision?: boolean,
+  fallbackMatrixRetentionDecision?: boolean,
+  rollbackSwitchVerificationDecision?: boolean,
+  telemetrySoakPlanDefinitionDecision?: boolean,
+  unsupportedPathBoundaryRetentionDecision?: boolean,
+  operatorRolloutAcknowledgementDecision?: boolean,
+  finalExpandedDefaultRolloutGuardDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_guard',
+    {
+      rustDataPlaneHardeningSupportedDefaultCutoverCloseoutCompleteDecision,
+      cutoverCloseoutReviewDecision,
+      expandedScopeLockDecision,
+      rolloutCapDefinitionDecision,
+      fallbackMatrixRetentionDecision,
+      rollbackSwitchVerificationDecision,
+      telemetrySoakPlanDefinitionDecision,
+      unsupportedPathBoundaryRetentionDecision,
+      operatorRolloutAcknowledgementDecision,
+      finalExpandedDefaultRolloutGuardDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRun(
+  rustDataPlaneHardeningExpandedDefaultRolloutGuardCompleteDecision?: boolean,
+  guardReviewDecision?: boolean,
+  expandedManifestReplayDecision?: boolean,
+  representativeProfileSimulationDecision?: boolean,
+  fallbackRoutingRehearsalDecision?: boolean,
+  rollbackRehearsalDecision?: boolean,
+  telemetrySoakSampleReviewDecision?: boolean,
+  dryRunEvidenceArchiveDecision?: boolean,
+  finalExpandedDefaultRolloutDryRunDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_dry_run',
+    {
+      rustDataPlaneHardeningExpandedDefaultRolloutGuardCompleteDecision,
+      guardReviewDecision,
+      expandedManifestReplayDecision,
+      representativeProfileSimulationDecision,
+      fallbackRoutingRehearsalDecision,
+      rollbackRehearsalDecision,
+      telemetrySoakSampleReviewDecision,
+      dryRunEvidenceArchiveDecision,
+      finalExpandedDefaultRolloutDryRunDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecution(
+  rustDataPlaneHardeningExpandedDefaultRolloutDryRunCompleteDecision?: boolean,
+  dryRunReviewDecision?: boolean,
+  executionManifestLockDecision?: boolean,
+  rolloutWindowStartDecision?: boolean,
+  expandedProfileCapEnforcementDecision?: boolean,
+  activeTelemetryWatchDecision?: boolean,
+  rollbackSwitchArmDecision?: boolean,
+  mihomoFallbackRetentionDecision?: boolean,
+  operatorExecutionAcknowledgementDecision?: boolean,
+  finalExpandedDefaultRolloutExecutionDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_execution',
+    {
+      rustDataPlaneHardeningExpandedDefaultRolloutDryRunCompleteDecision,
+      dryRunReviewDecision,
+      executionManifestLockDecision,
+      rolloutWindowStartDecision,
+      expandedProfileCapEnforcementDecision,
+      activeTelemetryWatchDecision,
+      rollbackSwitchArmDecision,
+      mihomoFallbackRetentionDecision,
+      operatorExecutionAcknowledgementDecision,
+      finalExpandedDefaultRolloutExecutionDecision,
+    },
+  )
+}
+
+export async function getRuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerification(
+  rustDataPlaneHardeningExpandedDefaultRolloutExecutionCompleteDecision?: boolean,
+  executionRecordReviewDecision?: boolean,
+  expandedProfileTrafficSampleReviewDecision?: boolean,
+  fallbackPathSampleVerificationDecision?: boolean,
+  rollbackSwitchVerificationDecision?: boolean,
+  telemetryHealthBudgetVerificationDecision?: boolean,
+  leakRegressionAbsenceVerificationDecision?: boolean,
+  verificationEvidenceArchiveDecision?: boolean,
+  finalExpandedDefaultRolloutVerificationDecision?: boolean,
+) {
+  return invoke<RuntimeKernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport>(
+    'get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_verification',
+    {
+      rustDataPlaneHardeningExpandedDefaultRolloutExecutionCompleteDecision,
+      executionRecordReviewDecision,
+      expandedProfileTrafficSampleReviewDecision,
+      fallbackPathSampleVerificationDecision,
+      rollbackSwitchVerificationDecision,
+      telemetryHealthBudgetVerificationDecision,
+      leakRegressionAbsenceVerificationDecision,
+      verificationEvidenceArchiveDecision,
+      finalExpandedDefaultRolloutVerificationDecision,
     },
   )
 }

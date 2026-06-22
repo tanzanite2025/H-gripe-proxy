@@ -8,6 +8,10 @@ use super::{
     KernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport,
     KernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport,
     KernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport,
+    KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport,
+    KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport,
+    KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport,
+    KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport,
     KernelLoopbackRustDataPlaneHardeningOptInDryRunReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionReport,
@@ -25,6 +29,10 @@ use super::{
     RustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport,
     RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport,
     RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport,
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport,
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport,
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport,
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport,
     RustKernelRuntimeDataPlaneHardeningOptInDryRunReport, RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport,
@@ -3118,6 +3126,684 @@ pub async fn rust_kernel_runtime_data_plane_hardening_supported_default_cutover_
                 "rust-data-plane-hardening-expanded-default-rollout-guard".into()
             } else {
                 "rust-data-plane-hardening-supported-default-cutover-closeout".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard_report(
+    cutover_closeout_review_decision: bool,
+    expanded_scope_lock_decision: bool,
+    rollout_cap_definition_decision: bool,
+    fallback_matrix_retention_decision: bool,
+    rollback_switch_verification_decision: bool,
+    telemetry_soak_plan_definition_decision: bool,
+    unsupported_path_boundary_retention_decision: bool,
+    operator_rollout_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+    let (guard_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "supported default cutover closeout review",
+            cutover_closeout_review_decision,
+            "Rust data-plane expanded default rollout guard requires supported default cutover closeout review",
+        ),
+        (
+            "locked expanded rollout scope",
+            expanded_scope_lock_decision,
+            "Rust data-plane expanded default rollout guard requires locked rollout scope",
+        ),
+        (
+            "defined expanded rollout cap",
+            rollout_cap_definition_decision,
+            "Rust data-plane expanded default rollout guard requires a defined rollout cap",
+        ),
+        (
+            "retained fallback matrix",
+            fallback_matrix_retention_decision,
+            "Rust data-plane expanded default rollout guard requires retained fallback matrix",
+        ),
+        (
+            "verified rollback switch",
+            rollback_switch_verification_decision,
+            "Rust data-plane expanded default rollout guard requires verified rollback switch",
+        ),
+        (
+            "telemetry soak plan",
+            telemetry_soak_plan_definition_decision,
+            "Rust data-plane expanded default rollout guard requires telemetry soak plan",
+        ),
+        (
+            "retained unsupported path boundary",
+            unsupported_path_boundary_retention_decision,
+            "Rust data-plane expanded default rollout guard requires unsupported path boundary retention",
+        ),
+        (
+            "operator expanded rollout acknowledgement",
+            operator_rollout_acknowledgement_decision,
+            "Rust data-plane expanded default rollout guard requires operator acknowledgement",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-expanded-default-rollout-guard-detail".into(),
+        cutover_closeout_reviewed: cutover_closeout_review_decision,
+        expanded_scope_locked: expanded_scope_lock_decision,
+        rollout_cap_defined: rollout_cap_definition_decision,
+        fallback_matrix_retained: fallback_matrix_retention_decision,
+        rollback_switch_verified: rollback_switch_verification_decision,
+        telemetry_soak_plan_defined: telemetry_soak_plan_definition_decision,
+        unsupported_path_boundary_retained: unsupported_path_boundary_retention_decision,
+        operator_rollout_acknowledged: operator_rollout_acknowledgement_decision,
+        expanded_default_rollout_guard_complete: blockers.is_empty(),
+        guard_surfaces,
+        blockers,
+        facts: vec![
+            "expanded default rollout guard widens only through an explicit cap and retained fallback matrix".into(),
+            "unsupported path ownership remains bounded before any expanded execution".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard(
+    rust_data_plane_hardening_supported_default_cutover_closeout_complete_decision: Option<bool>,
+    cutover_closeout_review_decision: Option<bool>,
+    expanded_scope_lock_decision: Option<bool>,
+    rollout_cap_definition_decision: Option<bool>,
+    fallback_matrix_retention_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    telemetry_soak_plan_definition_decision: Option<bool>,
+    unsupported_path_boundary_retention_decision: Option<bool>,
+    operator_rollout_acknowledgement_decision: Option<bool>,
+    final_expanded_default_rollout_guard_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport> {
+    let rust_data_plane_hardening_supported_default_cutover_closeout_complete =
+        rust_data_plane_hardening_supported_default_cutover_closeout_complete_decision.unwrap_or(false);
+    let final_expanded_default_rollout_guard_decision = final_expanded_default_rollout_guard_decision.unwrap_or(false);
+    let expanded_default_rollout_guard = rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard_report(
+        cutover_closeout_review_decision.unwrap_or(false),
+        expanded_scope_lock_decision.unwrap_or(false),
+        rollout_cap_definition_decision.unwrap_or(false),
+        fallback_matrix_retention_decision.unwrap_or(false),
+        rollback_switch_verification_decision.unwrap_or(false),
+        telemetry_soak_plan_definition_decision.unwrap_or(false),
+        unsupported_path_boundary_retention_decision.unwrap_or(false),
+        operator_rollout_acknowledgement_decision.unwrap_or(false),
+    );
+    let closeout_blockers = if rust_data_plane_hardening_supported_default_cutover_closeout_complete {
+        Vec::new()
+    } else {
+        vec![
+            "Rust data-plane expanded default rollout guard requires supported default cutover closeout to pass first"
+                .into(),
+        ]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningSupportedDefaultCutoverCloseoutComplete",
+            rust_data_plane_hardening_supported_default_cutover_closeout_complete,
+            closeout_blockers,
+            "expanded default rollout guard starts only after supported default cutover closeout",
+        ),
+        data_plane_hardening_gate_check(
+            "expandedDefaultRolloutGuardComplete",
+            expanded_default_rollout_guard.expanded_default_rollout_guard_complete,
+            expanded_default_rollout_guard.blockers.clone(),
+            "closeout review, expanded scope, cap, fallback matrix, rollback, telemetry, unsupported boundary, and acknowledgement are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalExpandedDefaultRolloutGuardDecision",
+            final_expanded_default_rollout_guard_decision,
+            if final_expanded_default_rollout_guard_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane expanded default rollout guard requires an explicit final decision".into()]
+            },
+            "expanded default rollout guard completion is explicit before dry-run",
+        ),
+    ];
+    let rust_data_plane_hardening_expanded_default_rollout_guard_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-expanded-default-rollout-guard".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_supported_default_cutover_closeout_complete,
+            expanded_default_rollout_guard,
+            final_expanded_default_rollout_guard_decision,
+            rust_data_plane_hardening_expanded_default_rollout_guard_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_expanded_default_rollout_guard_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this expanded default rollout guard does not mutate runtime, TUN, DNS, adapter forwarding, or Mihomo config".into(),
+                "Mihomo fallback and unsupported path ownership remain retained".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening expanded default rollout guard follows supported default cutover closeout".into(),
+                "successful guard completion advances only to expanded rollout dry-run".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_expanded_default_rollout_guard_complete {
+                "rust-data-plane-hardening-expanded-default-rollout-dry-run".into()
+            } else {
+                "rust-data-plane-hardening-expanded-default-rollout-guard".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run_report(
+    guard_review_decision: bool,
+    expanded_manifest_replay_decision: bool,
+    representative_profile_simulation_decision: bool,
+    fallback_routing_rehearsal_decision: bool,
+    rollback_rehearsal_decision: bool,
+    telemetry_soak_sample_review_decision: bool,
+    dry_run_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+    let (dry_run_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "expanded default rollout guard review",
+            guard_review_decision,
+            "Rust data-plane expanded default rollout dry-run requires guard review",
+        ),
+        (
+            "expanded manifest replay",
+            expanded_manifest_replay_decision,
+            "Rust data-plane expanded default rollout dry-run requires manifest replay",
+        ),
+        (
+            "representative profile simulation",
+            representative_profile_simulation_decision,
+            "Rust data-plane expanded default rollout dry-run requires representative profile simulation",
+        ),
+        (
+            "fallback routing rehearsal",
+            fallback_routing_rehearsal_decision,
+            "Rust data-plane expanded default rollout dry-run requires fallback routing rehearsal",
+        ),
+        (
+            "rollback rehearsal",
+            rollback_rehearsal_decision,
+            "Rust data-plane expanded default rollout dry-run requires rollback rehearsal",
+        ),
+        (
+            "telemetry soak sample review",
+            telemetry_soak_sample_review_decision,
+            "Rust data-plane expanded default rollout dry-run requires telemetry soak sample review",
+        ),
+        (
+            "archived expanded rollout dry-run evidence",
+            dry_run_evidence_archive_decision,
+            "Rust data-plane expanded default rollout dry-run requires archived evidence",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-expanded-default-rollout-dry-run-detail".into(),
+        guard_reviewed: guard_review_decision,
+        expanded_manifest_replayed: expanded_manifest_replay_decision,
+        representative_profile_simulation_completed: representative_profile_simulation_decision,
+        fallback_routing_rehearsed: fallback_routing_rehearsal_decision,
+        rollback_rehearsed: rollback_rehearsal_decision,
+        telemetry_soak_sample_reviewed: telemetry_soak_sample_review_decision,
+        dry_run_evidence_archived: dry_run_evidence_archive_decision,
+        expanded_default_rollout_dry_run_complete: blockers.is_empty(),
+        dry_run_surfaces,
+        blockers,
+        facts: vec![
+            "expanded default rollout dry-run replays representative profiles without applying expanded defaults"
+                .into(),
+            "dry-run success advances only to the separately gated execution surface".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run(
+    rust_data_plane_hardening_expanded_default_rollout_guard_complete_decision: Option<bool>,
+    guard_review_decision: Option<bool>,
+    expanded_manifest_replay_decision: Option<bool>,
+    representative_profile_simulation_decision: Option<bool>,
+    fallback_routing_rehearsal_decision: Option<bool>,
+    rollback_rehearsal_decision: Option<bool>,
+    telemetry_soak_sample_review_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_expanded_default_rollout_dry_run_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport> {
+    let rust_data_plane_hardening_expanded_default_rollout_guard_complete =
+        rust_data_plane_hardening_expanded_default_rollout_guard_complete_decision.unwrap_or(false);
+    let final_expanded_default_rollout_dry_run_decision =
+        final_expanded_default_rollout_dry_run_decision.unwrap_or(false);
+    let expanded_default_rollout_dry_run =
+        rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run_report(
+            guard_review_decision.unwrap_or(false),
+            expanded_manifest_replay_decision.unwrap_or(false),
+            representative_profile_simulation_decision.unwrap_or(false),
+            fallback_routing_rehearsal_decision.unwrap_or(false),
+            rollback_rehearsal_decision.unwrap_or(false),
+            telemetry_soak_sample_review_decision.unwrap_or(false),
+            dry_run_evidence_archive_decision.unwrap_or(false),
+        );
+    let guard_blockers = if rust_data_plane_hardening_expanded_default_rollout_guard_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane expanded default rollout dry-run requires rollout guard to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningExpandedDefaultRolloutGuardComplete",
+            rust_data_plane_hardening_expanded_default_rollout_guard_complete,
+            guard_blockers,
+            "expanded default rollout dry-run starts only after the rollout guard",
+        ),
+        data_plane_hardening_gate_check(
+            "expandedDefaultRolloutDryRunComplete",
+            expanded_default_rollout_dry_run.expanded_default_rollout_dry_run_complete,
+            expanded_default_rollout_dry_run.blockers.clone(),
+            "guard review, manifest replay, representative simulation, fallback, rollback, telemetry, and evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalExpandedDefaultRolloutDryRunDecision",
+            final_expanded_default_rollout_dry_run_decision,
+            if final_expanded_default_rollout_dry_run_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane expanded default rollout dry-run requires an explicit final decision".into()]
+            },
+            "expanded default rollout dry-run completion is explicit before execution",
+        ),
+    ];
+    let rust_data_plane_hardening_expanded_default_rollout_dry_run_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-expanded-default-rollout-dry-run".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_expanded_default_rollout_guard_complete,
+            expanded_default_rollout_dry_run,
+            final_expanded_default_rollout_dry_run_decision,
+            rust_data_plane_hardening_expanded_default_rollout_dry_run_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_expanded_default_rollout_dry_run_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this expanded default rollout dry-run does not mutate runtime, routes, TUN, DNS, adapter forwarding, or Mihomo config".into(),
+                "execution remains blocked until a separate explicit execution surface passes".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening expanded default rollout dry-run follows the guard".into(),
+                "successful dry-run advances only to expanded rollout execution".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_expanded_default_rollout_dry_run_complete {
+                "rust-data-plane-hardening-expanded-default-rollout-execution".into()
+            } else {
+                "rust-data-plane-hardening-expanded-default-rollout-dry-run".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution_report(
+    dry_run_review_decision: bool,
+    execution_manifest_lock_decision: bool,
+    rollout_window_start_decision: bool,
+    expanded_profile_cap_enforcement_decision: bool,
+    active_telemetry_watch_decision: bool,
+    rollback_switch_arm_decision: bool,
+    mihomo_fallback_retention_decision: bool,
+    operator_execution_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+    let (execution_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "expanded default rollout dry-run review",
+            dry_run_review_decision,
+            "Rust data-plane expanded default rollout execution requires dry-run review",
+        ),
+        (
+            "locked execution manifest",
+            execution_manifest_lock_decision,
+            "Rust data-plane expanded default rollout execution requires a locked execution manifest",
+        ),
+        (
+            "started rollout window",
+            rollout_window_start_decision,
+            "Rust data-plane expanded default rollout execution requires started rollout window",
+        ),
+        (
+            "enforced expanded profile cap",
+            expanded_profile_cap_enforcement_decision,
+            "Rust data-plane expanded default rollout execution requires enforced expanded profile cap",
+        ),
+        (
+            "active telemetry watch",
+            active_telemetry_watch_decision,
+            "Rust data-plane expanded default rollout execution requires active telemetry watch",
+        ),
+        (
+            "armed rollback switch",
+            rollback_switch_arm_decision,
+            "Rust data-plane expanded default rollout execution requires armed rollback switch",
+        ),
+        (
+            "retained Mihomo fallback",
+            mihomo_fallback_retention_decision,
+            "Rust data-plane expanded default rollout execution requires retained Mihomo fallback",
+        ),
+        (
+            "operator expanded execution acknowledgement",
+            operator_execution_acknowledgement_decision,
+            "Rust data-plane expanded default rollout execution requires operator acknowledgement",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-expanded-default-rollout-execution-detail".into(),
+        dry_run_reviewed: dry_run_review_decision,
+        execution_manifest_locked: execution_manifest_lock_decision,
+        rollout_window_started: rollout_window_start_decision,
+        expanded_profile_cap_enforced: expanded_profile_cap_enforcement_decision,
+        active_telemetry_watch: active_telemetry_watch_decision,
+        rollback_switch_armed: rollback_switch_arm_decision,
+        mihomo_fallback_retained: mihomo_fallback_retention_decision,
+        operator_execution_acknowledged: operator_execution_acknowledgement_decision,
+        expanded_default_rollout_execution_complete: blockers.is_empty(),
+        execution_surfaces,
+        blockers,
+        facts: vec![
+            "expanded default rollout execution remains capped and rollback-bound".into(),
+            "Mihomo fallback remains retained through expanded rollout execution".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution(
+    rust_data_plane_hardening_expanded_default_rollout_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    execution_manifest_lock_decision: Option<bool>,
+    rollout_window_start_decision: Option<bool>,
+    expanded_profile_cap_enforcement_decision: Option<bool>,
+    active_telemetry_watch_decision: Option<bool>,
+    rollback_switch_arm_decision: Option<bool>,
+    mihomo_fallback_retention_decision: Option<bool>,
+    operator_execution_acknowledgement_decision: Option<bool>,
+    final_expanded_default_rollout_execution_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport> {
+    let rust_data_plane_hardening_expanded_default_rollout_dry_run_complete =
+        rust_data_plane_hardening_expanded_default_rollout_dry_run_complete_decision.unwrap_or(false);
+    let final_expanded_default_rollout_execution_decision =
+        final_expanded_default_rollout_execution_decision.unwrap_or(false);
+    let expanded_default_rollout_execution =
+        rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution_report(
+            dry_run_review_decision.unwrap_or(false),
+            execution_manifest_lock_decision.unwrap_or(false),
+            rollout_window_start_decision.unwrap_or(false),
+            expanded_profile_cap_enforcement_decision.unwrap_or(false),
+            active_telemetry_watch_decision.unwrap_or(false),
+            rollback_switch_arm_decision.unwrap_or(false),
+            mihomo_fallback_retention_decision.unwrap_or(false),
+            operator_execution_acknowledgement_decision.unwrap_or(false),
+        );
+    let dry_run_blockers = if rust_data_plane_hardening_expanded_default_rollout_dry_run_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane expanded default rollout execution requires dry-run to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningExpandedDefaultRolloutDryRunComplete",
+            rust_data_plane_hardening_expanded_default_rollout_dry_run_complete,
+            dry_run_blockers,
+            "expanded default rollout execution starts only after dry-run",
+        ),
+        data_plane_hardening_gate_check(
+            "expandedDefaultRolloutExecutionComplete",
+            expanded_default_rollout_execution.expanded_default_rollout_execution_complete,
+            expanded_default_rollout_execution.blockers.clone(),
+            "dry-run review, execution manifest, rollout window, cap, telemetry, rollback, fallback, and acknowledgement are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalExpandedDefaultRolloutExecutionDecision",
+            final_expanded_default_rollout_execution_decision,
+            if final_expanded_default_rollout_execution_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane expanded default rollout execution requires an explicit final decision".into()]
+            },
+            "expanded default rollout execution completion is explicit before verification",
+        ),
+    ];
+    let rust_data_plane_hardening_expanded_default_rollout_execution_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-expanded-default-rollout-execution".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_expanded_default_rollout_dry_run_complete,
+            expanded_default_rollout_execution,
+            final_expanded_default_rollout_execution_decision,
+            rust_data_plane_hardening_expanded_default_rollout_execution_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_expanded_default_rollout_execution_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this expanded default rollout execution surface does not touch TUN, DNS, adapter forwarding, or Mihomo config".into(),
+                "fallback retirement and unsupported data-plane ownership remain separate high-risk phases".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening expanded default rollout execution follows dry-run".into(),
+                "successful execution advances only to expanded rollout verification".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_expanded_default_rollout_execution_complete {
+                "rust-data-plane-hardening-expanded-default-rollout-verification".into()
+            } else {
+                "rust-data-plane-hardening-expanded-default-rollout-execution".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verification_report(
+    execution_record_review_decision: bool,
+    expanded_profile_traffic_sample_review_decision: bool,
+    fallback_path_sample_verification_decision: bool,
+    rollback_switch_verification_decision: bool,
+    telemetry_health_budget_verification_decision: bool,
+    leak_regression_absence_verification_decision: bool,
+    verification_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+    let (verification_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "expanded rollout execution record review",
+            execution_record_review_decision,
+            "Rust data-plane expanded default rollout verification requires execution record review",
+        ),
+        (
+            "expanded profile traffic sample review",
+            expanded_profile_traffic_sample_review_decision,
+            "Rust data-plane expanded default rollout verification requires expanded profile traffic sample review",
+        ),
+        (
+            "fallback path sample verification",
+            fallback_path_sample_verification_decision,
+            "Rust data-plane expanded default rollout verification requires fallback path sample verification",
+        ),
+        (
+            "rollback switch verification",
+            rollback_switch_verification_decision,
+            "Rust data-plane expanded default rollout verification requires rollback switch verification",
+        ),
+        (
+            "telemetry health budget verification",
+            telemetry_health_budget_verification_decision,
+            "Rust data-plane expanded default rollout verification requires telemetry health budget verification",
+        ),
+        (
+            "leak regression absence verification",
+            leak_regression_absence_verification_decision,
+            "Rust data-plane expanded default rollout verification requires leak regression absence verification",
+        ),
+        (
+            "archived expanded rollout verification evidence",
+            verification_evidence_archive_decision,
+            "Rust data-plane expanded default rollout verification requires archived evidence",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-expanded-default-rollout-verification-detail".into(),
+        execution_record_reviewed: execution_record_review_decision,
+        expanded_profile_traffic_sample_reviewed: expanded_profile_traffic_sample_review_decision,
+        fallback_path_sample_verified: fallback_path_sample_verification_decision,
+        rollback_switch_verified: rollback_switch_verification_decision,
+        telemetry_health_budget_verified: telemetry_health_budget_verification_decision,
+        leak_regression_absence_verified: leak_regression_absence_verification_decision,
+        verification_evidence_archived: verification_evidence_archive_decision,
+        expanded_default_rollout_verification_complete: blockers.is_empty(),
+        verification_surfaces,
+        blockers,
+        facts: vec![
+            "expanded default rollout verification reviews expanded samples, fallback paths, rollback, health, and leak evidence together".into(),
+            "verification success advances only to expanded rollout closeout planning".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verification(
+    rust_data_plane_hardening_expanded_default_rollout_execution_complete_decision: Option<bool>,
+    execution_record_review_decision: Option<bool>,
+    expanded_profile_traffic_sample_review_decision: Option<bool>,
+    fallback_path_sample_verification_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    telemetry_health_budget_verification_decision: Option<bool>,
+    leak_regression_absence_verification_decision: Option<bool>,
+    verification_evidence_archive_decision: Option<bool>,
+    final_expanded_default_rollout_verification_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport> {
+    let rust_data_plane_hardening_expanded_default_rollout_execution_complete =
+        rust_data_plane_hardening_expanded_default_rollout_execution_complete_decision.unwrap_or(false);
+    let final_expanded_default_rollout_verification_decision =
+        final_expanded_default_rollout_verification_decision.unwrap_or(false);
+    let expanded_default_rollout_verification =
+        rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verification_report(
+            execution_record_review_decision.unwrap_or(false),
+            expanded_profile_traffic_sample_review_decision.unwrap_or(false),
+            fallback_path_sample_verification_decision.unwrap_or(false),
+            rollback_switch_verification_decision.unwrap_or(false),
+            telemetry_health_budget_verification_decision.unwrap_or(false),
+            leak_regression_absence_verification_decision.unwrap_or(false),
+            verification_evidence_archive_decision.unwrap_or(false),
+        );
+    let execution_blockers = if rust_data_plane_hardening_expanded_default_rollout_execution_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane expanded default rollout verification requires execution to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningExpandedDefaultRolloutExecutionComplete",
+            rust_data_plane_hardening_expanded_default_rollout_execution_complete,
+            execution_blockers,
+            "expanded default rollout verification starts only after execution",
+        ),
+        data_plane_hardening_gate_check(
+            "expandedDefaultRolloutVerificationComplete",
+            expanded_default_rollout_verification.expanded_default_rollout_verification_complete,
+            expanded_default_rollout_verification.blockers.clone(),
+            "execution record, expanded samples, fallback paths, rollback, health, leak, and evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalExpandedDefaultRolloutVerificationDecision",
+            final_expanded_default_rollout_verification_decision,
+            if final_expanded_default_rollout_verification_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane expanded default rollout verification requires an explicit final decision".into()]
+            },
+            "expanded default rollout verification completion is explicit before closeout",
+        ),
+    ];
+    let rust_data_plane_hardening_expanded_default_rollout_verification_complete =
+        checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-expanded-default-rollout-verification".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_expanded_default_rollout_execution_complete,
+            expanded_default_rollout_verification,
+            final_expanded_default_rollout_verification_decision,
+            rust_data_plane_hardening_expanded_default_rollout_verification_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_expanded_default_rollout_verification_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this expanded default rollout verification surface does not mutate runtime or retire Mihomo fallback"
+                    .into(),
+                "expanded rollout closeout remains required before any fallback retirement planning".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening expanded default rollout verification follows execution".into(),
+                "successful verification advances only to expanded rollout closeout".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_expanded_default_rollout_verification_complete {
+                "rust-data-plane-hardening-expanded-default-rollout-closeout".into()
+            } else {
+                "rust-data-plane-hardening-expanded-default-rollout-verification".into()
             },
         },
     )
