@@ -828,6 +828,61 @@ pub struct MihomoFallbackRetirementExecutionReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustProtocolAdapterForwardingStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustProtocolAdapterForwardingAdapterKind {
+    Direct,
+    Reject,
+    MihomoFallback,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolAdapterForwardingDecisionEvidence {
+    pub adapter_kind: RustProtocolAdapterForwardingAdapterKind,
+    pub listener_port: u16,
+    pub target_port: Option<u16>,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub accepted_connections: u64,
+    pub bytes_from_client: u64,
+    pub bytes_from_target: u64,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustProtocolAdapterForwardingExpansionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustProtocolAdapterForwardingStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub direct_evidence: Option<RustProtocolAdapterForwardingDecisionEvidence>,
+    pub reject_evidence: Option<RustProtocolAdapterForwardingDecisionEvidence>,
+    pub evidence_path: Option<String>,
+    pub loopback_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {

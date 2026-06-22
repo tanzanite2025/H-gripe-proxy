@@ -3034,6 +3034,51 @@ export interface MihomoFallbackRetirementExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustProtocolAdapterForwardingStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export type RustProtocolAdapterForwardingAdapterKind =
+  | 'direct'
+  | 'reject'
+  | 'mihomoFallback'
+
+export interface RustProtocolAdapterForwardingDecisionEvidence {
+  adapterKind: RustProtocolAdapterForwardingAdapterKind
+  listenerPort: number
+  targetPort?: number | null
+  targetReceived: boolean
+  responseStatus?: string | null
+  acceptedConnections: number
+  bytesFromClient: number
+  bytesFromTarget: number
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustProtocolAdapterForwardingExpansionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustProtocolAdapterForwardingStatus
+  reason: string
+  explicitOptIn: boolean
+  directEvidence?: RustProtocolAdapterForwardingDecisionEvidence | null
+  rejectEvidence?: RustProtocolAdapterForwardingDecisionEvidence | null
+  evidencePath?: string | null
+  loopbackOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3469,6 +3514,15 @@ export async function runRuntimeKernelRustRuntimeRealCanary(
   return invoke<RustRuntimeRealCanaryEvidenceReport>(
     'run_runtime_kernel_rust_runtime_real_canary',
     { canaryProfile, explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustProtocolAdapterForwardingExpansion(
+  explicitOptIn = false,
+) {
+  return invoke<RustProtocolAdapterForwardingExpansionReport>(
+    'run_runtime_kernel_rust_protocol_adapter_forwarding_expansion',
+    { explicitOptIn },
   )
 }
 
