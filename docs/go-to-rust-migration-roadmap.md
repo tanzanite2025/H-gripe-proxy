@@ -22,9 +22,9 @@ App registry / policy / node pool / DNS / security profile
 | Area | State | Boundary |
 | --- | --- | --- |
 | Rust control plane | Complete for the current migration phase | Validation, planning, gates, audit, telemetry, upgrade history, sensitive-config audit, TLS rotation, and frontend type sources are Rust-owned or Rust-generated. |
-| Production data plane | Rust data-plane hardening expanded default rollout verification bundle complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_verification` requires supported default cutover closeout, expanded rollout guard, dry-run replay, capped execution, fallback path samples, rollback switch verification, telemetry health budget, leak regression absence verification, archived evidence, and final verification decision before expanded rollout closeout. |
+| Production data plane | Rust data-plane hardening Mihomo fallback retirement readiness bundle complete | `get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_readiness` requires expanded default rollout closeout, fallback retirement guard, dry-run replay, protocol/TUN/adapter/DNS parity evidence, soak evidence, emergency rollback ownership, and final readiness decision before any fallback retirement execution. |
 | Kernel replacement track | Go/Mihomo retirement completion closeout complete | `get_runtime_kernel_loopback_go_mihomo_retirement_completion_closeout` requires rollback surface retirement, retained recovery boundary evidence, archived completion report, release notes, frozen migration state, and final completion decision. |
-| Next safe batch | `rust-data-plane-hardening-expanded-default-rollout-closeout` | Only after expanded default rollout verification passes, plan expanded rollout closeout; Mihomo fallback and unsupported data-plane ownership remain retained. |
+| Next safe batch | `rust-data-plane-hardening-mihomo-fallback-retirement-execution` | Only after fallback retirement readiness passes, plan a separate explicit execution surface; Mihomo fallback is not removed by readiness, dry-run, or guard gates. |
 
 ## Acceleration plan
 
@@ -93,6 +93,10 @@ RustKernelRuntime selected by default
 | 35 | `rust-data-plane-hardening-expanded-default-rollout-dry-run` | Complete: require guard review, expanded manifest replay, representative profile simulation, fallback routing rehearsal, rollback rehearsal, telemetry soak sample review, archived dry-run evidence, and final dry-run decision. | Dry-run only; no runtime mutation. |
 | 36 | `rust-data-plane-hardening-expanded-default-rollout-execution` | Complete: require dry-run review, locked execution manifest, started rollout window, enforced expanded profile cap, active telemetry watch, armed rollback switch, retained Mihomo fallback, operator acknowledgement, and final execution decision. | Capped expanded execution surface; no fallback retirement or Mihomo config ownership change. |
 | 37 | `rust-data-plane-hardening-expanded-default-rollout-verification` | Complete: require execution record review, expanded profile traffic sample review, fallback path sample verification, rollback switch verification, telemetry health budget verification, leak regression absence verification, archived verification evidence, and final verification decision. | Verification only; closeout remains separate. |
+| 38 | `rust-data-plane-hardening-expanded-default-rollout-closeout` | Complete: require verification review, expanded rollout state documentation, rollback owner acknowledgement, retained fallback matrix, retained unsupported path boundary, release notes, archived closeout evidence, and final closeout decision. | Closeout only; fallback retirement remains separate. |
+| 39 | `rust-data-plane-hardening-mihomo-fallback-retirement-guard` | Complete: require expanded rollout closeout review, locked protocol/TUN/adapter/DNS parity scopes, retained emergency rollback, cross-platform drill plan, operator acknowledgement, and final guard decision. | Guard only; no fallback removal. |
+| 40 | `rust-data-plane-hardening-mihomo-fallback-retirement-dry-run` | Complete: require guard review, parity manifest replay, cross-platform rollback rehearsal, fallback dependency inventory replay, emergency recovery rehearsal, unchanged production forwarding verification, archived dry-run evidence, and final dry-run decision. | Dry-run only; no production forwarding mutation. |
+| 41 | `rust-data-plane-hardening-mihomo-fallback-retirement-readiness` | Complete: require dry-run review, archived protocol/TUN/adapter/DNS parity evidence, archived soak evidence, emergency rollback owner acknowledgement, and final readiness decision. | Readiness only; fallback retirement execution remains separate. |
 
 ### Completed R7 PR scope
 
@@ -365,7 +369,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the accelerated sequence above. The current next batch is `rust-data-plane-hardening-expanded-default-rollout-closeout`; Rust data-plane hardening may continue only after expanded default rollout verification records execution review, expanded profile traffic samples, fallback path verification, rollback switch verification, telemetry health budget, leak regression absence verification, archived evidence, and final verification approval. Mihomo fallback and unsupported data-plane ownership remain retained.
+Allowed only through the accelerated sequence above. The current next batch is `rust-data-plane-hardening-mihomo-fallback-retirement-execution`; Rust data-plane hardening may continue only after fallback retirement readiness records dry-run review, protocol/TUN/adapter/DNS parity evidence, soak evidence, emergency rollback owner acknowledgement, and final readiness approval. Mihomo fallback is not removed by guard, dry-run, or readiness gates.
 
 ## PR checklist for future changes
 

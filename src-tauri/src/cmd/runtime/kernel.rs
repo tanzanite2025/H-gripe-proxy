@@ -2543,6 +2543,116 @@ pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_defa
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_closeout(
+    rust_data_plane_hardening_expanded_default_rollout_verification_complete_decision: Option<bool>,
+    verification_review_decision: Option<bool>,
+    expanded_rollout_state_documentation_decision: Option<bool>,
+    rollback_owner_acknowledgement_decision: Option<bool>,
+    fallback_matrix_retention_decision: Option<bool>,
+    unsupported_path_boundary_retention_decision: Option<bool>,
+    release_notes_update_decision: Option<bool>,
+    closeout_evidence_archive_decision: Option<bool>,
+    final_expanded_default_rollout_closeout_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseoutReport> {
+    rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout(
+        rust_data_plane_hardening_expanded_default_rollout_verification_complete_decision,
+        verification_review_decision,
+        expanded_rollout_state_documentation_decision,
+        rollback_owner_acknowledgement_decision,
+        fallback_matrix_retention_decision,
+        unsupported_path_boundary_retention_decision,
+        release_notes_update_decision,
+        closeout_evidence_archive_decision,
+        final_expanded_default_rollout_closeout_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_guard(
+    rust_data_plane_hardening_expanded_default_rollout_closeout_complete_decision: Option<bool>,
+    expanded_rollout_closeout_review_decision: Option<bool>,
+    protocol_parity_scope_lock_decision: Option<bool>,
+    tun_parity_scope_lock_decision: Option<bool>,
+    adapter_parity_scope_lock_decision: Option<bool>,
+    dns_parity_scope_lock_decision: Option<bool>,
+    emergency_rollback_retention_decision: Option<bool>,
+    cross_platform_drill_plan_definition_decision: Option<bool>,
+    operator_retirement_acknowledgement_decision: Option<bool>,
+    final_mihomo_fallback_retirement_guard_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuardReport> {
+    rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard(
+        rust_data_plane_hardening_expanded_default_rollout_closeout_complete_decision,
+        expanded_rollout_closeout_review_decision,
+        protocol_parity_scope_lock_decision,
+        tun_parity_scope_lock_decision,
+        adapter_parity_scope_lock_decision,
+        dns_parity_scope_lock_decision,
+        emergency_rollback_retention_decision,
+        cross_platform_drill_plan_definition_decision,
+        operator_retirement_acknowledgement_decision,
+        final_mihomo_fallback_retirement_guard_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_dry_run(
+    rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete_decision: Option<bool>,
+    guard_review_decision: Option<bool>,
+    parity_manifest_replay_decision: Option<bool>,
+    cross_platform_rollback_rehearsal_decision: Option<bool>,
+    fallback_dependency_inventory_replay_decision: Option<bool>,
+    emergency_recovery_rehearsal_decision: Option<bool>,
+    production_forwarding_unchanged_verification_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_mihomo_fallback_retirement_dry_run_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRunReport> {
+    rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run(
+        rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete_decision,
+        guard_review_decision,
+        parity_manifest_replay_decision,
+        cross_platform_rollback_rehearsal_decision,
+        fallback_dependency_inventory_replay_decision,
+        emergency_recovery_rehearsal_decision,
+        production_forwarding_unchanged_verification_decision,
+        dry_run_evidence_archive_decision,
+        final_mihomo_fallback_retirement_dry_run_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_mihomo_fallback_retirement_readiness(
+    rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    protocol_parity_evidence_archive_decision: Option<bool>,
+    tun_parity_evidence_archive_decision: Option<bool>,
+    adapter_parity_evidence_archive_decision: Option<bool>,
+    dns_parity_evidence_archive_decision: Option<bool>,
+    soak_evidence_archive_decision: Option<bool>,
+    emergency_rollback_owner_acknowledgement_decision: Option<bool>,
+    final_mihomo_fallback_retirement_readiness_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadinessReport> {
+    rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness(
+        rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete_decision,
+        dry_run_review_decision,
+        protocol_parity_evidence_archive_decision,
+        tun_parity_evidence_archive_decision,
+        adapter_parity_evidence_archive_decision,
+        dns_parity_evidence_archive_decision,
+        soak_evidence_archive_decision,
+        emergency_rollback_owner_acknowledgement_decision,
+        final_mihomo_fallback_retirement_readiness_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }

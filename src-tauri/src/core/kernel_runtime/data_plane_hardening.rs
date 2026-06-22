@@ -8,10 +8,14 @@ use super::{
     KernelLoopbackRustDataPlaneHardeningControlledRolloutDryRunReport,
     KernelLoopbackRustDataPlaneHardeningControlledRolloutGuardReport,
     KernelLoopbackRustDataPlaneHardeningControlledRolloutReadinessCloseoutReport,
+    KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseoutReport,
     KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport,
     KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport,
     KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport,
     KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport,
+    KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRunReport,
+    KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuardReport,
+    KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadinessReport,
     KernelLoopbackRustDataPlaneHardeningOptInDryRunReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionGuardReport,
     KernelLoopbackRustDataPlaneHardeningOptInExecutionReport,
@@ -29,10 +33,14 @@ use super::{
     RustKernelRuntimeDataPlaneHardeningControlledRolloutDryRunReport,
     RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport,
     RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport,
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport,
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport,
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport,
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport,
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport,
+    RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport,
+    RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport,
+    RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport,
     RustKernelRuntimeDataPlaneHardeningOptInDryRunReport, RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionReport,
     RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport,
@@ -3804,6 +3812,662 @@ pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_v
                 "rust-data-plane-hardening-expanded-default-rollout-closeout".into()
             } else {
                 "rust-data-plane-hardening-expanded-default-rollout-verification".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout_report(
+    verification_review_decision: bool,
+    expanded_rollout_state_documentation_decision: bool,
+    rollback_owner_acknowledgement_decision: bool,
+    fallback_matrix_retention_decision: bool,
+    unsupported_path_boundary_retention_decision: bool,
+    release_notes_update_decision: bool,
+    closeout_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
+    let (closeout_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "expanded default rollout verification review",
+            verification_review_decision,
+            "Rust data-plane expanded default rollout closeout requires verification review",
+        ),
+        (
+            "expanded rollout state documentation",
+            expanded_rollout_state_documentation_decision,
+            "Rust data-plane expanded default rollout closeout requires rollout state documentation",
+        ),
+        (
+            "rollback owner acknowledgement",
+            rollback_owner_acknowledgement_decision,
+            "Rust data-plane expanded default rollout closeout requires rollback owner acknowledgement",
+        ),
+        (
+            "retained fallback matrix",
+            fallback_matrix_retention_decision,
+            "Rust data-plane expanded default rollout closeout requires retained fallback matrix",
+        ),
+        (
+            "retained unsupported path boundary",
+            unsupported_path_boundary_retention_decision,
+            "Rust data-plane expanded default rollout closeout requires retained unsupported path boundary",
+        ),
+        (
+            "updated release notes",
+            release_notes_update_decision,
+            "Rust data-plane expanded default rollout closeout requires release notes update",
+        ),
+        (
+            "archived expanded rollout closeout evidence",
+            closeout_evidence_archive_decision,
+            "Rust data-plane expanded default rollout closeout requires archived evidence",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-expanded-default-rollout-closeout-detail".into(),
+        verification_reviewed: verification_review_decision,
+        expanded_rollout_state_documented: expanded_rollout_state_documentation_decision,
+        rollback_owner_acknowledged: rollback_owner_acknowledgement_decision,
+        fallback_matrix_retained: fallback_matrix_retention_decision,
+        unsupported_path_boundary_retained: unsupported_path_boundary_retention_decision,
+        release_notes_updated: release_notes_update_decision,
+        closeout_evidence_archived: closeout_evidence_archive_decision,
+        expanded_default_rollout_closeout_complete: blockers.is_empty(),
+        closeout_surfaces,
+        blockers,
+        facts: vec![
+            "expanded default rollout closeout records the widened Rust-default state without retiring Mihomo fallback"
+                .into(),
+            "fallback retirement remains a separate high-risk phase after closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout(
+    rust_data_plane_hardening_expanded_default_rollout_verification_complete_decision: Option<bool>,
+    verification_review_decision: Option<bool>,
+    expanded_rollout_state_documentation_decision: Option<bool>,
+    rollback_owner_acknowledgement_decision: Option<bool>,
+    fallback_matrix_retention_decision: Option<bool>,
+    unsupported_path_boundary_retention_decision: Option<bool>,
+    release_notes_update_decision: Option<bool>,
+    closeout_evidence_archive_decision: Option<bool>,
+    final_expanded_default_rollout_closeout_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseoutReport> {
+    let rust_data_plane_hardening_expanded_default_rollout_verification_complete =
+        rust_data_plane_hardening_expanded_default_rollout_verification_complete_decision.unwrap_or(false);
+    let final_expanded_default_rollout_closeout_decision =
+        final_expanded_default_rollout_closeout_decision.unwrap_or(false);
+    let expanded_default_rollout_closeout =
+        rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout_report(
+            verification_review_decision.unwrap_or(false),
+            expanded_rollout_state_documentation_decision.unwrap_or(false),
+            rollback_owner_acknowledgement_decision.unwrap_or(false),
+            fallback_matrix_retention_decision.unwrap_or(false),
+            unsupported_path_boundary_retention_decision.unwrap_or(false),
+            release_notes_update_decision.unwrap_or(false),
+            closeout_evidence_archive_decision.unwrap_or(false),
+        );
+    let verification_blockers = if rust_data_plane_hardening_expanded_default_rollout_verification_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane expanded default rollout closeout requires verification to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningExpandedDefaultRolloutVerificationComplete",
+            rust_data_plane_hardening_expanded_default_rollout_verification_complete,
+            verification_blockers,
+            "expanded default rollout closeout starts only after verification",
+        ),
+        data_plane_hardening_gate_check(
+            "expandedDefaultRolloutCloseoutComplete",
+            expanded_default_rollout_closeout.expanded_default_rollout_closeout_complete,
+            expanded_default_rollout_closeout.blockers.clone(),
+            "verification review, rollout state, rollback ownership, fallback matrix, unsupported boundary, release notes, and evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalExpandedDefaultRolloutCloseoutDecision",
+            final_expanded_default_rollout_closeout_decision,
+            if final_expanded_default_rollout_closeout_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane expanded default rollout closeout requires an explicit final decision".into()]
+            },
+            "expanded default rollout closeout completion is explicit before fallback-retirement planning",
+        ),
+    ];
+    let rust_data_plane_hardening_expanded_default_rollout_closeout_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-expanded-default-rollout-closeout".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_expanded_default_rollout_verification_complete,
+            expanded_default_rollout_closeout,
+            final_expanded_default_rollout_closeout_decision,
+            rust_data_plane_hardening_expanded_default_rollout_closeout_complete,
+            selected_runtime_kind: if rust_data_plane_hardening_expanded_default_rollout_closeout_complete {
+                KernelRuntimeKind::Rust
+            } else {
+                KernelRuntimeKind::Mihomo
+            },
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this closeout surface does not retire Mihomo fallback or mutate TUN/DNS/adapter forwarding".into(),
+                "fallback retirement remains blocked behind separate parity and rollback gates".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening expanded default rollout closeout follows verification".into(),
+                "successful closeout advances only to Mihomo fallback-retirement guard planning".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_expanded_default_rollout_closeout_complete {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-guard".into()
+            } else {
+                "rust-data-plane-hardening-expanded-default-rollout-closeout".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard_report(
+    expanded_rollout_closeout_review_decision: bool,
+    protocol_parity_scope_lock_decision: bool,
+    tun_parity_scope_lock_decision: bool,
+    adapter_parity_scope_lock_decision: bool,
+    dns_parity_scope_lock_decision: bool,
+    emergency_rollback_retention_decision: bool,
+    cross_platform_drill_plan_definition_decision: bool,
+    operator_retirement_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport {
+    let (guard_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "expanded default rollout closeout review",
+            expanded_rollout_closeout_review_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires expanded rollout closeout review",
+        ),
+        (
+            "locked protocol parity scope",
+            protocol_parity_scope_lock_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires locked protocol parity scope",
+        ),
+        (
+            "locked TUN parity scope",
+            tun_parity_scope_lock_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires locked TUN parity scope",
+        ),
+        (
+            "locked adapter parity scope",
+            adapter_parity_scope_lock_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires locked adapter parity scope",
+        ),
+        (
+            "locked DNS parity scope",
+            dns_parity_scope_lock_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires locked DNS parity scope",
+        ),
+        (
+            "retained emergency rollback",
+            emergency_rollback_retention_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires retained emergency rollback",
+        ),
+        (
+            "defined cross-platform drill plan",
+            cross_platform_drill_plan_definition_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires cross-platform drill plan",
+        ),
+        (
+            "operator fallback retirement acknowledgement",
+            operator_retirement_acknowledgement_decision,
+            "Rust data-plane Mihomo fallback retirement guard requires operator acknowledgement",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-mihomo-fallback-retirement-guard-detail".into(),
+        expanded_rollout_closeout_reviewed: expanded_rollout_closeout_review_decision,
+        protocol_parity_scope_locked: protocol_parity_scope_lock_decision,
+        tun_parity_scope_locked: tun_parity_scope_lock_decision,
+        adapter_parity_scope_locked: adapter_parity_scope_lock_decision,
+        dns_parity_scope_locked: dns_parity_scope_lock_decision,
+        emergency_rollback_retained: emergency_rollback_retention_decision,
+        cross_platform_drill_plan_defined: cross_platform_drill_plan_definition_decision,
+        operator_retirement_acknowledged: operator_retirement_acknowledgement_decision,
+        mihomo_fallback_retirement_guard_complete: blockers.is_empty(),
+        guard_surfaces,
+        blockers,
+        facts: vec![
+            "Mihomo fallback retirement is gated on protocol, TUN, adapter, and DNS parity scopes".into(),
+            "guard success does not remove fallback; it only permits dry-run planning".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard(
+    rust_data_plane_hardening_expanded_default_rollout_closeout_complete_decision: Option<bool>,
+    expanded_rollout_closeout_review_decision: Option<bool>,
+    protocol_parity_scope_lock_decision: Option<bool>,
+    tun_parity_scope_lock_decision: Option<bool>,
+    adapter_parity_scope_lock_decision: Option<bool>,
+    dns_parity_scope_lock_decision: Option<bool>,
+    emergency_rollback_retention_decision: Option<bool>,
+    cross_platform_drill_plan_definition_decision: Option<bool>,
+    operator_retirement_acknowledgement_decision: Option<bool>,
+    final_mihomo_fallback_retirement_guard_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuardReport> {
+    let rust_data_plane_hardening_expanded_default_rollout_closeout_complete =
+        rust_data_plane_hardening_expanded_default_rollout_closeout_complete_decision.unwrap_or(false);
+    let final_mihomo_fallback_retirement_guard_decision =
+        final_mihomo_fallback_retirement_guard_decision.unwrap_or(false);
+    let mihomo_fallback_retirement_guard =
+        rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard_report(
+            expanded_rollout_closeout_review_decision.unwrap_or(false),
+            protocol_parity_scope_lock_decision.unwrap_or(false),
+            tun_parity_scope_lock_decision.unwrap_or(false),
+            adapter_parity_scope_lock_decision.unwrap_or(false),
+            dns_parity_scope_lock_decision.unwrap_or(false),
+            emergency_rollback_retention_decision.unwrap_or(false),
+            cross_platform_drill_plan_definition_decision.unwrap_or(false),
+            operator_retirement_acknowledgement_decision.unwrap_or(false),
+        );
+    let closeout_blockers = if rust_data_plane_hardening_expanded_default_rollout_closeout_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane Mihomo fallback retirement guard requires expanded rollout closeout to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningExpandedDefaultRolloutCloseoutComplete",
+            rust_data_plane_hardening_expanded_default_rollout_closeout_complete,
+            closeout_blockers,
+            "fallback retirement guard starts only after expanded default rollout closeout",
+        ),
+        data_plane_hardening_gate_check(
+            "mihomoFallbackRetirementGuardComplete",
+            mihomo_fallback_retirement_guard.mihomo_fallback_retirement_guard_complete,
+            mihomo_fallback_retirement_guard.blockers.clone(),
+            "closeout review, parity scopes, emergency rollback, drill plan, and acknowledgement are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalMihomoFallbackRetirementGuardDecision",
+            final_mihomo_fallback_retirement_guard_decision,
+            if final_mihomo_fallback_retirement_guard_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane Mihomo fallback retirement guard requires an explicit final decision".into()]
+            },
+            "fallback retirement guard completion is explicit before dry-run",
+        ),
+    ];
+    let rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementGuardReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-mihomo-fallback-retirement-guard".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_expanded_default_rollout_closeout_complete,
+            mihomo_fallback_retirement_guard,
+            final_mihomo_fallback_retirement_guard_decision,
+            rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete,
+            selected_runtime_kind: KernelRuntimeKind::Rust,
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this fallback retirement guard does not remove Mihomo fallback or mutate production forwarding".into(),
+                "protocol, TUN, adapter, and DNS ownership changes remain blocked until parity evidence closes".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening Mihomo fallback retirement guard follows expanded rollout closeout".into(),
+                "successful guard completion advances only to fallback retirement dry-run".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-dry-run".into()
+            } else {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-guard".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run_report(
+    guard_review_decision: bool,
+    parity_manifest_replay_decision: bool,
+    cross_platform_rollback_rehearsal_decision: bool,
+    fallback_dependency_inventory_replay_decision: bool,
+    emergency_recovery_rehearsal_decision: bool,
+    production_forwarding_unchanged_verification_decision: bool,
+    dry_run_evidence_archive_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
+    let (dry_run_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "Mihomo fallback retirement guard review",
+            guard_review_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires guard review",
+        ),
+        (
+            "parity manifest replay",
+            parity_manifest_replay_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires parity manifest replay",
+        ),
+        (
+            "cross-platform rollback rehearsal",
+            cross_platform_rollback_rehearsal_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires cross-platform rollback rehearsal",
+        ),
+        (
+            "fallback dependency inventory replay",
+            fallback_dependency_inventory_replay_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires fallback dependency inventory replay",
+        ),
+        (
+            "emergency recovery rehearsal",
+            emergency_recovery_rehearsal_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires emergency recovery rehearsal",
+        ),
+        (
+            "unchanged production forwarding verification",
+            production_forwarding_unchanged_verification_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires unchanged production forwarding verification",
+        ),
+        (
+            "archived fallback retirement dry-run evidence",
+            dry_run_evidence_archive_decision,
+            "Rust data-plane Mihomo fallback retirement dry-run requires archived evidence",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-mihomo-fallback-retirement-dry-run-detail".into(),
+        guard_reviewed: guard_review_decision,
+        parity_manifest_replayed: parity_manifest_replay_decision,
+        cross_platform_rollback_rehearsed: cross_platform_rollback_rehearsal_decision,
+        fallback_dependency_inventory_replayed: fallback_dependency_inventory_replay_decision,
+        emergency_recovery_rehearsed: emergency_recovery_rehearsal_decision,
+        production_forwarding_unchanged_verified: production_forwarding_unchanged_verification_decision,
+        dry_run_evidence_archived: dry_run_evidence_archive_decision,
+        mihomo_fallback_retirement_dry_run_complete: blockers.is_empty(),
+        dry_run_surfaces,
+        blockers,
+        facts: vec![
+            "Mihomo fallback retirement dry-run replays removal evidence without changing forwarding".into(),
+            "dry-run success advances only to readiness closeout".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run(
+    rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete_decision: Option<bool>,
+    guard_review_decision: Option<bool>,
+    parity_manifest_replay_decision: Option<bool>,
+    cross_platform_rollback_rehearsal_decision: Option<bool>,
+    fallback_dependency_inventory_replay_decision: Option<bool>,
+    emergency_recovery_rehearsal_decision: Option<bool>,
+    production_forwarding_unchanged_verification_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_mihomo_fallback_retirement_dry_run_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRunReport> {
+    let rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete =
+        rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete_decision.unwrap_or(false);
+    let final_mihomo_fallback_retirement_dry_run_decision =
+        final_mihomo_fallback_retirement_dry_run_decision.unwrap_or(false);
+    let mihomo_fallback_retirement_dry_run =
+        rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run_report(
+            guard_review_decision.unwrap_or(false),
+            parity_manifest_replay_decision.unwrap_or(false),
+            cross_platform_rollback_rehearsal_decision.unwrap_or(false),
+            fallback_dependency_inventory_replay_decision.unwrap_or(false),
+            emergency_recovery_rehearsal_decision.unwrap_or(false),
+            production_forwarding_unchanged_verification_decision.unwrap_or(false),
+            dry_run_evidence_archive_decision.unwrap_or(false),
+        );
+    let guard_blockers = if rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane Mihomo fallback retirement dry-run requires guard to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningMihomoFallbackRetirementGuardComplete",
+            rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete,
+            guard_blockers,
+            "fallback retirement dry-run starts only after the guard",
+        ),
+        data_plane_hardening_gate_check(
+            "mihomoFallbackRetirementDryRunComplete",
+            mihomo_fallback_retirement_dry_run.mihomo_fallback_retirement_dry_run_complete,
+            mihomo_fallback_retirement_dry_run.blockers.clone(),
+            "guard review, parity manifest, rollback, fallback inventory, emergency recovery, unchanged forwarding, and evidence are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalMihomoFallbackRetirementDryRunDecision",
+            final_mihomo_fallback_retirement_dry_run_decision,
+            if final_mihomo_fallback_retirement_dry_run_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane Mihomo fallback retirement dry-run requires an explicit final decision".into()]
+            },
+            "fallback retirement dry-run completion is explicit before readiness closeout",
+        ),
+    ];
+    let rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete = checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-mihomo-fallback-retirement-dry-run".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete,
+            mihomo_fallback_retirement_dry_run,
+            final_mihomo_fallback_retirement_dry_run_decision,
+            rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete,
+            selected_runtime_kind: KernelRuntimeKind::Rust,
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this fallback retirement dry-run does not remove Mihomo fallback or mutate production forwarding"
+                    .into(),
+                "readiness closeout remains required before any retirement execution surface".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening Mihomo fallback retirement dry-run follows the guard".into(),
+                "successful dry-run advances only to fallback retirement readiness".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-readiness".into()
+            } else {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-dry-run".into()
+            },
+        },
+    )
+}
+
+fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness_report(
+    dry_run_review_decision: bool,
+    protocol_parity_evidence_archive_decision: bool,
+    tun_parity_evidence_archive_decision: bool,
+    adapter_parity_evidence_archive_decision: bool,
+    dns_parity_evidence_archive_decision: bool,
+    soak_evidence_archive_decision: bool,
+    emergency_rollback_owner_acknowledgement_decision: bool,
+) -> RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
+    let (readiness_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+        (
+            "Mihomo fallback retirement dry-run review",
+            dry_run_review_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires dry-run review",
+        ),
+        (
+            "archived protocol parity evidence",
+            protocol_parity_evidence_archive_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires protocol parity evidence",
+        ),
+        (
+            "archived TUN parity evidence",
+            tun_parity_evidence_archive_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires TUN parity evidence",
+        ),
+        (
+            "archived adapter parity evidence",
+            adapter_parity_evidence_archive_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires adapter parity evidence",
+        ),
+        (
+            "archived DNS parity evidence",
+            dns_parity_evidence_archive_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires DNS parity evidence",
+        ),
+        (
+            "archived soak evidence",
+            soak_evidence_archive_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires soak evidence",
+        ),
+        (
+            "emergency rollback owner acknowledgement",
+            emergency_rollback_owner_acknowledgement_decision,
+            "Rust data-plane Mihomo fallback retirement readiness requires emergency rollback owner acknowledgement",
+        ),
+    ]);
+
+    RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
+        runtime_id: RUST_RUNTIME_ID.into(),
+        component: "rust-data-plane-hardening-mihomo-fallback-retirement-readiness-detail".into(),
+        dry_run_reviewed: dry_run_review_decision,
+        protocol_parity_evidence_archived: protocol_parity_evidence_archive_decision,
+        tun_parity_evidence_archived: tun_parity_evidence_archive_decision,
+        adapter_parity_evidence_archived: adapter_parity_evidence_archive_decision,
+        dns_parity_evidence_archived: dns_parity_evidence_archive_decision,
+        soak_evidence_archived: soak_evidence_archive_decision,
+        emergency_rollback_owner_acknowledged: emergency_rollback_owner_acknowledgement_decision,
+        mihomo_fallback_retirement_readiness_complete: blockers.is_empty(),
+        readiness_surfaces,
+        blockers,
+        facts: vec![
+            "Mihomo fallback retirement readiness requires parity evidence before any fallback removal".into(),
+            "readiness success advances only to a separately gated execution surface".into(),
+        ],
+    }
+}
+
+pub async fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness(
+    rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    protocol_parity_evidence_archive_decision: Option<bool>,
+    tun_parity_evidence_archive_decision: Option<bool>,
+    adapter_parity_evidence_archive_decision: Option<bool>,
+    dns_parity_evidence_archive_decision: Option<bool>,
+    soak_evidence_archive_decision: Option<bool>,
+    emergency_rollback_owner_acknowledgement_decision: Option<bool>,
+    final_mihomo_fallback_retirement_readiness_decision: Option<bool>,
+) -> Result<KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadinessReport> {
+    let rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete =
+        rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete_decision.unwrap_or(false);
+    let final_mihomo_fallback_retirement_readiness_decision =
+        final_mihomo_fallback_retirement_readiness_decision.unwrap_or(false);
+    let mihomo_fallback_retirement_readiness =
+        rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness_report(
+            dry_run_review_decision.unwrap_or(false),
+            protocol_parity_evidence_archive_decision.unwrap_or(false),
+            tun_parity_evidence_archive_decision.unwrap_or(false),
+            adapter_parity_evidence_archive_decision.unwrap_or(false),
+            dns_parity_evidence_archive_decision.unwrap_or(false),
+            soak_evidence_archive_decision.unwrap_or(false),
+            emergency_rollback_owner_acknowledgement_decision.unwrap_or(false),
+        );
+    let dry_run_blockers = if rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete {
+        Vec::new()
+    } else {
+        vec!["Rust data-plane Mihomo fallback retirement readiness requires dry-run to pass first".into()]
+    };
+
+    let checks = vec![
+        data_plane_hardening_gate_check(
+            "rustDataPlaneHardeningMihomoFallbackRetirementDryRunComplete",
+            rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete,
+            dry_run_blockers,
+            "fallback retirement readiness starts only after dry-run",
+        ),
+        data_plane_hardening_gate_check(
+            "mihomoFallbackRetirementReadinessComplete",
+            mihomo_fallback_retirement_readiness.mihomo_fallback_retirement_readiness_complete,
+            mihomo_fallback_retirement_readiness.blockers.clone(),
+            "dry-run review, parity evidence, soak evidence, and emergency rollback ownership are evaluated together",
+        ),
+        data_plane_hardening_gate_check(
+            "finalMihomoFallbackRetirementReadinessDecision",
+            final_mihomo_fallback_retirement_readiness_decision,
+            if final_mihomo_fallback_retirement_readiness_decision {
+                Vec::new()
+            } else {
+                vec!["Rust data-plane Mihomo fallback retirement readiness requires an explicit final decision".into()]
+            },
+            "fallback retirement readiness is explicit before execution",
+        ),
+    ];
+    let rust_data_plane_hardening_mihomo_fallback_retirement_readiness_complete =
+        checks.iter().all(|check| check.passed);
+    let blockers = checks
+        .iter()
+        .flat_map(|check| check.blockers.clone())
+        .collect::<Vec<String>>();
+
+    Ok(
+        KernelLoopbackRustDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
+            runtime_id: RUST_RUNTIME_ID.into(),
+            component: "rust-data-plane-hardening-mihomo-fallback-retirement-readiness".into(),
+            mutates_runtime: false,
+            live_execution_allowed: false,
+            production_data_plane_mutation_allowed: false,
+            rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete,
+            mihomo_fallback_retirement_readiness,
+            final_mihomo_fallback_retirement_readiness_decision,
+            rust_data_plane_hardening_mihomo_fallback_retirement_readiness_complete,
+            selected_runtime_kind: KernelRuntimeKind::Rust,
+            rollback_runtime_kind: KernelRuntimeKind::Mihomo,
+            checks,
+            blockers,
+            warnings: vec![
+                "this fallback retirement readiness surface does not remove Mihomo fallback or mutate production forwarding".into(),
+                "actual fallback retirement remains blocked until a later explicit execution PR".into(),
+            ],
+            facts: vec![
+                "Rust data-plane hardening Mihomo fallback retirement readiness follows dry-run".into(),
+                "successful readiness advances only to fallback retirement execution planning".into(),
+            ],
+            next_safe_batch: if rust_data_plane_hardening_mihomo_fallback_retirement_readiness_complete {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-execution".into()
+            } else {
+                "rust-data-plane-hardening-mihomo-fallback-retirement-readiness".into()
             },
         },
     )
