@@ -2956,6 +2956,165 @@ pub struct KernelLoopbackRustDataPlaneHardeningSupportedDefaultCutoverCloseoutRe
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub cutover_closeout_reviewed: bool,
+    pub expanded_scope_locked: bool,
+    pub rollout_cap_defined: bool,
+    pub fallback_matrix_retained: bool,
+    pub rollback_switch_verified: bool,
+    pub telemetry_soak_plan_defined: bool,
+    pub unsupported_path_boundary_retained: bool,
+    pub operator_rollout_acknowledged: bool,
+    pub expanded_default_rollout_guard_complete: bool,
+    pub guard_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_supported_default_cutover_closeout_complete: bool,
+    pub expanded_default_rollout_guard: RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport,
+    pub final_expanded_default_rollout_guard_decision: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_guard_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub guard_reviewed: bool,
+    pub expanded_manifest_replayed: bool,
+    pub representative_profile_simulation_completed: bool,
+    pub fallback_routing_rehearsed: bool,
+    pub rollback_rehearsed: bool,
+    pub telemetry_soak_sample_reviewed: bool,
+    pub dry_run_evidence_archived: bool,
+    pub expanded_default_rollout_dry_run_complete: bool,
+    pub dry_run_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_guard_complete: bool,
+    pub expanded_default_rollout_dry_run: RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport,
+    pub final_expanded_default_rollout_dry_run_decision: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_dry_run_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub dry_run_reviewed: bool,
+    pub execution_manifest_locked: bool,
+    pub rollout_window_started: bool,
+    pub expanded_profile_cap_enforced: bool,
+    pub active_telemetry_watch: bool,
+    pub rollback_switch_armed: bool,
+    pub mihomo_fallback_retained: bool,
+    pub operator_execution_acknowledged: bool,
+    pub expanded_default_rollout_execution_complete: bool,
+    pub execution_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_dry_run_complete: bool,
+    pub expanded_default_rollout_execution: RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport,
+    pub final_expanded_default_rollout_execution_decision: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_execution_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub execution_record_reviewed: bool,
+    pub expanded_profile_traffic_sample_reviewed: bool,
+    pub fallback_path_sample_verified: bool,
+    pub rollback_switch_verified: bool,
+    pub telemetry_health_budget_verified: bool,
+    pub leak_regression_absence_verified: bool,
+    pub verification_evidence_archived: bool,
+    pub expanded_default_rollout_verification_complete: bool,
+    pub verification_surfaces: Vec<String>,
+    pub blockers: Vec<String>,
+    pub facts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub mutates_runtime: bool,
+    pub live_execution_allowed: bool,
+    pub production_data_plane_mutation_allowed: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_execution_complete: bool,
+    pub expanded_default_rollout_verification:
+        RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport,
+    pub final_expanded_default_rollout_verification_decision: bool,
+    pub rust_data_plane_hardening_expanded_default_rollout_verification_complete: bool,
+    pub selected_runtime_kind: KernelRuntimeKind,
+    pub rollback_runtime_kind: KernelRuntimeKind,
+    pub checks: Vec<KernelLoopbackR4ExpandedOptInLimitedRolloutGateCheck>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KernelReplacementReadiness {
     pub mutates_runtime: bool,
     pub active_kernel: String,

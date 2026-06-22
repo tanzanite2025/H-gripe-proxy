@@ -2431,6 +2431,118 @@ pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_supported_def
 }
 
 #[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_guard(
+    rust_data_plane_hardening_supported_default_cutover_closeout_complete_decision: Option<bool>,
+    cutover_closeout_review_decision: Option<bool>,
+    expanded_scope_lock_decision: Option<bool>,
+    rollout_cap_definition_decision: Option<bool>,
+    fallback_matrix_retention_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    telemetry_soak_plan_definition_decision: Option<bool>,
+    unsupported_path_boundary_retention_decision: Option<bool>,
+    operator_rollout_acknowledgement_decision: Option<bool>,
+    final_expanded_default_rollout_guard_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutGuardReport> {
+    rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard(
+        rust_data_plane_hardening_supported_default_cutover_closeout_complete_decision,
+        cutover_closeout_review_decision,
+        expanded_scope_lock_decision,
+        rollout_cap_definition_decision,
+        fallback_matrix_retention_decision,
+        rollback_switch_verification_decision,
+        telemetry_soak_plan_definition_decision,
+        unsupported_path_boundary_retention_decision,
+        operator_rollout_acknowledgement_decision,
+        final_expanded_default_rollout_guard_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_dry_run(
+    rust_data_plane_hardening_expanded_default_rollout_guard_complete_decision: Option<bool>,
+    guard_review_decision: Option<bool>,
+    expanded_manifest_replay_decision: Option<bool>,
+    representative_profile_simulation_decision: Option<bool>,
+    fallback_routing_rehearsal_decision: Option<bool>,
+    rollback_rehearsal_decision: Option<bool>,
+    telemetry_soak_sample_review_decision: Option<bool>,
+    dry_run_evidence_archive_decision: Option<bool>,
+    final_expanded_default_rollout_dry_run_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutDryRunReport> {
+    rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run(
+        rust_data_plane_hardening_expanded_default_rollout_guard_complete_decision,
+        guard_review_decision,
+        expanded_manifest_replay_decision,
+        representative_profile_simulation_decision,
+        fallback_routing_rehearsal_decision,
+        rollback_rehearsal_decision,
+        telemetry_soak_sample_review_decision,
+        dry_run_evidence_archive_decision,
+        final_expanded_default_rollout_dry_run_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_execution(
+    rust_data_plane_hardening_expanded_default_rollout_dry_run_complete_decision: Option<bool>,
+    dry_run_review_decision: Option<bool>,
+    execution_manifest_lock_decision: Option<bool>,
+    rollout_window_start_decision: Option<bool>,
+    expanded_profile_cap_enforcement_decision: Option<bool>,
+    active_telemetry_watch_decision: Option<bool>,
+    rollback_switch_arm_decision: Option<bool>,
+    mihomo_fallback_retention_decision: Option<bool>,
+    operator_execution_acknowledgement_decision: Option<bool>,
+    final_expanded_default_rollout_execution_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutExecutionReport> {
+    rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution(
+        rust_data_plane_hardening_expanded_default_rollout_dry_run_complete_decision,
+        dry_run_review_decision,
+        execution_manifest_lock_decision,
+        rollout_window_start_decision,
+        expanded_profile_cap_enforcement_decision,
+        active_telemetry_watch_decision,
+        rollback_switch_arm_decision,
+        mihomo_fallback_retention_decision,
+        operator_execution_acknowledgement_decision,
+        final_expanded_default_rollout_execution_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn get_runtime_kernel_loopback_rust_data_plane_hardening_expanded_default_rollout_verification(
+    rust_data_plane_hardening_expanded_default_rollout_execution_complete_decision: Option<bool>,
+    execution_record_review_decision: Option<bool>,
+    expanded_profile_traffic_sample_review_decision: Option<bool>,
+    fallback_path_sample_verification_decision: Option<bool>,
+    rollback_switch_verification_decision: Option<bool>,
+    telemetry_health_budget_verification_decision: Option<bool>,
+    leak_regression_absence_verification_decision: Option<bool>,
+    verification_evidence_archive_decision: Option<bool>,
+    final_expanded_default_rollout_verification_decision: Option<bool>,
+) -> CmdResult<KernelLoopbackRustDataPlaneHardeningExpandedDefaultRolloutVerificationReport> {
+    rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verification(
+        rust_data_plane_hardening_expanded_default_rollout_execution_complete_decision,
+        execution_record_review_decision,
+        expanded_profile_traffic_sample_review_decision,
+        fallback_path_sample_verification_decision,
+        rollback_switch_verification_decision,
+        telemetry_health_budget_verification_decision,
+        leak_regression_absence_verification_decision,
+        verification_evidence_archive_decision,
+        final_expanded_default_rollout_verification_decision,
+    )
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
 pub async fn get_runtime_kernel_isolated_test_listener_status() -> CmdResult<KernelIsolatedTestListenerStatus> {
     Ok(mihomo_kernel_isolated_test_listener_status().await)
 }
