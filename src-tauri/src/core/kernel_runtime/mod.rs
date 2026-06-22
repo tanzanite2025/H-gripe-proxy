@@ -60,6 +60,7 @@ mod runtime_real_canary;
 mod shadowsocks_aead_adapter;
 mod shadowsocks_aead_canary;
 mod tun_system_proxy;
+mod tun_transparent_routing;
 mod types;
 pub use self::data_plane_hardening::*;
 pub use self::encrypted_proxy_protocol::*;
@@ -75,6 +76,7 @@ pub use self::runtime_real_canary::*;
 pub use self::shadowsocks_aead_adapter::*;
 pub use self::shadowsocks_aead_canary::*;
 pub use self::tun_system_proxy::*;
+pub use self::tun_transparent_routing::*;
 use self::types::KernelIsolatedTestListenerState;
 pub use self::types::*;
 

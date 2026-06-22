@@ -1251,6 +1251,81 @@ pub struct RustEncryptedProxySessionExpansionReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustTunTransparentRoutingExecutionStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunTransparentRoutingPacketEvidence {
+    pub packet_source: String,
+    pub packet_destination: String,
+    pub packet_destination_port: u16,
+    pub ipv4_packet_parsed: bool,
+    pub tcp_destination_extracted: bool,
+    pub payload_bytes: u64,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub response_bytes: u64,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunTransparentRoutingRollbackEvidence {
+    pub checkpoint_path: Option<String>,
+    pub checkpoint_written: bool,
+    pub route_owner_before: String,
+    pub route_owner_after: String,
+    pub rollback_action: String,
+    pub packet_capture_default_unchanged: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunTransparentRoutingLeakEvidence {
+    pub loopback_only: bool,
+    pub os_route_mutation_attempted: bool,
+    pub system_proxy_mutation_attempted: bool,
+    pub tun_device_mutation_attempted: bool,
+    pub unsupported_packet_capture_fallback: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustTunTransparentRoutingExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustTunTransparentRoutingExecutionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub packet_evidence: Option<RustTunTransparentRoutingPacketEvidence>,
+    pub rollback_evidence: Option<RustTunTransparentRoutingRollbackEvidence>,
+    pub leak_evidence: Option<RustTunTransparentRoutingLeakEvidence>,
+    pub evidence_path: Option<String>,
+    pub rollback_checkpoint_path: Option<String>,
+    pub loopback_remote_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub packet_capture_owned: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {

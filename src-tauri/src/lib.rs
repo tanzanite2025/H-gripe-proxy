@@ -246,6 +246,7 @@ mod app_init {
             cmd::runtime::kernel::get_runtime_kernel_rust_tun_system_proxy_parity_preflight,
             cmd::runtime::kernel::apply_runtime_kernel_rust_tun_system_proxy_parity,
             cmd::runtime::kernel::rollback_runtime_kernel_rust_tun_system_proxy_parity,
+            cmd::runtime::kernel::run_runtime_kernel_rust_tun_transparent_routing_execution,
             cmd::runtime::kernel::get_runtime_kernel_rust_fallback_retirement_readiness_manifest,
             cmd::runtime::kernel::lock_runtime_kernel_rust_fallback_retirement_readiness,
             cmd::runtime::kernel::run_runtime_kernel_rust_runtime_real_canary,

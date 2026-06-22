@@ -19,7 +19,7 @@ App registry / policy / node pool / DNS / security profile
 
 ## Current state
 
-Status is current through the encrypted proxy session expansion work. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, AEAD canary evidence, and multi-chunk encrypted TCP session evidence. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
+Status is current through the wider-scope Mihomo fallback retirement work. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded transparent IPv4/TCP packet execution, and wider fallback retirement manifest/checkpoint execution. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
 
 | Area | State | Boundary |
 | --- | --- | --- |
@@ -27,9 +27,9 @@ Status is current through the encrypted proxy session expansion work. The migrat
 | DNS runtime | Bounded opt-in parity path in progress | Rust now synthesizes a dns/hosts runtime patch, probes supported resolvers, blocks unsupported fake-ip/fallback-filter/nameserver-policy execution, and applies through an explicit opt-in bridge with rollback. Mihomo still owns default DNS until canary evidence passes. |
 | Adapter / egress runtime | Bounded opt-in parity path in progress | Rust now chooses DIRECT/REJECT/proxy-group adapter targets from app runtime state, validates candidate protocol compatibility, patches proxy-groups/rules through an explicit opt-in bridge, and keeps Mihomo fallback/rollback. |
 | Protocol forwarding | Encrypted TCP session expansion in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT policy, bounded remote transport, HTTP CONNECT tunneling, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, AEAD canary evidence, and multi-chunk encrypted TCP session evidence. Mihomo still owns VMess/VLESS/Trojan, Shadowsocks UDP/plugin transports, TUN packet capture, and default forwarding. |
-| TUN / system proxy | Bounded Rust parity in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, and rollback apply. Mihomo/service still owns packet capture and transparent forwarding. |
-| Mihomo fallback retirement | Scoped execution in progress | Rust now writes a scoped execution manifest and emergency rollback checkpoint to retire fallback only for the bounded canary scope. Unsupported SOCKS, remote adapters, packet capture, and transparent proxy fallback remain Mihomo-owned. |
-| Next real batch | `rust-tun-transparent-routing-execution` | Move from protocol canaries back to high-risk TUN/transparent-routing execution and rollback drills per platform. |
+| TUN / system proxy | Bounded Rust transparent routing execution in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, rollback apply, and bounded transparent IPv4/TCP packet parsing/execution evidence. Mihomo/service still owns system-wide packet capture and transparent forwarding defaults. |
+| Mihomo fallback retirement | Wider scoped execution in progress | Rust now writes a wider execution manifest and emergency rollback checkpoint for DNS, adapter, protocol, encrypted-session, and bounded transparent-route evidence scopes. Unsupported SOCKS UDP, unsupported encrypted protocols, OS route install, packet capture, transparent proxy defaults, and full Mihomo binary removal remain fallback-owned. |
+| Next real batch | `rust-default-data-plane-closeout` | Close out the bounded Rust-owned data-plane surface, reconcile evidence ownership, and define the remaining unsupported Mihomo retirement blockers. |
 
 ## Acceleration plan
 
@@ -61,8 +61,9 @@ This table is the authoritative batch map. Completed rows are real implementatio
 | 11 | `rust-shadowsocks-aead-adapter-execution` | Complete | Rust executes a scoped Shadowsocks AEAD adapter path: decrypt address frame, validate loopback target, dial target, forward HTTP request, encrypt response, and write rollback checkpoint. | Scoped loopback TCP Shadowsocks AEAD only; UDP, plugin transports, VMess/VLESS/Trojan, and packet capture stay Mihomo fallback. |
 | 12 | `rust-shadowsocks-aead-adapter-canary` | Complete | Run canary evidence for the scoped AEAD adapter across rollback checkpoint, fallback trigger, byte accounting, and post-run health boundaries. | Still opt-in; do not broaden default routing. |
 | 13 | `rust-encrypted-proxy-session-expansion` | Complete | Expand from one scoped AEAD execution into larger encrypted-session handling with one encrypted address frame, multiple AEAD request chunks, encrypted target responses, fallback evidence, and persisted evidence.yaml. | Keep VMess/VLESS/Trojan, Shadowsocks UDP/plugin transports, and packet capture on fallback until separately implemented. |
-| 14 | `rust-tun-transparent-routing-execution` | Next | Implement packet-capture/transparent-routing execution and rollback drills per platform before claiming TUN replacement. | High risk; must remain separate from adapter/protocol expansion. |
-| 15 | `mihomo-fallback-retirement-wider-scope` | Planned | Retire Mihomo fallback only for scopes with repeated passed canary, rollback, and hold evidence; retain fallback for all unsupported protocols. | Explicit opt-in and rollback required. |
+| 14 | `rust-tun-transparent-routing-execution` | Complete | Implement bounded transparent IPv4/TCP packet parsing, destination extraction, loopback target execution, rollback checkpoint, and leak evidence before claiming TUN replacement. | High risk; system-wide packet capture still remains Mihomo/service fallback. |
+| 15 | `mihomo-fallback-retirement-wider-scope` | Complete | Retire Mihomo fallback only for scopes with repeated passed canary, rollback, and hold evidence; retain fallback for all unsupported protocols. | Explicit opt-in and rollback required. |
+| 16 | `rust-default-data-plane-closeout` | Next | Close out bounded Rust-owned data-plane scope, reconcile evidence ownership, and list the remaining unsupported Mihomo removal blockers. | No default ownership claims beyond passed evidence. |
 
 ### Definition of done for future PRs
 
@@ -176,8 +177,8 @@ Phase 8 should no longer be managed as a long list of synthetic gates. The prior
 | DNS | Bounded opt-in parity path in progress | Keep collecting canary evidence; do not make DNS default until adapter/protocol/TUN rollback boundaries are ready. |
 | Adapter / egress | Bounded opt-in parity path in progress | Keep canarying supported adapter decisions; move next to real protocol forwarding subset. |
 | Protocol forwarding | Encrypted TCP session expansion in progress | DIRECT/REJECT, bounded remote transport, HTTP CONNECT, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, AEAD canary evidence, and multi-chunk encrypted TCP session evidence are Rust-owned; VMess/VLESS/Trojan, Shadowsocks UDP/plugin transports, and packet capture remain Mihomo fallback. |
-| TUN / system proxy | Bounded Rust route-mode parity in progress | Packet capture still uses Mihomo/service; collect platform rollback/leak evidence before claiming replacement. |
-| Mihomo fallback retirement | Scoped execution in progress | Supported canary fallback can be retired through manifest/checkpoint; unsupported fallback and packet capture remain Mihomo-owned. |
+| TUN / system proxy | Bounded Rust transparent routing execution in progress | Rust has route-mode parity plus bounded transparent IPv4/TCP packet parsing/execution evidence; system-wide packet capture still uses Mihomo/service. |
+| Mihomo fallback retirement | Wider scoped execution in progress | DNS, adapter, protocol, encrypted-session, and bounded transparent-route scopes can be retired through a wider manifest/checkpoint; unsupported fallback and packet capture remain Mihomo-owned. |
 
 ### Retained historical value
 
@@ -200,22 +201,23 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 - HTTP CONNECT bounded execution for CONNECT authority validation, target dialing, and tunnel byte forwarding.
 - Encrypted proxy preflight evidence for Shadowsocks-style AES-256-GCM address framing and Trojan SHA224 auth framing.
 - Scoped Shadowsocks AEAD adapter bounded execution for loopback TCP address frames, encrypted response handling, evidence.yaml, rollback-checkpoint.yaml, canary readback across fallback/rollback/health evidence, and multi-chunk encrypted TCP session evidence.
+- Bounded TUN transparent routing execution for synthetic IPv4/TCP packet parsing, destination extraction, loopback target execution, rollback checkpoint, and leak evidence without owning system-wide packet capture.
 - TUN/system-proxy bounded parity for route-mode planning, system proxy apply, TUN config/restart bridge, rollback records, and rollback apply.
-- Scoped Mihomo fallback retirement manifest/checkpoint for the bounded canary scope.
+- Wider scoped Mihomo fallback retirement manifest/checkpoint covering DNS, adapter forwarding, bounded remote transport, HTTP CONNECT, Shadowsocks AEAD TCP session, and bounded transparent IPv4/TCP route evidence.
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is not another readiness gate; it is high-risk TUN/transparent-routing execution after bounded protocol session evidence. Do not retire Mihomo fallback or claim broad Rust data-plane replacement until all of these have landed as real code and tests:
+The next blocker is not another readiness gate; it is default data-plane closeout after wider fallback retirement evidence. Do not retire Mihomo fallback or claim broad Rust data-plane replacement until all of these have landed as real code and tests:
 
 - DNS leak and resolver/upstream checks while Rust protocol/adapter canaries are active.
 - Connection/session accounting parity for traffic handled by Rust, including encrypted adapter bytes.
-- Platform TUN/system-proxy rollback and route restoration drills for Windows, macOS, and Linux.
+- Repeated platform TUN/system-proxy rollback and route restoration hold evidence for Windows, macOS, and Linux.
 - Full encrypted-session implementations for VMess/VLESS/Trojan separately; current Shadowsocks AEAD ownership is still bounded to loopback TCP session evidence.
 - UDP associate, plugin transports, transparent routing, and packet capture execution paths.
 - Mihomo fallback that preserves connectivity without app restart for every unsupported path.
 - Post-canary hold evidence that covers fallback triggers, rollback, DNS leaks, and health telemetry.
 
-These blockers allow one useful next PR: `rust-tun-transparent-routing-execution`. They block full protocol replacement and any claim that packet capture is Rust-owned.
+These blockers allow one useful next PR: `rust-default-data-plane-closeout`. They block full protocol replacement and any claim that packet capture is Rust-owned.
 
 ## Removed from this document
 
@@ -245,7 +247,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-tun-transparent-routing-execution`; keep execution scoped to supported canary evidence and retain unsupported fallback.
+Allowed only through the corrected real fast-track sequence above. The current next batch is `rust-default-data-plane-closeout`; keep execution scoped to supported canary evidence and retain unsupported fallback.
 
 ## PR checklist for future changes
 
