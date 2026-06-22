@@ -88,6 +88,88 @@ impl IRuntime {
         }
     }
 
+    #[inline]
+    pub fn patch_adapter_egress_runtime_config(&mut self, patch: &Mapping) {
+        let config = if let Some(config) = self.config.as_mut() {
+            config
+        } else {
+            return;
+        };
+
+        if let Some(groups) = patch.get("proxy-groups").and_then(Value::as_sequence) {
+            let group_names = groups
+                .iter()
+                .filter_map(|group| {
+                    group
+                        .as_mapping()
+                        .and_then(|mapping| mapping.get("name"))
+                        .and_then(Value::as_str)
+                        .map(|name| name.to_string())
+                })
+                .collect::<HashSet<_>>();
+            let existing = config
+                .get("proxy-groups")
+                .and_then(Value::as_sequence)
+                .cloned()
+                .unwrap_or_default();
+            let mut merged = existing
+                .into_iter()
+                .filter(|group| {
+                    group
+                        .as_mapping()
+                        .and_then(|mapping| mapping.get("name"))
+                        .and_then(Value::as_str)
+                        .map(|name| !group_names.contains(name))
+                        .unwrap_or(true)
+                })
+                .collect::<Vec<_>>();
+            merged.extend(groups.iter().cloned());
+            config.insert("proxy-groups".into(), Value::Sequence(merged));
+        }
+
+        if let Some(rules) = patch.get("rules").and_then(Value::as_sequence) {
+            let rule_identities = rules
+                .iter()
+                .filter_map(Value::as_str)
+                .filter_map(adapter_egress_rule_identity)
+                .collect::<HashSet<_>>();
+            let existing = config
+                .get("rules")
+                .and_then(Value::as_sequence)
+                .cloned()
+                .unwrap_or_default();
+            let mut merged = rules.clone();
+            merged.extend(existing.into_iter().filter(|rule| {
+                rule.as_str()
+                    .and_then(adapter_egress_rule_identity)
+                    .map(|identity| !rule_identities.contains(&identity))
+                    .unwrap_or(true)
+            }));
+            config.insert("rules".into(), Value::Sequence(merged));
+        }
+    }
+
+    #[inline]
+    pub fn replace_adapter_egress_runtime_config(&mut self, patch: &Mapping) {
+        let config = if let Some(config) = self.config.as_mut() {
+            config
+        } else {
+            return;
+        };
+
+        for key in ["proxy-groups", "rules"] {
+            match patch.get(key) {
+                Some(Value::Null) => {
+                    config.remove(key);
+                }
+                Some(value) => {
+                    config.insert(key.into(), value.clone());
+                }
+                None => {}
+            }
+        }
+    }
+
     /// 更新链式代理配置
     ///
     /// 该函数更新 `proxies` 和 `proxy-groups` 配置，并处理链式代理的修改或(传入 None )删除。
@@ -173,6 +255,17 @@ impl IRuntime {
     }
 }
 
+fn adapter_egress_rule_identity(rule: &str) -> Option<String> {
+    let mut segments = rule.split(',');
+    let matcher = segments.next()?.trim();
+    let value = segments.next()?.trim();
+    if matcher.is_empty() || value.is_empty() {
+        None
+    } else {
+        Some(format!("{matcher},{value}").into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,5 +345,107 @@ mod tests {
         let config = runtime.config.as_ref().unwrap();
         assert!(config.get("dns").is_none());
         assert!(config.get("hosts").is_none());
+    }
+
+    #[test]
+    fn patch_adapter_egress_runtime_config_replaces_app_group_and_rule_identity() {
+        let mut config = Mapping::new();
+        config.insert(
+            "proxy-groups".into(),
+            serde_yaml_ng::from_str::<Value>(
+                r#"
+- name: app-demo
+  type: select
+  proxies:
+    - old-node
+- name: keep
+  type: select
+  proxies:
+    - keep-node
+"#,
+            )
+            .unwrap(),
+        );
+        config.insert(
+            "rules".into(),
+            Value::Sequence(vec![
+                "PROCESS-NAME,browser.exe,old-target".into(),
+                "DOMAIN,example.com,DIRECT".into(),
+            ]),
+        );
+        let mut runtime = IRuntime {
+            config: Some(config),
+            ..IRuntime::default()
+        };
+        let patch = serde_yaml_ng::from_str::<Value>(
+            r#"
+proxy-groups:
+  - name: app-demo
+    type: select
+    proxies:
+      - new-node
+rules:
+  - PROCESS-NAME,browser.exe,app-demo
+"#,
+        )
+        .unwrap()
+        .as_mapping()
+        .cloned()
+        .unwrap();
+
+        runtime.patch_adapter_egress_runtime_config(&patch);
+
+        let config = runtime.config.as_ref().unwrap();
+        let groups = config.get("proxy-groups").and_then(Value::as_sequence).unwrap();
+        let group_names = groups
+            .iter()
+            .filter_map(|group| {
+                group
+                    .as_mapping()
+                    .and_then(|mapping| mapping.get("name"))
+                    .and_then(Value::as_str)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(group_names, vec!["keep", "app-demo"]);
+        let rules = config.get("rules").and_then(Value::as_sequence).unwrap();
+        assert_eq!(
+            rules.iter().filter_map(Value::as_str).collect::<Vec<_>>(),
+            vec!["PROCESS-NAME,browser.exe,app-demo", "DOMAIN,example.com,DIRECT"]
+        );
+    }
+
+    #[test]
+    fn replace_adapter_egress_runtime_config_restores_previous_sequences() {
+        let mut runtime = IRuntime {
+            config: Some(Mapping::new()),
+            ..IRuntime::default()
+        };
+        let patch = serde_yaml_ng::from_str::<Value>(
+            r#"
+proxy-groups:
+  - name: previous
+    type: select
+    proxies:
+      - node-a
+rules:
+  - PROCESS-NAME,app.exe,DIRECT
+"#,
+        )
+        .unwrap()
+        .as_mapping()
+        .cloned()
+        .unwrap();
+
+        runtime.replace_adapter_egress_runtime_config(&patch);
+
+        let config = runtime.config.as_ref().unwrap();
+        assert_eq!(
+            config
+                .get("rules")
+                .and_then(Value::as_sequence)
+                .and_then(|rules| rules.first())
+                .and_then(Value::as_str),
+            Some("PROCESS-NAME,app.exe,DIRECT")
+        );
     }
 }

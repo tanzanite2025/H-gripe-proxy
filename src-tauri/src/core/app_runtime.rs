@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     core::dns_runtime::{DnsResolverPlanStatus, build_dns_resolver_plan},
     utils::{dirs, help},
 };
@@ -40,7 +41,41 @@ use projection::{
     yaml_patch_validation_message, yaml_patch_validation_status,
 };
 use smartstring::alias::String;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tokio::fs;
+
+const RUST_ADAPTER_EGRESS_PARITY_ROLLBACK_FILE: &str = "rollback.yaml";
+const RUST_ADAPTER_EGRESS_SUPPORTED_PROTOCOLS: [&str; 17] = [
+    "http",
+    "https",
+    "socks",
+    "socks5",
+    "ss",
+    "ssr",
+    "vmess",
+    "vless",
+    "trojan",
+    "hysteria",
+    "hysteria2",
+    "tuic",
+    "wireguard",
+    "relay",
+    "selector",
+    "url-test",
+    "fallback",
+];
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RustAdapterEgressRollbackRecord {
+    previous_patch_yaml: String,
+    applied_patch_yaml: String,
+    app_id: String,
+    created_at_epoch_seconds: u64,
+}
 
 pub async fn read_app_runtime_state_document() -> Result<AppRuntimeStateDocument> {
     let path = dirs::app_runtime_state_path()?;
@@ -480,6 +515,378 @@ pub fn diagnose_app_runtime(
         facts,
         warnings,
     })
+}
+
+pub async fn rust_adapter_egress_parity(
+    request: AppRuntimePlanRequest,
+    explicit_opt_in: bool,
+    apply_runtime: bool,
+) -> Result<RustAdapterEgressParityReport> {
+    let state = read_app_runtime_state_document().await?;
+    let plan = explain_app_runtime_plan(&state, request.clone());
+    let mihomo_projection = project_app_runtime_plan_to_mihomo(&state, request)?;
+    let (decision, candidates) = rust_adapter_egress_decision(&plan, &mihomo_projection);
+    let mut report = rust_adapter_egress_parity_report(
+        plan,
+        mihomo_projection,
+        decision,
+        candidates,
+        explicit_opt_in,
+        apply_runtime,
+    );
+
+    if apply_runtime && report.blockers.is_empty() {
+        match apply_rust_adapter_egress_runtime_patch(&report.plan.app_id, &report.runtime_patch_yaml).await {
+            Ok((previous_patch_yaml, rollback_record_path)) => {
+                report.status = RustAdapterEgressParityStatus::Applied;
+                report.reason = "Rust adapter egress runtime patch applied through the runtime config bridge".into();
+                report.previous_patch_yaml = Some(previous_patch_yaml);
+                report.rollback_record_path = Some(rollback_record_path);
+                report.mutates_runtime = true;
+                report.reload_mihomo = true;
+            }
+            Err(error) => {
+                let message = error.to_string();
+                report.status = RustAdapterEgressParityStatus::Blocked;
+                report.reason = format!("Rust adapter egress runtime apply failed: {message}").into();
+                report.blockers.push(message.clone().into());
+                crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+                    "rust_adapter_egress_parity_apply",
+                    false,
+                    Some(message),
+                    None,
+                );
+            }
+        }
+    }
+
+    Ok(report)
+}
+
+pub async fn rust_adapter_egress_parity_rollback() -> Result<RustAdapterEgressParityReport> {
+    let rollback_record_path = rust_adapter_egress_rollback_record_path()?;
+    let record_yaml = fs::read_to_string(&rollback_record_path)
+        .await
+        .map_err(|error| anyhow::anyhow!("failed to read {}: {}", rollback_record_path.display(), error))?;
+    let record: RustAdapterEgressRollbackRecord = serde_yaml_ng::from_str(&record_yaml)?;
+    let patch = runtime_adapter_egress_mapping(&record.previous_patch_yaml)?;
+    Config::runtime().await.edit_draft(|draft| {
+        draft.replace_adapter_egress_runtime_config(&patch);
+    });
+    crate::core::CoreManager::global().update_config_checked().await?;
+    crate::core::handle::Handle::refresh_clash();
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+        "rust_adapter_egress_parity_rollback",
+        true,
+        None,
+        Some("restored previous adapter egress runtime patch".into()),
+    );
+
+    let empty_state = AppRuntimeStateDocument::default();
+    let request = AppRuntimePlanRequest {
+        app_id: record.app_id,
+        session_id: None,
+    };
+    let plan = explain_app_runtime_plan(&empty_state, request.clone());
+    let projection = AppRuntimeMihomoProjection {
+        status: AppRuntimePlanStatus::Rejected,
+        reason: "rollback restored previous runtime adapter egress patch".into(),
+        app_id: request.app_id.clone(),
+        session_id: None,
+        mutates_runtime: false,
+        proxy_groups: Vec::new(),
+        rules: Vec::new(),
+        dns: None,
+        yaml_patch: record.previous_patch_yaml.clone(),
+        facts: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    Ok(RustAdapterEgressParityReport {
+        status: RustAdapterEgressParityStatus::Restored,
+        reason: "previous adapter egress runtime patch restored".into(),
+        plan,
+        mihomo_projection: projection,
+        decision: RustAdapterEgressDecision {
+            target_kind: RustAdapterEgressTargetKind::MihomoFallback,
+            target: "MIHOMO_FALLBACK".into(),
+            selected_node: None,
+            selected_protocol: None,
+            candidate_count: 0,
+            supported_candidate_count: 0,
+            fallback_to_mihomo: true,
+        },
+        candidates: Vec::new(),
+        runtime_patch_yaml: record.previous_patch_yaml.clone(),
+        previous_patch_yaml: Some(record.previous_patch_yaml),
+        rollback_record_path: Some(rollback_record_path.to_string_lossy().to_string().into()),
+        explicit_opt_in: true,
+        apply_runtime: true,
+        mutates_runtime: true,
+        reload_mihomo: true,
+        mihomo_fallback_retained: true,
+        blockers: Vec::new(),
+        warnings: Vec::new(),
+        facts: vec![
+            "rollback uses the Rust-owned adapter egress rollback record".into(),
+            "rollback restores proxy-groups/rules through the runtime config bridge".into(),
+            "Mihomo remains the fallback runtime after rollback".into(),
+        ],
+    })
+}
+
+fn rust_adapter_egress_parity_report(
+    plan: AppRuntimePlan,
+    mihomo_projection: AppRuntimeMihomoProjection,
+    decision: RustAdapterEgressDecision,
+    candidates: Vec<RustAdapterEgressCandidateReport>,
+    explicit_opt_in: bool,
+    apply_runtime: bool,
+) -> RustAdapterEgressParityReport {
+    let mut blockers = Vec::new();
+    let mut warnings = plan.warnings.clone();
+    warnings.extend(mihomo_projection.warnings.clone());
+
+    if plan.status != AppRuntimePlanStatus::Ready {
+        blockers.push(plan.reason.clone());
+    }
+    if apply_runtime && !explicit_opt_in {
+        blockers.push("runtime adapter egress parity apply requires explicit opt-in".into());
+    }
+    if apply_runtime && mihomo_projection.yaml_patch.trim().is_empty() {
+        blockers.push("adapter egress projection produced no runtime patch".into());
+    }
+    if matches!(
+        plan.routing_intent,
+        Some(AppRoutingIntent::Proxy | AppRoutingIntent::Auto | AppRoutingIntent::Fallback)
+    ) && decision.supported_candidate_count == 0
+    {
+        blockers.push("proxy-like adapter egress requires at least one supported candidate".into());
+    }
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| candidate.status == RustAdapterEgressCandidateStatus::Unsupported)
+    {
+        warnings.push(
+            format!(
+                "candidate `{}` remains on Mihomo fallback: {}",
+                candidate.node_name, candidate.reason
+            )
+            .into(),
+        );
+    }
+
+    let status = if blockers.is_empty() {
+        RustAdapterEgressParityStatus::Ready
+    } else {
+        RustAdapterEgressParityStatus::Blocked
+    };
+    let reason = match status {
+        RustAdapterEgressParityStatus::Ready if apply_runtime => {
+            "Rust adapter egress parity patch is ready for explicit opt-in apply"
+        }
+        RustAdapterEgressParityStatus::Ready => "Rust adapter egress parity patch is ready for shadow comparison",
+        RustAdapterEgressParityStatus::Blocked => "Rust adapter egress parity is blocked",
+        RustAdapterEgressParityStatus::Applied | RustAdapterEgressParityStatus::Restored => {
+            "Rust adapter egress parity completed"
+        }
+    }
+    .into();
+    let facts = vec![
+        "Rust app runtime state chooses the adapter egress target before Mihomo receives rules".into(),
+        "Rust validates DIRECT/REJECT/proxy-group compatibility before opt-in apply".into(),
+        "proxy-groups/rules are patched through a Rust runtime config bridge with rollback".into(),
+        format!(
+            "target={}; supportedCandidates={}/{}",
+            decision.target, decision.supported_candidate_count, decision.candidate_count
+        )
+        .into(),
+    ];
+
+    RustAdapterEgressParityReport {
+        status,
+        reason,
+        plan,
+        mihomo_projection: mihomo_projection.clone(),
+        decision,
+        candidates,
+        runtime_patch_yaml: mihomo_projection.yaml_patch.clone(),
+        previous_patch_yaml: None,
+        rollback_record_path: None,
+        explicit_opt_in,
+        apply_runtime,
+        mutates_runtime: false,
+        reload_mihomo: false,
+        mihomo_fallback_retained: true,
+        blockers,
+        warnings,
+        facts,
+    }
+}
+
+fn rust_adapter_egress_decision(
+    plan: &AppRuntimePlan,
+    projection: &AppRuntimeMihomoProjection,
+) -> (RustAdapterEgressDecision, Vec<RustAdapterEgressCandidateReport>) {
+    let candidates = plan
+        .node_pool
+        .as_ref()
+        .map(rust_adapter_egress_candidates)
+        .unwrap_or_default();
+    let supported_candidates = candidates
+        .iter()
+        .filter(|candidate| candidate.status == RustAdapterEgressCandidateStatus::Supported)
+        .collect::<Vec<_>>();
+    let selected = supported_candidates.first().copied();
+    let fallback_to_mihomo = selected.is_none()
+        && matches!(
+            plan.routing_intent,
+            Some(AppRoutingIntent::Proxy | AppRoutingIntent::Auto | AppRoutingIntent::Fallback)
+        );
+
+    let (target_kind, target) = match plan.routing_intent {
+        Some(AppRoutingIntent::Direct) => (RustAdapterEgressTargetKind::Direct, "DIRECT".into()),
+        Some(AppRoutingIntent::Reject) => (RustAdapterEgressTargetKind::Reject, "REJECT".into()),
+        Some(AppRoutingIntent::Proxy | AppRoutingIntent::Auto | AppRoutingIntent::Fallback)
+            if !projection.proxy_groups.is_empty() =>
+        {
+            (
+                RustAdapterEgressTargetKind::ProxyGroup,
+                projection.proxy_groups[0].name.clone(),
+            )
+        }
+        _ => (RustAdapterEgressTargetKind::MihomoFallback, "MIHOMO_FALLBACK".into()),
+    };
+
+    (
+        RustAdapterEgressDecision {
+            target_kind,
+            target,
+            selected_node: selected.map(|candidate| candidate.node_name.clone()),
+            selected_protocol: selected.and_then(|candidate| candidate.protocol.clone()),
+            candidate_count: candidates.len(),
+            supported_candidate_count: supported_candidates.len(),
+            fallback_to_mihomo,
+        },
+        candidates,
+    )
+}
+
+fn rust_adapter_egress_candidates(node_pool: &NodePoolPlanView) -> Vec<RustAdapterEgressCandidateReport> {
+    let ordered_names = projection::sorted_candidate_node_names(&node_pool.candidates);
+    ordered_names
+        .into_iter()
+        .filter_map(|node_name| {
+            let candidate = node_pool
+                .candidates
+                .iter()
+                .find(|candidate| candidate.node_name == node_name)?;
+            let protocol = candidate.protocol.as_ref().map(|protocol| protocol.trim());
+            let supported = protocol
+                .map(|protocol| {
+                    protocol.is_empty()
+                        || RUST_ADAPTER_EGRESS_SUPPORTED_PROTOCOLS
+                            .iter()
+                            .any(|supported| protocol.eq_ignore_ascii_case(supported))
+                })
+                .unwrap_or(true);
+            Some(RustAdapterEgressCandidateReport {
+                node_name: candidate.node_name.clone(),
+                proxy_group: candidate.proxy_group.clone(),
+                protocol: candidate.protocol.clone(),
+                priority: candidate.priority,
+                status: if supported {
+                    RustAdapterEgressCandidateStatus::Supported
+                } else {
+                    RustAdapterEgressCandidateStatus::Unsupported
+                },
+                reason: if supported {
+                    "candidate can be selected by the Rust adapter egress subset".into()
+                } else {
+                    format!(
+                        "protocol `{}` is outside the Rust adapter egress subset",
+                        protocol.unwrap_or_default()
+                    )
+                    .into()
+                },
+            })
+        })
+        .collect()
+}
+
+async fn apply_rust_adapter_egress_runtime_patch(app_id: &str, patch_yaml: &str) -> Result<(String, String)> {
+    let patch = runtime_adapter_egress_mapping(patch_yaml)?;
+    let previous_patch = current_runtime_adapter_egress_patch().await;
+    let previous_patch_yaml = adapter_egress_mapping_to_yaml(&previous_patch)?;
+    let rollback_record_path = rust_adapter_egress_rollback_record_path()?;
+    let record = RustAdapterEgressRollbackRecord {
+        previous_patch_yaml: previous_patch_yaml.clone(),
+        applied_patch_yaml: patch_yaml.into(),
+        app_id: app_id.into(),
+        created_at_epoch_seconds: rust_adapter_egress_epoch_seconds(),
+    };
+    if let Some(parent) = rollback_record_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+    fs::write(&rollback_record_path, serde_yaml_ng::to_string(&record)?.as_bytes()).await?;
+
+    Config::runtime().await.edit_draft(|draft| {
+        draft.patch_adapter_egress_runtime_config(&patch);
+    });
+    crate::core::CoreManager::global().update_config_checked().await?;
+    crate::core::handle::Handle::refresh_clash();
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+        "rust_adapter_egress_parity_apply",
+        true,
+        None,
+        Some(format!("applied Rust adapter egress patch for app `{app_id}`").into()),
+    );
+    Ok((
+        previous_patch_yaml,
+        rollback_record_path.to_string_lossy().to_string().into(),
+    ))
+}
+
+async fn current_runtime_adapter_egress_patch() -> serde_yaml_ng::Mapping {
+    let runtime = Config::runtime().await;
+    let config = runtime.latest_arc().config.clone();
+    let mut patch = serde_yaml_ng::Mapping::new();
+    for key in ["proxy-groups", "rules"] {
+        if let Some(value) = config.as_ref().and_then(|config| config.get(key)).cloned() {
+            patch.insert(key.into(), value);
+        } else {
+            patch.insert(key.into(), serde_yaml_ng::Value::Null);
+        }
+    }
+    patch
+}
+
+fn runtime_adapter_egress_mapping(yaml: &str) -> Result<serde_yaml_ng::Mapping> {
+    if yaml.trim().is_empty() {
+        return Ok(serde_yaml_ng::Mapping::new());
+    }
+    let value = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(yaml)?;
+    value
+        .as_mapping()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("adapter egress runtime patch root must be a mapping"))
+}
+
+fn adapter_egress_mapping_to_yaml(mapping: &serde_yaml_ng::Mapping) -> Result<String> {
+    Ok(serde_yaml_ng::to_string(&serde_yaml_ng::Value::Mapping(mapping.clone()))?.into())
+}
+
+fn rust_adapter_egress_rollback_record_path() -> Result<std::path::PathBuf> {
+    Ok(dirs::app_runtime_dir()?
+        .join("rust-adapter-egress-parity")
+        .join(RUST_ADAPTER_EGRESS_PARITY_ROLLBACK_FILE))
+}
+
+fn rust_adapter_egress_epoch_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default()
 }
 
 async fn update_state_document(

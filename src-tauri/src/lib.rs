@@ -419,6 +419,8 @@ mod app_init {
             cmd::explain_app_runtime_plan,
             cmd::project_app_runtime_plan_to_mihomo,
             cmd::diagnose_app_runtime,
+            cmd::rust_adapter_egress_parity,
+            cmd::rust_adapter_egress_parity_rollback,
             cmd::build_app_runtime_projection_artifact,
             cmd::preflight_app_runtime_projection_activation,
             cmd::activate_app_runtime_projection_artifact,

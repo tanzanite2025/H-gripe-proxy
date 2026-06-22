@@ -439,6 +439,59 @@ export interface AppRuntimeMihomoProjection {
   warnings: string[]
 }
 
+export type RustAdapterEgressParityStatus =
+  | 'ready'
+  | 'applied'
+  | 'restored'
+  | 'blocked'
+
+export type RustAdapterEgressTargetKind =
+  | 'direct'
+  | 'reject'
+  | 'proxyGroup'
+  | 'mihomoFallback'
+
+export type RustAdapterEgressCandidateStatus = 'supported' | 'unsupported'
+
+export interface RustAdapterEgressCandidateReport {
+  nodeName: string
+  proxyGroup?: string | null
+  protocol?: string | null
+  priority?: number | null
+  status: RustAdapterEgressCandidateStatus
+  reason: string
+}
+
+export interface RustAdapterEgressDecision {
+  targetKind: RustAdapterEgressTargetKind
+  target: string
+  selectedNode?: string | null
+  selectedProtocol?: string | null
+  candidateCount: number
+  supportedCandidateCount: number
+  fallbackToMihomo: boolean
+}
+
+export interface RustAdapterEgressParityReport {
+  status: RustAdapterEgressParityStatus
+  reason: string
+  plan: AppRuntimePlan
+  mihomoProjection: AppRuntimeMihomoProjection
+  decision: RustAdapterEgressDecision
+  candidates: RustAdapterEgressCandidateReport[]
+  runtimePatchYaml: string
+  previousPatchYaml?: string | null
+  rollbackRecordPath?: string | null
+  explicitOptIn: boolean
+  applyRuntime: boolean
+  mutatesRuntime: boolean
+  reloadMihomo: boolean
+  mihomoFallbackRetained: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+}
+
 export type AppRuntimeDiagnosticStatus = 'healthy' | 'degraded' | 'blocked'
 
 export type AppRuntimeDiagnosticSeverity = 'info' | 'warning' | 'error'
@@ -939,6 +992,22 @@ export async function diagnoseAppRuntime(
   request: AppRuntimePlanRequest,
 ): Promise<AppRuntimeDiagnosticsReport> {
   return invoke('diagnose_app_runtime', { request })
+}
+
+export async function rustAdapterEgressParity(
+  request: AppRuntimePlanRequest,
+  explicitOptIn = false,
+  applyRuntime = false,
+): Promise<RustAdapterEgressParityReport> {
+  return invoke('rust_adapter_egress_parity', {
+    request,
+    explicitOptIn,
+    applyRuntime,
+  })
+}
+
+export async function rustAdapterEgressParityRollback(): Promise<RustAdapterEgressParityReport> {
+  return invoke('rust_adapter_egress_parity_rollback')
 }
 
 export async function buildAppRuntimeProjectionArtifact(

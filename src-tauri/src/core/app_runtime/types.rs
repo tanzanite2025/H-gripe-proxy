@@ -98,7 +98,7 @@ pub struct AppRuntimeDnsHandoffRecord {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppRuntimeDnsHandoffReport {
     pub status: AppRuntimeDnsHandoffStatus,
@@ -560,6 +560,76 @@ pub struct AppRuntimeMihomoProjection {
     pub yaml_patch: String,
     pub facts: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustAdapterEgressParityStatus {
+    Ready,
+    Applied,
+    Restored,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustAdapterEgressTargetKind {
+    Direct,
+    Reject,
+    ProxyGroup,
+    MihomoFallback,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustAdapterEgressCandidateStatus {
+    Supported,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustAdapterEgressCandidateReport {
+    pub node_name: String,
+    pub proxy_group: Option<String>,
+    pub protocol: Option<String>,
+    pub priority: Option<u32>,
+    pub status: RustAdapterEgressCandidateStatus,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustAdapterEgressDecision {
+    pub target_kind: RustAdapterEgressTargetKind,
+    pub target: String,
+    pub selected_node: Option<String>,
+    pub selected_protocol: Option<String>,
+    pub candidate_count: usize,
+    pub supported_candidate_count: usize,
+    pub fallback_to_mihomo: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustAdapterEgressParityReport {
+    pub status: RustAdapterEgressParityStatus,
+    pub reason: String,
+    pub plan: AppRuntimePlan,
+    pub mihomo_projection: AppRuntimeMihomoProjection,
+    pub decision: RustAdapterEgressDecision,
+    pub candidates: Vec<RustAdapterEgressCandidateReport>,
+    pub runtime_patch_yaml: String,
+    pub previous_patch_yaml: Option<String>,
+    pub rollback_record_path: Option<String>,
+    pub explicit_opt_in: bool,
+    pub apply_runtime: bool,
+    pub mutates_runtime: bool,
+    pub reload_mihomo: bool,
+    pub mihomo_fallback_retained: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
