@@ -1045,6 +1045,61 @@ pub struct RustEncryptedProxyProtocolPreflightReport {
     pub next_safe_batch: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RustShadowsocksAeadAdapterExecutionStatus {
+    Passed,
+    Failed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustShadowsocksAeadAdapterExecutionEvidence {
+    pub adapter_name: String,
+    pub cipher: String,
+    pub listener_port: u16,
+    pub target_port: u16,
+    pub target_address: String,
+    pub accepted_connections: u64,
+    pub target_received: bool,
+    pub response_status: Option<String>,
+    pub encrypted_request_bytes: u64,
+    pub decrypted_request_bytes: u64,
+    pub encrypted_response_bytes: u64,
+    pub decrypted_response_bytes: u64,
+    pub address_frame_validated: bool,
+    pub rollback_checkpoint_path: Option<String>,
+    pub fallback_retained_for_unsupported: bool,
+    pub passed: bool,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustShadowsocksAeadAdapterExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustShadowsocksAeadAdapterExecutionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub execution_evidence: Option<RustShadowsocksAeadAdapterExecutionEvidence>,
+    pub unsupported_protocols: Vec<String>,
+    pub evidence_path: Option<String>,
+    pub rollback_checkpoint_path: Option<String>,
+    pub loopback_remote_only: bool,
+    pub mutates_runtime: bool,
+    pub forwards_traffic: bool,
+    pub outbound_adapters_used: bool,
+    pub writes_evidence_artifact: bool,
+    pub mihomo_fallback: bool,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KernelLoopbackPlatformMatrixRow {

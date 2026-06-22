@@ -253,6 +253,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_remote_adapter_transport_expansion,
             cmd::runtime::kernel::run_runtime_kernel_rust_http_connect_proxy_adapter,
             cmd::runtime::kernel::run_runtime_kernel_rust_encrypted_proxy_protocol_preflight,
+            cmd::runtime::kernel::run_runtime_kernel_rust_shadowsocks_aead_adapter_execution,
             cmd::runtime::kernel::get_runtime_kernel_mihomo_fallback_retirement_execution_plan,
             cmd::runtime::kernel::execute_runtime_kernel_mihomo_fallback_retirement,
             cmd::runtime::kernel::rollback_runtime_kernel_mihomo_fallback_retirement_execution,

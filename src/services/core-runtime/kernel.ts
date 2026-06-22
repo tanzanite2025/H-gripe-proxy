@@ -3214,6 +3214,54 @@ export interface RustEncryptedProxyProtocolPreflightReport {
   nextSafeBatch: string
 }
 
+export type RustShadowsocksAeadAdapterExecutionStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export interface RustShadowsocksAeadAdapterExecutionEvidence {
+  adapterName: string
+  cipher: string
+  listenerPort: number
+  targetPort: number
+  targetAddress: string
+  acceptedConnections: number
+  targetReceived: boolean
+  responseStatus?: string | null
+  encryptedRequestBytes: number
+  decryptedRequestBytes: number
+  encryptedResponseBytes: number
+  decryptedResponseBytes: number
+  addressFrameValidated: boolean
+  rollbackCheckpointPath?: string | null
+  fallbackRetainedForUnsupported: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustShadowsocksAeadAdapterExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustShadowsocksAeadAdapterExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  executionEvidence?: RustShadowsocksAeadAdapterExecutionEvidence | null
+  unsupportedProtocols: string[]
+  evidencePath?: string | null
+  rollbackCheckpointPath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -3684,6 +3732,15 @@ export async function runRuntimeKernelRustEncryptedProxyProtocolPreflight(
 ) {
   return invoke<RustEncryptedProxyProtocolPreflightReport>(
     'run_runtime_kernel_rust_encrypted_proxy_protocol_preflight',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustShadowsocksAeadAdapterExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustShadowsocksAeadAdapterExecutionReport>(
+    'run_runtime_kernel_rust_shadowsocks_aead_adapter_execution',
     { explicitOptIn },
   )
 }
