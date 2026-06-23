@@ -495,6 +495,7 @@ mod app_init {
             cmd::rust_dns_runtime_parity,
             cmd::rust_dns_fake_ip_runtime_execution,
             cmd::rust_dns_fallback_filter_runtime_execution,
+            cmd::rust_dns_fallback_filter_geoip_runtime_execution,
             cmd::rust_dns_nameserver_policy_runtime_execution,
             cmd::rust_dns_runtime_parity_rollback,
             cmd::dns_default_runtime_readiness,

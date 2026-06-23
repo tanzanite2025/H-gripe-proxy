@@ -15,6 +15,7 @@ use tokio::fs;
 
 mod default_runtime;
 mod fake_ip_runtime;
+mod fallback_filter_geoip_runtime;
 mod fallback_filter_runtime;
 mod nameserver_policy_runtime;
 mod runtime_parity;
@@ -22,6 +23,7 @@ mod runtime_parity;
 use default_runtime::default_runtime_execution_superseded_state;
 pub use default_runtime::*;
 pub use fake_ip_runtime::*;
+pub use fallback_filter_geoip_runtime::*;
 pub use fallback_filter_runtime::*;
 pub use nameserver_policy_runtime::*;
 pub use runtime_parity::*;

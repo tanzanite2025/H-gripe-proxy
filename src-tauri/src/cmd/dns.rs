@@ -16,8 +16,8 @@ use crate::core::dns_runtime::{
     DnsDefaultRuntimeReadinessReport, DnsDefaultRuntimeRollbackDrillReport, DnsDefaultRuntimeShadowEvidenceReport,
     DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
     DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
-    RustDnsFakeIpRuntimeReport, RustDnsFallbackFilterRuntimeReport, RustDnsNameserverPolicyRuntimeReport,
-    RustDnsRuntimeParityReport, build_dns_resolver_plan as build_resolver_plan,
+    RustDnsFakeIpRuntimeReport, RustDnsFallbackFilterGeoipRuntimeReport, RustDnsFallbackFilterRuntimeReport,
+    RustDnsNameserverPolicyRuntimeReport, RustDnsRuntimeParityReport, build_dns_resolver_plan as build_resolver_plan,
     dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
     dns_default_runtime_expanded_control_plane_completion as build_dns_default_runtime_expanded_control_plane_completion,
     dns_default_runtime_expanded_hold_policy as build_dns_default_runtime_expanded_hold_policy,
@@ -43,6 +43,7 @@ use crate::core::dns_runtime::{
     dns_health_check as build_dns_health_check, dns_query as build_dns_query,
     dns_runtime_query as run_dns_runtime_query, list_dns_server_provider_registrations, probe_dns_server_provider,
     rust_dns_fake_ip_runtime_execution as build_rust_dns_fake_ip_runtime_execution,
+    rust_dns_fallback_filter_geoip_runtime_execution as build_rust_dns_fallback_filter_geoip_runtime_execution,
     rust_dns_fallback_filter_runtime_execution as build_rust_dns_fallback_filter_runtime_execution,
     rust_dns_nameserver_policy_runtime_execution as build_rust_dns_nameserver_policy_runtime_execution,
     rust_dns_runtime_parity as build_rust_dns_runtime_parity,
@@ -194,6 +195,18 @@ pub async fn rust_dns_fallback_filter_runtime_execution(
     explicit_opt_in: bool,
 ) -> CmdResult<RustDnsFallbackFilterRuntimeReport> {
     build_rust_dns_fallback_filter_runtime_execution(yaml, domain, candidate_ip, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rust_dns_fallback_filter_geoip_runtime_execution(
+    yaml: String,
+    domain: String,
+    candidate_ip: String,
+    explicit_opt_in: bool,
+) -> CmdResult<RustDnsFallbackFilterGeoipRuntimeReport> {
+    build_rust_dns_fallback_filter_geoip_runtime_execution(yaml, domain, candidate_ip, explicit_opt_in)
         .await
         .stringify_err()
 }
