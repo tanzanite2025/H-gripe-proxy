@@ -467,6 +467,28 @@ async fn encrypted_protocol_default_blocker_ready() -> Result<bool> {
     Ok(status_ready && blockers_empty)
 }
 
+async fn plugin_binary_compatibility_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-plugin-binary-compatibility-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
+}
+
 async fn route_mutation_rollback_blocker_ready() -> Result<bool> {
     let evidence_path = dirs::app_runtime_dir()?
         .join("rust-route-mutation-rollback-blocker")
@@ -757,6 +779,7 @@ async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> 
     let geoip_database_ready = geoip_database_blocker_ready().await?;
     let socks_udp_default_ready = socks_udp_default_blocker_ready().await?;
     let encrypted_protocol_default_ready = encrypted_protocol_default_blocker_ready().await?;
+    let plugin_binary_compatibility_ready = plugin_binary_compatibility_blocker_ready().await?;
     let mut retained = vec![
         (
             "default DNS live resolver replacement",
@@ -765,10 +788,6 @@ async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> 
         (
             "QUIC/UDP variants and multiplexed transports",
             "transport coverage remains incomplete outside bounded canaries",
-        ),
-        (
-            "external plugin process lifecycle",
-            "plugin shim evidence does not replace production plugin process management",
         ),
         (
             "system-wide packet capture and route installation",
@@ -799,6 +818,12 @@ async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> 
         retained.push((
             "unsupported non-loopback encrypted protocols",
             "bounded loopback protocol canaries do not cover non-loopback encrypted protocol defaults",
+        ));
+    }
+    if !plugin_binary_compatibility_ready {
+        retained.push((
+            "external plugin process lifecycle",
+            "plugin compatibility evidence does not replace production plugin binary compatibility",
         ));
     }
     Ok(retained)
