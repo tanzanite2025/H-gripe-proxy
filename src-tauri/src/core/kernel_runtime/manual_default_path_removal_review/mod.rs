@@ -378,6 +378,44 @@ fn surface_specs() -> Vec<SurfaceSpec> {
     ]
 }
 
+pub async fn approved_manual_default_path_removal_surfaces() -> Result<Vec<String>> {
+    let Some(artifact) = read_review_artifact().await? else {
+        return Ok(Vec::new());
+    };
+
+    Ok(artifact
+        .surfaces
+        .into_iter()
+        .filter(|surface| surface.operator_approved && surface.rust_default_ownership_allowed)
+        .map(|surface| surface.default_surface)
+        .collect())
+}
+
+pub async fn approved_manual_default_path_removal_fallback_scopes() -> Result<Vec<String>> {
+    let Some(artifact) = read_review_artifact().await? else {
+        return Ok(Vec::new());
+    };
+
+    let mut scopes = artifact
+        .surfaces
+        .into_iter()
+        .filter(|surface| surface.operator_approved && surface.rust_default_ownership_allowed)
+        .flat_map(|surface| surface.retained_fallback_scope)
+        .collect::<Vec<_>>();
+    scopes.sort();
+    scopes.dedup();
+    Ok(scopes)
+}
+
+async fn read_review_artifact() -> Result<Option<RustManualDefaultPathRemovalReviewArtifact>> {
+    let path = review_artifact_path()?;
+    let Some(yaml) = fs::read_to_string(path).await.ok() else {
+        return Ok(None);
+    };
+
+    Ok(serde_yaml_ng::from_str::<RustManualDefaultPathRemovalReviewArtifact>(&yaml).ok())
+}
+
 fn warnings(operator_approved: bool) -> Vec<String> {
     let mut warnings = vec![
         "review evidence does not mutate DNS, routes, TUN, proxy forwarding, plugin processes, or sidecar files"
