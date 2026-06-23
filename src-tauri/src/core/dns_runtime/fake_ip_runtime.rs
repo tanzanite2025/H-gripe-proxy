@@ -1,4 +1,4 @@
-use crate::utils::dirs;
+﻿use crate::utils::dirs;
 use anyhow::{Context as _, Result, anyhow};
 use hickory_proto::rr::Name;
 use serde::{Deserialize, Serialize};
@@ -124,7 +124,7 @@ pub async fn rust_dns_fake_ip_runtime_execution(
         mihomo_fallback_retained_for: retained_fake_ip_fallback_scope(),
         blockers: Vec::new(),
         warnings: vec![
-            "fake-ip cache persistence, reverse mapping, fallback-filter, and nameserver-policy remain Mihomo-owned"
+            "persistent fake-ip cache lifecycle, eviction, fake-ip filters, fallback-filter, and nameserver-policy remain Mihomo-owned"
                 .into(),
         ],
         facts: rust_dns_fake_ip_runtime_facts(),
@@ -286,7 +286,7 @@ fn normalize_fake_ip_domain(domain: &str) -> Result<String> {
 
 fn retained_fake_ip_fallback_scope() -> Vec<String> {
     vec![
-        "fake-ip cache persistence and reverse lookup".into(),
+        "persistent fake-ip cache lifecycle and eviction".into(),
         "fake-ip-filter wildcard semantics".into(),
         "fallback-filter DNS policy".into(),
         "nameserver-policy dispatch".into(),
@@ -299,7 +299,7 @@ fn rust_dns_fake_ip_runtime_facts() -> Vec<String> {
         "Rust parses fake-ip-range and allocates a deterministic in-range IPv4 answer".into(),
         "bounded fake-ip execution does not query upstream DNS".into(),
         "bounded fake-ip execution does not mutate system resolver or Mihomo binaries".into(),
-        "Mihomo fallback remains retained for fake-ip cache, filters, and policy dispatch".into(),
+        "Mihomo fallback remains retained for persistent fake-ip cache lifecycle, filters, and policy dispatch".into(),
     ]
 }
 
