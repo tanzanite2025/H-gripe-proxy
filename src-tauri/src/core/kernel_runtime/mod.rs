@@ -69,6 +69,7 @@ mod socks_udp_fragments;
 mod tun_system_proxy;
 mod tun_transparent_routing;
 mod types;
+mod udp_plugin_transport_bundle;
 pub use self::data_plane_hardening::*;
 pub use self::default_data_plane_closeout::*;
 pub use self::encrypted_protocols_bundle::*;
@@ -93,6 +94,7 @@ pub use self::tun_system_proxy::*;
 pub use self::tun_transparent_routing::*;
 use self::types::KernelIsolatedTestListenerState;
 pub use self::types::*;
+pub use self::udp_plugin_transport_bundle::*;
 
 #[async_trait]
 pub trait KernelRuntime: Send + Sync {
