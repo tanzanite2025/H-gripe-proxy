@@ -1,6 +1,9 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, RustRouteMutationRollbackBlockerReport, RustRouteMutationRollbackBlockerStatus,
+    rust_route_mutation_rollback_blocker_evidence_path,
+};
 use crate::utils::dirs;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use tokio::fs;
@@ -10,7 +13,7 @@ const KERNEL_AREA: &str = "packet-leak-hold-blocker";
 const EVIDENCE_FILE: &str = "evidence.yaml";
 const HOLD_WINDOW_FILE: &str = "packet-leak-hold-window.yaml";
 const LEAK_OBSERVATION_FILE: &str = "packet-leak-observation.yaml";
-const NEXT_SAFE_BATCH: &str = "privileged-tun-device-lifecycle-blocker";
+const NEXT_SAFE_BATCH: &str = "protocol-default-cutover-hold-window";
 const HOLD_SAMPLES: usize = 5;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,6 +61,8 @@ pub struct RustPacketLeakHoldBlockerReport {
     pub status: RustPacketLeakHoldBlockerStatus,
     pub reason: String,
     pub explicit_opt_in: bool,
+    #[serde(default)]
+    pub route_mutation_gate: Option<RustRouteMutationRollbackBlockerReport>,
     pub hold_window_evidence: Option<RustPacketLeakHoldWindowEvidence>,
     pub evidence_path: Option<String>,
     pub mutates_runtime: bool,
@@ -73,10 +78,18 @@ pub struct RustPacketLeakHoldBlockerReport {
 }
 
 pub async fn rust_packet_leak_hold_blocker_reduction(explicit_opt_in: bool) -> Result<RustPacketLeakHoldBlockerReport> {
+    let (route_mutation_gate, route_mutation_gate_blockers) = route_mutation_gate().await?;
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run packet leak hold blocker reduction".to_owned(),
-        ]));
+        let mut blockers = vec!["explicit opt-in is required to run packet leak hold blocker reduction".to_owned()];
+        blockers.extend(route_mutation_gate_blockers);
+        return Ok(blocked_report(explicit_opt_in, route_mutation_gate, blockers));
+    }
+    if !route_mutation_gate_blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            route_mutation_gate,
+            route_mutation_gate_blockers,
+        ));
     }
 
     let hold_window_evidence = hold_window_evidence().await?;
@@ -99,6 +112,7 @@ pub async fn rust_packet_leak_hold_blocker_reduction(explicit_opt_in: bool) -> R
         }
         .to_owned(),
         explicit_opt_in,
+        route_mutation_gate,
         hold_window_evidence: Some(hold_window_evidence),
         evidence_path: Some(evidence_path.to_string_lossy().to_string()),
         mutates_runtime: false,
@@ -132,14 +146,19 @@ pub async fn rust_packet_leak_hold_blocker_reduction(explicit_opt_in: bool) -> R
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustPacketLeakHoldBlockerReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    route_mutation_gate: Option<RustRouteMutationRollbackBlockerReport>,
+    blockers: Vec<String>,
+) -> RustPacketLeakHoldBlockerReport {
     RustPacketLeakHoldBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustPacketLeakHoldBlockerStatus::Blocked,
         reason: "Rust packet leak hold blocker reduction is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
+        route_mutation_gate,
         hold_window_evidence: None,
         evidence_path: None,
         mutates_runtime: false,
@@ -156,6 +175,49 @@ fn blocked_report(blockers: Vec<String>) -> RustPacketLeakHoldBlockerReport {
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn route_mutation_gate() -> Result<(Option<RustRouteMutationRollbackBlockerReport>, Vec<String>)> {
+    let evidence_path = rust_route_mutation_rollback_blocker_evidence_path()?;
+    let Some(report) = read_route_mutation_report(&evidence_path).await? else {
+        return Ok((
+            None,
+            vec!["route mutation rollback evidence is missing before packet leak hold reduction".to_owned()],
+        ));
+    };
+
+    let mut blockers = Vec::new();
+    if report.status != RustRouteMutationRollbackBlockerStatus::Ready {
+        blockers.push(format!("route mutation rollback status is {:?}", report.status));
+    }
+    if !report.blockers.is_empty() {
+        blockers.push("route mutation rollback evidence contains blockers".to_owned());
+    }
+    match report.tun_device_lifecycle_gate.as_ref() {
+        Some(gate) => {
+            if gate.status != super::RustTunDeviceLifecycleBlockerStatus::Ready {
+                blockers.push(format!("TUN device lifecycle gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("TUN device lifecycle gate contains blockers".to_owned());
+            }
+        }
+        None => blockers.push("route mutation rollback lacks TUN lifecycle gate".to_owned()),
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    Ok((Some(report), blockers))
+}
+
+async fn read_route_mutation_report(path: &std::path::Path) -> Result<Option<RustRouteMutationRollbackBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
@@ -256,7 +318,7 @@ mod tests {
 
     #[test]
     fn blocked_report_keeps_tun_fallback() {
-        let report = blocked_report(Vec::new());
+        let report = blocked_report(false, None, Vec::new());
 
         assert!(report.mihomo_tun_fallback_required);
         assert!(!report.default_transparent_forwarding_allowed);
