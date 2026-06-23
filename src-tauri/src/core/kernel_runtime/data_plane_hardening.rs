@@ -498,9 +498,14 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard_report(
     telemetry_watch_configuration_decision: bool,
     rollback_switch_verification_decision: bool,
     operator_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport {
     let mut blockers = Vec::new();
     let mut guarded_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if boundary_audit_review_decision {
         guarded_surfaces.push("boundary audit review".into());
@@ -537,6 +542,16 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard_report(
     } else {
         blockers.push("Rust data-plane opt-in execution guard requires operator acknowledgement".into());
     }
+    if operator_default_path_cutover_committed {
+        guarded_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution guard requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane opt-in execution guard requires fallback scopes recorded by operator cutover".into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningOptInExecutionGuardReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -548,6 +563,9 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard_report(
         telemetry_watch_configured: telemetry_watch_configuration_decision,
         rollback_switch_verified: rollback_switch_verification_decision,
         operator_acknowledged: operator_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         opt_in_execution_guard_complete: blockers.is_empty(),
         guarded_surfaces,
         blockers,
@@ -580,6 +598,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_guard(
         telemetry_watch_configuration_decision.unwrap_or(false),
         rollback_switch_verification_decision.unwrap_or(false),
         operator_acknowledgement_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut boundary_audit_blockers = Vec::new();
 
