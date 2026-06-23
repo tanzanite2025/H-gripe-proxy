@@ -1,4 +1,4 @@
-﻿use super::{
+use super::{
     MihomoFallbackRetirementExecutionReport, MihomoFallbackRetirementExecutionScope,
     MihomoFallbackRetirementExecutionStatus, RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutEvidenceOwnership,
     RustDefaultDataPlaneCloseoutReport, RustDefaultDataPlaneCloseoutStatus, RustDefaultDataPlaneUnsupportedBlocker,
@@ -186,7 +186,7 @@ fn rust_default_data_plane_unsupported_blockers() -> Vec<RustDefaultDataPlaneUns
                 "separate Rust implementations with canary, rollback, hold, and byte-accounting evidence".into(),
         },
         RustDefaultDataPlaneUnsupportedBlocker {
-            blocker: "SOCKS non-loopback UDP/fragments plus Shadowsocks UDP associate and plugin transports".into(),
+            blocker: "SOCKS non-loopback UDP plus fragment queues/timeouts and Shadowsocks UDP/plugin transports".into(),
             mihomo_owner: "Mihomo adapter runtime".into(),
             retirement_requirement: "bounded UDP/plugin execution, non-loopback UDP evidence, and unsupported fallback preservation".into(),
         },

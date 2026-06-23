@@ -1,4 +1,4 @@
-﻿import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 
 import type { DnsDefaultRuntimeShadowEvidenceReport } from '../dns-api'
 
@@ -3191,6 +3191,61 @@ export interface RustSocksUdpAssociateExecutionReport {
   nextSafeBatch: string
 }
 
+export type RustSocksUdpFragmentsExecutionStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustSocksUdpFragmentsPacketEvidence {
+  targetAddr: string
+  targetPort: number
+  fragmentCount: number
+  firstFragment: string
+  finalFragment: string
+  requestPayloadBytes: number
+  reassembledPayloadBytes: number
+  targetReceivedBytes: number
+  responsePayloadBytes: number
+  responsePayloadPrefix: string
+  fragmentsReassembled: boolean
+  datagramRoundTrip: boolean
+  loopbackOnly: boolean
+}
+
+export interface RustSocksUdpFragmentsRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustSocksUdpFragmentsLeakEvidence {
+  passed: boolean
+  noSystemPacketCapture: boolean
+  noNonLoopbackTarget: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustSocksUdpFragmentsExecutionReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustSocksUdpFragmentsExecutionStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  packetEvidence?: RustSocksUdpFragmentsPacketEvidence | null
+  rollbackEvidence?: RustSocksUdpFragmentsRollbackEvidence | null
+  leakEvidence?: RustSocksUdpFragmentsLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustSocksAuthExecutionStatus =
   | 'planned'
   | 'executed'
@@ -4291,6 +4346,15 @@ export async function runRuntimeKernelRustSocksUdpAssociateExecution(
 ) {
   return invoke<RustSocksUdpAssociateExecutionReport>(
     'run_runtime_kernel_rust_socks_udp_associate_execution',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustSocksUdpFragmentsExecution(
+  explicitOptIn = false,
+) {
+  return invoke<RustSocksUdpFragmentsExecutionReport>(
+    'run_runtime_kernel_rust_socks_udp_fragments_execution',
     { explicitOptIn },
   )
 }

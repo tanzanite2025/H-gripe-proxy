@@ -74,7 +74,10 @@ pub async fn rust_socks_auth_execution(explicit_opt_in: bool) -> Result<RustSock
         leak_evidence: Some(leak_evidence),
         mihomo_fallback_retained_for: retained_socks_auth_fallback_scope(),
         blockers: Vec::new(),
-        warnings: vec!["SOCKS BIND, UDP fragments, non-loopback UDP, and packet capture remain Mihomo-owned".into()],
+        warnings: vec![
+            "SOCKS BIND, non-loopback UDP, broad fragment queues/timeouts, and packet capture remain Mihomo-owned"
+                .into(),
+        ],
         facts: rust_socks_auth_facts(),
         next_safe_batch: NEXT_SAFE_BATCH.into(),
     };
@@ -325,7 +328,7 @@ fn retained_socks_auth_fallback_scope() -> Vec<String> {
     vec![
         "SOCKS unauthenticated and GSSAPI negotiation".into(),
         "SOCKS TCP CONNECT data forwarding and BIND command handling".into(),
-        "SOCKS UDP fragments and non-loopback UDP forwarding".into(),
+        "SOCKS UDP non-loopback forwarding and broad fragment queues/timeouts".into(),
         "Shadowsocks UDP/plugin transports".into(),
         "system-wide packet capture and transparent proxy defaults".into(),
     ]
@@ -337,7 +340,7 @@ fn rust_socks_auth_facts() -> Vec<String> {
         "Rust validates an RFC1929 username/password frame without persisting credential values".into(),
         "Rust validates a loopback CONNECT preflight but does not claim TCP data forwarding at this batch boundary"
             .into(),
-        "Mihomo fallback remains retained for non-loopback UDP, fragments, plugin transports, and packet capture"
+        "Mihomo fallback remains retained for non-loopback UDP, broad fragment queues/timeouts, plugin transports, and packet capture"
             .into(),
     ]
 }

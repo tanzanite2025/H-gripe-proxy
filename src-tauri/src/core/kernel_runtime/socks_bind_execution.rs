@@ -73,7 +73,7 @@ pub async fn rust_socks_bind_execution(explicit_opt_in: bool) -> Result<RustSock
         mihomo_fallback_retained_for: retained_socks_bind_fallback_scope(),
         blockers: Vec::new(),
         warnings: vec![
-            "SOCKS non-loopback UDP, UDP fragments, Shadowsocks UDP/plugin transports, and packet capture remain Mihomo-owned".into(),
+            "SOCKS non-loopback UDP, broad fragment queues/timeouts, Shadowsocks UDP/plugin transports, and packet capture remain Mihomo-owned".into(),
         ],
         facts: rust_socks_bind_facts(),
         next_safe_batch: NEXT_SAFE_BATCH.into(),
@@ -470,7 +470,7 @@ fn rust_socks_bind_facts() -> Vec<String> {
         "Rust negotiates SOCKS5 username/password method 0x02 before BIND".into(),
         "Rust validates a bounded IPv4 loopback BIND request".into(),
         "Rust sends both BIND success replies and forwards one loopback peer request/response".into(),
-        "Mihomo fallback remains retained for non-loopback UDP, fragments, plugin transports, and packet capture"
+        "Mihomo fallback remains retained for non-loopback UDP, broad fragment queues/timeouts, plugin transports, and packet capture"
             .into(),
     ]
 }

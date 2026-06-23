@@ -63,7 +63,7 @@ pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result
         mihomo_fallback_retained_for: retained_socks_udp_fallback_scope(),
         blockers: Vec::new(),
         warnings: vec![
-            "SOCKS TCP CONNECT/BIND data handling, fragmented UDP, and non-loopback UDP remain Mihomo-owned".into(),
+            "SOCKS TCP CONNECT/BIND data handling, broad fragment queues/timeouts, and non-loopback UDP remain Mihomo-owned".into(),
         ],
         facts: rust_socks_udp_associate_facts(),
         next_safe_batch: NEXT_SAFE_BATCH.into(),
@@ -302,7 +302,7 @@ fn ensure_loopback_target(target: SocketAddr) -> Result<()> {
 fn retained_socks_udp_fallback_scope() -> Vec<String> {
     vec![
         "SOCKS authentication and TCP command negotiation".into(),
-        "SOCKS UDP fragments".into(),
+        "SOCKS UDP broad fragment queues/timeouts".into(),
         "SOCKS UDP non-loopback forwarding".into(),
         "system-wide packet capture and transparent proxy defaults".into(),
         "VMess, VLESS, Trojan TLS, Shadowsocks UDP/plugin transports".into(),
@@ -312,9 +312,9 @@ fn retained_socks_udp_fallback_scope() -> Vec<String> {
 fn rust_socks_udp_associate_facts() -> Vec<String> {
     vec![
         "Rust parses SOCKS5 UDP ASSOCIATE RSV/FRAG/ATYP/DST.PORT datagrams".into(),
-        "Rust rejects fragmented UDP datagrams instead of claiming broad SOCKS ownership".into(),
+        "Rust leaves fragmented UDP datagrams to the separate bounded fragment path or Mihomo fallback".into(),
         "Rust forwards only bounded loopback UDP targets and writes rollback/evidence artifacts".into(),
-        "Mihomo fallback remains retained for authentication, non-loopback UDP, fragments, and packet capture".into(),
+        "Mihomo fallback remains retained for authentication, non-loopback UDP, broad fragment queues/timeouts, and packet capture".into(),
     ]
 }
 

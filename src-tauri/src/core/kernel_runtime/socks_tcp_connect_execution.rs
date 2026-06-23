@@ -73,7 +73,7 @@ pub async fn rust_socks_tcp_connect_execution(explicit_opt_in: bool) -> Result<R
         mihomo_fallback_retained_for: retained_socks_tcp_connect_fallback_scope(),
         blockers: Vec::new(),
         warnings: vec![
-            "SOCKS BIND, UDP fragments, non-loopback UDP, Shadowsocks UDP/plugin transports, and packet capture remain Mihomo-owned".into(),
+            "SOCKS BIND, non-loopback UDP, broad fragment queues/timeouts, Shadowsocks UDP/plugin transports, and packet capture remain Mihomo-owned".into(),
         ],
         facts: rust_socks_tcp_connect_facts(),
         next_safe_batch: NEXT_SAFE_BATCH.into(),
@@ -424,7 +424,7 @@ async fn write_rollback_checkpoint(rollback_path: &std::path::Path) -> Result<Ru
 
 fn retained_socks_tcp_connect_fallback_scope() -> Vec<String> {
     vec![
-        "SOCKS UDP fragments and non-loopback UDP forwarding".into(),
+        "SOCKS UDP non-loopback forwarding and broad fragment queues/timeouts".into(),
         "Shadowsocks UDP/plugin transports".into(),
         "VMess, VLESS, and Trojan encrypted sessions".into(),
         "system-wide packet capture and transparent proxy defaults".into(),
@@ -436,7 +436,7 @@ fn rust_socks_tcp_connect_facts() -> Vec<String> {
         "Rust negotiates SOCKS5 username/password method 0x02 over loopback TCP".into(),
         "Rust validates a bounded IPv4 loopback CONNECT request".into(),
         "Rust forwards one bounded HTTP request/response between loopback client and target".into(),
-        "Mihomo fallback remains retained for non-loopback UDP, fragments, plugin transports, and packet capture"
+        "Mihomo fallback remains retained for non-loopback UDP, broad fragment queues/timeouts, plugin transports, and packet capture"
             .into(),
     ]
 }
