@@ -1,6 +1,9 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, RustRoutePacketCaptureBlockerReport, RustTunPacketCaptureHoldBundleStatus,
+    rust_tun_packet_capture_hold_bundle_evidence_path,
+};
 use crate::utils::dirs;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -62,6 +65,16 @@ pub struct RustTunDeviceLifecycleEvidence {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RustTunPacketCaptureHoldGateEvidence {
+    pub status: RustTunPacketCaptureHoldBundleStatus,
+    #[serde(default)]
+    pub blockers: Vec<String>,
+    #[serde(default)]
+    pub route_packet_capture_gate: Option<RustRoutePacketCaptureBlockerReport>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RustTunDeviceLifecycleBlockerReport {
     pub runtime_id: String,
     pub component: String,
@@ -69,6 +82,8 @@ pub struct RustTunDeviceLifecycleBlockerReport {
     pub status: RustTunDeviceLifecycleBlockerStatus,
     pub reason: String,
     pub explicit_opt_in: bool,
+    #[serde(default)]
+    pub tun_packet_capture_hold_gate: Option<RustTunPacketCaptureHoldGateEvidence>,
     pub lifecycle_evidence: Option<RustTunDeviceLifecycleEvidence>,
     pub evidence_path: Option<String>,
     pub mutates_runtime: bool,
@@ -86,10 +101,18 @@ pub struct RustTunDeviceLifecycleBlockerReport {
 pub async fn rust_tun_device_lifecycle_blocker_reduction(
     explicit_opt_in: bool,
 ) -> Result<RustTunDeviceLifecycleBlockerReport> {
+    let (tun_packet_capture_hold_gate, tun_packet_capture_hold_gate_blockers) = tun_packet_capture_hold_gate().await?;
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run TUN device lifecycle blocker reduction".to_owned(),
-        ]));
+        let mut blockers = vec!["explicit opt-in is required to run TUN device lifecycle blocker reduction".to_owned()];
+        blockers.extend(tun_packet_capture_hold_gate_blockers);
+        return Ok(blocked_report(explicit_opt_in, tun_packet_capture_hold_gate, blockers));
+    }
+    if !tun_packet_capture_hold_gate_blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            tun_packet_capture_hold_gate,
+            tun_packet_capture_hold_gate_blockers,
+        ));
     }
 
     let lifecycle_evidence = lifecycle_evidence().await?;
@@ -112,6 +135,7 @@ pub async fn rust_tun_device_lifecycle_blocker_reduction(
         }
         .to_owned(),
         explicit_opt_in,
+        tun_packet_capture_hold_gate,
         lifecycle_evidence: Some(lifecycle_evidence),
         evidence_path: Some(evidence_path.to_string_lossy().to_string()),
         mutates_runtime: false,
@@ -144,14 +168,19 @@ pub async fn rust_tun_device_lifecycle_blocker_reduction(
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustTunDeviceLifecycleBlockerReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    tun_packet_capture_hold_gate: Option<RustTunPacketCaptureHoldGateEvidence>,
+    blockers: Vec<String>,
+) -> RustTunDeviceLifecycleBlockerReport {
     RustTunDeviceLifecycleBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustTunDeviceLifecycleBlockerStatus::Blocked,
         reason: "Rust TUN device lifecycle blocker reduction is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
+        tun_packet_capture_hold_gate,
         lifecycle_evidence: None,
         evidence_path: None,
         mutates_runtime: false,
@@ -168,6 +197,51 @@ fn blocked_report(blockers: Vec<String>) -> RustTunDeviceLifecycleBlockerReport 
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn tun_packet_capture_hold_gate() -> Result<(Option<RustTunPacketCaptureHoldGateEvidence>, Vec<String>)> {
+    let evidence_path = rust_tun_packet_capture_hold_bundle_evidence_path()?;
+    let Some(report) = read_tun_packet_capture_hold_report(&evidence_path).await? else {
+        return Ok((
+            None,
+            vec!["TUN packet-capture hold evidence is missing before TUN lifecycle reduction".to_owned()],
+        ));
+    };
+
+    let mut blockers = Vec::new();
+    if report.status != RustTunPacketCaptureHoldBundleStatus::Passed {
+        blockers.push(format!("TUN packet-capture hold status is {:?}", report.status));
+    }
+    if !report.blockers.is_empty() {
+        blockers.push("TUN packet-capture hold evidence contains blockers".to_owned());
+    }
+    match report.route_packet_capture_gate.as_ref() {
+        Some(gate) => {
+            if gate.status != super::RustRoutePacketCaptureBlockerStatus::Ready {
+                blockers.push(format!("route/packet-capture gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("route/packet-capture gate contains blockers".to_owned());
+            }
+        }
+        None => blockers.push("TUN packet-capture hold lacks route/packet-capture gate".to_owned()),
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    Ok((Some(report), blockers))
+}
+
+async fn read_tun_packet_capture_hold_report(
+    path: &std::path::Path,
+) -> Result<Option<RustTunPacketCaptureHoldGateEvidence>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
@@ -301,8 +375,12 @@ fn evidence_dir() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?.join(COMPONENT))
 }
 
-fn evidence_path() -> Result<std::path::PathBuf> {
+pub fn rust_tun_device_lifecycle_blocker_evidence_path() -> Result<std::path::PathBuf> {
     Ok(evidence_dir()?.join(EVIDENCE_FILE))
+}
+
+fn evidence_path() -> Result<std::path::PathBuf> {
+    rust_tun_device_lifecycle_blocker_evidence_path()
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {
@@ -325,7 +403,7 @@ mod tests {
 
     #[test]
     fn blocked_report_keeps_tun_fallback() {
-        let report = blocked_report(Vec::new());
+        let report = blocked_report(false, None, Vec::new());
 
         assert!(report.mihomo_tun_fallback_required);
         assert!(!report.default_tun_forwarding_allowed);

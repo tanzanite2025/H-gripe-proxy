@@ -1,4 +1,7 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, RustTunDeviceLifecycleBlockerReport, RustTunDeviceLifecycleBlockerStatus,
+    rust_tun_device_lifecycle_blocker_evidence_path,
+};
 use crate::utils::dirs;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
@@ -70,6 +73,8 @@ pub struct RustRouteMutationRollbackBlockerReport {
     pub status: RustRouteMutationRollbackBlockerStatus,
     pub reason: String,
     pub explicit_opt_in: bool,
+    #[serde(default)]
+    pub tun_device_lifecycle_gate: Option<RustTunDeviceLifecycleBlockerReport>,
     pub snapshot_evidence: Option<RustRouteSnapshotEvidence>,
     pub rollback_evidence: Option<RustRouteMutationRollbackEvidence>,
     pub evidence_path: Option<String>,
@@ -88,10 +93,19 @@ pub struct RustRouteMutationRollbackBlockerReport {
 pub async fn rust_route_mutation_rollback_blocker_reduction(
     explicit_opt_in: bool,
 ) -> Result<RustRouteMutationRollbackBlockerReport> {
+    let (tun_device_lifecycle_gate, tun_device_lifecycle_gate_blockers) = tun_device_lifecycle_gate().await?;
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run route mutation rollback blocker reduction".to_owned(),
-        ]));
+        let mut blockers =
+            vec!["explicit opt-in is required to run route mutation rollback blocker reduction".to_owned()];
+        blockers.extend(tun_device_lifecycle_gate_blockers);
+        return Ok(blocked_report(explicit_opt_in, tun_device_lifecycle_gate, blockers));
+    }
+    if !tun_device_lifecycle_gate_blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            tun_device_lifecycle_gate,
+            tun_device_lifecycle_gate_blockers,
+        ));
     }
 
     let snapshot_evidence = snapshot_evidence().await?;
@@ -117,6 +131,7 @@ pub async fn rust_route_mutation_rollback_blocker_reduction(
         }
         .to_owned(),
         explicit_opt_in,
+        tun_device_lifecycle_gate,
         snapshot_evidence: Some(snapshot_evidence),
         rollback_evidence: Some(rollback_evidence),
         evidence_path: Some(evidence_path.to_string_lossy().to_string()),
@@ -150,14 +165,19 @@ pub async fn rust_route_mutation_rollback_blocker_reduction(
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustRouteMutationRollbackBlockerReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    tun_device_lifecycle_gate: Option<RustTunDeviceLifecycleBlockerReport>,
+    blockers: Vec<String>,
+) -> RustRouteMutationRollbackBlockerReport {
     RustRouteMutationRollbackBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustRouteMutationRollbackBlockerStatus::Blocked,
         reason: "Rust route mutation rollback blocker reduction is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
+        tun_device_lifecycle_gate,
         snapshot_evidence: None,
         rollback_evidence: None,
         evidence_path: None,
@@ -175,6 +195,51 @@ fn blocked_report(blockers: Vec<String>) -> RustRouteMutationRollbackBlockerRepo
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn tun_device_lifecycle_gate() -> Result<(Option<RustTunDeviceLifecycleBlockerReport>, Vec<String>)> {
+    let evidence_path = rust_tun_device_lifecycle_blocker_evidence_path()?;
+    let Some(report) = read_tun_device_lifecycle_report(&evidence_path).await? else {
+        return Ok((
+            None,
+            vec!["TUN device lifecycle evidence is missing before route mutation rollback reduction".to_owned()],
+        ));
+    };
+
+    let mut blockers = Vec::new();
+    if report.status != RustTunDeviceLifecycleBlockerStatus::Ready {
+        blockers.push(format!("TUN device lifecycle status is {:?}", report.status));
+    }
+    if !report.blockers.is_empty() {
+        blockers.push("TUN device lifecycle evidence contains blockers".to_owned());
+    }
+    match report.tun_packet_capture_hold_gate.as_ref() {
+        Some(gate) => {
+            if gate.status != super::RustTunPacketCaptureHoldBundleStatus::Passed {
+                blockers.push(format!("TUN packet-capture hold gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("TUN packet-capture hold gate contains blockers".to_owned());
+            }
+        }
+        None => blockers.push("TUN lifecycle evidence lacks packet-capture hold gate".to_owned()),
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    Ok((Some(report), blockers))
+}
+
+async fn read_tun_device_lifecycle_report(
+    path: &std::path::Path,
+) -> Result<Option<RustTunDeviceLifecycleBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
@@ -390,7 +455,7 @@ mod tests {
 
     #[test]
     fn blocked_report_keeps_route_fallback() {
-        let report = blocked_report(Vec::new());
+        let report = blocked_report(false, None, Vec::new());
 
         assert!(report.mihomo_route_fallback_required);
         assert!(!report.default_route_forwarding_allowed);
