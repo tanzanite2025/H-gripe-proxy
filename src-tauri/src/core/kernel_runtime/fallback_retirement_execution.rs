@@ -294,7 +294,7 @@ fn retained_fallback_scope() -> Vec<String> {
         "system-wide TUN packet capture".into(),
         "OS route install and transparent proxy defaults".into(),
         "VMess, VLESS, Trojan TLS, Shadowsocks UDP associate, and plugin transports".into(),
-        "unsupported DNS features beyond bounded fake-ip/fallback-filter/nameserver-policy execution: fake-ip persistent cache lifecycle/eviction, fake-ip wildcard filters, fallback-filter full GeoIP database/upstream execution, nameserver-policy geosite/wildcard/upstream execution".into(),
+        "unsupported DNS features beyond bounded fake-ip/fallback-filter/nameserver-policy and policy/cache/upstream bundle execution: default DNS runtime ownership, live resolver replacement, full GeoIP database loading, production persistent cache storage, and geodata refresh".into(),
         "full Mihomo fallback binary removal".into(),
     ]
 }

@@ -19,6 +19,7 @@ mod fake_ip_runtime;
 mod fallback_filter_geoip_runtime;
 mod fallback_filter_runtime;
 mod nameserver_policy_runtime;
+mod policy_cache_upstream_bundle;
 mod runtime_parity;
 #[cfg(test)]
 use default_runtime::default_runtime_execution_superseded_state;
@@ -28,6 +29,7 @@ pub use fake_ip_runtime::*;
 pub use fallback_filter_geoip_runtime::*;
 pub use fallback_filter_runtime::*;
 pub use nameserver_policy_runtime::*;
+pub use policy_cache_upstream_bundle::*;
 pub use runtime_parity::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
