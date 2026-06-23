@@ -276,6 +276,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_dns_default_path_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_route_packet_capture_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_protocol_default_path_blocker_reduction,
+            cmd::runtime::kernel::run_runtime_kernel_rust_plugin_process_supervision_blocker_reduction,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,
