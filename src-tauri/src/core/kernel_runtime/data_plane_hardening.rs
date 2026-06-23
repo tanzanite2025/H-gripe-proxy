@@ -2250,8 +2250,10 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_canary_verificati
     rollback_readiness_verification_decision: bool,
     production_mutation_guard_retention_verification_decision: bool,
     verification_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningControlledRolloutCanaryVerificationReport {
-    let (verification_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut verification_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "canary execution record review",
             execution_record_review_decision,
@@ -2293,6 +2295,18 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_canary_verificati
             "Rust data-plane controlled rollout canary verification requires archived evidence",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        verification_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout canary verification requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Rust data-plane controlled rollout canary verification requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningControlledRolloutCanaryVerificationReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -2306,6 +2320,9 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_canary_verificati
         production_mutation_guard_still_retained:
             production_mutation_guard_retention_verification_decision,
         verification_evidence_archived: verification_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         controlled_rollout_canary_verification_complete: blockers.is_empty(),
         verification_surfaces,
         blockers,
@@ -2342,6 +2359,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_canary_
             rollback_readiness_verification_decision.unwrap_or(false),
             production_mutation_guard_retention_verification_decision.unwrap_or(false),
             verification_evidence_archive_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let execution_blockers = if rust_data_plane_hardening_controlled_rollout_canary_execution_complete {
         Vec::new()
