@@ -1138,9 +1138,14 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verification_report
     production_forwarding_unchanged_verification_decision: bool,
     leak_regression_absence_verification_decision: bool,
     verification_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport {
     let mut blockers = Vec::new();
     let mut verification_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if execution_record_review_decision {
         verification_surfaces.push("execution record review".into());
@@ -1184,6 +1189,17 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verification_report
     } else {
         blockers.push("Rust data-plane opt-in execution verification requires archived verification evidence".into());
     }
+    if operator_default_path_cutover_committed {
+        verification_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane opt-in execution verification requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane opt-in execution verification requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningOptInExecutionVerificationReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -1195,6 +1211,9 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verification_report
         production_forwarding_unchanged_verified: production_forwarding_unchanged_verification_decision,
         leak_regression_absence_verified: leak_regression_absence_verification_decision,
         verification_evidence_archived: verification_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         opt_in_execution_verification_complete: blockers.is_empty(),
         verification_surfaces,
         blockers,
@@ -1227,6 +1246,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_verificat
         production_forwarding_unchanged_verification_decision.unwrap_or(false),
         leak_regression_absence_verification_decision.unwrap_or(false),
         verification_evidence_archive_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut execution_blockers = Vec::new();
 
