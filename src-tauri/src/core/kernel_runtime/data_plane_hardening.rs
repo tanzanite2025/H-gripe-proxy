@@ -928,9 +928,14 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_report(
     rollback_switch_arm_decision: bool,
     production_mutation_guard_retention_decision: bool,
     operator_execution_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningOptInExecutionReport {
     let mut blockers = Vec::new();
     let mut execution_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if dry_run_review_decision {
         execution_surfaces.push("dry-run review".into());
@@ -967,6 +972,17 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_report(
     } else {
         blockers.push("Rust data-plane opt-in execution requires operator acknowledgement".into());
     }
+    if operator_default_path_cutover_committed {
+        execution_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push(
+            "Rust data-plane opt-in execution requires committed operator default-path cutover for sidecar removal"
+                .into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Rust data-plane opt-in execution requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningOptInExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -978,6 +994,9 @@ fn rust_kernel_runtime_data_plane_hardening_opt_in_execution_report(
         rollback_switch_armed: rollback_switch_arm_decision,
         production_mutation_guard_retained: production_mutation_guard_retention_decision,
         operator_execution_acknowledged: operator_execution_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         opt_in_execution_complete: blockers.is_empty(),
         execution_surfaces,
         blockers,
@@ -1010,6 +1029,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_opt_in_execution(
         rollback_switch_arm_decision.unwrap_or(false),
         production_mutation_guard_retention_decision.unwrap_or(false),
         operator_execution_acknowledgement_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut dry_run_blockers = Vec::new();
 
