@@ -268,6 +268,18 @@ fn retained_fallback_evidence() -> Vec<GoToRustMigrationFinalReviewRetainedFallb
 }
 
 async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision>> {
+    let dns_blockers = if dns_default_path_blocker_ready().await? {
+        vec![
+            "production default DNS cutover hold window".to_owned(),
+            "system resolver handoff and leak observation on real profiles".to_owned(),
+        ]
+    } else {
+        vec![
+            "live resolver replacement evidence".to_owned(),
+            "production persistent DNS cache migration".to_owned(),
+            "geodata refresh ownership".to_owned(),
+        ]
+    };
     let mut sidecar_required_evidence = vec![
         "all default-path owners moved to Rust".to_owned(),
         "unsupported fallback list empty".to_owned(),
@@ -277,14 +289,7 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
     }
 
     Ok(vec![
-        default_removal_decision(
-            "default DNS resolver replacement",
-            vec![
-                "live resolver replacement evidence".to_owned(),
-                "production persistent DNS cache migration".to_owned(),
-                "geodata refresh ownership".to_owned(),
-            ],
-        ),
+        default_removal_decision("default DNS resolver replacement", dns_blockers),
         default_removal_decision(
             "system-wide packet capture and route install",
             vec![
@@ -303,6 +308,28 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
         ),
         default_removal_decision("Mihomo sidecar binary removal", sidecar_required_evidence),
     ])
+}
+
+async fn dns_default_path_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-dns-default-path-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
 }
 
 async fn sidecar_independent_rollback_ready() -> Result<bool> {
