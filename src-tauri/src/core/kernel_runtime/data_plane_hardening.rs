@@ -3635,8 +3635,10 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard_repor
     telemetry_soak_plan_definition_decision: bool,
     unsupported_path_boundary_retention_decision: bool,
     operator_rollout_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport {
-    let (guard_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut guard_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "supported default cutover closeout review",
             cutover_closeout_review_decision,
@@ -3678,6 +3680,21 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard_repor
             "Rust data-plane expanded default rollout guard requires operator acknowledgement",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        guard_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane expanded-default-rollout-guard requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane expanded-default-rollout-guard requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutGuardReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -3690,6 +3707,9 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_guard_repor
         telemetry_soak_plan_defined: telemetry_soak_plan_definition_decision,
         unsupported_path_boundary_retained: unsupported_path_boundary_retention_decision,
         operator_rollout_acknowledged: operator_rollout_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         expanded_default_rollout_guard_complete: blockers.is_empty(),
         guard_surfaces,
         blockers,
@@ -3724,6 +3744,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_g
         telemetry_soak_plan_definition_decision.unwrap_or(false),
         unsupported_path_boundary_retention_decision.unwrap_or(false),
         operator_rollout_acknowledgement_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let closeout_blockers = if rust_data_plane_hardening_supported_default_cutover_closeout_complete {
         Vec::new()
@@ -3808,8 +3838,10 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run_rep
     rollback_rehearsal_decision: bool,
     telemetry_soak_sample_review_decision: bool,
     dry_run_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
-    let (dry_run_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut dry_run_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "expanded default rollout guard review",
             guard_review_decision,
@@ -3846,6 +3878,21 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run_rep
             "Rust data-plane expanded default rollout dry-run requires archived evidence",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        dry_run_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane expanded-default-rollout-dry-run requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane expanded-default-rollout-dry-run requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutDryRunReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -3857,6 +3904,9 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_dry_run_rep
         rollback_rehearsed: rollback_rehearsal_decision,
         telemetry_soak_sample_reviewed: telemetry_soak_sample_review_decision,
         dry_run_evidence_archived: dry_run_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         expanded_default_rollout_dry_run_complete: blockers.is_empty(),
         dry_run_surfaces,
         blockers,
@@ -3892,6 +3942,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_d
             rollback_rehearsal_decision.unwrap_or(false),
             telemetry_soak_sample_review_decision.unwrap_or(false),
             dry_run_evidence_archive_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let guard_blockers = if rust_data_plane_hardening_expanded_default_rollout_guard_complete {
         Vec::new()
@@ -3974,8 +4034,10 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution_r
     rollback_switch_arm_decision: bool,
     mihomo_fallback_retention_decision: bool,
     operator_execution_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
-    let (execution_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut execution_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "expanded default rollout dry-run review",
             dry_run_review_decision,
@@ -4017,6 +4079,21 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution_r
             "Rust data-plane expanded default rollout execution requires operator acknowledgement",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        execution_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane expanded-default-rollout-execution requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane expanded-default-rollout-execution requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -4029,6 +4106,9 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_execution_r
         rollback_switch_armed: rollback_switch_arm_decision,
         mihomo_fallback_retained: mihomo_fallback_retention_decision,
         operator_execution_acknowledged: operator_execution_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         expanded_default_rollout_execution_complete: blockers.is_empty(),
         execution_surfaces,
         blockers,
@@ -4065,6 +4145,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_e
             rollback_switch_arm_decision.unwrap_or(false),
             mihomo_fallback_retention_decision.unwrap_or(false),
             operator_execution_acknowledgement_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let dry_run_blockers = if rust_data_plane_hardening_expanded_default_rollout_dry_run_complete {
         Vec::new()
@@ -4146,8 +4236,10 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verificatio
     telemetry_health_budget_verification_decision: bool,
     leak_regression_absence_verification_decision: bool,
     verification_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
-    let (verification_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut verification_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "expanded rollout execution record review",
             execution_record_review_decision,
@@ -4184,6 +4276,18 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verificatio
             "Rust data-plane expanded default rollout verification requires archived evidence",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        verification_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane expanded-default-rollout-verification requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Rust data-plane expanded-default-rollout-verification requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutVerificationReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -4195,6 +4299,9 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_verificatio
         telemetry_health_budget_verified: telemetry_health_budget_verification_decision,
         leak_regression_absence_verified: leak_regression_absence_verification_decision,
         verification_evidence_archived: verification_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         expanded_default_rollout_verification_complete: blockers.is_empty(),
         verification_surfaces,
         blockers,
@@ -4229,6 +4336,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_v
             telemetry_health_budget_verification_decision.unwrap_or(false),
             leak_regression_absence_verification_decision.unwrap_or(false),
             verification_evidence_archive_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let execution_blockers = if rust_data_plane_hardening_expanded_default_rollout_execution_complete {
         Vec::new()
@@ -4312,8 +4429,10 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout_re
     unsupported_path_boundary_retention_decision: bool,
     release_notes_update_decision: bool,
     closeout_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
-    let (closeout_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut closeout_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "expanded default rollout verification review",
             verification_review_decision,
@@ -4350,6 +4469,21 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout_re
             "Rust data-plane expanded default rollout closeout requires archived evidence",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        closeout_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane expanded-default-rollout-closeout requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane expanded-default-rollout-closeout requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningExpandedDefaultRolloutCloseoutReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -4361,6 +4495,9 @@ fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_closeout_re
         unsupported_path_boundary_retained: unsupported_path_boundary_retention_decision,
         release_notes_updated: release_notes_update_decision,
         closeout_evidence_archived: closeout_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         expanded_default_rollout_closeout_complete: blockers.is_empty(),
         closeout_surfaces,
         blockers,
@@ -4396,6 +4533,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_expanded_default_rollout_c
             unsupported_path_boundary_retention_decision.unwrap_or(false),
             release_notes_update_decision.unwrap_or(false),
             closeout_evidence_archive_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let verification_blockers = if rust_data_plane_hardening_expanded_default_rollout_verification_complete {
         Vec::new()
