@@ -1,4 +1,9 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutGateEvidence, RustSocksAuthExecutionReport,
+    RustSocksAuthExecutionStatus, RustSocksBindExecutionReport, RustSocksBindExecutionStatus,
+    RustSocksTcpConnectExecutionReport, RustSocksTcpConnectExecutionStatus, RustSocksUdpAssociateExecutionReport,
+    RustSocksUdpAssociateExecutionStatus, RustSocksUdpFragmentsExecutionReport, RustSocksUdpFragmentsExecutionStatus,
+};
 use crate::utils::dirs;
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -16,7 +21,7 @@ const EVIDENCE_FILE: &str = "evidence.yaml";
 const ROUTE_SNAPSHOT_FILE: &str = "route-snapshot.txt";
 const ROUTE_RESTORE_PLAN_FILE: &str = "route-restore-plan.yaml";
 const PACKET_CAPTURE_HOLD_FILE: &str = "packet-capture-hold.yaml";
-const NEXT_SAFE_BATCH: &str = "route-packet-capture-privileged-hold";
+const NEXT_SAFE_BATCH: &str = "privileged-tun-device-lifecycle-blocker";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +70,15 @@ pub struct RustRoutePacketCapturePacketEvidence {
     pub blockers: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustUnsupportedProtocolExecutionGateEvidence {
+    pub evidence_paths: Vec<String>,
+    pub executed_components: Vec<String>,
+    pub default_closeout_gate_confirmed: bool,
+    pub blockers: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RustRoutePacketCaptureBlockerReport {
@@ -74,6 +88,8 @@ pub struct RustRoutePacketCaptureBlockerReport {
     pub status: RustRoutePacketCaptureBlockerStatus,
     pub reason: String,
     pub explicit_opt_in: bool,
+    #[serde(default)]
+    pub unsupported_protocol_execution_gate: Option<RustUnsupportedProtocolExecutionGateEvidence>,
     pub route_snapshot_evidence: Option<RustRoutePacketCaptureRouteSnapshotEvidence>,
     pub restore_steps: Vec<RustRoutePacketCaptureRestoreStep>,
     pub packet_capture_evidence: Option<RustRoutePacketCapturePacketEvidence>,
@@ -103,10 +119,22 @@ struct PacketCaptureHoldRecord {
 pub async fn rust_route_packet_capture_blocker_reduction(
     explicit_opt_in: bool,
 ) -> Result<RustRoutePacketCaptureBlockerReport> {
+    let unsupported_protocol_execution_gate = unsupported_protocol_execution_gate_evidence().await?;
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run route/packet-capture blocker reduction".to_owned(),
-        ]));
+        let mut blockers = vec!["explicit opt-in is required to run route/packet-capture blocker reduction".to_owned()];
+        blockers.extend(unsupported_protocol_execution_gate.blockers.clone());
+        return Ok(blocked_report(
+            explicit_opt_in,
+            Some(unsupported_protocol_execution_gate),
+            blockers,
+        ));
+    }
+    if !unsupported_protocol_execution_gate.blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            Some(unsupported_protocol_execution_gate.clone()),
+            unsupported_protocol_execution_gate.blockers.clone(),
+        ));
     }
 
     let route_snapshot_evidence = route_snapshot_evidence().await?;
@@ -134,6 +162,7 @@ pub async fn rust_route_packet_capture_blocker_reduction(
         }
         .to_owned(),
         explicit_opt_in,
+        unsupported_protocol_execution_gate: Some(unsupported_protocol_execution_gate),
         route_snapshot_evidence: Some(route_snapshot_evidence),
         restore_steps,
         packet_capture_evidence: Some(packet_capture_evidence),
@@ -168,14 +197,19 @@ pub async fn rust_route_packet_capture_blocker_reduction(
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustRoutePacketCaptureBlockerReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    unsupported_protocol_execution_gate: Option<RustUnsupportedProtocolExecutionGateEvidence>,
+    blockers: Vec<String>,
+) -> RustRoutePacketCaptureBlockerReport {
     RustRoutePacketCaptureBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustRoutePacketCaptureBlockerStatus::Blocked,
         reason: "Rust route/packet-capture blocker reduction is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
+        unsupported_protocol_execution_gate,
         route_snapshot_evidence: None,
         restore_steps: Vec::new(),
         packet_capture_evidence: None,
@@ -194,6 +228,110 @@ fn blocked_report(blockers: Vec<String>) -> RustRoutePacketCaptureBlockerReport 
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn unsupported_protocol_execution_gate_evidence() -> Result<RustUnsupportedProtocolExecutionGateEvidence> {
+    let mut evidence_paths = Vec::new();
+    let mut executed_components = Vec::new();
+    let mut closeout_gates = Vec::new();
+    let mut blockers = Vec::new();
+
+    let udp_associate_path = runtime_evidence_path("rust-socks-udp-associate-execution")?;
+    match read_yaml::<RustSocksUdpAssociateExecutionReport>(&udp_associate_path).await? {
+        Some(report) if report.status == RustSocksUdpAssociateExecutionStatus::Executed => {
+            evidence_paths.push(udp_associate_path.to_string_lossy().to_string());
+            executed_components.push(report.component.to_string());
+            closeout_gates.push(report.default_data_plane_closeout_gate);
+        }
+        Some(report) => blockers.push(format!("SOCKS UDP associate evidence status is {:?}", report.status)),
+        None => blockers.push("SOCKS UDP associate execution evidence is missing".to_owned()),
+    }
+
+    let udp_fragments_path = runtime_evidence_path("rust-socks-udp-fragments-execution")?;
+    match read_yaml::<RustSocksUdpFragmentsExecutionReport>(&udp_fragments_path).await? {
+        Some(report) if report.status == RustSocksUdpFragmentsExecutionStatus::Executed => {
+            evidence_paths.push(udp_fragments_path.to_string_lossy().to_string());
+            executed_components.push(report.component.to_string());
+            closeout_gates.push(report.default_data_plane_closeout_gate);
+        }
+        Some(report) => blockers.push(format!("SOCKS UDP fragments evidence status is {:?}", report.status)),
+        None => blockers.push("SOCKS UDP fragments execution evidence is missing".to_owned()),
+    }
+
+    let auth_path = runtime_evidence_path("rust-socks-auth-execution")?;
+    match read_yaml::<RustSocksAuthExecutionReport>(&auth_path).await? {
+        Some(report) if report.status == RustSocksAuthExecutionStatus::Executed => {
+            evidence_paths.push(auth_path.to_string_lossy().to_string());
+            executed_components.push(report.component.to_string());
+            closeout_gates.push(report.default_data_plane_closeout_gate);
+        }
+        Some(report) => blockers.push(format!("SOCKS auth evidence status is {:?}", report.status)),
+        None => blockers.push("SOCKS auth execution evidence is missing".to_owned()),
+    }
+
+    let tcp_connect_path = runtime_evidence_path("rust-socks-tcp-connect-execution")?;
+    match read_yaml::<RustSocksTcpConnectExecutionReport>(&tcp_connect_path).await? {
+        Some(report) if report.status == RustSocksTcpConnectExecutionStatus::Executed => {
+            evidence_paths.push(tcp_connect_path.to_string_lossy().to_string());
+            executed_components.push(report.component.to_string());
+            closeout_gates.push(report.default_data_plane_closeout_gate);
+        }
+        Some(report) => blockers.push(format!("SOCKS TCP CONNECT evidence status is {:?}", report.status)),
+        None => blockers.push("SOCKS TCP CONNECT execution evidence is missing".to_owned()),
+    }
+
+    let bind_path = runtime_evidence_path("rust-socks-bind-execution")?;
+    match read_yaml::<RustSocksBindExecutionReport>(&bind_path).await? {
+        Some(report) if report.status == RustSocksBindExecutionStatus::Executed => {
+            evidence_paths.push(bind_path.to_string_lossy().to_string());
+            executed_components.push(report.component.to_string());
+            closeout_gates.push(report.default_data_plane_closeout_gate);
+        }
+        Some(report) => blockers.push(format!("SOCKS BIND evidence status is {:?}", report.status)),
+        None => blockers.push("SOCKS BIND execution evidence is missing".to_owned()),
+    }
+
+    let default_closeout_gate_confirmed = closeout_gates
+        .iter()
+        .all(default_closeout_gate_allows_route_packet_capture);
+    if !default_closeout_gate_confirmed {
+        blockers
+            .push("unsupported protocol evidence does not confirm closed-out default data-plane cutover".to_owned());
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    Ok(RustUnsupportedProtocolExecutionGateEvidence {
+        evidence_paths,
+        executed_components,
+        default_closeout_gate_confirmed,
+        blockers,
+    })
+}
+
+fn default_closeout_gate_allows_route_packet_capture(gate: &RustDefaultDataPlaneCloseoutGateEvidence) -> bool {
+    gate.closeout_manifest_closed_out
+        && gate.ownership_reconciled
+        && gate.operator_default_path_cutover_committed
+        && !gate.operator_default_path_cutover_fallback_scopes.is_empty()
+        && gate.blockers.is_empty()
+}
+
+fn runtime_evidence_path(component: &str) -> Result<std::path::PathBuf> {
+    Ok(dirs::app_runtime_dir()?.join(component).join(EVIDENCE_FILE))
+}
+
+async fn read_yaml<T>(path: &std::path::Path) -> Result<Option<T>>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
@@ -401,8 +539,12 @@ fn evidence_dir() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?.join(COMPONENT))
 }
 
-fn evidence_path() -> Result<std::path::PathBuf> {
+pub fn rust_route_packet_capture_blocker_evidence_path() -> Result<std::path::PathBuf> {
     Ok(evidence_dir()?.join(EVIDENCE_FILE))
+}
+
+fn evidence_path() -> Result<std::path::PathBuf> {
+    rust_route_packet_capture_blocker_evidence_path()
 }
 
 fn route_restore_plan_path() -> Result<std::path::PathBuf> {
@@ -443,7 +585,7 @@ mod tests {
 
     #[test]
     fn blocked_report_keeps_system_packet_capture_fallback() {
-        let report = blocked_report(Vec::new());
+        let report = blocked_report(false, None, Vec::new());
 
         assert!(report.mihomo_system_packet_capture_fallback_required);
         assert!(!report.default_tun_replacement_allowed);

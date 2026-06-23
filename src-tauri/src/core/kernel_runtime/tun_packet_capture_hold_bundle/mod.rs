@@ -1,4 +1,8 @@
-use super::{RUST_RUNTIME_ID, RustTunTransparentRoutingExecutionReport, rust_tun_transparent_routing_execution};
+use super::{
+    RUST_RUNTIME_ID, RustRoutePacketCaptureBlockerReport, RustRoutePacketCaptureBlockerStatus,
+    RustTunTransparentRoutingExecutionReport, rust_route_packet_capture_blocker_evidence_path,
+    rust_tun_transparent_routing_execution,
+};
 use crate::utils::dirs;
 use anyhow::{Context as _, Result, anyhow};
 use serde::{Deserialize, Serialize};
@@ -15,7 +19,7 @@ const EVIDENCE_FILE: &str = "evidence.yaml";
 const ROLLBACK_FILE: &str = "rollback-checkpoint.yaml";
 const RUST_OWNED_SCOPE: &str =
     "bounded TUN route rollback hold, transparent-routing boundaries, packet-capture canary, and DNS leak telemetry";
-const NEXT_SAFE_BATCH: &str = "rust-mihomo-fallback-retirement-bundle";
+const NEXT_SAFE_BATCH: &str = "privileged-tun-device-lifecycle-blocker";
 const REQUIRED_PLATFORMS: [&str; 3] = ["windows", "macos", "linux"];
 const ROLLBACK_CYCLES_PER_PLATFORM: usize = 2;
 const HOLD_WINDOW_SECONDS: u64 = 300;
@@ -145,6 +149,8 @@ pub struct RustTunPacketCaptureHoldBundleReport {
     pub reason: String,
     pub explicit_opt_in: bool,
     pub rust_owned_scope: String,
+    #[serde(default)]
+    pub route_packet_capture_gate: Option<RustRoutePacketCaptureBlockerReport>,
     pub hold_evidence: Option<RustTunPacketCaptureHoldEvidence>,
     pub transparent_routing_evidence: Option<RustTunTransparentRoutingExecutionReport>,
     pub packet_capture_evidence: Option<RustTunPacketCapturePacketEvidence>,
@@ -185,10 +191,18 @@ struct SyntheticRouteState {
 pub async fn rust_tun_packet_capture_hold_bundle_execution(
     explicit_opt_in: bool,
 ) -> Result<RustTunPacketCaptureHoldBundleReport> {
+    let (route_packet_capture_gate, route_packet_capture_gate_blockers) = route_packet_capture_gate().await?;
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run TUN/packet-capture hold bundle".to_owned(),
-        ]));
+        let mut blockers = vec!["explicit opt-in is required to run TUN/packet-capture hold bundle".to_owned()];
+        blockers.extend(route_packet_capture_gate_blockers);
+        return Ok(blocked_report(explicit_opt_in, route_packet_capture_gate, blockers));
+    }
+    if !route_packet_capture_gate_blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            route_packet_capture_gate,
+            route_packet_capture_gate_blockers,
+        ));
     }
 
     let hold_evidence = route_hold_evidence();
@@ -235,6 +249,7 @@ pub async fn rust_tun_packet_capture_hold_bundle_execution(
         reason: reason.to_owned(),
         explicit_opt_in,
         rust_owned_scope: RUST_OWNED_SCOPE.to_owned(),
+        route_packet_capture_gate,
         hold_evidence: Some(hold_evidence),
         transparent_routing_evidence: Some(transparent_routing_evidence),
         packet_capture_evidence: Some(packet_capture_evidence),
@@ -268,15 +283,20 @@ pub async fn rust_tun_packet_capture_hold_bundle_execution(
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustTunPacketCaptureHoldBundleReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    route_packet_capture_gate: Option<RustRoutePacketCaptureBlockerReport>,
+    blockers: Vec<String>,
+) -> RustTunPacketCaptureHoldBundleReport {
     RustTunPacketCaptureHoldBundleReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustTunPacketCaptureHoldBundleStatus::Blocked,
         reason: "Rust TUN/packet-capture hold bundle is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
         rust_owned_scope: RUST_OWNED_SCOPE.to_owned(),
+        route_packet_capture_gate,
         hold_evidence: None,
         transparent_routing_evidence: None,
         packet_capture_evidence: None,
@@ -295,6 +315,53 @@ fn blocked_report(blockers: Vec<String>) -> RustTunPacketCaptureHoldBundleReport
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn route_packet_capture_gate() -> Result<(Option<RustRoutePacketCaptureBlockerReport>, Vec<String>)> {
+    let evidence_path = rust_route_packet_capture_blocker_evidence_path()?;
+    let Some(report) = read_route_packet_capture_report(&evidence_path).await? else {
+        return Ok((
+            None,
+            vec!["route/packet-capture blocker evidence is missing before TUN packet-capture hold".to_owned()],
+        ));
+    };
+
+    let mut blockers = Vec::new();
+    if report.status != RustRoutePacketCaptureBlockerStatus::Ready {
+        blockers.push(format!("route/packet-capture blocker status is {:?}", report.status));
+    }
+    if !report.blockers.is_empty() {
+        blockers.push("route/packet-capture blocker evidence contains blockers".to_owned());
+    }
+    match report.unsupported_protocol_execution_gate.as_ref() {
+        Some(gate) => {
+            if !gate.default_closeout_gate_confirmed {
+                blockers.push("route/packet-capture blocker evidence lacks default closeout confirmation".to_owned());
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("route/packet-capture blocker evidence carries unsupported protocol blockers".to_owned());
+            }
+        }
+        None => {
+            blockers.push("route/packet-capture blocker evidence lacks unsupported protocol gate evidence".to_owned())
+        }
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    Ok((Some(report), blockers))
+}
+
+async fn read_route_packet_capture_report(
+    path: &std::path::Path,
+) -> Result<Option<RustRoutePacketCaptureBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
