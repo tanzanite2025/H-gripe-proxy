@@ -281,6 +281,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_default_forwarding_hold_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_dns_cutover_hold_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_dns_system_resolver_leak_blocker_reduction,
+            cmd::runtime::kernel::run_runtime_kernel_rust_tun_device_lifecycle_blocker_reduction,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,
