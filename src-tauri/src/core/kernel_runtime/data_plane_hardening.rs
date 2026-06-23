@@ -50,6 +50,7 @@ use super::{
     RustKernelRuntimeDataPlaneHardeningSupportedDefaultCutoverVerificationReport,
     RustKernelRuntimeDataPlaneHardeningSupportedDefaultPromotionDryRunReport,
     RustKernelRuntimeDataPlaneHardeningSupportedDefaultPromotionGuardReport,
+    approved_operator_default_path_cutover_fallback_scopes, approved_operator_default_path_cutover_surfaces,
 };
 
 fn collect_data_plane_hardening_surfaces(decisions: &[(&str, bool, &str)]) -> (Vec<String>, Vec<String>) {
@@ -89,9 +90,14 @@ fn rust_kernel_runtime_data_plane_hardening_boundary_report(
     dns_leak_verification_plan_decision: bool,
     rollback_drill_plan_decision: bool,
     opt_in_execution_boundary_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningBoundaryReport {
     let mut blockers = Vec::new();
     let mut evidence_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if protocol_parity_inventory_decision {
         evidence_surfaces.push("protocol parity inventory".into());
@@ -123,6 +129,18 @@ fn rust_kernel_runtime_data_plane_hardening_boundary_report(
     } else {
         blockers.push("Rust data-plane hardening requires a locked opt-in execution boundary".into());
     }
+    if operator_default_path_cutover_committed {
+        evidence_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push(
+            "Rust data-plane hardening preflight requires committed operator default-path cutover for sidecar removal"
+                .into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers
+            .push("Rust data-plane hardening preflight requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningBoundaryReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -133,6 +151,9 @@ fn rust_kernel_runtime_data_plane_hardening_boundary_report(
         dns_leak_verification_plan_complete: dns_leak_verification_plan_decision,
         rollback_drill_plan_complete: rollback_drill_plan_decision,
         opt_in_execution_boundary_locked: opt_in_execution_boundary_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         preflight_boundary_complete: blockers.is_empty(),
         evidence_surfaces,
         blockers,
@@ -162,6 +183,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_preflight(
         dns_leak_verification_plan_decision.unwrap_or(false),
         rollback_drill_plan_decision.unwrap_or(false),
         opt_in_execution_boundary_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut retirement_blockers = Vec::new();
 
