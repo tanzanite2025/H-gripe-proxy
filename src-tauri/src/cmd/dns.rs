@@ -17,8 +17,9 @@ use crate::core::dns_runtime::{
     DnsHealthCheckResult, DnsProtocol, DnsQueryResult, DnsResolverPlan, DnsResolverRuntimeProbeReport,
     DnsResolverRuntimeQueryReport, DnsServerProviderHealthReport, DnsServerProviderKind, DnsServerProviderRegistration,
     RustDnsFakeIpCacheRuntimeReport, RustDnsFakeIpRuntimeReport, RustDnsFallbackFilterGeoipRuntimeReport,
-    RustDnsFallbackFilterRuntimeReport, RustDnsNameserverPolicyRuntimeReport, RustDnsRuntimeParityReport,
-    build_dns_resolver_plan as build_resolver_plan, dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
+    RustDnsFallbackFilterRuntimeReport, RustDnsNameserverPolicyRuntimeReport, RustDnsPolicyCacheUpstreamBundleReport,
+    RustDnsRuntimeParityReport, build_dns_resolver_plan as build_resolver_plan,
+    dns_controlled_runtime_probe as run_dns_controlled_runtime_probe,
     dns_default_runtime_expanded_control_plane_completion as build_dns_default_runtime_expanded_control_plane_completion,
     dns_default_runtime_expanded_hold_policy as build_dns_default_runtime_expanded_hold_policy,
     dns_default_runtime_expanded_lifecycle_closeout as build_dns_default_runtime_expanded_lifecycle_closeout,
@@ -47,6 +48,7 @@ use crate::core::dns_runtime::{
     rust_dns_fallback_filter_geoip_runtime_execution as build_rust_dns_fallback_filter_geoip_runtime_execution,
     rust_dns_fallback_filter_runtime_execution as build_rust_dns_fallback_filter_runtime_execution,
     rust_dns_nameserver_policy_runtime_execution as build_rust_dns_nameserver_policy_runtime_execution,
+    rust_dns_policy_cache_upstream_bundle_execution as build_rust_dns_policy_cache_upstream_bundle_execution,
     rust_dns_runtime_parity as build_rust_dns_runtime_parity,
     rust_dns_runtime_parity_rollback as build_rust_dns_runtime_parity_rollback,
 };
@@ -230,6 +232,18 @@ pub async fn rust_dns_nameserver_policy_runtime_execution(
     explicit_opt_in: bool,
 ) -> CmdResult<RustDnsNameserverPolicyRuntimeReport> {
     build_rust_dns_nameserver_policy_runtime_execution(yaml, domain, explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rust_dns_policy_cache_upstream_bundle_execution(
+    yaml: String,
+    domain: String,
+    candidate_ip: String,
+    explicit_opt_in: bool,
+) -> CmdResult<RustDnsPolicyCacheUpstreamBundleReport> {
+    build_rust_dns_policy_cache_upstream_bundle_execution(yaml, domain, candidate_ip, explicit_opt_in)
         .await
         .stringify_err()
 }

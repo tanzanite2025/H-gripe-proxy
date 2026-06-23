@@ -357,6 +357,89 @@ export interface RustDnsFakeIpCacheRuntimeReport {
   nextSafeBatch: string
 }
 
+export type RustDnsPolicyCacheUpstreamBundleStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustDnsPolicyCacheFakeIpLifecycleEvidence {
+  domain: string
+  fakeIp: string
+  fakeIpRange: string
+  insertedEntries: number
+  evictedEntries: number
+  forwardCacheHit: boolean
+  reverseCacheHit: boolean
+  reverseDomain: string
+  lifecycleCanaryPassed: boolean
+}
+
+export interface RustDnsPolicyCacheFakeIpFilterEvidence {
+  domain: string
+  matched: boolean
+  matchedPatterns: string[]
+  evaluatedPatternCount: number
+}
+
+export interface RustDnsPolicyCacheFallbackUpstreamEvidence {
+  domain: string
+  candidateIp: string
+  fallbackRequired: boolean
+  selectedUpstream?: string | null
+  upstreamLoopbackOnly: boolean
+  upstreamExecuted: boolean
+  canaryAnswerIp?: string | null
+  evaluatedFallbackCount: number
+}
+
+export interface RustDnsPolicyCacheNameserverPolicyRuleEvidence {
+  ruleType: string
+  matcher: string
+  selectedNameservers: string[]
+}
+
+export interface RustDnsPolicyCacheNameserverPolicyEvidence {
+  domain: string
+  selectedNameservers: string[]
+  matchedRules: RustDnsPolicyCacheNameserverPolicyRuleEvidence[]
+  evaluatedRuleCount: number
+}
+
+export interface RustDnsPolicyCacheUpstreamRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustDnsPolicyCacheUpstreamLeakEvidence {
+  passed: boolean
+  noNonLoopbackUpstreamQuery: boolean
+  noSystemResolverMutation: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustDnsPolicyCacheUpstreamBundleReport {
+  component: string
+  status: RustDnsPolicyCacheUpstreamBundleStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  fakeIpLifecycleEvidence?: RustDnsPolicyCacheFakeIpLifecycleEvidence | null
+  fakeIpFilterEvidence?: RustDnsPolicyCacheFakeIpFilterEvidence | null
+  fallbackUpstreamEvidence?: RustDnsPolicyCacheFallbackUpstreamEvidence | null
+  nameserverPolicyEvidence?: RustDnsPolicyCacheNameserverPolicyEvidence | null
+  rollbackEvidence?: RustDnsPolicyCacheUpstreamRollbackEvidence | null
+  leakEvidence?: RustDnsPolicyCacheUpstreamLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustDnsFallbackFilterRuntimeStatus =
   | 'planned'
   | 'executed'
@@ -1455,6 +1538,28 @@ export async function rustDnsNameserverPolicyRuntimeExecution(
     )
   } catch (err) {
     console.error('Rust DNS nameserver-policy runtime execution failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsPolicyCacheUpstreamBundleExecution(
+  yaml: string,
+  domain: string,
+  candidateIp: string,
+  explicitOptIn = false,
+): Promise<RustDnsPolicyCacheUpstreamBundleReport> {
+  try {
+    return await invoke<RustDnsPolicyCacheUpstreamBundleReport>(
+      'rust_dns_policy_cache_upstream_bundle_execution',
+      {
+        yaml,
+        domain,
+        candidateIp,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('Rust DNS policy/cache/upstream bundle execution failed:', err)
     throw err
   }
 }
