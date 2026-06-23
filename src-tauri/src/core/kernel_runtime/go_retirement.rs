@@ -830,9 +830,14 @@ fn rust_kernel_runtime_go_mihomo_retirement_execution_report(
     source_removal_record_decision: bool,
     artifact_removal_record_decision: bool,
     post_execution_validation_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeGoMihomoRetirementExecutionReport {
     let mut blockers = Vec::new();
     let mut executed_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if rollback_checkpoint_created_decision {
         executed_surfaces.push("rollback checkpoint".into());
@@ -857,6 +862,17 @@ fn rust_kernel_runtime_go_mihomo_retirement_execution_report(
     if !post_execution_validation_decision {
         blockers.push("Go/Mihomo retirement execution requires post-execution validation".into());
     }
+    if operator_default_path_cutover_committed {
+        executed_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push(
+            "Go/Mihomo retirement execution requires committed operator default-path cutover for sidecar removal"
+                .into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Go/Mihomo retirement execution requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeGoMihomoRetirementExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -866,6 +882,9 @@ fn rust_kernel_runtime_go_mihomo_retirement_execution_report(
         source_removal_recorded: source_removal_record_decision,
         artifact_removal_recorded: artifact_removal_record_decision,
         post_execution_validation_passed: post_execution_validation_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         execution_complete: blockers.is_empty(),
         executed_surfaces,
         blockers,
@@ -894,6 +913,16 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_execution(
         source_removal_record_decision.unwrap_or(false),
         artifact_removal_record_decision.unwrap_or(false),
         post_execution_validation_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut final_gate_blockers = Vec::new();
 
