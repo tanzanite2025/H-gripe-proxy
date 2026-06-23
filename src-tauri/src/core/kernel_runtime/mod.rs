@@ -49,6 +49,7 @@ static ISOLATED_TEST_LISTENER: Lazy<Mutex<Option<KernelIsolatedTestListenerState
 mod data_plane_hardening;
 mod default_data_plane_closeout;
 mod default_forwarding_hold_blocker;
+mod dns_cutover_hold_blocker;
 mod dns_default_path_blocker;
 mod encrypted_protocols_bundle;
 mod encrypted_proxy_protocol;
@@ -83,6 +84,7 @@ mod udp_plugin_transport_bundle;
 pub use self::data_plane_hardening::*;
 pub use self::default_data_plane_closeout::*;
 pub use self::default_forwarding_hold_blocker::*;
+pub use self::dns_cutover_hold_blocker::*;
 pub use self::dns_default_path_blocker::*;
 pub use self::encrypted_protocols_bundle::*;
 pub use self::encrypted_proxy_protocol::*;
