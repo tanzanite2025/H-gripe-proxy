@@ -269,6 +269,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_udp_associate_execution,
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_udp_fragments_execution,
             cmd::runtime::kernel::run_runtime_kernel_rust_udp_plugin_transport_bundle,
+            cmd::runtime::kernel::run_runtime_kernel_rust_tun_packet_capture_hold_bundle,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,
