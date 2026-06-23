@@ -273,6 +273,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_mihomo_fallback_retirement_bundle,
             cmd::runtime::kernel::run_runtime_kernel_go_to_rust_migration_final_review,
             cmd::runtime::kernel::run_runtime_kernel_rust_manual_default_path_removal_review,
+            cmd::runtime::kernel::run_runtime_kernel_rust_operator_default_path_cutover,
             cmd::runtime::kernel::run_runtime_kernel_rust_sidecar_independent_rollback_archive,
             cmd::runtime::kernel::run_runtime_kernel_rust_dns_default_path_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_route_packet_capture_blocker_reduction,

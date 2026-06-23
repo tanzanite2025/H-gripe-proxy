@@ -7,7 +7,7 @@ use crate::core::kernel_runtime::{
     RustEncryptedProxySessionExpansionReport, RustFallbackRetirementReadinessLockReport,
     RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport, RustHttpConnectProxyAdapterReport,
     RustManualDefaultPathRemovalReviewReport, RustMihomoFallbackRetirementBundleReport,
-    RustPacketLeakHoldBlockerReport, RustPluginBinaryCompatibilityBlockerReport,
+    RustOperatorDefaultPathCutoverReport, RustPacketLeakHoldBlockerReport, RustPluginBinaryCompatibilityBlockerReport,
     RustPluginProcessSupervisionBlockerReport, RustProtocolAdapterForwardingExpansionReport,
     RustProtocolDefaultPathBlockerReport, RustProtocolForwardingSubsetPreflightReport,
     RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
@@ -29,14 +29,14 @@ use crate::core::kernel_runtime::{
     rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
     rust_fallback_retirement_readiness_manifest, rust_geoip_database_blocker_reduction,
     rust_http_connect_proxy_adapter_evidence, rust_manual_default_path_removal_review,
-    rust_mihomo_fallback_retirement_bundle_execution, rust_packet_leak_hold_blocker_reduction,
-    rust_plugin_binary_compatibility_blocker_reduction, rust_plugin_process_supervision_blocker_reduction,
-    rust_protocol_adapter_forwarding_expansion_evidence, rust_protocol_default_path_blocker_reduction,
-    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
-    rust_protocol_forwarding_subset_status, rust_quic_udp_profile_blocker_reduction,
-    rust_remote_adapter_transport_expansion_evidence, rust_route_mutation_rollback_blocker_reduction,
-    rust_route_packet_capture_blocker_reduction, rust_runtime_real_canary_evidence,
-    rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
+    rust_mihomo_fallback_retirement_bundle_execution, rust_operator_default_path_cutover,
+    rust_packet_leak_hold_blocker_reduction, rust_plugin_binary_compatibility_blocker_reduction,
+    rust_plugin_process_supervision_blocker_reduction, rust_protocol_adapter_forwarding_expansion_evidence,
+    rust_protocol_default_path_blocker_reduction, rust_protocol_forwarding_subset_preflight,
+    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
+    rust_quic_udp_profile_blocker_reduction, rust_remote_adapter_transport_expansion_evidence,
+    rust_route_mutation_rollback_blocker_reduction, rust_route_packet_capture_blocker_reduction,
+    rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_sidecar_independent_rollback_archive, rust_socks_auth_execution, rust_socks_bind_execution,
     rust_socks_tcp_connect_execution, rust_socks_udp_associate_execution, rust_socks_udp_default_blocker_reduction,
     rust_socks_udp_fragments_execution, rust_tun_device_lifecycle_blocker_reduction,
@@ -448,6 +448,17 @@ pub async fn run_runtime_kernel_rust_manual_default_path_removal_review(
     operator_approved: bool,
 ) -> CmdResult<RustManualDefaultPathRemovalReviewReport> {
     rust_manual_default_path_removal_review(explicit_opt_in, operator_approved)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_operator_default_path_cutover(
+    explicit_opt_in: bool,
+    operator_approved: bool,
+    commit_cutover: bool,
+) -> CmdResult<RustOperatorDefaultPathCutoverReport> {
+    rust_operator_default_path_cutover(explicit_opt_in, operator_approved, commit_cutover)
         .await
         .stringify_err()
 }

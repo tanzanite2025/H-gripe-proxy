@@ -1,6 +1,6 @@
 use super::{
-    RUST_RUNTIME_ID, approved_manual_default_path_removal_fallback_scopes,
-    approved_manual_default_path_removal_surfaces,
+    RUST_RUNTIME_ID, approved_operator_default_path_cutover_fallback_scopes,
+    approved_operator_default_path_cutover_surfaces,
 };
 use crate::utils::dirs;
 use anyhow::{Context as _, Result};
@@ -14,7 +14,7 @@ const KERNEL_AREA: &str = "migration-final-review";
 const EVIDENCE_FILE: &str = "evidence.yaml";
 const RUST_OWNED_SCOPE: &str =
     "final reconciliation of bounded Rust execution evidence, retained Mihomo fallback, and sidecar-removal gates";
-const NEXT_SAFE_BATCH: &str = "manual-default-path-removal-review";
+const NEXT_SAFE_BATCH: &str = "operator-approved-default-path-cutover";
 const REQUIRED_BUNDLES: [(&str, &str); 3] = [
     ("rust-udp-and-plugin-transport-bundle", "UDP/plugin transport evidence"),
     (
@@ -301,7 +301,7 @@ async fn retained_fallback_evidence() -> Result<Vec<GoToRustMigrationFinalReview
 }
 
 async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision>> {
-    let approved_surfaces = approved_manual_default_path_removal_surfaces().await?;
+    let approved_surfaces = approved_operator_default_path_cutover_surfaces().await?;
     let dns_default_ready = dns_default_path_blocker_ready().await?;
     let dns_cutover_hold_ready = dns_cutover_hold_blocker_ready().await?;
     let dns_system_resolver_ready = dns_system_resolver_leak_blocker_ready().await?;
@@ -805,7 +805,7 @@ async fn sidecar_audit() -> Result<GoToRustMigrationFinalReviewSidecarAuditEvide
     let sidecar_dir_present = fs::try_exists(&sidecar_dir).await?;
     let build_script_present = fs::try_exists(&build_script_path).await?;
     let sidecar_removal_allowed = manual_surface_approved(
-        &approved_manual_default_path_removal_surfaces().await?,
+        &approved_operator_default_path_cutover_surfaces().await?,
         "Mihomo sidecar binary removal",
     );
     let passed = if sidecar_removal_allowed {
@@ -832,7 +832,7 @@ async fn sidecar_audit() -> Result<GoToRustMigrationFinalReviewSidecarAuditEvide
 }
 
 async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> {
-    let approved_fallback_scopes = approved_manual_default_path_removal_fallback_scopes().await?;
+    let approved_fallback_scopes = approved_operator_default_path_cutover_fallback_scopes().await?;
     let geoip_database_ready = geoip_database_blocker_ready().await?;
     let socks_udp_default_ready = socks_udp_default_blocker_ready().await?;
     let encrypted_protocol_default_ready = encrypted_protocol_default_blocker_ready().await?;
