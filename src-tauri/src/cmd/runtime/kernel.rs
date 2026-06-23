@@ -14,8 +14,8 @@ use crate::core::kernel_runtime::{
     RustRoutePacketCaptureBlockerReport, RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
     RustShadowsocksAeadAdapterExecutionReport, RustSidecarIndependentRollbackReport, RustSocksAuthExecutionReport,
     RustSocksBindExecutionReport, RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport,
-    RustSocksUdpFragmentsExecutionReport, RustTunDeviceLifecycleBlockerReport, RustTunPacketCaptureHoldBundleReport,
-    RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
+    RustSocksUdpDefaultBlockerReport, RustSocksUdpFragmentsExecutionReport, RustTunDeviceLifecycleBlockerReport,
+    RustTunPacketCaptureHoldBundleReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
     RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
     RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
     execute_mihomo_fallback_retirement, go_to_rust_migration_final_review, lock_rust_fallback_retirement_readiness,
@@ -34,11 +34,11 @@ use crate::core::kernel_runtime::{
     rust_route_mutation_rollback_blocker_reduction, rust_route_packet_capture_blocker_reduction,
     rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_sidecar_independent_rollback_archive, rust_socks_auth_execution, rust_socks_bind_execution,
-    rust_socks_tcp_connect_execution, rust_socks_udp_associate_execution, rust_socks_udp_fragments_execution,
-    rust_tun_device_lifecycle_blocker_reduction, rust_tun_packet_capture_hold_bundle_execution,
-    rust_tun_system_proxy_parity_preflight, rust_tun_transparent_routing_execution,
-    rust_udp_plugin_transport_bundle_execution, start_rust_protocol_forwarding_subset,
-    stop_rust_protocol_forwarding_subset,
+    rust_socks_tcp_connect_execution, rust_socks_udp_associate_execution, rust_socks_udp_default_blocker_reduction,
+    rust_socks_udp_fragments_execution, rust_tun_device_lifecycle_blocker_reduction,
+    rust_tun_packet_capture_hold_bundle_execution, rust_tun_system_proxy_parity_preflight,
+    rust_tun_transparent_routing_execution, rust_udp_plugin_transport_bundle_execution,
+    start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
 };
 
 #[tauri::command]
@@ -488,6 +488,15 @@ pub async fn run_runtime_kernel_rust_geoip_database_blocker_reduction(
     explicit_opt_in: bool,
 ) -> CmdResult<RustGeoipDatabaseBlockerReport> {
     rust_geoip_database_blocker_reduction(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_socks_udp_default_blocker_reduction(
+    explicit_opt_in: bool,
+) -> CmdResult<RustSocksUdpDefaultBlockerReport> {
+    rust_socks_udp_default_blocker_reduction(explicit_opt_in)
         .await
         .stringify_err()
 }
