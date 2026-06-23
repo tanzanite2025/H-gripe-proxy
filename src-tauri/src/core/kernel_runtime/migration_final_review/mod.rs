@@ -300,6 +300,19 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
             "post-cutover packet leak hold window".to_owned(),
         ]
     };
+    let protocol_blockers = if protocol_default_path_blocker_ready().await? {
+        vec![
+            "QUIC/UDP protocol variants on real profiles".to_owned(),
+            "external plugin process supervision and crash recovery".to_owned(),
+            "default forwarding cutover hold window".to_owned(),
+        ]
+    } else {
+        vec![
+            "non-loopback Shadowsocks/Vmess/VLESS/Trojan/QUIC evidence".to_owned(),
+            "multiplexed transport coverage".to_owned(),
+            "external plugin lifecycle replacement".to_owned(),
+        ]
+    };
 
     Ok(vec![
         default_removal_decision("default DNS resolver replacement", dns_blockers),
@@ -307,16 +320,31 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
             "system-wide packet capture and route install",
             route_packet_capture_blockers,
         ),
-        default_removal_decision(
-            "non-loopback proxy protocol forwarding defaults",
-            vec![
-                "non-loopback Shadowsocks/Vmess/VLESS/Trojan/QUIC evidence".to_owned(),
-                "multiplexed transport coverage".to_owned(),
-                "external plugin lifecycle replacement".to_owned(),
-            ],
-        ),
+        default_removal_decision("non-loopback proxy protocol forwarding defaults", protocol_blockers),
         default_removal_decision("Mihomo sidecar binary removal", sidecar_required_evidence),
     ])
+}
+
+async fn protocol_default_path_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-protocol-default-path-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
 }
 
 async fn route_packet_capture_blocker_ready() -> Result<bool> {
