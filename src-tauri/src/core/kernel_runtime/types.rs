@@ -943,6 +943,72 @@ pub struct RustSocksUdpAssociateExecutionReport {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum RustSocksUdpFragmentsExecutionStatus {
+    Planned,
+    Executed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksUdpFragmentsPacketEvidence {
+    pub target_addr: String,
+    pub target_port: u16,
+    pub fragment_count: usize,
+    pub first_fragment: String,
+    pub final_fragment: String,
+    pub request_payload_bytes: usize,
+    pub reassembled_payload_bytes: usize,
+    pub target_received_bytes: usize,
+    pub response_payload_bytes: usize,
+    pub response_payload_prefix: String,
+    pub fragments_reassembled: bool,
+    pub datagram_round_trip: bool,
+    pub loopback_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksUdpFragmentsRollbackEvidence {
+    pub checkpoint_path: String,
+    pub fallback_retained_for: Vec<String>,
+    pub created_at_epoch_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksUdpFragmentsLeakEvidence {
+    pub passed: bool,
+    pub no_system_packet_capture: bool,
+    pub no_non_loopback_target: bool,
+    pub no_mihomo_binary_removal: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksUdpFragmentsExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustSocksUdpFragmentsExecutionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub rust_owned_scope: String,
+    pub mutates_runtime: bool,
+    pub writes_evidence: bool,
+    pub evidence_path: Option<String>,
+    pub packet_evidence: Option<RustSocksUdpFragmentsPacketEvidence>,
+    pub rollback_evidence: Option<RustSocksUdpFragmentsRollbackEvidence>,
+    pub leak_evidence: Option<RustSocksUdpFragmentsLeakEvidence>,
+    pub mihomo_fallback_retained_for: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RustSocksAuthExecutionStatus {
     Planned,
     Executed,
