@@ -19,7 +19,7 @@ App registry / policy / node pool / DNS / security profile
 
 ## Current state
 
-Status is current through bounded Mihomo fallback retirement bundle execution. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded transparent IPv4/TCP packet execution, wider fallback retirement manifest/checkpoint execution, default-scope closeout ownership reconciliation, loopback-only SOCKS5 UDP ASSOCIATE datagram forwarding, deterministic one-domain DNS fake-ip allocation, bounded fake-ip cache/reverse lookup, bounded DNS policy/cache/upstream bundle canaries, bounded VMess/VLESS/Trojan loopback TCP canary sessions, bounded fallback-filter domain/ipcidr evaluation, bounded nameserver-policy exact/suffix dispatch, bounded SOCKS5 username/password negotiation, bounded SOCKS5 TCP CONNECT forwarding, bounded SOCKS5 BIND forwarding, bounded SOCKS5 UDP two-fragment reassembly, bounded DNS fallback-filter geoip/geoip-code evaluation, bounded UDP/plugin transport bundle evidence, bounded TUN/packet-capture hold evidence, and bounded Mihomo fallback retirement bundle evidence. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
+Status is current through Go-to-Rust migration final review reconciliation. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded transparent IPv4/TCP packet execution, wider fallback retirement manifest/checkpoint execution, default-scope closeout ownership reconciliation, loopback-only SOCKS5 UDP ASSOCIATE datagram forwarding, deterministic one-domain DNS fake-ip allocation, bounded fake-ip cache/reverse lookup, bounded DNS policy/cache/upstream bundle canaries, bounded VMess/VLESS/Trojan loopback TCP canary sessions, bounded fallback-filter domain/ipcidr evaluation, bounded nameserver-policy exact/suffix dispatch, bounded SOCKS5 username/password negotiation, bounded SOCKS5 TCP CONNECT forwarding, bounded SOCKS5 BIND forwarding, bounded SOCKS5 UDP two-fragment reassembly, bounded DNS fallback-filter geoip/geoip-code evaluation, bounded UDP/plugin transport bundle evidence, bounded TUN/packet-capture hold evidence, bounded Mihomo fallback retirement bundle evidence, and final review reconciliation evidence. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
 
 | Area | State | Boundary |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Status is current through bounded Mihomo fallback retirement bundle execution. T
 | Protocol forwarding | Unsupported protocol expansion in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT policy, bounded remote transport, HTTP CONNECT tunneling, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded SOCKS5 UDP ASSOCIATE datagram forwarding, bounded SOCKS5 username/password negotiation, bounded SOCKS5 TCP CONNECT forwarding, bounded SOCKS5 BIND forwarding, bounded SOCKS5 UDP two-fragment reassembly, bounded VMess/VLESS/Trojan loopback TCP canary sessions, and bounded UDP/plugin transport bundle evidence. Mihomo still owns broad non-loopback encrypted protocol forwarding, QUIC/multiplexed transports, external plugin process lifecycle, system-wide packet capture, and default forwarding. |
 | TUN / system proxy | Bounded packet-capture hold evidence in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, rollback apply, bounded transparent IPv4/TCP packet parsing/execution evidence, repeated platform route rollback hold replay, bounded packet-capture canary parsing, and loopback-only DNS leak telemetry. Mihomo/service still owns system-wide packet capture and transparent forwarding defaults. |
 | Mihomo fallback retirement | Bounded fallback-retirement bundle complete | Rust now writes wider execution manifests, emergency rollback checkpoints, default data-plane closeout manifests, unsupported-path fallback continuity evidence, hold telemetry, sidecar source/binary dependency audit evidence, and selective supported-scope fallback retirement evidence across the bounded DNS/adapter/protocol/UDP/plugin/TUN packet-capture inventory. Unsupported SOCKS non-loopback UDP plus fragment queues/timeouts, unsupported default DNS/live resolver replacement, full GeoIP database loading, production persistent cache storage, geodata refresh, unsupported non-loopback encrypted protocols, QUIC/UDP variants, multiplexing, plugin process lifecycle, OS route install, system-wide packet capture, transparent proxy defaults, and full Mihomo binary removal remain fallback-owned until final review. |
-| Next real batch | `go-to-rust-migration-final-review` | Stop adding implementation bundles; reconcile the bounded evidence inventory, retained fallback list, and sidecar dependency audit before any default-path or binary removal claim. |
+| Next real batch | None | `go-to-rust-migration-final-review` is now the reconciliation boundary. Do not add implementation bundles unless they remove a still-retained default-path dependency with execution, rollback, hold, leak, and sidecar-removal evidence. |
 
 ## Acceleration plan
 
@@ -65,13 +65,12 @@ needed before broadening default ownership.
   transport, TUN/packet capture, fallback dependency, or Go/Mihomo artifacts.
 - Do not append one numbered row per canary. Update the owning bundle checklist
   instead.
-- Prefer 3 remaining high-signal implementation bundles over any new long
-  sequence of numbered gates.
+- The three accelerated implementation bundles are complete; future work must target a still-retained default-path dependency or final-review blocker.
 
-### Remaining implementation bundles
+### Completed implementation bundles
 
-This table is the authoritative batch map. Prior completed canaries remain audit
-history; future progress must land as these large implementation bundles.
+This table is the completed accelerated batch map. Prior completed canaries remain audit
+history; future progress must not add new synthetic implementation bundles.
 
 | Order | Bundle | Status | Must ship together | Success condition |
 | --- | --- | --- | --- | --- |
@@ -85,8 +84,7 @@ Completed DNS, adapter, loopback forwarding, HTTP CONNECT, encrypted framing,
 Shadowsocks AEAD, VMess/VLESS/Trojan loopback, fake-ip, fallback-filter,
 nameserver-policy, SOCKS auth/CONNECT/BIND/UDP fragment, and bounded transparent
 IPv4/TCP work should be treated as evidence inventory. Do not split follow-up work
-by those old batch names unless the change is part of one of the three bundles
-above.
+by those old batch names unless the change removes a final-review blocker above.
 
 ### Definition of done for future PRs
 
@@ -98,7 +96,7 @@ persisted evidence:
 - What explicit opt-in, audit, verification, hold, and rollback evidence protects
   it?
 - What remains Mihomo-owned after this PR?
-- Which current implementation bundle did it advance?
+- Which final-review blocker or retained fallback boundary did it reduce?
 
 ### Accelerated PR sizing for future work
 
@@ -107,8 +105,7 @@ persisted evidence:
 - Prefer one cohesive implementation plus tests over multiple preparatory PRs.
 - Keep UI/reporting changes inside the same PR only when they expose the runtime
   evidence needed for that implementation.
-- Reject new roadmap steps that do not reduce one of the remaining bundle
-  blockers.
+- Reject new roadmap steps that do not reduce a final-review blocker or retained fallback boundary.
 
 ## Non-negotiable boundaries
 
@@ -291,7 +288,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-All three accelerated implementation bundles above are now complete. The current next step is `go-to-rust-migration-final-review`; keep execution scoped to supported canary evidence and retain unsupported fallback until final review proves a removal is safe.
+`go-to-rust-migration-final-review` now archives the bounded evidence inventory, retained fallback list, default-removal blockers, and sidecar dependency audit. Keep execution scoped to supported canary evidence and retain unsupported fallback until a specific blocker is removed with new proof.
 
 ## PR checklist for future changes
 
