@@ -282,6 +282,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_encrypted_protocol_default_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_protocol_default_path_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_plugin_process_supervision_blocker_reduction,
+            cmd::runtime::kernel::run_runtime_kernel_rust_plugin_binary_compatibility_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_quic_udp_profile_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_default_forwarding_hold_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_dns_cutover_hold_blocker_reduction,
