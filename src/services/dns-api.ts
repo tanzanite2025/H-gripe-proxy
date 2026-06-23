@@ -359,6 +359,54 @@ export interface RustDnsFallbackFilterRuntimeReport {
   nextSafeBatch: string
 }
 
+export type RustDnsFallbackFilterGeoipRuntimeStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustDnsFallbackFilterGeoipDecisionEvidence {
+  domain: string
+  candidateIp: string
+  geoipEnabled: boolean
+  geoipCode: string
+  matchedCountry: boolean
+  matchedCidr?: string | null
+  fallbackRequired: boolean
+  evaluatedCidrCount: number
+}
+
+export interface RustDnsFallbackFilterGeoipRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustDnsFallbackFilterGeoipLeakEvidence {
+  passed: boolean
+  noUpstreamQuery: boolean
+  noSystemResolverMutation: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustDnsFallbackFilterGeoipRuntimeReport {
+  component: string
+  status: RustDnsFallbackFilterGeoipRuntimeStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  decisionEvidence?: RustDnsFallbackFilterGeoipDecisionEvidence | null
+  rollbackEvidence?: RustDnsFallbackFilterGeoipRollbackEvidence | null
+  leakEvidence?: RustDnsFallbackFilterGeoipLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustDnsNameserverPolicyRuntimeStatus =
   | 'planned'
   | 'executed'
@@ -1296,6 +1344,28 @@ export async function rustDnsFallbackFilterRuntimeExecution(
     )
   } catch (err) {
     console.error('Rust DNS fallback-filter runtime execution failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsFallbackFilterGeoipRuntimeExecution(
+  yaml: string,
+  domain: string,
+  candidateIp: string,
+  explicitOptIn = false,
+): Promise<RustDnsFallbackFilterGeoipRuntimeReport> {
+  try {
+    return await invoke<RustDnsFallbackFilterGeoipRuntimeReport>(
+      'rust_dns_fallback_filter_geoip_runtime_execution',
+      {
+        yaml,
+        domain,
+        candidateIp,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('Rust DNS fallback-filter geoip runtime execution failed:', err)
     throw err
   }
 }

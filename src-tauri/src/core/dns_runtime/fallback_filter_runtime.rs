@@ -1,4 +1,4 @@
-use crate::utils::dirs;
+﻿use crate::utils::dirs;
 use anyhow::{Context as _, Result, anyhow};
 use hickory_proto::rr::Name;
 use serde::{Deserialize, Serialize};
@@ -211,7 +211,7 @@ impl FallbackFilter {
             .unwrap_or_default()
             || fallback_filter.contains_key("geoip-code")
         {
-            warnings.push("fallback-filter geoip and geoip-code semantics remain Mihomo-owned".into());
+            warnings.push("fallback-filter full GeoIP databases and upstream execution remain Mihomo-owned".into());
         }
 
         let mut rules = Vec::new();
