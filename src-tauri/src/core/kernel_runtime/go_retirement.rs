@@ -1402,9 +1402,14 @@ fn rust_kernel_runtime_go_mihomo_retirement_completion_closeout_report(
     completion_report_archive_decision: bool,
     release_notes_update_decision: bool,
     migration_state_freeze_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeGoMihomoRetirementCompletionCloseoutReport {
     let mut blockers = Vec::new();
     let mut closeout_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if rollback_surface_retirement_review_decision {
         closeout_surfaces.push("rollback surface retirement review".into());
@@ -1429,6 +1434,16 @@ fn rust_kernel_runtime_go_mihomo_retirement_completion_closeout_report(
     if !migration_state_freeze_decision {
         blockers.push("Go/Mihomo completion closeout requires frozen migration state".into());
     }
+    if operator_default_path_cutover_committed {
+        closeout_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push(
+            "Go/Mihomo completion closeout requires committed operator default-path cutover for sidecar removal".into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Go/Mihomo completion closeout requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeGoMihomoRetirementCompletionCloseoutReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -1438,6 +1453,9 @@ fn rust_kernel_runtime_go_mihomo_retirement_completion_closeout_report(
         completion_report_archived: completion_report_archive_decision,
         release_notes_updated: release_notes_update_decision,
         migration_state_frozen: migration_state_freeze_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         completion_closeout_complete: blockers.is_empty(),
         closeout_surfaces,
         blockers,
@@ -1466,6 +1484,16 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_completion_closeout(
         completion_report_archive_decision.unwrap_or(false),
         release_notes_update_decision.unwrap_or(false),
         migration_state_freeze_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut retirement_blockers = Vec::new();
 
