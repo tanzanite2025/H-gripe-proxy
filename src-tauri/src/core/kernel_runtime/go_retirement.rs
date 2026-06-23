@@ -14,6 +14,7 @@ use super::{
     RustKernelRuntimeGoMihomoRetirementPostExecutionVerificationReport,
     RustKernelRuntimeGoMihomoRetirementRemovalPlanReport,
     RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport,
+    approved_operator_default_path_cutover_fallback_scopes, approved_operator_default_path_cutover_surfaces,
 };
 
 fn rust_kernel_runtime_go_mihomo_retirement_removal_plan_report(
@@ -643,9 +644,14 @@ fn rust_kernel_runtime_go_mihomo_retirement_final_removal_gate_report(
     removal_scope_lock_decision: bool,
     release_blocker_review_decision: bool,
     final_operator_approval_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport {
     let mut blockers = Vec::new();
     let mut approved_removal_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if closeout_evidence_acceptance_decision {
         approved_removal_surfaces.push("accepted closeout evidence".into());
@@ -668,6 +674,17 @@ fn rust_kernel_runtime_go_mihomo_retirement_final_removal_gate_report(
     if !final_operator_approval_decision {
         blockers.push("Go/Mihomo final removal gate requires final operator approval".into());
     }
+    if operator_default_path_cutover_committed {
+        approved_removal_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push(
+            "Go/Mihomo final removal gate requires committed operator default-path cutover for sidecar removal".into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers
+            .push("Go/Mihomo final removal gate requires recorded fallback scopes removed by operator cutover".into());
+    }
 
     RustKernelRuntimeGoMihomoRetirementFinalRemovalGateReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -677,6 +694,9 @@ fn rust_kernel_runtime_go_mihomo_retirement_final_removal_gate_report(
         removal_scope_locked: removal_scope_lock_decision,
         release_blocker_review_passed: release_blocker_review_decision,
         final_operator_approval: final_operator_approval_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         final_removal_gate_complete: blockers.is_empty(),
         approved_removal_surfaces,
         blockers,
@@ -704,6 +724,16 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_final_removal_gate(
         removal_scope_lock_decision.unwrap_or(false),
         release_blocker_review_decision.unwrap_or(false),
         final_operator_approval_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut closeout_blockers = Vec::new();
 
