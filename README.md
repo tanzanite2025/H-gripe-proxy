@@ -252,5 +252,5 @@ clash-verge-optimized/
 
 ---
 
-**最后更新** / Last Updated: 2026-06-16
+**最后更新** / Last Updated: 2026-06-23
 **维护者** / Maintainer: tanzanite2025
