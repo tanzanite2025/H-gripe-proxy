@@ -414,10 +414,10 @@ fn parse_prefix(prefix: &str, max: u8) -> Result<u8> {
 
 fn retained_fallback_filter_scope() -> Vec<String> {
     vec![
-        "fallback-filter geoip and geoip-code semantics".into(),
+        "fallback-filter full GeoIP databases and upstream execution".into(),
         "fallback resolver selection and upstream query execution".into(),
         "nameserver-policy dispatch".into(),
-        "fake-ip cache/reverse mapping".into(),
+        "persistent fake-ip cache lifecycle and eviction".into(),
         "default DNS runtime ownership".into(),
     ]
 }

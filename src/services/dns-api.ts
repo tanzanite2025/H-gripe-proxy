@@ -308,6 +308,55 @@ export interface RustDnsFakeIpRuntimeReport {
   nextSafeBatch: string
 }
 
+export type RustDnsFakeIpCacheRuntimeStatus =
+  | 'planned'
+  | 'executed'
+  | 'blocked'
+
+export interface RustDnsFakeIpCacheMappingEvidence {
+  domain: string
+  fakeIp: string
+  fakeIpRange: string
+  forwardCacheHit: boolean
+  reverseCacheHit: boolean
+  reverseDomain: string
+  cacheEntryCount: number
+  deterministic: boolean
+  rangeMember: boolean
+}
+
+export interface RustDnsFakeIpCacheRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustDnsFakeIpCacheLeakEvidence {
+  passed: boolean
+  noUpstreamQuery: boolean
+  noSystemResolverMutation: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustDnsFakeIpCacheRuntimeReport {
+  component: string
+  status: RustDnsFakeIpCacheRuntimeStatus
+  reason: string
+  explicitOptIn: boolean
+  rustOwnedScope: string
+  mutatesRuntime: boolean
+  writesEvidence: boolean
+  evidencePath?: string | null
+  mappingEvidence?: RustDnsFakeIpCacheMappingEvidence | null
+  rollbackEvidence?: RustDnsFakeIpCacheRollbackEvidence | null
+  leakEvidence?: RustDnsFakeIpCacheLeakEvidence | null
+  mihomoFallbackRetainedFor: string[]
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export type RustDnsFallbackFilterRuntimeStatus =
   | 'planned'
   | 'executed'
@@ -1322,6 +1371,26 @@ export async function rustDnsFakeIpRuntimeExecution(
     )
   } catch (err) {
     console.error('Rust DNS fake-ip runtime execution failed:', err)
+    throw err
+  }
+}
+
+export async function rustDnsFakeIpCacheRuntimeExecution(
+  yaml: string,
+  domain: string,
+  explicitOptIn = false,
+): Promise<RustDnsFakeIpCacheRuntimeReport> {
+  try {
+    return await invoke<RustDnsFakeIpCacheRuntimeReport>(
+      'rust_dns_fake_ip_cache_runtime_execution',
+      {
+        yaml,
+        domain,
+        explicitOptIn,
+      },
+    )
+  } catch (err) {
+    console.error('Rust DNS fake-ip cache runtime execution failed:', err)
     throw err
   }
 }
