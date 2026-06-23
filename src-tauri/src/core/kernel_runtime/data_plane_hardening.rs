@@ -1803,9 +1803,14 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeou
     rollback_owner_acknowledgement_decision: bool,
     production_mutation_guard_retention_decision: bool,
     closeout_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
     let mut blockers = Vec::new();
     let mut closeout_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if dry_run_review_decision {
         closeout_surfaces.push("controlled rollout dry-run review".into());
@@ -1851,6 +1856,14 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeou
     } else {
         blockers.push("Rust data-plane controlled rollout readiness closeout requires archived evidence".into());
     }
+    if operator_default_path_cutover_committed {
+        closeout_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Rust data-plane controlled rollout readiness closeout requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningControlledRolloutReadinessCloseoutReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -1863,6 +1876,9 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_readiness_closeou
         rollback_owner_acknowledged: rollback_owner_acknowledgement_decision,
         production_mutation_guard_retained: production_mutation_guard_retention_decision,
         closeout_evidence_archived: closeout_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         controlled_rollout_readiness_closeout_complete: blockers.is_empty(),
         closeout_surfaces,
         blockers,
@@ -1898,6 +1914,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_readine
             rollback_owner_acknowledgement_decision.unwrap_or(false),
             production_mutation_guard_retention_decision.unwrap_or(false),
             closeout_evidence_archive_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let mut dry_run_blockers = Vec::new();
 
