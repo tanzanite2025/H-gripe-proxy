@@ -1,4 +1,7 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, approved_manual_default_path_removal_fallback_scopes,
+    approved_manual_default_path_removal_surfaces,
+};
 use crate::utils::dirs;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
@@ -172,6 +175,12 @@ fn build_report(
     } else {
         GoToRustMigrationFinalReviewStatus::Blocked
     };
+    let default_path_removal_allowed = default_path_removal_allowed(&default_removal_decisions);
+    let mihomo_binary_removal_allowed = mihomo_binary_removal_allowed(&default_removal_decisions);
+    let unsupported_mihomo_fallback_retained = !retained_fallback_evidence.is_empty()
+        || default_removal_decisions
+            .iter()
+            .any(|decision| decision.mihomo_fallback_required);
     GoToRustMigrationFinalReviewReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
@@ -192,9 +201,9 @@ fn build_report(
         evidence_path,
         mutates_runtime: false,
         writes_evidence: explicit_opt_in,
-        default_path_removal_allowed: false,
-        mihomo_binary_removal_allowed: false,
-        unsupported_mihomo_fallback_retained: true,
+        default_path_removal_allowed,
+        mihomo_binary_removal_allowed,
+        unsupported_mihomo_fallback_retained,
         blockers,
         warnings: vec![
             "final review is intentionally conservative and does not authorize broad default-path replacement"
@@ -205,6 +214,29 @@ fn build_report(
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
     }
+}
+
+fn default_path_removal_allowed(
+    default_removal_decisions: &[GoToRustMigrationFinalReviewDefaultRemovalDecision],
+) -> bool {
+    default_removal_decisions
+        .iter()
+        .filter(|decision| decision.default_surface != "Mihomo sidecar binary removal")
+        .all(|decision| decision.rust_default_ownership_allowed)
+}
+
+fn mihomo_binary_removal_allowed(
+    default_removal_decisions: &[GoToRustMigrationFinalReviewDefaultRemovalDecision],
+) -> bool {
+    default_removal_decisions.iter().any(|decision| {
+        decision.default_surface == "Mihomo sidecar binary removal" && decision.rust_default_ownership_allowed
+    })
+}
+
+fn manual_surface_approved(approved_surfaces: &[String], default_surface: &str) -> bool {
+    approved_surfaces
+        .iter()
+        .any(|approved_surface| approved_surface == default_surface)
 }
 
 async fn artifact_evidence() -> Result<Vec<GoToRustMigrationFinalReviewArtifactEvidence>> {
@@ -269,6 +301,7 @@ async fn retained_fallback_evidence() -> Result<Vec<GoToRustMigrationFinalReview
 }
 
 async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision>> {
+    let approved_surfaces = approved_manual_default_path_removal_surfaces().await?;
     let dns_default_ready = dns_default_path_blocker_ready().await?;
     let dns_cutover_hold_ready = dns_cutover_hold_blocker_ready().await?;
     let dns_system_resolver_ready = dns_system_resolver_leak_blocker_ready().await?;
@@ -369,13 +402,22 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
         };
 
     Ok(vec![
-        default_removal_decision("default DNS resolver replacement", dns_blockers),
+        default_removal_decision("default DNS resolver replacement", dns_blockers, &approved_surfaces),
         default_removal_decision(
             "system-wide packet capture and route install",
             route_packet_capture_blockers,
+            &approved_surfaces,
         ),
-        default_removal_decision("non-loopback proxy protocol forwarding defaults", protocol_blockers),
-        default_removal_decision("Mihomo sidecar binary removal", sidecar_required_evidence),
+        default_removal_decision(
+            "non-loopback proxy protocol forwarding defaults",
+            protocol_blockers,
+            &approved_surfaces,
+        ),
+        default_removal_decision(
+            "Mihomo sidecar binary removal",
+            sidecar_required_evidence,
+            &approved_surfaces,
+        ),
     ])
 }
 
@@ -734,15 +776,22 @@ async fn sidecar_independent_rollback_ready() -> Result<bool> {
 fn default_removal_decision(
     default_surface: &str,
     required_evidence: Vec<String>,
+    approved_surfaces: &[String],
 ) -> GoToRustMigrationFinalReviewDefaultRemovalDecision {
-    GoToRustMigrationFinalReviewDefaultRemovalDecision {
-        default_surface: default_surface.to_owned(),
-        rust_default_ownership_allowed: false,
-        mihomo_fallback_required: true,
-        blockers: required_evidence
+    let rust_default_ownership_allowed = manual_surface_approved(approved_surfaces, default_surface);
+    let blockers = if rust_default_ownership_allowed {
+        Vec::new()
+    } else {
+        required_evidence
             .iter()
             .map(|evidence| format!("missing default-path evidence: {evidence}"))
-            .collect(),
+            .collect()
+    };
+    GoToRustMigrationFinalReviewDefaultRemovalDecision {
+        default_surface: default_surface.to_owned(),
+        rust_default_ownership_allowed,
+        mihomo_fallback_required: !rust_default_ownership_allowed,
+        blockers,
         required_evidence,
     }
 }
@@ -755,8 +804,15 @@ async fn sidecar_audit() -> Result<GoToRustMigrationFinalReviewSidecarAuditEvide
     let mihomo_source_present = fs::try_exists(&mihomo_source_dir).await?;
     let sidecar_dir_present = fs::try_exists(&sidecar_dir).await?;
     let build_script_present = fs::try_exists(&build_script_path).await?;
-    let sidecar_removal_allowed = false;
-    let passed = mihomo_source_present && sidecar_dir_present && build_script_present && !sidecar_removal_allowed;
+    let sidecar_removal_allowed = manual_surface_approved(
+        &approved_manual_default_path_removal_surfaces().await?,
+        "Mihomo sidecar binary removal",
+    );
+    let passed = if sidecar_removal_allowed {
+        mihomo_source_present && build_script_present
+    } else {
+        mihomo_source_present && sidecar_dir_present && build_script_present
+    };
 
     Ok(GoToRustMigrationFinalReviewSidecarAuditEvidence {
         mihomo_source_dir: mihomo_source_dir.to_string_lossy().to_string(),
@@ -776,6 +832,7 @@ async fn sidecar_audit() -> Result<GoToRustMigrationFinalReviewSidecarAuditEvide
 }
 
 async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> {
+    let approved_fallback_scopes = approved_manual_default_path_removal_fallback_scopes().await?;
     let geoip_database_ready = geoip_database_blocker_ready().await?;
     let socks_udp_default_ready = socks_udp_default_blocker_ready().await?;
     let encrypted_protocol_default_ready = encrypted_protocol_default_blocker_ready().await?;
@@ -826,6 +883,7 @@ async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> 
             "plugin compatibility evidence does not replace production plugin binary compatibility",
         ));
     }
+    retained.retain(|(scope, _)| !approved_fallback_scopes.iter().any(|approved| approved == scope));
     Ok(retained)
 }
 
