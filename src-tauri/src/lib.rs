@@ -274,6 +274,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_go_to_rust_migration_final_review,
             cmd::runtime::kernel::run_runtime_kernel_rust_sidecar_independent_rollback_archive,
             cmd::runtime::kernel::run_runtime_kernel_rust_dns_default_path_blocker_reduction,
+            cmd::runtime::kernel::run_runtime_kernel_rust_route_packet_capture_blocker_reduction,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,
