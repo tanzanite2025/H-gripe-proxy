@@ -255,8 +255,7 @@ pub async fn rust_protocol_forwarding_subset_smoke_evidence(
     )
     .await?;
     let mut blockers = start.blockers.clone();
-    let mut response_status = None;
-    if start.started {
+    let response_status = if start.started {
         let mut client = timeout(
             Duration::from_secs(3),
             TcpStream::connect((RUST_PROTOCOL_FORWARDING_HOST, listener_port)),
@@ -269,8 +268,10 @@ pub async fn rust_protocol_forwarding_subset_smoke_evidence(
         let mut response = [0_u8; 512];
         let response_len = timeout(Duration::from_secs(3), client.read(&mut response)).await??;
         let response = std::string::String::from_utf8_lossy(&response[..response_len]);
-        response_status = response.lines().next().map(Into::into);
-    }
+        response.lines().next().map(Into::into)
+    } else {
+        None
+    };
 
     let target_received = target_task.await??;
     if response_status.as_deref() != Some("HTTP/1.1 204 No Content") {
