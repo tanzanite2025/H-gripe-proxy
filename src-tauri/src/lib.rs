@@ -272,6 +272,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_tun_packet_capture_hold_bundle,
             cmd::runtime::kernel::run_runtime_kernel_rust_mihomo_fallback_retirement_bundle,
             cmd::runtime::kernel::run_runtime_kernel_go_to_rust_migration_final_review,
+            cmd::runtime::kernel::run_runtime_kernel_rust_sidecar_independent_rollback_archive,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_matrix,
             cmd::runtime::kernel::get_runtime_kernel_loopback_hold_window,
             cmd::runtime::kernel::get_runtime_kernel_loopback_platform_rollback_drills,

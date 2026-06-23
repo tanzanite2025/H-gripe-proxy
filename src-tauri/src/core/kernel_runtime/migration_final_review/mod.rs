@@ -110,7 +110,7 @@ pub async fn go_to_rust_migration_final_review(explicit_opt_in: bool) -> Result<
             false,
             Vec::new(),
             retained_fallback_evidence(),
-            default_removal_decisions(),
+            default_removal_decisions().await?,
             sidecar_audit().await?,
             vec!["explicit opt-in is required to archive Go-to-Rust migration final review".to_owned()],
             None,
@@ -119,7 +119,7 @@ pub async fn go_to_rust_migration_final_review(explicit_opt_in: bool) -> Result<
 
     let artifact_evidence = artifact_evidence().await?;
     let retained_fallback_evidence = retained_fallback_evidence();
-    let default_removal_decisions = default_removal_decisions();
+    let default_removal_decisions = default_removal_decisions().await?;
     let sidecar_audit = sidecar_audit().await?;
     let mut blockers = Vec::new();
     blockers.extend(
@@ -267,8 +267,16 @@ fn retained_fallback_evidence() -> Vec<GoToRustMigrationFinalReviewRetainedFallb
         .collect()
 }
 
-fn default_removal_decisions() -> Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision> {
-    vec![
+async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision>> {
+    let mut sidecar_required_evidence = vec![
+        "all default-path owners moved to Rust".to_owned(),
+        "unsupported fallback list empty".to_owned(),
+    ];
+    if !sidecar_independent_rollback_ready().await? {
+        sidecar_required_evidence.push("emergency rollback no longer depends on sidecar".to_owned());
+    }
+
+    Ok(vec![
         default_removal_decision(
             "default DNS resolver replacement",
             vec![
@@ -293,15 +301,30 @@ fn default_removal_decisions() -> Vec<GoToRustMigrationFinalReviewDefaultRemoval
                 "external plugin lifecycle replacement".to_owned(),
             ],
         ),
-        default_removal_decision(
-            "Mihomo sidecar binary removal",
-            vec![
-                "all default-path owners moved to Rust".to_owned(),
-                "unsupported fallback list empty".to_owned(),
-                "emergency rollback no longer depends on sidecar".to_owned(),
-            ],
-        ),
-    ]
+        default_removal_decision("Mihomo sidecar binary removal", sidecar_required_evidence),
+    ])
+}
+
+async fn sidecar_independent_rollback_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-sidecar-independent-rollback")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
 }
 
 fn default_removal_decision(
@@ -408,9 +431,9 @@ fn evidence_path() -> Result<PathBuf> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn final_review_keeps_sidecar_removal_blocked() {
-        let decisions = default_removal_decisions();
+    #[tokio::test]
+    async fn final_review_keeps_sidecar_removal_blocked() {
+        let decisions = default_removal_decisions().await.unwrap();
 
         assert!(
             decisions
