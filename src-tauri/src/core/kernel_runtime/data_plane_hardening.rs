@@ -1358,9 +1358,14 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard_report(
     mihomo_fallback_retention_decision: bool,
     production_mutation_guard_retention_decision: bool,
     operator_rollout_guard_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport {
     let mut blockers = Vec::new();
     let mut guarded_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if opt_in_verification_review_decision {
         guarded_surfaces.push("opt-in execution verification review".into());
@@ -1402,6 +1407,16 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard_report(
     } else {
         blockers.push("Rust data-plane controlled rollout guard requires operator acknowledgement".into());
     }
+    if operator_default_path_cutover_committed {
+        guarded_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane controlled rollout guard requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane controlled rollout guard requires fallback scopes recorded by operator cutover".into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningControlledRolloutGuardReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -1414,6 +1429,9 @@ fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard_report(
         mihomo_fallback_retained: mihomo_fallback_retention_decision,
         production_mutation_guard_retained: production_mutation_guard_retention_decision,
         operator_rollout_guard_acknowledged: operator_rollout_guard_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         controlled_rollout_guard_complete: blockers.is_empty(),
         guarded_surfaces,
         blockers,
@@ -1448,6 +1466,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_controlled_rollout_guard(
         mihomo_fallback_retention_decision.unwrap_or(false),
         production_mutation_guard_retention_decision.unwrap_or(false),
         operator_rollout_guard_acknowledgement_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut verification_blockers = Vec::new();
 
