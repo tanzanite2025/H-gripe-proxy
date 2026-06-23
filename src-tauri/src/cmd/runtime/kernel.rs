@@ -2,10 +2,11 @@ use super::*;
 use crate::core::kernel_runtime::{
     GoToRustMigrationFinalReviewReport, MihomoFallbackRetirementExecutionReport, RustDefaultDataPlaneCloseoutReport,
     RustDefaultForwardingHoldBlockerReport, RustDnsCutoverHoldBlockerReport, RustDnsDefaultPathBlockerReport,
-    RustDnsSystemResolverLeakBlockerReport, RustEncryptedProtocolsBundleReport,
-    RustEncryptedProxyProtocolPreflightReport, RustEncryptedProxySessionExpansionReport,
-    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport,
-    RustHttpConnectProxyAdapterReport, RustMihomoFallbackRetirementBundleReport, RustPacketLeakHoldBlockerReport,
+    RustDnsSystemResolverLeakBlockerReport, RustEncryptedProtocolDefaultBlockerReport,
+    RustEncryptedProtocolsBundleReport, RustEncryptedProxyProtocolPreflightReport,
+    RustEncryptedProxySessionExpansionReport, RustFallbackRetirementReadinessLockReport,
+    RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport, RustHttpConnectProxyAdapterReport,
+    RustMihomoFallbackRetirementBundleReport, RustPacketLeakHoldBlockerReport,
     RustPluginProcessSupervisionBlockerReport, RustProtocolAdapterForwardingExpansionReport,
     RustProtocolDefaultPathBlockerReport, RustProtocolForwardingSubsetPreflightReport,
     RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
@@ -23,16 +24,17 @@ use crate::core::kernel_runtime::{
     rollback_rust_tun_system_proxy_parity, rust_default_data_plane_closeout_plan,
     rust_default_forwarding_hold_blocker_reduction, rust_dns_cutover_hold_blocker_reduction,
     rust_dns_default_path_blocker_reduction, rust_dns_system_resolver_leak_blocker_reduction,
-    rust_encrypted_protocols_bundle_execution, rust_encrypted_proxy_protocol_preflight_evidence,
-    rust_encrypted_proxy_session_expansion, rust_fallback_retirement_readiness_manifest,
-    rust_geoip_database_blocker_reduction, rust_http_connect_proxy_adapter_evidence,
-    rust_mihomo_fallback_retirement_bundle_execution, rust_packet_leak_hold_blocker_reduction,
-    rust_plugin_process_supervision_blocker_reduction, rust_protocol_adapter_forwarding_expansion_evidence,
-    rust_protocol_default_path_blocker_reduction, rust_protocol_forwarding_subset_preflight,
-    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
-    rust_quic_udp_profile_blocker_reduction, rust_remote_adapter_transport_expansion_evidence,
-    rust_route_mutation_rollback_blocker_reduction, rust_route_packet_capture_blocker_reduction,
-    rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
+    rust_encrypted_protocol_default_blocker_reduction, rust_encrypted_protocols_bundle_execution,
+    rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
+    rust_fallback_retirement_readiness_manifest, rust_geoip_database_blocker_reduction,
+    rust_http_connect_proxy_adapter_evidence, rust_mihomo_fallback_retirement_bundle_execution,
+    rust_packet_leak_hold_blocker_reduction, rust_plugin_process_supervision_blocker_reduction,
+    rust_protocol_adapter_forwarding_expansion_evidence, rust_protocol_default_path_blocker_reduction,
+    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
+    rust_protocol_forwarding_subset_status, rust_quic_udp_profile_blocker_reduction,
+    rust_remote_adapter_transport_expansion_evidence, rust_route_mutation_rollback_blocker_reduction,
+    rust_route_packet_capture_blocker_reduction, rust_runtime_real_canary_evidence,
+    rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_sidecar_independent_rollback_archive, rust_socks_auth_execution, rust_socks_bind_execution,
     rust_socks_tcp_connect_execution, rust_socks_udp_associate_execution, rust_socks_udp_default_blocker_reduction,
     rust_socks_udp_fragments_execution, rust_tun_device_lifecycle_blocker_reduction,
@@ -497,6 +499,15 @@ pub async fn run_runtime_kernel_rust_socks_udp_default_blocker_reduction(
     explicit_opt_in: bool,
 ) -> CmdResult<RustSocksUdpDefaultBlockerReport> {
     rust_socks_udp_default_blocker_reduction(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_encrypted_protocol_default_blocker_reduction(
+    explicit_opt_in: bool,
+) -> CmdResult<RustEncryptedProtocolDefaultBlockerReport> {
+    rust_encrypted_protocol_default_blocker_reduction(explicit_opt_in)
         .await
         .stringify_err()
 }

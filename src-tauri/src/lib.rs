@@ -279,6 +279,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_packet_leak_hold_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_geoip_database_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_udp_default_blocker_reduction,
+            cmd::runtime::kernel::run_runtime_kernel_rust_encrypted_protocol_default_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_protocol_default_path_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_plugin_process_supervision_blocker_reduction,
             cmd::runtime::kernel::run_runtime_kernel_rust_quic_udp_profile_blocker_reduction,

@@ -445,6 +445,28 @@ async fn socks_udp_default_blocker_ready() -> Result<bool> {
     Ok(status_ready && blockers_empty)
 }
 
+async fn encrypted_protocol_default_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-encrypted-protocol-default-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
+}
+
 async fn route_mutation_rollback_blocker_ready() -> Result<bool> {
     let evidence_path = dirs::app_runtime_dir()?
         .join("rust-route-mutation-rollback-blocker")
@@ -734,14 +756,11 @@ async fn sidecar_audit() -> Result<GoToRustMigrationFinalReviewSidecarAuditEvide
 async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> {
     let geoip_database_ready = geoip_database_blocker_ready().await?;
     let socks_udp_default_ready = socks_udp_default_blocker_ready().await?;
+    let encrypted_protocol_default_ready = encrypted_protocol_default_blocker_ready().await?;
     let mut retained = vec![
         (
             "default DNS live resolver replacement",
             "bounded DNS evidence does not own production resolver replacement, persistent cache, or geodata refresh",
-        ),
-        (
-            "unsupported non-loopback encrypted protocols",
-            "bounded loopback protocol canaries do not cover all real remote protocol paths",
         ),
         (
             "QUIC/UDP variants and multiplexed transports",
@@ -774,6 +793,12 @@ async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> 
         retained.push((
             "SOCKS non-loopback UDP and fragment queue defaults",
             "bounded SOCKS UDP evidence does not replace broad default UDP routing",
+        ));
+    }
+    if !encrypted_protocol_default_ready {
+        retained.push((
+            "unsupported non-loopback encrypted protocols",
+            "bounded loopback protocol canaries do not cover non-loopback encrypted protocol defaults",
         ));
     }
     Ok(retained)
