@@ -33,72 +33,82 @@ Status is current through bounded encrypted protocols bundle execution. The migr
 
 ## Acceleration plan
 
-Course correction: the previous roadmap drifted into dozens of IPC/readiness gates. That is no longer useful. From this point forward, roadmap progress is measured by shipped data-plane capability, not by another `*_guard`, `*_dry_run`, or `*_readiness` wrapper.
+Course correction: the previous roadmap drifted into dozens of IPC/readiness gates.
+That is no longer useful. From this point forward, roadmap progress is measured
+by retired Mihomo-owned runtime surface, not by another `*_guard`, `*_dry_run`,
+`*_readiness`, parser-only, or one-canary wrapper.
 
-### Hard stop on gate-only PRs
+### Final cutover target
 
-- Do not create another PR whose only product change is a new read-only evidence/gate command.
-- A safety gate may be included only when it protects a real implementation in the same PR.
-- Every migration PR must name the concrete Mihomo-owned behavior it reduces: DNS runtime, adapter egress, protocol forwarding, TUN/system proxy, fallback dependency, or removal of Go/Mihomo artifacts.
-- Prefer 4-6 large implementation PRs over any new long sequence of numbered gates.
+If the project chooses high-risk data-plane migration, the final target is one
+Rust-owned production runtime path for supported profiles:
 
-### Real fast-track sequence
+```text
+Rust DNS + adapter policy + protocol forwarding + UDP/plugin transport +
+TUN/packet capture/default routing
+  -> observed health / leak checks / rollback history
+  -> selective Mihomo fallback deprecation
+  -> Mihomo sidecar binary removal when no supported default path depends on it
+```
 
-This table is the authoritative batch map. Completed rows are real implementation PRs, not synthetic gates. Future rows should stay large enough to retire meaningful Mihomo surface area.
+The current bounded evidence paths are not the final state. They are only proof
+needed before broadening default ownership.
 
-| Order | Batch | Status | Required implementation / evidence | Default impact |
+### Hard stop on small-step migration PRs
+
+- Do not create another PR whose only product change is a new read-only evidence,
+  gate, dry-run, readiness, parser, generated type, or one-command wrapper.
+- A safety gate may be included only when it protects a real implementation in
+  the same PR.
+- Every migration PR must delete, bypass, or demote a concrete Mihomo-owned
+  runtime surface: default DNS, adapter egress, protocol forwarding, UDP/plugin
+  transport, TUN/packet capture, fallback dependency, or Go/Mihomo artifacts.
+- Do not append one numbered row per canary. Update the owning bundle checklist
+  instead.
+- Prefer 3 remaining high-signal implementation bundles over any new long
+  sequence of numbered gates.
+
+### Remaining implementation bundles
+
+This table is the authoritative batch map. Prior completed canaries remain audit
+history; future progress must land as these large implementation bundles.
+
+| Order | Bundle | Status | Must ship together | Success condition |
 | --- | --- | --- | --- | --- |
-| 1 | `rust-dns-runtime-parity` | Complete | Rust-owned dns/hosts patch synthesis, resolver/upstream selection, controlled resolver probe, unsupported fake-ip/fallback-filter/nameserver-policy blockers, explicit opt-in apply, and one-switch rollback. | Opt-in only; Mihomo remains default DNS until canary evidence passes. |
-| 2 | `rust-adapter-egress-parity` | Complete | Rust-owned DIRECT/REJECT/proxy-group target decisions, adapter candidate compatibility checks, explicit opt-in proxy-groups/rules runtime patching, and one-switch rollback. | Opt-in for supported profiles only; Mihomo remains protocol/forwarding fallback. |
-| 3 | `rust-protocol-forwarding-subset` | Complete | Rust-owned loopback TCP/HTTP accept loop, bidirectional byte forwarding, connection/session accounting, smoke evidence, stop/rollback surface, and Mihomo fallback for unsupported protocols. | Capped canary only after DNS + adapter parity. |
-| 4 | `rust-tun-system-proxy-parity` | Complete | Rust-owned off/system-proxy/TUN route-mode decision, explicit opt-in apply, OS system-proxy path, TUN config/restart bridge, rollback record, and rollback apply. | No broad default until platform rollback passes. |
-| 5 | `rust-runtime-real-canary` | Complete | Bounded canary evidence across loopback DNS, Rust protocol forwarding, TUN/system-proxy route preflight, fallback readiness, and persisted evidence.yaml. | Limited default for canary profile. |
-| 6 | `mihomo-fallback-retirement-execution` | Complete | Scoped execution manifest plus emergency rollback checkpoint for the bounded canary scope; unsupported fallback remains retained. | Supported canary scope only. |
-| 7 | `rust-protocol-adapter-forwarding-expansion` | Complete | Rust forwards traffic through adapter policy: DIRECT listener -> target relay with 204 evidence, REJECT listener with 403 evidence, byte accounting, and fallback for unsupported remote paths. | Loopback adapter policy only; no remote encrypted protocol ownership. |
-| 8 | `rust-remote-adapter-transport-expansion` | Complete | Rust executes a bounded TCP remote-adapter transport over loopback, parses a target authority, dials the target, forwards HTTP bytes, records byte evidence, and keeps unsupported proxy protocols on fallback. | Evidence path only for bounded TCP transport; no full proxy protocol ownership. |
-| 9 | `rust-http-connect-proxy-adapter` | Complete | Rust accepts HTTP CONNECT, validates authority/Host, establishes a target TCP stream, tunnels bytes bidirectionally, and records target 204 evidence. | HTTP CONNECT TCP only; encrypted outbound protocols and UDP remain Mihomo-owned. |
-| 10 | `rust-encrypted-proxy-protocol-preflight` | Complete | Rust runs Shadowsocks-style AES-256-GCM address-frame evidence and Trojan SHA224 auth-frame evidence over loopback, including decrypt/validate/forward/response checks. | Framing/auth preflight only; full encrypted sessions stay Mihomo fallback. |
-| 11 | `rust-shadowsocks-aead-adapter-execution` | Complete | Rust executes a scoped Shadowsocks AEAD adapter path: decrypt address frame, validate loopback target, dial target, forward HTTP request, encrypt response, and write rollback checkpoint. | Scoped loopback TCP Shadowsocks AEAD only; UDP, plugin transports, VMess/VLESS/Trojan, and packet capture stay Mihomo fallback. |
-| 12 | `rust-shadowsocks-aead-adapter-canary` | Complete | Run canary evidence for the scoped AEAD adapter across rollback checkpoint, fallback trigger, byte accounting, and post-run health boundaries. | Still opt-in; do not broaden default routing. |
-| 13 | `rust-encrypted-proxy-session-expansion` | Complete | Expand from one scoped AEAD execution into larger encrypted-session handling with one encrypted address frame, multiple AEAD request chunks, encrypted target responses, fallback evidence, and persisted evidence.yaml. | Keep VMess/VLESS/Trojan, Shadowsocks UDP/plugin transports, and packet capture on fallback until separately implemented. |
-| 14 | `rust-tun-transparent-routing-execution` | Complete | Implement bounded transparent IPv4/TCP packet parsing, destination extraction, loopback target execution, rollback checkpoint, and leak evidence before claiming TUN replacement. | High risk; system-wide packet capture still remains Mihomo/service fallback. |
-| 15 | `mihomo-fallback-retirement-wider-scope` | Complete | Retire Mihomo fallback only for scopes with repeated passed canary, rollback, and hold evidence; retain fallback for all unsupported protocols. | Explicit opt-in and rollback required. |
-| 16 | `rust-default-data-plane-closeout` | Complete | Close out bounded Rust-owned data-plane scope, reconcile evidence ownership, write a closeout manifest, and list the remaining unsupported Mihomo removal blockers. | No default ownership claims beyond passed evidence. |
-| 17 | `rust-socks-udp-associate-execution` | Complete | Implement bounded Rust SOCKS5 UDP ASSOCIATE datagram parsing, loopback UDP forwarding, rollback checkpoint, fallback retention, and byte/leak evidence. | SOCKS auth, TCP command negotiation, fragments, non-loopback UDP, and packet capture remain Mihomo-owned. |
-| 18 | `rust-dns-fake-ip-runtime` | Complete | Implement bounded Rust fake-ip allocation for one domain, including CIDR parsing, deterministic in-range answer synthesis, rollback checkpoint, fallback retention, and DNS leak evidence. | persistent fake-ip cache lifecycle/eviction, fake-ip-filter wildcard semantics, fallback-filter, nameserver-policy, and default DNS runtime remain Mihomo-owned. |
-| 19 | `rust-dns-fallback-filter-runtime` | Complete | Implement bounded Rust fallback-filter evaluation for one domain/IP answer, including domain suffix/exact rules, ipcidr matching, rollback checkpoint, fallback retention, and DNS leak evidence. | Full GeoIP database coverage, fallback upstream execution, nameserver-policy, persistent fake-ip cache lifecycle/eviction, and default DNS runtime remain Mihomo-owned. |
-| 20 | `rust-dns-nameserver-policy-runtime` | Complete | Implement bounded Rust nameserver-policy dispatch for one domain, including exact and +.suffix matcher parsing, selected nameserver evidence, rollback checkpoint, fallback retention, and DNS leak evidence. | geosite/rule-provider, wildcard/multi-token matchers, upstream execution, DNS health checks, and default DNS runtime remain Mihomo-owned. |
-| 21 | `rust-socks-auth-execution` | Complete | Implement bounded Rust SOCKS5 username/password negotiation and loopback CONNECT preflight with rollback checkpoint, fallback retention, and leak evidence. | SOCKS TCP data forwarding, BIND, non-loopback UDP, fragments, Shadowsocks UDP/plugin transports, and packet capture remain Mihomo-owned. |
-| 22 | `rust-socks-tcp-connect-execution` | Complete | Implement bounded Rust SOCKS5 TCP CONNECT data forwarding over loopback, including username/password method negotiation, loopback target validation, request/response byte evidence, rollback checkpoint, fallback retention, and leak evidence. | SOCKS BIND, non-loopback UDP, fragments, Shadowsocks UDP/plugin transports, non-loopback encrypted protocol forwarding, QUIC/UDP variants, multiplexing, plugin transports, and packet capture remain Mihomo-owned. |
-| 23 | `rust-socks-bind-execution` | Complete | Implement bounded Rust SOCKS5 BIND forwarding over loopback, including username/password method negotiation, first/second BIND replies, peer validation, request/response byte evidence, rollback checkpoint, fallback retention, and leak evidence. | SOCKS non-loopback UDP, fragments, Shadowsocks UDP/plugin transports, non-loopback encrypted protocol forwarding, QUIC/UDP variants, multiplexing, plugin transports, and packet capture remain Mihomo-owned. |
-| 24 | `rust-socks-udp-fragments-execution` | Complete | Implement bounded Rust SOCKS5 UDP two-fragment reassembly over loopback, including RFC1928 FRAG sequencing, final-fragment validation, request/response byte evidence, rollback checkpoint, fallback retention, and leak evidence. | SOCKS non-loopback UDP, fragment queues/timeouts, Shadowsocks UDP/plugin transports, non-loopback encrypted protocol forwarding, QUIC/UDP variants, multiplexing, plugin transports, and packet capture remain Mihomo-owned. |
-| 25 | `rust-dns-fallback-filter-geoip-runtime` | Complete | Implement bounded Rust fallback-filter geoip/geoip-code evaluation for one DNS answer, including canary CIDR matching, fallback decision evidence, rollback checkpoint, fallback retention, and DNS leak evidence. | Full GeoIP database coverage, fallback upstream execution, wildcard/default DNS integration, nameserver-policy geosite/rule-provider/wildcards, persistent fake-ip cache lifecycle/eviction, and packet capture remain Mihomo-owned. |
-| 26 | `rust-dns-fake-ip-cache-runtime` | Complete | Implement bounded Rust fake-ip forward cache and reverse lookup for one domain, including in-range cache insertion, reverse-domain evidence, rollback checkpoint, fallback retention, and DNS leak evidence. | Persistent fake-ip cache lifecycle/eviction, fake-ip-filter wildcard semantics, fallback-filter upstream/policy cache, nameserver-policy dispatch, and default DNS remain Mihomo-owned. |
-| 27 | `rust-dns-policy-cache-and-upstream-bundle` | Complete | Bundle the remaining DNS policy blockers into one implementation PR: fake-ip persistent cache lifecycle/eviction canary, fake-ip-filter wildcard matching, fallback upstream selection/execution canary, nameserver-policy geosite/rule-provider/wildcard matching, shared rollback/evidence writers, and parity tests. | Default DNS, live resolver replacement, full GeoIP database loading, production persistent cache storage, and geodata refresh remain Mihomo-owned. |
-| 28 | `rust-encrypted-protocols-bundle` | Complete | Implement one coherent encrypted-protocol expansion PR covering VMess, VLESS, and Trojan loopback TCP sessions with shared framing/session accounting modules, request/response byte evidence, fallback triggers, rollback checkpoints, and leak evidence. | Non-loopback forwarding, QUIC/UDP variants, multiplexing, plugin transports, and default forwarding remain Mihomo fallback-owned. |
-| 29 | `rust-udp-and-plugin-transport-bundle` | Next | Implement one larger UDP/plugin transport PR covering SOCKS non-loopback UDP policy gates, Shadowsocks UDP canary forwarding, plugin transport preflight/execution evidence, fragment queue timeout/eviction canary, and fallback continuity without app restart. | Keep system packet capture, transparent routing defaults, and broad production UDP replacement gated. |
-| 30 | `rust-tun-packet-capture-hold-bundle` | Planned | Implement a platform hold-evidence PR covering repeated Windows/macOS/Linux TUN/system-proxy rollback drills, route restoration checks, transparent routing default boundaries, packet-capture canaries, and DNS leak/health telemetry after rollback. | Do not claim packet capture or transparent forwarding defaults are Rust-owned until repeated hold evidence passes. |
-| 31 | `rust-mihomo-fallback-retirement-bundle` | Planned | Implement the fallback-retirement closeout PR only after the DNS/protocol/UDP/TUN bundles land: prove unsupported-path fallback continuity, emergency rollback, hold telemetry, and selective Mihomo dependency deprecation/removal. | Full Mihomo binary removal remains blocked until every unsupported path has Rust execution evidence and rollback history. |
+| 1 | `rust-udp-and-plugin-transport-bundle` | Next | SOCKS non-loopback UDP policy gates, Shadowsocks UDP canary forwarding, plugin transport preflight/execution evidence, fragment queue timeout/eviction canary, and fallback continuity without app restart. | A supported UDP/plugin path runs through Rust with leak evidence and one-switch Mihomo fallback. |
+| 2 | `rust-tun-packet-capture-hold-bundle` | Planned | Repeated Windows/macOS/Linux TUN/system-proxy rollback drills, route restoration checks, transparent-routing default boundaries, packet-capture canaries, and DNS leak/health telemetry after rollback. | Rust can hold platform routing/packet-capture ownership through repeated rollback/reapply cycles without default traffic leaks. |
+| 3 | `rust-mihomo-fallback-retirement-bundle` | Planned | Unsupported-path fallback continuity, emergency rollback, hold telemetry, sidecar source/binary dependency audit, and selective Mihomo dependency deprecation/removal. | Mihomo is removed only for surfaces with Rust execution evidence, default-path coverage, rollback history, and post-cutover hold proof. |
+
+### Completed work is inventory, not future sequencing
+
+Completed DNS, adapter, loopback forwarding, HTTP CONNECT, encrypted framing,
+Shadowsocks AEAD, VMess/VLESS/Trojan loopback, fake-ip, fallback-filter,
+nameserver-policy, SOCKS auth/CONNECT/BIND/UDP fragment, and bounded transparent
+IPv4/TCP work should be treated as evidence inventory. Do not split follow-up work
+by those old batch names unless the change is part of one of the three bundles
+above.
 
 ### Definition of done for future PRs
 
-A PR counts as migration progress only if it contains at least one of:
+A future migration PR is done only if it answers all of these with code or
+persisted evidence:
 
-- Rust code that handles real DNS, adapter, protocol, TUN/system-proxy, or fallback execution behavior.
-- Tests/fixtures that prove parity for one of those real behaviors.
-- Removal or deprecation of a Mihomo dependency after equivalent Rust behavior exists.
-
-Documentation-only PRs are allowed only to correct this roadmap or remove misleading status.
+- Which Mihomo-owned default or fallback surface became smaller?
+- Which Rust path executed real traffic or real runtime mutation?
+- What explicit opt-in, audit, verification, hold, and rollback evidence protects
+  it?
+- What remains Mihomo-owned after this PR?
+- Which of the three remaining bundles did it advance?
 
 ### Accelerated PR sizing for future work
 
-Starting with batch 27, stop creating one-primitive PRs for each small blocker. Future implementation PRs should bundle related blockers by runtime area so each PR removes a meaningful Go-owned slice while staying reviewable:
-
-- Target 3-6 tightly related sub-scopes per PR, not a single parser or canary.
-- Keep one public command family per bundle when possible, but split internals by responsibility (`mod.rs`, parsing, execution, evidence, rollback, tests).
-- Every sub-scope in a bundle must have bounded execution evidence, rollback checkpoint coverage, fallback-retention evidence, and at least build/parity tests.
-- Do not mix unrelated areas in one PR: DNS bundles stay DNS-only, encrypted protocol bundles stay protocol-only, TUN/packet-capture bundles stay platform-routing-only.
-- Keep Mihomo fallback explicit inside each bundle; larger PR scope is not permission to claim default ownership early.
+- Combine adjacent runtime blockers into one PR when they share the same rollback
+  and evidence path.
+- Prefer one cohesive implementation plus tests over multiple preparatory PRs.
+- Keep UI/reporting changes inside the same PR only when they expose the runtime
+  evidence needed for that implementation.
+- Reject new roadmap steps that do not reduce one of the remaining bundle
+  blockers.
 
 ## Non-negotiable boundaries
 
@@ -192,18 +202,18 @@ tauri-plugin-mihomo-api
 
 ## Phase 8 kernel replacement track
 
-Phase 8 should no longer be managed as a long list of synthetic gates. The prior R0-R7 artifacts are useful as audit history, but they do not replace production DNS, adapter, protocol, or TUN behavior.
+Phase 8 should no longer be managed as a long list of synthetic gates. The prior R0-R7 artifacts are useful as audit history, but they do not replace production DNS, adapter, protocol, or TUN behavior. Treat the table below as boundary inventory, not as permission to create more small standalone PRs.
 
 ### Corrected Phase 8 status
 
 | Track | Current status | Next useful work |
 | --- | --- | --- |
 | Seam inventory / runtime selection | Complete enough | Do not add more inventory-only gates unless required by a real implementation PR. |
-| DNS | Bounded opt-in parity path in progress | Fake-ip allocation, bounded fake-ip cache/reverse lookup, DNS policy/cache/upstream bundle canaries, fallback-filter domain/ipcidr, fallback-filter geoip/geoip-code canary evaluation, and nameserver-policy exact/suffix/geosite/rule-provider/wildcard dispatch canaries are Rust-owned only for bounded opt-in evidence; do not make DNS default until adapter/protocol/TUN rollback boundaries are ready. |
-| Adapter / egress | Bounded opt-in parity path in progress | Keep canarying supported adapter decisions; move next to real protocol forwarding subset. |
-| Protocol forwarding | Unsupported protocol expansion in progress | DIRECT/REJECT, bounded remote transport, HTTP CONNECT, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded SOCKS5 UDP ASSOCIATE datagram forwarding, SOCKS5 username/password negotiation, SOCKS5 TCP CONNECT loopback forwarding, SOCKS5 BIND loopback forwarding, SOCKS5 UDP two-fragment loopback reassembly, and VMess/VLESS/Trojan loopback TCP canaries are Rust-owned; non-loopback encrypted forwarding, QUIC/UDP variants, multiplexing, plugin transports, Shadowsocks UDP/plugin transports, SOCKS non-loopback UDP plus fragment queues/timeouts, and packet capture remain Mihomo fallback. |
-| TUN / system proxy | Bounded Rust transparent routing execution in progress | Rust has route-mode parity plus bounded transparent IPv4/TCP packet parsing/execution evidence; system-wide packet capture still uses Mihomo/service. |
-| Mihomo fallback retirement | Bounded closeout complete | DNS, adapter, protocol, encrypted-session, VMess/VLESS/Trojan loopback TCP, bounded transparent-route, and loopback SOCKS UDP associate scopes have evidence; unsupported fallback and packet capture remain Mihomo-owned. |
+| DNS | Bounded opt-in parity path in progress | Keep current bounded evidence as input to the remaining bundles; do not create isolated DNS-only expansion PRs unless they retire default-DNS fallback inside a bundle. |
+| Adapter / egress | Bounded opt-in parity path in progress | Fold any remaining adapter work into UDP/plugin transport or fallback-retirement bundles; do not add adapter-only readiness gates. |
+| Protocol forwarding | Unsupported protocol expansion in progress | Existing loopback TCP/HTTP/CONNECT/SOCKS/encrypted canaries are evidence inventory; the next useful work is the UDP/plugin transport bundle that reduces non-loopback UDP/plugin fallback. |
+| TUN / system proxy | Bounded Rust transparent routing execution in progress | The next useful work is the TUN/packet-capture hold bundle; do not claim default routing or packet-capture ownership before repeated platform hold evidence. |
+| Mihomo fallback retirement | Bounded closeout complete | The next useful work is the final fallback-retirement bundle after UDP/plugin and TUN/packet-capture hold evidence; unsupported fallback and broad packet capture remain Mihomo-owned until then. |
 
 ### Retained historical value
 
@@ -281,7 +291,7 @@ Allowed cleanup:
 
 ### Option C: Continue high-risk data-plane migration
 
-Allowed only through the corrected real fast-track sequence above. The current next batch is `unsupported-protocol-and-packet-capture-implementation` after bounded SOCKS UDP fragment execution; keep execution scoped to supported canary evidence and retain unsupported fallback.
+Allowed only through the three remaining implementation bundles above. The current next bundle is `rust-udp-and-plugin-transport-bundle`; keep execution scoped to supported canary evidence and retain unsupported fallback until the fallback-retirement bundle proves removal is safe.
 
 ## PR checklist for future changes
 
