@@ -10,7 +10,7 @@ use crate::core::kernel_runtime::{
     RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
     RustShadowsocksAeadAdapterExecutionReport, RustSocksAuthExecutionReport, RustSocksBindExecutionReport,
     RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport, RustSocksUdpFragmentsExecutionReport,
-    RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
+    RustTunPacketCaptureHoldBundleReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
     RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
     RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
     execute_mihomo_fallback_retirement, lock_rust_fallback_retirement_readiness,
@@ -23,7 +23,8 @@ use crate::core::kernel_runtime::{
     rust_protocol_forwarding_subset_status, rust_remote_adapter_transport_expansion_evidence,
     rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_socks_auth_execution, rust_socks_bind_execution, rust_socks_tcp_connect_execution,
-    rust_socks_udp_associate_execution, rust_socks_udp_fragments_execution, rust_tun_system_proxy_parity_preflight,
+    rust_socks_udp_associate_execution, rust_socks_udp_fragments_execution,
+    rust_tun_packet_capture_hold_bundle_execution, rust_tun_system_proxy_parity_preflight,
     rust_tun_transparent_routing_execution, rust_udp_plugin_transport_bundle_execution,
     start_rust_protocol_forwarding_subset, stop_rust_protocol_forwarding_subset,
 };
@@ -396,6 +397,15 @@ pub async fn run_runtime_kernel_rust_udp_plugin_transport_bundle(
     explicit_opt_in: bool,
 ) -> CmdResult<RustUdpPluginTransportBundleReport> {
     rust_udp_plugin_transport_bundle_execution(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_tun_packet_capture_hold_bundle(
+    explicit_opt_in: bool,
+) -> CmdResult<RustTunPacketCaptureHoldBundleReport> {
+    rust_tun_packet_capture_hold_bundle_execution(explicit_opt_in)
         .await
         .stringify_err()
 }
