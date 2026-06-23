@@ -39,11 +39,11 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 - **DNS default runtime 控制面**：readiness、shadow evidence、opt-in execution、post-execution verification、rollback drill、expanded closeout 与 handoff manifest。
 - **UI 入口**：高级页提供 app-runtime planning / diagnostics / projection / staged lifecycle / runtime-boundary closeout 面板。
 
-### 下一阶段方向 / Next Direction
+### Next Direction
 
-- 继续收口 app-runtime staged boundary 后的显式 runtime-apply 决策与审计。
-- 继续保持“先 control-plane、再 staged marker、最后显式 runtime apply”的迁移节奏。
-- 在 roadmap 明确允许前，不启动 Phase 8，不接管 TUN / protocol runtime / adapter runtime。
+- Continue reducing retained Mihomo fallback only when a PR removes a concrete Go-owned runtime surface from the review list.
+- Keep Rust evidence bounded/read-only unless an operator-approved cutover explicitly allows privileged DNS, route, TUN, plugin, or forwarding mutation.
+- Do not remove the Mihomo sidecar until default-path ownership and unsupported fallback retention are empty in the roadmap review.
 
 ---
 
@@ -156,42 +156,35 @@ target/release/bundle/nsis/
 
 ## Go → Rust Migration
 
-迁移路线图和实时进度统一维护在 [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md)。
+The detailed migration ledger lives in [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md). README keeps only the current target, ownership boundary, and what remains Mihomo-owned.
 
-README 只保留迁移入口、当前状态和边界原则：优先把“不碰真实转发链路”的控制、校验、解释、诊断和调度逻辑迁入 Tauri Rust 后端；对应 runtime 未迁移前，真实转发、协议栈、TUN、tunnel 和 DNS runtime 仍停留在仓库内 runtime kernel 边界内。
+### Final Target
 
-### 当前迁移状态 / Current Status
+The end state is a Rust-owned runtime stack for the app-facing data plane: DNS policy/cache, rule and adapter decisions, protocol forwarding, UDP/plugin transport, TUN/system route handling, rollback/evidence, and default-path cutover controls. The Go-based Mihomo sidecar may only be removed after final review shows every default path and unsupported fallback has Rust ownership, rollback, and hold-window evidence.
 
-截至当前主线，Rust 已接管以下 app-facing / control-plane 能力：
+### Current Status
 
-- **规则与配置控制面**：配置 schema 校验、规则解析、rule explain、config diff、diagnostics summary、latency planner、node selection planner。
-- **本地规则数据**：GEOIP / GEOSITE / IP-ASN / SRC-IP-ASN / RULE-SET / PROCESS / UID / DSCP / inbound metadata / logical rule explain。
-- **订阅 artifact pipeline**：远程 profile 更新、不可变 artifact、active artifact marker、legacy profile 写回消除。
-- **连接与日志 app-facing 路径**：前端和托盘经 Rust monitor / Tauri event 读取连接、流量、内存和日志事件。
-- **DNS default runtime control-plane**：readiness、shadow evidence、opt-in switch guard、executor preflight、limited execution、post-execution verification、rollback drill、expanded stability / hold / reverify / closeout / handoff manifest。
-- **App runtime control-plane**：`AppRuntimeStateDocument`、plan / diagnostics、Mihomo projection artifact、session observation/evaluation/leak planning、CRUD/form、demo seed、DNS handoff intake、control-plane completion、staged activation lifecycle、runtime-apply boundary closeout。
+Rust already owns these bounded or control-plane surfaces:
 
-### 当前明确边界 / Runtime Boundary
+- App runtime planning, diagnostics, projection artifacts, staged activation, runtime-apply boundary manifests, and closeout evidence.
+- DNS default-path blocker reductions: live resolver/cache/geodata-refresh evidence, cutover hold evidence, and read-only system resolver leak/restore evidence.
+- Protocol/UDP blocker reductions: SOCKS UDP fragments/queues, encrypted protocol local non-loopback canaries, QUIC-like UDP local profile evidence, plugin supervision, and plugin binary compatibility contracts.
+- TUN/route blocker reductions: route snapshots, route mutation apply/rollback plans, synthetic TUN lifecycle evidence, packet-capture hold evidence, and packet leak hold evidence.
+- Fallback retirement support: sidecar dependency audit, sidecar-independent rollback archive, GeoIP/GeoSite candidate discovery, bounded lookup matrix evidence, and retained-fallback reconciliation.
 
-当前 Rust 侧已经形成从 DNS control-plane completion 到 app-runtime staged closeout 的单一事实链：
+### Runtime Boundary
 
-```text
-DNS expanded completion
-  -> app-runtime DNS handoff
-  -> app-runtime control-plane completion
-  -> staged projection marker activation
-  -> runtime-apply boundary manifest
-```
+Most migration evidence is intentionally bounded. It can write YAML evidence under the app runtime directory and can exercise loopback or local non-loopback canaries, but it does not silently mutate production networking state.
 
-但这条链路仍然是 **显式控制面 / staged boundary**，不是真实数据面替换：
+Still Mihomo/service-owned until explicitly approved:
 
-- 不自动执行 `apply_app_runtime_projection_artifact_to_runtime`
-- 不自动 reload Mihomo
-- 不自动 rollout / rollback
-- 不接管 adapter / tunnel / transparent proxy / protocol runtime
-- 不进入 Phase 8（TUN / protocol runtime）
+- Production DNS cutover and privileged system resolver apply/restore.
+- Real remote encrypted/QUIC peer compatibility and production default forwarding cutover.
+- Real plugin binary compatibility and plugin forwarding cutover.
+- Privileged TUN device create/destroy, route mutation on real interfaces, and production packet leak hold.
+- Production geodata refresh/file availability and final Mihomo sidecar removal.
 
-换句话说，Rust 当前已经能完成“计划、诊断、投影、预检、marker、边界 manifest”的闭环；真实转发链路仍停留在仓库内 runtime kernel 边界内，直到 roadmap 明确允许进入下一阶段。
+In short: Rust has moved from gate-only metadata to concrete bounded runtime evidence, but default-path ownership is still conservative. Do not claim full kernel replacement until roadmap final review has no retained fallback blockers.
 
 ---
 
