@@ -287,9 +287,14 @@ fn rust_kernel_runtime_data_plane_hardening_boundary_audit_report(
     dns_leak_boundary_audit_decision: bool,
     rollback_boundary_audit_decision: bool,
     opt_in_boundary_audit_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport {
     let mut blockers = Vec::new();
     let mut audited_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if preflight_review_decision {
         audited_surfaces.push("preflight review".into());
@@ -326,6 +331,17 @@ fn rust_kernel_runtime_data_plane_hardening_boundary_audit_report(
     } else {
         blockers.push("Rust data-plane boundary audit requires opt-in boundary audit".into());
     }
+    if operator_default_path_cutover_committed {
+        audited_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push(
+            "Rust data-plane boundary audit requires committed operator default-path cutover for sidecar removal"
+                .into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Rust data-plane boundary audit requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningBoundaryAuditReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -337,6 +353,9 @@ fn rust_kernel_runtime_data_plane_hardening_boundary_audit_report(
         dns_leak_boundary_audited: dns_leak_boundary_audit_decision,
         rollback_boundary_audited: rollback_boundary_audit_decision,
         opt_in_boundary_audited: opt_in_boundary_audit_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         boundary_audit_complete: blockers.is_empty(),
         audited_surfaces,
         blockers,
@@ -369,6 +388,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_boundary_audit(
         dns_leak_boundary_audit_decision.unwrap_or(false),
         rollback_boundary_audit_decision.unwrap_or(false),
         opt_in_boundary_audit_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut preflight_blockers = Vec::new();
 
