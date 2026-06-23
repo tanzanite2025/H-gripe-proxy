@@ -159,10 +159,21 @@ pub async fn approved_operator_default_path_cutover_fallback_scopes() -> Result<
         return Ok(Vec::new());
     };
 
-    let mut scopes = manifest.fallback_scopes_removed;
+    Ok(committed_operator_default_path_cutover_fallback_scopes(&manifest))
+}
+
+fn committed_operator_default_path_cutover_fallback_scopes(
+    manifest: &RustOperatorDefaultPathCutoverManifest,
+) -> Vec<String> {
+    let mut scopes = manifest
+        .surfaces
+        .iter()
+        .filter(|surface| surface.operator_approved && surface.cutover_committed)
+        .flat_map(|surface| surface.fallback_scopes_removed.iter().cloned())
+        .collect::<Vec<_>>();
     scopes.sort();
     scopes.dedup();
-    Ok(scopes)
+    scopes
 }
 
 async fn cutover_surfaces(
@@ -302,4 +313,55 @@ fn current_epoch_seconds() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cutover_surface(
+        default_surface: &str,
+        fallback_scopes_removed: Vec<&str>,
+        operator_approved: bool,
+        cutover_committed: bool,
+    ) -> RustOperatorDefaultPathCutoverSurface {
+        RustOperatorDefaultPathCutoverSurface {
+            default_surface: default_surface.to_owned(),
+            fallback_scopes_removed: fallback_scopes_removed.into_iter().map(str::to_owned).collect(),
+            manual_review_approved: true,
+            operator_approved,
+            cutover_committed,
+            mihomo_fallback_required_after_cutover: !cutover_committed,
+            rollback_required_before_binary_removal: true,
+            blockers: vec![],
+        }
+    }
+
+    #[test]
+    fn fallback_scopes_only_include_committed_operator_approved_surfaces() {
+        let manifest = RustOperatorDefaultPathCutoverManifest {
+            component: COMPONENT.to_owned(),
+            created_at_epoch_seconds: 0,
+            surfaces: vec![
+                cutover_surface("Mihomo sidecar binary removal", vec!["dns", "adapter"], true, true),
+                cutover_surface("uncommitted", vec!["packet-capture"], true, false),
+                cutover_surface("unapproved", vec!["route"], false, true),
+                cutover_surface("duplicate", vec!["adapter"], true, true),
+            ],
+            fallback_scopes_removed: vec![
+                "dns".to_owned(),
+                "adapter".to_owned(),
+                "packet-capture".to_owned(),
+                "route".to_owned(),
+            ],
+            mutates_runtime: false,
+            mihomo_binary_removal_allowed_after_cutover: true,
+            next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+        };
+
+        assert_eq!(
+            committed_operator_default_path_cutover_fallback_scopes(&manifest),
+            vec!["adapter".to_owned(), "dns".to_owned()]
+        );
+    }
 }
