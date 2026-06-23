@@ -1,6 +1,8 @@
-﻿use super::{
+use super::{
     MihomoFallbackRetirementEmergencyCheckpoint, MihomoFallbackRetirementExecutionReport,
     MihomoFallbackRetirementExecutionScope, MihomoFallbackRetirementExecutionStatus, RUST_RUNTIME_ID,
+    RustFallbackRetirementReadinessManifest, RustFallbackRetirementReadinessStatus,
+    approved_operator_default_path_cutover_fallback_scopes, approved_operator_default_path_cutover_surfaces,
     rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
     rust_http_connect_proxy_adapter_evidence, rust_protocol_adapter_forwarding_expansion_evidence,
     rust_remote_adapter_transport_expansion_evidence, rust_runtime_real_canary_evidence,
@@ -17,6 +19,8 @@ const MIHOMO_FALLBACK_RETIREMENT_COMPONENT: &str = "mihomo-fallback-retirement-e
 const MIHOMO_FALLBACK_RETIREMENT_KERNEL_AREA: &str = "fallback-retirement-execution";
 const MIHOMO_FALLBACK_RETIREMENT_MANIFEST_FILE: &str = "execution.yaml";
 const MIHOMO_FALLBACK_RETIREMENT_CHECKPOINT_FILE: &str = "emergency-rollback.yaml";
+const RUST_FALLBACK_RETIREMENT_READINESS_COMPONENT: &str = "rust-fallback-retirement-readiness";
+const RUST_FALLBACK_RETIREMENT_READINESS_MANIFEST_FILE: &str = "manifest.yaml";
 const RUST_RUNTIME_REAL_CANARY_COMPONENT: &str = "rust-runtime-real-canary";
 const RUST_RUNTIME_REAL_CANARY_EVIDENCE_FILE: &str = "evidence.yaml";
 const NEXT_SAFE_BATCH: &str = "rust-default-data-plane-closeout";
@@ -101,6 +105,29 @@ async fn build_mihomo_fallback_retirement_execution_report(
     explicit_opt_in: bool,
     execution_requested: bool,
 ) -> Result<MihomoFallbackRetirementExecutionReport> {
+    let readiness_manifest_path = fallback_retirement_readiness_manifest_path()?;
+    let readiness_manifest = read_fallback_retirement_readiness_manifest(&readiness_manifest_path).await?;
+    let fallback_retirement_readiness_locked = readiness_manifest
+        .as_ref()
+        .map(|manifest| manifest.status == RustFallbackRetirementReadinessStatus::Locked)
+        .unwrap_or(false);
+    let fallback_retirement_execution_allowed_by_readiness = readiness_manifest
+        .as_ref()
+        .map(|manifest| manifest.fallback_retirement_execution_allowed)
+        .unwrap_or(false);
+    let operator_default_path_cutover_surfaces = approved_operator_default_path_cutover_surfaces()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<String>>();
+    let operator_default_path_cutover_fallback_scopes = approved_operator_default_path_cutover_fallback_scopes()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<String>>();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
     let evidence_path = rust_runtime_real_canary_evidence_path()?;
     let evidence = fs::read_to_string(&evidence_path).await.ok();
     let evidence_yaml = evidence
@@ -109,6 +136,29 @@ async fn build_mihomo_fallback_retirement_execution_report(
     let mut blockers = Vec::new();
     if execution_requested && !explicit_opt_in {
         blockers.push("explicit opt-in is required for scoped fallback retirement execution".into());
+    }
+    match readiness_manifest.as_ref() {
+        Some(manifest) => {
+            if manifest.status != RustFallbackRetirementReadinessStatus::Locked {
+                blockers.push(format!("fallback retirement readiness manifest status is {:?}", manifest.status).into());
+            }
+            if !manifest.fallback_retirement_execution_allowed {
+                blockers.push("fallback retirement readiness manifest does not allow execution".into());
+            }
+            if !manifest.blockers.is_empty() {
+                blockers.push("fallback retirement readiness manifest contains blockers".into());
+            }
+        }
+        None => blockers
+            .push("locked fallback retirement readiness manifest is missing; lock readiness before execution".into()),
+    }
+    if !operator_default_path_cutover_committed {
+        blockers.push(
+            "fallback retirement execution requires committed operator default-path cutover for sidecar removal".into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("fallback retirement execution requires fallback scopes recorded by operator cutover".into());
     }
     if evidence_yaml.is_none() {
         blockers.push("Rust runtime real canary evidence artifact is missing".into());
@@ -208,6 +258,14 @@ async fn build_mihomo_fallback_retirement_execution_report(
         retires_supported_fallback: false,
         removes_mihomo_fallback_binary: false,
         unsupported_mihomo_fallback_retained: true,
+        fallback_retirement_readiness_manifest_path: Some(
+            readiness_manifest_path.to_string_lossy().to_string().into(),
+        ),
+        fallback_retirement_readiness_locked,
+        fallback_retirement_execution_allowed_by_readiness,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         blockers,
         warnings: vec![
             "execution scope is limited to bounded Rust DNS, adapter, protocol, encrypted-session, and transparent packet evidence".into(),
@@ -340,6 +398,24 @@ fn mihomo_fallback_retirement_manifest_path() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?
         .join(MIHOMO_FALLBACK_RETIREMENT_COMPONENT)
         .join(MIHOMO_FALLBACK_RETIREMENT_MANIFEST_FILE))
+}
+
+fn fallback_retirement_readiness_manifest_path() -> Result<std::path::PathBuf> {
+    Ok(dirs::app_runtime_dir()?
+        .join(RUST_FALLBACK_RETIREMENT_READINESS_COMPONENT)
+        .join(RUST_FALLBACK_RETIREMENT_READINESS_MANIFEST_FILE))
+}
+
+async fn read_fallback_retirement_readiness_manifest(
+    path: &std::path::Path,
+) -> Result<Option<RustFallbackRetirementReadinessManifest>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
+    }
 }
 
 fn mihomo_fallback_retirement_checkpoint_path() -> Result<std::path::PathBuf> {
