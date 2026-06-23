@@ -866,6 +866,18 @@ pub struct RustDefaultDataPlaneUnsupportedBlocker {
     pub retirement_requirement: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustDefaultDataPlaneCloseoutGateEvidence {
+    pub closeout_manifest_path: Option<String>,
+    pub closeout_manifest_closed_out: bool,
+    pub ownership_reconciled: bool,
+    pub operator_default_path_cutover_committed: bool,
+    pub operator_default_path_cutover_surfaces: Vec<String>,
+    pub operator_default_path_cutover_fallback_scopes: Vec<String>,
+    pub blockers: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RustDefaultDataPlaneCloseoutReport {
@@ -946,6 +958,8 @@ pub struct RustSocksUdpAssociateExecutionReport {
     pub reason: String,
     pub explicit_opt_in: bool,
     pub rust_owned_scope: String,
+    #[serde(default)]
+    pub default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
     pub mutates_runtime: bool,
     pub writes_evidence: bool,
     pub evidence_path: Option<String>,
@@ -1012,6 +1026,8 @@ pub struct RustSocksUdpFragmentsExecutionReport {
     pub reason: String,
     pub explicit_opt_in: bool,
     pub rust_owned_scope: String,
+    #[serde(default)]
+    pub default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
     pub mutates_runtime: bool,
     pub writes_evidence: bool,
     pub evidence_path: Option<String>,
@@ -1076,6 +1092,8 @@ pub struct RustSocksAuthExecutionReport {
     pub reason: String,
     pub explicit_opt_in: bool,
     pub rust_owned_scope: String,
+    #[serde(default)]
+    pub default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
     pub mutates_runtime: bool,
     pub writes_evidence: bool,
     pub evidence_path: Option<String>,
@@ -1141,6 +1159,8 @@ pub struct RustSocksTcpConnectExecutionReport {
     pub reason: String,
     pub explicit_opt_in: bool,
     pub rust_owned_scope: String,
+    #[serde(default)]
+    pub default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
     pub mutates_runtime: bool,
     pub writes_evidence: bool,
     pub evidence_path: Option<String>,
@@ -1209,6 +1229,8 @@ pub struct RustSocksBindExecutionReport {
     pub reason: String,
     pub explicit_opt_in: bool,
     pub rust_owned_scope: String,
+    #[serde(default)]
+    pub default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
     pub mutates_runtime: bool,
     pub writes_evidence: bool,
     pub evidence_path: Option<String>,

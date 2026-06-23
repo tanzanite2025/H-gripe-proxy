@@ -16,18 +16,31 @@ use self::{
     execution::run_bounded_socks_udp_fragment_reassembly,
 };
 use super::{
-    RUST_RUNTIME_ID, RustSocksUdpFragmentsExecutionReport, RustSocksUdpFragmentsExecutionStatus,
-    RustSocksUdpFragmentsLeakEvidence,
+    RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutGateEvidence, RustSocksUdpFragmentsExecutionReport,
+    RustSocksUdpFragmentsExecutionStatus, RustSocksUdpFragmentsLeakEvidence,
+    rust_default_data_plane_closeout_gate_evidence,
 };
 use anyhow::Result;
 use smartstring::alias::String;
 use tokio::fs;
 
 pub async fn rust_socks_udp_fragments_execution(explicit_opt_in: bool) -> Result<RustSocksUdpFragmentsExecutionReport> {
+    let default_data_plane_closeout_gate = rust_default_data_plane_closeout_gate_evidence().await?;
+
     if !explicit_opt_in {
+        let mut blockers = vec!["SOCKS UDP fragment execution requires explicit opt-in".into()];
+        blockers.extend(default_data_plane_closeout_gate.blockers.clone());
         return Ok(blocked_report(
             explicit_opt_in,
-            vec!["SOCKS UDP fragment execution requires explicit opt-in".into()],
+            default_data_plane_closeout_gate,
+            blockers,
+        ));
+    }
+    if !default_data_plane_closeout_gate.blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            default_data_plane_closeout_gate.clone(),
+            default_data_plane_closeout_gate.blockers.clone(),
         ));
     }
 
@@ -38,6 +51,7 @@ pub async fn rust_socks_udp_fragments_execution(explicit_opt_in: bool) -> Result
         Err(error) => {
             return Ok(blocked_report(
                 explicit_opt_in,
+                default_data_plane_closeout_gate,
                 vec![format!("bounded SOCKS UDP fragment execution failed: {error}").into()],
             ));
         }
@@ -59,6 +73,7 @@ pub async fn rust_socks_udp_fragments_execution(explicit_opt_in: bool) -> Result
         reason: "Rust executed bounded SOCKS5 UDP fragment reassembly over loopback".into(),
         explicit_opt_in,
         rust_owned_scope: RUST_SOCKS_UDP_FRAGMENTS_OWNED_SCOPE.into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: true,
         evidence_path: Some(evidence_path.to_string_lossy().to_string().into()),
@@ -83,7 +98,11 @@ pub async fn rust_socks_udp_fragments_execution(explicit_opt_in: bool) -> Result
     Ok(report)
 }
 
-fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksUdpFragmentsExecutionReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
+    blockers: Vec<String>,
+) -> RustSocksUdpFragmentsExecutionReport {
     RustSocksUdpFragmentsExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
         component: RUST_SOCKS_UDP_FRAGMENTS_COMPONENT.into(),
@@ -92,6 +111,7 @@ fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksUdpF
         reason: "Rust SOCKS UDP fragment execution is blocked".into(),
         explicit_opt_in,
         rust_owned_scope: RUST_SOCKS_UDP_FRAGMENTS_OWNED_SCOPE.into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: false,
         evidence_path: None,
