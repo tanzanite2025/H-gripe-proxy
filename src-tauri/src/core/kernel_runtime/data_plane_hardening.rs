@@ -4625,8 +4625,10 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard_rep
     emergency_rollback_retention_decision: bool,
     cross_platform_drill_plan_definition_decision: bool,
     operator_retirement_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport {
-    let (guard_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut guard_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "expanded default rollout closeout review",
             expanded_rollout_closeout_review_decision,
@@ -4668,6 +4670,21 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard_rep
             "Rust data-plane Mihomo fallback retirement guard requires operator acknowledgement",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        guard_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane mihomo-fallback-retirement-guard requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane mihomo-fallback-retirement-guard requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementGuardReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -4680,6 +4697,9 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_guard_rep
         emergency_rollback_retained: emergency_rollback_retention_decision,
         cross_platform_drill_plan_defined: cross_platform_drill_plan_definition_decision,
         operator_retirement_acknowledged: operator_retirement_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         mihomo_fallback_retirement_guard_complete: blockers.is_empty(),
         guard_surfaces,
         blockers,
@@ -4716,6 +4736,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement
             emergency_rollback_retention_decision.unwrap_or(false),
             cross_platform_drill_plan_definition_decision.unwrap_or(false),
             operator_retirement_acknowledgement_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let closeout_blockers = if rust_data_plane_hardening_expanded_default_rollout_closeout_complete {
         Vec::new()
@@ -4793,8 +4823,10 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run_r
     emergency_recovery_rehearsal_decision: bool,
     production_forwarding_unchanged_verification_decision: bool,
     dry_run_evidence_archive_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
-    let (dry_run_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut dry_run_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "Mihomo fallback retirement guard review",
             guard_review_decision,
@@ -4831,6 +4863,21 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run_r
             "Rust data-plane Mihomo fallback retirement dry-run requires archived evidence",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        dry_run_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane mihomo-fallback-retirement-dry-run requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push(
+            "Rust data-plane mihomo-fallback-retirement-dry-run requires fallback scopes recorded by operator cutover"
+                .into(),
+        );
+    }
 
     RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementDryRunReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -4842,6 +4889,9 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_dry_run_r
         emergency_recovery_rehearsed: emergency_recovery_rehearsal_decision,
         production_forwarding_unchanged_verified: production_forwarding_unchanged_verification_decision,
         dry_run_evidence_archived: dry_run_evidence_archive_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         mihomo_fallback_retirement_dry_run_complete: blockers.is_empty(),
         dry_run_surfaces,
         blockers,
@@ -4876,6 +4926,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement
             emergency_recovery_rehearsal_decision.unwrap_or(false),
             production_forwarding_unchanged_verification_decision.unwrap_or(false),
             dry_run_evidence_archive_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let guard_blockers = if rust_data_plane_hardening_mihomo_fallback_retirement_guard_complete {
         Vec::new()
@@ -4954,8 +5014,10 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness
     dns_parity_evidence_archive_decision: bool,
     soak_evidence_archive_decision: bool,
     emergency_rollback_owner_acknowledgement_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
-    let (readiness_surfaces, blockers) = collect_data_plane_hardening_surfaces(&[
+    let (mut readiness_surfaces, mut blockers) = collect_data_plane_hardening_surfaces(&[
         (
             "Mihomo fallback retirement dry-run review",
             dry_run_review_decision,
@@ -4992,6 +5054,18 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness
             "Rust data-plane Mihomo fallback retirement readiness requires emergency rollback owner acknowledgement",
         ),
     ]);
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+
+    if operator_default_path_cutover_committed {
+        readiness_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Rust data-plane mihomo-fallback-retirement-readiness requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("Rust data-plane mihomo-fallback-retirement-readiness requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeDataPlaneHardeningMihomoFallbackRetirementReadinessReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -5003,6 +5077,9 @@ fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement_readiness
         dns_parity_evidence_archived: dns_parity_evidence_archive_decision,
         soak_evidence_archived: soak_evidence_archive_decision,
         emergency_rollback_owner_acknowledged: emergency_rollback_owner_acknowledgement_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         mihomo_fallback_retirement_readiness_complete: blockers.is_empty(),
         readiness_surfaces,
         blockers,
@@ -5037,6 +5114,16 @@ pub async fn rust_kernel_runtime_data_plane_hardening_mihomo_fallback_retirement
             dns_parity_evidence_archive_decision.unwrap_or(false),
             soak_evidence_archive_decision.unwrap_or(false),
             emergency_rollback_owner_acknowledgement_decision.unwrap_or(false),
+            approved_operator_default_path_cutover_surfaces()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            approved_operator_default_path_cutover_fallback_scopes()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         );
     let dry_run_blockers = if rust_data_plane_hardening_mihomo_fallback_retirement_dry_run_complete {
         Vec::new()
