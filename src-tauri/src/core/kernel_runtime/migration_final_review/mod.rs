@@ -268,7 +268,14 @@ fn retained_fallback_evidence() -> Vec<GoToRustMigrationFinalReviewRetainedFallb
 }
 
 async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision>> {
-    let dns_blockers = if dns_default_path_blocker_ready().await? {
+    let dns_default_ready = dns_default_path_blocker_ready().await?;
+    let dns_cutover_hold_ready = dns_cutover_hold_blocker_ready().await?;
+    let dns_blockers = if dns_default_ready && dns_cutover_hold_ready {
+        vec![
+            "operator-approved production DNS cutover on real profiles".to_owned(),
+            "system resolver handoff and leak observation on real profiles".to_owned(),
+        ]
+    } else if dns_default_ready {
         vec![
             "production default DNS cutover hold window".to_owned(),
             "system resolver handoff and leak observation on real profiles".to_owned(),
@@ -337,6 +344,28 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
         default_removal_decision("non-loopback proxy protocol forwarding defaults", protocol_blockers),
         default_removal_decision("Mihomo sidecar binary removal", sidecar_required_evidence),
     ])
+}
+
+async fn dns_cutover_hold_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-dns-cutover-hold-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
 }
 
 async fn default_forwarding_hold_blocker_ready() -> Result<bool> {
