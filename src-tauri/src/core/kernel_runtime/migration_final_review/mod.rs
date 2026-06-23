@@ -302,25 +302,33 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
     }
     let route_packet_capture_ready = route_packet_capture_blocker_ready().await?;
     let tun_device_lifecycle_ready = tun_device_lifecycle_blocker_ready().await?;
-    let route_packet_capture_blockers = if route_packet_capture_ready && tun_device_lifecycle_ready {
-        vec![
-            "privileged TUN device create/destroy on real interfaces".to_owned(),
-            "privileged route table mutation apply/rollback on real interfaces".to_owned(),
-            "post-cutover packet leak hold window".to_owned(),
-        ]
-    } else if route_packet_capture_ready {
-        vec![
-            "real TUN device lifecycle ownership".to_owned(),
-            "privileged route table mutation apply/rollback on real interfaces".to_owned(),
-            "post-cutover packet leak hold window".to_owned(),
-        ]
-    } else {
-        vec![
-            "real TUN device lifecycle ownership".to_owned(),
-            "host route table mutation and rollback on all platforms".to_owned(),
-            "post-cutover packet leak hold window".to_owned(),
-        ]
-    };
+    let route_mutation_rollback_ready = route_mutation_rollback_blocker_ready().await?;
+    let route_packet_capture_blockers =
+        if route_packet_capture_ready && tun_device_lifecycle_ready && route_mutation_rollback_ready {
+            vec![
+                "privileged TUN device create/destroy on real interfaces".to_owned(),
+                "operator-approved privileged route mutation cutover on real interfaces".to_owned(),
+                "post-cutover packet leak hold window".to_owned(),
+            ]
+        } else if route_packet_capture_ready && tun_device_lifecycle_ready {
+            vec![
+                "privileged TUN device create/destroy on real interfaces".to_owned(),
+                "privileged route table mutation apply/rollback on real interfaces".to_owned(),
+                "post-cutover packet leak hold window".to_owned(),
+            ]
+        } else if route_packet_capture_ready {
+            vec![
+                "real TUN device lifecycle ownership".to_owned(),
+                "privileged route table mutation apply/rollback on real interfaces".to_owned(),
+                "post-cutover packet leak hold window".to_owned(),
+            ]
+        } else {
+            vec![
+                "real TUN device lifecycle ownership".to_owned(),
+                "host route table mutation and rollback on all platforms".to_owned(),
+                "post-cutover packet leak hold window".to_owned(),
+            ]
+        };
     let plugin_supervision_ready = plugin_process_supervision_blocker_ready().await?;
     let quic_udp_ready = quic_udp_profile_blocker_ready().await?;
     let default_forwarding_hold_ready = default_forwarding_hold_blocker_ready().await?;
@@ -358,6 +366,28 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
         default_removal_decision("non-loopback proxy protocol forwarding defaults", protocol_blockers),
         default_removal_decision("Mihomo sidecar binary removal", sidecar_required_evidence),
     ])
+}
+
+async fn route_mutation_rollback_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-route-mutation-rollback-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
 }
 
 async fn tun_device_lifecycle_blocker_ready() -> Result<bool> {

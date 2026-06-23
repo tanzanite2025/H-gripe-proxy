@@ -10,8 +10,8 @@ use crate::core::kernel_runtime::{
     RustProtocolDefaultPathBlockerReport, RustProtocolForwardingSubsetPreflightReport,
     RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
     RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport, RustQuicUdpProfileBlockerReport,
-    RustRemoteAdapterTransportExpansionReport, RustRoutePacketCaptureBlockerReport,
-    RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
+    RustRemoteAdapterTransportExpansionReport, RustRouteMutationRollbackBlockerReport,
+    RustRoutePacketCaptureBlockerReport, RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
     RustShadowsocksAeadAdapterExecutionReport, RustSidecarIndependentRollbackReport, RustSocksAuthExecutionReport,
     RustSocksBindExecutionReport, RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport,
     RustSocksUdpFragmentsExecutionReport, RustTunDeviceLifecycleBlockerReport, RustTunPacketCaptureHoldBundleReport,
@@ -30,8 +30,8 @@ use crate::core::kernel_runtime::{
     rust_protocol_default_path_blocker_reduction, rust_protocol_forwarding_subset_preflight,
     rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
     rust_quic_udp_profile_blocker_reduction, rust_remote_adapter_transport_expansion_evidence,
-    rust_route_packet_capture_blocker_reduction, rust_runtime_real_canary_evidence,
-    rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
+    rust_route_mutation_rollback_blocker_reduction, rust_route_packet_capture_blocker_reduction,
+    rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_sidecar_independent_rollback_archive, rust_socks_auth_execution, rust_socks_bind_execution,
     rust_socks_tcp_connect_execution, rust_socks_udp_associate_execution, rust_socks_udp_fragments_execution,
     rust_tun_device_lifecycle_blocker_reduction, rust_tun_packet_capture_hold_bundle_execution,
@@ -460,6 +460,15 @@ pub async fn run_runtime_kernel_rust_route_packet_capture_blocker_reduction(
     explicit_opt_in: bool,
 ) -> CmdResult<RustRoutePacketCaptureBlockerReport> {
     rust_route_packet_capture_blocker_reduction(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_route_mutation_rollback_blocker_reduction(
+    explicit_opt_in: bool,
+) -> CmdResult<RustRouteMutationRollbackBlockerReport> {
+    rust_route_mutation_rollback_blocker_reduction(explicit_opt_in)
         .await
         .stringify_err()
 }
