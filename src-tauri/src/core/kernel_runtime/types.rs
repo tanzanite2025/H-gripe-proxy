@@ -1072,6 +1072,74 @@ pub struct RustSocksTcpConnectExecutionReport {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum RustSocksBindExecutionStatus {
+    Planned,
+    Executed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksBindForwardEvidence {
+    pub proxy_listener_addr: String,
+    pub bind_addr: String,
+    pub peer_addr: String,
+    pub selected_method: String,
+    pub auth_negotiated: bool,
+    pub bind_command: String,
+    pub bind_atyp: String,
+    pub first_reply_sent: bool,
+    pub second_reply_sent: bool,
+    pub request_bytes: usize,
+    pub peer_received_bytes: usize,
+    pub response_bytes: usize,
+    pub response_prefix: String,
+    pub data_forwarded: bool,
+    pub loopback_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksBindRollbackEvidence {
+    pub checkpoint_path: String,
+    pub fallback_retained_for: Vec<String>,
+    pub created_at_epoch_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksBindLeakEvidence {
+    pub passed: bool,
+    pub no_system_packet_capture: bool,
+    pub no_non_loopback_peer: bool,
+    pub no_mihomo_binary_removal: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RustSocksBindExecutionReport {
+    pub runtime_id: String,
+    pub component: String,
+    pub kernel_area: String,
+    pub status: RustSocksBindExecutionStatus,
+    pub reason: String,
+    pub explicit_opt_in: bool,
+    pub rust_owned_scope: String,
+    pub mutates_runtime: bool,
+    pub writes_evidence: bool,
+    pub evidence_path: Option<String>,
+    pub forward_evidence: Option<RustSocksBindForwardEvidence>,
+    pub rollback_evidence: Option<RustSocksBindRollbackEvidence>,
+    pub leak_evidence: Option<RustSocksBindLeakEvidence>,
+    pub mihomo_fallback_retained_for: Vec<String>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub facts: Vec<String>,
+    pub next_safe_batch: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RustProtocolAdapterForwardingStatus {
     Passed,
     Failed,
