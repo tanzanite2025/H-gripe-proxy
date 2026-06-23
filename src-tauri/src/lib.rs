@@ -255,6 +255,7 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_http_connect_proxy_adapter,
             cmd::runtime::kernel::run_runtime_kernel_rust_encrypted_proxy_protocol_preflight,
             cmd::runtime::kernel::run_runtime_kernel_rust_encrypted_proxy_session_expansion,
+            cmd::runtime::kernel::run_runtime_kernel_rust_encrypted_protocols_bundle,
             cmd::runtime::kernel::run_runtime_kernel_rust_shadowsocks_aead_adapter_execution,
             cmd::runtime::kernel::run_runtime_kernel_rust_shadowsocks_aead_adapter_canary,
             cmd::runtime::kernel::get_runtime_kernel_mihomo_fallback_retirement_execution_plan,
