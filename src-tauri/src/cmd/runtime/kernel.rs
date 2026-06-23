@@ -5,7 +5,7 @@ use crate::core::kernel_runtime::{
     RustDnsSystemResolverLeakBlockerReport, RustEncryptedProtocolsBundleReport,
     RustEncryptedProxyProtocolPreflightReport, RustEncryptedProxySessionExpansionReport,
     RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
-    RustHttpConnectProxyAdapterReport, RustMihomoFallbackRetirementBundleReport,
+    RustHttpConnectProxyAdapterReport, RustMihomoFallbackRetirementBundleReport, RustPacketLeakHoldBlockerReport,
     RustPluginProcessSupervisionBlockerReport, RustProtocolAdapterForwardingExpansionReport,
     RustProtocolDefaultPathBlockerReport, RustProtocolForwardingSubsetPreflightReport,
     RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
@@ -26,12 +26,13 @@ use crate::core::kernel_runtime::{
     rust_encrypted_protocols_bundle_execution, rust_encrypted_proxy_protocol_preflight_evidence,
     rust_encrypted_proxy_session_expansion, rust_fallback_retirement_readiness_manifest,
     rust_http_connect_proxy_adapter_evidence, rust_mihomo_fallback_retirement_bundle_execution,
-    rust_plugin_process_supervision_blocker_reduction, rust_protocol_adapter_forwarding_expansion_evidence,
-    rust_protocol_default_path_blocker_reduction, rust_protocol_forwarding_subset_preflight,
-    rust_protocol_forwarding_subset_smoke_evidence, rust_protocol_forwarding_subset_status,
-    rust_quic_udp_profile_blocker_reduction, rust_remote_adapter_transport_expansion_evidence,
-    rust_route_mutation_rollback_blocker_reduction, rust_route_packet_capture_blocker_reduction,
-    rust_runtime_real_canary_evidence, rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
+    rust_packet_leak_hold_blocker_reduction, rust_plugin_process_supervision_blocker_reduction,
+    rust_protocol_adapter_forwarding_expansion_evidence, rust_protocol_default_path_blocker_reduction,
+    rust_protocol_forwarding_subset_preflight, rust_protocol_forwarding_subset_smoke_evidence,
+    rust_protocol_forwarding_subset_status, rust_quic_udp_profile_blocker_reduction,
+    rust_remote_adapter_transport_expansion_evidence, rust_route_mutation_rollback_blocker_reduction,
+    rust_route_packet_capture_blocker_reduction, rust_runtime_real_canary_evidence,
+    rust_shadowsocks_aead_adapter_canary, rust_shadowsocks_aead_adapter_execution,
     rust_sidecar_independent_rollback_archive, rust_socks_auth_execution, rust_socks_bind_execution,
     rust_socks_tcp_connect_execution, rust_socks_udp_associate_execution, rust_socks_udp_fragments_execution,
     rust_tun_device_lifecycle_blocker_reduction, rust_tun_packet_capture_hold_bundle_execution,
@@ -469,6 +470,15 @@ pub async fn run_runtime_kernel_rust_route_mutation_rollback_blocker_reduction(
     explicit_opt_in: bool,
 ) -> CmdResult<RustRouteMutationRollbackBlockerReport> {
     rust_route_mutation_rollback_blocker_reduction(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_packet_leak_hold_blocker_reduction(
+    explicit_opt_in: bool,
+) -> CmdResult<RustPacketLeakHoldBlockerReport> {
+    rust_packet_leak_hold_blocker_reduction(explicit_opt_in)
         .await
         .stringify_err()
 }
