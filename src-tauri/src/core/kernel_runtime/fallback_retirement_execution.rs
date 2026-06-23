@@ -211,7 +211,7 @@ async fn build_mihomo_fallback_retirement_execution_report(
         blockers,
         warnings: vec![
             "execution scope is limited to bounded Rust DNS, adapter, protocol, encrypted-session, and transparent packet evidence".into(),
-            "Mihomo remains fallback for SOCKS non-loopback UDP plus fragment queues/timeouts, unsupported encrypted protocols, packet capture, route install, and full binary removal".into(),
+            "Mihomo remains fallback for SOCKS non-loopback UDP plus fragment queues/timeouts, unsupported non-loopback encrypted protocols, QUIC/UDP variants, multiplexing, and plugin transports, packet capture, route install, and full binary removal".into(),
         ],
         facts: vec![
             "execution can run the wider evidence suite before writing a durable manifest and emergency rollback checkpoint".into(),

@@ -3767,6 +3767,83 @@ export interface RustEncryptedProxySessionExpansionReport {
   nextSafeBatch: string
 }
 
+export type RustEncryptedProtocolsBundleStatus =
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+
+export type RustEncryptedProtocolBundleProtocol =
+  | 'vmessTcp'
+  | 'vlessTcp'
+  | 'trojanTcp'
+
+export interface RustEncryptedProtocolsBundleSessionEvidence {
+  protocol: RustEncryptedProtocolBundleProtocol
+  adapterName: string
+  listenerPort: number
+  targetPort: number
+  targetAddress: string
+  handshakeValidated: boolean
+  sessionEstablished: boolean
+  requestMarker: string
+  responseMarker?: string | null
+  requestBytesFromClient: number
+  payloadBytesToTarget: number
+  targetResponseBytes: number
+  responseBytesToClient: number
+  fallbackTriggered: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustEncryptedProtocolsBundleFallbackEvidence {
+  unsupportedProtocols: string[]
+  fallbackRetained: boolean
+  defaultForwardingRetained: boolean
+  unsupportedSessionsBypassed: boolean
+  passed: boolean
+  blockers: string[]
+}
+
+export interface RustEncryptedProtocolsBundleRollbackEvidence {
+  checkpointPath: string
+  fallbackRetainedFor: string[]
+  createdAtEpochSeconds: number
+}
+
+export interface RustEncryptedProtocolsBundleLeakEvidence {
+  passed: boolean
+  loopbackOnly: boolean
+  noRuntimeMutation: boolean
+  noPacketCaptureClaim: boolean
+  noNonLoopbackForwarding: boolean
+  noMihomoBinaryRemoval: boolean
+}
+
+export interface RustEncryptedProtocolsBundleReport {
+  runtimeId: string
+  component: string
+  kernelArea: string
+  status: RustEncryptedProtocolsBundleStatus
+  reason: string
+  explicitOptIn: boolean
+  sessionEvidence: RustEncryptedProtocolsBundleSessionEvidence[]
+  fallbackEvidence?: RustEncryptedProtocolsBundleFallbackEvidence | null
+  rollbackEvidence?: RustEncryptedProtocolsBundleRollbackEvidence | null
+  leakEvidence?: RustEncryptedProtocolsBundleLeakEvidence | null
+  evidencePath?: string | null
+  loopbackRemoteOnly: boolean
+  mutatesRuntime: boolean
+  forwardsTraffic: boolean
+  outboundAdaptersUsed: boolean
+  writesEvidenceArtifact: boolean
+  mihomoFallback: boolean
+  blockers: string[]
+  warnings: string[]
+  facts: string[]
+  nextSafeBatch: string
+}
+
 export interface RuntimeKernelLoopbackDnsSmokeEvidenceReport {
   runtimeId: string
   component: string
@@ -4255,6 +4332,15 @@ export async function runRuntimeKernelRustEncryptedProxySessionExpansion(
 ) {
   return invoke<RustEncryptedProxySessionExpansionReport>(
     'run_runtime_kernel_rust_encrypted_proxy_session_expansion',
+    { explicitOptIn },
+  )
+}
+
+export async function runRuntimeKernelRustEncryptedProtocolsBundle(
+  explicitOptIn = false,
+) {
+  return invoke<RustEncryptedProtocolsBundleReport>(
+    'run_runtime_kernel_rust_encrypted_protocols_bundle',
     { explicitOptIn },
   )
 }
