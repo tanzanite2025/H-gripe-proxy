@@ -1209,9 +1209,14 @@ fn rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retirement_report(
     rollback_surface_inventory_lock_decision: bool,
     rollback_surface_retirement_plan_archive_decision: bool,
     emergency_recovery_drill_decision: bool,
+    operator_default_path_cutover_surfaces: Vec<String>,
+    operator_default_path_cutover_fallback_scopes: Vec<String>,
 ) -> RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport {
     let mut blockers = Vec::new();
     let mut planned_retirement_surfaces = Vec::new();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
 
     if post_execution_verification_review_decision {
         planned_retirement_surfaces.push("post-execution verification review".into());
@@ -1236,6 +1241,15 @@ fn rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retirement_report(
     if !emergency_recovery_drill_decision {
         blockers.push("Go/Mihomo rollback surface retirement requires emergency recovery drill evidence".into());
     }
+    if operator_default_path_cutover_committed {
+        planned_retirement_surfaces.push("committed operator default-path cutover".into());
+    } else {
+        blockers.push("Go/Mihomo rollback surface retirement requires committed operator default-path cutover for sidecar removal".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers
+            .push("Go/Mihomo rollback surface retirement requires fallback scopes recorded by operator cutover".into());
+    }
 
     RustKernelRuntimeGoMihomoRetirementRollbackSurfaceRetirementReport {
         runtime_id: RUST_RUNTIME_ID.into(),
@@ -1245,6 +1259,9 @@ fn rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retirement_report(
         rollback_surface_inventory_locked: rollback_surface_inventory_lock_decision,
         rollback_surface_retirement_plan_archived: rollback_surface_retirement_plan_archive_decision,
         emergency_recovery_drill_passed: emergency_recovery_drill_decision,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         rollback_surface_retirement_complete: blockers.is_empty(),
         planned_retirement_surfaces,
         blockers,
@@ -1273,6 +1290,16 @@ pub async fn rust_kernel_runtime_go_mihomo_retirement_rollback_surface_retiremen
         rollback_surface_inventory_lock_decision.unwrap_or(false),
         rollback_surface_retirement_plan_archive_decision.unwrap_or(false),
         emergency_recovery_drill_decision.unwrap_or(false),
+        approved_operator_default_path_cutover_surfaces()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        approved_operator_default_path_cutover_fallback_scopes()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     );
     let mut verification_blockers = Vec::new();
 
