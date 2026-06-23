@@ -1,19 +1,20 @@
 use super::*;
 use crate::core::kernel_runtime::{
-    MihomoFallbackRetirementExecutionReport, RustDefaultDataPlaneCloseoutReport, RustEncryptedProtocolsBundleReport,
-    RustEncryptedProxyProtocolPreflightReport, RustEncryptedProxySessionExpansionReport,
-    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
-    RustHttpConnectProxyAdapterReport, RustMihomoFallbackRetirementBundleReport,
-    RustProtocolAdapterForwardingExpansionReport, RustProtocolForwardingSubsetPreflightReport,
-    RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
-    RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport,
-    RustRemoteAdapterTransportExpansionReport, RustRuntimeRealCanaryEvidenceReport,
-    RustShadowsocksAeadAdapterCanaryReport, RustShadowsocksAeadAdapterExecutionReport, RustSocksAuthExecutionReport,
-    RustSocksBindExecutionReport, RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport,
-    RustSocksUdpFragmentsExecutionReport, RustTunPacketCaptureHoldBundleReport, RustTunSystemProxyParityApplyReport,
-    RustTunSystemProxyParityPreflightReport, RustTunSystemProxyParityRollbackReport,
-    RustTunTransparentRoutingExecutionReport, RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity,
-    closeout_rust_default_data_plane, execute_mihomo_fallback_retirement, lock_rust_fallback_retirement_readiness,
+    GoToRustMigrationFinalReviewReport, MihomoFallbackRetirementExecutionReport, RustDefaultDataPlaneCloseoutReport,
+    RustEncryptedProtocolsBundleReport, RustEncryptedProxyProtocolPreflightReport,
+    RustEncryptedProxySessionExpansionReport, RustFallbackRetirementReadinessLockReport,
+    RustFallbackRetirementReadinessManifest, RustHttpConnectProxyAdapterReport,
+    RustMihomoFallbackRetirementBundleReport, RustProtocolAdapterForwardingExpansionReport,
+    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
+    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
+    RustProtocolForwardingSubsetStopReport, RustRemoteAdapterTransportExpansionReport,
+    RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
+    RustShadowsocksAeadAdapterExecutionReport, RustSocksAuthExecutionReport, RustSocksBindExecutionReport,
+    RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport, RustSocksUdpFragmentsExecutionReport,
+    RustTunPacketCaptureHoldBundleReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
+    RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
+    RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
+    execute_mihomo_fallback_retirement, go_to_rust_migration_final_review, lock_rust_fallback_retirement_readiness,
     mihomo_fallback_retirement_execution_plan, rollback_mihomo_fallback_retirement_execution,
     rollback_rust_tun_system_proxy_parity, rust_default_data_plane_closeout_plan,
     rust_encrypted_protocols_bundle_execution, rust_encrypted_proxy_protocol_preflight_evidence,
@@ -418,6 +419,13 @@ pub async fn run_runtime_kernel_rust_mihomo_fallback_retirement_bundle(
     rust_mihomo_fallback_retirement_bundle_execution(explicit_opt_in)
         .await
         .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_go_to_rust_migration_final_review(
+    explicit_opt_in: bool,
+) -> CmdResult<GoToRustMigrationFinalReviewReport> {
+    go_to_rust_migration_final_review(explicit_opt_in).await.stringify_err()
 }
 
 #[tauri::command]
