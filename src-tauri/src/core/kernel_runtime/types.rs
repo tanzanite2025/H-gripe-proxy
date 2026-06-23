@@ -822,6 +822,18 @@ pub struct MihomoFallbackRetirementExecutionReport {
     pub retires_supported_fallback: bool,
     pub removes_mihomo_fallback_binary: bool,
     pub unsupported_mihomo_fallback_retained: bool,
+    #[serde(default)]
+    pub fallback_retirement_readiness_manifest_path: Option<String>,
+    #[serde(default)]
+    pub fallback_retirement_readiness_locked: bool,
+    #[serde(default)]
+    pub fallback_retirement_execution_allowed_by_readiness: bool,
+    #[serde(default)]
+    pub operator_default_path_cutover_committed: bool,
+    #[serde(default)]
+    pub operator_default_path_cutover_surfaces: Vec<String>,
+    #[serde(default)]
+    pub operator_default_path_cutover_fallback_scopes: Vec<String>,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,
@@ -873,6 +885,12 @@ pub struct RustDefaultDataPlaneCloseoutReport {
     pub default_scope_locked_to_passed_evidence: bool,
     pub unsupported_mihomo_fallback_retained: bool,
     pub removes_mihomo_fallback_binary: bool,
+    #[serde(default)]
+    pub operator_default_path_cutover_committed: bool,
+    #[serde(default)]
+    pub operator_default_path_cutover_surfaces: Vec<String>,
+    #[serde(default)]
+    pub operator_default_path_cutover_fallback_scopes: Vec<String>,
     pub blockers: Vec<String>,
     pub warnings: Vec<String>,
     pub facts: Vec<String>,

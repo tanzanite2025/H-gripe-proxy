@@ -1,7 +1,8 @@
-﻿use super::{
+use super::{
     MihomoFallbackRetirementExecutionReport, MihomoFallbackRetirementExecutionScope,
     MihomoFallbackRetirementExecutionStatus, RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutEvidenceOwnership,
     RustDefaultDataPlaneCloseoutReport, RustDefaultDataPlaneCloseoutStatus, RustDefaultDataPlaneUnsupportedBlocker,
+    approved_operator_default_path_cutover_fallback_scopes, approved_operator_default_path_cutover_surfaces,
 };
 use crate::utils::dirs;
 use anyhow::{Context, Result};
@@ -44,7 +45,28 @@ async fn build_rust_default_data_plane_closeout_report(
 ) -> Result<RustDefaultDataPlaneCloseoutReport> {
     let fallback_manifest_path = mihomo_fallback_retirement_manifest_path()?;
     let fallback_manifest = read_fallback_retirement_manifest(&fallback_manifest_path).await?;
+    let operator_default_path_cutover_surfaces = approved_operator_default_path_cutover_surfaces()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<String>>();
+    let operator_default_path_cutover_fallback_scopes = approved_operator_default_path_cutover_fallback_scopes()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<String>>();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
     let mut blockers = closeout_blockers_from_report(fallback_manifest.as_ref());
+    if !operator_default_path_cutover_committed {
+        blockers.push(
+            "default data-plane closeout requires committed operator default-path cutover for sidecar removal".into(),
+        );
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("default data-plane closeout requires fallback scopes recorded by operator cutover".into());
+    }
     if write_requested && !explicit_opt_in {
         blockers.push("explicit closeout opt-in is required before writing the closeout manifest".into());
     }
@@ -101,6 +123,9 @@ async fn build_rust_default_data_plane_closeout_report(
             .as_ref()
             .map(|manifest| manifest.removes_mihomo_fallback_binary)
             .unwrap_or(false),
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
         blockers,
         warnings: vec![
             "closeout does not broaden default ownership beyond passed bounded evidence".into(),
@@ -258,6 +283,12 @@ mod tests {
             retires_supported_fallback: false,
             removes_mihomo_fallback_binary: false,
             unsupported_mihomo_fallback_retained: false,
+            fallback_retirement_readiness_manifest_path: None,
+            fallback_retirement_readiness_locked: false,
+            fallback_retirement_execution_allowed_by_readiness: false,
+            operator_default_path_cutover_committed: false,
+            operator_default_path_cutover_surfaces: vec![],
+            operator_default_path_cutover_fallback_scopes: vec![],
             blockers: vec![],
             warnings: vec![],
             facts: vec![],
