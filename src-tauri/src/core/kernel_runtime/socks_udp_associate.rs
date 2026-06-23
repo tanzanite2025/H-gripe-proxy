@@ -1,6 +1,7 @@
 use super::{
-    RUST_RUNTIME_ID, RustSocksUdpAssociateExecutionReport, RustSocksUdpAssociateExecutionStatus,
-    RustSocksUdpAssociateLeakEvidence, RustSocksUdpAssociatePacketEvidence, RustSocksUdpAssociateRollbackEvidence,
+    RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutGateEvidence, RustSocksUdpAssociateExecutionReport,
+    RustSocksUdpAssociateExecutionStatus, RustSocksUdpAssociateLeakEvidence, RustSocksUdpAssociatePacketEvidence,
+    RustSocksUdpAssociateRollbackEvidence, rust_default_data_plane_closeout_gate_evidence,
 };
 use crate::utils::dirs;
 use anyhow::{Context as _, Result, anyhow};
@@ -17,14 +18,26 @@ const RUST_SOCKS_UDP_ASSOCIATE_COMPONENT: &str = "rust-socks-udp-associate-execu
 const RUST_SOCKS_UDP_ASSOCIATE_KERNEL_AREA: &str = "socks-udp-associate";
 const RUST_SOCKS_UDP_ASSOCIATE_EVIDENCE_FILE: &str = "evidence.yaml";
 const RUST_SOCKS_UDP_ASSOCIATE_ROLLBACK_FILE: &str = "rollback-checkpoint.yaml";
-const NEXT_SAFE_BATCH: &str = "unsupported-protocol-and-packet-capture-implementation";
+const NEXT_SAFE_BATCH: &str = "route-packet-capture-privileged-hold";
 const SOCKS_UDP_ECHO_PREFIX: &[u8] = b"udp-associate-ok:";
 
 pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result<RustSocksUdpAssociateExecutionReport> {
+    let default_data_plane_closeout_gate = rust_default_data_plane_closeout_gate_evidence().await?;
+
     if !explicit_opt_in {
+        let mut blockers = vec!["SOCKS UDP associate execution requires explicit opt-in".into()];
+        blockers.extend(default_data_plane_closeout_gate.blockers.clone());
         return Ok(blocked_report(
             explicit_opt_in,
-            vec!["SOCKS UDP associate execution requires explicit opt-in".into()],
+            default_data_plane_closeout_gate,
+            blockers,
+        ));
+    }
+    if !default_data_plane_closeout_gate.blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            default_data_plane_closeout_gate.clone(),
+            default_data_plane_closeout_gate.blockers.clone(),
         ));
     }
 
@@ -35,6 +48,7 @@ pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result
         Err(error) => {
             return Ok(blocked_report(
                 explicit_opt_in,
+                default_data_plane_closeout_gate,
                 vec![format!("bounded SOCKS UDP associate execution failed: {error}").into()],
             ));
         }
@@ -54,6 +68,7 @@ pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result
         reason: "Rust executed a bounded SOCKS5 UDP ASSOCIATE datagram over loopback UDP".into(),
         explicit_opt_in,
         rust_owned_scope: "SOCKS5 UDP ASSOCIATE datagram framing and loopback UDP forwarding".into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: true,
         evidence_path: Some(evidence_path.to_string_lossy().to_string().into()),
@@ -78,7 +93,11 @@ pub async fn rust_socks_udp_associate_execution(explicit_opt_in: bool) -> Result
     Ok(report)
 }
 
-fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksUdpAssociateExecutionReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
+    blockers: Vec<String>,
+) -> RustSocksUdpAssociateExecutionReport {
     RustSocksUdpAssociateExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
         component: RUST_SOCKS_UDP_ASSOCIATE_COMPONENT.into(),
@@ -87,6 +106,7 @@ fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksUdpA
         reason: "Rust SOCKS UDP associate execution is blocked".into(),
         explicit_opt_in,
         rust_owned_scope: "SOCKS5 UDP ASSOCIATE datagram framing and loopback UDP forwarding".into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: false,
         evidence_path: None,

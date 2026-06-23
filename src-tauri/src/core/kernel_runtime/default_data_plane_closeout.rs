@@ -1,8 +1,9 @@
 use super::{
     MihomoFallbackRetirementExecutionReport, MihomoFallbackRetirementExecutionScope,
     MihomoFallbackRetirementExecutionStatus, RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutEvidenceOwnership,
-    RustDefaultDataPlaneCloseoutReport, RustDefaultDataPlaneCloseoutStatus, RustDefaultDataPlaneUnsupportedBlocker,
-    approved_operator_default_path_cutover_fallback_scopes, approved_operator_default_path_cutover_surfaces,
+    RustDefaultDataPlaneCloseoutGateEvidence, RustDefaultDataPlaneCloseoutReport, RustDefaultDataPlaneCloseoutStatus,
+    RustDefaultDataPlaneUnsupportedBlocker, approved_operator_default_path_cutover_fallback_scopes,
+    approved_operator_default_path_cutover_surfaces,
 };
 use crate::utils::dirs;
 use anyhow::{Context, Result};
@@ -18,6 +19,65 @@ const NEXT_SAFE_BATCH: &str = "unsupported-protocol-and-packet-capture-implement
 
 pub async fn rust_default_data_plane_closeout_plan() -> Result<RustDefaultDataPlaneCloseoutReport> {
     build_rust_default_data_plane_closeout_report(false, false).await
+}
+
+pub async fn rust_default_data_plane_closeout_gate_evidence() -> Result<RustDefaultDataPlaneCloseoutGateEvidence> {
+    let closeout_manifest_path = rust_default_data_plane_closeout_manifest_path()?;
+    let closeout_manifest = read_rust_default_data_plane_closeout_manifest(&closeout_manifest_path).await?;
+    let operator_default_path_cutover_surfaces = approved_operator_default_path_cutover_surfaces()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<String>>();
+    let operator_default_path_cutover_fallback_scopes = approved_operator_default_path_cutover_fallback_scopes()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<String>>();
+    let operator_default_path_cutover_committed = operator_default_path_cutover_surfaces
+        .iter()
+        .any(|surface| surface == "Mihomo sidecar binary removal");
+    let closeout_manifest_closed_out = closeout_manifest
+        .as_ref()
+        .map(|manifest| manifest.status == RustDefaultDataPlaneCloseoutStatus::ClosedOut)
+        .unwrap_or(false);
+    let ownership_reconciled = closeout_manifest
+        .as_ref()
+        .map(|manifest| manifest.ownership_reconciled)
+        .unwrap_or(false);
+    let mut blockers = Vec::new();
+    match closeout_manifest.as_ref() {
+        Some(manifest) => {
+            if manifest.status != RustDefaultDataPlaneCloseoutStatus::ClosedOut {
+                blockers.push(format!("Rust default data-plane closeout status is {:?}", manifest.status).into());
+            }
+            if !manifest.ownership_reconciled {
+                blockers.push("Rust default data-plane closeout ownership is not reconciled".into());
+            }
+            if !manifest.blockers.is_empty() {
+                blockers.push("Rust default data-plane closeout manifest contains blockers".into());
+            }
+        }
+        None => blockers.push(
+            "Rust default data-plane closeout manifest is missing; close out fallback retirement before unsupported protocol execution".into(),
+        ),
+    }
+    if !operator_default_path_cutover_committed {
+        blockers.push("unsupported protocol execution requires committed operator sidecar cutover".into());
+    }
+    if operator_default_path_cutover_fallback_scopes.is_empty() {
+        blockers.push("unsupported protocol execution requires committed fallback scopes from operator cutover".into());
+    }
+
+    Ok(RustDefaultDataPlaneCloseoutGateEvidence {
+        closeout_manifest_path: Some(closeout_manifest_path.to_string_lossy().to_string().into()),
+        closeout_manifest_closed_out,
+        ownership_reconciled,
+        operator_default_path_cutover_committed,
+        operator_default_path_cutover_surfaces,
+        operator_default_path_cutover_fallback_scopes,
+        blockers,
+    })
 }
 
 pub async fn closeout_rust_default_data_plane(explicit_opt_in: bool) -> Result<RustDefaultDataPlaneCloseoutReport> {
@@ -138,6 +198,18 @@ async fn build_rust_default_data_plane_closeout_report(
         ],
         next_safe_batch: NEXT_SAFE_BATCH.into(),
     })
+}
+
+async fn read_rust_default_data_plane_closeout_manifest(
+    path: &std::path::Path,
+) -> Result<Option<RustDefaultDataPlaneCloseoutReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
+    }
 }
 
 async fn read_fallback_retirement_manifest(

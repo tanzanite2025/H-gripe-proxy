@@ -1,6 +1,7 @@
 use super::{
-    RUST_RUNTIME_ID, RustSocksTcpConnectExecutionReport, RustSocksTcpConnectExecutionStatus,
-    RustSocksTcpConnectForwardEvidence, RustSocksTcpConnectLeakEvidence, RustSocksTcpConnectRollbackEvidence,
+    RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutGateEvidence, RustSocksTcpConnectExecutionReport,
+    RustSocksTcpConnectExecutionStatus, RustSocksTcpConnectForwardEvidence, RustSocksTcpConnectLeakEvidence,
+    RustSocksTcpConnectRollbackEvidence, rust_default_data_plane_closeout_gate_evidence,
 };
 use crate::utils::dirs;
 use anyhow::{Context as _, Result, anyhow};
@@ -18,7 +19,7 @@ const RUST_SOCKS_TCP_CONNECT_COMPONENT: &str = "rust-socks-tcp-connect-execution
 const RUST_SOCKS_TCP_CONNECT_KERNEL_AREA: &str = "socks-tcp-connect";
 const RUST_SOCKS_TCP_CONNECT_EVIDENCE_FILE: &str = "evidence.yaml";
 const RUST_SOCKS_TCP_CONNECT_ROLLBACK_FILE: &str = "rollback-checkpoint.yaml";
-const NEXT_SAFE_BATCH: &str = "unsupported-protocol-and-packet-capture-implementation";
+const NEXT_SAFE_BATCH: &str = "route-packet-capture-privileged-hold";
 const SOCKS_VERSION: u8 = 0x05;
 const SOCKS_USERPASS_METHOD: u8 = 0x02;
 const SOCKS_AUTH_VERSION: u8 = 0x01;
@@ -31,10 +32,22 @@ const TEST_REQUEST: &[u8] = b"GET /socks-tcp-connect HTTP/1.1\r\nHost: loopback.
 const TEST_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\nsocks-tcp-ok:42";
 
 pub async fn rust_socks_tcp_connect_execution(explicit_opt_in: bool) -> Result<RustSocksTcpConnectExecutionReport> {
+    let default_data_plane_closeout_gate = rust_default_data_plane_closeout_gate_evidence().await?;
+
     if !explicit_opt_in {
+        let mut blockers = vec!["SOCKS TCP CONNECT forwarding execution requires explicit opt-in".into()];
+        blockers.extend(default_data_plane_closeout_gate.blockers.clone());
         return Ok(blocked_report(
             explicit_opt_in,
-            vec!["SOCKS TCP CONNECT forwarding execution requires explicit opt-in".into()],
+            default_data_plane_closeout_gate,
+            blockers,
+        ));
+    }
+    if !default_data_plane_closeout_gate.blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            default_data_plane_closeout_gate.clone(),
+            default_data_plane_closeout_gate.blockers.clone(),
         ));
     }
 
@@ -45,6 +58,7 @@ pub async fn rust_socks_tcp_connect_execution(explicit_opt_in: bool) -> Result<R
         Err(error) => {
             return Ok(blocked_report(
                 explicit_opt_in,
+                default_data_plane_closeout_gate,
                 vec![format!("bounded SOCKS TCP CONNECT execution failed: {error}").into()],
             ));
         }
@@ -64,6 +78,7 @@ pub async fn rust_socks_tcp_connect_execution(explicit_opt_in: bool) -> Result<R
         reason: "Rust executed bounded SOCKS5 TCP CONNECT data forwarding over loopback".into(),
         explicit_opt_in,
         rust_owned_scope: "SOCKS5 username/password CONNECT handshake and loopback TCP request/response forwarding".into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: true,
         evidence_path: Some(evidence_path.to_string_lossy().to_string().into()),
@@ -88,7 +103,11 @@ pub async fn rust_socks_tcp_connect_execution(explicit_opt_in: bool) -> Result<R
     Ok(report)
 }
 
-fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksTcpConnectExecutionReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
+    blockers: Vec<String>,
+) -> RustSocksTcpConnectExecutionReport {
     RustSocksTcpConnectExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
         component: RUST_SOCKS_TCP_CONNECT_COMPONENT.into(),
@@ -98,6 +117,7 @@ fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksTcpC
         explicit_opt_in,
         rust_owned_scope: "SOCKS5 username/password CONNECT handshake and loopback TCP request/response forwarding"
             .into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: false,
         evidence_path: None,

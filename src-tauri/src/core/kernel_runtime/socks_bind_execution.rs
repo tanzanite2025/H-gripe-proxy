@@ -1,6 +1,7 @@
 use super::{
-    RUST_RUNTIME_ID, RustSocksBindExecutionReport, RustSocksBindExecutionStatus, RustSocksBindForwardEvidence,
-    RustSocksBindLeakEvidence, RustSocksBindRollbackEvidence,
+    RUST_RUNTIME_ID, RustDefaultDataPlaneCloseoutGateEvidence, RustSocksBindExecutionReport,
+    RustSocksBindExecutionStatus, RustSocksBindForwardEvidence, RustSocksBindLeakEvidence,
+    RustSocksBindRollbackEvidence, rust_default_data_plane_closeout_gate_evidence,
 };
 use crate::utils::dirs;
 use anyhow::{Context as _, Result, anyhow};
@@ -18,7 +19,7 @@ const RUST_SOCKS_BIND_COMPONENT: &str = "rust-socks-bind-execution";
 const RUST_SOCKS_BIND_KERNEL_AREA: &str = "socks-bind";
 const RUST_SOCKS_BIND_EVIDENCE_FILE: &str = "evidence.yaml";
 const RUST_SOCKS_BIND_ROLLBACK_FILE: &str = "rollback-checkpoint.yaml";
-const NEXT_SAFE_BATCH: &str = "unsupported-protocol-and-packet-capture-implementation";
+const NEXT_SAFE_BATCH: &str = "route-packet-capture-privileged-hold";
 const SOCKS_VERSION: u8 = 0x05;
 const SOCKS_USERPASS_METHOD: u8 = 0x02;
 const SOCKS_AUTH_VERSION: u8 = 0x01;
@@ -31,10 +32,22 @@ const TEST_REQUEST: &[u8] = b"GET /socks-bind HTTP/1.1\r\nHost: loopback.test\r\
 const TEST_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 16\r\n\r\nsocks-bind-ok:42";
 
 pub async fn rust_socks_bind_execution(explicit_opt_in: bool) -> Result<RustSocksBindExecutionReport> {
+    let default_data_plane_closeout_gate = rust_default_data_plane_closeout_gate_evidence().await?;
+
     if !explicit_opt_in {
+        let mut blockers = vec!["SOCKS BIND execution requires explicit opt-in".into()];
+        blockers.extend(default_data_plane_closeout_gate.blockers.clone());
         return Ok(blocked_report(
             explicit_opt_in,
-            vec!["SOCKS BIND execution requires explicit opt-in".into()],
+            default_data_plane_closeout_gate,
+            blockers,
+        ));
+    }
+    if !default_data_plane_closeout_gate.blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            default_data_plane_closeout_gate.clone(),
+            default_data_plane_closeout_gate.blockers.clone(),
         ));
     }
 
@@ -45,6 +58,7 @@ pub async fn rust_socks_bind_execution(explicit_opt_in: bool) -> Result<RustSock
         Err(error) => {
             return Ok(blocked_report(
                 explicit_opt_in,
+                default_data_plane_closeout_gate,
                 vec![format!("bounded SOCKS BIND execution failed: {error}").into()],
             ));
         }
@@ -64,6 +78,7 @@ pub async fn rust_socks_bind_execution(explicit_opt_in: bool) -> Result<RustSock
         reason: "Rust executed bounded SOCKS5 BIND forwarding over loopback".into(),
         explicit_opt_in,
         rust_owned_scope: "SOCKS5 username/password BIND handshake and loopback peer request/response forwarding".into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: true,
         evidence_path: Some(evidence_path.to_string_lossy().to_string().into()),
@@ -88,7 +103,11 @@ pub async fn rust_socks_bind_execution(explicit_opt_in: bool) -> Result<RustSock
     Ok(report)
 }
 
-fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksBindExecutionReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    default_data_plane_closeout_gate: RustDefaultDataPlaneCloseoutGateEvidence,
+    blockers: Vec<String>,
+) -> RustSocksBindExecutionReport {
     RustSocksBindExecutionReport {
         runtime_id: RUST_RUNTIME_ID.into(),
         component: RUST_SOCKS_BIND_COMPONENT.into(),
@@ -98,6 +117,7 @@ fn blocked_report(explicit_opt_in: bool, blockers: Vec<String>) -> RustSocksBind
         explicit_opt_in,
         rust_owned_scope: "SOCKS5 username/password BIND handshake and loopback peer request/response forwarding"
             .into(),
+        default_data_plane_closeout_gate,
         mutates_runtime: false,
         writes_evidence: false,
         evidence_path: None,
