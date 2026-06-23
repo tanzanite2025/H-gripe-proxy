@@ -109,7 +109,7 @@ pub async fn go_to_rust_migration_final_review(explicit_opt_in: bool) -> Result<
         return Ok(build_report(
             false,
             Vec::new(),
-            retained_fallback_evidence(),
+            retained_fallback_evidence().await?,
             default_removal_decisions().await?,
             sidecar_audit().await?,
             vec!["explicit opt-in is required to archive Go-to-Rust migration final review".to_owned()],
@@ -118,7 +118,7 @@ pub async fn go_to_rust_migration_final_review(explicit_opt_in: bool) -> Result<
     }
 
     let artifact_evidence = artifact_evidence().await?;
-    let retained_fallback_evidence = retained_fallback_evidence();
+    let retained_fallback_evidence = retained_fallback_evidence().await?;
     let default_removal_decisions = default_removal_decisions().await?;
     let sidecar_audit = sidecar_audit().await?;
     let mut blockers = Vec::new();
@@ -252,8 +252,9 @@ async fn artifact_evidence() -> Result<Vec<GoToRustMigrationFinalReviewArtifactE
     Ok(artifacts)
 }
 
-fn retained_fallback_evidence() -> Vec<GoToRustMigrationFinalReviewRetainedFallbackEvidence> {
-    retained_fallback_scope()
+async fn retained_fallback_evidence() -> Result<Vec<GoToRustMigrationFinalReviewRetainedFallbackEvidence>> {
+    Ok(retained_fallback_scope()
+        .await?
         .into_iter()
         .map(
             |(retained_scope, reason)| GoToRustMigrationFinalReviewRetainedFallbackEvidence {
@@ -264,7 +265,7 @@ fn retained_fallback_evidence() -> Vec<GoToRustMigrationFinalReviewRetainedFallb
                 blockers: vec![format!("{retained_scope} remains Mihomo-owned after final review")],
             },
         )
-        .collect()
+        .collect())
 }
 
 async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewDefaultRemovalDecision>> {
@@ -381,6 +382,28 @@ async fn default_removal_decisions() -> Result<Vec<GoToRustMigrationFinalReviewD
 async fn packet_leak_hold_blocker_ready() -> Result<bool> {
     let evidence_path = dirs::app_runtime_dir()?
         .join("rust-packet-leak-hold-blocker")
+        .join("evidence.yaml");
+    let yaml = fs::read_to_string(evidence_path).await.ok();
+    let value = yaml
+        .as_deref()
+        .and_then(|yaml| serde_yaml_ng::from_str::<Value>(yaml).ok());
+    let status_ready = value
+        .as_ref()
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        == Some("ready");
+    let blockers_empty = value
+        .as_ref()
+        .and_then(|value| value.get("blockers"))
+        .and_then(Value::as_sequence)
+        .map(|blockers| blockers.is_empty())
+        .unwrap_or(false);
+    Ok(status_ready && blockers_empty)
+}
+
+async fn geoip_database_blocker_ready() -> Result<bool> {
+    let evidence_path = dirs::app_runtime_dir()?
+        .join("rust-geoip-database-blocker")
         .join("evidence.yaml");
     let yaml = fs::read_to_string(evidence_path).await.ok();
     let value = yaml
@@ -686,8 +709,9 @@ async fn sidecar_audit() -> Result<GoToRustMigrationFinalReviewSidecarAuditEvide
     })
 }
 
-fn retained_fallback_scope() -> Vec<(&'static str, &'static str)> {
-    vec![
+async fn retained_fallback_scope() -> Result<Vec<(&'static str, &'static str)>> {
+    let geoip_database_ready = geoip_database_blocker_ready().await?;
+    let mut retained = vec![
         (
             "SOCKS non-loopback UDP and fragment queue defaults",
             "bounded loopback UDP evidence does not replace broad default UDP routing",
@@ -720,7 +744,14 @@ fn retained_fallback_scope() -> Vec<(&'static str, &'static str)> {
             "Mihomo sidecar binary fallback",
             "emergency rollback and unsupported paths still require the sidecar",
         ),
-    ]
+    ];
+    if !geoip_database_ready {
+        retained.push((
+            "full GeoIP database loading",
+            "production GeoIP/GeoSite database loading remains Mihomo-owned until bounded Rust evidence exists",
+        ));
+    }
+    Ok(retained)
 }
 
 fn facts() -> Vec<String> {
@@ -762,9 +793,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn retained_fallback_scope_is_not_empty() {
-        let retained = retained_fallback_scope();
+    #[tokio::test]
+    async fn retained_fallback_scope_is_not_empty() {
+        let retained = retained_fallback_scope().await.unwrap();
 
         assert!(retained.iter().any(|(scope, _)| scope.contains("packet capture")));
         assert!(retained.iter().any(|(scope, _)| scope.contains("sidecar")));
