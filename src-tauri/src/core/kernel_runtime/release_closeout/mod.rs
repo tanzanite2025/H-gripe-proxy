@@ -18,7 +18,7 @@ const RELEASE_MANIFEST_FILE: &str = "release-closeout-manifest.yaml";
 const EVIDENCE_FILE: &str = "evidence.yaml";
 const ROLLBACK_CHECKPOINT_FILE: &str = "rollback-checkpoint.yaml";
 const ROLLBACK_EVIDENCE_FILE: &str = "rollback-evidence.yaml";
-const NEXT_SAFE_BATCH: &str = "sidecar-invocation-retirement";
+const NEXT_SAFE_BATCH: &str = "bug-fixes-or-explicit-unsupported-fallback-removal";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -62,11 +62,21 @@ pub struct RustGoToRustMigrationReleaseRollbackCheckpoint {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct RustGoToRustMigrationFinalReleaseBlockerTableRow {
+    pub supported_path_owned_by_rust: String,
+    pub retained_mihomo_owned_unsupported_path: String,
+    pub rollback_command: String,
+    pub evidence_file_or_source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RustGoToRustMigrationReleaseCloseoutManifest {
     pub component: String,
     pub created_at_epoch_seconds: u64,
     pub final_removal_allowed: bool,
     pub packaging_audit: RustGoToRustMigrationReleasePackagingAudit,
+    pub final_release_blocker_table: Vec<RustGoToRustMigrationFinalReleaseBlockerTableRow>,
     pub final_removal_gate_evidence_path: Option<String>,
     pub rollback_checkpoint_path: Option<String>,
     pub evidence_checksum: String,
@@ -90,6 +100,7 @@ pub struct RustGoToRustMigrationReleaseCloseoutReport {
     pub final_removal_allowed: bool,
     pub final_removal_gate: Option<RustFinalMihomoBinaryRemovalGateReport>,
     pub packaging_audit: RustGoToRustMigrationReleasePackagingAudit,
+    pub final_release_blocker_table: Vec<RustGoToRustMigrationFinalReleaseBlockerTableRow>,
     pub release_manifest: Option<RustGoToRustMigrationReleaseCloseoutManifest>,
     pub release_manifest_path: Option<String>,
     pub evidence_path: Option<String>,
@@ -294,6 +305,7 @@ fn build_report(
         final_removal_allowed,
         final_removal_gate,
         packaging_audit: packaging_audit.clone(),
+        final_release_blocker_table: final_release_blocker_table(),
         release_manifest,
         release_manifest_path: None,
         evidence_path: None,
@@ -309,28 +321,26 @@ fn build_report(
             vec![
                 "Tauri externalBin Mihomo sidecar packaging reference removed".to_owned(),
                 "final binary removal evidence promoted to release closeout".to_owned(),
-                "release packaging cleanup advanced to sidecar invocation retirement".to_owned(),
+                "live config reload retirement path routes through the restart boundary".to_owned(),
             ]
         } else {
             Vec::new()
         },
         blockers_remaining: if closed_out {
-            vec![
-                "sidecar invocation retirement".to_owned(),
-                "runtime service fallback audit".to_owned(),
-            ]
+            vec!["explicit unsupported-path fallback removals only".to_owned()]
         } else {
             vec!["release closeout has not been committed".to_owned()]
         },
         blockers,
         warnings: vec![
-            "runtime sidecar invocation callsites are audited but retired in the next batch".to_owned(),
+            "unsupported default data-plane paths remain Mihomo-owned until a dedicated cutover removes them"
+                .to_owned(),
             "rollback checkpoint can restore packaging ownership if release closeout is reverted".to_owned(),
         ],
         facts: vec![
             "release closeout removes the Tauri bundle externalBin sidecar package reference".to_owned(),
             "final binary removal gate remains the source of operator approval evidence".to_owned(),
-            "sidecar invocation retirement is tracked separately from packaging cleanup".to_owned(),
+            "runtime config activation no longer uses the retired no-restart live reload path".to_owned(),
         ],
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
     }
@@ -432,6 +442,7 @@ fn release_manifest(
         created_at_epoch_seconds: current_epoch_seconds(),
         final_removal_allowed,
         packaging_audit: packaging_audit.clone(),
+        final_release_blocker_table: final_release_blocker_table(),
         final_removal_gate_evidence_path,
         rollback_checkpoint_path,
         evidence_checksum,
@@ -459,6 +470,29 @@ fn rollback_checkpoint(
         ],
         checkpoint_path,
     }
+}
+
+fn final_release_blocker_table() -> Vec<RustGoToRustMigrationFinalReleaseBlockerTableRow> {
+    vec![
+        RustGoToRustMigrationFinalReleaseBlockerTableRow {
+            supported_path_owned_by_rust: "profile, subscription, and app-runtime projection config regeneration route through the Rust runtime restart boundary".to_owned(),
+            retained_mihomo_owned_unsupported_path: "Mihomo live config reload through the Go plugin API is retired; unsupported default data-plane startup remains blocked until Rust startup owns it".to_owned(),
+            rollback_command: "restart_runtime_core after restoring the previous release-closeout checkpoint".to_owned(),
+            evidence_file_or_source: "src-tauri/src/core/manager/config.rs; src-tauri/src/core/runtime_lifecycle.rs".to_owned(),
+        },
+        RustGoToRustMigrationFinalReleaseBlockerTableRow {
+            supported_path_owned_by_rust: "Tauri release packaging no longer declares the Mihomo sidecar externalBin bundle".to_owned(),
+            retained_mihomo_owned_unsupported_path: "real remote encrypted/QUIC peer compatibility, real plugin binary compatibility, and system packet capture stay Mihomo-owned without operator cutover evidence".to_owned(),
+            rollback_command: "rollback_runtime_kernel_rust_go_to_rust_migration_release_closeout".to_owned(),
+            evidence_file_or_source: "release-closeout-manifest.yaml; evidence.yaml; rollback-checkpoint.yaml".to_owned(),
+        },
+        RustGoToRustMigrationFinalReleaseBlockerTableRow {
+            supported_path_owned_by_rust: "bounded DNS, adapter, protocol, UDP/plugin, TUN, fallback, and release closeout evidence remains Rust-owned".to_owned(),
+            retained_mihomo_owned_unsupported_path: "unsupported fallback paths are retained until a PR removes a concrete default path with apply, hold, leak, and rollback proof".to_owned(),
+            rollback_command: "rollback_runtime_kernel_rust_final_mihomo_binary_removal_gate".to_owned(),
+            evidence_file_or_source: "src-tauri/src/core/kernel_runtime/*_blocker; docs/go-to-rust-migration-roadmap.md".to_owned(),
+        },
+    ]
 }
 
 fn empty_packaging_audit() -> RustGoToRustMigrationReleasePackagingAudit {

@@ -29,7 +29,7 @@ Status is current through PR #352 (`runtime-rule-policy-closeout`). The migratio
 | Protocol forwarding | Unsupported protocol expansion in progress | Rust now owns loopback TCP/HTTP forwarding, DIRECT/REJECT policy, bounded remote transport, HTTP CONNECT tunneling, encrypted framing preflight, scoped Shadowsocks AEAD adapter execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded SOCKS5 UDP ASSOCIATE datagram forwarding, bounded SOCKS5 username/password negotiation, bounded SOCKS5 TCP CONNECT forwarding, bounded SOCKS5 BIND forwarding, bounded SOCKS5 UDP two-fragment reassembly, bounded SOCKS UDP fragment queue timeout/reap evidence, bounded VMess/VLESS/Trojan loopback TCP canary sessions, bounded VMess/VLESS/Trojan non-loopback local TCP canary sessions, bounded UDP/plugin transport bundle evidence, non-loopback TCP canary evidence, multiplex frame evidence, plugin lifecycle manifest evidence, and plugin process health/crash/restart supervision evidence, plugin binary startup/stdout/health/crash compatibility contract evidence, non-loopback QUIC-like UDP transcript evidence, QUIC/UDP profile matrix evidence, and bounded default-forwarding hold evidence, plus committed operator approval and guarded apply/rollback/post-apply hold manifests for production default-forwarding cutover. Mihomo still owns real remote encrypted/QUIC peer compatibility, operator-approved real plugin binary compatibility, and system-wide packet capture. |
 | TUN / system proxy | Bounded packet-capture hold evidence in progress | Rust now owns explicit off/system-proxy/TUN route-mode planning, OS system-proxy apply through the Sysopt/sysproxy path, TUN config/restart apply through the existing backend, rollback records, rollback apply, bounded transparent IPv4/TCP packet parsing/execution evidence, repeated platform route rollback hold replay, bounded packet-capture canary parsing, route snapshot/restore-plan evidence, synthetic packet-capture hold evidence, loopback-only DNS leak telemetry, bounded TUN lifecycle state-machine evidence, TUN rollback ordering evidence, read-only route mutation replay evidence, platform route apply/rollback plan evidence, bounded packet leak hold evidence, synthetic external-interface leak observation evidence, and guarded TUN/packet-capture apply plus rollback checkpoint evidence across the TUN lifecycle, route mutation, packet-capture hold, and packet leak gates. Mihomo/service TUN and packet-capture fallback is now demoted to checkpoint restore until fallback retirement closeout. |
 | Mihomo fallback retirement | Bounded fallback-retirement bundle complete | Rust now writes wider execution manifests, emergency rollback checkpoints, default data-plane closeout manifests, unsupported-path fallback continuity evidence, hold telemetry, sidecar source/binary dependency audit evidence, sidecar-independent rollback archive evidence, and selective supported-scope fallback retirement evidence across the bounded DNS/adapter/protocol/UDP/plugin/TUN packet-capture inventory. Operator-approved production SOCKS UDP default forwarding cutover and real-profile UDP hold, operator-approved production DNS cutover/privileged system resolver apply-restore, operator-approved production geodata refresh and file availability, real remote encrypted/QUIC peer compatibility, operator-approved real plugin binary compatibility, fallback-retirement closeout manifests now consume guarded default-forwarding and TUN/packet-capture apply evidence while retaining rollback checkpoint evidence. Final Mihomo binary removal gate manifests now consume fallback-retirement closeout, sidecar-independent rollback, final review, release audit, and operator cutover evidence. Release closeout removes the Tauri bundle externalBin sidecar packaging reference, writes release rollback evidence, and runtime startup no longer falls back to launching the Mihomo sidecar or asking the privileged service to spawn the Mihomo binary. Runtime cleanup now removes `RunningMode::Sidecar`, `child_sidecar`, sidecar log writer setup, service start/stop/log IPC entrypoints, Mihomo IPC restart recovery, and the `clash_core=verge-mihomo` config default. |
-| Next blocker | `mihomo-read-api-retirement` | Mihomo plugin API retirement now removes direct Go-plugin mutation/recovery paths for base-config patching, live config reload, geo/core/UI upgrades, DNS warmup, TLS rotation, proxy selection/provider healthcheck/update, runtime rule mutation, close-all-connections, egress rebind, residential verification rule/proxy mutation, security policy rule mutation, and tray close-all actions. The next useful work is retiring remaining read-only `tauri_plugin_mihomo` API callsites behind Rust-owned runtime snapshots. |
+| Next blocker | Final unsupported-path fallback removal only | Runtime config activation now routes through the Rust restart boundary instead of the retired Go/Mihomo live reload path. Release closeout evidence carries the final blocker table for Rust-owned supported paths, retained Mihomo-owned unsupported paths, rollback commands, and evidence sources. After this closeout bundle, only bug fixes or explicit unsupported-path fallback removals should remain. |
 
 ## Acceleration plan
 
@@ -126,17 +126,18 @@ plugin command cleanup, lifecycle wrapper, command-facing control mutation,
 maintenance command, rule mutation, policy mutation, or roadmap-only stepping
 stone.
 
-The next useful migration PR shape is a single `final-go-to-rust-closeout-bundle`.
-It must collapse remaining blockers into one reviewable PR:
+The `final-go-to-rust-closeout-bundle` collapses the remaining blockers into one
+reviewable PR:
 
-- Resolve the last live config reload retirement path in `core::manager::config`
-  by either routing it through a Rust-owned runtime apply/restart boundary or
-  deleting the no-restart path if the restart boundary is the supported Rust
-  control-plane behavior.
-- Audit and remove stale Go/Mihomo plugin command, generated binding, docs, and
-  release-packaging references that imply frontend or app-layer ownership.
-- Produce a final release-blocker table: supported paths owned by Rust, retained
-  Mihomo-owned unsupported paths, rollback command, and evidence file/source.
+- The last live config reload retirement path in `core::manager::config` is
+  deleted; profile, subscription, and projection activation now use the Rust
+  runtime restart boundary.
+- Stale Go/Mihomo plugin command, generated binding, docs, and release-packaging
+  references that imply frontend or app-layer ownership are audited in the same
+  closeout bundle.
+- Release closeout evidence produces the final release-blocker table: supported
+  paths owned by Rust, retained Mihomo-owned unsupported paths, rollback command,
+  and evidence file/source.
 - Keep any UI/reporting/documentation changes in that same PR when they describe
   the final state. Do not split them into separate polish PRs.
 
@@ -288,11 +289,17 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is final closeout, not another default-forwarding, packet-capture, fallback-retirement, rule/policy, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, maintenance-command, or plugin-mutation retirement gate. Work through one final bundle while preserving explicit rollback evidence:
+The final closeout blocker is now reduced to explicit unsupported-path fallback
+removal only. Do not add another default-forwarding, packet-capture,
+fallback-retirement, rule/policy, release-packaging, sidecar-invocation,
+service-readiness, runtime-cleanup, maintenance-command, or plugin-mutation
+retirement gate.
 
-1. `final-go-to-rust-closeout-bundle`: resolve the remaining live-reload retirement path, audit stale Go/Mihomo ownership references, and update release/fallback evidence in one PR.
-2. If review size forces a split, use only this boundary: code/runtime closeout first, then release/documentation audit. Maximum two PRs. Do not create extra readiness, dry-run, generated-type, roadmap-only, or UI-only stepping-stone PRs.
-3. After that bundle, only bug fixes or explicit unsupported-path fallback removals should remain. No new migration phase should be added without a concrete supported default path that can be removed from Mihomo ownership in the same PR.
+1. Only bug fixes or explicit unsupported-path fallback removals should remain.
+2. No new migration phase should be added without a concrete supported default
+   path that can be removed from Mihomo ownership in the same PR.
+3. Keep rollback evidence explicit for every retained Mihomo-owned unsupported
+   path.
 
 Full protocol replacement and default DNS ownership remain blocked until Rust-owned runtime observation and command-facing control mutations no longer depend on the Go plugin API.
 

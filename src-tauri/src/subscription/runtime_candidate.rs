@@ -95,7 +95,7 @@ pub async fn activate_subscription_active_artifact_runtime(
             )
         })?;
 
-        runtime_lifecycle::update_runtime_config_without_restart(force, "subscription-active-artifact").await
+        runtime_lifecycle::update_runtime_config_with_force(force, "subscription-active-artifact").await
     }
     .await;
 

@@ -35,16 +35,12 @@ pub async fn update_runtime_config_checked(reason: &str) -> Result<()> {
 }
 
 pub async fn update_runtime_config_forced(reason: &str) -> Result<ValidationOutcome> {
-    let result = CoreManager::global().update_config_forced().await;
-    record_runtime_config_update_outcome("update-runtime-config-forced", &result, reason);
-    result
+    update_runtime_config_with_force(true, reason).await
 }
 
-pub async fn update_runtime_config_without_restart(force: bool, reason: &str) -> Result<ValidationOutcome> {
-    let result = CoreManager::global()
-        .update_config_without_restart_with_force(force)
-        .await;
-    record_runtime_config_update_outcome("update-runtime-config-without-restart", &result, reason);
+pub async fn update_runtime_config_with_force(force: bool, reason: &str) -> Result<ValidationOutcome> {
+    let result = CoreManager::global().update_config_with_force(force).await;
+    record_runtime_config_update_outcome("update-runtime-config-with-force", &result, reason);
     result
 }
 
