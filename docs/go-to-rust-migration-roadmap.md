@@ -19,7 +19,7 @@ App registry / policy / node pool / DNS / security profile
 
 ## Current state
 
-Status is current through Go-to-Rust migration final review reconciliation. The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded transparent IPv4/TCP packet execution, wider fallback retirement manifest/checkpoint execution, default-scope closeout ownership reconciliation, loopback-only SOCKS5 UDP ASSOCIATE datagram forwarding, bounded SOCKS UDP non-loopback fragment forwarding, deterministic one-domain DNS fake-ip allocation, bounded fake-ip cache/reverse lookup, bounded DNS policy/cache/upstream bundle canaries, bounded VMess/VLESS/Trojan loopback TCP canary sessions, bounded VMess/VLESS/Trojan non-loopback local TCP canary sessions, bounded fallback-filter domain/ipcidr evaluation, bounded nameserver-policy exact/suffix dispatch, bounded SOCKS5 username/password negotiation, bounded SOCKS5 TCP CONNECT forwarding, bounded SOCKS5 BIND forwarding, bounded SOCKS5 UDP two-fragment reassembly, bounded SOCKS UDP fragment queue timeout/reap evidence, bounded DNS fallback-filter geoip/geoip-code evaluation, bounded UDP/plugin transport bundle evidence, bounded TUN/packet-capture hold evidence, bounded Mihomo fallback retirement bundle evidence, final review reconciliation evidence, sidecar-independent rollback archive evidence, DNS default-path blocker reduction evidence, and route/packet-capture blocker reduction evidence, and protocol default-path blocker reduction evidence, and plugin process supervision evidence, and QUIC/UDP profile blocker evidence, and default forwarding hold evidence, and DNS cutover hold evidence, and DNS system-resolver leak blocker evidence, and TUN device lifecycle blocker evidence, and route mutation rollback blocker evidence, and packet leak hold blocker evidence, and GeoIP database blocker evidence, and SOCKS UDP default blocker evidence, and encrypted protocol default blocker evidence, and plugin binary compatibility blocker evidence. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
+Status is current through PR #352 (`runtime-rule-policy-closeout`). The migration has now moved past the earlier gate-only detour and has real bounded Rust data-plane implementations for DNS, adapter policy, loopback forwarding, HTTP CONNECT, encrypted framing, scoped Shadowsocks AEAD execution, AEAD canary evidence, multi-chunk encrypted TCP session evidence, bounded transparent IPv4/TCP packet execution, wider fallback retirement manifest/checkpoint execution, default-scope closeout ownership reconciliation, loopback-only SOCKS5 UDP ASSOCIATE datagram forwarding, bounded SOCKS UDP non-loopback fragment forwarding, deterministic one-domain DNS fake-ip allocation, bounded fake-ip cache/reverse lookup, bounded DNS policy/cache/upstream bundle canaries, bounded VMess/VLESS/Trojan loopback TCP canary sessions, bounded VMess/VLESS/Trojan non-loopback local TCP canary sessions, bounded fallback-filter domain/ipcidr evaluation, bounded nameserver-policy exact/suffix dispatch, bounded SOCKS5 username/password negotiation, bounded SOCKS5 TCP CONNECT forwarding, bounded SOCKS5 BIND forwarding, bounded SOCKS5 UDP two-fragment reassembly, bounded SOCKS UDP fragment queue timeout/reap evidence, bounded DNS fallback-filter geoip/geoip-code evaluation, bounded UDP/plugin transport bundle evidence, bounded TUN/packet-capture hold evidence, bounded Mihomo fallback retirement bundle evidence, final review reconciliation evidence, sidecar-independent rollback archive evidence, DNS default-path blocker reduction evidence, route/packet-capture blocker reduction evidence, protocol default-path blocker reduction evidence, plugin process supervision evidence, QUIC/UDP profile blocker evidence, default forwarding hold evidence, DNS cutover hold evidence, DNS system-resolver leak blocker evidence, TUN device lifecycle blocker evidence, route mutation rollback blocker evidence, packet leak hold blocker evidence, GeoIP database blocker evidence, SOCKS UDP default blocker evidence, encrypted protocol default blocker evidence, plugin binary compatibility blocker evidence, read API retirement, runtime bridge closeout, plugin command-surface retirement, lifecycle/control/maintenance command closeout, and runtime rule/policy mutation closeout. The old `rust-data-plane-hardening-*` IPC commands remain safety metadata only; ownership claims below are limited to the explicitly named bounded paths.
 
 | Area | State | Boundary |
 | --- | --- | --- |
@@ -66,9 +66,13 @@ needed before broadening default ownership.
 - Do not append one numbered row per canary. Update the owning bundle checklist
   instead.
 - The prior accelerated bundles, default-path reviews, guarded apply steps,
-  fallback retirement gates, sidecar/service cleanup, and Mihomo plugin
-  mutation/recovery API retirement are complete; future work must target Mihomo
-  read API retirement rather than more fallback hold wrappers.
+  fallback retirement gates, sidecar/service cleanup, read APIs, bridge,
+  plugin-command surface, lifecycle/control/maintenance commands, and rule/policy
+  mutations are complete. Future work must target final removal blockers, not
+  another wrapper around a completed surface.
+- The default expectation is one final closeout PR. A two-PR split is allowed only
+  when code/runtime closeout and release/documentation audit would otherwise make
+  review unsafe.
 
 ### Completed implementation bundles
 
@@ -80,6 +84,7 @@ history; future progress must not add new synthetic implementation bundles.
 | 1 | `rust-udp-and-plugin-transport-bundle` | Complete | SOCKS non-loopback UDP policy gates, Shadowsocks UDP canary forwarding, plugin transport preflight/execution evidence, fragment queue timeout/eviction canary, and fallback continuity without app restart. | A supported UDP/plugin path runs through Rust with leak evidence and one-switch Mihomo fallback. |
 | 2 | `rust-tun-packet-capture-hold-bundle` | Complete | Repeated Windows/macOS/Linux TUN/system-proxy rollback drills, route restoration checks, transparent-routing default boundaries, packet-capture canaries, and DNS leak/health telemetry after rollback. | Rust can hold platform routing/packet-capture ownership through repeated rollback/reapply cycles without default traffic leaks. |
 | 3 | `rust-mihomo-fallback-retirement-bundle` | Complete | Unsupported-path fallback continuity, emergency rollback, hold telemetry, sidecar source/binary dependency audit, and selective Mihomo dependency deprecation/removal. | Mihomo is removed only for surfaces with Rust execution evidence, default-path coverage, rollback history, and post-cutover hold proof. |
+| 4 | `runtime-control-plane-retirement-bundle` | Complete through PR #352 | Read API retirement, runtime bridge closeout, plugin command-surface retirement, lifecycle/control/maintenance command closeout, rule/policy mutation closeout, stable frontend command names, and runtime audit evidence. | App-facing control-plane work no longer needs one-surface PRs; remaining work is final runtime apply/release closeout. |
 
 ### Completed work is inventory, not future sequencing
 
@@ -115,26 +120,27 @@ persisted evidence:
 The `mihomo-read-api-retirement`, `runtime-bridge-closeout`,
 `plugin-command-surface-retirement`, `sidecar-lifecycle-surface-retirement`, and
 `runtime-control-mutation-closeout`, and
-`runtime-maintenance-command-closeout` bundles are complete enough that follow-up
-work should not add another isolated getter, bridge wrapper, plugin command
-cleanup, lifecycle wrapper, command-facing control mutation, or maintenance
-command. The next useful migration PR shape is a `runtime-rule-policy-closeout`
-bundle: move rule editing, rule-provider refresh, proxy-chain runtime updates,
-and security-policy application behind Rust-owned config/state/audit paths instead
-of leaving them as retired Go/Mihomo plugin stubs.
+`runtime-maintenance-command-closeout`, and `runtime-rule-policy-closeout` bundles
+are complete. Follow-up work must not add another isolated getter, bridge wrapper,
+plugin command cleanup, lifecycle wrapper, command-facing control mutation,
+maintenance command, rule mutation, policy mutation, or roadmap-only stepping
+stone.
 
-Minimum acceptable scope for that bundle:
+The next useful migration PR shape is a single `final-go-to-rust-closeout-bundle`.
+It must collapse remaining blockers into one reviewable PR:
 
-- Route create/delete/disable rule commands through Rust runtime config mutation
-  and rule-state overlay, not plugin rule endpoints.
-- Route rule-provider refresh and proxy-chain config updates through audited Rust
-  bridge/config paths.
-- Apply and revoke security policies through the same Rust rule mutation path so
-  policy state and active runtime config stay aligned.
-- Keep frontend command names stable while removing retired plugin-stub errors
-  from maintenance paths.
+- Resolve the last live config reload retirement path in `core::manager::config`
+  by either routing it through a Rust-owned runtime apply/restart boundary or
+  deleting the no-restart path if the restart boundary is the supported Rust
+  control-plane behavior.
+- Audit and remove stale Go/Mihomo plugin command, generated binding, docs, and
+  release-packaging references that imply frontend or app-layer ownership.
+- Produce a final release-blocker table: supported paths owned by Rust, retained
+  Mihomo-owned unsupported paths, rollback command, and evidence file/source.
+- Keep any UI/reporting/documentation changes in that same PR when they describe
+  the final state. Do not split them into separate polish PRs.
 
-Anything smaller is maintenance, not roadmap progress.
+Anything smaller is cleanup, not migration progress.
 
 ## Non-negotiable boundaries
 
@@ -282,11 +288,11 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is runtime rule/policy closeout, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, maintenance-command, or plugin-mutation retirement gate. Work through one cohesive rule/policy bundle while preserving explicit rollback evidence:
+The next blocker is final closeout, not another default-forwarding, packet-capture, fallback-retirement, rule/policy, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, maintenance-command, or plugin-mutation retirement gate. Work through one final bundle while preserving explicit rollback evidence:
 
-1. `runtime-rule-policy-closeout`: move runtime rule create/delete/disable, rule-provider update, proxy-chain config update, and security-policy apply/revoke off retired plugin stubs and onto Rust-owned runtime config/state/audit paths.
-2. If review size forces a split, use only rule/policy semantics as the boundary: direct rule/provider commands first, then security-policy integration. Do not create extra readiness, dry-run, generated-type, or UI-only stepping-stone PRs.
-3. `final-closeout-bundle`: rule/policy closeout, release blocker audit, and final Mihomo binary removal evidence linkage.
+1. `final-go-to-rust-closeout-bundle`: resolve the remaining live-reload retirement path, audit stale Go/Mihomo ownership references, and update release/fallback evidence in one PR.
+2. If review size forces a split, use only this boundary: code/runtime closeout first, then release/documentation audit. Maximum two PRs. Do not create extra readiness, dry-run, generated-type, roadmap-only, or UI-only stepping-stone PRs.
+3. After that bundle, only bug fixes or explicit unsupported-path fallback removals should remain. No new migration phase should be added without a concrete supported default path that can be removed from Mihomo ownership in the same PR.
 
 Full protocol replacement and default DNS ownership remain blocked until Rust-owned runtime observation and command-facing control mutations no longer depend on the Go plugin API.
 
