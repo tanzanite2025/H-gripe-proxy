@@ -66,25 +66,11 @@ pub async fn clean_async() -> bool {
         logging!(info, Type::System, "disable tun");
         let tun_enabled = Config::verge().await.data_arc().enable_tun_mode.unwrap_or(false);
         if tun_enabled {
-            let disable_tun = serde_json::json!({ "tun": { "enable": false } });
-
-            logging!(info, Type::System, "send disable tun request to mihomo");
-            match timeout(
-                Duration::from_millis(1000),
-                handle::Handle::mihomo().await.patch_base_config(&disable_tun),
-            )
-            .await
-            {
-                Ok(Ok(_)) => {
-                    logging!(info, Type::Window, "TUN模式已禁用");
-                }
-                Ok(Err(e)) => {
-                    logging!(warn, Type::Window, "Warning: 禁用TUN模式失败: {e}");
-                }
-                Err(_) => {
-                    logging!(warn, Type::Window, "Warning: 禁用TUN模式超时，继续退出流程");
-                }
-            }
+            logging!(
+                info,
+                Type::System,
+                "Go/Mihomo plugin disable-tun API retired; skipping hide-window live TUN patch"
+            );
         }
 
         #[cfg(target_os = "windows")]

@@ -3,17 +3,16 @@ use crate::config::IVerge;
 use crate::core::clash_mode::ClashMode;
 use crate::core::{
     CoreManager, handle, manager::CLASH_LOGGER,
-    stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress, tray::Tray,
+    stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress,
 };
 use bytes::BytesMut;
 use clash_verge_logging::{Type, logging};
 use compact_str::CompactString;
 use once_cell::sync::Lazy;
-use serde_yaml_ng::{Mapping, Value};
+use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::env;
 use std::sync::Arc;
-use tauri::Emitter as _;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
 use tokio::fs;
 
@@ -34,50 +33,14 @@ const LIFECYCLE_TOGGLE_TUN: &str = "toggle_tun";
 
 pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
     let mode = mode.as_str();
-    let mut mapping = Mapping::new();
-    mapping.insert(Value::from("mode"), Value::from(mode));
-    let json_value = serde_json::json!({ "mode": mode });
-
     logging!(debug, Type::Core, "change clash mode to {mode}");
-    match handle::Handle::mihomo().await.patch_base_config(&json_value).await {
-        Ok(_) => {
-            let clash = Config::clash().await;
-            clash.edit_draft(|d| d.patch_config(&mapping));
-            clash.apply();
-
-            let clash_data = clash.data_arc();
-            clash_data.save_config().await?;
-            handle::Handle::refresh_clash();
-            crate::core::tray::Tray::global().update_menu_and_icon().await;
-
-            crate::process::AsyncHandler::spawn(move || async {
-                if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
-                    logging!(
-                        error,
-                        Type::Core,
-                        "Failed to close connections after clash mode change: {err}"
-                    );
-                }
-            });
-            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
-                LIFECYCLE_CHANGE_MODE,
-                true,
-                None,
-                Some(mode.to_string()),
-            );
-            Ok(())
-        }
-        Err(err) => {
-            logging!(error, Type::Core, "{err}");
-            crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
-                LIFECYCLE_CHANGE_MODE,
-                false,
-                Some(err.to_string()),
-                Some(mode.to_string()),
-            );
-            Err(anyhow::anyhow!("{err}"))
-        }
-    }
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+        LIFECYCLE_CHANGE_MODE,
+        false,
+        Some("Go/Mihomo plugin mode patch API retired".into()),
+        Some(mode.to_string()),
+    );
+    anyhow::bail!("change_clash_mode through the Go/Mihomo plugin API is retired; use the Rust runtime control path")
 }
 
 pub async fn toggle_system_proxy() -> bool {
@@ -398,49 +361,9 @@ pub async fn sync_runtime_stable_egress_selection() -> anyhow::Result<()> {
 }
 
 pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
-    for attempt in 1..=2 {
-        match handle::Handle::mihomo()
-            .await
-            .select_node_for_group(group_name, proxy_name)
-            .await
-        {
-            Ok(_) => {
-                crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(group_name, proxy_name);
-                logging!(
-                    info,
-                    Type::Tray,
-                    "Switched proxy node on attempt {}: {} -> {}",
-                    attempt,
-                    group_name,
-                    proxy_name
-                );
-
-                if let Err(error) = sync_runtime_stable_egress_selection().await {
-                    logging!(
-                        warn,
-                        Type::Tray,
-                        "Failed to sync stable egress selection after switching {} -> {}: {}",
-                        group_name,
-                        proxy_name,
-                        error
-                    );
-                }
-
-                let _ = handle::Handle::app_handle().emit("verge://refresh-proxy-config", ());
-                let _ = Tray::global().update_menu().await;
-                return;
-            }
-            Err(err) => {
-                logging!(
-                    error,
-                    Type::Tray,
-                    "Failed to switch proxy node on attempt {}: {} -> {}, error: {:?}",
-                    attempt,
-                    group_name,
-                    proxy_name,
-                    err
-                );
-            }
-        }
-    }
+    logging!(
+        warn,
+        Type::Tray,
+        "Go/Mihomo plugin proxy selection API retired; skipped {group_name} -> {proxy_name}"
+    );
 }

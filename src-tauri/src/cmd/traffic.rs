@@ -99,9 +99,7 @@ pub async fn close_runtime_connection(connection_id: String) -> CmdResult<()> {
 
 #[tauri::command]
 pub async fn close_all_runtime_connections() -> CmdResult<()> {
-    Handle::mihomo().await.close_all_connections().await.stringify_err()?;
-    crate::core::connection_metrics::reset_connection_metrics().await;
-    Ok(())
+    Err("close_all_runtime_connections through the Go/Mihomo plugin API is retired; use the Rust runtime connection path".into())
 }
 
 /// 重置 Rust 连接/流量指标聚合状态。

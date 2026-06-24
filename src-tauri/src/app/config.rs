@@ -203,15 +203,11 @@ fn should_close_connections_on_route_change(current: &IVerge, patch: &IVerge) ->
 }
 
 async fn maybe_close_connections_after_route_change(current: &IVerge, patch: &IVerge) {
-    if !should_close_connections_on_route_change(current, patch) {
-        return;
-    }
-
-    if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+    if should_close_connections_on_route_change(current, patch) {
         logging!(
-            warn,
+            info,
             Type::ProxyMode,
-            "Failed to close connections after route change: {err}"
+            "Go/Mihomo plugin close-connections API retired; skipping route-change connection close"
         );
     }
 }

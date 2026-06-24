@@ -1,7 +1,6 @@
 use anyhow::{Result, anyhow};
 use smartstring::alias::String;
 use tauri_plugin_mihomo::Error as MihomoError;
-use tauri_plugin_mihomo::MihomoExt as _;
 use tokio::sync::Mutex;
 
 use once_cell::sync::Lazy;
@@ -45,19 +44,15 @@ impl MihomoRuntimeRuleSpec {
     }
 }
 
-pub struct MihomoRuleGuard<'a> {
-    app_handle: &'a tauri::AppHandle,
-    rule_indexes: Vec<i32>,
-}
+pub struct MihomoRuleGuard;
 
-impl<'a> MihomoRuleGuard<'a> {
+impl MihomoRuleGuard {
     pub async fn create(
-        app_handle: &'a tauri::AppHandle,
+        _app_handle: &tauri::AppHandle,
         rules: &[MihomoRuntimeRuleSpec],
-        source: Option<&str>,
-        position: Option<&str>,
+        _source: Option<&str>,
+        _position: Option<&str>,
     ) -> Result<Self> {
-        // Validate every rule through the Rust rule engine before sending to Go
         for (i, rule) in rules.iter().enumerate() {
             let v = super::rule_engine::validate_rule_spec(&rule.rule_type, &rule.payload, &rule.proxy);
             if !v.valid {
@@ -71,86 +66,26 @@ impl<'a> MihomoRuleGuard<'a> {
             }
         }
 
-        let mihomo = app_handle.mihomo().read().await;
-        let mut rule_indexes = Vec::new();
-
-        for rule in rules {
-            let index = mihomo
-                .create_rule(
-                    rule.rule_type.as_str(),
-                    rule.payload.as_str(),
-                    rule.proxy.as_str(),
-                    source,
-                    rule.sub_rule.as_deref(),
-                    position,
-                )
-                .await?;
-            if index >= 0 {
-                rule_indexes.push(index);
-            }
-        }
-
-        drop(mihomo);
-
-        Ok(Self {
-            app_handle,
-            rule_indexes,
-        })
+        Err(anyhow!(
+            "Mihomo runtime rule mutation through the Go plugin API is retired; use the Rust runtime rule path"
+        ))
     }
 
     pub async fn restore(self) -> Result<()> {
-        let mihomo = self.app_handle.mihomo().read().await;
-        for index in self.rule_indexes.into_iter().rev() {
-            mihomo.delete_rule(index).await?;
-        }
-
         Ok(())
     }
 }
 
-pub struct MihomoSelectionGuard<'a> {
-    app_handle: &'a tauri::AppHandle,
-    group_name: String,
-    previous_node: Option<String>,
-}
+pub struct MihomoSelectionGuard;
 
-impl<'a> MihomoSelectionGuard<'a> {
-    pub async fn select(app_handle: &'a tauri::AppHandle, group_name: &str, node_name: &str) -> Result<Self> {
-        let mihomo = app_handle.mihomo().read().await;
-        let target = mihomo.get_proxy_by_name(node_name).await?;
-        if !target.alive {
-            return Err(anyhow!("mihomo proxy {node_name} is not alive"));
-        }
-
-        let group = mihomo.get_group_by_name(group_name).await?;
-        let previous_node = group.now.clone().filter(|node| !node.is_empty());
-        let selectable = group
-            .all
-            .as_ref()
-            .map(|nodes| nodes.iter().any(|node| node == node_name))
-            .unwrap_or(false);
-        if !selectable {
-            return Err(anyhow!("mihomo group {group_name} does not contain {node_name}"));
-        }
-
-        mihomo.select_node_for_group(group_name, node_name).await?;
-        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(group_name, node_name);
-        drop(mihomo);
-
-        Ok(Self {
-            app_handle,
-            group_name: group_name.to_string().into(),
-            previous_node: previous_node.map(Into::into),
-        })
+impl MihomoSelectionGuard {
+    pub async fn select(_app_handle: &tauri::AppHandle, _group_name: &str, _node_name: &str) -> Result<Self> {
+        Err(anyhow!(
+            "Mihomo proxy selection through the Go plugin API is retired; use the Rust runtime selection path"
+        ))
     }
 
     pub async fn restore(self) -> Result<()> {
-        if let Some(previous_node) = self.previous_node {
-            let mihomo = self.app_handle.mihomo().read().await;
-            mihomo.select_node_for_group(&self.group_name, &previous_node).await?;
-            crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(&self.group_name, &previous_node);
-        }
-
         Ok(())
     }
 }
