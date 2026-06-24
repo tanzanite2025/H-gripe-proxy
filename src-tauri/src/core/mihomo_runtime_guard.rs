@@ -1,16 +1,15 @@
 use anyhow::{Result, anyhow};
 use smartstring::alias::String;
-use tauri_plugin_mihomo::Error as MihomoError;
 use tokio::sync::Mutex;
 
 use once_cell::sync::Lazy;
 
-use crate::core::handle;
+use crate::core::{handle, runtime_snapshot::read_runtime_version};
 
 static MIHOMO_RECOVERY_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
-async fn probe_mihomo_ipc() -> Result<(), MihomoError> {
-    handle::Handle::mihomo().await.get_version().await.map(|_| ())
+async fn probe_mihomo_ipc() -> Result<()> {
+    read_runtime_version().await.map(|_| ())
 }
 
 pub async fn ensure_mihomo_core_ready() -> Result<()> {

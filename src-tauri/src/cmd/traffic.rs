@@ -83,7 +83,9 @@ pub async fn traffic_get_connection_metrics_snapshot() -> CmdResult<ConnectionMe
 
 #[tauri::command]
 pub async fn get_runtime_connections() -> CmdResult<Connections> {
-    let payload = Handle::mihomo().await.get_connections().await.stringify_err()?;
+    let payload = crate::core::runtime_snapshot::read_runtime_connections()
+        .await
+        .stringify_err()?;
     crate::core::connection_metrics::ingest_connection_metrics_snapshot(&payload).await;
     Ok(payload)
 }

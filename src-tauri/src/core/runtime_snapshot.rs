@@ -14,16 +14,33 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
-use tauri_plugin_mihomo::models::{
-    DelayHistory, DnsMetrics, Extra, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
-    RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleType, Rules, SubScriptionInfo, VehicleType,
+use tauri_plugin_mihomo::{
+    MihomoExt as _,
+    models::{
+        BaseConfig, BufferPoolStats, Connections, DelayHistory, DnsMetrics, EgressStatus, EngineStats, Extra,
+        HotReloadStatus, MihomoVersion, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders,
+        ProxyType, Rule, RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules,
+        SubScriptionInfo, TLSFingerprintStats, VehicleType, XDPStatus,
+    },
 };
 
 #[derive(Debug, Default)]
 pub struct RuntimeSnapshot {
     pub core_running: bool,
+    pub version: Option<MihomoVersion>,
+    pub base_config: Option<BaseConfig>,
     pub proxies: Option<Proxies>,
     pub dns_metrics: Option<DnsMetrics>,
+    pub engine_stats: Option<EngineStats>,
+    pub perf_stats: Option<PerfStats>,
+    pub buffer_pool_stats: Option<BufferPoolStats>,
+    pub hot_reload_status: Option<HotReloadStatus>,
+    pub xdp_status: Option<XDPStatus>,
+    pub rule_traffic: Option<HashMap<std::string::String, RuleTrafficSnapshot>>,
+    pub tls_fingerprint_stats: Option<TLSFingerprintStats>,
+    pub connections: Option<Connections>,
+    pub rules: Option<Rules>,
+    pub egress_status: Option<EgressStatus>,
     pub proxies_from_runtime_config: bool,
 }
 
@@ -194,10 +211,226 @@ impl RuntimeSnapshotService {
         Ok(RuntimeSnapshot {
             core_running,
             proxies: Some(build_proxies_from_runtime_config(config)),
-            dns_metrics: None,
             proxies_from_runtime_config: true,
+            ..RuntimeSnapshot::default()
         })
     }
+
+    pub async fn refresh_runtime_version_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.version = Some(mihomo.get_version().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_base_config_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.base_config = Some(mihomo.get_base_config().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_dns_metrics_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.dns_metrics = Some(mihomo.get_dns_metrics().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_engine_stats_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.engine_stats = Some(mihomo.get_engine_stats().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_perf_stats_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.perf_stats = Some(mihomo.get_perf_stats().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_buffer_pool_stats_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.buffer_pool_stats = Some(mihomo.get_buffer_pool_stats().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_hot_reload_status_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.hot_reload_status = Some(mihomo.get_hot_reload_status().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_xdp_status_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.xdp_status = Some(mihomo.get_xdp_status().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_rule_traffic_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.rule_traffic = Some(mihomo.get_rule_traffic().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_tls_fingerprint_stats_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.tls_fingerprint_stats = Some(mihomo.get_tls_fingerprint_stats().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_connections_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.connections = Some(mihomo.get_connections().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_rules_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.rules = Some(mihomo.get_rules().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_runtime_proxies_result(&self) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = Handle::mihomo().await;
+        snapshot.proxies = Some(mihomo.get_proxies().await?);
+        Ok(snapshot)
+    }
+
+    pub async fn refresh_current_egress_status_result(&self, app_handle: &tauri::AppHandle) -> Result<RuntimeSnapshot> {
+        let mut snapshot = self.runtime_read_snapshot();
+        let mihomo = app_handle.mihomo().read().await;
+        snapshot.egress_status = Some(mihomo.get_egress_status().await?);
+        Ok(snapshot)
+    }
+
+    fn runtime_read_snapshot(&self) -> RuntimeSnapshot {
+        RuntimeSnapshot {
+            core_running: *CoreManager::global().get_running_mode() != RunningMode::NotRunning,
+            ..RuntimeSnapshot::default()
+        }
+    }
+}
+
+pub async fn read_runtime_version() -> Result<MihomoVersion> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_version_result()
+        .await?;
+    runtime_readback(snapshot.version, "version")
+}
+
+pub async fn read_runtime_base_config() -> Result<BaseConfig> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_base_config_result()
+        .await?;
+    runtime_readback(snapshot.base_config, "base config")
+}
+
+pub async fn read_runtime_dns_metrics() -> Result<DnsMetrics> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_dns_metrics_result()
+        .await?;
+    runtime_readback(snapshot.dns_metrics, "DNS metrics")
+}
+
+pub async fn read_runtime_engine_stats() -> Result<EngineStats> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_engine_stats_result()
+        .await?;
+    runtime_readback(snapshot.engine_stats, "engine stats")
+}
+
+pub async fn read_runtime_perf_stats() -> Result<PerfStats> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_perf_stats_result()
+        .await?;
+    runtime_readback(snapshot.perf_stats, "perf stats")
+}
+
+pub async fn read_runtime_buffer_pool_stats() -> Result<BufferPoolStats> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_buffer_pool_stats_result()
+        .await?;
+    runtime_readback(snapshot.buffer_pool_stats, "buffer pool stats")
+}
+
+pub async fn read_runtime_hot_reload_status() -> Result<HotReloadStatus> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_hot_reload_status_result()
+        .await?;
+    runtime_readback(snapshot.hot_reload_status, "hot reload status")
+}
+
+pub async fn read_runtime_xdp_status() -> Result<XDPStatus> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_xdp_status_result()
+        .await?;
+    runtime_readback(snapshot.xdp_status, "XDP status")
+}
+
+pub async fn read_runtime_rule_traffic() -> Result<HashMap<std::string::String, RuleTrafficSnapshot>> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_rule_traffic_result()
+        .await?;
+    runtime_readback(snapshot.rule_traffic, "rule traffic")
+}
+
+pub async fn read_runtime_tls_fingerprint_stats() -> Result<TLSFingerprintStats> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_tls_fingerprint_stats_result()
+        .await?;
+    runtime_readback(snapshot.tls_fingerprint_stats, "TLS fingerprint stats")
+}
+
+pub async fn read_runtime_connections() -> Result<Connections> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_connections_result()
+        .await?;
+    runtime_readback(snapshot.connections, "connections")
+}
+
+pub async fn read_runtime_rules() -> Result<Rules> {
+    let snapshot = RuntimeSnapshotService::global().refresh_runtime_rules_result().await?;
+    runtime_readback(snapshot.rules, "rules")
+}
+
+pub async fn read_runtime_proxies() -> Result<Proxies> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_runtime_proxies_result()
+        .await?;
+    runtime_readback(snapshot.proxies, "proxies")
+}
+
+pub async fn read_current_egress_status(app_handle: &tauri::AppHandle) -> Result<EgressStatus> {
+    let snapshot = RuntimeSnapshotService::global()
+        .refresh_current_egress_status_result(app_handle)
+        .await?;
+    runtime_readback(snapshot.egress_status, "egress status")
+}
+
+pub async fn read_subscription_control_plane_topology(
+    app_handle: &tauri::AppHandle,
+    group_name: &str,
+) -> Result<(Proxy, Proxies)> {
+    let mut snapshot = RuntimeSnapshotService::global().runtime_read_snapshot();
+    let mihomo = app_handle.mihomo().read().await;
+    let group = mihomo.get_group_by_name(group_name).await?;
+    snapshot.proxies = Some(mihomo.get_proxies().await?);
+    Ok((group, runtime_readback(snapshot.proxies, "proxies")?))
+}
+
+fn runtime_readback<T>(value: Option<T>, label: &str) -> Result<T> {
+    value.ok_or_else(|| anyhow::anyhow!("runtime {label} readback unavailable"))
 }
 
 pub fn build_proxies_from_runtime_config(config: &serde_yaml_ng::Mapping) -> Proxies {
@@ -1354,8 +1587,8 @@ mod tests {
                     ("GLOBAL".into(), proxy_group("GLOBAL", "node-b")),
                 ]),
             }),
-            dns_metrics: None,
             proxies_from_runtime_config: false,
+            ..RuntimeSnapshot::default()
         };
 
         let selections = snapshot.stable_group_selected_nodes();
@@ -1372,8 +1605,8 @@ mod tests {
         let snapshot = RuntimeSnapshot {
             core_running: false,
             proxies: None,
-            dns_metrics: None,
             proxies_from_runtime_config: false,
+            ..RuntimeSnapshot::default()
         };
 
         assert!(snapshot.stable_group_selected_nodes().is_empty());
