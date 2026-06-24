@@ -67,7 +67,7 @@ impl RebindStrategy for RoundRobinRebind {
                 return false;
             }
 
-            let mut any_switched = false;
+            let any_switched = false;
 
             for (group_name, group_data) in &stable_groups {
                 let current_node = group_data.now.as_deref().unwrap_or("");
@@ -89,32 +89,11 @@ impl RebindStrategy for RoundRobinRebind {
                     continue;
                 }
 
-                match handle::Handle::mihomo()
-                    .await
-                    .select_node_for_group(group_name, next_node)
-                    .await
-                {
-                    Ok(_) => {
-                        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(
-                            group_name, next_node,
-                        );
-                        log::info!(
-                            "[RebindStrategy::RoundRobin] 自动重绑定: {} 从 {} 切换到 {}",
-                            group_name,
-                            current_node,
-                            next_node
-                        );
-                        any_switched = true;
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "[RebindStrategy::RoundRobin] 重绑定失败: {} -> {}: {:?}",
-                            group_name,
-                            next_node,
-                            e
-                        );
-                    }
-                }
+                log::warn!(
+                    "[RebindStrategy::RoundRobin] Go/Mihomo plugin proxy selection API retired; skipped {} -> {}",
+                    group_name,
+                    next_node
+                );
             }
 
             if any_switched {
@@ -248,7 +227,7 @@ impl RebindStrategy for SmartRebind {
                 })
                 .collect();
 
-            let mut any_switched = false;
+            let any_switched = false;
 
             for (group_name, group_data) in &stable_groups {
                 let current_node = group_data.now.as_deref().unwrap_or("");
@@ -285,33 +264,11 @@ impl RebindStrategy for SmartRebind {
                     continue;
                 };
 
-                match handle::Handle::mihomo()
-                    .await
-                    .select_node_for_group(group_name, &best_node)
-                    .await
-                {
-                    Ok(_) => {
-                        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(
-                            group_name, &best_node,
-                        );
-                        log::info!(
-                            "[RebindStrategy::Smart] 智能重绑定: {} 从 {} 切换到 {} (评分: {})",
-                            group_name,
-                            current_node,
-                            best_node,
-                            best_score
-                        );
-                        any_switched = true;
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "[RebindStrategy::Smart] 重绑定失败: {} -> {}: {:?}",
-                            group_name,
-                            best_node,
-                            e
-                        );
-                    }
-                }
+                log::warn!(
+                    "[RebindStrategy::Smart] Go/Mihomo plugin proxy selection API retired; skipped {} -> {}",
+                    group_name,
+                    best_node
+                );
             }
 
             if any_switched {

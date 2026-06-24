@@ -12,7 +12,6 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
 use std::{collections::HashSet, time::Instant};
-use tauri_plugin_mihomo::Error as MihomoError;
 
 impl CoreManager {
     pub async fn use_default_config(&self, error_key: &str, error_msg: &str) -> Result<()> {
@@ -170,35 +169,10 @@ impl CoreManager {
                             );
                             Ok(ValidationOutcome::Valid)
                         }
-                        Err(err) if Self::is_mihomo_ipc_unavailable(&err) => {
-                            logging!(
-                                warn,
-                                Type::Core,
-                                "Failed to reload config because Mihomo IPC is unavailable, starting core to apply it: {err}"
-                            );
-                            match self.start_core().await {
-                                Ok(_) => {
-                                    Config::runtime().await.apply();
-                                    logging!(
-                                        info,
-                                        Type::Core,
-                                        "Configuration applied by no-restart path via IPC recovery core start"
-                                    );
-                                    Ok(ValidationOutcome::Valid)
-                                }
-                                Err(start_err) => {
-                                    Config::runtime().await.discard();
-                                    Err(anyhow!(
-                                        "Failed to reload config because Mihomo IPC is unavailable, and failed to start core: {}",
-                                        start_err
-                                    ))
-                                }
-                            }
-                        }
                         Err(err) => {
                             Config::runtime().await.discard();
                             Ok(ValidationOutcome::invalid_from_message(format!(
-                                "Failed to reload updated config without restarting core: {err}"
+                                "Live config reload through the Go/Mihomo plugin API is retired: {err}"
                             )))
                         }
                     }
@@ -244,29 +218,9 @@ impl CoreManager {
         }
     }
 
-    async fn reload_active_config(&self) -> Result<(), MihomoError> {
-        // The core already started with the generated runtime config path.
-        // Reloading with an empty path asks Mihomo to reload the current file
-        // and avoids Windows SAFE_PATHS mismatches between app variants.
-        self.reload_config("").await
-    }
-
-    async fn reload_config(&self, path: &str) -> Result<(), MihomoError> {
-        handle::Handle::mihomo().await.reload_config(true, path).await
-    }
-
-    pub(crate) fn is_mihomo_ipc_unavailable(err: &MihomoError) -> bool {
-        match err {
-            MihomoError::Io(err) => err.kind() == std::io::ErrorKind::NotFound,
-            MihomoError::ConnectionFailed(message) => {
-                let message = message.to_ascii_lowercase();
-                message.contains("failed to connect to named pipe")
-                    || message.contains("cannot find the file specified")
-                    || message.contains("no such file or directory")
-                    || message.contains("os error 2")
-                    || message.contains("系统找不到指定的文件")
-            }
-            _ => false,
-        }
+    async fn reload_active_config(&self) -> Result<()> {
+        anyhow::bail!(
+            "Live config reload through the Go/Mihomo plugin API is retired; use the Rust runtime config apply path"
+        )
     }
 }

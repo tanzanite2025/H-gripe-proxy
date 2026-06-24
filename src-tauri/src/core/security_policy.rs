@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -167,13 +167,11 @@ pub fn get_security_policy_manager() -> Arc<SecurityPolicyManager> {
 
 /// Apply a single policy to Mihomo by creating rules with the policy's source tag
 pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
-    // Validate all rules through the Rust rule engine before sending to Go
-    for (i, rule) in policy.rules.iter().enumerate() {
-        let v = super::rule_engine::validate_rule_spec(&rule.rule_type, &rule.payload, &rule.proxy);
+    for rule in &policy.rules {
+        let v = crate::core::rule_engine::validate_rule_spec(&rule.rule_type, &rule.payload, &rule.proxy);
         if !v.valid {
-            return Err(anyhow::anyhow!(
-                "security policy \"{}\" rule[{i}] ({},{},{}): {}",
-                policy.name,
+            return Err(anyhow!(
+                "invalid rule ({},{},{}): {}",
                 rule.rule_type,
                 rule.payload,
                 rule.proxy,
@@ -182,52 +180,14 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
         }
     }
 
-    let manager = get_security_policy_manager();
-    if let Some(state) = manager.get_applied_state(&policy.name).await
-        && state.applied
-    {
-        revoke_policy(&policy.name).await?;
-    }
-
-    let mihomo = crate::core::handle::Handle::mihomo().await;
-    let source = SecurityPolicyManager::source_for_policy(&policy.name);
-    let mut indices = Vec::with_capacity(policy.rules.len());
-
-    for rule in &policy.rules {
-        let idx = mihomo
-            .create_rule(&rule.rule_type, &rule.payload, &rule.proxy, Some(&source), None, None)
-            .await?;
-        indices.push(idx);
-    }
-
-    manager
-        .mark_applied(&policy.name, policy.enabled, indices.clone())
-        .await;
-
-    Ok(indices)
+    Err(anyhow!(
+        "security policy rule mutation through the Go/Mihomo plugin API is retired; use the Rust runtime policy path"
+    ))
 }
 
 /// Revoke a single policy from Mihomo by soft-deleting its rules
 pub async fn revoke_policy(policy_name: &str) -> Result<()> {
     let manager = get_security_policy_manager();
-    let state = manager.get_applied_state(policy_name).await;
-
-    if let Some(state) = &state {
-        if state.applied {
-            let mihomo = crate::core::handle::Handle::mihomo().await;
-            for &idx in &state.rule_indices {
-                if let Err(e) = mihomo.delete_rule(idx).await {
-                    log::warn!(
-                        "[SecurityPolicy] failed to delete rule {} for policy {}: {}",
-                        idx,
-                        policy_name,
-                        e
-                    );
-                }
-            }
-        }
-    }
-
     manager.mark_revoked(policy_name).await;
     Ok(())
 }

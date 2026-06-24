@@ -2,7 +2,6 @@ use anyhow::{Result, anyhow};
 use reqwest::{Client, Proxy};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tauri_plugin_mihomo::MihomoExt as _;
 
 use crate::config::{ResidentialProxy, ResidentialProxyType};
 use crate::core::ip_reputation::{IpReputation, ResidentialVerificationState};
@@ -110,14 +109,10 @@ async fn verify_residential_proxy_via_mihomo(
     result
 }
 
-struct MihomoProbeRuleGuard<'a> {
-    app_handle: &'a tauri::AppHandle,
-    rule_indexes: Vec<i32>,
-}
+struct MihomoProbeRuleGuard;
 
-impl<'a> MihomoProbeRuleGuard<'a> {
-    async fn create(app_handle: &'a tauri::AppHandle) -> Result<Self> {
-        // Validate probe rules through the Rust rule engine before sending to Go
+impl MihomoProbeRuleGuard {
+    async fn create(_app_handle: &tauri::AppHandle) -> Result<Self> {
         for host in PUBLIC_IP_PROBE_HOSTS {
             let v = super::rule_engine::validate_rule_spec("DOMAIN", host, RESIDENTIAL_VERIFY_GROUP);
             if !v.valid {
@@ -130,38 +125,12 @@ impl<'a> MihomoProbeRuleGuard<'a> {
             }
         }
 
-        let mihomo = app_handle.mihomo().read().await;
-        let mut rule_indexes = Vec::new();
-
-        for host in PUBLIC_IP_PROBE_HOSTS {
-            let index = mihomo
-                .create_rule(
-                    "DOMAIN",
-                    host,
-                    RESIDENTIAL_VERIFY_GROUP,
-                    Some(RESIDENTIAL_VERIFY_RULE_SOURCE),
-                    None,
-                    Some("prepend"),
-                )
-                .await?;
-            if index >= 0 {
-                rule_indexes.push(index);
-            }
-        }
-
-        drop(mihomo);
-        Ok(Self {
-            app_handle,
-            rule_indexes,
-        })
+        Err(anyhow!(
+            "residential verification rule mutation through the Go plugin API is retired"
+        ))
     }
 
     async fn restore(self) -> Result<()> {
-        let mihomo = self.app_handle.mihomo().read().await;
-        for index in self.rule_indexes.into_iter().rev() {
-            mihomo.delete_rule(index).await?;
-        }
-
         Ok(())
     }
 }
@@ -193,49 +162,16 @@ async fn observe_mihomo_egress(
     })
 }
 
-struct MihomoSelectionGuard<'a> {
-    app_handle: &'a tauri::AppHandle,
-    group_name: String,
-    previous_node: Option<String>,
-}
+struct MihomoSelectionGuard;
 
-impl<'a> MihomoSelectionGuard<'a> {
-    async fn select(app_handle: &'a tauri::AppHandle, group_name: &str, node_name: &str) -> Result<Self> {
-        let mihomo = app_handle.mihomo().read().await;
-        let target = mihomo.get_proxy_by_name(node_name).await?;
-        if !target.alive {
-            return Err(anyhow!("mihomo proxy {node_name} is not alive"));
-        }
-
-        let group = mihomo.get_group_by_name(group_name).await?;
-        let previous_node = group.now.clone().filter(|node| !node.is_empty());
-        let selectable = group
-            .all
-            .as_ref()
-            .map(|nodes| nodes.iter().any(|node| node == node_name))
-            .unwrap_or(false);
-        if !selectable {
-            return Err(anyhow!("mihomo group {group_name} does not contain {node_name}"));
-        }
-
-        mihomo.select_node_for_group(group_name, node_name).await?;
-        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(group_name, node_name);
-        drop(mihomo);
-
-        Ok(Self {
-            app_handle,
-            group_name: group_name.to_string(),
-            previous_node,
-        })
+impl MihomoSelectionGuard {
+    async fn select(_app_handle: &tauri::AppHandle, _group_name: &str, _node_name: &str) -> Result<Self> {
+        Err(anyhow!(
+            "residential verification proxy selection through the Go plugin API is retired"
+        ))
     }
 
     async fn restore(self) -> Result<()> {
-        if let Some(previous_node) = self.previous_node {
-            let mihomo = self.app_handle.mihomo().read().await;
-            mihomo.select_node_for_group(&self.group_name, &previous_node).await?;
-            crate::core::runtime_snapshot::record_and_persist_runtime_proxy_selection(&self.group_name, &previous_node);
-        }
-
         Ok(())
     }
 }
