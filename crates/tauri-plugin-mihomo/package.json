@@ -2,7 +2,7 @@
   "name": "tauri-plugin-mihomo-api",
   "version": "0.1.5",
   "author": "oomeow",
-  "description": "Tauri plugin for invoke Mihomo API",
+  "description": "Generated Mihomo bindings and Rust-only Mihomo bridge",
   "type": "module",
   "types": "./dist-js/index.d.ts",
   "main": "./dist-js/index.cjs",

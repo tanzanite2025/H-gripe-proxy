@@ -18,14 +18,14 @@
 > }
 > ```
 
-`tauri-plugin-mihomo` is the Tauri-side bridge used by this repository to talk to Mihomo over HTTP and socket transports.
+`tauri-plugin-mihomo` is the Tauri-side bridge used by this repository to talk to Mihomo over HTTP and socket transports. Its Tauri invoke surface is intentionally retired; app code should enter Mihomo through Rust-owned commands, `core::runtime_snapshot`, or `core::runtime_bridge`, while the npm package exports generated TypeScript bindings only.
 
 ## Workspace Usage
 
 In this repository:
 
 - Rust code uses the plugin through the workspace dependency defined in `Cargo.toml`
-- Frontend code uses `tauri-plugin-mihomo-api` via the local `file:` dependency in `package.json`
+- Frontend code uses `tauri-plugin-mihomo-api` only as a generated type source via the local `file:` dependency in `package.json`
 - No external upstream repository path is required for normal development
 
 ## Testing
