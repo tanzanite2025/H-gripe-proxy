@@ -18,7 +18,10 @@ impl CoreManager {
 
         match *self.get_running_mode() {
             RunningMode::Service => self.start_core_by_service().await,
-            RunningMode::NotRunning | RunningMode::Sidecar => self.start_core_by_sidecar().await,
+            RunningMode::Sidecar => self.start_core_by_sidecar().await,
+            RunningMode::NotRunning => Err(anyhow!(
+                "Mihomo sidecar startup is retired and no service/Rust runtime is ready"
+            )),
         }
     }
 
@@ -61,8 +64,8 @@ impl CoreManager {
         let mode = match value {
             #[cfg(target_os = "windows")]
             ServiceStatus::Ready if tun_enabled => RunningMode::Service,
-            ServiceStatus::Ready => RunningMode::Sidecar,
-            _ => RunningMode::Sidecar,
+            ServiceStatus::Ready => RunningMode::Service,
+            _ => RunningMode::NotRunning,
         };
 
         self.set_running_mode(mode);
