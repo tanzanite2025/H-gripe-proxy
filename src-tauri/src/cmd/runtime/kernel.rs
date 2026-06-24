@@ -5,7 +5,8 @@ use crate::core::kernel_runtime::{
     RustDnsSystemResolverLeakBlockerReport, RustEncryptedProtocolDefaultBlockerReport,
     RustEncryptedProtocolsBundleReport, RustEncryptedProxyProtocolPreflightReport,
     RustEncryptedProxySessionExpansionReport, RustFallbackRetirementCloseoutReport,
-    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport,
+    RustFallbackRetirementReadinessLockReport, RustFallbackRetirementReadinessManifest,
+    RustFinalMihomoBinaryRemovalGateReport, RustGeoipDatabaseBlockerReport,
     RustGuardedProductionDefaultForwardingApplyReport, RustGuardedTunPacketCaptureApplyReport,
     RustHttpConnectProxyAdapterReport, RustManualDefaultPathRemovalReviewReport,
     RustMihomoFallbackRetirementBundleReport, RustOperatorDefaultPathCutoverReport, RustPacketLeakHoldBlockerReport,
@@ -24,14 +25,15 @@ use crate::core::kernel_runtime::{
     RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
     execute_mihomo_fallback_retirement, go_to_rust_migration_final_review, lock_rust_fallback_retirement_readiness,
     mihomo_fallback_retirement_execution_plan, rollback_fallback_retirement_closeout,
-    rollback_guarded_production_default_forwarding_apply, rollback_guarded_tun_packet_capture_apply,
-    rollback_mihomo_fallback_retirement_execution, rollback_rust_tun_system_proxy_parity,
-    rust_default_data_plane_closeout_plan, rust_default_forwarding_hold_blocker_reduction,
-    rust_dns_cutover_hold_blocker_reduction, rust_dns_default_path_blocker_reduction,
-    rust_dns_system_resolver_leak_blocker_reduction, rust_encrypted_protocol_default_blocker_reduction,
-    rust_encrypted_protocols_bundle_execution, rust_encrypted_proxy_protocol_preflight_evidence,
-    rust_encrypted_proxy_session_expansion, rust_fallback_retirement_closeout,
-    rust_fallback_retirement_readiness_manifest, rust_geoip_database_blocker_reduction,
+    rollback_final_mihomo_binary_removal_gate, rollback_guarded_production_default_forwarding_apply,
+    rollback_guarded_tun_packet_capture_apply, rollback_mihomo_fallback_retirement_execution,
+    rollback_rust_tun_system_proxy_parity, rust_default_data_plane_closeout_plan,
+    rust_default_forwarding_hold_blocker_reduction, rust_dns_cutover_hold_blocker_reduction,
+    rust_dns_default_path_blocker_reduction, rust_dns_system_resolver_leak_blocker_reduction,
+    rust_encrypted_protocol_default_blocker_reduction, rust_encrypted_protocols_bundle_execution,
+    rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
+    rust_fallback_retirement_closeout, rust_fallback_retirement_readiness_manifest,
+    rust_final_mihomo_binary_removal_gate, rust_geoip_database_blocker_reduction,
     rust_guarded_production_default_forwarding_apply, rust_guarded_tun_packet_capture_apply,
     rust_http_connect_proxy_adapter_evidence, rust_manual_default_path_removal_review,
     rust_mihomo_fallback_retirement_bundle_execution, rust_operator_default_path_cutover,
@@ -639,6 +641,32 @@ pub async fn rollback_runtime_kernel_rust_fallback_retirement_closeout(
     explicit_opt_in: bool,
 ) -> CmdResult<RustFallbackRetirementCloseoutReport> {
     Box::pin(rollback_fallback_retirement_closeout(explicit_opt_in))
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_final_mihomo_binary_removal_gate(
+    explicit_opt_in: bool,
+    operator_approved: bool,
+    commit_removal_gate: bool,
+    verify_release_audit: bool,
+) -> CmdResult<RustFinalMihomoBinaryRemovalGateReport> {
+    Box::pin(rust_final_mihomo_binary_removal_gate(
+        explicit_opt_in,
+        operator_approved,
+        commit_removal_gate,
+        verify_release_audit,
+    ))
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rollback_runtime_kernel_rust_final_mihomo_binary_removal_gate(
+    explicit_opt_in: bool,
+) -> CmdResult<RustFinalMihomoBinaryRemovalGateReport> {
+    Box::pin(rollback_final_mihomo_binary_removal_gate(explicit_opt_in))
         .await
         .stringify_err()
 }

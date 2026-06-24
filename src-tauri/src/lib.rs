@@ -274,6 +274,8 @@ mod app_init {
             cmd::runtime::kernel::rollback_runtime_kernel_rust_guarded_tun_packet_capture_apply,
             cmd::runtime::kernel::run_runtime_kernel_rust_fallback_retirement_closeout,
             cmd::runtime::kernel::rollback_runtime_kernel_rust_fallback_retirement_closeout,
+            cmd::runtime::kernel::run_runtime_kernel_rust_final_mihomo_binary_removal_gate,
+            cmd::runtime::kernel::rollback_runtime_kernel_rust_final_mihomo_binary_removal_gate,
             cmd::runtime::kernel::run_runtime_kernel_rust_mihomo_fallback_retirement_bundle,
             cmd::runtime::kernel::run_runtime_kernel_go_to_rust_migration_final_review,
             cmd::runtime::kernel::run_runtime_kernel_rust_manual_default_path_removal_review,
