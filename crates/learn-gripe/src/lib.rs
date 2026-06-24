@@ -15,6 +15,8 @@ mod outbound;
 mod proxy;
 mod server;
 mod socks5;
+mod tls;
+mod vless;
 
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
@@ -23,3 +25,5 @@ pub use proxy::{
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
 };
 pub use server::{GripeHandle, GripeKernel};
+pub use tls::TlsClientConfig;
+pub use vless::VlessOutboundConfig;

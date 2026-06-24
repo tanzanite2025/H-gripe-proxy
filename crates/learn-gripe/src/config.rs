@@ -1,5 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
+use crate::vless::VlessOutboundConfig;
+
 /// Runtime configuration for the learn-gripe kernel MVP.
 #[derive(Debug, Clone)]
 pub struct GripeConfig {
@@ -16,6 +18,8 @@ pub enum OutboundMode {
     Direct,
     /// Forward through an upstream SOCKS5 proxy.
     Socks5Upstream { addr: SocketAddr },
+    /// Forward through a VLESS outbound.
+    Vless(Box<VlessOutboundConfig>),
 }
 
 impl Default for GripeConfig {

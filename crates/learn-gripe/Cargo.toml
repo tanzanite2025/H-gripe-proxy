@@ -9,11 +9,15 @@ tokio = { workspace = true, features = ["net", "io-util"] }
 anyhow = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+tokio-rustls = { version = "0.26.1", default-features = false, features = ["ring", "tls12", "logging"] }
+rustls = { version = "0.23.20", default-features = false, features = ["ring", "tls12", "std", "logging"] }
+webpki-roots = { version = "0.26.7" }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
 serde_yaml_ng = { workspace = true }
 serde_json = { workspace = true }
+rustls-pemfile = "2.2.0"
 
 [lints]
 workspace = true

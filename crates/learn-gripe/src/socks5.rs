@@ -82,16 +82,11 @@ pub async fn client_connect<S>(stream: &mut S, target: &TargetAddr) -> Result<()
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    stream
-        .write_all(&[VERSION, 0x01, METHOD_NO_AUTH])
-        .await?;
+    stream.write_all(&[VERSION, 0x01, METHOD_NO_AUTH]).await?;
     let mut selection = [0u8; 2];
     stream.read_exact(&mut selection).await?;
     if selection[0] != VERSION || selection[1] != METHOD_NO_AUTH {
-        bail!(
-            "upstream rejected no-auth handshake: {:?}",
-            selection
-        );
+        bail!("upstream rejected no-auth handshake: {:?}", selection);
     }
 
     let mut request = vec![VERSION, CMD_CONNECT, RSV];
@@ -139,8 +134,7 @@ where
             stream.read_exact(&mut len).await?;
             let mut host = vec![0u8; len[0] as usize];
             stream.read_exact(&mut host).await?;
-            let host =
-                String::from_utf8(host).map_err(|_| anyhow!("domain is not valid UTF-8"))?;
+            let host = String::from_utf8(host).map_err(|_| anyhow!("domain is not valid UTF-8"))?;
             let port = read_port(stream).await?;
             Ok(TargetAddr::Domain(host, port))
         }

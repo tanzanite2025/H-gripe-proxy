@@ -1196,7 +1196,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "warp",
- "webpki-roots",
+ "webpki-roots 1.0.7",
  "webview2-com",
  "windows 0.62.2",
  "windows-core 0.61.2",
@@ -3250,7 +3250,7 @@ dependencies = [
  "rand 0.8.6",
  "ring",
  "rustls 0.21.12",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "thiserror 1.0.69",
  "tinyvec",
  "tokio",
@@ -3475,7 +3475,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.4",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]
@@ -4135,10 +4135,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "log",
+ "rustls 0.23.40",
+ "rustls-pemfile 2.2.0",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "tokio",
+ "tokio-rustls 0.26.4",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -6197,7 +6201,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]
@@ -6527,6 +6531,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
 dependencies = [
  "base64 0.21.7",
+]
+
+[[package]]
+name = "rustls-pemfile"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]
@@ -9518,6 +9531,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f31141ce3fc3e300ae89b78c0dd67f9708061d1d2eda54b8209346fd6be9a92c"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.26.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+dependencies = [
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]
