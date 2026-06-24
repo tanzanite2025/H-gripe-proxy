@@ -1,4 +1,4 @@
-use crate::core::{CoreManager, handle::Handle, manager::RunningMode};
+use crate::core::{CoreManager, manager::RunningMode, runtime_snapshot::read_runtime_connections};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde::Serialize;
@@ -239,7 +239,7 @@ pub async fn refresh_connection_metrics_snapshot() -> Result<ConnectionMetricsSn
         return Ok(CONNECTION_METRICS_AGGREGATOR.snapshot().await);
     }
 
-    let payload = Handle::mihomo().await.get_connections().await?;
+    let payload = read_runtime_connections().await?;
     CONNECTION_METRICS_AGGREGATOR.ingest(&payload).await;
     Ok(CONNECTION_METRICS_AGGREGATOR.snapshot().await)
 }

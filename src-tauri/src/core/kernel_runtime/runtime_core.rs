@@ -374,7 +374,7 @@ pub async fn mihomo_kernel_rule_shadow_evidence() -> Result<KernelRuleShadowEvid
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
     let app_rules = build_rules_from_runtime_config(config);
-    let mihomo_rules = Handle::mihomo().await.get_rules().await?;
+    let mihomo_rules = crate::core::runtime_snapshot::read_runtime_rules().await?;
     let sample_size = app_rules.rules.len().max(mihomo_rules.rules.len()).min(25);
     let mut samples = Vec::with_capacity(sample_size);
 
@@ -448,7 +448,7 @@ pub async fn mihomo_kernel_adapter_capability_report() -> Result<KernelAdapterCa
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
     let app_proxies = build_proxies_from_runtime_config(config);
-    let mihomo_proxies = Handle::mihomo().await.get_proxies().await?;
+    let mihomo_proxies = crate::core::runtime_snapshot::read_runtime_proxies().await?;
     let app_counts = proxy_type_counts(&app_proxies.proxies);
     let mihomo_counts = proxy_type_counts(&mihomo_proxies.proxies);
     let mut proxy_types = BTreeSet::new();
@@ -509,7 +509,7 @@ pub async fn mihomo_kernel_adapter_capability_report() -> Result<KernelAdapterCa
 }
 
 pub async fn mihomo_kernel_connection_session_shadow() -> Result<KernelConnectionSessionShadowReport> {
-    let connections = Handle::mihomo().await.get_connections().await?;
+    let connections = crate::core::runtime_snapshot::read_runtime_connections().await?;
     let sessions = connections.connections.unwrap_or_default();
     let mut network_counts = BTreeMap::new();
     let mut connection_type_counts = BTreeMap::new();

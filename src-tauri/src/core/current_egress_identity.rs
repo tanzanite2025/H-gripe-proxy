@@ -1,6 +1,5 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_mihomo::models::EgressStatus;
 
 use crate::core::{
@@ -63,9 +62,7 @@ async fn current_identity_from_mihomo_egress_status(
 
     crate::core::mihomo_runtime_guard::ensure_mihomo_core_ready().await?;
 
-    let mihomo = app_handle.mihomo().read().await;
-    let status = mihomo.get_egress_status().await?;
-    drop(mihomo);
+    let status = crate::core::runtime_snapshot::read_current_egress_status(app_handle).await?;
 
     if let Some(mut identity) = current_identity_from_egress_status(&status) {
         attach_reputation(&mut identity, None).await;

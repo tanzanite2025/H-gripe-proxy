@@ -7,6 +7,7 @@ use crate::{
         handle::Handle,
         manager::RunningMode,
         mihomo_runtime_guard::{MihomoRuleGuard, MihomoRuntimeRuleSpec, MihomoSelectionGuard},
+        runtime_snapshot::read_subscription_control_plane_topology,
     },
     enhance::subscription_update::SUBSCRIPTION_UPDATE_GROUP,
 };
@@ -15,10 +16,7 @@ use serde_yaml_ng::Value;
 use smartstring::alias::String;
 use std::net::IpAddr;
 use tauri::Url;
-use tauri_plugin_mihomo::{
-    MihomoExt as _,
-    models::{Proxies, Proxy},
-};
+use tauri_plugin_mihomo::models::{Proxies, Proxy};
 
 const SUBSCRIPTION_UPDATE_RULE_SOURCE: &str = "subscription-update";
 
@@ -128,13 +126,9 @@ async fn try_control_plane_candidates(
 }
 
 async fn resolve_control_plane_candidates(app_handle: &tauri::AppHandle) -> Result<Vec<String>> {
-    let mihomo = app_handle.mihomo().read().await;
-    let group = mihomo
-        .get_group_by_name(SUBSCRIPTION_UPDATE_GROUP)
+    let (group, proxies) = read_subscription_control_plane_topology(app_handle, SUBSCRIPTION_UPDATE_GROUP)
         .await
         .with_context(|| format!("failed to load dedicated control-plane group {SUBSCRIPTION_UPDATE_GROUP}"))?;
-    let proxies = mihomo.get_proxies().await?;
-    drop(mihomo);
 
     Ok(order_control_plane_candidates(&group, &proxies))
 }

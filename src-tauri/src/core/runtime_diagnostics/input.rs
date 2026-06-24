@@ -32,6 +32,7 @@ mod tests {
             proxies: None,
             dns_metrics: None,
             proxies_from_runtime_config: false,
+            ..RuntimeSnapshot::default()
         };
 
         let input = DiagnosticsInput::from_snapshot(snapshot);
