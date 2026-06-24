@@ -12,12 +12,16 @@ serde = { workspace = true, features = ["derive"] }
 tokio-rustls = { version = "0.26.1", default-features = false, features = ["ring", "tls12", "logging"] }
 rustls = { version = "0.23.20", default-features = false, features = ["ring", "tls12", "std", "logging"] }
 webpki-roots = { version = "0.26.7" }
+tokio-tungstenite = { version = "0.26.2", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3.31", default-features = false, features = ["sink"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
 serde_yaml_ng = { workspace = true }
 serde_json = { workspace = true }
 rustls-pemfile = "2.2.0"
+tokio-tungstenite = { version = "0.26.2", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3.31", default-features = false, features = ["sink"] }
 
 [lints]
 workspace = true

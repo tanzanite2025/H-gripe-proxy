@@ -1,10 +1,11 @@
 //! VLESS outbound.
 //!
-//! Implements the VLESS request/response framing and wires it onto a transport.
-//! This first slice covers the `tcp` network over either plaintext or standard
-//! TLS; the `ws`/`grpc`/`xhttp` transports and REALITY land in follow-up work.
-//! Unsupported sub-features are rejected by [`VlessOutboundConfig::from_proxy`]
-//! rather than silently mis-encoded.
+//! Implements the VLESS request/response framing only; the transport (tcp/ws)
+//! and security (none/tls) layers it runs over are provided by
+//! [`crate::transport`], so this module is purely the protocol layer. `tcp` and
+//! `ws` transports over `none`/`tls` security are supported today;
+//! `grpc`/`h2`/`xhttp` and REALITY land in follow-up work and are rejected by
+//! [`VlessOutboundConfig::from_proxy`] rather than silently mis-encoded.
 //!
 //! Wire format (client → server request header):
 //! ```text
@@ -22,12 +23,13 @@ use std::task::{Context as TaskContext, Poll, ready};
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::net::TcpStream;
 
 use crate::address::TargetAddr;
 use crate::outbound::BoxedStream;
 use crate::proxy::{Network, ProxyEntry};
 use crate::tls::TlsClientConfig;
+use crate::transport::{self, Security, Transport};
+use crate::ws::WsTransportConfig;
 
 const VERSION: u8 = 0x00;
 const CMD_TCP: u8 = 0x01;
@@ -36,13 +38,16 @@ const ATYP_DOMAIN: u8 = 0x02;
 const ATYP_IPV6: u8 = 0x03;
 
 /// Fully-resolved VLESS outbound parameters.
+///
+/// `security` and `transport` are orthogonal layers (see [`crate::transport`]):
+/// e.g. `VLESS-WS-TLS` is `Security::Tls` + `Transport::Ws`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VlessOutboundConfig {
     pub server: String,
     pub port: u16,
     pub uuid: [u8; 16],
-    /// TLS parameters, or `None` for a plaintext VLESS connection (`tls: false`).
-    pub tls: Option<TlsClientConfig>,
+    pub security: Security,
+    pub transport: Transport,
 }
 
 impl VlessOutboundConfig {
@@ -58,10 +63,6 @@ impl VlessOutboundConfig {
         let port = opts.port.context("vless: missing port")?;
         let uuid = parse_uuid(opts.uuid.as_deref().context("vless: missing uuid")?)?;
 
-        match opts.network {
-            None | Some(Network::Tcp) => {}
-            Some(other) => bail!("vless: transport {other:?} not implemented yet (tcp only)"),
-        }
         if opts.reality_opts.is_some() {
             bail!("vless: REALITY not implemented yet");
         }
@@ -71,21 +72,39 @@ impl VlessOutboundConfig {
             bail!("vless: flow {flow:?} not implemented yet");
         }
 
-        let tls = if opts.tls.unwrap_or(false) {
-            Some(TlsClientConfig {
+        let security = if opts.tls.unwrap_or(false) {
+            Security::Tls(TlsClientConfig {
                 server_name: opts.servername.clone().or_else(|| opts.sni.clone()),
                 alpn: opts.alpn.clone().unwrap_or_default(),
                 skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
             })
         } else {
-            None
+            Security::None
+        };
+
+        let transport = match opts.network {
+            None | Some(Network::Tcp) => Transport::Tcp,
+            Some(Network::Ws) => {
+                let ws = opts.ws_opts.clone().unwrap_or_default();
+                let mut headers = ws.headers.unwrap_or_default();
+                // The camouflage Host drives the handshake authority; keep the
+                // remaining headers for the request as-is.
+                let host = headers.remove("Host").or_else(|| headers.remove("host"));
+                Transport::Ws(WsTransportConfig {
+                    path: ws.path.unwrap_or_default(),
+                    host,
+                    headers,
+                })
+            }
+            Some(other) => bail!("vless: transport {other:?} not implemented yet"),
         };
 
         Ok(Self {
             server,
             port,
             uuid,
-            tls,
+            security,
+            transport,
         })
     }
 }
@@ -93,23 +112,10 @@ impl VlessOutboundConfig {
 /// Connect a VLESS outbound to `target` and return a relay-ready stream with
 /// the request header already sent and the response header stripped.
 pub async fn connect(config: &VlessOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let tcp = TcpStream::connect((config.server.as_str(), config.port))
-        .await
-        .with_context(|| format!("vless: dial {}:{}", config.server, config.port))?;
+    let mut stream = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
     let header = encode_request_header(&config.uuid, CMD_TCP, target);
-
-    match &config.tls {
-        Some(tls) => {
-            let mut stream = crate::tls::connect(tls, &config.server, tcp).await?;
-            stream.write_all(&header).await.context("vless: send request header")?;
-            Ok(Box::new(VlessStream::new(stream)))
-        }
-        None => {
-            let mut stream = tcp;
-            stream.write_all(&header).await.context("vless: send request header")?;
-            Ok(Box::new(VlessStream::new(stream)))
-        }
-    }
+    stream.write_all(&header).await.context("vless: send request header")?;
+    Ok(Box::new(VlessStream::new(stream)))
 }
 
 /// Parse a canonical hyphenated UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
