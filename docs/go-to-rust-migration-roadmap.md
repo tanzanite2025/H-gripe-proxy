@@ -112,22 +112,22 @@ persisted evidence:
 
 ### Default future PR shape
 
-The `mihomo-read-api-retirement` bundle is complete enough that follow-up work
-should not add another isolated getter wrapper. The next useful migration PR
-shape is a `runtime-bridge-closeout` bundle: collect the remaining non-snapshot
-Mihomo IPC surfaces behind one Rust-owned bridge, then retire direct consumer
-callers in the same PR.
+The `mihomo-read-api-retirement` and `runtime-bridge-closeout` bundles are
+complete enough that follow-up work should not add another isolated getter or
+bridge wrapper. The next useful migration PR shape is a
+`plugin-command-surface-retirement` bundle: remove the frontend-invocable
+`plugin:mihomo|*` command surface now that app-owned Rust commands,
+`runtime_snapshot`, and `runtime_bridge` own the read/mutation entry points.
 
 Minimum acceptable scope for that bundle:
 
-- Add a typed Rust bridge for remaining stream, latency-probe, close-connection,
-  controller-transport, and obfuscation stats/reset calls.
-- Persist bridge lifecycle evidence for operations that mutate, open, close, or
-  reset runtime state.
-- Replace command-facing and monitor-facing direct `Handle::mihomo()` callsites
-  together, including connection/log streams and traffic obfuscation stats.
-- Leave `core::handle` plus the Rust-owned snapshot/bridge modules as the only
-  places allowed to touch `tauri_plugin_mihomo` directly.
+- Stop registering `tauri_plugin_mihomo` invoke handlers that let UI code bypass
+  app-owned commands and runtime audit paths.
+- Demote `tauri-plugin-mihomo-api` to generated frontend type bindings only.
+- Keep direct Mihomo transport access confined to Rust-owned internals:
+  `core::handle`, `core::runtime_snapshot`, and `core::runtime_bridge`.
+- Update plugin docs/examples so future code does not reintroduce frontend
+  plugin command calls.
 
 Anything smaller is maintenance, not roadmap progress.
 

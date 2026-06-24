@@ -5,7 +5,6 @@ use tauri::{
     plugin::{Builder as PluginBuilder, TauriPlugin},
 };
 
-mod commands;
 mod error;
 mod ipc;
 mod mihomo;
@@ -96,66 +95,6 @@ impl Builder {
         let pool_config = self.pool_config.unwrap_or_default();
 
         PluginBuilder::new("mihomo")
-            .invoke_handler(tauri::generate_handler![
-                commands::update_controller,
-                commands::update_secret,
-                commands::get_version,
-                commands::flush_fakeip,
-                commands::flush_dns,
-                commands::get_dns_metrics,
-                commands::dns_warmup,
-                // connections
-                commands::get_connections,
-                commands::close_all_connections,
-                commands::close_connection,
-                // groups
-                commands::get_groups,
-                commands::get_group_by_name,
-                commands::delay_group,
-                // providers
-                commands::get_proxy_providers,
-                commands::get_proxy_provider_by_name,
-                commands::update_proxy_provider,
-                commands::healthcheck_proxy_provider,
-                commands::healthcheck_node_in_provider,
-                // proxies
-                commands::get_proxies,
-                commands::get_proxy_by_name,
-                commands::select_node_for_group,
-                commands::unfixed_proxy,
-                commands::delay_proxy_by_name,
-                // rules
-                commands::get_rules,
-                commands::disable_rules,
-                commands::delete_rule,
-                commands::create_rule,
-                commands::get_sub_rules,
-                commands::delete_sub_rule_by_source,
-                commands::get_rule_providers,
-                commands::update_rule_provider,
-                // runtime config
-                commands::get_base_config,
-                commands::reload_config,
-                commands::patch_base_config,
-                commands::update_geo,
-                commands::restart,
-                // upgrade
-                commands::upgrade_core,
-                commands::upgrade_ui,
-                commands::upgrade_geo,
-                // engine
-                commands::get_engine_stats,
-                commands::get_top_connections,
-                commands::get_buffer_pool_stats,
-                commands::get_rule_traffic,
-                commands::get_egress_status,
-                commands::get_tls_fingerprint_stats,
-                commands::force_tls_rotation,
-                commands::get_perf_stats,
-                commands::get_hot_reload_status,
-                commands::get_xdp_status,
-                // commands::ws_send,
-            ])
             .setup(move |app, _api| {
                 // 初始化连接池
                 IpcConnectionPool::init(pool_config).map_err(|e| {
