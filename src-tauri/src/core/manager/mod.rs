@@ -15,6 +15,8 @@ pub(crate) static CLASH_LOGGER: Lazy<Arc<AsyncLogger>> = Lazy::new(|| Arc::new(A
 pub enum RunningMode {
     Service,
     NotRunning,
+    /// The Rust-owned learn-gripe data plane is running in-process.
+    Gripe,
 }
 
 impl fmt::Display for RunningMode {
@@ -22,6 +24,7 @@ impl fmt::Display for RunningMode {
         match self {
             Self::Service => write!(f, "Service"),
             Self::NotRunning => write!(f, "NotRunning"),
+            Self::Gripe => write!(f, "Gripe"),
         }
     }
 }
@@ -30,6 +33,7 @@ impl fmt::Display for RunningMode {
 pub struct CoreManager {
     state: ArcSwap<State>,
     last_update: ArcSwapOption<Instant>,
+    gripe: tokio::sync::Mutex<Option<learn_gripe::GripeHandle>>,
 }
 
 #[derive(Debug)]
@@ -50,6 +54,7 @@ impl Default for CoreManager {
         Self {
             state: ArcSwap::new(Arc::new(State::default())),
             last_update: ArcSwapOption::new(None),
+            gripe: tokio::sync::Mutex::new(None),
         }
     }
 }

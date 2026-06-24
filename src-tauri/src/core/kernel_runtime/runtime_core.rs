@@ -568,6 +568,7 @@ fn active_kernel_label() -> String {
     match crate::core::runtime_lifecycle::read_runtime_running_mode().as_ref() {
         RunningMode::Service => "mihomo-service-retired",
         RunningMode::NotRunning => "not-running",
+        RunningMode::Gripe => "learn-gripe",
     }
     .into()
 }

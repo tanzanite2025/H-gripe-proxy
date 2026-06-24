@@ -1,0 +1,16 @@
+[package]
+name = "learn-gripe"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+tokio = { workspace = true, features = ["net", "io-util"] }
+anyhow = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

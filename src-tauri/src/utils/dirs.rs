@@ -312,7 +312,7 @@ pub fn service_log_dir() -> Result<PathBuf> {
 pub fn clash_latest_log() -> Result<PathBuf> {
     match *runtime_lifecycle::read_runtime_running_mode() {
         RunningMode::Service => Ok(service_log_dir()?.join("service_latest.log")),
-        RunningMode::NotRunning => Ok(app_logs_dir()?.join("latest.log")),
+        RunningMode::NotRunning | RunningMode::Gripe => Ok(app_logs_dir()?.join("latest.log")),
     }
 }
 
