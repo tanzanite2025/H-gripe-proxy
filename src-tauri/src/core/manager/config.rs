@@ -1,4 +1,4 @@
-use super::{CoreManager, RunningMode};
+use super::CoreManager;
 use crate::{
     config::{Config, runtime::IRuntime},
     constants::timing,
@@ -58,27 +58,6 @@ impl CoreManager {
         self.perform_config_update().await
     }
 
-    pub async fn update_config_without_restart_with_force(&self, force: bool) -> Result<ValidationOutcome> {
-        if handle::Handle::global().is_exiting() {
-            return Ok(ValidationOutcome::Skipped {
-                reason: ValidationSkipReason::Exiting,
-            });
-        }
-
-        if !force && !self.should_update_config() {
-            logging!(debug, Type::Core, "Skipping config update due to debounce");
-            return Ok(ValidationOutcome::Skipped {
-                reason: ValidationSkipReason::Debounced,
-            });
-        }
-
-        if force {
-            self.set_last_update(Instant::now());
-        }
-
-        self.perform_config_update_without_restart().await
-    }
-
     pub async fn update_config_checked(&self) -> Result<()> {
         let outcome = self.update_config_forced().await?;
         if outcome.is_valid() {
@@ -112,16 +91,6 @@ impl CoreManager {
         self.apply_generate_config().await
     }
 
-    async fn perform_config_update_without_restart(&self) -> Result<ValidationOutcome> {
-        if let Err(err) = Config::generate().await {
-            let message: String = err.to_string().into();
-            Config::runtime().await.discard();
-            return Ok(ValidationOutcome::invalid_from_message(message));
-        }
-
-        self.apply_generate_config_without_restart().await
-    }
-
     pub async fn apply_generate_config(&self) -> Result<ValidationOutcome> {
         match CoreConfigValidator::global().validate_config_outcome().await {
             Ok(outcome) if outcome.is_valid() => {
@@ -139,88 +108,27 @@ impl CoreManager {
         }
     }
 
-    pub async fn apply_generate_config_without_restart(&self) -> Result<ValidationOutcome> {
-        match CoreConfigValidator::global().validate_config_outcome().await {
-            Ok(outcome) if outcome.is_valid() => {
-                if matches!(&*self.get_running_mode(), RunningMode::NotRunning) {
-                    match self.start_core().await {
-                        Ok(_) => {
-                            Config::runtime().await.apply();
-                            logging!(
-                                info,
-                                Type::Core,
-                                "Configuration applied by no-restart path via core start"
-                            );
-                            Ok(ValidationOutcome::Valid)
-                        }
-                        Err(err) => {
-                            Config::runtime().await.discard();
-                            Err(anyhow!("Failed to start core without restarting: {}", err))
-                        }
-                    }
-                } else {
-                    match self.reload_active_config().await {
-                        Ok(_) => {
-                            Config::runtime().await.apply();
-                            logging!(
-                                info,
-                                Type::Core,
-                                "Configuration applied by no-restart path via live reload"
-                            );
-                            Ok(ValidationOutcome::Valid)
-                        }
-                        Err(err) => {
-                            Config::runtime().await.discard();
-                            Ok(ValidationOutcome::invalid_from_message(format!(
-                                "Live config reload through the Go/Mihomo plugin API is retired: {err}"
-                            )))
-                        }
-                    }
-                }
-            }
-            Ok(outcome) => {
-                Config::runtime().await.discard();
-                Ok(outcome)
-            }
-            Err(e) => {
-                Config::runtime().await.discard();
-                Err(e)
-            }
-        }
-    }
-
     async fn apply_config(&self) -> Result<()> {
-        match self.reload_active_config().await {
+        match self.restart_core().await {
             Ok(_) => {
                 Config::runtime().await.apply();
-                logging!(info, Type::Core, "Configuration applied");
+                logging!(
+                    info,
+                    Type::Core,
+                    "Configuration applied through Rust runtime restart boundary"
+                );
                 Ok(())
             }
             Err(err) => {
                 logging!(
-                    warn,
+                    error,
                     Type::Core,
-                    "Failed to apply configuration by mihomo api, restart core to apply it, error msg: {err}"
+                    "Failed to apply configuration through Rust runtime restart boundary: {}",
+                    err
                 );
-                match self.restart_core().await {
-                    Ok(_) => {
-                        Config::runtime().await.apply();
-                        logging!(info, Type::Core, "Configuration applied after restart");
-                        Ok(())
-                    }
-                    Err(err) => {
-                        logging!(error, Type::Core, "Failed to restart core: {}", err);
-                        Config::runtime().await.discard();
-                        Err(anyhow!("Failed to apply config: {}", err))
-                    }
-                }
+                Config::runtime().await.discard();
+                Err(anyhow!("Failed to apply config: {}", err))
             }
         }
-    }
-
-    async fn reload_active_config(&self) -> Result<()> {
-        anyhow::bail!(
-            "Live config reload through the Go/Mihomo plugin API is retired; use the Rust runtime config apply path"
-        )
     }
 }
