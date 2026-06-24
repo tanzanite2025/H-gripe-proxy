@@ -65,7 +65,10 @@ needed before broadening default ownership.
   transport, TUN/packet capture, fallback dependency, or Go/Mihomo artifacts.
 - Do not append one numbered row per canary. Update the owning bundle checklist
   instead.
-- The three accelerated implementation bundles, bundled manual default-path removal review, operator-approved default-path cutover manifest path, production default-forwarding cutover approval, Go/Mihomo final removal gate linkage, guarded retirement execution linkage, post-execution verification linkage, rollback-surface retirement linkage, completion closeout linkage, Rust data-plane hardening preflight linkage, boundary audit linkage, opt-in execution guard linkage, opt-in dry-run linkage, opt-in execution linkage, opt-in execution verification linkage, controlled rollout guard linkage, controlled rollout dry-run linkage, controlled rollout readiness closeout linkage, controlled rollout canary execution linkage, controlled rollout canary verification linkage, supported default promotion chain linkage, expanded default rollout chain linkage, Mihomo fallback retirement readiness linkage, fallback retirement execution linkage, Rust default data-plane closeout linkage, unsupported protocol execution linkage, route/packet-capture privileged hold linkage, TUN lifecycle linkage, route mutation rollback linkage, packet leak hold linkage, protocol default linkage, plugin process supervision linkage, QUIC/UDP profile linkage, default forwarding hold linkage, and production default-forwarding cutover approval, guarded production apply linkage, guarded TUN/packet-capture apply linkage, and fallback retirement closeout linkage, and final Mihomo binary removal gate linkage, and release packaging closeout linkage, and sidecar invocation retirement linkage, and Mihomo service fallback retirement linkage, and runtime service cleanup linkage, and Mihomo plugin mutation/recovery API retirement linkage are complete; future work must target Mihomo read API retirement rather than more fallback hold wrappers.
+- The prior accelerated bundles, default-path reviews, guarded apply steps,
+  fallback retirement gates, sidecar/service cleanup, and Mihomo plugin
+  mutation/recovery API retirement are complete; future work must target Mihomo
+  read API retirement rather than more fallback hold wrappers.
 
 ### Completed implementation bundles
 
@@ -106,6 +109,35 @@ persisted evidence:
 - Keep UI/reporting changes inside the same PR only when they expose the runtime
   evidence needed for that implementation.
 - Reject new roadmap steps that do not reduce a final-review blocker or retained fallback boundary.
+
+### Default future PR shape
+
+The next useful migration PR should be one `mihomo-read-api-retirement` bundle,
+not one PR per getter. It should move all related read-only plugin callsites
+behind Rust-owned runtime snapshots unless the diff becomes too large to review.
+
+Minimum acceptable scope for that bundle:
+
+- Add or extend the typed Rust snapshot/cache source that owns runtime status
+  readback, stale-state handling, audit metadata, and fallback evidence.
+- Replace command-facing reads together: version, base config, DNS metrics,
+  engine/perf/buffer-pool stats, hot-reload/XDP status, rule traffic, and TLS
+  fingerprint stats.
+- Replace internal observation reads together: connections, proxies, and rules
+  consumed by traffic reporting, connection metrics, runtime core inventory, and
+  subscription/rule diagnostics.
+- Keep frontend view-model/reporting updates in the same PR when command
+  contracts change.
+- Delete, bypass, or clearly demote the retired `tauri_plugin_mihomo` getter
+  callsites in the same PR that adds the Rust-owned replacement path.
+
+If this is too large for a single review, split it into at most two PRs:
+
+1. `read-api-runtime-snapshot`: snapshot ingress plus command-facing reads.
+2. `read-api-observation-closeout`: connections/proxies/rules consumers,
+   diagnostics, tests, and closeout evidence.
+
+Anything smaller is maintenance, not roadmap progress.
 
 ## Non-negotiable boundaries
 
@@ -253,10 +285,11 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is Mihomo read API retirement, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, or plugin-mutation retirement gate. Work through one cohesive read-API retirement slice while preserving explicit rollback evidence:
+The next blocker is Mihomo read API retirement, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, or plugin-mutation retirement gate. Work through one cohesive read-API retirement bundle while preserving explicit rollback evidence:
 
-1. Mihomo read API retirement: move remaining `tauri_plugin_mihomo` get/read callsites behind Rust-owned runtime snapshots and typed Rust runtime state.
-2. Final closeout bundle: read API callsite retirement, release blocker audit, and final Mihomo binary removal evidence linkage.
+1. `mihomo-read-api-retirement`: move the remaining `tauri_plugin_mihomo` get/read callsites behind Rust-owned runtime snapshots and typed Rust runtime state. Batch command-facing reads and internal observation reads together; do not open one PR for only version, only metrics, only proxies, only rules, or only connections.
+2. If review size forces a split, use only the two slices named in the default PR shape above: snapshot/command reads first, then observation consumers and closeout. Do not create extra readiness, dry-run, generated-type, or UI-only stepping-stone PRs.
+3. `final-closeout-bundle`: read API callsite retirement, release blocker audit, and final Mihomo binary removal evidence linkage.
 
 Full protocol replacement and default DNS ownership remain blocked until Mihomo read API retirement proves normal runtime observation no longer depends on the Go plugin API.
 
