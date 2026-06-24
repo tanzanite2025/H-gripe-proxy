@@ -169,7 +169,7 @@ Rust already owns these bounded or control-plane surfaces:
 - App runtime planning, diagnostics, projection artifacts, staged activation, runtime-apply boundary manifests, and closeout evidence.
 - DNS default-path blocker reductions: live resolver/cache/geodata-refresh evidence, cutover hold evidence, and read-only system resolver leak/restore evidence.
 - Protocol/UDP blocker reductions: SOCKS UDP fragments/queues, encrypted protocol local non-loopback canaries, QUIC-like UDP local profile evidence, plugin supervision, plugin binary compatibility contracts, bounded default-forwarding hold evidence, a committed production default-forwarding approval manifest, and guarded apply/rollback/post-apply hold evidence.
-- TUN/route blocker reductions: route snapshots, route mutation apply/rollback plans, synthetic TUN lifecycle evidence, packet-capture hold evidence, packet leak hold evidence, and guarded TUN/packet-capture apply/rollback checkpoints, and fallback-retirement closeout manifests, and final Mihomo binary removal gate manifests, and release packaging closeout manifests, and sidecar invocation retirement runtime changes, and Mihomo service startup retirement.
+- TUN/route blocker reductions: route snapshots, route mutation apply/rollback plans, synthetic TUN lifecycle evidence, packet-capture hold evidence, packet leak hold evidence, and guarded TUN/packet-capture apply/rollback checkpoints, and fallback-retirement closeout manifests, and final Mihomo binary removal gate manifests, and release packaging closeout manifests, and sidecar invocation retirement runtime changes, and Mihomo service startup retirement, and runtime service/sidecar cleanup.
 - Fallback retirement support: sidecar dependency audit, sidecar-independent rollback archive, GeoIP/GeoSite candidate discovery, bounded lookup matrix evidence, and retained-fallback reconciliation.
 
 ### Runtime Boundary
@@ -181,7 +181,7 @@ Still Mihomo/service-owned until explicitly approved:
 - Production DNS cutover and privileged system resolver apply/restore.
 - Real remote encrypted/QUIC peer compatibility and default-forwarding rollback-surface retirement.
 - Real plugin binary compatibility and plugin forwarding apply/verification.
-- Runtime service cleanup after Mihomo service fallback retirement.
+- Mihomo plugin API retirement after runtime service cleanup.
 - Production geodata refresh/file availability and final Mihomo sidecar removal.
 
 In short: Rust has moved from gate-only metadata to concrete bounded runtime evidence, but default-path ownership is still conservative. Do not claim full kernel replacement until roadmap final review has no retained fallback blockers.

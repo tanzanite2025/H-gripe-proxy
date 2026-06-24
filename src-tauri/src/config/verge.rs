@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::{
     config::{DEFAULT_PAC, deserialize_encrypted, serialize_encrypted},
     utils::{dirs, help},
@@ -81,10 +80,6 @@ pub struct IVerge {
 
     /// theme setting
     pub theme_setting: Option<IVergeTheme>,
-
-    /// clash core path
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub clash_core: Option<String>,
 
     /// hotkey map
     /// format: {func},{key}
@@ -217,80 +212,6 @@ pub struct IVergeTheme {
 }
 
 impl IVerge {
-    /// 有效的clash核心名称
-    pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo"];
-
-    /// 验证并修正配置文件中的clash_core值
-    pub async fn validate_and_fix_config() -> Result<()> {
-        let config_path = dirs::verge_path()?;
-        let mut config = match help::read_yaml::<Self>(&config_path).await {
-            Ok(config) => config,
-            Err(_) => Self::template(),
-        };
-
-        let mut needs_fix = false;
-
-        if let Some(ref core) = config.clash_core {
-            let core_str = core.trim();
-            if core_str.is_empty() || !Self::VALID_CLASH_CORES.contains(&core_str) {
-                logging!(
-                    warn,
-                    Type::Config,
-                    "启动时发现无效的clash_core配置: '{}', 将自动修正为 'verge-mihomo'",
-                    core
-                );
-                config.clash_core = Some("verge-mihomo".into());
-                needs_fix = true;
-            }
-        } else {
-            logging!(
-                info,
-                Type::Config,
-                "启动时发现未配置clash_core, 将设置为默认值 'verge-mihomo'"
-            );
-            config.clash_core = Some("verge-mihomo".into());
-            needs_fix = true;
-        }
-
-        // 修正后保存配置
-        if needs_fix {
-            logging!(info, Type::Config, "正在保存修正后的配置文件...");
-            help::save_yaml(&config_path, &config, Some("# Clash Verge Optimized Config")).await?;
-            logging!(info, Type::Config, "配置文件修正完成，需要重新加载配置");
-
-            Self::reload_config_after_fix(config).await?;
-        } else {
-            logging!(info, Type::Config, "clash_core配置验证通过: {:?}", config.clash_core);
-        }
-
-        Ok(())
-    }
-
-    /// 配置修正后重新加载配置
-    async fn reload_config_after_fix(updated_config: Self) -> Result<()> {
-        logging!(
-            info,
-            Type::Config,
-            "内存配置已强制更新，新的clash_core: {:?}",
-            &updated_config.clash_core
-        );
-
-        let config_draft = Config::verge().await;
-        config_draft.edit_draft(|d| {
-            *d = updated_config;
-        });
-        config_draft.apply();
-
-        Ok(())
-    }
-
-    pub fn get_valid_clash_core(&self) -> String {
-        match self.clash_core.as_deref().map(str::trim) {
-            Some(core) if Self::VALID_CLASH_CORES.contains(&core) => core.into(),
-            _ => "verge-mihomo".into(),
-        }
-    }
-
     pub async fn new() -> Self {
         match dirs::verge_path() {
             Ok(path) => match help::read_yaml::<Self>(&path).await {
@@ -319,7 +240,6 @@ impl IVerge {
         Self {
             app_log_max_size: Some(128),
             app_log_max_count: Some(8),
-            clash_core: Some("verge-mihomo".into()),
             language: Some(clash_verge_i18n::system_language().into()),
             theme_mode: Some("system".into()),
             #[cfg(not(target_os = "windows"))]
@@ -426,7 +346,6 @@ impl IVerge {
         patch!(pac_file_content);
         patch!(proxy_host);
         patch!(theme_setting);
-        patch!(clash_core);
         patch!(hotkeys);
         patch!(enable_global_hotkey);
 

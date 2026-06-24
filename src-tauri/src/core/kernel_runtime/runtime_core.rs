@@ -564,8 +564,7 @@ pub async fn mihomo_kernel_connection_session_shadow() -> Result<KernelConnectio
 
 fn active_kernel_label() -> String {
     match CoreManager::global().get_running_mode().as_ref() {
-        RunningMode::Service => "mihomo-service",
-        RunningMode::Sidecar => "mihomo-sidecar",
+        RunningMode::Service => "mihomo-service-retired",
         RunningMode::NotRunning => "not-running",
     }
     .into()

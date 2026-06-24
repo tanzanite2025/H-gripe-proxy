@@ -8,24 +8,17 @@ use std::{
 
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging};
-use clash_verge_service_ipc::WriterConfig;
-use compact_str::CompactString;
 use flexi_logger::{
-    Cleanup, Criterion, DeferredNow, FileSpec, LogSpecBuilder, LogSpecification, LoggerHandle,
-    writers::{FileLogWriter, FileLogWriterBuilder, LogWriter as _},
+    Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, LoggerHandle,
+    writers::{FileLogWriter, FileLogWriterBuilder},
 };
-use log::{Level, LevelFilter, Record};
+use log::LevelFilter;
 use parking_lot::{Mutex, RwLock};
 
-use crate::{
-    core::service,
-    singleton,
-    utils::dirs::{self, service_log_dir, sidecar_log_dir},
-};
+use crate::{singleton, utils::dirs};
 
 pub struct Logger {
     handle: Arc<Mutex<Option<LoggerHandle>>>,
-    sidecar_file_writer: Arc<RwLock<Option<FileLogWriter>>>,
     log_level: Arc<RwLock<LevelFilter>>,
     log_max_size: AtomicU64,
     log_max_count: AtomicUsize,
@@ -35,7 +28,6 @@ impl Default for Logger {
     fn default() -> Self {
         Self {
             handle: Arc::new(Mutex::new(None)),
-            sidecar_file_writer: Arc::new(RwLock::new(None)),
             log_level: Arc::new(RwLock::new(LevelFilter::Info)),
             log_max_size: AtomicU64::new(128),
             log_max_count: AtomicUsize::new(8),
@@ -96,9 +88,6 @@ impl Logger {
             let handle = logger.start()?;
             *self.handle.lock() = Some(handle);
         }
-
-        let sidecar_file_writer = self.generate_sidecar_writer()?;
-        *self.sidecar_file_writer.write() = Some(sidecar_file_writer);
 
         std::panic::set_hook(Box::new(move |info| {
             let payload = info
@@ -172,66 +161,6 @@ impl Logger {
         } else {
             bail!("failed to get logger handle, make sure it init");
         };
-        let sidecar_writer = self.generate_sidecar_writer()?;
-        *self.sidecar_file_writer.write() = Some(sidecar_writer);
-
-        // update service writer config
-        if service::is_service_ipc_path_exists() && service::is_service_available().await.is_ok() {
-            let service_log_dir = dirs::path_to_str(&service_log_dir()?)?.into();
-            clash_verge_service_ipc::update_writer(&WriterConfig {
-                directory: service_log_dir,
-                max_log_size: log_max_size * 1024,
-                max_log_files: log_max_count,
-            })
-            .await?;
-        }
-
         Ok(())
-    }
-
-    fn generate_sidecar_writer(&self) -> Result<FileLogWriter> {
-        let sidecar_log_dir = sidecar_log_dir()?;
-        let log_max_size = self.log_max_size.load(Ordering::SeqCst);
-        let log_max_count = self.log_max_count.load(Ordering::SeqCst);
-        Ok(FileLogWriter::builder(
-            FileSpec::default()
-                .directory(sidecar_log_dir)
-                .basename("sidecar")
-                .suppress_timestamp(),
-        )
-        .format(clash_verge_logger::file_format_without_level)
-        .rotate(
-            Criterion::Size(log_max_size * 1024),
-            flexi_logger::Naming::TimestampsCustomFormat {
-                current_infix: Some("latest"),
-                format: "%Y-%m-%d_%H-%M-%S",
-            },
-            Cleanup::KeepLogFiles(log_max_count),
-        )
-        .try_build()?)
-    }
-
-    pub fn writer_sidecar_log(&self, level: Level, message: &CompactString) {
-        if let Some(writer) = self.sidecar_file_writer.read().as_ref() {
-            let mut now = DeferredNow::default();
-            let args = format_args!("{}", message);
-            let record = Record::builder().args(args).level(level).target("sidecar").build();
-            let _ = writer.write(&mut now, &record);
-        } else {
-            logging!(error, Type::System, "failed to get sidecar file log writer");
-        }
-    }
-
-    pub fn service_writer_config(&self) -> Result<WriterConfig> {
-        let service_log_dir = dirs::path_to_str(&service_log_dir()?)?.into();
-        let log_max_size = self.log_max_size.load(Ordering::SeqCst);
-        let log_max_count = self.log_max_count.load(Ordering::SeqCst);
-        let writer_config = WriterConfig {
-            directory: service_log_dir,
-            max_log_size: log_max_size * 1024,
-            max_log_files: log_max_count,
-        };
-
-        Ok(writer_config)
     }
 }
