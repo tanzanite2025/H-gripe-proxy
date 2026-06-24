@@ -120,7 +120,7 @@ pub async fn rust_default_forwarding_hold_blocker_reduction(
     } else {
         RustDefaultForwardingHoldBlockerStatus::Blocked
     };
-    let evidence_path = evidence_path()?;
+    let evidence_path = rust_default_forwarding_hold_blocker_evidence_path()?;
     let mut report = RustDefaultForwardingHoldBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
@@ -391,7 +391,7 @@ fn evidence_dir() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?.join(COMPONENT))
 }
 
-fn evidence_path() -> Result<std::path::PathBuf> {
+pub fn rust_default_forwarding_hold_blocker_evidence_path() -> Result<std::path::PathBuf> {
     Ok(evidence_dir()?.join(EVIDENCE_FILE))
 }
 
