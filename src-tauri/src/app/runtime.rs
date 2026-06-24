@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::config::IVerge;
 use crate::core::clash_mode::ClashMode;
 use crate::core::{
-    CoreManager, handle, manager::CLASH_LOGGER,
+    handle, manager::CLASH_LOGGER, runtime_lifecycle,
     stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress,
 };
 use bytes::BytesMut;
@@ -162,7 +162,7 @@ pub async fn copy_clash_env() {
 }
 
 pub async fn restart_clash_core() {
-    match CoreManager::global().restart_core().await {
+    match runtime_lifecycle::restart_runtime_core("restart-clash-core").await {
         Ok(_) => {
             handle::Handle::refresh_clash();
             handle::Handle::notice_message("set_config::ok", "ok");
@@ -282,21 +282,25 @@ pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
             d.patch_dns_runtime_config(&patch);
         });
 
-        CoreManager::global().update_config_checked().await.map_err(|err| {
-            let err = format!("Failed to apply config with DNS: {err}");
-            logging!(error, Type::Config, "{err}");
-            anyhow::anyhow!("{err}")
-        })?;
+        runtime_lifecycle::update_runtime_config_checked("apply-dns-config")
+            .await
+            .map_err(|err| {
+                let err = format!("Failed to apply config with DNS: {err}");
+                logging!(error, Type::Config, "{err}");
+                anyhow::anyhow!("{err}")
+            })?;
 
         logging!(info, Type::Config, "DNS config successfully applied");
     } else {
         logging!(info, Type::Config, "DNS settings disabled, regenerating config");
 
-        CoreManager::global().update_config_checked().await.map_err(|err| {
-            let err = format!("Failed to apply regenerated config: {err}");
-            logging!(error, Type::Config, "{err}");
-            anyhow::anyhow!("{err}")
-        })?;
+        runtime_lifecycle::update_runtime_config_checked("disable-dns-config")
+            .await
+            .map_err(|err| {
+                let err = format!("Failed to apply regenerated config: {err}");
+                logging!(error, Type::Config, "{err}");
+                anyhow::anyhow!("{err}")
+            })?;
 
         logging!(info, Type::Config, "Config regenerated successfully");
     }
@@ -306,7 +310,7 @@ pub async fn apply_dns_config(apply: bool) -> anyhow::Result<()> {
 }
 
 pub async fn get_clash_logs() -> Vec<CompactString> {
-    CoreManager::global().get_clash_logs().await.unwrap_or_default()
+    runtime_lifecycle::read_runtime_core_logs().await.unwrap_or_default()
 }
 
 pub async fn clear_clash_logs() {
@@ -314,7 +318,7 @@ pub async fn clear_clash_logs() {
 }
 
 pub async fn start_core() -> anyhow::Result<()> {
-    CoreManager::global().start_core().await?;
+    runtime_lifecycle::start_runtime_core("start-core-command").await?;
     handle::Handle::refresh_clash();
     Ok(())
 }
@@ -324,7 +328,7 @@ pub async fn stop_core() -> anyhow::Result<()> {
         clash_verge_logging::Type::Core,
         Config::profiles().await.data_arc().save_file().await
     );
-    CoreManager::global().stop_core().await?;
+    runtime_lifecycle::stop_runtime_core("stop-core-command").await?;
     handle::Handle::refresh_clash();
     Ok(())
 }
@@ -334,7 +338,7 @@ pub async fn restart_core() -> anyhow::Result<()> {
         clash_verge_logging::Type::Core,
         Config::profiles().await.data_arc().save_file().await
     );
-    CoreManager::global().restart_core().await?;
+    runtime_lifecycle::restart_runtime_core("restart-core-command").await?;
     handle::Handle::refresh_clash();
     Ok(())
 }

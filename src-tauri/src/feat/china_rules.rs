@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        CoreManager, handle,
+        handle, runtime_lifecycle,
         validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
     },
     utils::{dirs, tmpl},
@@ -127,7 +127,7 @@ pub async fn save_china_rules_file(file_data: Option<String>) -> Result<Validati
 
     fs::write(&path, &file_data).await?;
 
-    match CoreManager::global().update_config_forced().await {
+    match runtime_lifecycle::update_runtime_config_forced("china-rules-apply").await {
         Ok(outcome) if outcome.is_valid() => {
             handle::Handle::refresh_clash();
             Ok(ValidationOutcome::Valid)

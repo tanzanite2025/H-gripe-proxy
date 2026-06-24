@@ -22,7 +22,6 @@ use tokio::{
 use crate::{
     config::Config,
     core::{
-        CoreManager,
         dns_runtime::dns_default_runtime_shadow_evidence,
         manager::RunningMode,
         runtime_snapshot::{build_proxies_from_runtime_config, build_rules_from_runtime_config},

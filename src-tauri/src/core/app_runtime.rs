@@ -573,7 +573,7 @@ pub async fn rust_adapter_egress_parity_rollback() -> Result<RustAdapterEgressPa
     Config::runtime().await.edit_draft(|draft| {
         draft.replace_adapter_egress_runtime_config(&patch);
     });
-    crate::core::CoreManager::global().update_config_checked().await?;
+    crate::core::runtime_lifecycle::update_runtime_config_checked("adapter-egress-rollback").await?;
     crate::core::handle::Handle::refresh_clash();
     crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
         "rust_adapter_egress_parity_rollback",
@@ -833,7 +833,7 @@ async fn apply_rust_adapter_egress_runtime_patch(app_id: &str, patch_yaml: &str)
     Config::runtime().await.edit_draft(|draft| {
         draft.patch_adapter_egress_runtime_config(&patch);
     });
-    crate::core::CoreManager::global().update_config_checked().await?;
+    crate::core::runtime_lifecycle::update_runtime_config_checked("adapter-egress-apply").await?;
     crate::core::handle::Handle::refresh_clash();
     crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
         "rust_adapter_egress_parity_apply",

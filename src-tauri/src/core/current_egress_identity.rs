@@ -2,9 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_mihomo::models::EgressStatus;
 
-use crate::core::{
-    CoreManager, ip_reputation::IpReputation, manager::RunningMode, timezone_spoof::remember_observed_egress_region,
-};
+use crate::core::{ip_reputation::IpReputation, runtime_lifecycle, timezone_spoof::remember_observed_egress_region};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +54,7 @@ pub async fn build_current_egress_identity(app_handle: Option<&tauri::AppHandle>
 async fn current_identity_from_mihomo_egress_status(
     app_handle: &tauri::AppHandle,
 ) -> Result<Option<CurrentEgressIdentity>> {
-    if *CoreManager::global().get_running_mode() == RunningMode::NotRunning {
+    if runtime_lifecycle::runtime_is_not_running() {
         return Ok(None);
     }
 

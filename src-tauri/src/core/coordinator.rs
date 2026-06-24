@@ -313,7 +313,7 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
         .update_config(config.session_affinity.clone())
         .await?;
 
-    crate::core::CoreManager::global().update_config_checked().await?;
+    crate::core::runtime_lifecycle::update_runtime_config_checked("coordinator-sync").await?;
 
     Ok(())
 }

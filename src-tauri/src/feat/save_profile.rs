@@ -1,7 +1,7 @@
 use crate::{
     config::{Config, IProfiles, PrfItem},
     core::{
-        CoreManager, handle,
+        handle, runtime_lifecycle,
         validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome},
     },
     module::auto_backup::{AutoBackupManager, AutoBackupTrigger},
@@ -221,7 +221,7 @@ async fn handle_saved_profile_file(
         Type::Config,
         "[cmd配置save] 保存项影响当前运行时配置，开始统一应用"
     );
-    match CoreManager::global().update_config_forced().await {
+    match runtime_lifecycle::update_runtime_config_forced("save-profile-runtime-apply").await {
         Ok(outcome) if outcome.is_valid() => {
             handle::Handle::refresh_clash();
             Ok(ValidationOutcome::Valid)

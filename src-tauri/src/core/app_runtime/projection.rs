@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     config::{Config, IProfiles, PrfItem, PrfOption, profiles::resolve_profile_file_path},
-    core::CoreManager,
+    core::runtime_lifecycle,
     utils::{dirs, help},
 };
 use anyhow::{Result, bail};
@@ -237,9 +237,9 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
         let profiles = Config::profiles().await;
         profiles.edit_draft(|profiles| attach_app_runtime_runtime_merge_candidate(profiles, &candidate))?;
 
-        let outcome = CoreManager::global()
-            .update_config_without_restart_with_force(request.force)
-            .await?;
+        let outcome =
+            runtime_lifecycle::update_runtime_config_without_restart(request.force, "app-runtime-projection-activate")
+                .await?;
         if !outcome.is_valid() {
             bail!("app runtime projection candidate failed runtime validation: {outcome}");
         }
@@ -276,9 +276,7 @@ pub async fn apply_app_runtime_projection_artifact_to_runtime(
     cleanup_app_runtime_projection_runtime_merge_candidate(&candidate).await;
 
     if result.is_err() {
-        let _ = CoreManager::global()
-            .update_config_without_restart_with_force(true)
-            .await;
+        let _ = runtime_lifecycle::update_runtime_config_without_restart(true, "app-runtime-projection-rollback").await;
     }
 
     result
@@ -752,9 +750,9 @@ pub async fn rollback_app_runtime_projection_activation() -> Result<AppRuntimeSt
     };
 
     if current.mutates_runtime {
-        let outcome = CoreManager::global()
-            .update_config_without_restart_with_force(true)
-            .await?;
+        let outcome =
+            runtime_lifecycle::update_runtime_config_without_restart(true, "app-runtime-projection-drift-replay")
+                .await?;
         if !outcome.is_valid() {
             bail!("failed to restore runtime while rolling back active projection: {outcome}");
         }

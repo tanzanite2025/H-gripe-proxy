@@ -1,6 +1,6 @@
 use crate::{
     config::{Config, IVerge},
-    core::{CoreManager, autostart, handle, hotkey, logger::Logger, sysopt, tray},
+    core::{autostart, handle, hotkey, logger::Logger, runtime_lifecycle, sysopt, tray},
     module::auto_backup::AutoBackupManager,
 };
 use anyhow::Result;
@@ -22,13 +22,13 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     let res = {
         if !sensitive_keys.is_empty() {
             Config::generate().await?;
-            CoreManager::global().restart_core().await?;
+            runtime_lifecycle::restart_runtime_core("patch-clash-sensitive").await?;
         } else {
             if patch.get("mode").is_some() {
                 tray::Tray::global().update_menu_and_icon().await;
             }
             Config::runtime().await.edit_draft(|d| d.patch_config(patch));
-            CoreManager::global().update_config_checked().await?;
+            runtime_lifecycle::update_runtime_config_checked("patch-clash-runtime").await?;
         }
         handle::Handle::refresh_clash();
         <Result<()>>::Ok(())
@@ -216,10 +216,10 @@ async fn maybe_close_connections_after_route_change(current: &IVerge, patch: &IV
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
     if update_flags.contains(UpdateFlags::RESTART_CORE) {
         Config::generate().await?;
-        CoreManager::global().restart_core().await?;
+        runtime_lifecycle::restart_runtime_core("verge-config-restart").await?;
     }
     if update_flags.contains(UpdateFlags::CLASH_CONFIG) {
-        CoreManager::global().update_config_checked().await?;
+        runtime_lifecycle::update_runtime_config_checked("verge-config-runtime").await?;
         handle::Handle::refresh_clash();
     }
     if update_flags.contains(UpdateFlags::VERGE_CONFIG) {

@@ -3,9 +3,8 @@ use crate::{
     config::{PrfItem, profiles_append_item_safe, runtime::IRuntime},
     constants::{files, timing},
     core::{
-        CoreManager,
         handle::{self, Handle},
-        service, tray,
+        runtime_lifecycle, service, tray,
         validate::CoreConfigValidator,
     },
     enhance,
@@ -249,9 +248,12 @@ impl Config {
         if let Err(err) = Self::generate().await {
             let error_msg: String = err.to_string().into();
             logging!(error, Type::Config, "生成运行时配置失败: {}", error_msg);
-            CoreManager::global()
-                .use_default_config("config_validate::boot_error", &error_msg)
-                .await?;
+            runtime_lifecycle::use_default_runtime_config(
+                "config_validate::boot_error",
+                &error_msg,
+                "generate-runtime-config-error",
+            )
+            .await?;
             return Ok(Some(("config_validate::boot_error", error_msg)));
         }
         logging!(info, Type::Config, "生成运行时配置成功");
@@ -278,39 +280,48 @@ impl Config {
                         "[首次启动] 配置验证未通过，使用默认最小配置启动: {}",
                         error_msg
                     );
-                    CoreManager::global()
-                        .use_default_config("config_validate::boot_error", &error_msg)
-                        .await?;
+                    runtime_lifecycle::use_default_runtime_config(
+                        "config_validate::boot_error",
+                        &error_msg,
+                        "runtime-config-validation-error",
+                    )
+                    .await?;
                     Ok(Some(("config_validate::boot_error", error_msg)))
                 }
                 Err(err) => {
                     logging!(warn, Type::Config, "验证过程执行失败: {}", err);
-                    CoreManager::global()
-                        .use_default_config("config_validate::process_terminated", "")
-                        .await?;
+                    runtime_lifecycle::use_default_runtime_config(
+                        "config_validate::process_terminated",
+                        "",
+                        "runtime-config-validation-terminated",
+                    )
+                    .await?;
                     Ok(Some(("config_validate::process_terminated", String::new())))
                 }
             }
         } else {
             logging!(warn, Type::Config, "生成配置文件失败，使用默认配置");
-            CoreManager::global()
-                .use_default_config("config_validate::error", "")
-                .await?;
+            runtime_lifecycle::use_default_runtime_config(
+                "config_validate::error",
+                "",
+                "runtime-config-generate-fallback",
+            )
+            .await?;
             Ok(Some(("config_validate::error", String::new())))
         }
     }
 
-    pub async fn generate_file(typ: ConfigType) -> Result<PathBuf> {
-        let path = match typ {
+    pub async fn generate_file(config_type: ConfigType) -> Result<PathBuf> {
+        let path = match config_type {
             ConfigType::Run => dirs::app_home_dir()?.join(files::RUNTIME_CONFIG),
             ConfigType::Check => dirs::app_home_dir()?.join(files::CHECK_CONFIG),
         };
 
         let runtime = Self::runtime().await;
-        let runtime_lastest = runtime.latest_arc();
+        let runtime_latest = runtime.latest_arc();
         // Fall back to committed config if runtime config is missing
         let runtime_data = runtime.data_arc();
-        let config = runtime_lastest
+        let config = runtime_latest
             .config
             .as_ref()
             .or_else(|| runtime_data.config.as_ref())

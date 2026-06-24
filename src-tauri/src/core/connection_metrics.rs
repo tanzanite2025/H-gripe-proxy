@@ -1,4 +1,4 @@
-use crate::core::{CoreManager, manager::RunningMode, runtime_snapshot::read_runtime_connections};
+use crate::core::{runtime_lifecycle, runtime_snapshot::read_runtime_connections};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde::Serialize;
@@ -234,7 +234,7 @@ pub fn subscribe_connection_metrics() -> watch::Receiver<ConnectionMetricsSnapsh
 }
 
 pub async fn refresh_connection_metrics_snapshot() -> Result<ConnectionMetricsSnapshot> {
-    if *CoreManager::global().get_running_mode() == RunningMode::NotRunning {
+    if runtime_lifecycle::runtime_is_not_running() {
         CONNECTION_METRICS_AGGREGATOR.reset().await;
         return Ok(CONNECTION_METRICS_AGGREGATOR.snapshot().await);
     }

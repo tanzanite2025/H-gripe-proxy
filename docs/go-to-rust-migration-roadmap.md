@@ -112,22 +112,27 @@ persisted evidence:
 
 ### Default future PR shape
 
-The `mihomo-read-api-retirement` and `runtime-bridge-closeout` bundles are
-complete enough that follow-up work should not add another isolated getter or
-bridge wrapper. The next useful migration PR shape is a
-`plugin-command-surface-retirement` bundle: remove the frontend-invocable
-`plugin:mihomo|*` command surface now that app-owned Rust commands,
-`runtime_snapshot`, and `runtime_bridge` own the read/mutation entry points.
+The `mihomo-read-api-retirement`, `runtime-bridge-closeout`, and
+`plugin-command-surface-retirement` bundles are complete enough that follow-up
+work should not add another isolated getter, bridge wrapper, or plugin command
+cleanup. The next useful migration PR shape is a
+`sidecar-lifecycle-surface-retirement` bundle: remove direct `CoreManager`
+start/stop/restart/reload/default-config callsites outside Rust-owned runtime
+boundary modules so remaining sidecar lifecycle attempts are auditable and
+centralized.
 
 Minimum acceptable scope for that bundle:
 
-- Stop registering `tauri_plugin_mihomo` invoke handlers that let UI code bypass
-  app-owned commands and runtime audit paths.
-- Demote `tauri-plugin-mihomo-api` to generated frontend type bindings only.
-- Keep direct Mihomo transport access confined to Rust-owned internals:
-  `core::handle`, `core::runtime_snapshot`, and `core::runtime_bridge`.
-- Update plugin docs/examples so future code does not reintroduce frontend
-  plugin command calls.
+- Introduce a Rust-owned lifecycle facade for core init/start/stop/restart,
+  forced config apply, checked config apply, no-restart config apply, default
+  runtime fallback, runtime mode readback, and core log readback.
+- Route app commands, profile/subscription flows, DNS/adapter runtime apply, and
+  shutdown/reset paths through that facade instead of calling `CoreManager`
+  directly.
+- Persist lifecycle evidence for every mutating lifecycle/config apply/default
+  fallback attempt with a caller reason and success/failure outcome.
+- Keep direct `CoreManager::global()` access confined to `core::runtime_lifecycle`
+  and `core::runtime_snapshot`.
 
 Anything smaller is maintenance, not roadmap progress.
 

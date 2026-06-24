@@ -3,7 +3,6 @@ use crate::{
     cmd::StringifyErr as _,
     config::Config,
     core::{
-        CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
         kernel_runtime::{
             KernelAdapterCapabilityReport, KernelConnectionSessionShadowReport, KernelDnsShadowEvidenceReport,
@@ -140,6 +139,7 @@ use crate::{
             build_dns_leak_test_result, build_dns_runtime_status, build_proxy_detection_result,
             build_runtime_diagnostics_summary,
         },
+        runtime_lifecycle,
         runtime_snapshot::RuntimeSnapshotService,
         runtime_status::{DnsLeakTestResult, DnsRuntimeStatus, ProxyDetectionResult},
     },
@@ -423,7 +423,7 @@ pub async fn restart_runtime_core() -> CmdResult<()> {
 
 #[tauri::command]
 pub async fn reload_runtime_config() -> CmdResult<()> {
-    let outcome = CoreManager::global().update_config_forced().await;
+    let outcome = runtime_lifecycle::update_runtime_config_forced("reload-runtime-config").await;
     match outcome {
         Ok(outcome) if outcome.is_valid() => {
             crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(

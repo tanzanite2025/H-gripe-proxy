@@ -2,11 +2,10 @@ use super::fetch::{FetchedSubscriptionPayload, fetch_remote_profile};
 use crate::{
     config::{Config, PrfOption},
     core::{
-        CoreManager,
         clash_mode::ClashMode,
         handle::Handle,
-        manager::RunningMode,
         mihomo_runtime_guard::{MihomoRuleGuard, MihomoRuntimeRuleSpec, MihomoSelectionGuard},
+        runtime_lifecycle,
         runtime_snapshot::read_subscription_control_plane_topology,
     },
     enhance::subscription_update::SUBSCRIPTION_UPDATE_GROUP,
@@ -21,7 +20,7 @@ use tauri_plugin_mihomo::models::{Proxies, Proxy};
 const SUBSCRIPTION_UPDATE_RULE_SOURCE: &str = "subscription-update";
 
 pub async fn subscription_update_uses_dedicated_control_plane() -> bool {
-    if *CoreManager::global().get_running_mode() == RunningMode::NotRunning {
+    if runtime_lifecycle::runtime_is_not_running() {
         return false;
     }
 
