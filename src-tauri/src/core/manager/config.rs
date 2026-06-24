@@ -112,17 +112,17 @@ impl CoreManager {
         match self.restart_core().await {
             Ok(_) => {
                 Config::runtime().await.apply();
-                logging!(
-                    info,
-                    Type::Core,
-                    "Configuration applied through Rust runtime restart boundary"
-                );
+                logging!(info, Type::Core, "Configuration applied through Rust restart boundary");
                 Ok(())
             }
             Err(err) => {
-                logging!(error, Type::Core, "Failed to restart runtime core: {}", err);
+                logging!(
+                    error,
+                    Type::Core,
+                    "Failed to apply configuration through Rust restart boundary: {err}"
+                );
                 Config::runtime().await.discard();
-                Err(anyhow!("Failed to apply config through restart boundary: {}", err))
+                Err(anyhow!("Failed to apply config through Rust restart boundary: {}", err))
             }
         }
     }
