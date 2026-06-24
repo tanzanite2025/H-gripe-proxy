@@ -12,6 +12,7 @@
 mod address;
 mod config;
 mod grpc;
+mod httpupgrade;
 mod outbound;
 mod proxy;
 mod server;
@@ -20,10 +21,12 @@ mod tls;
 mod transport;
 mod vless;
 mod ws;
+mod xhttp;
 
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
 pub use grpc::GrpcTransportConfig;
+pub use httpupgrade::HttpUpgradeTransportConfig;
 pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
@@ -33,3 +36,4 @@ pub use tls::TlsClientConfig;
 pub use transport::{Security, Transport};
 pub use vless::VlessOutboundConfig;
 pub use ws::WsTransportConfig;
+pub use xhttp::{XhttpMode, XhttpTransportConfig};
