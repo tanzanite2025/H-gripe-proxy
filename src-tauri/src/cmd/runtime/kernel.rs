@@ -5,7 +5,8 @@ use crate::core::kernel_runtime::{
     RustDnsSystemResolverLeakBlockerReport, RustEncryptedProtocolDefaultBlockerReport,
     RustEncryptedProtocolsBundleReport, RustEncryptedProxyProtocolPreflightReport,
     RustEncryptedProxySessionExpansionReport, RustFallbackRetirementReadinessLockReport,
-    RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport, RustHttpConnectProxyAdapterReport,
+    RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport,
+    RustGuardedProductionDefaultForwardingApplyReport, RustHttpConnectProxyAdapterReport,
     RustManualDefaultPathRemovalReviewReport, RustMihomoFallbackRetirementBundleReport,
     RustOperatorDefaultPathCutoverReport, RustPacketLeakHoldBlockerReport, RustPluginBinaryCompatibilityBlockerReport,
     RustPluginProcessSupervisionBlockerReport, RustProductionDefaultForwardingCutoverApprovalReport,
@@ -22,13 +23,14 @@ use crate::core::kernel_runtime::{
     RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
     RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
     execute_mihomo_fallback_retirement, go_to_rust_migration_final_review, lock_rust_fallback_retirement_readiness,
-    mihomo_fallback_retirement_execution_plan, rollback_mihomo_fallback_retirement_execution,
-    rollback_rust_tun_system_proxy_parity, rust_default_data_plane_closeout_plan,
-    rust_default_forwarding_hold_blocker_reduction, rust_dns_cutover_hold_blocker_reduction,
-    rust_dns_default_path_blocker_reduction, rust_dns_system_resolver_leak_blocker_reduction,
-    rust_encrypted_protocol_default_blocker_reduction, rust_encrypted_protocols_bundle_execution,
-    rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
-    rust_fallback_retirement_readiness_manifest, rust_geoip_database_blocker_reduction,
+    mihomo_fallback_retirement_execution_plan, rollback_guarded_production_default_forwarding_apply,
+    rollback_mihomo_fallback_retirement_execution, rollback_rust_tun_system_proxy_parity,
+    rust_default_data_plane_closeout_plan, rust_default_forwarding_hold_blocker_reduction,
+    rust_dns_cutover_hold_blocker_reduction, rust_dns_default_path_blocker_reduction,
+    rust_dns_system_resolver_leak_blocker_reduction, rust_encrypted_protocol_default_blocker_reduction,
+    rust_encrypted_protocols_bundle_execution, rust_encrypted_proxy_protocol_preflight_evidence,
+    rust_encrypted_proxy_session_expansion, rust_fallback_retirement_readiness_manifest,
+    rust_geoip_database_blocker_reduction, rust_guarded_production_default_forwarding_apply,
     rust_http_connect_proxy_adapter_evidence, rust_manual_default_path_removal_review,
     rust_mihomo_fallback_retirement_bundle_execution, rust_operator_default_path_cutover,
     rust_packet_leak_hold_blocker_reduction, rust_plugin_binary_compatibility_blocker_reduction,
@@ -589,6 +591,26 @@ pub async fn run_runtime_kernel_rust_production_default_forwarding_cutover_appro
     commit_approval: bool,
 ) -> CmdResult<RustProductionDefaultForwardingCutoverApprovalReport> {
     rust_production_default_forwarding_cutover_approval(explicit_opt_in, operator_approved, commit_approval)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_guarded_production_default_forwarding_apply(
+    explicit_opt_in: bool,
+    commit_apply: bool,
+    verify_post_apply_hold: bool,
+) -> CmdResult<RustGuardedProductionDefaultForwardingApplyReport> {
+    rust_guarded_production_default_forwarding_apply(explicit_opt_in, commit_apply, verify_post_apply_hold)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rollback_runtime_kernel_rust_guarded_production_default_forwarding_apply(
+    explicit_opt_in: bool,
+) -> CmdResult<RustGuardedProductionDefaultForwardingApplyReport> {
+    rollback_guarded_production_default_forwarding_apply(explicit_opt_in)
         .await
         .stringify_err()
 }
