@@ -52,6 +52,18 @@ pub struct RustPacketLeakHoldWindowEvidence {
     pub blockers: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RustPacketLeakHoldGateEvidence {
+    pub status: RustPacketLeakHoldBlockerStatus,
+    #[serde(default)]
+    pub blockers: Vec<String>,
+    pub route_mutation_status: Option<RustRouteMutationRollbackBlockerStatus>,
+    #[serde(default)]
+    pub route_mutation_blockers: Vec<String>,
+    pub evidence_path: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RustPacketLeakHoldBlockerReport {
@@ -302,8 +314,12 @@ fn evidence_dir() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?.join(COMPONENT))
 }
 
-fn evidence_path() -> Result<std::path::PathBuf> {
+pub fn rust_packet_leak_hold_blocker_evidence_path() -> Result<std::path::PathBuf> {
     Ok(evidence_dir()?.join(EVIDENCE_FILE))
+}
+
+fn evidence_path() -> Result<std::path::PathBuf> {
+    rust_packet_leak_hold_blocker_evidence_path()
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {

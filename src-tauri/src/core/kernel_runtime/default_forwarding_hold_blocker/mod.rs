@@ -1,6 +1,11 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, RustPluginProcessSupervisionBlockerReport, RustPluginProcessSupervisionBlockerStatus,
+    RustProtocolDefaultPathBlockerReport, RustProtocolDefaultPathBlockerStatus, RustQuicUdpProfileBlockerReport,
+    RustQuicUdpProfileBlockerStatus, rust_plugin_process_supervision_blocker_evidence_path,
+    rust_protocol_default_path_blocker_evidence_path, rust_quic_udp_profile_blocker_evidence_path,
+};
 use crate::utils::dirs;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -55,6 +60,12 @@ pub struct RustDefaultForwardingHoldBlockerReport {
     pub status: RustDefaultForwardingHoldBlockerStatus,
     pub reason: String,
     pub explicit_opt_in: bool,
+    #[serde(default)]
+    pub protocol_default_gate: Option<RustProtocolDefaultPathBlockerReport>,
+    #[serde(default)]
+    pub plugin_process_gate: Option<RustPluginProcessSupervisionBlockerReport>,
+    #[serde(default)]
+    pub quic_udp_gate: Option<RustQuicUdpProfileBlockerReport>,
     pub hold_evidence: Option<RustDefaultForwardingHoldEvidence>,
     pub evidence_path: Option<String>,
     pub mutates_runtime: bool,
@@ -72,10 +83,34 @@ pub struct RustDefaultForwardingHoldBlockerReport {
 pub async fn rust_default_forwarding_hold_blocker_reduction(
     explicit_opt_in: bool,
 ) -> Result<RustDefaultForwardingHoldBlockerReport> {
+    let protocol_default_gate = protocol_default_gate().await?;
+    let plugin_process_gate = plugin_process_gate().await?;
+    let quic_udp_gate = quic_udp_gate().await?;
+    let hold_gate_blockers = default_forwarding_gate_blockers(
+        protocol_default_gate.as_ref(),
+        plugin_process_gate.as_ref(),
+        quic_udp_gate.as_ref(),
+    );
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run default forwarding hold blocker reduction".to_owned(),
-        ]));
+        let mut blockers =
+            vec!["explicit opt-in is required to run default forwarding hold blocker reduction".to_owned()];
+        blockers.extend(hold_gate_blockers);
+        return Ok(blocked_report(
+            explicit_opt_in,
+            protocol_default_gate,
+            plugin_process_gate,
+            quic_udp_gate,
+            blockers,
+        ));
+    }
+    if !hold_gate_blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            protocol_default_gate,
+            plugin_process_gate,
+            quic_udp_gate,
+            hold_gate_blockers,
+        ));
     }
 
     let hold_evidence = hold_evidence().await?;
@@ -98,6 +133,9 @@ pub async fn rust_default_forwarding_hold_blocker_reduction(
         }
         .to_owned(),
         explicit_opt_in,
+        protocol_default_gate,
+        plugin_process_gate,
+        quic_udp_gate,
         hold_evidence: Some(hold_evidence),
         evidence_path: Some(evidence_path.to_string_lossy().to_string()),
         mutates_runtime: false,
@@ -128,14 +166,23 @@ pub async fn rust_default_forwarding_hold_blocker_reduction(
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustDefaultForwardingHoldBlockerReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    protocol_default_gate: Option<RustProtocolDefaultPathBlockerReport>,
+    plugin_process_gate: Option<RustPluginProcessSupervisionBlockerReport>,
+    quic_udp_gate: Option<RustQuicUdpProfileBlockerReport>,
+    blockers: Vec<String>,
+) -> RustDefaultForwardingHoldBlockerReport {
     RustDefaultForwardingHoldBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustDefaultForwardingHoldBlockerStatus::Blocked,
         reason: "Rust default forwarding hold blocker reduction is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
+        protocol_default_gate,
+        plugin_process_gate,
+        quic_udp_gate,
         hold_evidence: None,
         evidence_path: None,
         mutates_runtime: false,
@@ -151,6 +198,119 @@ fn blocked_report(blockers: Vec<String>) -> RustDefaultForwardingHoldBlockerRepo
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn protocol_default_gate() -> Result<Option<RustProtocolDefaultPathBlockerReport>> {
+    read_protocol_default_report(&rust_protocol_default_path_blocker_evidence_path()?).await
+}
+
+async fn plugin_process_gate() -> Result<Option<RustPluginProcessSupervisionBlockerReport>> {
+    read_plugin_process_report(&rust_plugin_process_supervision_blocker_evidence_path()?).await
+}
+
+async fn quic_udp_gate() -> Result<Option<RustQuicUdpProfileBlockerReport>> {
+    read_quic_udp_report(&rust_quic_udp_profile_blocker_evidence_path()?).await
+}
+
+fn default_forwarding_gate_blockers(
+    protocol_default_gate: Option<&RustProtocolDefaultPathBlockerReport>,
+    plugin_process_gate: Option<&RustPluginProcessSupervisionBlockerReport>,
+    quic_udp_gate: Option<&RustQuicUdpProfileBlockerReport>,
+) -> Vec<String> {
+    let mut blockers = Vec::new();
+
+    match protocol_default_gate {
+        Some(gate) => {
+            if gate.status != RustProtocolDefaultPathBlockerStatus::Ready {
+                blockers.push(format!("protocol default gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("protocol default gate contains blockers".to_owned());
+            }
+            if gate
+                .packet_leak_hold_gate
+                .as_ref()
+                .is_none_or(|gate| gate.status != super::RustPacketLeakHoldBlockerStatus::Ready)
+            {
+                blockers.push("protocol default gate lacks ready packet leak hold gate".to_owned());
+            }
+        }
+        None => blockers.push("protocol default evidence is missing before default forwarding hold".to_owned()),
+    }
+
+    match plugin_process_gate {
+        Some(gate) => {
+            if gate.status != RustPluginProcessSupervisionBlockerStatus::Ready {
+                blockers.push(format!("plugin process gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("plugin process gate contains blockers".to_owned());
+            }
+            if gate
+                .packet_leak_hold_gate
+                .as_ref()
+                .is_none_or(|gate| gate.status != super::RustPacketLeakHoldBlockerStatus::Ready)
+            {
+                blockers.push("plugin process gate lacks ready packet leak hold gate".to_owned());
+            }
+        }
+        None => blockers.push("plugin process evidence is missing before default forwarding hold".to_owned()),
+    }
+
+    match quic_udp_gate {
+        Some(gate) => {
+            if gate.status != RustQuicUdpProfileBlockerStatus::Ready {
+                blockers.push(format!("QUIC/UDP gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("QUIC/UDP gate contains blockers".to_owned());
+            }
+            if gate
+                .packet_leak_hold_gate
+                .as_ref()
+                .is_none_or(|gate| gate.status != super::RustPacketLeakHoldBlockerStatus::Ready)
+            {
+                blockers.push("QUIC/UDP gate lacks ready packet leak hold gate".to_owned());
+            }
+        }
+        None => blockers.push("QUIC/UDP evidence is missing before default forwarding hold".to_owned()),
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    blockers
+}
+
+async fn read_protocol_default_report(path: &std::path::Path) -> Result<Option<RustProtocolDefaultPathBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
+    }
+}
+
+async fn read_plugin_process_report(
+    path: &std::path::Path,
+) -> Result<Option<RustPluginProcessSupervisionBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
+    }
+}
+
+async fn read_quic_udp_report(path: &std::path::Path) -> Result<Option<RustQuicUdpProfileBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
@@ -255,7 +415,7 @@ mod tests {
 
     #[test]
     fn blocked_report_keeps_default_forwarding_fallback() {
-        let report = blocked_report(Vec::new());
+        let report = blocked_report(false, None, None, None, Vec::new());
 
         assert!(report.mihomo_default_forwarding_fallback_required);
         assert!(!report.default_protocol_forwarding_allowed);
