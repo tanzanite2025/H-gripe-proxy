@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use serde_json::Value;
 use tauri_plugin_mihomo::models::{ConnectionId, LogLevel, Protocol, ProxyDelay};
 
@@ -36,6 +36,47 @@ pub async fn close_runtime_connection(connection_id: &str) -> Result<()> {
     );
     result?;
     Ok(())
+}
+
+pub async fn close_all_runtime_connections(reason: &str) -> Result<()> {
+    let connections = runtime_snapshot::read_runtime_connections().await?;
+    let Some(connections) = connections.connections else {
+        record_runtime_bridge_result::<anyhow::Error>(
+            "close-all-runtime-connections",
+            Ok(()),
+            Some(format!("reason={reason};count=0")),
+        );
+        return Ok(());
+    };
+
+    let mut errors = Vec::new();
+    let count = connections.len();
+    for connection in connections {
+        if let Err(error) = Handle::mihomo().await.close_connection(&connection.id).await {
+            errors.push(format!("{}:{error}", connection.id));
+        }
+    }
+
+    if errors.is_empty() {
+        record_runtime_bridge_result::<anyhow::Error>(
+            "close-all-runtime-connections",
+            Ok(()),
+            Some(format!("reason={reason};count={count}")),
+        );
+        Ok(())
+    } else {
+        let error = anyhow!(
+            "failed to close {} of {count} runtime connections: {}",
+            errors.len(),
+            errors.join("; ")
+        );
+        record_runtime_bridge_result(
+            "close-all-runtime-connections",
+            Err(&error),
+            Some(format!("reason={reason};count={count}")),
+        );
+        Err(error)
+    }
 }
 
 pub async fn connect_runtime_connections_stream<F>(on_message: F) -> Result<ConnectionId>

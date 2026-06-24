@@ -66,11 +66,7 @@ pub async fn clean_async() -> bool {
         logging!(info, Type::System, "disable tun");
         let tun_enabled = Config::verge().await.data_arc().enable_tun_mode.unwrap_or(false);
         if tun_enabled {
-            logging!(
-                info,
-                Type::System,
-                "Go/Mihomo plugin disable-tun API retired; skipping hide-window live TUN patch"
-            );
+            crate::app::runtime::toggle_tun_mode(Some(true)).await;
         }
 
         #[cfg(target_os = "windows")]

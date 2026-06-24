@@ -1,6 +1,6 @@
 use crate::{
     config::{Config, IVerge},
-    core::{autostart, handle, hotkey, logger::Logger, runtime_lifecycle, sysopt, tray},
+    core::{autostart, handle, hotkey, logger::Logger, runtime_bridge, runtime_lifecycle, sysopt, tray},
     module::auto_backup::AutoBackupManager,
 };
 use anyhow::Result;
@@ -204,11 +204,13 @@ fn should_close_connections_on_route_change(current: &IVerge, patch: &IVerge) ->
 
 async fn maybe_close_connections_after_route_change(current: &IVerge, patch: &IVerge) {
     if should_close_connections_on_route_change(current, patch) {
-        logging!(
-            info,
-            Type::ProxyMode,
-            "Go/Mihomo plugin close-connections API retired; skipping route-change connection close"
-        );
+        if let Err(error) = runtime_bridge::close_all_runtime_connections("route-change-cleanup").await {
+            logging!(
+                warn,
+                Type::ProxyMode,
+                "Failed to close runtime connections after route change: {error}"
+            );
+        }
     }
 }
 
