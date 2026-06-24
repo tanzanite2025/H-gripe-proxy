@@ -1,17 +1,11 @@
-use crate::{
-    config::{Config, IClashTemp},
-    core::{logger::Logger, tray::Tray},
-    utils::dirs,
-};
+use crate::{config::Config, core::tray::Tray, utils::dirs};
 use anyhow::{Context as _, Result, anyhow, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging, logging_error};
-use clash_verge_service_ipc::CoreConfig;
 use compact_str::CompactString;
 use once_cell::sync::Lazy;
 use std::{
     borrow::Cow,
-    env::current_exe,
     path::{Path, PathBuf},
     process::Command as StdCommand,
     time::Duration,
@@ -343,47 +337,18 @@ fn force_reinstall_service() -> Result<()> {
 }
 
 /// 尝试使用服务启动core
-pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result<()> {
-    logging!(info, Type::Service, "尝试使用现有服务启动核心");
-
-    let verge_config = Config::verge().await;
-    let clash_core = verge_config.latest_arc().get_valid_clash_core();
-    drop(verge_config);
-
-    let bin_ext = if cfg!(windows) { ".exe" } else { "" };
-    let bin_path = current_exe()?.with_file_name(format!("{clash_core}{bin_ext}"));
-
-    let payload = clash_verge_service_ipc::ClashConfig {
-        core_config: CoreConfig {
-            config_path: dirs::path_to_str(config_file)?.into(),
-            core_path: dirs::path_to_str(&bin_path)?.into(),
-            core_ipc_path: IClashTemp::guard_external_controller_ipc(),
-            config_dir: dirs::path_to_str(&dirs::app_home_dir()?)?.into(),
-        },
-        log_config: Logger::global().service_writer_config()?,
-    };
-
-    let response = clash_verge_service_ipc::start_clash(&payload)
-        .await
-        .context("无法连接到服务组件")?;
-
-    if response.code > 0 {
-        let err_msg = response.message;
-        logging!(error, Type::Service, "启动核心失败: {}", err_msg);
-        bail!(err_msg);
-    }
-
-    logging!(info, Type::Service, "服务成功启动核心");
-    Ok(())
+pub(super) async fn start_with_existing_service(_config_file: &PathBuf) -> Result<()> {
+    logging!(
+        warn,
+        Type::Service,
+        "Mihomo service core startup was retired; service remains available only for stop/log/rollback IPC"
+    );
+    bail!("Mihomo service core startup was retired; use the Rust runtime startup path")
 }
 
 // 以服务启动core
 pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
-    logging!(info, Type::Service, "正在尝试通过服务启动核心");
-
-    SERVICE_MANAGER.lock().await.refresh().await?;
-
-    logging!(info, Type::Service, "服务已运行且版本匹配，直接使用");
+    logging!(info, Type::Service, "Mihomo service core startup retired");
     start_with_existing_service(config_file).await
 }
 

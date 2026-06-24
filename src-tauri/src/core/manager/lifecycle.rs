@@ -63,8 +63,8 @@ impl CoreManager {
         let value = SERVICE_MANAGER.lock().await.current();
         let mode = match value {
             #[cfg(target_os = "windows")]
-            ServiceStatus::Ready if tun_enabled => RunningMode::Service,
-            ServiceStatus::Ready => RunningMode::Service,
+            ServiceStatus::Ready if tun_enabled => RunningMode::NotRunning,
+            ServiceStatus::Ready => RunningMode::NotRunning,
             _ => RunningMode::NotRunning,
         };
 
@@ -90,7 +90,11 @@ impl CoreManager {
         let service_ready = matches!(SERVICE_MANAGER.lock().await.current(), ServiceStatus::Ready);
 
         if service_ready {
-            return Ok(());
+            let message = "TUN protection unavailable: Mihomo service core startup is retired. Use the Rust runtime startup path.";
+            logging!(warn, Type::Core, "{}", message);
+            self.set_running_mode(RunningMode::NotRunning);
+            Handle::notice_message("update_failed", message);
+            return Err(anyhow!(message));
         }
 
         let message = "TUN protection unavailable: the privileged service is not ready. Core start blocked to avoid traffic leaks. Repair the service or run as administrator.";
