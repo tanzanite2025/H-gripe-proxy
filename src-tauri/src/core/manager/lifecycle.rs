@@ -5,7 +5,9 @@ use crate::core::manager::CLASH_LOGGER;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
+use learn_gripe::{GripeConfig, GripeKernel, OutboundMode};
 use scopeguard::defer;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
 
@@ -16,14 +18,25 @@ impl CoreManager {
             self.after_core_process();
         }
 
-        match *self.get_running_mode() {
-            RunningMode::Service => Err(anyhow!(
-                "Mihomo service startup is retired; use the Rust runtime startup path"
-            )),
-            RunningMode::NotRunning => Err(anyhow!(
-                "Mihomo runtime startup is retired and Rust runtime startup is not ready"
-            )),
-        }
+        let socks_port = Config::clash().await.latest_arc().get_socks_port();
+        let config = GripeConfig {
+            socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, socks_port)),
+            outbound: OutboundMode::Direct,
+        };
+
+        let handle = GripeKernel::start(config)
+            .await
+            .map_err(|err| anyhow!("failed to start learn-gripe kernel: {err:#}"))?;
+
+        logging!(
+            info,
+            Type::Core,
+            "learn-gripe kernel started on {}",
+            handle.local_addr()
+        );
+        *self.gripe.lock().await = Some(handle);
+        self.set_running_mode(RunningMode::Gripe);
+        Ok(())
     }
 
     pub async fn stop_core(&self) -> Result<()> {
@@ -32,9 +45,12 @@ impl CoreManager {
             self.after_core_process();
         }
 
-        match *self.get_running_mode() {
-            RunningMode::Service | RunningMode::NotRunning => Ok(()),
+        if let Some(handle) = self.gripe.lock().await.take() {
+            handle.shutdown().await;
+            logging!(info, Type::Core, "learn-gripe kernel stopped");
         }
+        self.set_running_mode(RunningMode::NotRunning);
+        Ok(())
     }
 
     pub async fn restart_core(&self) -> Result<()> {
