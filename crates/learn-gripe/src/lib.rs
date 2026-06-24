@@ -12,9 +12,14 @@
 mod address;
 mod config;
 mod outbound;
+mod proxy;
 mod server;
 mod socks5;
 
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
+pub use proxy::{
+    AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
+    ProxyType, RealityOpts, WsOpts, XHttpOpts,
+};
 pub use server::{GripeHandle, GripeKernel};
