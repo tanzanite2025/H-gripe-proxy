@@ -15,9 +15,6 @@
       "resources"
     ],
     "publisher": "tanzanite2025",
-    "externalBin": [
-      "sidecar/verge-mihomo"
-    ],
     "copyright": "GNU General Public License v3.0",
     "category": "DeveloperTool",
     "shortDescription": "Clash Verge Optimized",
