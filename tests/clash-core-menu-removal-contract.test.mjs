@@ -43,15 +43,6 @@ test('backend no longer registers or implements a Clash core switch command', ()
   }
 })
 
-test('fixed local mihomo sidecar remains the only valid core path', () => {
-  const vergeConfig = read('src-tauri', 'src', 'config', 'verge.rs')
-  const tauriConfig = read('src-tauri', 'tauri.conf.json')
-
-  assert.match(vergeConfig, /VALID_CLASH_CORES[^=]*=\s*&\["verge-mihomo"\]/)
-  assert.match(vergeConfig, /clash_core:\s+Some\("verge-mihomo"\.into\(\)\)/)
-  assert.match(tauriConfig, /"sidecar\/verge-mihomo"/)
-})
-
 test('frontend locale resources no longer keep Clash core menu copy', () => {
   for (const localeName of readdirSync(join(repoRoot, 'src', 'locales'))) {
     const source = read('src', 'locales', localeName, 'settings.json')

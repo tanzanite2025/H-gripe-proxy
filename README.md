@@ -96,32 +96,6 @@ pnpm build
 pnpm build:fast
 ```
 
-### Mihomo 内核改动后的打包要求
-
-如果你修改了 `mihomo/` 下的 runtime kernel 源码，正式打包前需要先重编本地 kernel binary。
-仓库的 `scripts/prebuild.mjs` 会在打包前校验 `src-tauri/sidecar` 里的 `verge-mihomo` 是否比 `mihomo/` 源码更新。
-如果 kernel binary 过旧，`pnpm build` 会直接拒绝继续，避免把旧内核打进安装包。
-
-Windows x64 示例：
-
-```powershell
-# 1. 重编 Mihomo
-Set-Location .\mihomo
-$env:CGO_ENABLED='0'
-$env:GOARCH='amd64'
-$env:GOOS='windows'
-$env:GOAMD64='v2'
-go build -tags with_gvisor -trimpath -ldflags "-w -s -buildid=" -o bin/mihomo-windows-amd64-v2.exe
-
-# 2. 同步到 Tauri 打包 kernel binary
-Set-Location ..
-Copy-Item .\mihomo\bin\mihomo-windows-amd64-v2.exe `
-  .\src-tauri\sidecar\verge-mihomo-x86_64-pc-windows-msvc.exe -Force
-
-# 3. 再执行正式打包
-pnpm build
-```
-
 正式安装包默认输出到：
 
 ```text

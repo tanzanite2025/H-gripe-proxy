@@ -57,7 +57,6 @@ async function resolvePortable() {
   const exeName = getWindowsExeName()
 
   zip.addLocalFile(path.join(releaseDir, exeName))
-  zip.addLocalFile(path.join(releaseDir, 'verge-mihomo.exe'))
   zip.addLocalFolder(path.join(releaseDir, 'resources'), 'resources')
   zip.addLocalFolder(
     path.join(

@@ -12,8 +12,6 @@ const cwd = process.cwd()
 const TEMP_DIR = path.join(cwd, 'node_modules/.verge')
 const FORCE = process.argv.includes('--force') || process.argv.includes('-f')
 const HASH_CACHE_FILE = path.join(TEMP_DIR, '.hash_cache.json')
-const MIHOMO_SOURCE_DIR = path.join(cwd, 'mihomo')
-const SIDECAR_METADATA_SUFFIX = '.build.json'
 const RESOURCES_DIR = path.join(cwd, 'src-tauri', 'resources')
 const SIDECAR_DIR = path.join(cwd, 'src-tauri', 'sidecar')
 const SERVICE_CRATE_DIR = path.join(cwd, 'crates', 'clash-verge-service-ipc')
@@ -81,24 +79,6 @@ const SERVICE_BINARIES = [
   'clash-verge-service-uninstall',
 ]
 
-const META_MAP = {
-  'win32-x64': 'mihomo-windows-amd64-v2',
-  'win32-ia32': 'mihomo-windows-386',
-  'win32-arm64': 'mihomo-windows-arm64',
-  'darwin-x64': 'mihomo-darwin-amd64-v2-go122',
-  'darwin-arm64': 'mihomo-darwin-arm64-go122',
-  'linux-x64': 'mihomo-linux-amd64-v2',
-  'linux-ia32': 'mihomo-linux-386',
-  'linux-arm64': 'mihomo-linux-arm64',
-  'linux-arm': 'mihomo-linux-armv7',
-  'linux-riscv64': 'mihomo-linux-riscv64',
-  'linux-loong64': 'mihomo-linux-loong64',
-}
-
-if (!META_MAP[`${platform}-${arch}`]) {
-  throw new Error(`verge-mihomo unsupported platform "${platform}-${arch}"`)
-}
-
 async function calculateFileHash(filePath) {
   try {
     const fileBuffer = await fsp.readFile(filePath)
@@ -150,129 +130,6 @@ async function updateHashCache(targetPath) {
     hashCache[targetPath] = hash
     await saveHashCache(hashCache)
   }
-}
-
-function shouldIncludeMihomoSourceFile(name) {
-  return (
-    name.endsWith('.go') ||
-    name === 'go.mod' ||
-    name === 'go.sum' ||
-    name === 'Makefile'
-  )
-}
-
-async function collectMihomoSourceFiles(dir) {
-  const files = []
-
-  async function walk(currentDir) {
-    let entries
-    try {
-      entries = await fsp.readdir(currentDir, { withFileTypes: true })
-    } catch {
-      return
-    }
-
-    for (const entry of entries) {
-      if (['.git', 'bin', 'dist', 'vendor'].includes(entry.name)) continue
-
-      const entryPath = path.join(currentDir, entry.name)
-      if (entry.isDirectory()) {
-        await walk(entryPath)
-      } else if (shouldIncludeMihomoSourceFile(entry.name)) {
-        files.push(entryPath)
-      }
-    }
-  }
-
-  await walk(dir)
-  return files.sort()
-}
-
-async function calculateMihomoSourceTreeHash() {
-  const hash = createHash('sha256')
-  for (const file of await collectMihomoSourceFiles(MIHOMO_SOURCE_DIR)) {
-    const relative = path.relative(MIHOMO_SOURCE_DIR, file).replace(/\\/g, '/')
-    hash.update(relative)
-    hash.update('\0')
-    hash.update(await fsp.readFile(file))
-    hash.update('\0')
-  }
-  return hash.digest('hex')
-}
-
-async function readSidecarMetadata(sidecarPath) {
-  const metadataPath = `${sidecarPath}${SIDECAR_METADATA_SUFFIX}`
-  try {
-    return JSON.parse(await fsp.readFile(metadataPath, 'utf-8'))
-  } catch (err) {
-    throw new Error(
-      [
-        `Missing or invalid sidecar metadata "${metadataPath}".`,
-        'Run `pnpm mihomo:sidecar -- --target <rust-target>` to rebuild the local core sidecar before packaging.',
-        err.message,
-      ].join(' '),
-      { cause: err },
-    )
-  }
-}
-
-async function assertLocalSidecarMatchesSource(sidecarPath) {
-  if (!fs.existsSync(MIHOMO_SOURCE_DIR)) return
-
-  const metadata = await readSidecarMetadata(sidecarPath)
-  const [sourceTreeHash, binarySha256] = await Promise.all([
-    calculateMihomoSourceTreeHash(),
-    calculateFileHash(sidecarPath),
-  ])
-
-  if (metadata.sourceTreeHash !== sourceTreeHash) {
-    throw new Error(
-      [
-        `Local sidecar source hash mismatch: "${sidecarPath}".`,
-        `metadata=${metadata.sourceTreeHash ?? '<missing>'}`,
-        `current=${sourceTreeHash}`,
-        'Rebuild mihomo with `pnpm mihomo:sidecar -- --target <rust-target>` before packaging.',
-      ].join(' '),
-    )
-  }
-
-  if (metadata.binarySha256 !== binarySha256) {
-    throw new Error(
-      [
-        `Local sidecar binary hash mismatch: "${sidecarPath}".`,
-        `metadata=${metadata.binarySha256 ?? '<missing>'}`,
-        `current=${binarySha256}`,
-      ].join(' '),
-    )
-  }
-}
-
-function clashMeta() {
-  const isWin = platform === 'win32'
-  return {
-    name: 'verge-mihomo',
-    targetFile: `verge-mihomo-${SIDECAR_HOST}${isWin ? '.exe' : ''}`,
-  }
-}
-
-async function resolveLocalSidecar(binInfo) {
-  const { name, targetFile } = binInfo
-  const sidecarPath = path.join(SIDECAR_DIR, targetFile)
-
-  await fsp.mkdir(SIDECAR_DIR, { recursive: true })
-
-  if (!fs.existsSync(sidecarPath)) {
-    throw new Error(
-      `Missing local sidecar "${sidecarPath}". Please place your locally managed ${name} binary there before running prebuild.`,
-    )
-  }
-
-  if (platform !== 'win32') {
-    await fsp.chmod(sidecarPath, 0o755)
-  }
-
-  await assertLocalSidecarMatchesSource(sidecarPath)
-  log_success(`Using local sidecar: "${sidecarPath}"`)
 }
 
 async function resolveLocalResource(file, localPath, options = {}) {
@@ -473,11 +330,6 @@ const resolveUnSetDnsScript = () =>
   )
 
 const tasks = [
-  {
-    name: 'verge-mihomo',
-    func: () => resolveLocalSidecar(clashMeta()),
-    retry: 1,
-  },
   { name: 'plugin', func: resolvePlugin, retry: 1, winOnly: true },
   { name: 'service', func: resolveServiceBundle, retry: 1 },
   { name: 'mmdb', func: resolveMmdb, retry: 1 },
