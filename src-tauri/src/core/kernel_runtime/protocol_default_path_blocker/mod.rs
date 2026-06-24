@@ -1,6 +1,9 @@
-use super::RUST_RUNTIME_ID;
+use super::{
+    RUST_RUNTIME_ID, RustPacketLeakHoldBlockerReport, RustPacketLeakHoldBlockerStatus, RustPacketLeakHoldGateEvidence,
+    rust_packet_leak_hold_blocker_evidence_path,
+};
 use crate::utils::dirs;
-use anyhow::{Result, bail};
+use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
@@ -74,6 +77,8 @@ pub struct RustProtocolDefaultPathBlockerReport {
     pub status: RustProtocolDefaultPathBlockerStatus,
     pub reason: String,
     pub explicit_opt_in: bool,
+    #[serde(default)]
+    pub packet_leak_hold_gate: Option<RustPacketLeakHoldGateEvidence>,
     pub non_loopback_evidence: Option<RustProtocolDefaultPathNonLoopbackEvidence>,
     pub multiplex_evidence: Option<RustProtocolDefaultPathMultiplexEvidence>,
     pub plugin_lifecycle_evidence: Option<RustProtocolDefaultPathPluginLifecycleEvidence>,
@@ -110,10 +115,19 @@ struct PluginLifecycleManifest {
 pub async fn rust_protocol_default_path_blocker_reduction(
     explicit_opt_in: bool,
 ) -> Result<RustProtocolDefaultPathBlockerReport> {
+    let (packet_leak_hold_gate, packet_leak_hold_gate_blockers) = packet_leak_hold_gate().await?;
     if !explicit_opt_in {
-        return Ok(blocked_report(vec![
-            "explicit opt-in is required to run protocol default-path blocker reduction".to_owned(),
-        ]));
+        let mut blockers =
+            vec!["explicit opt-in is required to run protocol default-path blocker reduction".to_owned()];
+        blockers.extend(packet_leak_hold_gate_blockers);
+        return Ok(blocked_report(explicit_opt_in, packet_leak_hold_gate, blockers));
+    }
+    if !packet_leak_hold_gate_blockers.is_empty() {
+        return Ok(blocked_report(
+            explicit_opt_in,
+            packet_leak_hold_gate,
+            packet_leak_hold_gate_blockers,
+        ));
     }
 
     let non_loopback_evidence = non_loopback_tcp_evidence().await?;
@@ -141,6 +155,7 @@ pub async fn rust_protocol_default_path_blocker_reduction(
         }
         .to_owned(),
         explicit_opt_in,
+        packet_leak_hold_gate,
         non_loopback_evidence: Some(non_loopback_evidence),
         multiplex_evidence: Some(multiplex_evidence),
         plugin_lifecycle_evidence: Some(plugin_lifecycle_evidence),
@@ -176,14 +191,19 @@ pub async fn rust_protocol_default_path_blocker_reduction(
     Ok(report)
 }
 
-fn blocked_report(blockers: Vec<String>) -> RustProtocolDefaultPathBlockerReport {
+fn blocked_report(
+    explicit_opt_in: bool,
+    packet_leak_hold_gate: Option<RustPacketLeakHoldGateEvidence>,
+    blockers: Vec<String>,
+) -> RustProtocolDefaultPathBlockerReport {
     RustProtocolDefaultPathBlockerReport {
         runtime_id: RUST_RUNTIME_ID.to_owned(),
         component: COMPONENT.to_owned(),
         kernel_area: KERNEL_AREA.to_owned(),
         status: RustProtocolDefaultPathBlockerStatus::Blocked,
         reason: "Rust protocol default-path blocker reduction is blocked".to_owned(),
-        explicit_opt_in: false,
+        explicit_opt_in,
+        packet_leak_hold_gate,
         non_loopback_evidence: None,
         multiplex_evidence: None,
         plugin_lifecycle_evidence: None,
@@ -202,6 +222,60 @@ fn blocked_report(blockers: Vec<String>) -> RustProtocolDefaultPathBlockerReport
         warnings: Vec::new(),
         facts: facts(),
         next_safe_batch: NEXT_SAFE_BATCH.to_owned(),
+    }
+}
+
+async fn packet_leak_hold_gate() -> Result<(Option<RustPacketLeakHoldGateEvidence>, Vec<String>)> {
+    let evidence_path = rust_packet_leak_hold_blocker_evidence_path()?;
+    let Some(report) = read_packet_leak_hold_report(&evidence_path).await? else {
+        return Ok((
+            None,
+            vec!["packet leak hold evidence is missing before protocol default hold reduction".to_owned()],
+        ));
+    };
+
+    let mut blockers = Vec::new();
+    if report.status != RustPacketLeakHoldBlockerStatus::Ready {
+        blockers.push(format!("packet leak hold status is {:?}", report.status));
+    }
+    if !report.blockers.is_empty() {
+        blockers.push("packet leak hold evidence contains blockers".to_owned());
+    }
+    match report.route_mutation_gate.as_ref() {
+        Some(gate) => {
+            if gate.status != super::RustRouteMutationRollbackBlockerStatus::Ready {
+                blockers.push(format!("route mutation gate status is {:?}", gate.status));
+            }
+            if !gate.blockers.is_empty() {
+                blockers.push("route mutation gate contains blockers".to_owned());
+            }
+        }
+        None => blockers.push("packet leak hold lacks route mutation gate".to_owned()),
+    }
+
+    blockers.sort();
+    blockers.dedup();
+    let gate = RustPacketLeakHoldGateEvidence {
+        status: report.status,
+        blockers: report.blockers.clone(),
+        route_mutation_status: report.route_mutation_gate.as_ref().map(|gate| gate.status),
+        route_mutation_blockers: report
+            .route_mutation_gate
+            .as_ref()
+            .map(|gate| gate.blockers.clone())
+            .unwrap_or_default(),
+        evidence_path: report.evidence_path.clone(),
+    };
+    Ok((Some(gate), blockers))
+}
+
+async fn read_packet_leak_hold_report(path: &std::path::Path) -> Result<Option<RustPacketLeakHoldBlockerReport>> {
+    match fs::read_to_string(path).await {
+        Ok(yaml) => serde_yaml_ng::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", path.display()))
+            .map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
     }
 }
 
@@ -380,8 +454,12 @@ fn evidence_dir() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?.join(COMPONENT))
 }
 
-fn evidence_path() -> Result<std::path::PathBuf> {
+pub fn rust_protocol_default_path_blocker_evidence_path() -> Result<std::path::PathBuf> {
     Ok(evidence_dir()?.join(EVIDENCE_FILE))
+}
+
+fn evidence_path() -> Result<std::path::PathBuf> {
+    rust_protocol_default_path_blocker_evidence_path()
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {
@@ -421,7 +499,7 @@ mod tests {
 
     #[test]
     fn blocked_report_keeps_protocol_fallback() {
-        let report = blocked_report(Vec::new());
+        let report = blocked_report(false, None, Vec::new());
 
         assert!(report.mihomo_protocol_fallback_required);
         assert!(!report.default_protocol_forwarding_allowed);
