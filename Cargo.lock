@@ -4134,7 +4134,10 @@ name = "learn-gripe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "futures-util",
+ "h2 0.4.13",
+ "http 1.4.0",
  "log",
  "rustls 0.23.40",
  "rustls-pemfile 2.2.0",

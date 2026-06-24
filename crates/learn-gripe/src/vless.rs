@@ -2,9 +2,9 @@
 //!
 //! Implements the VLESS request/response framing only; the transport (tcp/ws)
 //! and security (none/tls) layers it runs over are provided by
-//! [`crate::transport`], so this module is purely the protocol layer. `tcp` and
-//! `ws` transports over `none`/`tls` security are supported today;
-//! `grpc`/`h2`/`xhttp` and REALITY land in follow-up work and are rejected by
+//! [`crate::transport`], so this module is purely the protocol layer. `tcp`,
+//! `ws` and `grpc` transports over `none`/`tls` security are supported today;
+//! `h2`/`xhttp` and REALITY land in follow-up work and are rejected by
 //! [`VlessOutboundConfig::from_proxy`] rather than silently mis-encoded.
 //!
 //! Wire format (client → server request header):
@@ -25,6 +25,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
+use crate::grpc::GrpcTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::proxy::{Network, ProxyEntry};
 use crate::tls::TlsClientConfig;
@@ -72,7 +73,7 @@ impl VlessOutboundConfig {
             bail!("vless: flow {flow:?} not implemented yet");
         }
 
-        let security = if opts.tls.unwrap_or(false) {
+        let mut security = if opts.tls.unwrap_or(false) {
             Security::Tls(TlsClientConfig {
                 server_name: opts.servername.clone().or_else(|| opts.sni.clone()),
                 alpn: opts.alpn.clone().unwrap_or_default(),
@@ -96,8 +97,24 @@ impl VlessOutboundConfig {
                     headers,
                 })
             }
+            Some(Network::Grpc) => {
+                let grpc = opts.grpc_opts.clone().unwrap_or_default();
+                Transport::Grpc(GrpcTransportConfig {
+                    service_name: grpc.grpc_service_name.unwrap_or_default(),
+                    host: opts.servername.clone().or_else(|| opts.sni.clone()),
+                })
+            }
             Some(other) => bail!("vless: transport {other:?} not implemented yet"),
         };
+
+        // gRPC runs over HTTP/2; make sure the TLS handshake advertises `h2` so
+        // the server selects the right protocol.
+        if matches!(transport, Transport::Grpc(_))
+            && let Security::Tls(ref mut tls) = security
+            && !tls.alpn.iter().any(|p| p == "h2")
+        {
+            tls.alpn = vec!["h2".to_string()];
+        }
 
         Ok(Self {
             server,

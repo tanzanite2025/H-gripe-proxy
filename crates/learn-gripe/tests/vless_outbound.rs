@@ -13,10 +13,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll, ready};
 
+use bytes::Bytes;
 use futures_util::{Sink, Stream};
+use h2::{RecvStream, SendStream};
+use http::Response;
 use learn_gripe::{
-    GripeConfig, GripeKernel, OutboundMode, Security, TlsClientConfig, Transport, VlessOutboundConfig,
-    WsTransportConfig,
+    GripeConfig, GripeKernel, GrpcTransportConfig, OutboundMode, Security, TlsClientConfig, Transport,
+    VlessOutboundConfig, WsTransportConfig,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
@@ -260,6 +263,271 @@ async fn spawn_fake_vless_ws_tls_server() -> SocketAddr {
     addr
 }
 
+// ---- gRPC ("gun") transport test helpers ----
+//
+// Mirror the client-side framing/adapter so the fake server can run the shared
+// `serve_vless` over a gRPC tunnel unchanged. Each application chunk is one
+// gRPC-framed protobuf `Hunk { bytes data = 1 }` message.
+
+fn grpc_encode_frame(data: &[u8]) -> Bytes {
+    let mut hunk = Vec::with_capacity(data.len() + 6);
+    hunk.push(0x0a);
+    grpc_write_varint(&mut hunk, data.len() as u64);
+    hunk.extend_from_slice(data);
+    let mut frame = Vec::with_capacity(hunk.len() + 5);
+    frame.push(0x00);
+    frame.extend_from_slice(&(hunk.len() as u32).to_be_bytes());
+    frame.extend_from_slice(&hunk);
+    Bytes::from(frame)
+}
+
+fn grpc_write_varint(out: &mut Vec<u8>, mut value: u64) {
+    loop {
+        let mut byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value != 0 {
+            byte |= 0x80;
+        }
+        out.push(byte);
+        if value == 0 {
+            break;
+        }
+    }
+}
+
+fn grpc_read_varint(buf: &[u8]) -> Option<(u64, usize)> {
+    let mut value = 0u64;
+    let mut shift = 0;
+    for (i, &byte) in buf.iter().enumerate().take(10) {
+        value |= u64::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            return Some((value, i + 1));
+        }
+        shift += 7;
+    }
+    None
+}
+
+fn grpc_decode_hunk(msg: &[u8], out: &mut Vec<u8>) {
+    let mut i = 0;
+    while i < msg.len() {
+        let (tag, n) = grpc_read_varint(&msg[i..]).unwrap();
+        i += n;
+        let field = tag >> 3;
+        let wire = tag & 0x07;
+        match wire {
+            0 => {
+                let (_, n) = grpc_read_varint(&msg[i..]).unwrap();
+                i += n;
+            }
+            1 => i += 8,
+            5 => i += 4,
+            2 => {
+                let (len, n) = grpc_read_varint(&msg[i..]).unwrap();
+                i += n;
+                let len = len as usize;
+                if field == 1 {
+                    out.extend_from_slice(&msg[i..i + len]);
+                }
+                i += len;
+            }
+            other => panic!("unexpected protobuf wire type {other}"),
+        }
+    }
+}
+
+fn grpc_io_err<E: std::fmt::Display>(e: E) -> io::Error {
+    io::Error::other(e.to_string())
+}
+
+/// Server-side byte-stream view of an HTTP/2 stream, mirroring the client
+/// adapter so the fake server runs `serve_vless` unchanged over `grpc`.
+struct GrpcServerStream {
+    send: SendStream<Bytes>,
+    recv: RecvStream,
+    write_buf: Bytes,
+    raw: Vec<u8>,
+    read_buf: Vec<u8>,
+    read_pos: usize,
+    recv_eof: bool,
+}
+
+impl GrpcServerStream {
+    fn new(send: SendStream<Bytes>, recv: RecvStream) -> Self {
+        Self {
+            send,
+            recv,
+            write_buf: Bytes::new(),
+            raw: Vec::new(),
+            read_buf: Vec::new(),
+            read_pos: 0,
+            recv_eof: false,
+        }
+    }
+
+    fn poll_drain(&mut self, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        while !self.write_buf.is_empty() {
+            self.send.reserve_capacity(self.write_buf.len());
+            match ready!(self.send.poll_capacity(cx)) {
+                Some(Ok(cap)) => {
+                    let n = cap.min(self.write_buf.len());
+                    if n == 0 {
+                        return Poll::Pending;
+                    }
+                    let chunk = self.write_buf.split_to(n);
+                    self.send.send_data(chunk, false).map_err(grpc_io_err)?;
+                }
+                Some(Err(e)) => return Poll::Ready(Err(grpc_io_err(e))),
+                None => return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "grpc send closed"))),
+            }
+        }
+        Poll::Ready(Ok(()))
+    }
+
+    fn decode_one(&mut self) -> bool {
+        if self.raw.len() < 5 {
+            return false;
+        }
+        let msg_len = u32::from_be_bytes([self.raw[1], self.raw[2], self.raw[3], self.raw[4]]) as usize;
+        if self.raw.len() < 5 + msg_len {
+            return false;
+        }
+        let msg = self.raw[5..5 + msg_len].to_vec();
+        grpc_decode_hunk(&msg, &mut self.read_buf);
+        self.raw.drain(0..5 + msg_len);
+        true
+    }
+}
+
+impl AsyncRead for GrpcServerStream {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        loop {
+            if this.read_pos < this.read_buf.len() {
+                let remaining = &this.read_buf[this.read_pos..];
+                let n = remaining.len().min(buf.remaining());
+                buf.put_slice(&remaining[..n]);
+                this.read_pos += n;
+                return Poll::Ready(Ok(()));
+            }
+            this.read_buf.clear();
+            this.read_pos = 0;
+
+            if this.decode_one() {
+                continue;
+            }
+            if this.recv_eof {
+                return Poll::Ready(Ok(()));
+            }
+
+            match ready!(Pin::new(&mut this.recv).poll_data(cx)) {
+                Some(Ok(data)) => {
+                    let len = data.len();
+                    this.raw.extend_from_slice(&data);
+                    let _ = this.recv.flow_control().release_capacity(len);
+                }
+                Some(Err(e)) => return Poll::Ready(Err(grpc_io_err(e))),
+                None => this.recv_eof = true,
+            }
+        }
+    }
+}
+
+impl AsyncWrite for GrpcServerStream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        this.write_buf = grpc_encode_frame(buf);
+        match this.poll_drain(cx) {
+            Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+            Poll::Ready(Ok(())) | Poll::Pending => {}
+        }
+        Poll::Ready(Ok(buf.len()))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        self.get_mut().poll_drain(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        this.send.send_data(Bytes::new(), true).map_err(grpc_io_err)?;
+        Poll::Ready(Ok(()))
+    }
+}
+
+/// Accept one HTTP/2 connection and serve every inbound stream as a VLESS
+/// session. Driving `accept()` in a loop keeps the shared connection polled so
+/// already-accepted streams make IO progress.
+async fn serve_grpc_connection<T>(io: T)
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let mut connection = match h2::server::handshake(io).await {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    while let Some(result) = connection.accept().await {
+        let (request, mut respond) = match result {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let recv = request.into_body();
+        let response = Response::builder()
+            .status(200)
+            .header("content-type", "application/grpc")
+            .body(())
+            .unwrap();
+        let send = match respond.send_response(response, false) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        tokio::spawn(serve_vless(GrpcServerStream::new(send, recv)));
+    }
+}
+
+async fn spawn_fake_vless_grpc_server() -> SocketAddr {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            tokio::spawn(serve_grpc_connection(tcp));
+        }
+    });
+    addr
+}
+
+async fn spawn_fake_vless_grpc_tls_server() -> SocketAddr {
+    let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let key = rustls_pemfile::private_key(&mut TEST_KEY.as_bytes()).unwrap().unwrap();
+    let mut server_config =
+        rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .unwrap();
+    server_config.alpn_protocols = vec![b"h2".to_vec()];
+    let acceptor = TlsAcceptor::from(Arc::new(server_config));
+
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                if let Ok(tls) = acceptor.accept(tcp).await {
+                    serve_grpc_connection(tls).await;
+                }
+            });
+        }
+    });
+    addr
+}
+
 async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
     let mut stream = TcpStream::connect(proxy).await.unwrap();
     stream.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
@@ -403,6 +671,70 @@ async fn relays_through_ws_tls_vless_outbound() {
     let mut buf = [0u8; 18];
     conn.read_exact(&mut buf).await.unwrap();
     assert_eq!(&buf, b"hello ws tls vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_grpc_vless_outbound() {
+    let server = spawn_fake_vless_grpc_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::None,
+            transport: Transport::Grpc(GrpcTransportConfig {
+                service_name: "GunService".to_string(),
+                host: None,
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello grpc vless").await.unwrap();
+    let mut buf = [0u8; 16];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello grpc vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_grpc_tls_vless_outbound() {
+    let server = spawn_fake_vless_grpc_tls_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Tls(TlsClientConfig {
+                server_name: Some("localhost".to_string()),
+                alpn: vec!["h2".to_string()],
+                skip_cert_verify: true,
+            }),
+            transport: Transport::Grpc(GrpcTransportConfig {
+                service_name: "GunService".to_string(),
+                host: Some("localhost".to_string()),
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello grpc tls vless").await.unwrap();
+    let mut buf = [0u8; 20];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello grpc tls vless");
 
     handle.shutdown().await;
 }

@@ -11,6 +11,7 @@
 
 mod address;
 mod config;
+mod grpc;
 mod outbound;
 mod proxy;
 mod server;
@@ -22,6 +23,7 @@ mod ws;
 
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
+pub use grpc::GrpcTransportConfig;
 pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
