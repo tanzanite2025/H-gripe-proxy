@@ -180,14 +180,21 @@ pub async fn apply_policy(policy: &SecurityPolicy) -> Result<Vec<i32>> {
         }
     }
 
-    Err(anyhow!(
-        "security policy rule mutation through the Go/Mihomo plugin API is retired; use the Rust runtime policy path"
-    ))
+    let indices = crate::core::runtime_rule_control::apply_security_policy_rules(&policy.name, &policy.rules).await?;
+    get_security_policy_manager()
+        .mark_applied(&policy.name, policy.enabled, indices.clone())
+        .await;
+    Ok(indices)
 }
 
 /// Revoke a single policy from Mihomo by soft-deleting its rules
 pub async fn revoke_policy(policy_name: &str) -> Result<()> {
     let manager = get_security_policy_manager();
+    if let Some(state) = manager.get_applied_state(policy_name).await
+        && !state.rule_indices.is_empty()
+    {
+        crate::core::runtime_rule_control::revoke_runtime_rule_indices(&state.rule_indices).await?;
+    }
     manager.mark_revoked(policy_name).await;
     Ok(())
 }

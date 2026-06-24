@@ -145,7 +145,7 @@ use crate::{
     },
 };
 use anyhow::{Context as _, anyhow};
-use serde_yaml_ng::Mapping;
+use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tauri_plugin_mihomo::models::{
@@ -178,10 +178,6 @@ pub async fn get_runtime_yaml() -> CmdResult<String> {
                 .map(|s| s.into())
         })
         .stringify_err()
-}
-
-fn retired_mihomo_plugin_mutation<T>(operation: &str) -> CmdResult<T> {
-    Err(format!("{operation} is retired from the Go/Mihomo plugin API; use the Rust runtime control path").into())
 }
 
 #[tauri::command]
@@ -567,14 +563,9 @@ pub async fn delay_runtime_proxy(
 
 #[tauri::command]
 pub async fn get_runtime_rules() -> CmdResult<Rules> {
-    let runtime = Config::runtime().await;
-    let runtime = runtime.latest_arc();
-    let config = runtime
-        .config
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))
-        .stringify_err()?;
-    Ok(crate::core::runtime_snapshot::build_rules_from_runtime_config(config))
+    crate::core::runtime_rule_control::read_runtime_rules()
+        .await
+        .stringify_err()
 }
 
 #[tauri::command]
@@ -592,27 +583,42 @@ pub async fn get_runtime_rule_providers() -> CmdResult<RuleProviders> {
 }
 
 #[tauri::command]
-pub async fn disable_runtime_rules(_payload: HashMap<i32, bool>) -> CmdResult<()> {
-    retired_mihomo_plugin_mutation("disable_runtime_rules")
+pub async fn disable_runtime_rules(payload: HashMap<i32, bool>) -> CmdResult<()> {
+    crate::core::runtime_rule_control::disable_runtime_rules(&payload)
+        .await
+        .stringify_err()
 }
 #[tauri::command]
-pub async fn delete_runtime_rule(_index: i32) -> CmdResult<()> {
-    retired_mihomo_plugin_mutation("delete_runtime_rule")
+pub async fn delete_runtime_rule(index: i32) -> CmdResult<()> {
+    crate::core::runtime_rule_control::delete_runtime_rule(index)
+        .await
+        .stringify_err()
 }
 #[tauri::command]
 pub async fn create_runtime_rule(
-    _rule_type: String,
-    _payload: String,
-    _proxy: String,
-    _source: Option<String>,
-    _sub_rule: Option<String>,
-    _position: Option<String>,
+    rule_type: String,
+    payload: String,
+    proxy: String,
+    source: Option<String>,
+    sub_rule: Option<String>,
+    position: Option<String>,
 ) -> CmdResult<i32> {
-    retired_mihomo_plugin_mutation("create_runtime_rule")
+    crate::core::runtime_rule_control::create_runtime_rule(
+        &rule_type,
+        &payload,
+        &proxy,
+        source.as_deref(),
+        sub_rule.as_deref(),
+        position.as_deref(),
+    )
+    .await
+    .stringify_err()
 }
 #[tauri::command]
-pub async fn update_runtime_rule_provider(_provider_name: String) -> CmdResult<()> {
-    retired_mihomo_plugin_mutation("update_runtime_rule_provider")
+pub async fn update_runtime_rule_provider(provider_name: String) -> CmdResult<()> {
+    crate::core::runtime_bridge::update_runtime_rule_provider(&provider_name)
+        .await
+        .stringify_err()
 }
 #[tauri::command]
 pub async fn get_runtime_logs() -> CmdResult<HashMap<String, Vec<(String, String)>>> {
@@ -670,6 +676,16 @@ pub async fn get_runtime_proxy_chain_config(proxy_chain_exit_node: String) -> Cm
 }
 
 #[tauri::command]
-pub async fn update_proxy_chain_config_in_runtime(_proxy_chain_config: Option<serde_yaml_ng::Value>) -> CmdResult<()> {
-    retired_mihomo_plugin_mutation("update_proxy_chain_config_in_runtime")
+pub async fn update_proxy_chain_config_in_runtime(proxy_chain_config: Option<Value>) -> CmdResult<()> {
+    Config::runtime()
+        .await
+        .edit_draft(|draft| draft.update_proxy_chain_config(proxy_chain_config));
+    let result = crate::core::runtime_lifecycle::update_runtime_config_checked("update-proxy-chain-config").await;
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+        "update_proxy_chain_config_in_runtime",
+        result.is_ok(),
+        result.as_ref().err().map(ToString::to_string),
+        None,
+    );
+    result.stringify_err()
 }

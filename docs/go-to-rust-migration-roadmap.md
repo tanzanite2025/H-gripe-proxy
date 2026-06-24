@@ -114,20 +114,23 @@ persisted evidence:
 
 The `mihomo-read-api-retirement`, `runtime-bridge-closeout`,
 `plugin-command-surface-retirement`, `sidecar-lifecycle-surface-retirement`, and
-`runtime-control-mutation-closeout` bundles are complete enough that follow-up
+`runtime-control-mutation-closeout`, and
+`runtime-maintenance-command-closeout` bundles are complete enough that follow-up
 work should not add another isolated getter, bridge wrapper, plugin command
-cleanup, lifecycle wrapper, or command-facing control mutation. The next useful
-migration PR shape is a `runtime-maintenance-command-closeout` bundle: move
-remaining command-facing maintenance actions behind Rust-owned bridge/audit paths
-instead of leaving them as retired Go/Mihomo plugin stubs.
+cleanup, lifecycle wrapper, command-facing control mutation, or maintenance
+command. The next useful migration PR shape is a `runtime-rule-policy-closeout`
+bundle: move rule editing, rule-provider refresh, proxy-chain runtime updates,
+and security-policy application behind Rust-owned config/state/audit paths instead
+of leaving them as retired Go/Mihomo plugin stubs.
 
 Minimum acceptable scope for that bundle:
 
-- Route runtime base-config patches, DNS warmup, TLS rotation, proxy-provider
-  update/healthcheck, group delay, geo update, and core/UI/geo upgrades through
-  `runtime_bridge` or Rust config/snapshot paths.
-- Persist lifecycle/provider/upgrade evidence for every maintenance attempt with
-  operation detail and success/failure outcome.
+- Route create/delete/disable rule commands through Rust runtime config mutation
+  and rule-state overlay, not plugin rule endpoints.
+- Route rule-provider refresh and proxy-chain config updates through audited Rust
+  bridge/config paths.
+- Apply and revoke security policies through the same Rust rule mutation path so
+  policy state and active runtime config stay aligned.
 - Keep frontend command names stable while removing retired plugin-stub errors
   from maintenance paths.
 
@@ -279,11 +282,11 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is runtime maintenance command closeout, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, or plugin-mutation retirement gate. Work through one cohesive maintenance-command bundle while preserving explicit rollback evidence:
+The next blocker is runtime rule/policy closeout, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, maintenance-command, or plugin-mutation retirement gate. Work through one cohesive rule/policy bundle while preserving explicit rollback evidence:
 
-1. `runtime-maintenance-command-closeout`: move base-config patching, DNS warmup, TLS rotation, proxy-provider update/healthcheck, group delay, geo update, and core/UI/geo upgrades off retired plugin stubs and onto Rust-owned bridge/audit paths.
-2. If review size forces a split, use only maintenance semantics as the boundary: config/provider/delay first, then update/upgrade actions. Do not create extra readiness, dry-run, generated-type, or UI-only stepping-stone PRs.
-3. `final-closeout-bundle`: maintenance-command closeout, release blocker audit, and final Mihomo binary removal evidence linkage.
+1. `runtime-rule-policy-closeout`: move runtime rule create/delete/disable, rule-provider update, proxy-chain config update, and security-policy apply/revoke off retired plugin stubs and onto Rust-owned runtime config/state/audit paths.
+2. If review size forces a split, use only rule/policy semantics as the boundary: direct rule/provider commands first, then security-policy integration. Do not create extra readiness, dry-run, generated-type, or UI-only stepping-stone PRs.
+3. `final-closeout-bundle`: rule/policy closeout, release blocker audit, and final Mihomo binary removal evidence linkage.
 
 Full protocol replacement and default DNS ownership remain blocked until Rust-owned runtime observation and command-facing control mutations no longer depend on the Go plugin API.
 

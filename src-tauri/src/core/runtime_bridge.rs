@@ -80,6 +80,22 @@ pub async fn healthcheck_runtime_proxy_provider(provider_name: &str) -> Result<(
     Ok(())
 }
 
+pub async fn update_runtime_rule_provider(provider_name: &str) -> Result<()> {
+    let result = Handle::mihomo().await.update_rule_provider(provider_name).await;
+    record_runtime_bridge_result(
+        "update-runtime-rule-provider",
+        result.as_ref().map(|_| ()),
+        Some(format!("provider={provider_name}")),
+    );
+    runtime_snapshot::record_and_persist_runtime_provider_health(
+        &format!("rule:{provider_name}"),
+        result.is_ok(),
+        result.as_ref().err().map(ToString::to_string),
+    );
+    result?;
+    Ok(())
+}
+
 pub async fn close_runtime_connection(connection_id: &str) -> Result<()> {
     let result = Handle::mihomo().await.close_connection(connection_id).await;
     record_runtime_bridge_result(
