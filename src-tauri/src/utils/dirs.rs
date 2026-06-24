@@ -1,4 +1,4 @@
-use crate::core::{CoreManager, handle, manager::RunningMode};
+use crate::core::{handle, manager::RunningMode, runtime_lifecycle};
 use anyhow::Result;
 use async_trait::async_trait;
 use clash_verge_logging::{Type, logging};
@@ -310,7 +310,7 @@ pub fn service_log_dir() -> Result<PathBuf> {
 }
 
 pub fn clash_latest_log() -> Result<PathBuf> {
-    match *CoreManager::global().get_running_mode() {
+    match *runtime_lifecycle::read_runtime_running_mode() {
         RunningMode::Service => Ok(service_log_dir()?.join("service_latest.log")),
         RunningMode::NotRunning => Ok(app_logs_dir()?.join("latest.log")),
     }

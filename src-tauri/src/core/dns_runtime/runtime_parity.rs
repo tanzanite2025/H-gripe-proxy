@@ -1,5 +1,5 @@
 use super::*;
-use crate::core::CoreManager;
+use crate::core::runtime_lifecycle;
 use serde_yaml_ng::{Mapping, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -123,8 +123,7 @@ pub async fn rust_dns_runtime_parity_rollback() -> Result<RustDnsRuntimeParityRe
     Config::runtime().await.edit_draft(|draft| {
         draft.patch_dns_runtime_config(&patch);
     });
-    CoreManager::global()
-        .update_config_checked()
+    runtime_lifecycle::update_runtime_config_checked("dns-runtime-parity-restore")
         .await
         .context("failed to restore DNS runtime config")?;
     crate::core::handle::Handle::refresh_clash();
@@ -355,8 +354,7 @@ async fn apply_rust_dns_runtime_patch(patch_yaml: &str) -> Result<(String, Strin
     Config::runtime().await.edit_draft(|draft| {
         draft.patch_dns_runtime_config(&patch);
     });
-    CoreManager::global()
-        .update_config_checked()
+    runtime_lifecycle::update_runtime_config_checked("dns-runtime-parity-apply")
         .await
         .context("failed to apply Rust DNS runtime patch")?;
     crate::core::handle::Handle::refresh_clash();

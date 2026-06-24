@@ -4,7 +4,7 @@ use crate::{
         profiles::{IProfiles, resolve_profile_file_path},
     },
     core::{
-        CoreManager,
+        runtime_lifecycle,
         validate::{CoreConfigValidator, ValidationOutcome},
     },
     subscription::{
@@ -95,9 +95,7 @@ pub async fn activate_subscription_active_artifact_runtime(
             )
         })?;
 
-        CoreManager::global()
-            .update_config_without_restart_with_force(force)
-            .await
+        runtime_lifecycle::update_runtime_config_without_restart(force, "subscription-active-artifact").await
     }
     .await;
 

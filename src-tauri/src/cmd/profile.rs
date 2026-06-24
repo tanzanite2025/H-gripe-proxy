@@ -11,7 +11,7 @@ use crate::{
         profiles_append_item_safe,
     },
     core::{
-        CoreManager, handle,
+        handle, runtime_lifecycle,
         timer::Timer,
         tray::Tray,
         validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
@@ -223,7 +223,7 @@ pub async fn delete_profile(index: String) -> CmdResult {
         logging!(warn, Type::Cmd, "Warning: 异步更新托盘菜单失败: {e}");
     }
     if should_update {
-        match CoreManager::global().update_config_forced().await {
+        match runtime_lifecycle::update_runtime_config_forced("delete-profile").await {
             Ok(outcome) if outcome.is_valid() => {
                 handle::Handle::refresh_clash();
                 logging!(info, Type::Cmd, "[删除订阅] 发送配置变更通知: {}", index);

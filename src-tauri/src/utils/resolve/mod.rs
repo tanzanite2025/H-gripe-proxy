@@ -5,10 +5,11 @@ use anyhow::Result;
 use crate::{
     config::Config,
     core::{
-        CoreManager, Timer,
+        Timer,
         handle::Handle,
         hotkey::Hotkey,
         logger::Logger,
+        runtime_lifecycle,
         service::{SERVICE_MANAGER, ServiceManager, is_service_ipc_path_exists},
         sysopt,
         tray::Tray,
@@ -86,7 +87,7 @@ pub fn resolve_setup_async() {
 
 pub async fn resolve_reset_async() -> Result<(), anyhow::Error> {
     sysopt::Sysopt::global().reset_sysproxy().await?;
-    CoreManager::global().stop_core().await?;
+    runtime_lifecycle::stop_runtime_core("resolve-reset").await?;
 
     #[cfg(target_os = "macos")]
     {
@@ -193,7 +194,7 @@ pub(super) async fn init_service_manager() {
 }
 
 pub(super) async fn init_core_manager() {
-    logging_error!(Type::Setup, CoreManager::global().init().await);
+    logging_error!(Type::Setup, runtime_lifecycle::init_runtime_core("startup-init").await);
 }
 
 pub(super) async fn init_system_proxy() {

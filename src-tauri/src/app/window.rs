@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::core::{CoreManager, handle, sysopt};
+use crate::core::{handle, runtime_lifecycle, sysopt};
 use crate::utils::window_manager::WindowManager;
 use clash_verge_logging::{Type, logging};
 use tokio::time::{Duration, timeout};
@@ -79,7 +79,7 @@ pub async fn clean_async() -> bool {
         let stop_timeout = Duration::from_secs(3);
 
         logging!(info, Type::System, "stop core");
-        match timeout(stop_timeout, CoreManager::global().stop_core()).await {
+        match timeout(stop_timeout, runtime_lifecycle::stop_runtime_core("shutdown-cleanup")).await {
             Ok(_) => {
                 logging!(info, Type::Window, "core已停止");
                 true

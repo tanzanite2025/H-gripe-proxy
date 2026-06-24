@@ -34,6 +34,7 @@ pub mod rule_engine;
 pub mod rule_geodata;
 pub mod runtime_bridge;
 pub mod runtime_diagnostics;
+pub mod runtime_lifecycle;
 pub mod runtime_snapshot;
 pub mod runtime_status;
 pub mod security_policy;

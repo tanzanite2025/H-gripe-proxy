@@ -1,7 +1,7 @@
 use crate::{
     config::{Config, IProfiles},
     core::{
-        CoreManager, handle, tray,
+        handle, runtime_lifecycle, tray,
         validate::{ValidationNoticeTarget, ValidationOutcome, handle_validation_notice},
     },
 };
@@ -47,7 +47,7 @@ pub async fn toggle_proxy_profile(profile_index: String) {
 }
 
 pub async fn reactivate_profiles() -> Result<ValidationOutcome> {
-    CoreManager::global().update_config_forced().await
+    runtime_lifecycle::update_runtime_config_forced("reactivate-profiles").await
 }
 
 async fn restore_previous_profile(prev_profile: &String) -> Result<()> {
@@ -134,8 +134,11 @@ async fn perform_profile_publish(
         CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
     }
 
-    let update_result =
-        tokio::time::timeout(Duration::from_secs(30), CoreManager::global().update_config_forced()).await;
+    let update_result = tokio::time::timeout(
+        Duration::from_secs(30),
+        runtime_lifecycle::update_runtime_config_forced("profile-activation"),
+    )
+    .await;
 
     match update_result {
         Ok(Ok(outcome)) if outcome.is_valid() => handle_success(current_value).await,

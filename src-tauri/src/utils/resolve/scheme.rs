@@ -5,7 +5,7 @@ use tauri::Url;
 
 use crate::{
     config::{Config, PrfItem, profiles},
-    core::{CoreManager, handle},
+    core::{handle, runtime_lifecycle},
     utils::help,
 };
 use clash_verge_logging::{Type, logging, logging_error};
@@ -141,7 +141,7 @@ async fn refresh_core_config() {
         Type::Config,
         "Deep link import set current profile; refreshing core config"
     );
-    match CoreManager::global().update_config_forced().await {
+    match runtime_lifecycle::update_runtime_config_forced("deep-link-profile-import").await {
         Ok(outcome) if outcome.is_valid() => handle::Handle::refresh_clash(),
         Ok(outcome) => {
             let message = outcome.to_string();
