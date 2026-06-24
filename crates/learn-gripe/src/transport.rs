@@ -19,17 +19,19 @@
 //! it, so adding a protocol never touches transport code and adding a transport
 //! never touches protocol code.
 //!
-//! This slice implements `tcp`, `ws` and `grpc` transports over `none`/`tls`
-//! security. `h2`/`xhttp`/`httpupgrade` and `reality` land in follow-ups and
-//! slot into the same `Transport`/`Security` enums without restructuring.
+//! This slice implements `tcp`, `ws`, `grpc`, `xhttp` and `httpupgrade`
+//! transports over `none`/`tls` security. `h2` and `reality` land in follow-ups
+//! and slot into the same `Transport`/`Security` enums without restructuring.
 
 use anyhow::Result;
 use tokio::net::TcpStream;
 
 use crate::grpc::GrpcTransportConfig;
+use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::tls::TlsClientConfig;
 use crate::ws::WsTransportConfig;
+use crate::xhttp::XhttpTransportConfig;
 
 /// The security layer wrapping the raw TCP socket.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +51,10 @@ pub enum Transport {
     Ws(WsTransportConfig),
     /// gRPC (HTTP/2) transport (`network: grpc`).
     Grpc(GrpcTransportConfig),
+    /// XHTTP (HTTP/2, stream-one) transport (`network: xhttp`).
+    Xhttp(XhttpTransportConfig),
+    /// HTTP Upgrade transport (`network: ws` + `v2ray-http-upgrade`).
+    HttpUpgrade(HttpUpgradeTransportConfig),
 }
 
 /// Dial `server:port`, apply `security`, then `transport`, returning a
@@ -68,6 +74,8 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
         Transport::Tcp => secured,
         Transport::Ws(cfg) => Box::new(crate::ws::connect(secured, server, cfg).await?),
         Transport::Grpc(cfg) => Box::new(crate::grpc::connect(secured, server, over_tls, cfg).await?),
+        Transport::Xhttp(cfg) => Box::new(crate::xhttp::connect(secured, server, over_tls, cfg).await?),
+        Transport::HttpUpgrade(cfg) => Box::new(crate::httpupgrade::connect(secured, server, cfg).await?),
     };
 
     Ok(transported)

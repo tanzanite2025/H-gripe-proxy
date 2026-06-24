@@ -18,8 +18,8 @@ use futures_util::{Sink, Stream};
 use h2::{RecvStream, SendStream};
 use http::Response;
 use learn_gripe::{
-    GripeConfig, GripeKernel, GrpcTransportConfig, OutboundMode, Security, TlsClientConfig, Transport,
-    VlessOutboundConfig, WsTransportConfig,
+    GripeConfig, GripeKernel, GrpcTransportConfig, HttpUpgradeTransportConfig, OutboundMode, Security, TlsClientConfig,
+    Transport, VlessOutboundConfig, WsTransportConfig, XhttpMode, XhttpTransportConfig,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
@@ -528,6 +528,284 @@ async fn spawn_fake_vless_grpc_tls_server() -> SocketAddr {
     addr
 }
 
+// ---- HTTP Upgrade transport test helpers ----
+//
+// After the `101 Switching Protocols` handshake the connection is a raw byte
+// stream (no WebSocket framing), so the server replays `serve_vless` directly
+// over a thin wrapper that first surfaces any bytes pipelined behind the
+// request head.
+
+/// Wraps a stream, surfacing `prefix` bytes (read past the request head) before
+/// passing reads/writes straight through.
+struct ServerPrefixStream<S> {
+    inner: S,
+    prefix: Vec<u8>,
+    prefix_pos: usize,
+}
+
+impl<S> ServerPrefixStream<S> {
+    fn new(inner: S, prefix: Vec<u8>) -> Self {
+        Self {
+            inner,
+            prefix,
+            prefix_pos: 0,
+        }
+    }
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for ServerPrefixStream<S> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        if this.prefix_pos < this.prefix.len() {
+            let remaining = &this.prefix[this.prefix_pos..];
+            let n = remaining.len().min(buf.remaining());
+            buf.put_slice(&remaining[..n]);
+            this.prefix_pos += n;
+            return Poll::Ready(Ok(()));
+        }
+        Pin::new(&mut this.inner).poll_read(cx, buf)
+    }
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for ServerPrefixStream<S> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.get_mut().inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
+    }
+}
+
+async fn serve_httpupgrade<T>(mut io: T)
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let mut buf = Vec::new();
+    let mut tmp = [0u8; 256];
+    let header_end = loop {
+        let n = match io.read(&mut tmp).await {
+            Ok(0) | Err(_) => return,
+            Ok(n) => n,
+        };
+        buf.extend_from_slice(&tmp[..n]);
+        if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            break pos + 4;
+        }
+    };
+    let response = b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n";
+    if io.write_all(response).await.is_err() {
+        return;
+    }
+    let prefix = buf[header_end..].to_vec();
+    serve_vless(ServerPrefixStream::new(io, prefix)).await;
+}
+
+async fn spawn_fake_vless_httpupgrade_server() -> SocketAddr {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            tokio::spawn(serve_httpupgrade(tcp));
+        }
+    });
+    addr
+}
+
+async fn spawn_fake_vless_httpupgrade_tls_server() -> SocketAddr {
+    let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let key = rustls_pemfile::private_key(&mut TEST_KEY.as_bytes()).unwrap().unwrap();
+    let server_config = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .unwrap();
+    let acceptor = TlsAcceptor::from(Arc::new(server_config));
+
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                if let Ok(tls) = acceptor.accept(tcp).await {
+                    serve_httpupgrade(tls).await;
+                }
+            });
+        }
+    });
+    addr
+}
+
+// ---- XHTTP (stream-one) transport test helpers ----
+//
+// stream-one is a single full-duplex HTTP/2 POST carrying raw bytes both ways,
+// so the server-side adapter is the gRPC one minus the `Hunk` framing.
+
+struct XhttpServerStream {
+    send: SendStream<Bytes>,
+    recv: RecvStream,
+    write_buf: Bytes,
+    read_buf: Bytes,
+    recv_eof: bool,
+}
+
+impl XhttpServerStream {
+    fn new(send: SendStream<Bytes>, recv: RecvStream) -> Self {
+        Self {
+            send,
+            recv,
+            write_buf: Bytes::new(),
+            read_buf: Bytes::new(),
+            recv_eof: false,
+        }
+    }
+
+    fn poll_drain(&mut self, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        while !self.write_buf.is_empty() {
+            self.send.reserve_capacity(self.write_buf.len());
+            match ready!(self.send.poll_capacity(cx)) {
+                Some(Ok(cap)) => {
+                    let n = cap.min(self.write_buf.len());
+                    if n == 0 {
+                        return Poll::Pending;
+                    }
+                    let chunk = self.write_buf.split_to(n);
+                    self.send.send_data(chunk, false).map_err(grpc_io_err)?;
+                }
+                Some(Err(e)) => return Poll::Ready(Err(grpc_io_err(e))),
+                None => return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "xhttp send closed"))),
+            }
+        }
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncRead for XhttpServerStream {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        loop {
+            if !this.read_buf.is_empty() {
+                let n = this.read_buf.len().min(buf.remaining());
+                let chunk = this.read_buf.split_to(n);
+                buf.put_slice(&chunk);
+                return Poll::Ready(Ok(()));
+            }
+            if this.recv_eof {
+                return Poll::Ready(Ok(()));
+            }
+            match ready!(Pin::new(&mut this.recv).poll_data(cx)) {
+                Some(Ok(data)) => {
+                    let len = data.len();
+                    let _ = this.recv.flow_control().release_capacity(len);
+                    this.read_buf = data;
+                }
+                Some(Err(e)) => return Poll::Ready(Err(grpc_io_err(e))),
+                None => this.recv_eof = true,
+            }
+        }
+    }
+}
+
+impl AsyncWrite for XhttpServerStream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        this.write_buf = Bytes::copy_from_slice(buf);
+        match this.poll_drain(cx) {
+            Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+            Poll::Ready(Ok(())) | Poll::Pending => {}
+        }
+        Poll::Ready(Ok(buf.len()))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        self.get_mut().poll_drain(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        this.send.send_data(Bytes::new(), true).map_err(grpc_io_err)?;
+        Poll::Ready(Ok(()))
+    }
+}
+
+async fn serve_xhttp_connection<T>(io: T)
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let mut connection = match h2::server::handshake(io).await {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    while let Some(result) = connection.accept().await {
+        let (request, mut respond) = match result {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let recv = request.into_body();
+        let response = Response::builder()
+            .status(200)
+            .header("content-type", "application/octet-stream")
+            .body(())
+            .unwrap();
+        let send = match respond.send_response(response, false) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        tokio::spawn(serve_vless(XhttpServerStream::new(send, recv)));
+    }
+}
+
+async fn spawn_fake_vless_xhttp_server() -> SocketAddr {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            tokio::spawn(serve_xhttp_connection(tcp));
+        }
+    });
+    addr
+}
+
+async fn spawn_fake_vless_xhttp_tls_server() -> SocketAddr {
+    let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let key = rustls_pemfile::private_key(&mut TEST_KEY.as_bytes()).unwrap().unwrap();
+    let mut server_config =
+        rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .unwrap();
+    server_config.alpn_protocols = vec![b"h2".to_vec()];
+    let acceptor = TlsAcceptor::from(Arc::new(server_config));
+
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                if let Ok(tls) = acceptor.accept(tcp).await {
+                    serve_xhttp_connection(tls).await;
+                }
+            });
+        }
+    });
+    addr
+}
+
 async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
     let mut stream = TcpStream::connect(proxy).await.unwrap();
     stream.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
@@ -735,6 +1013,138 @@ async fn relays_through_grpc_tls_vless_outbound() {
     let mut buf = [0u8; 20];
     conn.read_exact(&mut buf).await.unwrap();
     assert_eq!(&buf, b"hello grpc tls vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_httpupgrade_vless_outbound() {
+    let server = spawn_fake_vless_httpupgrade_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::None,
+            transport: Transport::HttpUpgrade(HttpUpgradeTransportConfig {
+                path: "/up".to_string(),
+                host: None,
+                headers: Default::default(),
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello httpupgrade vless").await.unwrap();
+    let mut buf = [0u8; 23];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello httpupgrade vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_httpupgrade_tls_vless_outbound() {
+    let server = spawn_fake_vless_httpupgrade_tls_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Tls(TlsClientConfig {
+                server_name: Some("localhost".to_string()),
+                alpn: Vec::new(),
+                skip_cert_verify: true,
+            }),
+            transport: Transport::HttpUpgrade(HttpUpgradeTransportConfig {
+                path: "/up".to_string(),
+                host: Some("localhost".to_string()),
+                headers: Default::default(),
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello httpupgrade tls vless").await.unwrap();
+    let mut buf = [0u8; 27];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello httpupgrade tls vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_xhttp_vless_outbound() {
+    let server = spawn_fake_vless_xhttp_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::None,
+            transport: Transport::Xhttp(XhttpTransportConfig {
+                path: "/".to_string(),
+                host: None,
+                mode: XhttpMode::StreamOne,
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello xhttp vless").await.unwrap();
+    let mut buf = [0u8; 17];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello xhttp vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_xhttp_tls_vless_outbound() {
+    let server = spawn_fake_vless_xhttp_tls_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Tls(TlsClientConfig {
+                server_name: Some("localhost".to_string()),
+                alpn: vec!["h2".to_string()],
+                skip_cert_verify: true,
+            }),
+            transport: Transport::Xhttp(XhttpTransportConfig {
+                path: "/".to_string(),
+                host: Some("localhost".to_string()),
+                mode: XhttpMode::StreamOne,
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello xhttp tls vless").await.unwrap();
+    let mut buf = [0u8; 21];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello xhttp tls vless");
 
     handle.shutdown().await;
 }

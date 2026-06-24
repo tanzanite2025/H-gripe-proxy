@@ -3,8 +3,9 @@
 //! Implements the VLESS request/response framing only; the transport (tcp/ws)
 //! and security (none/tls) layers it runs over are provided by
 //! [`crate::transport`], so this module is purely the protocol layer. `tcp`,
-//! `ws` and `grpc` transports over `none`/`tls` security are supported today;
-//! `h2`/`xhttp` and REALITY land in follow-up work and are rejected by
+//! `ws`, `grpc`, `xhttp` (stream-one) and `httpupgrade` transports over
+//! `none`/`tls` security are supported today; `h2`, the multi-request xhttp
+//! modes and REALITY land in follow-up work and are rejected by
 //! [`VlessOutboundConfig::from_proxy`] rather than silently mis-encoded.
 //!
 //! Wire format (client → server request header):
@@ -26,11 +27,13 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
 use crate::grpc::GrpcTransportConfig;
+use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::proxy::{Network, ProxyEntry};
 use crate::tls::TlsClientConfig;
 use crate::transport::{self, Security, Transport};
 use crate::ws::WsTransportConfig;
+use crate::xhttp::{XhttpMode, XhttpTransportConfig};
 
 const VERSION: u8 = 0x00;
 const CMD_TCP: u8 = 0x01;
@@ -91,11 +94,14 @@ impl VlessOutboundConfig {
                 // The camouflage Host drives the handshake authority; keep the
                 // remaining headers for the request as-is.
                 let host = headers.remove("Host").or_else(|| headers.remove("host"));
-                Transport::Ws(WsTransportConfig {
-                    path: ws.path.unwrap_or_default(),
-                    host,
-                    headers,
-                })
+                let path = ws.path.unwrap_or_default();
+                // `v2ray-http-upgrade` selects the leaner HTTP-Upgrade transport
+                // (raw stream after `101`), not a WebSocket-framed one.
+                if ws.v2ray_http_upgrade.unwrap_or(false) {
+                    Transport::HttpUpgrade(HttpUpgradeTransportConfig { path, host, headers })
+                } else {
+                    Transport::Ws(WsTransportConfig { path, host, headers })
+                }
             }
             Some(Network::Grpc) => {
                 let grpc = opts.grpc_opts.clone().unwrap_or_default();
@@ -104,12 +110,28 @@ impl VlessOutboundConfig {
                     host: opts.servername.clone().or_else(|| opts.sni.clone()),
                 })
             }
+            Some(Network::Xhttp) => {
+                let xhttp = opts.xhttp_opts.clone().unwrap_or_default();
+                let mode = match xhttp.mode.as_deref() {
+                    None | Some("") | Some("auto") | Some("stream-one") => XhttpMode::StreamOne,
+                    Some(other) => bail!("vless: xhttp mode {other:?} not implemented yet (only stream-one)"),
+                };
+                Transport::Xhttp(XhttpTransportConfig {
+                    path: xhttp.path.unwrap_or_default(),
+                    host: xhttp
+                        .host
+                        .clone()
+                        .or_else(|| opts.servername.clone())
+                        .or_else(|| opts.sni.clone()),
+                    mode,
+                })
+            }
             Some(other) => bail!("vless: transport {other:?} not implemented yet"),
         };
 
-        // gRPC runs over HTTP/2; make sure the TLS handshake advertises `h2` so
-        // the server selects the right protocol.
-        if matches!(transport, Transport::Grpc(_))
+        // gRPC and XHTTP run over HTTP/2; make sure the TLS handshake advertises
+        // `h2` so the server selects the right protocol.
+        if matches!(transport, Transport::Grpc(_) | Transport::Xhttp(_))
             && let Security::Tls(ref mut tls) = security
             && !tls.alpn.iter().any(|p| p == "h2")
         {
