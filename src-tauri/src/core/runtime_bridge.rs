@@ -1,0 +1,100 @@
+use anyhow::Result;
+use serde_json::Value;
+use tauri_plugin_mihomo::models::{ConnectionId, LogLevel, Protocol, ProxyDelay};
+
+use crate::core::{handle::Handle, runtime_snapshot};
+
+pub async fn read_runtime_controller_transport() -> Protocol {
+    Handle::mihomo().await.protocol.clone()
+}
+
+pub async fn measure_runtime_proxy_delay(
+    proxy_name: &str,
+    test_url: &str,
+    timeout: u32,
+    group_name: Option<&str>,
+) -> Result<ProxyDelay> {
+    let result = Handle::mihomo()
+        .await
+        .delay_proxy_by_name(proxy_name, test_url, timeout)
+        .await;
+    let detail = Some(format!("proxy={proxy_name};url={test_url};timeout={timeout}"));
+    record_runtime_bridge_result("measure-runtime-proxy-delay", result.as_ref().map(|_| ()), detail);
+    let result = result?;
+    if let Some(group_name) = group_name.filter(|value| !value.is_empty()) {
+        runtime_snapshot::record_and_persist_runtime_proxy_delay(group_name, proxy_name, result.delay, test_url);
+    }
+    Ok(result)
+}
+
+pub async fn close_runtime_connection(connection_id: &str) -> Result<()> {
+    let result = Handle::mihomo().await.close_connection(connection_id).await;
+    record_runtime_bridge_result(
+        "close-runtime-connection",
+        result.as_ref().map(|_| ()),
+        Some(format!("connection_id={connection_id}")),
+    );
+    result?;
+    Ok(())
+}
+
+pub async fn connect_runtime_connections_stream<F>(on_message: F) -> Result<ConnectionId>
+where
+    F: Fn(Value) + Send + 'static,
+{
+    let result = Handle::mihomo().await.ws_connections(on_message).await;
+    record_runtime_bridge_result("connect-connections-stream", result.as_ref().map(|_| ()), None);
+    let connection_id = result?;
+    Ok(connection_id)
+}
+
+pub async fn connect_runtime_log_stream<F>(level: LogLevel, on_message: F) -> Result<ConnectionId>
+where
+    F: Fn(Value) + Send + 'static,
+{
+    let result = Handle::mihomo().await.ws_logs(level, on_message).await;
+    record_runtime_bridge_result(
+        "connect-log-stream",
+        result.as_ref().map(|_| ()),
+        Some(format!("level={level}")),
+    );
+    let connection_id = result?;
+    Ok(connection_id)
+}
+
+pub async fn disconnect_runtime_stream(connection_id: ConnectionId, close_code: Option<u64>) {
+    let result = Handle::mihomo().await.disconnect(connection_id, close_code).await;
+    record_runtime_bridge_result(
+        "disconnect-runtime-stream",
+        result.as_ref().map(|_| ()),
+        Some(format!("connection_id={connection_id}")),
+    );
+    if let Err(error) = result {
+        log::debug!("failed to disconnect runtime stream {connection_id}: {error}");
+    }
+}
+
+pub async fn read_runtime_obfuscation_stats() -> Result<Value> {
+    let stats = Handle::mihomo().await.get_obfuscation_stats().await?;
+    Ok(stats)
+}
+
+pub async fn reset_runtime_obfuscation_stats() -> Result<()> {
+    let result = Handle::mihomo().await.reset_obfuscation_stats().await;
+    record_runtime_bridge_result("reset-obfuscation-stats", result.as_ref().map(|_| ()), None);
+    result?;
+    Ok(())
+}
+
+fn record_runtime_bridge_result<E: std::fmt::Display>(
+    kind: &str,
+    result: std::result::Result<(), &E>,
+    detail: Option<String>,
+) {
+    runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+        kind,
+        result.is_ok(),
+        result.err().map(ToString::to_string),
+        detail,
+    );
+}

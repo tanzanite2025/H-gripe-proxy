@@ -1,4 +1,3 @@
-use crate::{Type, core::handle, logging};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
@@ -80,17 +79,15 @@ pub async fn connect_connections_stream() -> Result<MihomoWsEventStream<Connecti
     let (message_tx, message_rx) =
         mpsc::channel::<InternalWsEvent<ConnectionSnapshotEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
 
-    let connection_id = handle::Handle::mihomo()
-        .await
-        .ws_connections({
-            let message_tx = message_tx.clone();
-            move |message| {
-                if let Some(event) = parse_connections_event(message) {
-                    try_send_internal_event(&message_tx, event);
-                }
+    let connection_id = crate::core::runtime_bridge::connect_runtime_connections_stream({
+        let message_tx = message_tx.clone();
+        move |message| {
+            if let Some(event) = parse_connections_event(message) {
+                try_send_internal_event(&message_tx, event);
             }
-        })
-        .await?;
+        }
+    })
+    .await?;
     drop(message_tx);
     Ok(MihomoWsEventStream {
         connection_id,
@@ -150,11 +147,5 @@ impl<T> MihomoWsEventStream<T> {
 /// # Arguments
 /// * `connection_id` - 目标连接 ID
 pub async fn disconnect_connection(connection_id: ConnectionId) {
-    if let Err(err) = handle::Handle::mihomo()
-        .await
-        .disconnect(connection_id, Some(MIHOMO_WS_STREAM_CLOSE_CODE))
-        .await
-    {
-        logging!(debug, Type::Tray, "断开 Mihomo WebSocket 连接失败: {err}");
-    }
+    crate::core::runtime_bridge::disconnect_runtime_stream(connection_id, Some(MIHOMO_WS_STREAM_CLOSE_CODE)).await;
 }

@@ -253,14 +253,9 @@ impl ObfuscationScheduler {
         self.config.read().await.clone()
     }
 
-    /// 从 Go 内核 API 获取真实混淆统计
+    /// 从运行时桥接层获取真实混淆统计
     async fn fetch_stats_from_mihomo() -> Result<ObfuscationStats> {
-        use crate::core::handle;
-        let mihomo = handle::Handle::mihomo().await;
-        let raw = mihomo
-            .get_obfuscation_stats()
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let raw = crate::core::runtime_bridge::read_runtime_obfuscation_stats().await?;
         let obf = &raw["obfuscation"];
         let tls = &raw["tls"];
         Ok(ObfuscationStats {
@@ -274,14 +269,9 @@ impl ObfuscationScheduler {
         })
     }
 
-    /// 通过 Go 内核 API 重置统计
+    /// 通过运行时桥接层重置统计
     async fn reset_stats_via_mihomo() -> Result<()> {
-        use crate::core::handle;
-        let mihomo = handle::Handle::mihomo().await;
-        mihomo
-            .reset_obfuscation_stats()
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))
+        crate::core::runtime_bridge::reset_runtime_obfuscation_stats().await
     }
 }
 

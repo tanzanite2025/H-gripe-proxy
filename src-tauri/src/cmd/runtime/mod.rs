@@ -5,7 +5,6 @@ use crate::{
     core::{
         CoreManager,
         current_egress_identity::{CurrentEgressIdentity, build_current_egress_identity},
-        handle::Handle,
         kernel_runtime::{
             KernelAdapterCapabilityReport, KernelConnectionSessionShadowReport, KernelDnsShadowEvidenceReport,
             KernelIsolatedListenerPreflightReport, KernelIsolatedTestListenerSmokeEvidenceReport,
@@ -510,20 +509,9 @@ pub async fn delay_runtime_proxy(
     timeout: u32,
     group_name: Option<String>,
 ) -> CmdResult<ProxyDelay> {
-    let result = Handle::mihomo()
+    crate::core::runtime_bridge::measure_runtime_proxy_delay(&proxy_name, &test_url, timeout, group_name.as_deref())
         .await
-        .delay_proxy_by_name(&proxy_name, &test_url, timeout)
-        .await
-        .stringify_err()?;
-    if let Some(group_name) = group_name.filter(|value| !value.is_empty()) {
-        crate::core::runtime_snapshot::record_and_persist_runtime_proxy_delay(
-            &group_name,
-            &proxy_name,
-            result.delay,
-            &test_url,
-        );
-    }
-    Ok(result)
+        .stringify_err()
 }
 
 #[tauri::command]

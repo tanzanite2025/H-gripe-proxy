@@ -48,12 +48,10 @@ impl LogMonitorController {
                     break;
                 }
 
-                let mihomo = handle::Handle::mihomo().await;
-                match mihomo
-                    .ws_logs(level, |payload| {
-                        handle::Handle::send_core_log(payload);
-                    })
-                    .await
+                match crate::core::runtime_bridge::connect_runtime_log_stream(level, |payload| {
+                    handle::Handle::send_core_log(payload);
+                })
+                .await
                 {
                     Ok(id) => {
                         *conn_id.lock() = Some(id);
