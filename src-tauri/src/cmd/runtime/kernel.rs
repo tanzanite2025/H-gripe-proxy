@@ -6,31 +6,32 @@ use crate::core::kernel_runtime::{
     RustEncryptedProtocolsBundleReport, RustEncryptedProxyProtocolPreflightReport,
     RustEncryptedProxySessionExpansionReport, RustFallbackRetirementReadinessLockReport,
     RustFallbackRetirementReadinessManifest, RustGeoipDatabaseBlockerReport,
-    RustGuardedProductionDefaultForwardingApplyReport, RustHttpConnectProxyAdapterReport,
-    RustManualDefaultPathRemovalReviewReport, RustMihomoFallbackRetirementBundleReport,
-    RustOperatorDefaultPathCutoverReport, RustPacketLeakHoldBlockerReport, RustPluginBinaryCompatibilityBlockerReport,
-    RustPluginProcessSupervisionBlockerReport, RustProductionDefaultForwardingCutoverApprovalReport,
-    RustProtocolAdapterForwardingExpansionReport, RustProtocolDefaultPathBlockerReport,
-    RustProtocolForwardingSubsetPreflightReport, RustProtocolForwardingSubsetSmokeEvidenceReport,
-    RustProtocolForwardingSubsetStartReport, RustProtocolForwardingSubsetStatusReport,
-    RustProtocolForwardingSubsetStopReport, RustQuicUdpProfileBlockerReport, RustRemoteAdapterTransportExpansionReport,
-    RustRouteMutationRollbackBlockerReport, RustRoutePacketCaptureBlockerReport, RustRuntimeRealCanaryEvidenceReport,
-    RustShadowsocksAeadAdapterCanaryReport, RustShadowsocksAeadAdapterExecutionReport,
-    RustSidecarIndependentRollbackReport, RustSocksAuthExecutionReport, RustSocksBindExecutionReport,
-    RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport, RustSocksUdpDefaultBlockerReport,
-    RustSocksUdpFragmentsExecutionReport, RustTunDeviceLifecycleBlockerReport, RustTunPacketCaptureHoldBundleReport,
-    RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
+    RustGuardedProductionDefaultForwardingApplyReport, RustGuardedTunPacketCaptureApplyReport,
+    RustHttpConnectProxyAdapterReport, RustManualDefaultPathRemovalReviewReport,
+    RustMihomoFallbackRetirementBundleReport, RustOperatorDefaultPathCutoverReport, RustPacketLeakHoldBlockerReport,
+    RustPluginBinaryCompatibilityBlockerReport, RustPluginProcessSupervisionBlockerReport,
+    RustProductionDefaultForwardingCutoverApprovalReport, RustProtocolAdapterForwardingExpansionReport,
+    RustProtocolDefaultPathBlockerReport, RustProtocolForwardingSubsetPreflightReport,
+    RustProtocolForwardingSubsetSmokeEvidenceReport, RustProtocolForwardingSubsetStartReport,
+    RustProtocolForwardingSubsetStatusReport, RustProtocolForwardingSubsetStopReport, RustQuicUdpProfileBlockerReport,
+    RustRemoteAdapterTransportExpansionReport, RustRouteMutationRollbackBlockerReport,
+    RustRoutePacketCaptureBlockerReport, RustRuntimeRealCanaryEvidenceReport, RustShadowsocksAeadAdapterCanaryReport,
+    RustShadowsocksAeadAdapterExecutionReport, RustSidecarIndependentRollbackReport, RustSocksAuthExecutionReport,
+    RustSocksBindExecutionReport, RustSocksTcpConnectExecutionReport, RustSocksUdpAssociateExecutionReport,
+    RustSocksUdpDefaultBlockerReport, RustSocksUdpFragmentsExecutionReport, RustTunDeviceLifecycleBlockerReport,
+    RustTunPacketCaptureHoldBundleReport, RustTunSystemProxyParityApplyReport, RustTunSystemProxyParityPreflightReport,
     RustTunSystemProxyParityRollbackReport, RustTunTransparentRoutingExecutionReport,
     RustUdpPluginTransportBundleReport, apply_rust_tun_system_proxy_parity, closeout_rust_default_data_plane,
     execute_mihomo_fallback_retirement, go_to_rust_migration_final_review, lock_rust_fallback_retirement_readiness,
     mihomo_fallback_retirement_execution_plan, rollback_guarded_production_default_forwarding_apply,
-    rollback_mihomo_fallback_retirement_execution, rollback_rust_tun_system_proxy_parity,
-    rust_default_data_plane_closeout_plan, rust_default_forwarding_hold_blocker_reduction,
-    rust_dns_cutover_hold_blocker_reduction, rust_dns_default_path_blocker_reduction,
-    rust_dns_system_resolver_leak_blocker_reduction, rust_encrypted_protocol_default_blocker_reduction,
-    rust_encrypted_protocols_bundle_execution, rust_encrypted_proxy_protocol_preflight_evidence,
-    rust_encrypted_proxy_session_expansion, rust_fallback_retirement_readiness_manifest,
-    rust_geoip_database_blocker_reduction, rust_guarded_production_default_forwarding_apply,
+    rollback_guarded_tun_packet_capture_apply, rollback_mihomo_fallback_retirement_execution,
+    rollback_rust_tun_system_proxy_parity, rust_default_data_plane_closeout_plan,
+    rust_default_forwarding_hold_blocker_reduction, rust_dns_cutover_hold_blocker_reduction,
+    rust_dns_default_path_blocker_reduction, rust_dns_system_resolver_leak_blocker_reduction,
+    rust_encrypted_protocol_default_blocker_reduction, rust_encrypted_protocols_bundle_execution,
+    rust_encrypted_proxy_protocol_preflight_evidence, rust_encrypted_proxy_session_expansion,
+    rust_fallback_retirement_readiness_manifest, rust_geoip_database_blocker_reduction,
+    rust_guarded_production_default_forwarding_apply, rust_guarded_tun_packet_capture_apply,
     rust_http_connect_proxy_adapter_evidence, rust_manual_default_path_removal_review,
     rust_mihomo_fallback_retirement_bundle_execution, rust_operator_default_path_cutover,
     rust_packet_leak_hold_blocker_reduction, rust_plugin_binary_compatibility_blocker_reduction,
@@ -629,6 +630,32 @@ pub async fn run_runtime_kernel_rust_dns_system_resolver_leak_blocker_reduction(
     explicit_opt_in: bool,
 ) -> CmdResult<RustDnsSystemResolverLeakBlockerReport> {
     rust_dns_system_resolver_leak_blocker_reduction(explicit_opt_in)
+        .await
+        .stringify_err()
+}
+
+#[tauri::command]
+pub async fn run_runtime_kernel_rust_guarded_tun_packet_capture_apply(
+    explicit_opt_in: bool,
+    operator_approved: bool,
+    commit_apply: bool,
+    verify_post_apply_hold: bool,
+) -> CmdResult<RustGuardedTunPacketCaptureApplyReport> {
+    Box::pin(rust_guarded_tun_packet_capture_apply(
+        explicit_opt_in,
+        operator_approved,
+        commit_apply,
+        verify_post_apply_hold,
+    ))
+    .await
+    .stringify_err()
+}
+
+#[tauri::command]
+pub async fn rollback_runtime_kernel_rust_guarded_tun_packet_capture_apply(
+    explicit_opt_in: bool,
+) -> CmdResult<RustGuardedTunPacketCaptureApplyReport> {
+    Box::pin(rollback_guarded_tun_packet_capture_apply(explicit_opt_in))
         .await
         .stringify_err()
 }

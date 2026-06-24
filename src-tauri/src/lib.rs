@@ -270,6 +270,8 @@ mod app_init {
             cmd::runtime::kernel::run_runtime_kernel_rust_socks_udp_fragments_execution,
             cmd::runtime::kernel::run_runtime_kernel_rust_udp_plugin_transport_bundle,
             cmd::runtime::kernel::run_runtime_kernel_rust_tun_packet_capture_hold_bundle,
+            cmd::runtime::kernel::run_runtime_kernel_rust_guarded_tun_packet_capture_apply,
+            cmd::runtime::kernel::rollback_runtime_kernel_rust_guarded_tun_packet_capture_apply,
             cmd::runtime::kernel::run_runtime_kernel_rust_mihomo_fallback_retirement_bundle,
             cmd::runtime::kernel::run_runtime_kernel_go_to_rust_migration_final_review,
             cmd::runtime::kernel::run_runtime_kernel_rust_manual_default_path_removal_review,
