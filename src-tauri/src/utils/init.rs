@@ -384,11 +384,6 @@ async fn initialize_config_files() -> Result<()> {
         logging!(info, Type::Setup, "Created china rules config at {:?}", path);
     }
 
-    // 验证并修正verge配置
-    IVerge::validate_and_fix_config()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to validate verge config: {}", e))?;
-
     Ok(())
 }
 

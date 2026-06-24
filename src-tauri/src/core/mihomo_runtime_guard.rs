@@ -1,14 +1,12 @@
 use anyhow::{Result, anyhow};
 use smartstring::alias::String;
-use std::time::Duration;
 use tauri_plugin_mihomo::Error as MihomoError;
 use tauri_plugin_mihomo::MihomoExt as _;
 use tokio::sync::Mutex;
 
 use once_cell::sync::Lazy;
 
-use crate::core::{CoreManager, handle};
-use clash_verge_logging::{Type, logging};
+use crate::core::handle;
 
 static MIHOMO_RECOVERY_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -20,38 +18,9 @@ pub async fn ensure_mihomo_core_ready() -> Result<()> {
     let _guard = MIHOMO_RECOVERY_LOCK.lock().await;
 
     handle::Handle::sync_mihomo_controller_state().await?;
-
-    match probe_mihomo_ipc().await {
-        Ok(()) => return Ok(()),
-        Err(err) if !CoreManager::is_mihomo_ipc_unavailable(&err) => {
-            return Err(anyhow!("Mihomo IPC probe failed: {err}"));
-        }
-        Err(err) => {
-            let running_mode = CoreManager::global().get_running_mode();
-            logging!(
-                warn,
-                Type::Core,
-                "Mihomo IPC is unavailable while checking readiness (mode: {}). Attempting recovery: {}",
-                running_mode,
-                err
-            );
-
-            match &*running_mode {
-                crate::core::manager::RunningMode::NotRunning => {
-                    CoreManager::global().start_core().await?;
-                }
-                crate::core::manager::RunningMode::Sidecar | crate::core::manager::RunningMode::Service => {
-                    CoreManager::global().restart_core().await?;
-                }
-            }
-        }
-    }
-
-    tokio::time::sleep(Duration::from_millis(250)).await;
-    handle::Handle::sync_mihomo_controller_state().await?;
     probe_mihomo_ipc()
         .await
-        .map_err(|err| anyhow!("Mihomo IPC is still unavailable after recovery: {err}"))?;
+        .map_err(|err| anyhow!("Mihomo IPC recovery is retired; Rust runtime must be ready: {err}"))?;
     handle::Handle::refresh_clash();
 
     Ok(())

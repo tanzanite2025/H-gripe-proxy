@@ -302,13 +302,6 @@ pub fn service_path() -> Result<PathBuf> {
     Ok(res_dir.join("clash-verge-service.exe"))
 }
 
-pub fn sidecar_log_dir() -> Result<PathBuf> {
-    let log_dir = app_logs_dir()?.join("sidecar");
-    let _ = std::fs::create_dir_all(&log_dir);
-
-    Ok(log_dir)
-}
-
 pub fn service_log_dir() -> Result<PathBuf> {
     let log_dir = app_logs_dir()?.join("service");
     let _ = std::fs::create_dir_all(&log_dir);
@@ -319,7 +312,7 @@ pub fn service_log_dir() -> Result<PathBuf> {
 pub fn clash_latest_log() -> Result<PathBuf> {
     match *CoreManager::global().get_running_mode() {
         RunningMode::Service => Ok(service_log_dir()?.join("service_latest.log")),
-        RunningMode::Sidecar | RunningMode::NotRunning => Ok(sidecar_log_dir()?.join("sidecar_latest.log")),
+        RunningMode::NotRunning => Ok(app_logs_dir()?.join("latest.log")),
     }
 }
 

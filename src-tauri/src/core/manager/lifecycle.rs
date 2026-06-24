@@ -17,10 +17,11 @@ impl CoreManager {
         }
 
         match *self.get_running_mode() {
-            RunningMode::Service => self.start_core_by_service().await,
-            RunningMode::Sidecar => self.start_core_by_sidecar().await,
+            RunningMode::Service => Err(anyhow!(
+                "Mihomo service startup is retired; use the Rust runtime startup path"
+            )),
             RunningMode::NotRunning => Err(anyhow!(
-                "Mihomo sidecar startup is retired and no service/Rust runtime is ready"
+                "Mihomo runtime startup is retired and Rust runtime startup is not ready"
             )),
         }
     }
@@ -32,12 +33,7 @@ impl CoreManager {
         }
 
         match *self.get_running_mode() {
-            RunningMode::Service => self.stop_core_by_service().await,
-            RunningMode::Sidecar => {
-                self.stop_core_by_sidecar();
-                Ok(())
-            }
-            RunningMode::NotRunning => Ok(()),
+            RunningMode::Service | RunningMode::NotRunning => Ok(()),
         }
     }
 
@@ -58,17 +54,7 @@ impl CoreManager {
         #[cfg(target_os = "windows")]
         self.enforce_tun_fail_closed_if_needed().await?;
 
-        #[cfg(target_os = "windows")]
-        let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
-        let value = SERVICE_MANAGER.lock().await.current();
-        let mode = match value {
-            #[cfg(target_os = "windows")]
-            ServiceStatus::Ready if tun_enabled => RunningMode::NotRunning,
-            ServiceStatus::Ready => RunningMode::NotRunning,
-            _ => RunningMode::NotRunning,
-        };
-
-        self.set_running_mode(mode);
+        self.set_running_mode(RunningMode::NotRunning);
         Ok(())
     }
 

@@ -1,15 +1,9 @@
 use crate::{config::Config, core::tray::Tray, utils::dirs};
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging, logging_error};
-use compact_str::CompactString;
 use once_cell::sync::Lazy;
-use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
-    process::Command as StdCommand,
-    time::Duration,
-};
+use std::{borrow::Cow, path::Path, process::Command as StdCommand, time::Duration};
 use tokio::sync::Mutex;
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::ERROR_PIPE_BUSY;
@@ -334,57 +328,6 @@ fn force_reinstall_service() -> Result<()> {
         logging!(error, Type::Service, "强制重装服务失败: {}", err);
         err
     })
-}
-
-/// 尝试使用服务启动core
-pub(super) async fn start_with_existing_service(_config_file: &PathBuf) -> Result<()> {
-    logging!(
-        warn,
-        Type::Service,
-        "Mihomo service core startup was retired; service remains available only for stop/log/rollback IPC"
-    );
-    bail!("Mihomo service core startup was retired; use the Rust runtime startup path")
-}
-
-// 以服务启动core
-pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
-    logging!(info, Type::Service, "Mihomo service core startup retired");
-    start_with_existing_service(config_file).await
-}
-
-pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
-    logging!(info, Type::Service, "正在获取服务模式下的 Clash 日志");
-
-    let response = clash_verge_service_ipc::get_clash_logs()
-        .await
-        .context("无法连接到服务组件")?;
-
-    if response.code > 0 {
-        let err_msg = response.message;
-        logging!(error, Type::Service, "获取服务模式下的 Clash 日志失败: {}", err_msg);
-        bail!(err_msg);
-    }
-
-    logging!(info, Type::Service, "成功获取服务模式下的 Clash 日志");
-    Ok(response.data.unwrap_or_default())
-}
-
-/// 通过服务停止core
-pub(super) async fn stop_core_by_service() -> Result<()> {
-    logging!(info, Type::Service, "通过服务停止核心 (IPC)");
-
-    let response = clash_verge_service_ipc::stop_clash()
-        .await
-        .context("无法连接到服务组件")?;
-
-    if response.code > 0 {
-        let err_msg = response.message;
-        logging!(error, Type::Service, "停止核心失败: {}", err_msg);
-        bail!(err_msg);
-    }
-
-    logging!(info, Type::Service, "服务成功停止核心");
-    Ok(())
 }
 
 /// 检查服务是否正在运行
