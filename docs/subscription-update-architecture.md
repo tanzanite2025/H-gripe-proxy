@@ -50,7 +50,7 @@ Current status:
 | Area | Status | Notes |
 | --- | --- | --- |
 | Typed source config | Done | `SubscriptionSourceConfig` is stored in `subscriptions/state.yaml` and profile commands keep it current. |
-| Transport planning | Done | `subscription::transport::TransportPlan` explains direct / local Mihomo / system proxy candidates. |
+| Transport planning | Done | `subscription::transport::TransportPlan` explains direct / local-proxy / system-proxy candidates (the local-proxy candidate uses the running kernel's mixed port). |
 | Fetch / decode / artifact materialization | Done | Clash YAML payloads are fetched, format-detected, normalized, diagnosed, and written under artifact directories. |
 | Artifact readers / cleanup | Done | Diagnostics, metadata, content, summaries, event timeline, and retention cleanup are exposed. |
 | Typed executor/state machine | Done | `SubscriptionUpdateExecutor` owns source config → transport → fetch retry → decode → materialize artifact. |
