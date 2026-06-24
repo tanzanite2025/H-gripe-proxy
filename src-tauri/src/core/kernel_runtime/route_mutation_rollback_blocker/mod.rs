@@ -439,8 +439,12 @@ fn evidence_dir() -> Result<std::path::PathBuf> {
     Ok(dirs::app_runtime_dir()?.join(COMPONENT))
 }
 
-fn evidence_path() -> Result<std::path::PathBuf> {
+pub fn rust_route_mutation_rollback_blocker_evidence_path() -> Result<std::path::PathBuf> {
     Ok(evidence_dir()?.join(EVIDENCE_FILE))
+}
+
+fn evidence_path() -> Result<std::path::PathBuf> {
+    rust_route_mutation_rollback_blocker_evidence_path()
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {
