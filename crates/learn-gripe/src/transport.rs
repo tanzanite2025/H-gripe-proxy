@@ -19,14 +19,15 @@
 //! it, so adding a protocol never touches transport code and adding a transport
 //! never touches protocol code.
 //!
-//! This slice implements `tcp`, `ws`, `grpc`, `xhttp` and `httpupgrade`
-//! transports over `none`/`tls` security. `h2` and `reality` land in follow-ups
-//! and slot into the same `Transport`/`Security` enums without restructuring.
+//! This slice implements `tcp`, `ws`, `grpc`, `xhttp`, `httpupgrade` and `h2`
+//! transports over `none`/`tls` security. `reality` lands in a follow-up and
+//! slots into the same `Transport`/`Security` enums without restructuring.
 
 use anyhow::Result;
 use tokio::net::TcpStream;
 
 use crate::grpc::GrpcTransportConfig;
+use crate::http2::H2TransportConfig;
 use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::tls::TlsClientConfig;
@@ -55,6 +56,8 @@ pub enum Transport {
     Xhttp(XhttpTransportConfig),
     /// HTTP Upgrade transport (`network: ws` + `v2ray-http-upgrade`).
     HttpUpgrade(HttpUpgradeTransportConfig),
+    /// HTTP/2 transport (`network: h2`); always over TLS.
+    H2(H2TransportConfig),
 }
 
 /// Dial `server:port`, apply `security`, then `transport`, returning a
@@ -76,6 +79,7 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
         Transport::Grpc(cfg) => Box::new(crate::grpc::connect(secured, server, over_tls, cfg).await?),
         Transport::Xhttp(cfg) => Box::new(crate::xhttp::connect(secured, server, over_tls, cfg).await?),
         Transport::HttpUpgrade(cfg) => Box::new(crate::httpupgrade::connect(secured, server, cfg).await?),
+        Transport::H2(cfg) => Box::new(crate::http2::connect(secured, server, cfg).await?),
     };
 
     Ok(transported)

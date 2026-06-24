@@ -18,8 +18,8 @@ use futures_util::{Sink, Stream};
 use h2::{RecvStream, SendStream};
 use http::Response;
 use learn_gripe::{
-    GripeConfig, GripeKernel, GrpcTransportConfig, HttpUpgradeTransportConfig, OutboundMode, Security, TlsClientConfig,
-    Transport, VlessOutboundConfig, WsTransportConfig, XhttpMode, XhttpTransportConfig,
+    GripeConfig, GripeKernel, GrpcTransportConfig, H2TransportConfig, HttpUpgradeTransportConfig, OutboundMode,
+    Security, TlsClientConfig, Transport, VlessOutboundConfig, WsTransportConfig, XhttpMode, XhttpTransportConfig,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
@@ -806,6 +806,14 @@ async fn spawn_fake_vless_xhttp_tls_server() -> SocketAddr {
     addr
 }
 
+// The `h2` transport is byte-stream-identical to xhttp `stream-one` (it only
+// swaps `POST` for `PUT`), and the fake server's accept loop is method-agnostic,
+// so the h2 TLS server reuses `serve_xhttp_connection`. `h2` is TLS-mandatory,
+// hence no plaintext variant.
+async fn spawn_fake_vless_h2_tls_server() -> SocketAddr {
+    spawn_fake_vless_xhttp_tls_server().await
+}
+
 async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
     let mut stream = TcpStream::connect(proxy).await.unwrap();
     stream.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
@@ -1145,6 +1153,40 @@ async fn relays_through_xhttp_tls_vless_outbound() {
     let mut buf = [0u8; 21];
     conn.read_exact(&mut buf).await.unwrap();
     assert_eq!(&buf, b"hello xhttp tls vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_h2_tls_vless_outbound() {
+    let server = spawn_fake_vless_h2_tls_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Tls(TlsClientConfig {
+                server_name: Some("localhost".to_string()),
+                alpn: vec!["h2".to_string()],
+                skip_cert_verify: true,
+            }),
+            transport: Transport::H2(H2TransportConfig {
+                path: "/".to_string(),
+                host: Some("localhost".to_string()),
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello h2 tls vless").await.unwrap();
+    let mut buf = [0u8; 18];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello h2 tls vless");
 
     handle.shutdown().await;
 }
