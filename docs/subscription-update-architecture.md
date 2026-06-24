@@ -57,7 +57,7 @@ Current status:
 | Runtime candidate validation | Done | Current subscription updates validate a generated runtime candidate from artifact + source config before publish. |
 | Artifact publish pointer | Done | `PublishArtifact` cuts `active_artifact_version` after validation and rolls it back if activation later fails. |
 | Active artifact consumption | Done | Current subscription updates validate candidate artifacts and activate runtime from `active_artifact_version` / `normalized.yaml`. |
-| Runtime activation replacement | Done for update path | The success path feeds `CoreManager::update_config_without_restart_with_force(...)` through an active-artifact-backed runtime source. |
+| Runtime activation replacement | Done for update path | The success path feeds `runtime_lifecycle::update_runtime_config_with_restart_boundary(...)` through an active-artifact-backed runtime source. |
 | Redundant storage removal | In progress | Remote update source-of-truth is now subscription state; `profiles.yaml` remains a UI selection/list adapter only. |
 
 ## Architecture Principles

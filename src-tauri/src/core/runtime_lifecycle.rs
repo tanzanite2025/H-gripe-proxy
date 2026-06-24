@@ -40,11 +40,9 @@ pub async fn update_runtime_config_forced(reason: &str) -> Result<ValidationOutc
     result
 }
 
-pub async fn update_runtime_config_without_restart(force: bool, reason: &str) -> Result<ValidationOutcome> {
-    let result = CoreManager::global()
-        .update_config_without_restart_with_force(force)
-        .await;
-    record_runtime_config_update_outcome("update-runtime-config-without-restart", &result, reason);
+pub async fn update_runtime_config_with_restart_boundary(force: bool, reason: &str) -> Result<ValidationOutcome> {
+    let result = CoreManager::global().update_config_with_force(force).await;
+    record_runtime_config_update_outcome("update-runtime-config-restart-boundary", &result, reason);
     result
 }
 
