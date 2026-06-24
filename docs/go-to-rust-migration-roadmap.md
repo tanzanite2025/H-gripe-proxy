@@ -112,30 +112,22 @@ persisted evidence:
 
 ### Default future PR shape
 
-The next useful migration PR should be one `mihomo-read-api-retirement` bundle,
-not one PR per getter. It should move all related read-only plugin callsites
-behind Rust-owned runtime snapshots unless the diff becomes too large to review.
+The `mihomo-read-api-retirement` bundle is complete enough that follow-up work
+should not add another isolated getter wrapper. The next useful migration PR
+shape is a `runtime-bridge-closeout` bundle: collect the remaining non-snapshot
+Mihomo IPC surfaces behind one Rust-owned bridge, then retire direct consumer
+callers in the same PR.
 
 Minimum acceptable scope for that bundle:
 
-- Add or extend the typed Rust snapshot/cache source that owns runtime status
-  readback, stale-state handling, audit metadata, and fallback evidence.
-- Replace command-facing reads together: version, base config, DNS metrics,
-  engine/perf/buffer-pool stats, hot-reload/XDP status, rule traffic, and TLS
-  fingerprint stats.
-- Replace internal observation reads together: connections, proxies, and rules
-  consumed by traffic reporting, connection metrics, runtime core inventory, and
-  subscription/rule diagnostics.
-- Keep frontend view-model/reporting updates in the same PR when command
-  contracts change.
-- Delete, bypass, or clearly demote the retired `tauri_plugin_mihomo` getter
-  callsites in the same PR that adds the Rust-owned replacement path.
-
-If this is too large for a single review, split it into at most two PRs:
-
-1. `read-api-runtime-snapshot`: snapshot ingress plus command-facing reads.
-2. `read-api-observation-closeout`: connections/proxies/rules consumers,
-   diagnostics, tests, and closeout evidence.
+- Add a typed Rust bridge for remaining stream, latency-probe, close-connection,
+  controller-transport, and obfuscation stats/reset calls.
+- Persist bridge lifecycle evidence for operations that mutate, open, close, or
+  reset runtime state.
+- Replace command-facing and monitor-facing direct `Handle::mihomo()` callsites
+  together, including connection/log streams and traffic obfuscation stats.
+- Leave `core::handle` plus the Rust-owned snapshot/bridge modules as the only
+  places allowed to touch `tauri_plugin_mihomo` directly.
 
 Anything smaller is maintenance, not roadmap progress.
 

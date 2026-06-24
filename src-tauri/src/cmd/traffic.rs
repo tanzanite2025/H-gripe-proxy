@@ -3,7 +3,7 @@ use super::{CmdResult, StringifyErr as _};
  * 流量功能 Tauri 命令
  */
 use crate::{
-    core::{connection_metrics::ConnectionMetricsSnapshot, handle::Handle},
+    core::connection_metrics::ConnectionMetricsSnapshot,
     traffic::{ObfuscationProfile, ObfuscationStats, TrafficObfuscationConfig},
 };
 use tauri_plugin_mihomo::models::Connections;
@@ -92,9 +92,7 @@ pub async fn get_runtime_connections() -> CmdResult<Connections> {
 
 #[tauri::command]
 pub async fn close_runtime_connection(connection_id: String) -> CmdResult<()> {
-    Handle::mihomo()
-        .await
-        .close_connection(&connection_id)
+    crate::core::runtime_bridge::close_runtime_connection(&connection_id)
         .await
         .stringify_err()
 }

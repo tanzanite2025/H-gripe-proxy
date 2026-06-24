@@ -26,7 +26,9 @@ impl KernelRuntime for MihomoKernelRuntime {
         KernelRuntimeStatus {
             runtime_id: self.runtime_id().into(),
             active_kernel: active_kernel_label(),
-            controller_transport: controller_transport_label(&Handle::mihomo().await.protocol),
+            controller_transport: controller_transport_label(
+                &crate::core::runtime_bridge::read_runtime_controller_transport().await,
+            ),
             mutates_runtime: false,
             mihomo_fallback: true,
         }

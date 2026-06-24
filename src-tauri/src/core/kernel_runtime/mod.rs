@@ -24,7 +24,6 @@ use crate::{
     core::{
         CoreManager,
         dns_runtime::dns_default_runtime_shadow_evidence,
-        handle::Handle,
         manager::RunningMode,
         runtime_snapshot::{build_proxies_from_runtime_config, build_rules_from_runtime_config},
     },

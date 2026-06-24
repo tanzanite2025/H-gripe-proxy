@@ -32,6 +32,7 @@ mod notification;
 pub mod residential_verification;
 pub mod rule_engine;
 pub mod rule_geodata;
+pub mod runtime_bridge;
 pub mod runtime_diagnostics;
 pub mod runtime_snapshot;
 pub mod runtime_status;
