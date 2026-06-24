@@ -19,13 +19,14 @@
 //! it, so adding a protocol never touches transport code and adding a transport
 //! never touches protocol code.
 //!
-//! This slice implements `tcp` and `ws` transports over `none`/`tls` security.
-//! `grpc`/`h2`/`xhttp`/`httpupgrade` and `reality` are represented in the type
-//! system as explicit "not yet" arms so the wiring is ready for follow-ups.
+//! This slice implements `tcp`, `ws` and `grpc` transports over `none`/`tls`
+//! security. `h2`/`xhttp`/`httpupgrade` and `reality` land in follow-ups and
+//! slot into the same `Transport`/`Security` enums without restructuring.
 
 use anyhow::Result;
 use tokio::net::TcpStream;
 
+use crate::grpc::GrpcTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::tls::TlsClientConfig;
 use crate::ws::WsTransportConfig;
@@ -46,6 +47,8 @@ pub enum Transport {
     Tcp,
     /// WebSocket transport (`network: ws`).
     Ws(WsTransportConfig),
+    /// gRPC (HTTP/2) transport (`network: grpc`).
+    Grpc(GrpcTransportConfig),
 }
 
 /// Dial `server:port`, apply `security`, then `transport`, returning a
@@ -55,6 +58,7 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
         .await
         .map_err(|e| anyhow::anyhow!("dial {server}:{port}: {e}"))?;
 
+    let over_tls = matches!(security, Security::Tls(_));
     let secured: BoxedStream = match security {
         Security::None => Box::new(tcp),
         Security::Tls(cfg) => Box::new(crate::tls::connect(cfg, server, tcp).await?),
@@ -63,6 +67,7 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
     let transported: BoxedStream = match transport {
         Transport::Tcp => secured,
         Transport::Ws(cfg) => Box::new(crate::ws::connect(secured, server, cfg).await?),
+        Transport::Grpc(cfg) => Box::new(crate::grpc::connect(secured, server, over_tls, cfg).await?),
     };
 
     Ok(transported)
