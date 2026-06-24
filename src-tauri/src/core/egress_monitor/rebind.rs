@@ -67,7 +67,7 @@ impl RebindStrategy for RoundRobinRebind {
                 return false;
             }
 
-            let any_switched = false;
+            let mut any_switched = false;
 
             for (group_name, group_data) in &stable_groups {
                 let current_node = group_data.now.as_deref().unwrap_or("");
@@ -89,11 +89,7 @@ impl RebindStrategy for RoundRobinRebind {
                     continue;
                 }
 
-                log::warn!(
-                    "[RebindStrategy::RoundRobin] Go/Mihomo plugin proxy selection API retired; skipped {} -> {}",
-                    group_name,
-                    next_node
-                );
+                any_switched |= crate::app::runtime::switch_proxy_node(group_name, next_node).await;
             }
 
             if any_switched {
@@ -227,7 +223,7 @@ impl RebindStrategy for SmartRebind {
                 })
                 .collect();
 
-            let any_switched = false;
+            let mut any_switched = false;
 
             for (group_name, group_data) in &stable_groups {
                 let current_node = group_data.now.as_deref().unwrap_or("");
@@ -264,11 +260,7 @@ impl RebindStrategy for SmartRebind {
                     continue;
                 };
 
-                log::warn!(
-                    "[RebindStrategy::Smart] Go/Mihomo plugin proxy selection API retired; skipped {} -> {}",
-                    group_name,
-                    best_node
-                );
+                any_switched |= crate::app::runtime::switch_proxy_node(group_name, &best_node).await;
             }
 
             if any_switched {

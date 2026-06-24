@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::config::IVerge;
 use crate::core::clash_mode::ClashMode;
 use crate::core::{
-    handle, manager::CLASH_LOGGER, runtime_lifecycle,
+    handle, manager::CLASH_LOGGER, runtime_lifecycle, runtime_snapshot,
     stable_egress::sync_runtime_stable_egress_selection as core_sync_stable_egress,
 };
 use bytes::BytesMut;
@@ -32,15 +32,21 @@ const LIFECYCLE_TOGGLE_SYSTEM_PROXY: &str = "toggle_system_proxy";
 const LIFECYCLE_TOGGLE_TUN: &str = "toggle_tun";
 
 pub async fn change_clash_mode(mode: ClashMode) -> anyhow::Result<()> {
-    let mode = mode.as_str();
-    logging!(debug, Type::Core, "change clash mode to {mode}");
-    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+    let mode_value = mode.as_str();
+    logging!(debug, Type::Core, "change clash mode to {mode_value}");
+
+    let mut patch = Mapping::new();
+    patch.insert("mode".into(), mode_value.into());
+    let result = crate::app::config::patch_clash(&patch).await;
+
+    runtime_snapshot::record_and_persist_runtime_lifecycle_event(
         LIFECYCLE_CHANGE_MODE,
-        false,
-        Some("Go/Mihomo plugin mode patch API retired".into()),
-        Some(mode.to_string()),
+        result.is_ok(),
+        result.as_ref().err().map(ToString::to_string),
+        Some(mode_value.to_string()),
     );
-    anyhow::bail!("change_clash_mode through the Go/Mihomo plugin API is retired; use the Rust runtime control path")
+
+    result
 }
 
 pub async fn toggle_system_proxy() -> bool {
@@ -364,10 +370,18 @@ pub async fn sync_runtime_stable_egress_selection() -> anyhow::Result<()> {
     .await
 }
 
-pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
-    logging!(
-        warn,
-        Type::Tray,
-        "Go/Mihomo plugin proxy selection API retired; skipped {group_name} -> {proxy_name}"
-    );
+pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) -> bool {
+    if group_name.is_empty() || proxy_name.is_empty() {
+        runtime_snapshot::record_and_persist_runtime_lifecycle_event(
+            "select-runtime-proxy",
+            false,
+            Some("group and proxy names must not be empty".into()),
+            Some(format!("group={group_name};proxy={proxy_name}")),
+        );
+        return false;
+    }
+
+    runtime_snapshot::record_and_persist_runtime_proxy_selection(group_name, proxy_name);
+    handle::Handle::refresh_clash();
+    true
 }

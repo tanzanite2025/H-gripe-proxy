@@ -502,6 +502,12 @@ pub fn record_and_persist_runtime_proxy_selection(group_name: &str, proxy_name: 
     if let Err(error) = persist_runtime_proxy_selection_state() {
         log::warn!("failed to persist runtime proxy selection state: {error}");
     }
+    record_and_persist_runtime_lifecycle_event(
+        "select-runtime-proxy",
+        true,
+        None,
+        Some(format!("group={group_name};proxy={proxy_name}")),
+    );
 }
 
 pub fn runtime_proxy_delay_state() -> RuntimeProxyDelayState {

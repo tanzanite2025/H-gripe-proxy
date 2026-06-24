@@ -831,11 +831,13 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                 app::runtime::toggle_tun_mode(None).await;
             }
             MenuIds::CLOSE_ALL_CONNECTIONS => {
-                logging!(
-                    info,
-                    Type::Tray,
-                    "Go/Mihomo plugin close-all-connections API retired; tray action skipped"
-                );
+                if let Err(error) = crate::core::runtime_bridge::close_all_runtime_connections("tray-close-all").await {
+                    logging!(
+                        warn,
+                        Type::Tray,
+                        "Failed to close runtime connections from tray: {error}"
+                    );
+                }
             }
             MenuIds::COPY_ENV => app::runtime::copy_clash_env().await,
             MenuIds::CONF_DIR => {
