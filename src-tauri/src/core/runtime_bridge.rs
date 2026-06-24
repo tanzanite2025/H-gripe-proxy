@@ -1,6 +1,9 @@
 use anyhow::{Result, anyhow};
 use serde_json::Value;
-use tauri_plugin_mihomo::models::{ConnectionId, LogLevel, Protocol, ProxyDelay};
+use std::collections::HashMap;
+use tauri_plugin_mihomo::models::{
+    ConnectionId, CoreUpdaterChannel, LogLevel, Protocol, ProxyDelay, TLSRotationResult,
+};
 
 use crate::core::{handle::Handle, runtime_snapshot};
 
@@ -25,6 +28,56 @@ pub async fn measure_runtime_proxy_delay(
         runtime_snapshot::record_and_persist_runtime_proxy_delay(group_name, proxy_name, result.delay, test_url);
     }
     Ok(result)
+}
+
+pub async fn measure_runtime_group_delay(
+    group_name: &str,
+    test_url: &str,
+    timeout: u32,
+) -> Result<HashMap<String, u32>> {
+    let result = Handle::mihomo().await.delay_group(group_name, test_url, timeout).await;
+    record_runtime_bridge_result(
+        "measure-runtime-group-delay",
+        result.as_ref().map(|_| ()),
+        Some(format!("group={group_name};url={test_url};timeout={timeout}")),
+    );
+    let result = result?;
+    for (proxy_name, delay) in &result {
+        runtime_snapshot::record_and_persist_runtime_proxy_delay(group_name, proxy_name, *delay, test_url);
+    }
+    Ok(result)
+}
+
+pub async fn update_runtime_proxy_provider(provider_name: &str) -> Result<()> {
+    let result = Handle::mihomo().await.update_proxy_provider(provider_name).await;
+    record_runtime_bridge_result(
+        "update-runtime-proxy-provider",
+        result.as_ref().map(|_| ()),
+        Some(format!("provider={provider_name}")),
+    );
+    runtime_snapshot::record_and_persist_runtime_provider_health(
+        provider_name,
+        result.is_ok(),
+        result.as_ref().err().map(ToString::to_string),
+    );
+    result?;
+    Ok(())
+}
+
+pub async fn healthcheck_runtime_proxy_provider(provider_name: &str) -> Result<()> {
+    let result = Handle::mihomo().await.healthcheck_proxy_provider(provider_name).await;
+    record_runtime_bridge_result(
+        "healthcheck-runtime-proxy-provider",
+        result.as_ref().map(|_| ()),
+        Some(format!("provider={provider_name}")),
+    );
+    runtime_snapshot::record_and_persist_runtime_provider_health(
+        provider_name,
+        result.is_ok(),
+        result.as_ref().err().map(ToString::to_string),
+    );
+    result?;
+    Ok(())
 }
 
 pub async fn close_runtime_connection(connection_id: &str) -> Result<()> {
@@ -77,6 +130,41 @@ pub async fn close_all_runtime_connections(reason: &str) -> Result<()> {
         );
         Err(error)
     }
+}
+
+pub async fn update_runtime_geo() -> Result<()> {
+    let result = Handle::mihomo().await.update_geo().await;
+    record_runtime_bridge_result("update-runtime-geo", result.as_ref().map(|_| ()), None);
+    result?;
+    Ok(())
+}
+
+pub async fn upgrade_runtime_core(channel: CoreUpdaterChannel, force: bool) -> Result<()> {
+    let detail = Some(format!("channel={channel:?};force={force}"));
+    let result = Handle::mihomo().await.upgrade_core(channel, force).await;
+    record_runtime_bridge_result("upgrade-runtime-core", result.as_ref().map(|_| ()), detail);
+    result?;
+    Ok(())
+}
+
+pub async fn upgrade_runtime_ui() -> Result<()> {
+    let result = Handle::mihomo().await.upgrade_ui().await;
+    record_runtime_bridge_result("upgrade-runtime-ui", result.as_ref().map(|_| ()), None);
+    result?;
+    Ok(())
+}
+
+pub async fn upgrade_runtime_geo() -> Result<()> {
+    let result = Handle::mihomo().await.upgrade_geo().await;
+    record_runtime_bridge_result("upgrade-runtime-geo", result.as_ref().map(|_| ()), None);
+    result?;
+    Ok(())
+}
+
+pub async fn force_runtime_tls_rotation() -> Result<TLSRotationResult> {
+    let result = Handle::mihomo().await.force_tls_rotation().await;
+    record_runtime_bridge_result("force-runtime-tls-rotation", result.as_ref().map(|_| ()), None);
+    Ok(result?)
 }
 
 pub async fn connect_runtime_connections_stream<F>(on_message: F) -> Result<ConnectionId>

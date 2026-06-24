@@ -113,23 +113,23 @@ persisted evidence:
 ### Default future PR shape
 
 The `mihomo-read-api-retirement`, `runtime-bridge-closeout`,
-`plugin-command-surface-retirement`, and `sidecar-lifecycle-surface-retirement`
-bundles are complete enough that follow-up work should not add another isolated
-getter, bridge wrapper, plugin command cleanup, or lifecycle wrapper. The next
-useful migration PR shape is a `runtime-control-mutation-closeout` bundle:
-restore command-facing runtime mutations through Rust-owned control state instead
-of leaving them as scattered retired Go/Mihomo plugin stubs.
+`plugin-command-surface-retirement`, `sidecar-lifecycle-surface-retirement`, and
+`runtime-control-mutation-closeout` bundles are complete enough that follow-up
+work should not add another isolated getter, bridge wrapper, plugin command
+cleanup, lifecycle wrapper, or command-facing control mutation. The next useful
+migration PR shape is a `runtime-maintenance-command-closeout` bundle: move
+remaining command-facing maintenance actions behind Rust-owned bridge/audit paths
+instead of leaving them as retired Go/Mihomo plugin stubs.
 
 Minimum acceptable scope for that bundle:
 
-- Route mode switches through the Rust clash-config patch path instead of the
-  retired plugin mode patch command.
-- Route tray and egress-rebind proxy selections through persisted Rust runtime
-  proxy-selection state instead of skipped plugin selection calls.
-- Route bulk connection cleanup through `runtime_bridge` close-by-id loops with
-  audit evidence instead of retired close-all plugin calls.
-- Keep mutation evidence attached to runtime snapshot/lifecycle history so tray,
-  hotkey, route-change, and command callers share the same rollback trail.
+- Route runtime base-config patches, DNS warmup, TLS rotation, proxy-provider
+  update/healthcheck, group delay, geo update, and core/UI/geo upgrades through
+  `runtime_bridge` or Rust config/snapshot paths.
+- Persist lifecycle/provider/upgrade evidence for every maintenance attempt with
+  operation detail and success/failure outcome.
+- Keep frontend command names stable while removing retired plugin-stub errors
+  from maintenance paths.
 
 Anything smaller is maintenance, not roadmap progress.
 
@@ -279,11 +279,11 @@ These are the current Rust-owned surfaces. Items marked "bounded execution" redu
 
 ## Remaining blockers and acceleration boundaries
 
-The next blocker is runtime control mutation closeout, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, or plugin-mutation retirement gate. Work through one cohesive control-mutation bundle while preserving explicit rollback evidence:
+The next blocker is runtime maintenance command closeout, not another default-forwarding, packet-capture, fallback-retirement, final-removal, release-packaging, sidecar-invocation, service-readiness, runtime-cleanup, or plugin-mutation retirement gate. Work through one cohesive maintenance-command bundle while preserving explicit rollback evidence:
 
-1. `runtime-control-mutation-closeout`: move mode switching, proxy selection, and bulk connection cleanup off retired Go/Mihomo plugin mutation stubs and onto Rust-owned config patches, runtime selection state, and audited bridge loops.
-2. If review size forces a split, use only runtime-control semantics as the boundary: mode/proxy selection first, then connection cleanup. Do not create extra readiness, dry-run, generated-type, or UI-only stepping-stone PRs.
-3. `final-closeout-bundle`: control-mutation closeout, release blocker audit, and final Mihomo binary removal evidence linkage.
+1. `runtime-maintenance-command-closeout`: move base-config patching, DNS warmup, TLS rotation, proxy-provider update/healthcheck, group delay, geo update, and core/UI/geo upgrades off retired plugin stubs and onto Rust-owned bridge/audit paths.
+2. If review size forces a split, use only maintenance semantics as the boundary: config/provider/delay first, then update/upgrade actions. Do not create extra readiness, dry-run, generated-type, or UI-only stepping-stone PRs.
+3. `final-closeout-bundle`: maintenance-command closeout, release blocker audit, and final Mihomo binary removal evidence linkage.
 
 Full protocol replacement and default DNS ownership remain blocked until Rust-owned runtime observation and command-facing control mutations no longer depend on the Go plugin API.
 
