@@ -233,9 +233,16 @@ end-to-end relay tests. Proves the in-process architecture works.
   an upstream resolver over UDP and returns its answer verbatim. The DNS wire
   format is delegated to `hickory-proto`; pool allocation, mapping and mode
   selection are ours. Proven by `crates/learn-gripe/tests/dns.rs` (fake-IP
-  synthesize + reverse, and forward via an independent fake upstream). Wiring
-  fake-IP reverse lookup into the SOCKS connect path (route a connection to a
-  fake IP by its original domain) is the next follow-up.
+  synthesize + reverse, and forward via an independent fake upstream).
+- Fake-IP routing: the SOCKS inbound (both `CONNECT` and per-datagram UDP
+  `ASSOCIATE`) rewrites a target that is a fake IP back to its original domain
+  (`dns::unmap_fake_ip`) before routing, so a connection to a synthetic IP is
+  routed/dialed by the hostname the rules were written against. Wired via
+  `GripeKernel::start_with_fake_ip(config, pool)` (the plain `start` is
+  unchanged, so a kernel without DNS behaves exactly as before). Proven by
+  `crates/learn-gripe/tests/fakeip_routing.rs`: the DNS server mints two fake
+  IPs in the same `/16` for two domains, and connections to them reach
+  *different* tagged outbounds purely by hostname.
 - TUN mode: read packets via the `tun` crate, route through `learn-gripe`
   outbounds, with leak-safe rollback. This is the highest-risk phase; keep
   rollback explicit. Still pending — it needs an OS TUN device and elevated

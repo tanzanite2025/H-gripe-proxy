@@ -27,6 +27,8 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
+use crate::address::TargetAddr;
+
 /// TTL handed out for fake-IP answers. Short, since the mapping is an internal
 /// routing handle rather than a real record clients should cache.
 const FAKE_IP_TTL: u32 = 1;
@@ -134,6 +136,22 @@ impl FakeIpPool {
         let value = u32::from(ip);
         value >= self.config.base && value < self.config.base + self.config.capacity + 2
     }
+}
+
+/// Rewrite a fake IP back to its original domain so routing and the outbound
+/// see the real host. If `target` is an IPv4 address this pool handed out,
+/// return `TargetAddr::Domain` with the recorded host (preserving the port);
+/// otherwise return `target` unchanged. This is what makes fake-IP useful: a
+/// client connects to the synthetic IP, and the kernel routes by the domain the
+/// rules were written against.
+pub fn unmap_fake_ip(pool: &Mutex<FakeIpPool>, target: TargetAddr) -> TargetAddr {
+    if let TargetAddr::Ip(SocketAddr::V4(addr)) = &target
+        && let Ok(pool) = pool.lock()
+        && let Some(domain) = pool.domain_for(*addr.ip())
+    {
+        return TargetAddr::Domain(domain.to_string(), addr.port());
+    }
+    target
 }
 
 /// How a [`DnsServer`] answers queries.
@@ -346,6 +364,28 @@ mod tests {
         assert_eq!(c, a);
         assert_eq!(pool.domain_for(a), Some("c.test"));
         assert_eq!(pool.domain_for(b), Some("b.test"));
+    }
+
+    #[test]
+    fn unmap_rewrites_only_pool_ips() {
+        let pool = Mutex::new(FakeIpPool::new(FakeIpConfig::default()));
+        let fake = pool.lock().unwrap().allocate("example.com");
+
+        // A fake IP becomes its domain, keeping the port.
+        let mapped = unmap_fake_ip(&pool, TargetAddr::Ip(SocketAddr::from((fake, 443))));
+        assert_eq!(mapped, TargetAddr::Domain("example.com".to_string(), 443));
+
+        // An IP outside the pool is left untouched.
+        let real = SocketAddr::from((Ipv4Addr::new(1, 1, 1, 1), 80));
+        assert_eq!(unmap_fake_ip(&pool, TargetAddr::Ip(real)), TargetAddr::Ip(real));
+
+        // A domain target is left untouched.
+        let domain = TargetAddr::Domain("other.test".to_string(), 53);
+        assert_eq!(unmap_fake_ip(&pool, domain.clone()), domain);
+
+        // A pool IP with no mapping (never allocated) is left as-is.
+        let unmapped = SocketAddr::from((Ipv4Addr::new(198, 18, 5, 5), 22));
+        assert_eq!(unmap_fake_ip(&pool, TargetAddr::Ip(unmapped)), TargetAddr::Ip(unmapped));
     }
 
     #[test]
