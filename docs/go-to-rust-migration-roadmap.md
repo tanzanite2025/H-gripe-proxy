@@ -198,8 +198,13 @@ end-to-end relay tests. Proves the in-process architecture works.
   addon and the body is wrapped in the XTLS Vision padding framing
   (`commandPaddingContinue/End/Direct`, TLS-record-aware padding), ported from
   Xray and cross-checked end-to-end against an independent receiver.
-- Routing/rule engine: reuse the already-Rust-owned rule matching to pick the
-  outbound per connection (DOMAIN / CIDR / GEOIP / GEOSITE / MATCH ...).
+- Routing/rule engine: done for the in-kernel data plane. `learn-gripe` now has
+  a `Router` (`OutboundMode::Routed`) that selects the outbound per connection
+  from an ordered rule list (`DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD` /
+  `IP-CIDR` v4+v6 / `MATCH`), resolving to named outbounds plus the built-in
+  `DIRECT` / `REJECT` policies, with a `fallback` for the no-match case (proven
+  by `crates/learn-gripe/tests/router_outbound.rs`). `GEOIP` / `GEOSITE` need
+  external mmdb / geosite data and are left for a follow-up.
 - UDP relay (SOCKS5 UDP ASSOCIATE) for the supported protocols.
 
 ### Phase 4 — DNS + TUN

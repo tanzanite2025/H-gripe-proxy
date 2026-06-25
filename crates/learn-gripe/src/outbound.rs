@@ -4,7 +4,9 @@ use crate::socks5;
 use crate::trojan;
 use crate::vless;
 use crate::vmess;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
+use std::future::Future;
+use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
@@ -19,22 +21,32 @@ pub type BoxedStream = Box<dyn AsyncStream>;
 
 /// Establish an outbound connection to `target` according to `mode` and return
 /// a stream that is ready for relaying.
-pub async fn connect(mode: &OutboundMode, target: &TargetAddr) -> Result<BoxedStream> {
-    match mode {
-        OutboundMode::Direct => Ok(Box::new(dial_direct(target).await?)),
-        OutboundMode::Socks5Upstream { addr } => {
-            let mut stream = TcpStream::connect(addr)
-                .await
-                .with_context(|| format!("connect upstream SOCKS5 {addr}"))?;
-            socks5::client_connect(&mut stream, target)
-                .await
-                .with_context(|| format!("upstream CONNECT to {target}"))?;
-            Ok(Box::new(stream))
+///
+/// Boxed future so a [`OutboundMode::Routed`] outbound can recurse into the
+/// selected sub-outbound.
+pub fn connect<'a>(
+    mode: &'a OutboundMode,
+    target: &'a TargetAddr,
+) -> Pin<Box<dyn Future<Output = Result<BoxedStream>> + Send + 'a>> {
+    Box::pin(async move {
+        match mode {
+            OutboundMode::Direct => Ok(Box::new(dial_direct(target).await?) as BoxedStream),
+            OutboundMode::Reject => bail!("connection to {target} rejected by rule"),
+            OutboundMode::Socks5Upstream { addr } => {
+                let mut stream = TcpStream::connect(addr)
+                    .await
+                    .with_context(|| format!("connect upstream SOCKS5 {addr}"))?;
+                socks5::client_connect(&mut stream, target)
+                    .await
+                    .with_context(|| format!("upstream CONNECT to {target}"))?;
+                Ok(Box::new(stream) as BoxedStream)
+            }
+            OutboundMode::Vless(config) => vless::connect(config, target).await,
+            OutboundMode::Trojan(config) => trojan::connect(config, target).await,
+            OutboundMode::Vmess(config) => vmess::connect(config, target).await,
+            OutboundMode::Routed(router) => connect(router.select(target), target).await,
         }
-        OutboundMode::Vless(config) => vless::connect(config, target).await,
-        OutboundMode::Trojan(config) => trojan::connect(config, target).await,
-        OutboundMode::Vmess(config) => vmess::connect(config, target).await,
-    }
+    })
 }
 
 async fn dial_direct(target: &TargetAddr) -> Result<TcpStream> {

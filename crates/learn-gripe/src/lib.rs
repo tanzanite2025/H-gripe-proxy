@@ -17,6 +17,7 @@ mod http2;
 mod httpupgrade;
 mod outbound;
 mod proxy;
+mod router;
 mod server;
 mod socks5;
 mod tls;
@@ -37,6 +38,7 @@ pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
 };
+pub use router::{DIRECT, IpCidr, REJECT, Router, Rule, RuleMatcher};
 pub use server::{GripeHandle, GripeKernel};
 pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::{Security, Transport};
