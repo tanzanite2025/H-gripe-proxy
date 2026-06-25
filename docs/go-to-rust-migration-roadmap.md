@@ -87,7 +87,7 @@ control of the kernel.
 | Concern | Crate(s) | Why not hand-roll |
 | --- | --- | --- |
 | Async runtime | `tokio` | Re-implementing an async reactor is pure cost. |
-| TLS | `rustls` (or `boring`) | Hand-rolled TLS is a classic source of critical CVEs. |
+| TLS | `rustls` — **vendored Watfaq fork in `third_party/`** (see "Vendored TLS + REALITY" below) | Hand-rolled TLS is a classic source of critical CVEs. REALITY needs a ClientHello hook that upstream `rustls` does not expose, so we vendor a superset fork instead of hand-rolling. |
 | Cryptographic primitives | `ring` / `aes-gcm` / `chacha20poly1305` | Never implement your own cryptography. |
 | TUN device | `tun` | Wraps per-OS syscalls/ioctls we should not duplicate. |
 | DNS resolver base | `hickory-dns` | Full resolver/cache/protocol surface; reuse it. |
@@ -97,11 +97,57 @@ Rule of thumb: if getting it wrong produces a *security vulnerability* (TLS,
 crypto, OS syscalls), adopt a vetted crate. If it defines *product behavior*
 (protocols we speak, how we route, how we configure), build it in `learn-gripe`.
 
+### Vendored TLS + REALITY (`third_party/`)
+
+This is the durable record of **why our `rustls` is vendored and self-maintained**,
+so future work does not "simplify" it back to the upstream crate and silently
+break REALITY.
+
+- **What is vendored.** `third_party/rustls/` and `third_party/tokio-rustls/`
+  hold the full source of the Watfaq `rustls` fork
+  (`https://github.com/Watfaq/rustls`, branch `watfaq/0.23.40`) and its matching
+  `tokio-rustls` (`watfaq/0.26.4`). The workspace root `Cargo.toml` redirects the
+  crates-io `rustls` / `tokio-rustls` to these paths via `[patch.crates-io]`, so
+  the **entire** workspace (reqwest, hyper-rustls, `learn-gripe`, …) builds
+  against the in-tree copy. The fork is a strict **superset** of upstream
+  `rustls`, so all existing plain-TLS users keep working unchanged.
+- **Why a fork at all.** REALITY authentication has to embed an x25519-derived
+  auth token into the TLS 1.3 ClientHello `session_id`, and client-fingerprint
+  shaping has to control ClientHello layout. Upstream `rustls` exposes **no hook**
+  for either. Every working Rust REALITY client (clash-rs included) therefore
+  rides a patched `rustls`; the Watfaq fork adds exactly that —
+  `ClientConfig::builder().with_reality(RealityConfig)` plus a
+  `RealityServerCertVerifier`. We are *not* hand-rolling TLS or cryptography;
+  the crypto primitives inside the fork are the usual vetted ones
+  (`ring` / `x25519-dalek` / HKDF / AES-GCM).
+- **Why vendored in-tree (not a git dependency).** The owner wants the kernel to
+  be fully offline and self-maintained: no dependency on an external fork repo
+  staying alive or unchanged. The source lives in our repo and we own updates.
+- **Maintenance model.** We own these copies. To pull upstream security fixes,
+  re-sync from the Watfaq branches above (or rebase the REALITY patch onto a newer
+  upstream `rustls`) and re-vendor — keep `third_party/rustls/Cargo.toml` and
+  `third_party/tokio-rustls/Cargo.toml` (the de-workspaced manifests we wrote) in
+  step with any new dependency/feature changes. Verify with
+  `cargo check --workspace` and `cargo test -p learn-gripe`.
+- **License.** Upstream license files are retained in place
+  (`third_party/rustls/LICENSE-{APACHE,ISC,MIT}`,
+  `third_party/tokio-rustls/LICENSE-{APACHE,MIT}`). `rustls` is
+  `Apache-2.0 OR ISC OR MIT`; `tokio-rustls` is `MIT OR Apache-2.0`.
+- **Next steps that depend on this.** `Security::Reality` in `learn-gripe`
+  (reality-opts auth + `servername` masquerade SNI + `client-fingerprint`
+  shaping) wraps this fork's `with_reality()` API; because Security and Transport
+  are orthogonal, VLESS-REALITY then works over tcp/grpc/h2/xhttp automatically.
+  The separate `flow: xtls-rprx-vision` layer is tracked after that.
+
 ### Hard "do not" list
 
 - Do not adopt `clash-rs`, the Mihomo library, or any other whole external proxy
-  kernel. The point of `learn-gripe` is that we own it.
+  kernel. The point of `learn-gripe` is that we own it. (Vendoring a *TLS library*
+  fork into `third_party/` is **not** adopting a kernel — it is the "adopt a
+  vetted crate" rule applied to TLS, with the source pulled in-tree so we own it.)
 - Do not implement cryptography or TLS by hand.
+- Do not drop the `[patch.crates-io]` redirect or replace the vendored `rustls`
+  with the upstream crate — that silently removes the REALITY ClientHello hook.
 - Do not re-introduce a Go/Mihomo sidecar startup or packaging path.
 - Do not add canary / gate / dry-run / readiness / parser-only PRs as migration
   "progress". A PR is progress only if it adds working `learn-gripe`
