@@ -44,7 +44,7 @@ pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
 };
-pub use router::{DIRECT, IpCidr, REJECT, Router, Rule, RuleMatcher};
+pub use router::{DIRECT, GeoLookup, IpCidr, REJECT, Router, Rule, RuleMatcher};
 pub use server::{GripeHandle, GripeKernel};
 pub use shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};

@@ -11,17 +11,33 @@
 //! `DIRECT` (connect straight to the target) and `REJECT` (refuse the
 //! connection). This mirrors Clash's built-in policies.
 //!
-//! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6)
-//! and `MATCH` are supported. `GEOIP` / `GEOSITE` need external mmdb / geosite
-//! data and are intentionally left for a follow-up.
+//! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
+//! `MATCH`, plus `GEOIP` / `GEOSITE`. The geo matchers carry a shared
+//! [`GeoLookup`] handle to a locally-maintained geo database (mmdb / geosite
+//! `.dat`); the kernel never fetches geo data itself — the embedder loads the
+//! local files and supplies the lookup, keeping data sourcing out of the data
+//! plane.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::net::IpAddr;
+use std::sync::Arc;
 
 use anyhow::{Result, bail};
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
+
+/// Lookup into a locally-maintained geo database, used by the `GEOIP` /
+/// `GEOSITE` matchers. The kernel does not own or fetch this data: the embedder
+/// loads the local mmdb / geosite files it maintains and provides an
+/// implementation, so the routing data plane only ever *queries* the database.
+pub trait GeoLookup: Send + Sync {
+    /// Whether `ip` belongs to the geo country `code` (e.g. `"cn"`).
+    fn geoip_matches(&self, code: &str, ip: IpAddr) -> bool;
+    /// Whether `host` belongs to the geosite category `code` (e.g. `"google"`).
+    fn geosite_matches(&self, code: &str, host: &str) -> bool;
+}
 
 /// Built-in outbound name that connects straight to the target.
 pub const DIRECT: &str = "DIRECT";
@@ -29,7 +45,12 @@ pub const DIRECT: &str = "DIRECT";
 pub const REJECT: &str = "REJECT";
 
 /// A single routing predicate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Clone` is derived; `Debug`/`PartialEq`/`Eq` are hand-written because the
+/// `GeoIp`/`GeoSite` variants carry an `Arc<dyn GeoLookup>` trait object that
+/// cannot derive them. Two geo matchers are equal when they name the same code
+/// and share the same underlying database (compared by pointer).
+#[derive(Clone)]
 pub enum RuleMatcher {
     /// Exact (case-insensitive) domain match.
     Domain(String),
@@ -39,9 +60,50 @@ pub enum RuleMatcher {
     DomainKeyword(String),
     /// Matches when the target is an IP inside the CIDR block.
     IpCidr(IpCidr),
+    /// Matches when the target IP belongs to the geo country `code`. Like
+    /// `IpCidr`, it only applies to a resolved IP target, never a domain.
+    GeoIp { code: String, db: Arc<dyn GeoLookup> },
+    /// Matches when the target domain belongs to the geosite category `code`.
+    /// Like the domain matchers, it never applies to a raw-IP target.
+    GeoSite { code: String, db: Arc<dyn GeoLookup> },
     /// Catch-all: matches every target.
     Match,
 }
+
+impl fmt::Debug for RuleMatcher {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RuleMatcher::Domain(d) => f.debug_tuple("Domain").field(d).finish(),
+            RuleMatcher::DomainSuffix(s) => f.debug_tuple("DomainSuffix").field(s).finish(),
+            RuleMatcher::DomainKeyword(k) => f.debug_tuple("DomainKeyword").field(k).finish(),
+            RuleMatcher::IpCidr(c) => f.debug_tuple("IpCidr").field(c).finish(),
+            RuleMatcher::GeoIp { code, .. } => f.debug_struct("GeoIp").field("code", code).finish_non_exhaustive(),
+            RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
+            RuleMatcher::Match => f.write_str("Match"),
+        }
+    }
+}
+
+impl PartialEq for RuleMatcher {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (RuleMatcher::Domain(a), RuleMatcher::Domain(b)) => a == b,
+            (RuleMatcher::DomainSuffix(a), RuleMatcher::DomainSuffix(b)) => a == b,
+            (RuleMatcher::DomainKeyword(a), RuleMatcher::DomainKeyword(b)) => a == b,
+            (RuleMatcher::IpCidr(a), RuleMatcher::IpCidr(b)) => a == b,
+            (RuleMatcher::GeoIp { code: a, db: da }, RuleMatcher::GeoIp { code: b, db: db2 }) => {
+                a == b && Arc::ptr_eq(da, db2)
+            }
+            (RuleMatcher::GeoSite { code: a, db: da }, RuleMatcher::GeoSite { code: b, db: db2 }) => {
+                a == b && Arc::ptr_eq(da, db2)
+            }
+            (RuleMatcher::Match, RuleMatcher::Match) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for RuleMatcher {}
 
 impl RuleMatcher {
     /// Whether this matcher applies to `target`. Domain matchers never match a
@@ -65,6 +127,14 @@ impl RuleMatcher {
             RuleMatcher::IpCidr(cidr) => match target {
                 TargetAddr::Ip(addr) => cidr.contains(addr.ip()),
                 TargetAddr::Domain(_, _) => false,
+            },
+            RuleMatcher::GeoIp { code, db } => match target {
+                TargetAddr::Ip(addr) => db.geoip_matches(code, addr.ip()),
+                TargetAddr::Domain(_, _) => false,
+            },
+            RuleMatcher::GeoSite { code, db } => match target {
+                TargetAddr::Domain(host, _) => db.geosite_matches(code, host),
+                TargetAddr::Ip(_) => false,
             },
             RuleMatcher::Match => true,
         }
@@ -305,6 +375,123 @@ mod tests {
         let m = RuleMatcher::IpCidr(IpCidr::parse("0.0.0.0/0").unwrap());
         assert!(m.matches(&ipv4(8, 8, 8, 8)));
         assert!(!m.matches(&domain("example.com")));
+    }
+
+    /// Test geo database: `cn` covers the 1.0.0.0/8 block; the `ads` category
+    /// covers any host containing `ad`; the `cdn` category covers `cdn.test`.
+    #[derive(Debug)]
+    struct FakeGeo;
+
+    impl GeoLookup for FakeGeo {
+        fn geoip_matches(&self, code: &str, ip: IpAddr) -> bool {
+            code == "cn" && matches!(ip, IpAddr::V4(v4) if v4.octets()[0] == 1)
+        }
+
+        fn geosite_matches(&self, code: &str, host: &str) -> bool {
+            match code {
+                "ads" => host.contains("ad"),
+                "cdn" => host == "cdn.test",
+                _ => false,
+            }
+        }
+    }
+
+    #[test]
+    fn geoip_matcher_uses_lookup_and_ignores_domains() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let m = RuleMatcher::GeoIp {
+            code: "cn".to_string(),
+            db,
+        };
+        assert!(m.matches(&ipv4(1, 2, 3, 4)));
+        assert!(!m.matches(&ipv4(8, 8, 8, 8)));
+        // A domain target is never matched by GEOIP (no resolved IP).
+        assert!(!m.matches(&domain("example.com")));
+    }
+
+    #[test]
+    fn geosite_matcher_uses_lookup_and_ignores_ips() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let m = RuleMatcher::GeoSite {
+            code: "cdn".to_string(),
+            db,
+        };
+        assert!(m.matches(&domain("cdn.test")));
+        assert!(!m.matches(&domain("www.test")));
+        assert!(!m.matches(&ipv4(1, 2, 3, 4)));
+    }
+
+    #[test]
+    fn geo_matcher_equality_compares_code_and_shared_db() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let other: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let a = RuleMatcher::GeoIp {
+            code: "cn".to_string(),
+            db: Arc::clone(&db),
+        };
+        let same = RuleMatcher::GeoIp {
+            code: "cn".to_string(),
+            db: Arc::clone(&db),
+        };
+        let different_db = RuleMatcher::GeoIp {
+            code: "cn".to_string(),
+            db: other,
+        };
+        let different_code = RuleMatcher::GeoIp {
+            code: "us".to_string(),
+            db,
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_db);
+        assert_ne!(a, different_code);
+    }
+
+    #[test]
+    fn router_routes_geo_rules() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![
+            Rule::new(
+                RuleMatcher::GeoSite {
+                    code: "ads".to_string(),
+                    db: Arc::clone(&db),
+                },
+                REJECT,
+            ),
+            Rule::new(
+                RuleMatcher::GeoSite {
+                    code: "cdn".to_string(),
+                    db: Arc::clone(&db),
+                },
+                "proxy",
+            ),
+            Rule::new(
+                RuleMatcher::GeoIp {
+                    code: "cn".to_string(),
+                    db,
+                },
+                DIRECT,
+            ),
+        ];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        assert!(matches!(router.select(&domain("ads.example")), OutboundMode::Reject));
+        assert!(matches!(
+            router.select(&domain("cdn.test")),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        assert!(matches!(router.select(&ipv4(1, 1, 1, 1)), OutboundMode::Direct));
+        // No geo rule matches a foreign IP -> fallback `proxy`.
+        assert!(matches!(
+            router.select(&ipv4(8, 8, 8, 8)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
     }
 
     #[test]
