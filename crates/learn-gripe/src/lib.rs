@@ -11,6 +11,7 @@
 
 mod address;
 mod config;
+mod dns;
 mod grpc;
 mod h2stream;
 mod http2;
@@ -32,6 +33,7 @@ mod xhttp;
 
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
+pub use dns::{DnsConfig, DnsHandle, DnsMode, DnsServer, FakeIpConfig, FakeIpPool};
 pub use grpc::GrpcTransportConfig;
 pub use http2::H2TransportConfig;
 pub use httpupgrade::HttpUpgradeTransportConfig;

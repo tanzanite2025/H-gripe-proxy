@@ -24,6 +24,10 @@ aes-gcm = { version = "0.10.3" }
 chacha20poly1305 = { version = "0.10.1" }
 crc32fast = { version = "1.5.0" }
 getrandom = { version = "0.3.4" }
+# DNS wire-format parse/serialize for the kernel DNS server. We own the product
+# logic (fake-ip allocation, mapping, upstream selection); message codec is
+# delegated to this vetted crate (already used by src-tauri via hickory 0.24).
+hickory-proto = { version = "0.24", default-features = false }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
@@ -42,6 +46,8 @@ md-5 = { version = "0.10.6" }
 aes-gcm = { version = "0.10.3" }
 chacha20poly1305 = { version = "0.10.1" }
 crc32fast = { version = "1.5.0" }
+# DNS message build/parse for the fake upstream DNS server in tests/dns.rs.
+hickory-proto = { version = "0.24", default-features = false }
 
 [lints]
 workspace = true
