@@ -1,3 +1,4 @@
+use super::outbound_select;
 use super::{CoreManager, RunningMode};
 use crate::config::Config;
 use crate::core::handle::Handle;
@@ -7,6 +8,7 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use learn_gripe::{GripeConfig, GripeKernel, OutboundMode};
 use scopeguard::defer;
+use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
@@ -19,9 +21,16 @@ impl CoreManager {
         }
 
         let socks_port = Config::clash().await.latest_arc().get_socks_port();
+        let outbound = Self::resolve_outbound().await;
+        logging!(
+            info,
+            Type::Core,
+            "learn-gripe outbound resolved to {}",
+            outbound_label(&outbound)
+        );
         let config = GripeConfig {
             socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, socks_port)),
-            outbound: OutboundMode::Direct,
+            outbound,
         };
 
         let handle = GripeKernel::start(config)
@@ -61,6 +70,43 @@ impl CoreManager {
         tokio::time::sleep(Duration::from_millis(350)).await;
 
         self.start_core().await
+    }
+
+    /// Resolve the outbound for the currently selected node from the generated
+    /// runtime config plus the persisted per-group selection. Falls back to
+    /// [`OutboundMode::Direct`] when the runtime config is missing.
+    async fn resolve_outbound() -> OutboundMode {
+        let runtime = Config::runtime().await.latest_arc();
+        let Some(config) = runtime.config.as_ref() else {
+            logging!(
+                info,
+                Type::Core,
+                "no runtime config yet; learn-gripe uses Direct outbound"
+            );
+            return OutboundMode::Direct;
+        };
+        let selection = Self::current_group_selection().await;
+        outbound_select::selected_outbound(config, &selection)
+    }
+
+    /// The persisted `{ group -> selected node }` map for the current profile.
+    async fn current_group_selection() -> HashMap<String, String> {
+        let profiles = Config::profiles().await.latest_arc();
+        let Some(uid) = profiles.current_primary_uid() else {
+            return HashMap::new();
+        };
+        let Ok(item) = profiles.get_item(&uid) else {
+            return HashMap::new();
+        };
+        item.selected
+            .as_ref()
+            .map(|selected| {
+                selected
+                    .iter()
+                    .filter_map(|s| Some((s.name.as_deref()?.to_string(), s.now.as_deref()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     async fn prepare_startup(&self) -> Result<()> {
@@ -146,5 +192,19 @@ impl CoreManager {
         })
         .retry(backoff)
         .await;
+    }
+}
+
+/// Short human-readable label for a resolved outbound, for startup logs.
+fn outbound_label(outbound: &OutboundMode) -> &'static str {
+    match outbound {
+        OutboundMode::Direct => "direct",
+        OutboundMode::Reject => "reject",
+        OutboundMode::Socks5Upstream { .. } => "socks5",
+        OutboundMode::Vless(_) => "vless",
+        OutboundMode::Trojan(_) => "trojan",
+        OutboundMode::Vmess(_) => "vmess",
+        OutboundMode::Shadowsocks(_) => "shadowsocks",
+        OutboundMode::Routed(_) => "routed",
     }
 }

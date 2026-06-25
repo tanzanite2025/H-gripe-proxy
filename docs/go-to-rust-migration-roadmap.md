@@ -50,12 +50,16 @@ boots the Rust kernel; there is no Mihomo startup path left.
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
 | Mihomo sidecar | No longer started or packaged for the supported path. `tauri-plugin-mihomo` is still a dependency (compatibility DTOs / dead code) and the binary is still in the tree; removal is the final phase, not yet done. |
 
-What the live path still does **not** do: Shadowsocks ciphers, TUN, and
-node-aware outbound selection (`start_core` currently always uses Direct
-outbound regardless of the selected node, so the implemented VMess/VLESS/Trojan
-outbounds are not yet reachable from the app). System-proxy can now point at the
-mixed inbound (HTTP is served), but wiring the OS system-proxy port to the
-kernel listener is still pending.
+`start_core()` now selects the outbound from the user's chosen node:
+`OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
+outbound, and `core/manager/outbound_select.rs` resolves the current selection
+of the primary `select` group (following nested selectors, honoring the
+persisted per-group selection) before falling back to Direct on any
+unsupported/unresolvable case. This is a single global egress; per-connection
+rule routing through `OutboundMode::Routed` is not wired into `start_core()`
+yet. What the live path still does **not** do: TUN, and wiring the OS
+system-proxy port to the kernel listener (the mixed inbound now serves HTTP, so
+system-proxy can point at it).
 
 ## Build vs adopt boundary
 
@@ -193,8 +197,21 @@ end-to-end relay tests. Proves the in-process architecture works.
   rewrite observed by the origin, and `502 Bad Gateway` on a rejected
   outbound). Wiring the OS system-proxy port to this listener is the remaining
   integration step.
-- Node-aware outbound selection: read the selected node from app runtime state
-  and dial the matching outbound instead of always Direct.
+- Node-aware outbound selection — done. `start_core()` reads the selected node
+  from app runtime state and dials the matching outbound instead of always
+  Direct. `OutboundMode::from_proxy()` (in `learn-gripe`) maps a clash
+  `proxies:` entry to the kernel outbound (direct / reject / socks5 / ss /
+  trojan / vmess / vless), erroring on protocols/sub-features without a data
+  plane. `core/manager/outbound_select.rs` resolves the current selection of the
+  primary `select` group — following nested selector groups and honoring the
+  persisted per-group selection (`GLOBAL` in global mode, else the first
+  selector; default to the group's first member) — then falls back to Direct
+  (with a log) on any unresolvable/unsupported case rather than mis-routing.
+  This delivers a single global egress through the selected node;
+  per-connection rule routing via `OutboundMode::Routed` is a later step. The
+  `from_proxy` dispatcher is covered by `learn-gripe` unit tests; the resolver
+  by `outbound_select` unit tests (selection / nested groups / global mode /
+  `url-test` + unimplemented-protocol fallback / cycle guard).
 - **Shadowsocks** outbound — done. AEAD methods `aes-128-gcm`, `aes-256-gcm` and
   `chacha20-ietf-poly1305` over plain TCP, wired as `OutboundMode::Shadowsocks`.
   The master key is derived with OpenSSL `EVP_BytesToKey` (MD5) and the

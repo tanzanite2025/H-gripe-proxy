@@ -48,8 +48,14 @@ impl ProxyEntry {
     /// parse time.
     pub fn support(&self) -> ProtocolSupport {
         match self.kind {
-            // Implemented in the MVP data plane.
-            ProxyType::Direct | ProxyType::Reject | ProxyType::Socks5 => ProtocolSupport::Implemented,
+            // Wired into an `OutboundMode` and reachable via `OutboundMode::from_proxy`.
+            ProxyType::Direct
+            | ProxyType::Reject
+            | ProxyType::Socks5
+            | ProxyType::Shadowsocks
+            | ProxyType::Trojan
+            | ProxyType::Vmess
+            | ProxyType::Vless => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
             _ => ProtocolSupport::Unsupported,
         }

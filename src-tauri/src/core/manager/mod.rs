@@ -1,5 +1,6 @@
 mod config;
 mod lifecycle;
+mod outbound_select;
 mod state;
 
 use crate::singleton;
