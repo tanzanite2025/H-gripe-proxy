@@ -23,6 +23,7 @@ mod tls;
 mod transport;
 mod trojan;
 mod vless;
+mod vmess;
 mod ws;
 mod xhttp;
 
@@ -40,5 +41,6 @@ pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::{Security, Transport};
 pub use trojan::TrojanOutboundConfig;
 pub use vless::VlessOutboundConfig;
+pub use vmess::{VmessCipher, VmessOutboundConfig};
 pub use ws::WsTransportConfig;
 pub use xhttp::{XhttpMode, XhttpTransportConfig};

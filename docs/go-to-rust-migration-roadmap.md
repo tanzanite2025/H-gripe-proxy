@@ -139,9 +139,10 @@ break REALITY.
   are orthogonal, VLESS-REALITY works over tcp/grpc/h2/xhttp automatically (proven
   by the REALITY relay tests in `crates/learn-gripe/tests/vless_outbound.rs`).
   The same orthogonality means every outbound protocol gets this for free: the
-  `Trojan` outbound shares the security+transport pipeline via
-  `transport::build_layers`, so Trojan-REALITY/-TLS over any transport works too
-  (proven by `crates/learn-gripe/tests/trojan_outbound.rs`).
+  `Trojan` and `VMess` outbounds share the security+transport pipeline via
+  `transport::build_layers`, so Trojan-/VMess-REALITY/-TLS over any transport
+  works too (proven by `crates/learn-gripe/tests/trojan_outbound.rs` and
+  `crates/learn-gripe/tests/vmess_outbound.rs`).
   Faithful uTLS-style `client-fingerprint` ClientHello shaping and the separate
   `flow: xtls-rprx-vision` layer are tracked after that; the fingerprint is parsed
   and retained today but does not yet reshape the handshake.
@@ -182,9 +183,13 @@ end-to-end relay tests. Proves the in-process architecture works.
 
 ### Phase 3 — Protocol breadth + routing
 
-- VMess, VLESS, Trojan outbounds (TLS via `rustls`). VLESS and Trojan are done
-  (all transports × none/tls/reality, sharing `transport::build_layers`); VMess
-  is next.
+- VMess, VLESS, Trojan outbounds (TLS via `rustls`). All three are done (all
+  transports × none/tls/reality, sharing `transport::build_layers`). VMess uses
+  the modern AEAD header (`alterId: 0`) with `aes-128-gcm` / `chacha20-poly1305`
+  body security; the legacy MD5 (`alterId > 0`) format is rejected. Crypto is
+  delegated to vetted RustCrypto crates; only the VMess-specific nested-HMAC KDF
+  and on-wire framing are assembled in-crate (KDF cross-checked against an
+  independent implementation).
 - Routing/rule engine: reuse the already-Rust-owned rule matching to pick the
   outbound per connection (DOMAIN / CIDR / GEOIP / GEOSITE / MATCH ...).
 - UDP relay (SOCKS5 UDP ASSOCIATE) for the supported protocols.
