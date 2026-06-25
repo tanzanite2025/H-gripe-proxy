@@ -46,14 +46,16 @@ boots the Rust kernel; there is no Mihomo startup path left.
 
 | Area | State |
 | --- | --- |
-| learn-gripe kernel | MVP live. SOCKS5 inbound (no-auth CONNECT, IPv4/IPv6/domain) relaying through a direct or upstream-SOCKS5 outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. Two end-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs`. |
+| learn-gripe kernel | MVP live. **Mixed inbound** on one port: SOCKS5 (no-auth CONNECT + UDP ASSOCIATE) and HTTP proxy (`CONNECT` tunnel + plain absolute-form requests) selected by peeking the first byte, relaying through the configured outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. End-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs` and `crates/learn-gripe/tests/http_inbound.rs`. |
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
 | Mihomo sidecar | No longer started or packaged for the supported path. `tauri-plugin-mihomo` is still a dependency (compatibility DTOs / dead code) and the binary is still in the tree; removal is the final phase, not yet done. |
 
-What the MVP intentionally does **not** do yet: protocol ciphers (SS / VMess /
-VLESS / Trojan), UDP, routing/rule evaluation, DNS, TUN, system-proxy
-integration, and node-aware outbound selection (`start_core` currently always
-uses Direct outbound regardless of the selected node).
+What the live path still does **not** do: Shadowsocks ciphers, TUN, and
+node-aware outbound selection (`start_core` currently always uses Direct
+outbound regardless of the selected node, so the implemented VMess/VLESS/Trojan
+outbounds are not yet reachable from the app). System-proxy can now point at the
+mixed inbound (HTTP is served), but wiring the OS system-proxy port to the
+kernel listener is still pending.
 
 ## Build vs adopt boundary
 
@@ -68,8 +70,8 @@ ciphers.
 
 These are the parts that define the product and where we want full control:
 
-- Inbound listeners and the connection accept/relay loop (SOCKS5 today; HTTP and
-  more later).
+- Inbound listeners and the connection accept/relay loop (SOCKS5 + HTTP on a
+  mixed listener today; more later).
 - Outbound dialing and the proxy protocol framing/handshakes we choose to
   support: Shadowsocks, VMess, VLESS, Trojan wire formats.
 - Routing / rule engine and node selection (which outbound a connection takes).
@@ -177,8 +179,20 @@ end-to-end relay tests. Proves the in-process architecture works.
 
 ### Phase 2 — Make it usable for real nodes
 
-- HTTP/HTTPS inbound (`CONNECT` + plain proxy) alongside SOCKS5, so the existing
-  system-proxy integration keeps working.
+- HTTP/HTTPS inbound (`CONNECT` + plain proxy) alongside SOCKS5: done. The
+  inbound is now a **mixed listener** (the SOCKS5 accept loop peeks the first
+  byte — `0x05` is SOCKS5, anything else is an HTTP request line — so both
+  protocols share one port, like the app's mixed-port). `CONNECT host:port`
+  replies `200 Connection established` then tunnels raw bytes (the HTTPS path);
+  a plain absolute-form request (`GET http://host/path`) is dialed at the
+  origin after rewriting the request line to origin-form and dropping the
+  hop-by-hop `Proxy-Connection` header, then relayed. Only the head is parsed
+  in-crate; bodies/responses flow through `copy_bidirectional`. One forward
+  target per connection (covers keep-alive to a single host). Proven by
+  `crates/learn-gripe/tests/http_inbound.rs` (CONNECT tunnel, origin-form
+  rewrite observed by the origin, and `502 Bad Gateway` on a rejected
+  outbound). Wiring the OS system-proxy port to this listener is the remaining
+  integration step.
 - Node-aware outbound selection: read the selected node from app runtime state
   and dial the matching outbound instead of always Direct.
 - First real proxy protocol: **Shadowsocks** (AEAD: aes-256-gcm /

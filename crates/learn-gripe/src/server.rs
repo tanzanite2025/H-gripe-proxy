@@ -1,6 +1,6 @@
 use crate::config::GripeConfig;
 use crate::dns::{FakeIpPool, unmap_fake_ip};
-use crate::{outbound, socks5, udp};
+use crate::{http, outbound, socks5, udp};
 use anyhow::{Context, Result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
@@ -18,9 +18,9 @@ type FakeIp = Option<Arc<Mutex<FakeIpPool>>>;
 pub struct GripeKernel;
 
 impl GripeKernel {
-    /// Bind the SOCKS5 inbound and start serving in a background task. The
-    /// listener is bound before returning so callers observe bind failures
-    /// synchronously.
+    /// Bind the mixed (SOCKS5 + HTTP) inbound and start serving in a background
+    /// task. The listener is bound before returning so callers observe bind
+    /// failures synchronously.
     pub async fn start(config: GripeConfig) -> Result<GripeHandle> {
         Self::start_inner(config, None).await
     }
@@ -35,7 +35,7 @@ impl GripeKernel {
     async fn start_inner(config: GripeConfig, fake_ip: FakeIp) -> Result<GripeHandle> {
         let listener = TcpListener::bind(config.socks_listen)
             .await
-            .with_context(|| format!("bind SOCKS5 inbound on {}", config.socks_listen))?;
+            .with_context(|| format!("bind mixed inbound on {}", config.socks_listen))?;
         let local_addr = listener.local_addr().unwrap_or(config.socks_listen);
 
         let shutdown = Arc::new(Notify::new());
@@ -45,7 +45,7 @@ impl GripeKernel {
             serve(listener, config, task_shutdown, fake_ip).await;
         });
 
-        log::info!("learn-gripe SOCKS5 inbound listening on {local_addr}");
+        log::info!("learn-gripe mixed (SOCKS5 + HTTP) inbound listening on {local_addr}");
         Ok(GripeHandle {
             local_addr,
             shutdown,
@@ -106,6 +106,18 @@ async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<No
 }
 
 async fn handle_connection(mut inbound: TcpStream, config: &GripeConfig, fake_ip: FakeIp) -> Result<()> {
+    // The inbound is a mixed listener: SOCKS5 (RFC 1928) and HTTP proxy share
+    // the same port the way the app's mixed-port does. Peek the first byte
+    // (without consuming it) to pick the protocol: 0x05 is the SOCKS version,
+    // anything else is the start of an HTTP request line.
+    let mut first = [0u8; 1];
+    if inbound.peek(&mut first).await? == 0 {
+        return Ok(());
+    }
+    if first[0] != socks5::VERSION {
+        return http::handle(inbound, config, fake_ip.as_ref()).await;
+    }
+
     socks5::server_handshake(&mut inbound).await?;
     let (command, mut target) = socks5::read_request(&mut inbound).await?;
     // Resolve a fake IP back to its domain so routing sees the real host.

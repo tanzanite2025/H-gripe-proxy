@@ -3,17 +3,18 @@
 //! Brand name: `learn.gripe`. Crate/module identifiers use `learn-gripe` /
 //! `learn_gripe` because Rust identifiers cannot contain a dot.
 //!
-//! This is the MVP data-plane slice: a local SOCKS5 inbound listener that
-//! relays connections through a configurable outbound (direct, or via an
-//! upstream SOCKS5 proxy). Protocol coverage (Shadowsocks / VMess / VLESS /
-//! Trojan), TUN, DNS and the rule engine are layered on top of this core in
-//! later phases.
+//! The inbound is a mixed local listener that speaks both SOCKS5 (RFC 1928) and
+//! HTTP proxy (`CONNECT` + plain absolute-form requests) on the same port, and
+//! relays connections through a configurable outbound (direct, upstream SOCKS5,
+//! or a proxy protocol). Protocol coverage (Shadowsocks / VMess / VLESS /
+//! Trojan), TUN, DNS and the rule engine are layered on top of this core.
 
 mod address;
 mod config;
 mod dns;
 mod grpc;
 mod h2stream;
+mod http;
 mod http2;
 mod httpupgrade;
 mod outbound;
