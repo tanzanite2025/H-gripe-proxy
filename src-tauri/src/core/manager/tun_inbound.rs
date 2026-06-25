@@ -143,16 +143,28 @@ impl TunInbound {
 
         let mut config = tun::Configuration::default();
         config
-            .tun_name(TUN_NAME)
             .address(TUN_ADDRESS)
             .netmask(TUN_NETMASK)
             .mtu(DEFAULT_MTU as u16)
             .up();
-        // Deliver raw L3 frames with no packet-information header, matching the
-        // contract `serve_tun_device` expects (Windows wintun has none).
-        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
+        // macOS/iOS utun interfaces must be named `utunN`; setting our own name
+        // there fails device creation, so let the kernel assign one. Elsewhere
+        // (Windows wintun, Linux) use our stable adapter name.
+        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+        config.tun_name(TUN_NAME);
+        // `serve_tun_device` expects raw L3 frames (Windows wintun has none).
+        // On Linux, `IFF_NO_PI` delivers exactly that, so disable the crate's
+        // packet-information handling. On macOS/iOS, utun *always* prepends a
+        // 4-byte address-family header at the kernel — it cannot be turned off —
+        // so we instead *enable* the crate's handling, which strips that header
+        // on read and prepends `AF_INET`/`AF_INET6` on write, leaving us raw L3.
+        #[cfg(target_os = "linux")]
         config.platform_config(|p| {
             p.packet_information(false);
+        });
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        config.platform_config(|p| {
+            p.packet_information(true);
         });
 
         let device = tun::create_as_async(&config).map_err(|err| anyhow!("failed to create TUN device: {err}"))?;
