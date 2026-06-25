@@ -31,7 +31,7 @@ impl CoreManager {
         );
         let config = GripeConfig {
             socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, listen_port)),
-            outbound: outbound.clone(),
+            outbound,
         };
 
         let handle = GripeKernel::start(config)
@@ -47,19 +47,26 @@ impl CoreManager {
         *self.gripe.lock().await = Some(handle);
         self.set_running_mode(RunningMode::Gripe);
 
-        self.start_tun_if_enabled(outbound).await;
+        self.start_tun_if_enabled().await;
         Ok(())
     }
 
     /// Start the OS TUN inbound when `enable_tun_mode` is set. Off by default, so
     /// this is a no-op for the normal path. A failure to bind the device is
     /// logged but does not fail core startup — the mixed inbound stays up.
-    async fn start_tun_if_enabled(&self, outbound: OutboundMode) {
+    ///
+    /// The TUN device uses the *single global egress* ([`resolve_tun_outbound`])
+    /// rather than the mixed inbound's rule router: a global default-route
+    /// capture is only sound for a single fixed-server proxy
+    /// (`OutboundMode::supports_global_capture`), and per-flow routing through
+    /// the TUN (with a `Direct` bypass) is tracked as later TUN work.
+    async fn start_tun_if_enabled(&self) {
         let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
         if !tun_enabled {
             return;
         }
 
+        let outbound = Self::resolve_tun_outbound().await;
         match TunInbound::start(outbound).await {
             Ok(tun) => {
                 *self.tun.lock().await = Some(tun);
@@ -113,10 +120,26 @@ impl CoreManager {
         }
     }
 
-    /// Resolve the outbound for the currently selected node from the generated
-    /// runtime config plus the persisted per-group selection. Falls back to
-    /// [`OutboundMode::Direct`] when the runtime config is missing.
+    /// Resolve the outbound for the mixed inbound from the generated runtime
+    /// config plus the persisted per-group selection. In `rule` mode this is a
+    /// per-connection rule [`OutboundMode::Routed`]; otherwise it is the single
+    /// global egress. Falls back to [`OutboundMode::Direct`] when the runtime
+    /// config is missing.
     async fn resolve_outbound() -> OutboundMode {
+        Self::resolve_with(outbound_select::routed_outbound).await
+    }
+
+    /// Resolve the *single global egress* for the TUN device (see
+    /// [`start_tun_if_enabled`] for why TUN does not use the rule router).
+    async fn resolve_tun_outbound() -> OutboundMode {
+        Self::resolve_with(outbound_select::selected_outbound).await
+    }
+
+    /// Run `resolve` against the current runtime config + persisted selection,
+    /// falling back to [`OutboundMode::Direct`] when no runtime config exists.
+    async fn resolve_with(
+        resolve: impl Fn(&serde_yaml_ng::Mapping, &HashMap<String, String>) -> OutboundMode,
+    ) -> OutboundMode {
         let runtime = Config::runtime().await.latest_arc();
         let Some(config) = runtime.config.as_ref() else {
             logging!(
@@ -127,7 +150,7 @@ impl CoreManager {
             return OutboundMode::Direct;
         };
         let selection = Self::current_group_selection().await;
-        outbound_select::selected_outbound(config, &selection)
+        resolve(config, &selection)
     }
 
     /// The persisted `{ group -> selected node }` map for the current profile.
