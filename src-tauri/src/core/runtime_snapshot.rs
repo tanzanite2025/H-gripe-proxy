@@ -17,10 +17,11 @@ use serde_yaml_ng::Value;
 use tauri_plugin_mihomo::{
     MihomoExt as _,
     models::{
-        BaseConfig, BufferPoolStats, Connections, DelayHistory, DnsMetrics, EgressStatus, EngineStats, Extra,
-        HotReloadStatus, MihomoVersion, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders,
-        ProxyType, Rule, RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules,
-        SubScriptionInfo, TLSFingerprintStats, VehicleType, XDPStatus,
+        BaseConfig, BufferPoolStats, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
+        DelayHistory, DnsMetrics, EgressStatus, EngineStats, Extra, HotReloadStatus, MihomoVersion, Network, PerfStats,
+        ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior, RuleFormat,
+        RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo, TLSFingerprintStats,
+        VehicleType, XDPStatus,
     },
 };
 
@@ -288,8 +289,8 @@ impl RuntimeSnapshotService {
 
     pub async fn refresh_runtime_connections_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.connections = Some(mihomo.get_connections().await?);
+        let table = CoreManager::global().runtime_connections().await.unwrap_or_default();
+        snapshot.connections = Some(connections_from_kernel(table));
         Ok(snapshot)
     }
 
@@ -320,6 +321,83 @@ impl RuntimeSnapshotService {
             ..RuntimeSnapshot::default()
         }
     }
+}
+
+/// Convert the kernel's in-process connection table into the Mihomo-compatible
+/// `Connections` DTO the app and frontend already consume. The kernel owns the
+/// data plane, so this replaces the former Mihomo controller `/connections`
+/// query. Fields the kernel does not track (process info, GeoIP/ASN, sniffing,
+/// DSCP) are left empty/default, as they were with no Mihomo controller.
+fn connections_from_kernel(table: learn_gripe::ConnTableSnapshot) -> Connections {
+    let connections = table.connections.into_iter().map(connection_from_kernel).collect();
+    Connections {
+        download_total: table.download_total,
+        upload_total: table.upload_total,
+        connections: Some(connections),
+        memory: 0,
+    }
+}
+
+fn connection_from_kernel(conn: learn_gripe::ConnSnapshot) -> Connection {
+    let meta = conn.meta;
+    let (source_ip, source_port) = split_socket_addr(meta.source);
+    let (inbound_ip, inbound_port) = split_socket_addr(meta.inbound_local);
+    let destination_ip = meta.destination_ip.map(|ip| ip.to_string()).unwrap_or_default();
+    Connection {
+        id: conn.id.to_string(),
+        metadata: ConnectionMetaData {
+            network: network_from_kernel(meta.network),
+            connection_type: ConnectionType::Unknown("Mixed".to_string()),
+            source_ip,
+            destination_ip,
+            source_geo_ip: None,
+            destination_geo_ip: None,
+            source_ip_asn: String::new(),
+            destination_ip_asn: String::new(),
+            source_port,
+            destination_port: meta.destination_port.to_string(),
+            inbound_ip,
+            inbound_port,
+            inbound_name: "mixed".to_string(),
+            inbound_user: String::new(),
+            host: meta.host,
+            dns_mode: DNSMode::Normal,
+            uid: 0,
+            process: String::new(),
+            process_path: String::new(),
+            special_proxy: String::new(),
+            special_rules: String::new(),
+            remote_destination: String::new(),
+            dscp: 0,
+            sniff_host: String::new(),
+        },
+        upload: conn.upload,
+        download: conn.download,
+        start: unix_ms_to_rfc3339(conn.start_unix_ms),
+        chains: meta.chains,
+        provider_chains: None,
+        rule: meta.rule,
+        rule_payload: meta.rule_payload,
+    }
+}
+
+fn network_from_kernel(network: learn_gripe::ConnNetwork) -> Network {
+    match network {
+        learn_gripe::ConnNetwork::Tcp => Network::TCP,
+        learn_gripe::ConnNetwork::Udp => Network::UDP,
+    }
+}
+
+fn split_socket_addr(addr: Option<std::net::SocketAddr>) -> (String, String) {
+    match addr {
+        Some(addr) => (addr.ip().to_string(), addr.port().to_string()),
+        None => (String::new(), String::new()),
+    }
+}
+
+fn unix_ms_to_rfc3339(unix_ms: u64) -> String {
+    let time = UNIX_EPOCH + std::time::Duration::from_millis(unix_ms);
+    chrono::DateTime::<chrono::Utc>::from(time).to_rfc3339()
 }
 
 pub async fn read_runtime_version() -> Result<MihomoVersion> {

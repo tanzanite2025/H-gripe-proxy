@@ -16,6 +16,23 @@ impl TargetAddr {
             TargetAddr::Domain(_, port) => *port,
         }
     }
+
+    /// Destination host as text: the domain, or the IP literal.
+    pub fn host(&self) -> String {
+        match self {
+            TargetAddr::Ip(addr) => addr.ip().to_string(),
+            TargetAddr::Domain(host, _) => host.clone(),
+        }
+    }
+
+    /// The destination IP when the target is already an IP literal, else `None`
+    /// (a domain target has not been resolved at this layer).
+    pub fn ip(&self) -> Option<std::net::IpAddr> {
+        match self {
+            TargetAddr::Ip(addr) => Some(addr.ip()),
+            TargetAddr::Domain(_, _) => None,
+        }
+    }
 }
 
 impl fmt::Display for TargetAddr {

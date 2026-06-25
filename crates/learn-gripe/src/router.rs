@@ -141,6 +141,36 @@ impl RuleMatcher {
     }
 }
 
+impl RuleMatcher {
+    /// Short, human-readable matcher type, matching the controller rule names
+    /// the UI shows (e.g. `"DomainSuffix"`, `"GeoIP"`, `"Match"`).
+    pub fn kind_str(&self) -> &'static str {
+        match self {
+            RuleMatcher::Domain(_) => "Domain",
+            RuleMatcher::DomainSuffix(_) => "DomainSuffix",
+            RuleMatcher::DomainKeyword(_) => "DomainKeyword",
+            RuleMatcher::IpCidr(_) => "IpCidr",
+            RuleMatcher::GeoIp { .. } => "GeoIP",
+            RuleMatcher::GeoSite { .. } => "GeoSite",
+            RuleMatcher::Match => "Match",
+        }
+    }
+
+    /// The matcher's payload as text (the domain, keyword, CIDR, or geo code);
+    /// empty for the catch-all `Match`.
+    pub fn payload(&self) -> String {
+        match self {
+            RuleMatcher::Domain(d) => d.clone(),
+            RuleMatcher::DomainSuffix(s) => s.clone(),
+            RuleMatcher::DomainKeyword(k) => k.clone(),
+            RuleMatcher::IpCidr(c) => c.to_string(),
+            RuleMatcher::GeoIp { code, .. } => code.clone(),
+            RuleMatcher::GeoSite { code, .. } => code.clone(),
+            RuleMatcher::Match => String::new(),
+        }
+    }
+}
+
 /// `DOMAIN-SUFFIX` semantics: `example.com` matches `example.com` itself and
 /// any `*.example.com`, but not `notexample.com`.
 fn domain_has_suffix(host: &str, suffix: &str) -> bool {
@@ -195,6 +225,12 @@ impl IpCidr {
             (IpAddr::V4(_), IpAddr::V4(_)) | (IpAddr::V6(_), IpAddr::V6(_)) => masked(ip, self.prefix) == self.network,
             _ => false,
         }
+    }
+}
+
+impl fmt::Display for IpCidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.network, self.prefix)
     }
 }
 
@@ -290,14 +326,30 @@ impl Router {
     /// the fallback. The name is guaranteed to resolve (checked in
     /// [`Router::new`]).
     pub fn select(&self, target: &TargetAddr) -> &OutboundMode {
-        let name = self
-            .rules
-            .iter()
-            .find(|rule| rule.matcher.matches(target))
-            .map(|rule| rule.outbound.as_str())
-            .unwrap_or(&self.fallback);
-        self.lookup(name).unwrap_or(&OutboundMode::Reject)
+        self.select_detailed(target).outbound
     }
+
+    /// Like [`select`](Router::select) but also reports the chosen outbound's
+    /// name and the rule that matched (if any), for connection bookkeeping.
+    pub fn select_detailed<'a>(&'a self, target: &TargetAddr) -> Selection<'a> {
+        let matched = self.rules.iter().find(|rule| rule.matcher.matches(target));
+        let name = matched.map(|rule| rule.outbound.as_str()).unwrap_or(&self.fallback);
+        Selection {
+            outbound_name: name,
+            outbound: self.lookup(name).unwrap_or(&OutboundMode::Reject),
+            rule: matched,
+        }
+    }
+}
+
+/// The outcome of resolving a [`Router`] for one target: which outbound was
+/// chosen, its name, and the rule that selected it (`None` when the fallback
+/// was used).
+#[derive(Debug)]
+pub struct Selection<'a> {
+    pub outbound_name: &'a str,
+    pub outbound: &'a OutboundMode,
+    pub rule: Option<&'a Rule>,
 }
 
 #[cfg(test)]

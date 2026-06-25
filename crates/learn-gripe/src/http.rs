@@ -17,10 +17,12 @@
 
 use crate::address::TargetAddr;
 use crate::config::GripeConfig;
+use crate::conntrack::{ConnMeta, ConnNetwork, ConnRegistry, relay_tracked};
 use crate::dns::{FakeIpPool, unmap_fake_ip};
 use crate::outbound;
 use anyhow::{Result, anyhow, bail};
 use std::net::IpAddr;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -49,6 +51,7 @@ pub(crate) async fn handle(
     mut inbound: TcpStream,
     config: &GripeConfig,
     fake_ip: Option<&Arc<Mutex<FakeIpPool>>>,
+    registry: &Arc<ConnRegistry>,
 ) -> Result<()> {
     let (head, rest) = read_head(&mut inbound).await?;
     let request = parse_request(&head)?;
@@ -84,7 +87,21 @@ pub(crate) async fn handle(
         outbound.write_all(&rest).await?;
     }
 
-    tokio::io::copy_bidirectional(&mut inbound, &mut outbound)
+    let meta = ConnMeta::for_target(
+        ConnNetwork::Tcp,
+        inbound.peer_addr().ok(),
+        inbound.local_addr().ok(),
+        &config.outbound,
+        &target,
+    );
+    let conn = registry.register(meta);
+    // Bytes consumed past the head were already forwarded to the origin; count
+    // them as upload so the table reflects the early request body.
+    if !rest.is_empty() {
+        conn.upload().fetch_add(rest.len() as u64, Ordering::Relaxed);
+    }
+
+    relay_tracked(inbound, outbound, &conn)
         .await
         .map_err(|err| anyhow!("relay to {target}: {err}"))?;
     Ok(())
