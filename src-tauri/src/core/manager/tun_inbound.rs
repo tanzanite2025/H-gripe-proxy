@@ -5,14 +5,13 @@
 //! through [`learn_gripe::serve_tun_device`] — relaying each TCP flow through
 //! the selected outbound.
 //!
-//! **Scope / safety.** This binds the device and relays **TCP** only. It does
-//! *not* install a global default route to capture all system traffic: with
-//! UDP-over-TUN (hence DNS-over-TUN) still unimplemented, a global capture would
-//! black-hole UDP/DNS and break name resolution even with a perfect rollback.
-//! Global capture must therefore land together with UDP/DNS-over-TUN. For now
-//! only the interface subnet (assigned by the OS when the address is brought up)
-//! is reachable, so traffic must be explicitly directed at the TUN address range
-//! to exercise the path.
+//! **Scope / safety.** This binds the device and relays TCP plus UDP, answering
+//! DNS queries in-stack from a fake-IP pool (the kernel maps each name to a
+//! synthetic `198.18.0.0/16` address and recovers it on connect). It does
+//! *not* yet install a global default route to capture all system traffic; that
+//! leak-safe capture is the next step. For now only the interface subnet
+//! (assigned by the OS when the address is brought up) is reachable, so traffic
+//! must be explicitly directed at the TUN address range to exercise the path.
 //!
 //! Every privileged system mutation is pushed onto a [`RollbackStack`] with its
 //! inverse and undone in reverse order on [`TunInbound::stop`] (and on `Drop` as
@@ -23,7 +22,7 @@
 
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
-use learn_gripe::{DEFAULT_MTU, OutboundMode, serve_tun_device};
+use learn_gripe::{DEFAULT_MTU, DnsMode, FakeIpConfig, OutboundMode, serve_tun_device};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -110,7 +109,7 @@ impl TunInbound {
         logging!(
             warn,
             Type::Core,
-            "starting experimental learn-gripe TUN inbound on {} ({}/16, mtu {}); TCP-only, no global route capture",
+            "starting experimental learn-gripe TUN inbound on {} ({}/16, mtu {}); TCP+UDP with in-stack fake-IP DNS, no global route capture",
             TUN_NAME,
             TUN_ADDRESS,
             DEFAULT_MTU
@@ -133,6 +132,15 @@ impl TunInbound {
         let device = tun::create_as_async(&config).map_err(|err| anyhow!("failed to create TUN device: {err}"))?;
         let (reader, writer) = tokio::io::split(device);
 
+        // Answer DNS over the TUN from a fake-IP pool on the interface subnet so
+        // a global capture won't black-hole name resolution. Reserve the gateway
+        // (the interface address) so it is never handed out as a fake IP.
+        let (dns, pool) = DnsMode::fake_ip(FakeIpConfig::default());
+        match pool.lock() {
+            Ok(mut pool) => pool.reserve(TUN_ADDRESS),
+            Err(err) => return Err(anyhow!("fake-IP pool mutex poisoned: {err}")),
+        }
+
         let shutdown = Arc::new(Notify::new());
         let mut rollback = RollbackStack::new();
         // The OS removes the interface (and its auto-added subnet route) when the
@@ -147,7 +155,7 @@ impl TunInbound {
             reader,
             writer,
             outbound,
-            None,
+            Some(dns),
             shutdown.clone(),
             DEFAULT_MTU,
         ));

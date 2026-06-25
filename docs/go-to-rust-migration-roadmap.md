@@ -322,7 +322,11 @@ end-to-end relay tests. Proves the in-process architecture works.
   the `tun` crate (wintun/`/dev/net/tun`/utun), brings it up with an address, and
   feeds it to `serve_tun_device`, gated behind `enable_tun_mode` in `start_core()`
   with every privileged mutation recorded on a `RollbackStack` undone in reverse
-  on stop (and on `Drop`). **DNS over TUN** is landed too: `serve_tun` intercepts
+  on stop (and on `Drop`). The OS binding now feeds `serve_tun_device` a
+  `DnsMode::FakeIp` (no longer `None`), so the app's TUN path answers DNS and
+  relays UDP in-stack — not just TCP; the interface/gateway address is held out
+  of the pool via the new `FakeIpPool::reserve` so a domain is never mapped onto
+  the gateway. **DNS over TUN** is landed too: `serve_tun` intercepts
   UDP datagrams to port 53 and answers them in-stack through the kernel's existing
   DNS logic (`answer_query` / fake-IP allocation), building the reply frame with
   smoltcp's wire codec — so a client resolves names to fake IPs over the TUN and
@@ -342,8 +346,7 @@ end-to-end relay tests. Proves the in-process architecture works.
   the client). Still pending (and *not* exercisable in the sandbox/CI, so the OS
   binding is compile-checked only and must be validated on a real machine with
   admin/root): global default-route capture + DNS redirect with leak-safe
-  apply/observe/rollback, wiring a fake-IP `DnsMode` from the kernel into the
-  src-tauri TUN inbound (it currently passes `None`), and the macOS utun 4-byte
+  apply/observe/rollback (the Windows path next), and the macOS utun 4-byte
   packet-information header codec. This stays the highest-risk phase.
 
 ### Phase 5 — Delete Mihomo
