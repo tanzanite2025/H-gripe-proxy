@@ -112,12 +112,22 @@ pub fn parse_udp_datagram(buf: &[u8]) -> Result<(TargetAddr, usize)> {
     if buf[2] != 0 {
         bail!("fragmented UDP datagrams are not supported");
     }
-    let atyp = buf[3];
-    let mut cursor = 4usize;
+    // Skip the 3-byte RSV/RSV/FRAG header; the address starts at the ATYP byte.
+    let (target, used) = decode_address(&buf[3..])?;
+    Ok((target, 3 + used))
+}
+
+/// Parse a SOCKS5 address (`atyp | addr | port`) from the head of `buf`,
+/// returning the address and the number of bytes it occupied. Shared by the
+/// SOCKS5 UDP header and the Shadowsocks UDP packet codec, both of which carry a
+/// bare SOCKS5 address with no surrounding framing.
+pub(crate) fn decode_address(buf: &[u8]) -> Result<(TargetAddr, usize)> {
+    let atyp = *buf.first().ok_or_else(|| anyhow!("address truncated (atyp)"))?;
+    let mut cursor = 1usize;
     let target = match atyp {
         ATYP_IPV4 => {
             if buf.len() < cursor + 6 {
-                bail!("UDP datagram truncated (ipv4)");
+                bail!("address truncated (ipv4)");
             }
             let octets: [u8; 4] = [buf[cursor], buf[cursor + 1], buf[cursor + 2], buf[cursor + 3]];
             cursor += 4;
@@ -127,7 +137,7 @@ pub fn parse_udp_datagram(buf: &[u8]) -> Result<(TargetAddr, usize)> {
         }
         ATYP_IPV6 => {
             if buf.len() < cursor + 18 {
-                bail!("UDP datagram truncated (ipv6)");
+                bail!("address truncated (ipv6)");
             }
             let mut octets = [0u8; 16];
             octets.copy_from_slice(&buf[cursor..cursor + 16]);
@@ -139,19 +149,19 @@ pub fn parse_udp_datagram(buf: &[u8]) -> Result<(TargetAddr, usize)> {
         ATYP_DOMAIN => {
             let len = *buf
                 .get(cursor)
-                .ok_or_else(|| anyhow!("UDP datagram truncated (domain len)"))? as usize;
+                .ok_or_else(|| anyhow!("address truncated (domain len)"))? as usize;
             cursor += 1;
             if buf.len() < cursor + len + 2 {
-                bail!("UDP datagram truncated (domain)");
+                bail!("address truncated (domain)");
             }
             let host = String::from_utf8(buf[cursor..cursor + len].to_vec())
-                .map_err(|_| anyhow!("UDP domain is not valid UTF-8"))?;
+                .map_err(|_| anyhow!("domain is not valid UTF-8"))?;
             cursor += len;
             let port = u16::from_be_bytes([buf[cursor], buf[cursor + 1]]);
             cursor += 2;
             TargetAddr::Domain(host, port)
         }
-        other => bail!("unsupported UDP address type: {other}"),
+        other => bail!("unsupported address type: {other}"),
     };
     Ok((target, cursor))
 }

@@ -35,7 +35,7 @@ use chacha20poly1305::ChaCha20Poly1305;
 use md5::Md5;
 use sha1::{Digest, Sha1};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, UdpSocket, lookup_host};
 
 use crate::address::TargetAddr;
 use crate::outbound::BoxedStream;
@@ -49,6 +49,8 @@ const SS_SUBKEY_INFO: &[u8] = b"ss-subkey";
 const MAX_CHUNK: usize = 0x3fff;
 /// The AEAD tag length for every supported cipher.
 const TAG_LEN: usize = 16;
+/// Upper bound on a received Shadowsocks UDP packet (salt + sealed payload).
+const MAX_UDP_PACKET: usize = 64 * 1024;
 
 /// Shadowsocks AEAD method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,6 +155,92 @@ pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) ->
         .context("shadowsocks: send target address")?;
 
     Ok(Box::new(stream))
+}
+
+/// A Shadowsocks UDP association to a single destination.
+///
+/// Shadowsocks UDP is connectionless and frames each datagram independently —
+/// unlike the TCP stream there is no per-session salt, length-prefixing or
+/// nonce counter. Every packet is:
+/// ```text
+/// salt (key_len bytes, in clear) | AEAD(subkey, nonce=0, socks5_addr | payload)
+/// ```
+/// with a fresh random `salt` per packet (so the all-zero nonce is never reused
+/// under one key) and `subkey = HKDF-SHA1(master_key, salt, "ss-subkey")`. The
+/// sealed plaintext is the SOCKS5-format destination address followed by the
+/// application payload; replies carry the source address in the same shape,
+/// which is stripped before the payload is returned.
+pub struct ShadowsocksUdp {
+    socket: UdpSocket,
+    cipher: ShadowsocksCipher,
+    key: Vec<u8>,
+    target: TargetAddr,
+}
+
+impl ShadowsocksUdp {
+    /// Bind a UDP socket and connect it to the Shadowsocks server. `target` is
+    /// the eventual destination sealed into every datagram sent on this socket.
+    pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) -> Result<Self> {
+        let server = lookup_host((config.server.as_str(), config.port))
+            .await
+            .with_context(|| format!("shadowsocks udp: resolve {}:{}", config.server, config.port))?
+            .next()
+            .ok_or_else(|| anyhow!("shadowsocks udp: no address for {}:{}", config.server, config.port))?;
+        let socket = crate::udp::bind_egress(server).await?;
+        socket
+            .connect(server)
+            .await
+            .with_context(|| format!("shadowsocks udp: connect {server}"))?;
+        Ok(Self {
+            socket,
+            cipher: config.cipher,
+            key: config.key.clone(),
+            target: target.clone(),
+        })
+    }
+
+    /// Seal `payload` for the destination and send it to the server.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        let packet = self.seal(payload)?;
+        self.socket.send(&packet).await.context("shadowsocks udp: send")?;
+        Ok(())
+    }
+
+    /// Receive one reply datagram, open it, and return the application payload
+    /// (the source-address prefix is discarded).
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        let mut buf = vec![0u8; MAX_UDP_PACKET];
+        let n = self.socket.recv(&mut buf).await.context("shadowsocks udp: recv")?;
+        self.open(&buf[..n])
+    }
+
+    fn seal(&self, payload: &[u8]) -> Result<Vec<u8>> {
+        let salt_len = self.cipher.key_size();
+        let mut salt = vec![0u8; salt_len];
+        random_bytes(&mut salt);
+        let subkey = hkdf_sha1(&self.key, &salt, SS_SUBKEY_INFO, salt_len);
+        let cipher = AeadCipher::new(self.cipher, &subkey)?;
+        let mut plain = Vec::with_capacity(1 + 256 + 2 + payload.len());
+        socks5::encode_address(&mut plain, &self.target);
+        plain.extend_from_slice(payload);
+        let sealed = cipher.seal(&[0u8; 12], &plain)?;
+        let mut packet = salt;
+        packet.extend_from_slice(&sealed);
+        Ok(packet)
+    }
+
+    fn open(&self, datagram: &[u8]) -> Result<Vec<u8>> {
+        let salt_len = self.cipher.key_size();
+        if datagram.len() < salt_len + TAG_LEN {
+            bail!("shadowsocks udp: datagram too short");
+        }
+        let (salt, sealed) = datagram.split_at(salt_len);
+        let subkey = hkdf_sha1(&self.key, salt, SS_SUBKEY_INFO, salt_len);
+        let cipher = AeadCipher::new(self.cipher, &subkey)?;
+        let plain = cipher.open(&[0u8; 12], sealed)?;
+        let (_source, offset) = socks5::decode_address(&plain)?;
+        Ok(plain[offset..].to_vec())
+    }
 }
 
 /// Fill `buf` with cryptographically secure random bytes from the OS.
