@@ -142,6 +142,7 @@ pub(crate) fn build_layers(
             server_name: opts.servername.clone().or_else(|| opts.sni.clone()),
             alpn: opts.alpn.clone().unwrap_or_default(),
             skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
+            client_fingerprint,
         })
     } else {
         Security::None
