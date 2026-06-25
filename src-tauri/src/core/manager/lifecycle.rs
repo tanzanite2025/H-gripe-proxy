@@ -1,4 +1,5 @@
 use super::outbound_select;
+use super::tun_inbound::TunInbound;
 use super::{CoreManager, RunningMode};
 use crate::config::Config;
 use crate::core::handle::Handle;
@@ -30,7 +31,7 @@ impl CoreManager {
         );
         let config = GripeConfig {
             socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, listen_port)),
-            outbound,
+            outbound: outbound.clone(),
         };
 
         let handle = GripeKernel::start(config)
@@ -45,13 +46,42 @@ impl CoreManager {
         );
         *self.gripe.lock().await = Some(handle);
         self.set_running_mode(RunningMode::Gripe);
+
+        self.start_tun_if_enabled(outbound).await;
         Ok(())
+    }
+
+    /// Start the OS TUN inbound when `enable_tun_mode` is set. Off by default, so
+    /// this is a no-op for the normal path. A failure to bind the device is
+    /// logged but does not fail core startup — the mixed inbound stays up.
+    async fn start_tun_if_enabled(&self, outbound: OutboundMode) {
+        let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+        if !tun_enabled {
+            return;
+        }
+
+        match TunInbound::start(outbound).await {
+            Ok(tun) => {
+                *self.tun.lock().await = Some(tun);
+            }
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "TUN mode enabled but the OS TUN device could not be started: {err:#}"
+                );
+            }
+        }
     }
 
     pub async fn stop_core(&self) -> Result<()> {
         CLASH_LOGGER.clear_logs().await;
         defer! {
             self.after_core_process();
+        }
+
+        if let Some(tun) = self.tun.lock().await.take() {
+            tun.stop().await;
         }
 
         if let Some(handle) = self.gripe.lock().await.take() {
