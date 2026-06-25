@@ -12,7 +12,8 @@ use crate::vmess::VmessOutboundConfig;
 /// Runtime configuration for the learn-gripe kernel MVP.
 #[derive(Debug, Clone)]
 pub struct GripeConfig {
-    /// Local address the SOCKS5 inbound listens on.
+    /// Local address the mixed inbound listens on (SOCKS5 + HTTP proxy on one
+    /// port, dispatched by peeking the first byte).
     pub socks_listen: SocketAddr,
     /// How accepted connections are forwarded.
     pub outbound: OutboundMode,
