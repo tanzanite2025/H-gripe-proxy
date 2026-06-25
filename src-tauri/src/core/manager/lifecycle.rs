@@ -20,7 +20,7 @@ impl CoreManager {
             self.after_core_process();
         }
 
-        let socks_port = Config::clash().await.latest_arc().get_socks_port();
+        let listen_port = Self::mixed_listen_port().await;
         let outbound = Self::resolve_outbound().await;
         logging!(
             info,
@@ -29,7 +29,7 @@ impl CoreManager {
             outbound_label(&outbound)
         );
         let config = GripeConfig {
-            socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, socks_port)),
+            socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, listen_port)),
             outbound,
         };
 
@@ -70,6 +70,17 @@ impl CoreManager {
         tokio::time::sleep(Duration::from_millis(350)).await;
 
         self.start_core().await
+    }
+
+    /// TCP port the kernel's mixed inbound binds on. This is the same port the
+    /// OS system proxy and the PAC script target — `verge_mixed_port`, falling
+    /// back to the clash `mixed-port` — so enabling the system proxy actually
+    /// routes traffic through learn-gripe instead of a dead port.
+    async fn mixed_listen_port() -> u16 {
+        match Config::verge().await.latest_arc().verge_mixed_port {
+            Some(port) => port,
+            None => Config::clash().await.latest_arc().get_mixed_port(),
+        }
     }
 
     /// Resolve the outbound for the currently selected node from the generated

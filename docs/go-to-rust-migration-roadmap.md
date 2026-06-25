@@ -57,9 +57,11 @@ of the primary `select` group (following nested selectors, honoring the
 persisted per-group selection) before falling back to Direct on any
 unsupported/unresolvable case. This is a single global egress; per-connection
 rule routing through `OutboundMode::Routed` is not wired into `start_core()`
-yet. What the live path still does **not** do: TUN, and wiring the OS
-system-proxy port to the kernel listener (the mixed inbound now serves HTTP, so
-system-proxy can point at it).
+yet. The OS system proxy now points at the kernel: `start_core()` binds the
+mixed inbound to the same port the system proxy and PAC target
+(`verge_mixed_port`, else clash `mixed-port`) instead of the unrelated
+`socks-port`, so enabling the system proxy routes traffic through learn-gripe.
+What the live path still does **not** do: TUN.
 
 ## Build vs adopt boundary
 
@@ -195,8 +197,14 @@ end-to-end relay tests. Proves the in-process architecture works.
   target per connection (covers keep-alive to a single host). Proven by
   `crates/learn-gripe/tests/http_inbound.rs` (CONNECT tunnel, origin-form
   rewrite observed by the origin, and `502 Bad Gateway` on a rejected
-  outbound). Wiring the OS system-proxy port to this listener is the remaining
-  integration step.
+  outbound).
+- OS system-proxy → kernel listener — done. `start_core()` binds the mixed
+  inbound to the canonical proxy port (`verge_mixed_port`, else clash
+  `mixed-port`) — the exact value `core/sysopt.rs`, the PAC script
+  (`utils/server.rs`), and the subscription/probe paths already target —
+  instead of the unrelated `socks-port` it used before. Enabling the system
+  proxy (global or PAC) now routes OS traffic through learn-gripe rather than a
+  dead port.
 - Node-aware outbound selection — done. `start_core()` reads the selected node
   from app runtime state and dials the matching outbound instead of always
   Direct. `OutboundMode::from_proxy()` (in `learn-gripe`) maps a clash
