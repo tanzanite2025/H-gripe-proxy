@@ -205,7 +205,15 @@ end-to-end relay tests. Proves the in-process architecture works.
   `DIRECT` / `REJECT` policies, with a `fallback` for the no-match case (proven
   by `crates/learn-gripe/tests/router_outbound.rs`). `GEOIP` / `GEOSITE` need
   external mmdb / geosite data and are left for a follow-up.
-- UDP relay (SOCKS5 UDP ASSOCIATE) for the supported protocols.
+- UDP relay (SOCKS5 UDP ASSOCIATE): the inbound now answers `UDP ASSOCIATE`,
+  binds a relay socket, and relays SOCKS5-wrapped datagrams to/from remote hosts
+  with one egress socket per destination; the association lives as long as its
+  TCP control connection (RFC 1928). Egress is **Direct** only today — the
+  outbound is gated so `Direct` / `Routed` accept the association (the route is
+  resolved per datagram) while pure proxy outbounds refuse it with
+  `REP_CMD_NOT_SUPPORTED`. Proxy-tunnelled UDP (VLESS / Trojan / VMess UDP
+  framing) is the next follow-up. Proven by
+  `crates/learn-gripe/tests/udp_relay.rs`.
 
 ### Phase 4 — DNS + TUN
 
