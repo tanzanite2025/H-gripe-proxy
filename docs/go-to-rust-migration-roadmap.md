@@ -360,26 +360,30 @@ end-to-end relay tests. Proves the in-process architecture works.
   they are **compile-checked only and must be validated on a real Windows machine**.
   This stays the highest-risk phase.
 
-  **Next step — Windows IPv6 default-route capture (closes the current leak gap).**
-  The capture above is IPv4-only: with IPv6 connectivity present, AAAA-reachable
-  destinations still egress over the physical adapter and bypass the tunnel. The
-  plan mirrors the IPv4 path inside the same `install_global_capture` /
-  `RollbackStack` flow, gated on the same `supports_global_capture` outbound:
-  - Assign an IPv6 address to the TUN (e.g. an fd00::/8 ULA gateway) so the
-    interface has an on-link v6 next-hop, analogous to `198.18.0.1`.
-  - Bypass: pin each resolved IPv6 proxy-server address with a `/128` route to
-    the physical v6 gateway (parsed from `route print -6` /
-    `netsh interface ipv6 show route`), the v6 analogue of the `/32` bypass.
-  - Capture: add `::/1` + `8000::/1` through the TUN (more specific than the
-    untouched `::/0` default, so rollback is a clean delete), the v6 analogue of
-    the `0.0.0.0/1` + `128.0.0.0/1` split.
-  - Observe: re-read the v6 route table to confirm the `::/1` split took effect,
+  **Windows IPv6 default-route capture** is now landed too (`install_global_capture_v6`),
+  closing the prior IPv4-only leak gap — without it, AAAA-reachable destinations
+  egressed over the physical adapter. It mirrors the IPv4 path inside the same
+  `install_global_capture` / `RollbackStack` flow (same `supports_global_capture`
+  gate) and is **purely additive**: a host with no IPv6 default route is left
+  untouched.
+  - Assigns the TUN an `fd00::/8` ULA gateway (`fd00::1`) via `netsh` for an
+    on-link v6 next-hop (the `tun` crate can't set a v6 address on Windows), the
+    analogue of `198.18.0.1`.
+  - Bypass: pins each resolved IPv6 proxy-server address with a `/128` via the
+    physical v6 default (interface + gateway parsed from
+    `netsh interface ipv6 show route`, handling on-link defaults with no gateway),
+    the v6 analogue of the `/32` bypass.
+  - Capture: adds `::/1` + `8000::/1` through the TUN (more specific than the
+    untouched `::/0` default, so rollback is a clean delete), the analogue of the
+    `0.0.0.0/1` + `128.0.0.0/1` split.
+  - Observe: re-reads the v6 route table to confirm the `::/1` split took effect,
     rolling back and failing start otherwise.
-  - The route-building / table-parsing helpers get unit tests like the IPv4 ones;
-    the `route`/`netsh` mutations remain compile-checked only and must be
-    validated on a real Windows machine with admin.
-  After this, the macOS utun 4-byte packet-information header codec is the
-  remaining TUN follow-up (deferred — Windows first).
+  - The route-building / table-parsing helpers (`parse_default_gateway_v6`,
+    `capture_routes_present_v6`, `v6_route_*_args`, `v6_*_address_args`) have unit
+    tests; the `netsh` mutations remain **compile-checked only and must be
+    validated on a real Windows machine with admin**.
+  The macOS utun 4-byte packet-information header codec is the remaining TUN
+  follow-up (deferred — Windows first).
 
 ### Phase 5 — Delete Mihomo
 

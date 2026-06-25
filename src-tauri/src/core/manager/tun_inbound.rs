@@ -20,9 +20,14 @@
 //! outbounds cannot be globally captured without looping arbitrary or
 //! Direct-routed targets, so they fall back to serving only the on-link subnet.
 //!
+//! IPv6 is captured the same way (`install_global_capture_v6`): the TUN gets a
+//! ULA gateway via `netsh`, each IPv6 proxy address is bypassed with a `/128`,
+//! and `::/1` + `8000::/1` route through the TUN. It is purely additive — a host
+//! with no IPv6 default route is left untouched.
+//!
 //! **Untested.** The capture shells out to `route`/`netsh` and needs admin plus
 //! a real default route; it is compile-verified only and **must** be validated
-//! on a real Windows machine. IPv6 is not captured (a known leak gap).
+//! on a real Windows machine.
 //!
 //! Every privileged system mutation is pushed onto a [`RollbackStack`] with its
 //! inverse and undone in reverse order on [`TunInbound::stop`] (and on `Drop` as
@@ -35,6 +40,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use clash_verge_logging::{Type, logging};
 use learn_gripe::{DEFAULT_MTU, DnsMode, FakeIpConfig, OutboundMode, serve_tun_device};
 use std::net::Ipv4Addr;
+#[cfg(windows)]
+use std::net::Ipv6Addr;
 use std::sync::Arc;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
@@ -45,6 +52,13 @@ use tun::AbstractDevice;
 const TUN_ADDRESS: Ipv4Addr = Ipv4Addr::new(198, 18, 0, 1);
 const TUN_NETMASK: Ipv4Addr = Ipv4Addr::new(255, 255, 0, 0);
 const TUN_NAME: &str = "clash-verge";
+
+/// IPv6 gateway assigned to the TUN for the global IPv6 capture. `fd00::/8` is
+/// the IANA unique-local range — the v6 analogue of the v4 benchmarking address.
+#[cfg(windows)]
+const TUN_ADDRESS_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 0, 0, 0, 0, 0, 0, 1);
+#[cfg(windows)]
+const TUN_V6_PREFIX_LEN: u8 = 64;
 
 /// A reversible system mutation: a human-readable description plus the closure
 /// that undoes it.
@@ -313,6 +327,115 @@ fn capture_routes_present(route_print: &str) -> bool {
     })
 }
 
+/// The two halves of the IPv6 default split: `::/1` + `8000::/1`, each more
+/// specific than `::/0` so the existing v6 default need not be touched.
+#[cfg(windows)]
+const SPLIT_DEFAULT_V6: [(Ipv6Addr, u8); 2] = [
+    (Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), 1),
+    (Ipv6Addr::new(0x8000, 0, 0, 0, 0, 0, 0, 0), 1),
+];
+
+/// `netsh interface ipv6 add address interface=<idx> address=<addr>/<plen>`.
+#[cfg(windows)]
+fn v6_add_address_args(if_index: u32, addr: Ipv6Addr, plen: u8) -> Vec<String> {
+    vec![
+        "interface".into(),
+        "ipv6".into(),
+        "add".into(),
+        "address".into(),
+        format!("interface={if_index}"),
+        format!("address={addr}/{plen}"),
+        "store=active".into(),
+    ]
+}
+
+/// `netsh interface ipv6 delete address ...` — the inverse of the add above.
+#[cfg(windows)]
+fn v6_delete_address_args(if_index: u32, addr: Ipv6Addr) -> Vec<String> {
+    vec![
+        "interface".into(),
+        "ipv6".into(),
+        "delete".into(),
+        "address".into(),
+        format!("interface={if_index}"),
+        format!("address={addr}"),
+    ]
+}
+
+/// `netsh interface ipv6 add route prefix=<dest>/<plen> interface=<idx> [nexthop=<gw>] metric=1`.
+/// An on-link route (no gateway, e.g. a bypass via an on-link physical default)
+/// omits the `nexthop` argument.
+#[cfg(windows)]
+fn v6_route_add_args(dest: Ipv6Addr, plen: u8, if_index: u32, nexthop: Option<Ipv6Addr>) -> Vec<String> {
+    let mut args = vec![
+        "interface".into(),
+        "ipv6".into(),
+        "add".into(),
+        "route".into(),
+        format!("prefix={dest}/{plen}"),
+        format!("interface={if_index}"),
+    ];
+    if let Some(nh) = nexthop {
+        args.push(format!("nexthop={nh}"));
+    }
+    args.push("metric=1".into());
+    args.push("store=active".into());
+    args
+}
+
+/// `netsh interface ipv6 delete route ...` — the inverse of the add above.
+#[cfg(windows)]
+fn v6_route_delete_args(dest: Ipv6Addr, plen: u8, if_index: u32, nexthop: Option<Ipv6Addr>) -> Vec<String> {
+    let mut args = vec![
+        "interface".into(),
+        "ipv6".into(),
+        "delete".into(),
+        "route".into(),
+        format!("prefix={dest}/{plen}"),
+        format!("interface={if_index}"),
+    ];
+    if let Some(nh) = nexthop {
+        args.push(format!("nexthop={nh}"));
+    }
+    args
+}
+
+/// Parse `netsh interface ipv6 show route` for the lowest-metric `::/0` default,
+/// returning its interface index and gateway (`None` when the gateway column is
+/// an interface name, i.e. an on-link default). Columns are
+/// `Publish Type Met Prefix Idx Gateway/Interface Name`.
+#[cfg(windows)]
+fn parse_default_gateway_v6(show_route: &str) -> Option<DefaultRouteV6> {
+    let mut best: Option<(u32, DefaultRouteV6)> = None;
+    for line in show_route.lines() {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 5 || cols[3] != "::/0" {
+            continue;
+        }
+        let Ok(metric) = cols[2].parse::<u32>() else {
+            continue;
+        };
+        let Ok(if_index) = cols[4].parse::<u32>() else {
+            continue;
+        };
+        let gateway = cols.get(5).and_then(|g| g.parse::<Ipv6Addr>().ok());
+        if best.as_ref().is_none_or(|(m, _)| metric < *m) {
+            best = Some((metric, DefaultRouteV6 { if_index, gateway }));
+        }
+    }
+    best.map(|(_, route)| route)
+}
+
+/// Whether a re-read `netsh interface ipv6 show route` shows our `::/1` capture
+/// route — the v6 observation step.
+#[cfg(windows)]
+fn capture_routes_present_v6(show_route: &str) -> bool {
+    show_route.lines().any(|line| {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        cols.len() >= 4 && cols[3] == "::/1"
+    })
+}
+
 #[cfg(windows)]
 fn str_refs(args: &[String]) -> Vec<&str> {
     args.iter().map(String::as_str).collect()
@@ -343,18 +466,20 @@ fn run_cmd(program: &str, args: &[&str]) -> Result<String> {
 fn install_global_capture(rollback: &mut RollbackStack, if_index: i32, outbound: &OutboundMode) -> Result<()> {
     use std::net::{IpAddr, ToSocketAddrs};
 
-    // 1. Resolve the proxy server endpoint(s) to literal IPv4s while normal DNS
-    //    still works (before the default route is captured).
+    // 1. Resolve the proxy server endpoint(s) to literal IPs while normal DNS
+    //    still works (before the default route is captured). Both families are
+    //    collected so each can be bypassed in its own capture.
     let mut server_ips: Vec<Ipv4Addr> = Vec::new();
+    let mut server_ips_v6: Vec<Ipv6Addr> = Vec::new();
     for (host, port) in outbound.direct_dial_endpoints() {
         let resolved = (host.as_str(), port)
             .to_socket_addrs()
             .with_context(|| format!("resolve proxy server {host}:{port} for the bypass route"))?;
         for addr in resolved {
-            if let IpAddr::V4(ip) = addr.ip() {
-                if !server_ips.contains(&ip) {
-                    server_ips.push(ip);
-                }
+            match addr.ip() {
+                IpAddr::V4(ip) if !server_ips.contains(&ip) => server_ips.push(ip),
+                IpAddr::V6(ip) if !server_ips_v6.contains(&ip) => server_ips_v6.push(ip),
+                _ => {}
             }
         }
     }
@@ -414,6 +539,79 @@ fn install_global_capture(rollback: &mut RollbackStack, if_index: i32, outbound:
     let after = run_cmd("route", &["print", "-4"])?;
     if !capture_routes_present(&after) {
         bail!("TUN capture routes did not take effect (route table lacks the 0.0.0.0/1 split)");
+    }
+
+    // 7. Capture IPv6 the same way (additive; no-op on a host without IPv6).
+    install_global_capture_v6(rollback, if_index, &server_ips_v6)?;
+    Ok(())
+}
+
+/// The IPv6 default gateway and the interface it is reached through, parsed from
+/// `netsh interface ipv6 show route`. `gateway` is `None` for an on-link default
+/// (the "Gateway" column is an interface name rather than an address).
+#[cfg(windows)]
+struct DefaultRouteV6 {
+    if_index: u32,
+    gateway: Option<Ipv6Addr>,
+}
+
+/// Mirror [`install_global_capture`] for IPv6: assign the TUN a ULA gateway,
+/// bypass each IPv6 proxy-server address with a `/128` via the physical default,
+/// capture `::/1` + `8000::/1` through the TUN, then observe. Returns `Ok(())`
+/// without touching anything when the host has no IPv6 default route, so this is
+/// purely additive. Each mutation records its inverse on `rollback`.
+#[cfg(windows)]
+fn install_global_capture_v6(rollback: &mut RollbackStack, if_index: i32, server_ips: &[Ipv6Addr]) -> Result<()> {
+    let if_index = if_index as u32;
+
+    // Skip cleanly when there is no IPv6 connectivity to capture.
+    let table = run_cmd("netsh", &["interface", "ipv6", "show", "route"])?;
+    let Some(default) = parse_default_gateway_v6(&table) else {
+        logging!(info, Type::Core, "no IPv6 default route; skipping IPv6 capture");
+        return Ok(());
+    };
+
+    // Give the TUN an on-link IPv6 next-hop (the analogue of 198.18.0.1). The
+    // `tun` crate cannot set a v6 address on Windows, so do it via netsh.
+    run_cmd(
+        "netsh",
+        &str_refs(&v6_add_address_args(if_index, TUN_ADDRESS_V6, TUN_V6_PREFIX_LEN)),
+    )?;
+    let undo = v6_delete_address_args(if_index, TUN_ADDRESS_V6);
+    rollback.push("remove TUN IPv6 address", move || {
+        let _ = run_cmd("netsh", &str_refs(&undo));
+    });
+
+    // Bypass each IPv6 proxy server address via the physical default (a /128
+    // beats the ::/1 capture routes, so the proxy's own traffic is not looped).
+    for ip in server_ips {
+        run_cmd(
+            "netsh",
+            &str_refs(&v6_route_add_args(*ip, 128, default.if_index, default.gateway)),
+        )?;
+        let undo = v6_route_delete_args(*ip, 128, default.if_index, default.gateway);
+        let ip = *ip;
+        rollback.push(format!("delete IPv6 bypass route {ip}/128"), move || {
+            let _ = run_cmd("netsh", &str_refs(&undo));
+        });
+    }
+
+    // Capture the rest of the IPv6 space through the TUN.
+    for (dest, plen) in SPLIT_DEFAULT_V6 {
+        run_cmd(
+            "netsh",
+            &str_refs(&v6_route_add_args(dest, plen, if_index, Some(TUN_ADDRESS_V6))),
+        )?;
+        let undo = v6_route_delete_args(dest, plen, if_index, Some(TUN_ADDRESS_V6));
+        rollback.push(format!("delete TUN IPv6 default route {dest}/{plen}"), move || {
+            let _ = run_cmd("netsh", &str_refs(&undo));
+        });
+    }
+
+    // Observe: confirm the ::/1 capture route is present.
+    let after = run_cmd("netsh", &["interface", "ipv6", "show", "route"])?;
+    if !capture_routes_present_v6(&after) {
+        bail!("TUN IPv6 capture routes did not take effect (route table lacks the ::/1 split)");
     }
     Ok(())
 }
@@ -489,6 +687,120 @@ Network Destination        Netmask          Gateway       Interface  Metric
         assert_eq!(
             bypass_route_delete_args(ip),
             vec!["delete", "203.0.113.7", "mask", "255.255.255.255"]
+        );
+    }
+
+    #[test]
+    fn parses_lowest_metric_default_gateway_v6() {
+        let table = "\
+Publish  Type      Met  Prefix                    Idx  Gateway/Interface Name
+-------  --------  ---  ------------------------  ---  ------------------------
+No       Manual    256  ::/0                      5    fe80::1
+No       Manual    100  ::/0                      12   fe80::abcd
+No       Manual    256  ::1/128                   1    Loopback Pseudo-Interface 1";
+        let route = parse_default_gateway_v6(table).expect("default v6 route");
+        // The metric-100 entry wins; its gateway is a link-local address.
+        assert_eq!(route.if_index, 12);
+        assert_eq!(route.gateway, Some(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0xabcd)));
+    }
+
+    #[test]
+    fn parses_on_link_default_gateway_v6_as_none() {
+        let table = "\
+Publish  Type      Met  Prefix                    Idx  Gateway/Interface Name
+No       Manual    256  ::/0                      8    Ethernet";
+        let route = parse_default_gateway_v6(table).expect("default v6 route");
+        assert_eq!(route.if_index, 8);
+        assert_eq!(route.gateway, None);
+    }
+
+    #[test]
+    fn no_default_route_v6_yields_none() {
+        let table = "\
+Publish  Type      Met  Prefix                    Idx  Gateway/Interface Name
+No       Manual    256  ::1/128                   1    Loopback Pseudo-Interface 1";
+        assert!(parse_default_gateway_v6(table).is_none());
+    }
+
+    #[test]
+    fn capture_presence_detects_the_v6_split() {
+        let with = "No       Manual    1    ::/1                      12   fd00::1";
+        let without = "No       Manual    256  ::/0                      12   fe80::1";
+        assert!(capture_routes_present_v6(with));
+        assert!(!capture_routes_present_v6(without));
+    }
+
+    #[test]
+    fn v6_route_arg_builders_are_inverses() {
+        let (dest, plen) = SPLIT_DEFAULT_V6[0];
+        let nexthop = Some(TUN_ADDRESS_V6);
+        assert_eq!(
+            v6_route_add_args(dest, plen, 12, nexthop),
+            vec![
+                "interface",
+                "ipv6",
+                "add",
+                "route",
+                "prefix=::/1",
+                "interface=12",
+                "nexthop=fd00::1",
+                "metric=1",
+                "store=active"
+            ]
+        );
+        assert_eq!(
+            v6_route_delete_args(dest, plen, 12, nexthop),
+            vec![
+                "interface",
+                "ipv6",
+                "delete",
+                "route",
+                "prefix=::/1",
+                "interface=12",
+                "nexthop=fd00::1"
+            ]
+        );
+        // An on-link route (no gateway) omits the nexthop argument.
+        let server = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1);
+        assert_eq!(
+            v6_route_add_args(server, 128, 8, None),
+            vec![
+                "interface",
+                "ipv6",
+                "add",
+                "route",
+                "prefix=2001:db8::1/128",
+                "interface=8",
+                "metric=1",
+                "store=active"
+            ]
+        );
+    }
+
+    #[test]
+    fn v6_address_arg_builders_are_inverses() {
+        assert_eq!(
+            v6_add_address_args(12, TUN_ADDRESS_V6, TUN_V6_PREFIX_LEN),
+            vec![
+                "interface",
+                "ipv6",
+                "add",
+                "address",
+                "interface=12",
+                "address=fd00::1/64",
+                "store=active"
+            ]
+        );
+        assert_eq!(
+            v6_delete_address_args(12, TUN_ADDRESS_V6),
+            vec![
+                "interface",
+                "ipv6",
+                "delete",
+                "address",
+                "interface=12",
+                "address=fd00::1"
+            ]
         );
     }
 }
