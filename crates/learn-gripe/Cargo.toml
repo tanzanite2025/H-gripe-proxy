@@ -29,9 +29,18 @@ getrandom = { version = "0.3.4" }
 # logic (fake-ip allocation, mapping, upstream selection); message codec is
 # delegated to this vetted crate (already used by src-tauri via hickory 0.24).
 hickory-proto = { version = "0.24", default-features = false }
+# Userspace IP/TCP stack primitive for the TUN inbound (analogous to adopting
+# rustls for TLS). We own the orchestration (read packets, demux flows, bridge
+# to the outbound pipeline); smoltcp provides only the packet wire codec and
+# per-flow TCP state machine. `medium-ip` = no Ethernet framing (raw L3, as a
+# TUN device delivers).
+smoltcp = { version = "0.12.0", default-features = false, features = ["std", "medium-ip", "proto-ipv4", "proto-ipv6", "socket-tcp"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+# A second smoltcp stack drives a real client TCP handshake through the
+# in-memory TUN pipe in tests/tun_inbound.rs.
+smoltcp = { version = "0.12.0", default-features = false, features = ["std", "medium-ip", "proto-ipv4", "proto-ipv6", "socket-tcp"] }
 serde_yaml_ng = { workspace = true }
 serde_json = { workspace = true }
 rustls-pemfile = "2.2.0"
