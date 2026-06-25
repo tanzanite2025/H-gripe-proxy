@@ -35,7 +35,7 @@ pub use proxy::{
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
 };
 pub use server::{GripeHandle, GripeKernel};
-pub use tls::TlsClientConfig;
+pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::{Security, Transport};
 pub use vless::VlessOutboundConfig;
 pub use ws::WsTransportConfig;

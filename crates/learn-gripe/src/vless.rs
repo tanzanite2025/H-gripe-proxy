@@ -1,12 +1,15 @@
 //! VLESS outbound.
 //!
 //! Implements the VLESS request/response framing only; the transport (tcp/ws)
-//! and security (none/tls) layers it runs over are provided by
+//! and security (none/tls/reality) layers it runs over are provided by
 //! [`crate::transport`], so this module is purely the protocol layer. `tcp`,
 //! `ws`, `grpc`, `xhttp` (stream-one), `httpupgrade` and `h2` transports over
-//! `none`/`tls` security are supported today (`h2` is TLS-mandatory); the
-//! multi-request xhttp modes and REALITY land in follow-up work and are rejected
-//! by [`VlessOutboundConfig::from_proxy`] rather than silently mis-encoded.
+//! `none` / `tls` / `reality` security are supported today (`h2` is
+//! TLS-mandatory; REALITY counts as TLS here). Because security and transport
+//! are orthogonal, VLESS-REALITY works under every transport automatically. The
+//! multi-request xhttp modes and the `flow: xtls-rprx-vision` layer land in
+//! follow-up work and are rejected by [`VlessOutboundConfig::from_proxy`] rather
+//! than silently mis-encoded.
 //!
 //! Wire format (client → server request header):
 //! ```text
@@ -30,8 +33,8 @@ use crate::grpc::GrpcTransportConfig;
 use crate::http2::H2TransportConfig;
 use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
-use crate::proxy::{Network, ProxyEntry};
-use crate::tls::TlsClientConfig;
+use crate::proxy::{Network, ProxyEntry, ProxyOptions, RealityOpts};
+use crate::tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 use crate::transport::{self, Security, Transport};
 use crate::ws::WsTransportConfig;
 use crate::xhttp::{XhttpMode, XhttpTransportConfig};
@@ -68,16 +71,20 @@ impl VlessOutboundConfig {
         let port = opts.port.context("vless: missing port")?;
         let uuid = parse_uuid(opts.uuid.as_deref().context("vless: missing uuid")?)?;
 
-        if opts.reality_opts.is_some() {
-            bail!("vless: REALITY not implemented yet");
-        }
         if let Some(flow) = opts.flow.as_deref()
             && !flow.is_empty()
         {
             bail!("vless: flow {flow:?} not implemented yet");
         }
 
-        let mut security = if opts.tls.unwrap_or(false) {
+        let client_fingerprint = match opts.client_fingerprint.as_deref() {
+            None | Some("") => None,
+            Some(value) => Some(ClientFingerprint::parse(value).map_err(|e| anyhow!("vless: {e}"))?),
+        };
+
+        let mut security = if let Some(reality_opts) = &opts.reality_opts {
+            Security::Reality(build_reality(opts, reality_opts, client_fingerprint)?)
+        } else if opts.tls.unwrap_or(false) {
             Security::Tls(TlsClientConfig {
                 server_name: opts.servername.clone().or_else(|| opts.sni.clone()),
                 alpn: opts.alpn.clone().unwrap_or_default(),
@@ -129,8 +136,9 @@ impl VlessOutboundConfig {
             }
             Some(Network::H2) => {
                 // The `h2` transport runs HTTP/2 in the clear-of-framing sense
-                // but is only defined over TLS (ALPN selects `h2`).
-                if !matches!(security, Security::Tls(_)) {
+                // but is only defined over TLS (ALPN selects `h2`); REALITY
+                // rides TLS 1.3, so it qualifies too.
+                if !matches!(security, Security::Tls(_) | Security::Reality(_)) {
                     bail!("vless: h2 transport requires TLS");
                 }
                 let h2 = opts.h2_opts.clone().unwrap_or_default();
@@ -146,13 +154,13 @@ impl VlessOutboundConfig {
             Some(other) => bail!("vless: transport {other:?} not implemented yet"),
         };
 
-        // gRPC, XHTTP and h2 all run over HTTP/2; make sure the TLS handshake
-        // advertises `h2` so the server selects the right protocol.
+        // gRPC, XHTTP and h2 all run over HTTP/2; make sure the TLS/REALITY
+        // handshake advertises `h2` so the server selects the right protocol.
         if matches!(transport, Transport::Grpc(_) | Transport::Xhttp(_) | Transport::H2(_))
-            && let Security::Tls(ref mut tls) = security
-            && !tls.alpn.iter().any(|p| p == "h2")
+            && let Some(alpn) = security.alpn_mut()
+            && !alpn.iter().any(|p| p == "h2")
         {
-            tls.alpn = vec!["h2".to_string()];
+            *alpn = vec!["h2".to_string()];
         }
 
         Ok(Self {
@@ -185,6 +193,123 @@ fn parse_uuid(value: &str) -> Result<[u8; 16]> {
     for (i, byte) in out.iter_mut().enumerate() {
         let pair = &hex[i * 2..i * 2 + 2];
         *byte = u8::from_str_radix(pair, 16).map_err(|_| anyhow!("vless: invalid uuid hex {pair:?}"))?;
+    }
+    Ok(out)
+}
+
+/// Assemble a [`RealityClientConfig`] from a proxy's `reality-opts` plus the
+/// shared `servername` / `client-fingerprint` fields. REALITY needs a masquerade
+/// SNI and the server's static x25519 public key; both are hard requirements and
+/// are rejected here rather than producing a handshake that cannot authenticate.
+fn build_reality(
+    opts: &ProxyOptions,
+    reality_opts: &RealityOpts,
+    client_fingerprint: Option<ClientFingerprint>,
+) -> Result<RealityClientConfig> {
+    let server_name = opts
+        .servername
+        .clone()
+        .or_else(|| opts.sni.clone())
+        .filter(|s| !s.is_empty())
+        .context("vless: REALITY requires a servername (masquerade SNI)")?;
+
+    let public_key = reality_opts
+        .public_key
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .context("vless: REALITY requires reality-opts.public-key")?;
+    let public_key = decode_reality_public_key(public_key)?;
+
+    let short_id = match reality_opts.short_id.as_deref() {
+        None | Some("") => Vec::new(),
+        Some(hex) => decode_short_id(hex)?,
+    };
+
+    Ok(RealityClientConfig {
+        server_name,
+        public_key,
+        short_id,
+        alpn: opts.alpn.clone().unwrap_or_default(),
+        skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
+        client_fingerprint,
+    })
+}
+
+/// Decode a REALITY `public-key`: an x25519 public key in base64 (clash/mihomo
+/// and Xray use URL-safe RawStdEncoding, but standard base64 with padding is
+/// accepted too). Must decode to exactly 32 bytes.
+fn decode_reality_public_key(value: &str) -> Result<[u8; 32]> {
+    let bytes = base64_decode(value.trim()).context("vless: invalid REALITY public-key (expected base64)")?;
+    let len = bytes.len();
+    let key: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| anyhow!("vless: REALITY public-key must decode to 32 bytes, got {len}"))?;
+    Ok(key)
+}
+
+/// Decode a REALITY `short-id`: a hex string of even length, at most 16 chars
+/// (8 bytes), matching one of the server's configured short ids.
+fn decode_short_id(value: &str) -> Result<Vec<u8>> {
+    let value = value.trim();
+    if value.len() > 16 {
+        bail!(
+            "vless: REALITY short-id must be at most 16 hex digits (8 bytes), got {}",
+            value.len()
+        );
+    }
+    if !value.len().is_multiple_of(2) {
+        bail!(
+            "vless: REALITY short-id must have an even number of hex digits, got {}",
+            value.len()
+        );
+    }
+    value
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| Ok((hex_val(pair[0])? << 4) | hex_val(pair[1])?))
+        .collect()
+}
+
+/// Map a single ASCII hex digit to its 4-bit value.
+fn hex_val(c: u8) -> Result<u8> {
+    match c {
+        b'0'..=b'9' => Ok(c - b'0'),
+        b'a'..=b'f' => Ok(c - b'a' + 10),
+        b'A'..=b'F' => Ok(c - b'A' + 10),
+        other => bail!("vless: invalid hex digit {:?} in REALITY short-id", other as char),
+    }
+}
+
+/// Minimal base64 decoder accepting both the standard (`+`/`/`) and URL-safe
+/// (`-`/`_`) alphabets, with or without `=` padding. Encoding choice (not a
+/// security primitive) is the only thing kept in-house; the cryptography stays
+/// in the vendored rustls fork.
+fn base64_decode(input: &str) -> Result<Vec<u8>> {
+    fn sextet(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' | b'-' => Some(62),
+            b'/' | b'_' => Some(63),
+            _ => None,
+        }
+    }
+
+    let mut acc: u32 = 0;
+    let mut bits = 0u32;
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    for &c in input.as_bytes() {
+        if matches!(c, b'=' | b'\r' | b'\n') {
+            continue;
+        }
+        let value = sextet(c).ok_or_else(|| anyhow!("invalid base64 character {:?}", c as char))?;
+        acc = (acc << 6) | u32::from(value);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
     }
     Ok(out)
 }
@@ -386,5 +511,102 @@ mod tests {
             Security::Tls(tls) => assert_eq!(tls.alpn, vec!["h2".to_string()]),
             other => panic!("expected TLS security, got {other:?}"),
         }
+    }
+
+    /// A 43-char base64 string (no padding) that decodes to 32 zero bytes,
+    /// usable as a syntactically valid REALITY public-key in fixtures.
+    fn zero_public_key_b64() -> String {
+        "A".repeat(43)
+    }
+
+    #[test]
+    fn reality_opts_map_to_reality_security() {
+        let yaml = format!(
+            "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nclient-fingerprint: chrome\n\
+             network: grpc\ngrpc-opts:\n  grpc-service-name: GunService\n\
+             reality-opts:\n  public-key: \"{}\"\n  short-id: 0123abcd\n",
+            zero_public_key_b64()
+        );
+        let entry = parse_entry(&yaml);
+        let cfg = VlessOutboundConfig::from_proxy(&entry).unwrap();
+        match &cfg.security {
+            Security::Reality(r) => {
+                assert_eq!(r.server_name, "www.cloudflare.com");
+                assert_eq!(r.public_key, [0u8; 32]);
+                assert_eq!(r.short_id, vec![0x01, 0x23, 0xab, 0xcd]);
+                assert_eq!(r.client_fingerprint, Some(ClientFingerprint::Chrome));
+                // grpc forces the h2 ALPN on the REALITY config too.
+                assert_eq!(r.alpn, vec!["h2".to_string()]);
+            }
+            other => panic!("expected REALITY security, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reality_without_servername_is_rejected() {
+        let yaml = format!(
+            "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             reality-opts:\n  public-key: \"{}\"\n",
+            zero_public_key_b64()
+        );
+        let err = VlessOutboundConfig::from_proxy(&parse_entry(&yaml)).unwrap_err();
+        assert!(err.to_string().contains("servername"), "got: {err}");
+    }
+
+    #[test]
+    fn reality_without_public_key_is_rejected() {
+        let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nreality-opts:\n  short-id: ab\n";
+        let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("public-key"), "got: {err}");
+    }
+
+    #[test]
+    fn reality_short_public_key_is_rejected() {
+        let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nreality-opts:\n  public-key: AAAA\n";
+        let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("32 bytes"), "got: {err}");
+    }
+
+    #[test]
+    fn unknown_client_fingerprint_is_rejected() {
+        let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nclient-fingerprint: netscape\n";
+        let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("client-fingerprint"), "got: {err}");
+    }
+
+    #[test]
+    fn flow_is_still_rejected() {
+        let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nflow: xtls-rprx-vision\n";
+        let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("flow"), "got: {err}");
+    }
+
+    #[test]
+    fn base64_decode_handles_both_alphabets_and_padding() {
+        assert_eq!(base64_decode("AAAA").unwrap(), vec![0, 0, 0]);
+        assert_eq!(base64_decode("AA==").unwrap(), vec![0]);
+        // `////` (standard) and `____` (URL-safe) both decode to 0xFF bytes.
+        assert_eq!(base64_decode("////").unwrap(), vec![0xff, 0xff, 0xff]);
+        assert_eq!(base64_decode("____").unwrap(), vec![0xff, 0xff, 0xff]);
+        assert!(base64_decode("**bad**").is_err());
+    }
+
+    #[test]
+    fn decode_short_id_roundtrips_and_validates() {
+        assert_eq!(decode_short_id("0123abCD").unwrap(), vec![0x01, 0x23, 0xab, 0xcd]);
+        assert!(decode_short_id("abc").is_err(), "odd length");
+        assert!(decode_short_id("0123456789abcdef01").is_err(), "too long");
+        assert!(decode_short_id("zz").is_err(), "non-hex");
     }
 }

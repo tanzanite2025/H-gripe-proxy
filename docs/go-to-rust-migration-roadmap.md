@@ -133,11 +133,14 @@ break REALITY.
   (`third_party/rustls/LICENSE-{APACHE,ISC,MIT}`,
   `third_party/tokio-rustls/LICENSE-{APACHE,MIT}`). `rustls` is
   `Apache-2.0 OR ISC OR MIT`; `tokio-rustls` is `MIT OR Apache-2.0`.
-- **Next steps that depend on this.** `Security::Reality` in `learn-gripe`
-  (reality-opts auth + `servername` masquerade SNI + `client-fingerprint`
-  shaping) wraps this fork's `with_reality()` API; because Security and Transport
-  are orthogonal, VLESS-REALITY then works over tcp/grpc/h2/xhttp automatically.
-  The separate `flow: xtls-rprx-vision` layer is tracked after that.
+- **Built on this.** `Security::Reality` in `learn-gripe` (reality-opts auth +
+  `servername` masquerade SNI + `client-fingerprint` parsing) wraps this fork's
+  `with_reality()` API via `tls::connect_reality`; because Security and Transport
+  are orthogonal, VLESS-REALITY works over tcp/grpc/h2/xhttp automatically (proven
+  by the REALITY relay tests in `crates/learn-gripe/tests/vless_outbound.rs`).
+  Faithful uTLS-style `client-fingerprint` ClientHello shaping and the separate
+  `flow: xtls-rprx-vision` layer are tracked after that; the fingerprint is parsed
+  and retained today but does not yet reshape the handshake.
 
 ### Hard "do not" list
 

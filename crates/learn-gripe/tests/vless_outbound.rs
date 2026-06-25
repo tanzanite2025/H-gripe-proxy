@@ -18,8 +18,9 @@ use futures_util::{Sink, Stream};
 use h2::{RecvStream, SendStream};
 use http::Response;
 use learn_gripe::{
-    GripeConfig, GripeKernel, GrpcTransportConfig, H2TransportConfig, HttpUpgradeTransportConfig, OutboundMode,
-    Security, TlsClientConfig, Transport, VlessOutboundConfig, WsTransportConfig, XhttpMode, XhttpTransportConfig,
+    ClientFingerprint, GripeConfig, GripeKernel, GrpcTransportConfig, H2TransportConfig, HttpUpgradeTransportConfig,
+    OutboundMode, RealityClientConfig, Security, TlsClientConfig, Transport, VlessOutboundConfig, WsTransportConfig,
+    XhttpMode, XhttpTransportConfig,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
@@ -131,6 +132,63 @@ async fn spawn_fake_vless_tls_server() -> SocketAddr {
             tokio::spawn(async move {
                 if let Ok(tls) = acceptor.accept(tcp).await {
                     serve_vless(tls).await;
+                }
+            });
+        }
+    });
+    addr
+}
+
+/// A fake VLESS server behind a plain, TLS-1.3-only rustls listener. A REALITY
+/// client completes a normal TLS 1.3 handshake here: the encrypted `session_id`
+/// it embeds is echoed by any TLS-1.3 server, and the REALITY cert verifier
+/// falls back to the (skip-verify) inner verifier when the cert isn't a genuine
+/// REALITY cert. This proves the REALITY ClientHello is well-formed and that
+/// application bytes flow end-to-end. TLS 1.3 is forced because REALITY's key
+/// exchange is defined only for 1.3.
+async fn spawn_fake_vless_reality_server() -> SocketAddr {
+    spawn_reality_listener(Vec::new(), |tls| Box::pin(serve_vless(tls))).await
+}
+
+/// As above, but advertises `h2` ALPN and serves over the gRPC adapter, proving
+/// REALITY composes with an HTTP/2 transport (orthogonal security × transport).
+async fn spawn_fake_vless_reality_grpc_server() -> SocketAddr {
+    spawn_reality_listener(vec![b"h2".to_vec()], |tls| Box::pin(serve_grpc_connection(tls))).await
+}
+
+/// Shared TLS-1.3-only acceptor used by the REALITY fixtures. `alpn` is the
+/// server's ALPN list and `serve` runs the per-connection protocol logic.
+async fn spawn_reality_listener<F>(alpn: Vec<Vec<u8>>, serve: F) -> SocketAddr
+where
+    F: Fn(tokio_rustls::server::TlsStream<TcpStream>) -> Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+        + Send
+        + Sync
+        + 'static,
+{
+    let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let key = rustls_pemfile::private_key(&mut TEST_KEY.as_bytes()).unwrap().unwrap();
+    let mut server_config =
+        rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_protocol_versions(&[&rustls::version::TLS13])
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .unwrap();
+    server_config.alpn_protocols = alpn;
+    let acceptor = TlsAcceptor::from(Arc::new(server_config));
+
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let serve = Arc::new(serve);
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let acceptor = acceptor.clone();
+            let serve = Arc::clone(&serve);
+            tokio::spawn(async move {
+                if let Ok(tls) = acceptor.accept(tcp).await {
+                    serve(tls).await;
                 }
             });
         }
@@ -891,6 +949,88 @@ async fn relays_through_tls_vless_outbound() {
     let mut buf = [0u8; 15];
     conn.read_exact(&mut buf).await.unwrap();
     assert_eq!(&buf, b"hello tls vless");
+
+    handle.shutdown().await;
+}
+
+/// A fixed 32-byte x25519 public key. The fake server is plain TLS and ignores
+/// the encrypted `session_id`, so any 32-byte key drives a complete handshake;
+/// this only needs to be a valid REALITY public-key length.
+const TEST_REALITY_PUBLIC_KEY: [u8; 32] = [
+    0x9c, 0x6f, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f, 0x70, 0x81, 0x92, 0xa3, 0xb4, 0xc5, 0xd6, 0xe7, 0xf8, 0x09, 0x1a,
+    0x2b, 0x3c, 0x4d, 0x5e, 0x6f, 0x70, 0x81, 0x92, 0xa3, 0xb4, 0xc5, 0xd6, 0x12,
+];
+
+#[tokio::test]
+async fn relays_through_reality_vless_outbound() {
+    let server = spawn_fake_vless_reality_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Reality(RealityClientConfig {
+                server_name: "localhost".to_string(),
+                public_key: TEST_REALITY_PUBLIC_KEY,
+                short_id: vec![0x01, 0x23, 0x45, 0x67],
+                alpn: Vec::new(),
+                skip_cert_verify: true,
+                client_fingerprint: Some(ClientFingerprint::Chrome),
+            }),
+            transport: Transport::Tcp,
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello reality vless").await.unwrap();
+    let mut buf = [0u8; 19];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello reality vless");
+
+    handle.shutdown().await;
+}
+
+/// REALITY security composed with the gRPC (HTTP/2) transport — exercises the
+/// orthogonality claim that VLESS-REALITY works over every transport. ALPN `h2`
+/// is forced by the outbound builder; here we set it explicitly on the config.
+#[tokio::test]
+async fn relays_through_reality_grpc_vless_outbound() {
+    let server = spawn_fake_vless_reality_grpc_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Reality(RealityClientConfig {
+                server_name: "localhost".to_string(),
+                public_key: TEST_REALITY_PUBLIC_KEY,
+                short_id: Vec::new(),
+                alpn: vec!["h2".to_string()],
+                skip_cert_verify: true,
+                client_fingerprint: None,
+            }),
+            transport: Transport::Grpc(GrpcTransportConfig {
+                service_name: "GunService".to_string(),
+                host: Some("localhost".to_string()),
+            }),
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello reality grpc vless").await.unwrap();
+    let mut buf = [0u8; 24];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello reality grpc vless");
 
     handle.shutdown().await;
 }

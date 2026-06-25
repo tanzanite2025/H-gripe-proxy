@@ -20,8 +20,9 @@
 //! never touches protocol code.
 //!
 //! This slice implements `tcp`, `ws`, `grpc`, `xhttp`, `httpupgrade` and `h2`
-//! transports over `none`/`tls` security. `reality` lands in a follow-up and
-//! slots into the same `Transport`/`Security` enums without restructuring.
+//! transports over `none` / `tls` / `reality` security. Because REALITY slots
+//! into the same `Security` enum, VLESS-REALITY works under every transport
+//! automatically.
 
 use anyhow::Result;
 use tokio::net::TcpStream;
@@ -30,7 +31,7 @@ use crate::grpc::GrpcTransportConfig;
 use crate::http2::H2TransportConfig;
 use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
-use crate::tls::TlsClientConfig;
+use crate::tls::{RealityClientConfig, TlsClientConfig};
 use crate::ws::WsTransportConfig;
 use crate::xhttp::XhttpTransportConfig;
 
@@ -41,6 +42,21 @@ pub enum Security {
     None,
     /// Standard TLS (rustls).
     Tls(TlsClientConfig),
+    /// REALITY over TLS 1.3 (rustls `with_reality`).
+    Reality(RealityClientConfig),
+}
+
+impl Security {
+    /// Mutable access to the offered ALPN list, regardless of which secured
+    /// variant this is. Used by protocol layers (e.g. VLESS) to force `h2`
+    /// ALPN for HTTP/2-based transports without caring about TLS vs REALITY.
+    pub(crate) fn alpn_mut(&mut self) -> Option<&mut Vec<String>> {
+        match self {
+            Security::None => None,
+            Security::Tls(tls) => Some(&mut tls.alpn),
+            Security::Reality(reality) => Some(&mut reality.alpn),
+        }
+    }
 }
 
 /// The transport layer carrying the protocol's bytes over the secured socket.
@@ -67,10 +83,11 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
         .await
         .map_err(|e| anyhow::anyhow!("dial {server}:{port}: {e}"))?;
 
-    let over_tls = matches!(security, Security::Tls(_));
+    let over_tls = matches!(security, Security::Tls(_) | Security::Reality(_));
     let secured: BoxedStream = match security {
         Security::None => Box::new(tcp),
         Security::Tls(cfg) => Box::new(crate::tls::connect(cfg, server, tcp).await?),
+        Security::Reality(cfg) => Box::new(crate::tls::connect_reality(cfg, server, tcp).await?),
     };
 
     let transported: BoxedStream = match transport {
