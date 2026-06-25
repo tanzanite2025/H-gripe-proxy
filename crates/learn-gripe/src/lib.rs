@@ -12,6 +12,8 @@
 mod address;
 mod config;
 mod grpc;
+mod h2stream;
+mod http2;
 mod httpupgrade;
 mod outbound;
 mod proxy;
@@ -26,6 +28,7 @@ mod xhttp;
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
 pub use grpc::GrpcTransportConfig;
+pub use http2::H2TransportConfig;
 pub use httpupgrade::HttpUpgradeTransportConfig;
 pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,

@@ -3,10 +3,10 @@
 //! Implements the VLESS request/response framing only; the transport (tcp/ws)
 //! and security (none/tls) layers it runs over are provided by
 //! [`crate::transport`], so this module is purely the protocol layer. `tcp`,
-//! `ws`, `grpc`, `xhttp` (stream-one) and `httpupgrade` transports over
-//! `none`/`tls` security are supported today; `h2`, the multi-request xhttp
-//! modes and REALITY land in follow-up work and are rejected by
-//! [`VlessOutboundConfig::from_proxy`] rather than silently mis-encoded.
+//! `ws`, `grpc`, `xhttp` (stream-one), `httpupgrade` and `h2` transports over
+//! `none`/`tls` security are supported today (`h2` is TLS-mandatory); the
+//! multi-request xhttp modes and REALITY land in follow-up work and are rejected
+//! by [`VlessOutboundConfig::from_proxy`] rather than silently mis-encoded.
 //!
 //! Wire format (client → server request header):
 //! ```text
@@ -27,6 +27,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
 use crate::grpc::GrpcTransportConfig;
+use crate::http2::H2TransportConfig;
 use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::proxy::{Network, ProxyEntry};
@@ -126,12 +127,28 @@ impl VlessOutboundConfig {
                     mode,
                 })
             }
+            Some(Network::H2) => {
+                // The `h2` transport runs HTTP/2 in the clear-of-framing sense
+                // but is only defined over TLS (ALPN selects `h2`).
+                if !matches!(security, Security::Tls(_)) {
+                    bail!("vless: h2 transport requires TLS");
+                }
+                let h2 = opts.h2_opts.clone().unwrap_or_default();
+                Transport::H2(H2TransportConfig {
+                    path: h2.path.unwrap_or_default(),
+                    host: h2
+                        .host
+                        .clone()
+                        .or_else(|| opts.servername.clone())
+                        .or_else(|| opts.sni.clone()),
+                })
+            }
             Some(other) => bail!("vless: transport {other:?} not implemented yet"),
         };
 
-        // gRPC and XHTTP run over HTTP/2; make sure the TLS handshake advertises
-        // `h2` so the server selects the right protocol.
-        if matches!(transport, Transport::Grpc(_) | Transport::Xhttp(_))
+        // gRPC, XHTTP and h2 all run over HTTP/2; make sure the TLS handshake
+        // advertises `h2` so the server selects the right protocol.
+        if matches!(transport, Transport::Grpc(_) | Transport::Xhttp(_) | Transport::H2(_))
             && let Security::Tls(ref mut tls) = security
             && !tls.alpn.iter().any(|p| p == "h2")
         {
@@ -334,5 +351,40 @@ mod tests {
         let header = encode_request_header(&uuid, CMD_TCP, &target);
         assert_eq!(header[21], ATYP_IPV6);
         assert_eq!(&header[22..38], &ip.octets());
+    }
+
+    fn parse_entry(yaml: &str) -> ProxyEntry {
+        serde_yaml_ng::from_str(yaml).expect("proxy entry should parse")
+    }
+
+    #[test]
+    fn h2_without_tls_is_rejected() {
+        let entry = parse_entry(
+            "name: h2-plain\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\nnetwork: h2\n",
+        );
+        let err = VlessOutboundConfig::from_proxy(&entry).unwrap_err();
+        assert!(err.to_string().contains("h2 transport requires TLS"), "got: {err}");
+    }
+
+    #[test]
+    fn h2_with_tls_maps_to_h2_transport_and_forces_alpn() {
+        let entry = parse_entry(
+            "name: h2-tls\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\nnetwork: h2\ntls: true\n\
+             servername: edge.example.com\nh2-opts:\n  path: /tunnel\n  host: cdn.example.com\n",
+        );
+        let cfg = VlessOutboundConfig::from_proxy(&entry).unwrap();
+        match &cfg.transport {
+            Transport::H2(h2) => {
+                assert_eq!(h2.path, "/tunnel");
+                assert_eq!(h2.host.as_deref(), Some("cdn.example.com"));
+            }
+            other => panic!("expected H2 transport, got {other:?}"),
+        }
+        match &cfg.security {
+            Security::Tls(tls) => assert_eq!(tls.alpn, vec!["h2".to_string()]),
+            other => panic!("expected TLS security, got {other:?}"),
+        }
     }
 }
