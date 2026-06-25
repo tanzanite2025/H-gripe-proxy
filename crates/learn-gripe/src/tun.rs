@@ -12,17 +12,21 @@
 //! orchestration — reading frames, demultiplexing flows, bridging each flow to
 //! the outbound pipeline, and the back-pressure/close handling — is ours.
 //!
-//! Scope: IPv4/IPv6 **TCP**, plus **DNS over TUN** — UDP datagrams to port 53
-//! are answered in-stack through the kernel's DNS logic (fake-IP allocation or
-//! upstream forwarding), which is what lets a global default route capture all
-//! traffic without black-holing name resolution. General (non-DNS) UDP relay is
-//! not handled here; such packets are ignored.
+//! Scope: IPv4/IPv6 **TCP**, plus full **UDP over TUN**. UDP datagrams to port
+//! 53 are answered in-stack through the kernel's DNS logic (fake-IP allocation
+//! or upstream forwarding) when a [`DnsMode`] is configured; every other UDP
+//! datagram is relayed through the normal [`OutboundMode`] pipeline via a NAT
+//! session table keyed by the UDP 5-tuple, with replies rewritten back as IP
+//! frames. Answering DNS in-stack is what lets a global default route capture
+//! all traffic without black-holing name resolution.
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::dns::{DnsMode, FakeIpPool, answer_query, unmap_fake_ip};
-use crate::outbound;
+use crate::outbound::{self, UdpEgress};
+use crate::udp;
 
+use anyhow::Result;
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
@@ -80,6 +84,8 @@ pub async fn serve_tun(
     let mut iface = build_interface(&mut phy, smol_now(start));
     let mut sockets = SocketSet::new(Vec::new());
     let mut flows: HashMap<FlowKey, Flow> = HashMap::new();
+    // NAT sessions for relayed (non-DNS) UDP, keyed by the datagram 5-tuple.
+    let mut udp_nat: HashMap<FlowKey, mpsc::Sender<Vec<u8>>> = HashMap::new();
     let wake = Arc::new(Notify::new());
 
     loop {
@@ -99,12 +105,10 @@ pub async fn serve_tun(
             frame = frames_in.recv() => {
                 match frame {
                     Some(frame) => {
-                        // DNS datagrams are terminated here and never reach the
-                        // TCP stack; everything else is fed to smoltcp.
-                        if dns
-                            .as_ref()
-                            .is_some_and(|dns| try_answer_dns(&frame, dns, &frames_out))
-                        {
+                        // UDP datagrams are terminated here (answered in-stack
+                        // for DNS, otherwise relayed via NAT) and never reach
+                        // the TCP stack; everything else is fed to smoltcp.
+                        if handle_udp(&frame, &dns, &mode, &fake_ip, &frames_out, &mut udp_nat) {
                             continue;
                         }
                         new_flow_for_syn(&frame, &mut sockets, &mut flows, &mode, &fake_ip, &wake);
@@ -423,44 +427,217 @@ fn endpoint_socketaddr(endpoint: IpEndpoint) -> SocketAddr {
 
 /// UDP port DNS queries are sent to.
 const DNS_PORT: u16 = 53;
+/// Bounded depth of a NAT session's payload queue. Beyond this the datagram is
+/// dropped (UDP is lossy) rather than stalling the poll loop.
+const UDP_SESSION_QUEUE: usize = 128;
+/// A relayed UDP session with no traffic in either direction for this long is
+/// torn down (UDP has no close, so sessions must be reaped on idle).
+const UDP_IDLE_TIMEOUT: StdDuration = StdDuration::from_secs(60);
 
-/// A parsed UDP datagram addressed to the DNS port, retaining the L3/L4
-/// endpoints so the reply can be built by swapping source and destination.
-struct DnsDatagram {
+/// The L3/L4 endpoints of a UDP datagram. Retained so a reply can be built by
+/// swapping source and destination.
+#[derive(Clone, Copy)]
+struct UdpFlow {
     src_addr: IpAddress,
     dst_addr: IpAddress,
     src_port: u16,
     dst_port: u16,
+}
+
+impl UdpFlow {
+    fn src(&self) -> IpEndpoint {
+        IpEndpoint::new(self.src_addr, self.src_port)
+    }
+
+    fn dst(&self) -> IpEndpoint {
+        IpEndpoint::new(self.dst_addr, self.dst_port)
+    }
+}
+
+/// A parsed UDP datagram with its endpoints and payload.
+struct UdpDatagram {
+    flow: UdpFlow,
     payload: Vec<u8>,
 }
 
-/// If `frame` is a UDP datagram to [`DNS_PORT`], answer it in the background via
-/// the kernel DNS logic and emit the reply back to the device, returning `true`
-/// so the caller drops the frame instead of feeding it to the TCP stack. Any
-/// other frame returns `false` and is handled normally.
-fn try_answer_dns(frame: &[u8], dns: &Arc<DnsMode>, frames_out: &mpsc::Sender<Vec<u8>>) -> bool {
-    let Some(query) = parse_dns_datagram(frame) else {
+/// Terminate a UDP datagram in-stack: DNS queries (port [`DNS_PORT`]) with a
+/// configured [`DnsMode`] are answered from the kernel DNS logic; every other
+/// UDP datagram is relayed through the outbound pipeline via a NAT session.
+/// Returns `true` when `frame` was UDP (consumed here, never fed to the TCP
+/// stack); `false` for non-UDP frames, which the caller handles normally.
+fn handle_udp(
+    frame: &[u8],
+    dns: &Option<Arc<DnsMode>>,
+    mode: &Arc<OutboundMode>,
+    fake_ip: &FakeIp,
+    frames_out: &mpsc::Sender<Vec<u8>>,
+    nat: &mut HashMap<FlowKey, mpsc::Sender<Vec<u8>>>,
+) -> bool {
+    let Some(datagram) = parse_udp_datagram(frame) else {
         return false;
     };
 
+    // DNS to :53 is answered in-stack when a DNS mode is configured; without
+    // one it falls through and is relayed to whatever resolver the client used.
+    if datagram.flow.dst_port == DNS_PORT
+        && let Some(dns) = dns
+    {
+        answer_dns(datagram, dns, frames_out);
+        return true;
+    }
+
+    relay_udp(datagram, mode, fake_ip, frames_out, nat);
+    true
+}
+
+/// Answer a DNS datagram in the background via the kernel DNS logic and emit the
+/// reply frame back to the device.
+fn answer_dns(datagram: UdpDatagram, dns: &Arc<DnsMode>, frames_out: &mpsc::Sender<Vec<u8>>) {
     let dns = dns.clone();
     let frames_out = frames_out.clone();
     tokio::spawn(async move {
-        match answer_query(&query.payload, &dns).await {
+        match answer_query(&datagram.payload, &dns).await {
             Ok(response) => {
-                if let Some(frame) = build_dns_reply_frame(&query, &response) {
+                if let Some(frame) = build_udp_reply_frame(&datagram.flow, &response) {
                     let _ = frames_out.send(frame).await;
                 }
             }
             Err(err) => log::debug!("learn-gripe tun dns: dropped query: {err:#}"),
         }
     });
-    true
 }
 
-/// Parse an IP frame as a UDP datagram destined for the DNS port, extracting the
-/// endpoints and the DNS payload. Returns `None` for anything else.
-fn parse_dns_datagram(frame: &[u8]) -> Option<DnsDatagram> {
+/// Relay a non-DNS UDP datagram through the outbound pipeline, keeping one NAT
+/// session per 5-tuple so replies can be steered back to the right client.
+fn relay_udp(
+    datagram: UdpDatagram,
+    mode: &Arc<OutboundMode>,
+    fake_ip: &FakeIp,
+    frames_out: &mpsc::Sender<Vec<u8>>,
+    nat: &mut HashMap<FlowKey, mpsc::Sender<Vec<u8>>>,
+) {
+    let flow = datagram.flow;
+    let key = (flow.src(), flow.dst());
+    let mut payload = datagram.payload;
+
+    if let Some(tx) = nat.get(&key) {
+        match tx.try_send(payload) {
+            Ok(()) => return,
+            // Session busy: drop this datagram (UDP is lossy) but keep the task.
+            Err(mpsc::error::TrySendError::Full(_)) => return,
+            // Task has exited (idle/error); rebuild it below with the payload.
+            Err(mpsc::error::TrySendError::Closed(p)) => {
+                nat.remove(&key);
+                payload = p;
+            }
+        }
+    }
+
+    // Unmap a fake IP back to its domain so routing sees the real host; the
+    // reply frame still sources from the address the client targeted.
+    let mut target = TargetAddr::Ip(endpoint_socketaddr(flow.dst()));
+    if let Some(pool) = fake_ip {
+        target = unmap_fake_ip(pool, target);
+    }
+
+    // No UDP egress (Reject, an upstream SOCKS5 proxy): drop, don't leak.
+    let Some(egress) = outbound::resolve_udp_egress(mode, &target) else {
+        return;
+    };
+
+    let (tx, rx) = mpsc::channel(UDP_SESSION_QUEUE);
+    tokio::spawn(run_udp_session(egress, target, flow, rx, frames_out.clone()));
+    // The fresh channel has capacity; only fails if the task already died.
+    let _ = tx.try_send(payload);
+    nat.insert(key, tx);
+}
+
+/// Drive one UDP NAT session until it goes idle, errors, or its sender drops.
+async fn run_udp_session(
+    egress: UdpEgress,
+    target: TargetAddr,
+    reply: UdpFlow,
+    rx: mpsc::Receiver<Vec<u8>>,
+    frames_out: mpsc::Sender<Vec<u8>>,
+) {
+    let result = match egress {
+        UdpEgress::Direct => run_udp_direct(target, reply, rx, frames_out).await,
+        proxy => run_udp_proxy(proxy, target, reply, rx, frames_out).await,
+    };
+    if let Err(err) = result {
+        log::debug!("learn-gripe tun udp: session ended: {err:#}");
+    }
+}
+
+/// Direct UDP egress over a plain OS socket: forward client payloads to the
+/// destination and rewrite each reply back into an IP frame for the client.
+async fn run_udp_direct(
+    target: TargetAddr,
+    reply: UdpFlow,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    frames_out: mpsc::Sender<Vec<u8>>,
+) -> Result<()> {
+    let dest = udp::resolve(&target).await?;
+    let socket = udp::bind_egress(dest).await?;
+    socket.connect(dest).await?;
+
+    let mut buf = vec![0u8; udp::MAX_DATAGRAM];
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => {
+                    socket.send(&payload).await?;
+                }
+                None => return Ok(()),
+            },
+            res = socket.recv(&mut buf) => {
+                let n = res?;
+                if let Some(frame) = build_udp_reply_frame(&reply, &buf[..n])
+                    && frames_out.send(frame).await.is_err()
+                {
+                    return Ok(());
+                }
+            }
+            _ = tokio::time::sleep(UDP_IDLE_TIMEOUT) => return Ok(()),
+        }
+    }
+}
+
+/// Proxy-tunnel UDP egress: relay datagrams over the protocol's UDP stream,
+/// applying its per-packet framing, and rewrite replies back into IP frames.
+async fn run_udp_proxy(
+    egress: UdpEgress,
+    target: TargetAddr,
+    reply: UdpFlow,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    frames_out: mpsc::Sender<Vec<u8>>,
+) -> Result<()> {
+    let framing = udp::ProxyFraming::for_egress(&egress);
+    let stream = outbound::connect_proxy_udp(&egress, &target).await?;
+    let (mut reader, mut writer) = tokio::io::split(stream);
+
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => udp::write_proxy_packet(&mut writer, framing, &target, &payload).await?,
+                None => return Ok(()),
+            },
+            res = udp::read_proxy_packet(&mut reader, framing) => {
+                let payload = res?;
+                if let Some(frame) = build_udp_reply_frame(&reply, &payload)
+                    && frames_out.send(frame).await.is_err()
+                {
+                    return Ok(());
+                }
+            }
+            _ = tokio::time::sleep(UDP_IDLE_TIMEOUT) => return Ok(()),
+        }
+    }
+}
+
+/// Parse an IP frame as a UDP datagram, extracting the endpoints and payload.
+/// Returns `None` for anything that is not a well-formed IPv4/IPv6 UDP packet.
+fn parse_udp_datagram(frame: &[u8]) -> Option<UdpDatagram> {
     match frame.first().map(|b| b >> 4) {
         Some(4) => {
             let ip = Ipv4Packet::new_checked(frame).ok()?;
@@ -468,14 +645,13 @@ fn parse_dns_datagram(frame: &[u8]) -> Option<DnsDatagram> {
                 return None;
             }
             let udp = UdpPacket::new_checked(ip.payload()).ok()?;
-            if udp.dst_port() != DNS_PORT {
-                return None;
-            }
-            Some(DnsDatagram {
-                src_addr: IpAddress::Ipv4(ip.src_addr()),
-                dst_addr: IpAddress::Ipv4(ip.dst_addr()),
-                src_port: udp.src_port(),
-                dst_port: udp.dst_port(),
+            Some(UdpDatagram {
+                flow: UdpFlow {
+                    src_addr: IpAddress::Ipv4(ip.src_addr()),
+                    dst_addr: IpAddress::Ipv4(ip.dst_addr()),
+                    src_port: udp.src_port(),
+                    dst_port: udp.dst_port(),
+                },
                 payload: udp.payload().to_vec(),
             })
         }
@@ -485,14 +661,13 @@ fn parse_dns_datagram(frame: &[u8]) -> Option<DnsDatagram> {
                 return None;
             }
             let udp = UdpPacket::new_checked(ip.payload()).ok()?;
-            if udp.dst_port() != DNS_PORT {
-                return None;
-            }
-            Some(DnsDatagram {
-                src_addr: IpAddress::Ipv6(ip.src_addr()),
-                dst_addr: IpAddress::Ipv6(ip.dst_addr()),
-                src_port: udp.src_port(),
-                dst_port: udp.dst_port(),
+            Some(UdpDatagram {
+                flow: UdpFlow {
+                    src_addr: IpAddress::Ipv6(ip.src_addr()),
+                    dst_addr: IpAddress::Ipv6(ip.dst_addr()),
+                    src_port: udp.src_port(),
+                    dst_port: udp.dst_port(),
+                },
                 payload: udp.payload().to_vec(),
             })
         }
@@ -500,24 +675,24 @@ fn parse_dns_datagram(frame: &[u8]) -> Option<DnsDatagram> {
     }
 }
 
-/// Build the IP+UDP reply frame for `query`, carrying `response` as payload. The
-/// reply swaps source/destination (so it appears to come from the resolver the
-/// client targeted) and lets smoltcp compute the checksums.
-fn build_dns_reply_frame(query: &DnsDatagram, response: &[u8]) -> Option<Vec<u8>> {
+/// Build the IP+UDP reply frame for `flow`, carrying `payload`. The reply swaps
+/// source/destination (so it appears to come from the host the client targeted)
+/// and lets smoltcp compute the checksums.
+fn build_udp_reply_frame(flow: &UdpFlow, payload: &[u8]) -> Option<Vec<u8>> {
     let udp_repr = UdpRepr {
-        src_port: query.dst_port,
-        dst_port: query.src_port,
+        src_port: flow.dst_port,
+        dst_port: flow.src_port,
     };
     let caps = ChecksumCapabilities::default();
 
-    match (query.dst_addr, query.src_addr) {
+    match (flow.dst_addr, flow.src_addr) {
         // Reply source = original destination, reply destination = original source.
         (IpAddress::Ipv4(reply_src), IpAddress::Ipv4(reply_dst)) => {
             let ip_repr = Ipv4Repr {
                 src_addr: reply_src,
                 dst_addr: reply_dst,
                 next_header: IpProtocol::Udp,
-                payload_len: udp_repr.header_len() + response.len(),
+                payload_len: udp_repr.header_len() + payload.len(),
                 hop_limit: 64,
             };
             let mut frame = vec![0u8; ip_repr.buffer_len() + ip_repr.payload_len];
@@ -528,8 +703,8 @@ fn build_dns_reply_frame(query: &DnsDatagram, response: &[u8]) -> Option<Vec<u8>
                 &mut udp,
                 &IpAddress::Ipv4(reply_src),
                 &IpAddress::Ipv4(reply_dst),
-                response.len(),
-                |buf| buf.copy_from_slice(response),
+                payload.len(),
+                |buf| buf.copy_from_slice(payload),
                 &caps,
             );
             Some(frame)
@@ -539,7 +714,7 @@ fn build_dns_reply_frame(query: &DnsDatagram, response: &[u8]) -> Option<Vec<u8>
                 src_addr: reply_src,
                 dst_addr: reply_dst,
                 next_header: IpProtocol::Udp,
-                payload_len: udp_repr.header_len() + response.len(),
+                payload_len: udp_repr.header_len() + payload.len(),
                 hop_limit: 64,
             };
             let mut frame = vec![0u8; ip_repr.buffer_len() + ip_repr.payload_len];
@@ -550,8 +725,8 @@ fn build_dns_reply_frame(query: &DnsDatagram, response: &[u8]) -> Option<Vec<u8>
                 &mut udp,
                 &IpAddress::Ipv6(reply_src),
                 &IpAddress::Ipv6(reply_dst),
-                response.len(),
-                |buf| buf.copy_from_slice(response),
+                payload.len(),
+                |buf| buf.copy_from_slice(payload),
                 &caps,
             );
             Some(frame)

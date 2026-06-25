@@ -321,13 +321,22 @@ end-to-end relay tests. Proves the in-process architecture works.
   is the prerequisite that lets a global default-route capture work without
   black-holing name resolution. Proven by `tun_answers_dns_query_from_fake_ip_pool`
   (an A query fed into the stack comes back as a fake-IP answer, no OS device, no
-  upstream). Still pending (and *not* exercisable in the sandbox/CI, so the OS
+  upstream). **General UDP over TUN** is landed too: every non-DNS UDP datagram is
+  relayed through the normal `OutboundMode` pipeline via a NAT session table keyed
+  by the UDP 5-tuple (`relay_udp` / `run_udp_session`), reusing the SOCKS5 UDP
+  egress primitives (`resolve_udp_egress`, Direct socket / proxy-tunnel framing for
+  Trojan/VLESS/VMess) and rewriting each reply back into an IP frame with swapped
+  endpoints; idle sessions are reaped on a timeout, fake IPs are unmapped for
+  routing, and destinations with no UDP egress (`Reject`, upstream SOCKS5) are
+  dropped rather than leaked. Proven by `tun_relays_udp_datagram_through_direct_outbound`
+  (a UDP datagram out a real OS socket to an echo server, reply rewritten back to
+  the client). Still pending (and *not* exercisable in the sandbox/CI, so the OS
   binding is compile-checked only and must be validated on a real machine with
   admin/root): global default-route capture + DNS redirect with leak-safe
   apply/observe/rollback, wiring a fake-IP `DnsMode` from the kernel into the
-  src-tauri TUN inbound (it currently passes `None`), **general (non-DNS) UDP
-  relay** (QUIC/etc., needing a NAT table + outbound UDP), and the macOS utun
-  4-byte packet-information header codec. This stays the highest-risk phase.
+  src-tauri TUN inbound (it currently passes `None`), Shadowsocks UDP egress (its
+  associate is still refused), and the macOS utun 4-byte packet-information header
+  codec. This stays the highest-risk phase.
 
 ### Phase 5 — Delete Mihomo
 
