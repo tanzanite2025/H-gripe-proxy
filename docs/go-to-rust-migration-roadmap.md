@@ -181,9 +181,19 @@ end-to-end relay tests. Proves the in-process architecture works.
   system-proxy integration keeps working.
 - Node-aware outbound selection: read the selected node from app runtime state
   and dial the matching outbound instead of always Direct.
-- First real proxy protocol: **Shadowsocks** (AEAD: aes-256-gcm /
-  chacha20-poly1305 on top of `ring`/`aes-gcm`). End-to-end test against a local
-  SS server.
+- **Shadowsocks** outbound — done. AEAD methods `aes-128-gcm`, `aes-256-gcm` and
+  `chacha20-ietf-poly1305` over plain TCP, wired as `OutboundMode::Shadowsocks`.
+  The master key is derived with OpenSSL `EVP_BytesToKey` (MD5) and the
+  per-session subkey with HKDF-SHA1 (`"ss-subkey"`); each direction sends a salt
+  then length-prefixed AEAD chunks (`AEAD(len)(2+16) | AEAD(payload)(len+16)`)
+  with a 12-byte little-endian counter nonce. Crypto is delegated to vetted
+  RustCrypto crates (`aes-gcm`, `chacha20poly1305`, `md-5`, `sha1`); only the
+  key schedule (HKDF cross-checked against RFC 5869, HMAC against RFC 2202) and
+  on-wire framing are assembled in-crate. Legacy stream ciphers, the
+  `2022-blake3-*` methods and SIP003 plugins are rejected rather than
+  mis-framed; Shadowsocks UDP is not implemented yet. End-to-end relay tests for
+  all three ciphers (plus a multi-chunk payload) against an independent fake SS
+  server in `crates/learn-gripe/tests/shadowsocks_outbound.rs`.
 
 ### Phase 3 — Protocol breadth + routing
 

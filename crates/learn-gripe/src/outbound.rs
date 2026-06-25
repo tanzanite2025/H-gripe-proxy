@@ -1,5 +1,6 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
+use crate::shadowsocks;
 use crate::socks5;
 use crate::trojan::{self, TrojanOutboundConfig};
 use crate::vless::{self, VlessOutboundConfig};
@@ -44,6 +45,7 @@ pub fn connect<'a>(
             OutboundMode::Vless(config) => vless::connect(config, target).await,
             OutboundMode::Trojan(config) => trojan::connect(config, target).await,
             OutboundMode::Vmess(config) => vmess::connect(config, target).await,
+            OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
             OutboundMode::Routed(router) => connect(router.select(target), target).await,
         }
     })
@@ -86,7 +88,9 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr) -> Option<Ud
         OutboundMode::Vless(config) => Some(UdpEgress::Vless(config.clone())),
         OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
         OutboundMode::Routed(router) => resolve_udp_egress(router.select(target), target),
-        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
+        // Shadowsocks UDP (separate per-packet AEAD framing) is not implemented
+        // yet, so its associations are refused rather than carried.
+        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } | OutboundMode::Shadowsocks(_) => None,
     }
 }
 
