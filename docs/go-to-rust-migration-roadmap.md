@@ -313,15 +313,21 @@ end-to-end relay tests. Proves the in-process architecture works.
   the `tun` crate (wintun/`/dev/net/tun`/utun), brings it up with an address, and
   feeds it to `serve_tun_device`, gated behind `enable_tun_mode` in `start_core()`
   with every privileged mutation recorded on a `RollbackStack` undone in reverse
-  on stop (and on `Drop`). It deliberately binds the device and relays **TCP**
-  only — it does *not* install a global default route, because with UDP/DNS over
-  TUN still unimplemented a global capture would black-hole DNS even with perfect
-  rollback. Still pending (and *not* exercisable in the sandbox/CI, so this binding
-  is compile-checked only and must be validated on a real machine with admin/root):
-  global default-route capture + DNS redirect with leak-safe apply/observe/rollback,
-  UDP-over-TUN (hence DNS-over-TUN), sharing the kernel's fake-IP pool into the TUN
-  flows, and the macOS utun 4-byte packet-information header codec. This stays the
-  highest-risk phase.
+  on stop (and on `Drop`). **DNS over TUN** is landed too: `serve_tun` intercepts
+  UDP datagrams to port 53 and answers them in-stack through the kernel's existing
+  DNS logic (`answer_query` / fake-IP allocation), building the reply frame with
+  smoltcp's wire codec — so a client resolves names to fake IPs over the TUN and
+  then opens TCP to those (already relayed + unmapped, sharing the same pool). This
+  is the prerequisite that lets a global default-route capture work without
+  black-holing name resolution. Proven by `tun_answers_dns_query_from_fake_ip_pool`
+  (an A query fed into the stack comes back as a fake-IP answer, no OS device, no
+  upstream). Still pending (and *not* exercisable in the sandbox/CI, so the OS
+  binding is compile-checked only and must be validated on a real machine with
+  admin/root): global default-route capture + DNS redirect with leak-safe
+  apply/observe/rollback, wiring a fake-IP `DnsMode` from the kernel into the
+  src-tauri TUN inbound (it currently passes `None`), **general (non-DNS) UDP
+  relay** (QUIC/etc., needing a NAT table + outbound UDP), and the macOS utun
+  4-byte packet-information header codec. This stays the highest-risk phase.
 
 ### Phase 5 — Delete Mihomo
 

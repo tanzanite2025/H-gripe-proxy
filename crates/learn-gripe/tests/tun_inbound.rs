@@ -13,13 +13,16 @@ use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll};
 use std::time::{Duration, Instant};
 
-use learn_gripe::{DEFAULT_MTU, OutboundMode, serve_tun, serve_tun_device};
+use learn_gripe::{DEFAULT_MTU, DnsMode, FakeIpConfig, OutboundMode, serve_tun, serve_tun_device};
 use smoltcp::iface::{Config, Interface, SocketSet};
-use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
+use smoltcp::phy::{ChecksumCapabilities, Device, DeviceCapabilities, Medium, RxToken, TxToken};
 use smoltcp::socket::tcp;
 use smoltcp::time::Instant as SmolInstant;
-use smoltcp::wire::{HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
+use smoltcp::wire::{
+    HardwareAddress, IpAddress, IpCidr, IpEndpoint, IpProtocol, Ipv4Address, Ipv4Packet, Ipv4Repr, UdpPacket, UdpRepr,
+};
 use std::collections::VecDeque;
+use std::net::Ipv4Addr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpListener;
 use tokio::sync::{Notify, mpsc};
@@ -378,4 +381,110 @@ impl AsyncWrite for MockTunDevice {
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
     }
+}
+
+/// DNS over TUN: a UDP query to port 53 fed into the stack is answered in-place
+/// from the fake-IP pool — no OS device, no upstream resolver. This is the piece
+/// that lets a global default-route capture work without black-holing DNS: the
+/// client resolves names to fake IPs, then opens TCP to those (already handled).
+#[tokio::test]
+async fn tun_answers_dns_query_from_fake_ip_pool() {
+    use hickory_proto::op::{Message, MessageType, OpCode, Query};
+    use hickory_proto::rr::{Name, RData, RecordType};
+
+    let (mode, _pool) = DnsMode::fake_ip(FakeIpConfig::default());
+
+    let (to_kernel_tx, to_kernel_rx) = mpsc::channel::<Vec<u8>>(16);
+    let (from_kernel_tx, mut from_kernel_rx) = mpsc::channel::<Vec<u8>>(16);
+    let shutdown = Arc::new(Notify::new());
+    let kernel = tokio::spawn(serve_tun(
+        to_kernel_rx,
+        from_kernel_tx,
+        OutboundMode::Direct,
+        Some(mode),
+        shutdown.clone(),
+        DEFAULT_MTU,
+    ));
+
+    // Build an A query for example.com and wrap it in IPv4/UDP, client -> resolver.
+    let mut request = Message::new();
+    request.set_id(0x1234);
+    request.set_message_type(MessageType::Query);
+    request.set_op_code(OpCode::Query);
+    request.set_recursion_desired(true);
+    let mut query = Query::new();
+    query.set_name(Name::from_ascii("example.com.").unwrap());
+    query.set_query_type(RecordType::A);
+    request.add_query(query);
+    let dns_query = request.to_vec().unwrap();
+
+    let client = Ipv4Address::new(10, 0, 0, 2);
+    let resolver = Ipv4Address::new(10, 0, 0, 1);
+    let query_frame = build_udp4_frame(client, 5300, resolver, 53, &dns_query);
+    to_kernel_tx.send(query_frame).await.unwrap();
+
+    let reply_frame = tokio::time::timeout(Duration::from_secs(5), from_kernel_rx.recv())
+        .await
+        .expect("dns reply timed out")
+        .expect("kernel closed without replying");
+
+    let (src, src_port, dst, dst_port, payload) = parse_udp4_frame(&reply_frame).expect("reply is a udp4 datagram");
+    // The reply comes back from the resolver to the client's source port.
+    assert_eq!((src, src_port), (resolver, 53));
+    assert_eq!((dst, dst_port), (client, 5300));
+
+    let response = Message::from_vec(&payload).unwrap();
+    assert_eq!(response.id(), 0x1234);
+    let answers = response.answers();
+    assert_eq!(answers.len(), 1, "exactly one A answer expected");
+    let Some(RData::A(addr)) = answers[0].data() else {
+        panic!("expected an A record");
+    };
+    // First usable address of the default 198.18.0.0/15 fake-IP pool.
+    assert_eq!(Ipv4Addr::from(addr.0), Ipv4Addr::new(198, 18, 0, 1));
+
+    shutdown.notify_waiters();
+    kernel.abort();
+}
+
+/// Wrap `payload` in an IPv4 + UDP datagram (smoltcp computes the checksums).
+fn build_udp4_frame(src: Ipv4Address, src_port: u16, dst: Ipv4Address, dst_port: u16, payload: &[u8]) -> Vec<u8> {
+    let caps = ChecksumCapabilities::default();
+    let udp_repr = UdpRepr { src_port, dst_port };
+    let ip_repr = Ipv4Repr {
+        src_addr: src,
+        dst_addr: dst,
+        next_header: IpProtocol::Udp,
+        payload_len: udp_repr.header_len() + payload.len(),
+        hop_limit: 64,
+    };
+    let mut frame = vec![0u8; ip_repr.buffer_len() + ip_repr.payload_len];
+    let mut packet = Ipv4Packet::new_unchecked(&mut frame);
+    ip_repr.emit(&mut packet, &caps);
+    let mut udp = UdpPacket::new_unchecked(packet.payload_mut());
+    udp_repr.emit(
+        &mut udp,
+        &IpAddress::Ipv4(src),
+        &IpAddress::Ipv4(dst),
+        payload.len(),
+        |buf| buf.copy_from_slice(payload),
+        &caps,
+    );
+    frame
+}
+
+/// Inverse of [`build_udp4_frame`]: pull the endpoints and payload back out.
+fn parse_udp4_frame(frame: &[u8]) -> Option<(Ipv4Address, u16, Ipv4Address, u16, Vec<u8>)> {
+    let ip = Ipv4Packet::new_checked(frame).ok()?;
+    if ip.next_header() != IpProtocol::Udp {
+        return None;
+    }
+    let udp = UdpPacket::new_checked(ip.payload()).ok()?;
+    Some((
+        ip.src_addr(),
+        udp.src_port(),
+        ip.dst_addr(),
+        udp.dst_port(),
+        udp.payload().to_vec(),
+    ))
 }
