@@ -21,6 +21,7 @@ mod outbound;
 mod proxy;
 mod router;
 mod server;
+mod shadowsocks;
 mod socks5;
 mod tls;
 mod transport;
@@ -44,6 +45,7 @@ pub use proxy::{
 };
 pub use router::{DIRECT, IpCidr, REJECT, Router, Rule, RuleMatcher};
 pub use server::{GripeHandle, GripeKernel};
+pub use shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::{Security, Transport};
 pub use trojan::TrojanOutboundConfig;

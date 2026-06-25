@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::router::Router;
+use crate::shadowsocks::ShadowsocksOutboundConfig;
 use crate::trojan::TrojanOutboundConfig;
 use crate::vless::VlessOutboundConfig;
 use crate::vmess::VmessOutboundConfig;
@@ -29,6 +30,8 @@ pub enum OutboundMode {
     Trojan(Box<TrojanOutboundConfig>),
     /// Forward through a VMess outbound.
     Vmess(Box<VmessOutboundConfig>),
+    /// Forward through a Shadowsocks (AEAD) outbound.
+    Shadowsocks(Box<ShadowsocksOutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
