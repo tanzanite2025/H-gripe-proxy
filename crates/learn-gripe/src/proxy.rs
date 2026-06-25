@@ -23,6 +23,7 @@
 
 use std::collections::BTreeMap;
 
+use anyhow::{Result, anyhow, bail};
 use serde::Deserialize;
 
 /// One entry of the clash `proxies:` array.
@@ -335,4 +336,22 @@ pub struct PluginOpts {
     pub skip_cert_verify: Option<bool>,
     pub version: Option<u32>,
     pub mux: Option<bool>,
+}
+
+/// Parse a canonical hyphenated UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+/// into its 16 raw bytes. Hyphens are optional; any 32 hex digits are accepted.
+///
+/// Shared by the VLESS and VMess outbounds, both of which key their handshake
+/// off the same 16-byte user id.
+pub(crate) fn parse_uuid(value: &str) -> Result<[u8; 16]> {
+    let hex: String = value.chars().filter(|c| *c != '-').collect();
+    if hex.len() != 32 {
+        bail!("uuid must be 32 hex digits, got {value:?}");
+    }
+    let mut out = [0u8; 16];
+    for (i, byte) in out.iter_mut().enumerate() {
+        let pair = &hex[i * 2..i * 2 + 2];
+        *byte = u8::from_str_radix(pair, 16).map_err(|_| anyhow!("invalid uuid hex {pair:?}"))?;
+    }
+    Ok(out)
 }

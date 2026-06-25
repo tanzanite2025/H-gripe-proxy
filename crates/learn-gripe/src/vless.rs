@@ -25,12 +25,12 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll, ready};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
 use crate::outbound::BoxedStream;
-use crate::proxy::ProxyEntry;
+use crate::proxy::{ProxyEntry, parse_uuid};
 use crate::transport::{self, Security, Transport};
 
 const VERSION: u8 = 0x00;
@@ -87,21 +87,6 @@ pub async fn connect(config: &VlessOutboundConfig, target: &TargetAddr) -> Resul
     let header = encode_request_header(&config.uuid, CMD_TCP, target);
     stream.write_all(&header).await.context("vless: send request header")?;
     Ok(Box::new(VlessStream::new(stream)))
-}
-
-/// Parse a canonical hyphenated UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-/// into its 16 raw bytes.
-fn parse_uuid(value: &str) -> Result<[u8; 16]> {
-    let hex: String = value.chars().filter(|c| *c != '-').collect();
-    if hex.len() != 32 {
-        bail!("vless: uuid must be 32 hex digits, got {:?}", value);
-    }
-    let mut out = [0u8; 16];
-    for (i, byte) in out.iter_mut().enumerate() {
-        let pair = &hex[i * 2..i * 2 + 2];
-        *byte = u8::from_str_radix(pair, 16).map_err(|_| anyhow!("vless: invalid uuid hex {pair:?}"))?;
-    }
-    Ok(out)
 }
 
 /// Encode the VLESS request header for a TCP CONNECT to `target` with no addons.
