@@ -343,11 +343,22 @@ end-to-end relay tests. Proves the in-process architecture works.
   routing, and destinations with no UDP egress (`Reject`, upstream SOCKS5) are
   dropped rather than leaked. Proven by `tun_relays_udp_datagram_through_direct_outbound`
   (a UDP datagram out a real OS socket to an echo server, reply rewritten back to
-  the client). Still pending (and *not* exercisable in the sandbox/CI, so the OS
-  binding is compile-checked only and must be validated on a real machine with
-  admin/root): global default-route capture + DNS redirect with leak-safe
-  apply/observe/rollback (the Windows path next), and the macOS utun 4-byte
-  packet-information header codec. This stays the highest-risk phase.
+  the client). **Windows global default-route capture + DNS redirect** is now wired
+  into `TunInbound::start` behind the existing `RollbackStack`, gated on
+  `enable_tun_mode` (off by default) and applied only when the selected outbound is
+  a single fixed-server proxy (`OutboundMode::supports_global_capture`): it resolves
+  the proxy server endpoint(s) and pins each to the physical gateway with a `/32`
+  bypass route (`OutboundMode::direct_dial_endpoints`), adds `0.0.0.0/1` + `128.0.0.0/1`
+  routes through the TUN (more specific than the untouched `0.0.0.0/0` default, so
+  rollback is a clean delete), points the resolver at the in-stack fake-IP DNS, then
+  re-reads the route table to confirm the capture took effect — rolling everything
+  back and failing start if it did not. `Direct`/`Reject`/`Routed` fall back to the
+  on-link subnet (they would loop). The route-parsing/command-building logic has unit
+  tests; the actual `route`/`netsh` mutations need admin and a real default route, so
+  they are **compile-checked only and must be validated on a real Windows machine**.
+  Still pending (also not exercisable in the sandbox/CI): IPv6 default-route capture
+  (a known leak gap), and the macOS utun 4-byte packet-information header codec. This
+  stays the highest-risk phase.
 
 ### Phase 5 — Delete Mihomo
 

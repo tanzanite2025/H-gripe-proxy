@@ -210,6 +210,12 @@ impl Router {
         }
     }
 
+    /// The distinct named outbounds this router can select. The built-in
+    /// `DIRECT`/`REJECT` policies carry no server and are not included.
+    pub fn outbound_modes(&self) -> impl Iterator<Item = &OutboundMode> {
+        self.outbounds.values()
+    }
+
     /// Select the outbound for `target`: the first matching rule's outbound, or
     /// the fallback. The name is guaranteed to resolve (checked in
     /// [`Router::new`]).
