@@ -23,6 +23,7 @@ mod socks5;
 mod tls;
 mod transport;
 mod trojan;
+mod udp;
 mod vision;
 mod vless;
 mod vmess;
