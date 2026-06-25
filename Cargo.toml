@@ -13,8 +13,19 @@ exclude = [
   "crates/clash-verge-logger",
   "crates/clash-verge-service-ipc",
   "crates/sysproxy",
+  "third_party/rustls",
+  "third_party/tokio-rustls",
 ]
 resolver = "2"
+
+# REALITY support: redirect rustls / tokio-rustls to the in-tree vendored Watfaq
+# fork (third_party/), which adds `ClientConfig::builder().with_reality()`. The
+# fork is a strict superset of upstream rustls, so all existing standard-TLS
+# consumers in the workspace keep working unchanged. Vendored & self-maintained;
+# see docs/go-to-rust-migration-roadmap.md.
+[patch.crates-io]
+rustls = { path = "third_party/rustls" }
+tokio-rustls = { path = "third_party/tokio-rustls" }
 
 [profile.release]
 panic = "unwind"
