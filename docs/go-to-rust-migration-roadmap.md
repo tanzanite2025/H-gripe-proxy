@@ -48,7 +48,7 @@ boots the Rust kernel; there is no Mihomo startup path left.
 | --- | --- |
 | learn-gripe kernel | MVP live. **Mixed inbound** on one port: SOCKS5 (no-auth CONNECT + UDP ASSOCIATE) and HTTP proxy (`CONNECT` tunnel + plain absolute-form requests) selected by peeking the first byte, relaying through the configured outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. End-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs` and `crates/learn-gripe/tests/http_inbound.rs`. |
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
-| Mihomo sidecar | No longer started or packaged for the supported path. `tauri-plugin-mihomo` is still a dependency (compatibility DTOs / dead code) and the binary is still in the tree; removal is the final phase, not yet done. |
+| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, and it is **not dead code**: besides the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files), it still provides the live **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`) that ~18 `core/runtime_bridge.rs` Tauri commands call (proxy delay test, close/disconnect connection, `ws_connections`/`ws_logs` streams, provider update/healthcheck, `update_geo`, `upgrade_core`/`ui`/`geo`, `force_tls_rotation`, obfuscation stats). Those calls connect to a controller that is no longer running, so they are runtime-dead but compile-live and still wired to the frontend. Dropping the crate is blocked until `learn-gripe` exposes an in-process controller API (or those commands are removed); see Phase 5. |
 
 `start_core()` now selects the outbound from the user's chosen node:
 `OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
@@ -399,10 +399,30 @@ end-to-end relay tests. Proves the in-process architecture works.
 
 Only after the supported default paths above run on `learn-gripe`:
 
-- Remove the `tauri-plugin-mihomo` dependency and remaining compatibility DTOs
-  (replace with Rust-native DTOs).
-- Remove the Mihomo binary from the tree and from release packaging.
-- Remove dead Mihomo service/sidecar plumbing.
+- **Done — binary + packaging.** The Mihomo binary is no longer tracked in the
+  tree and is not referenced by any packaging or release path (`prebuild.mjs`,
+  `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, `release.yml`). No
+  Mihomo sidecar/service startup plumbing remains (`lifecycle.rs` explicitly
+  retires the Mihomo service core startup in favor of the Rust runtime path).
+- **Done — verified.** `git ls-files` shows no Mihomo binary outside the
+  `crates/tauri-plugin-mihomo/` source crate, and the build/CI scripts pull only
+  the `clash-verge-service` sidecar and local geodata.
+- **Remaining — the `tauri-plugin-mihomo` crate dependency.** Removing it means
+  replacing two things, not deleting dead code:
+  1. the compatibility DTOs (`models::*`) with Rust-native DTOs across the ~24
+     `src-tauri` consumers, **and**
+  2. the live Mihomo **controller-API IPC client** (`Mihomo` / `MihomoExt`) that
+     ~18 `core/runtime_bridge.rs` commands still depend on (delay test,
+     connection close/disconnect, `ws_connections`/`ws_logs`, provider
+     update/healthcheck, `update_geo`, `upgrade_core`/`ui`/`geo`,
+     `force_tls_rotation`, obfuscation stats).
+- **Blocker.** `learn-gripe` does not yet expose an in-process controller API for
+  those operations, so the crate cannot be dropped without either implementing
+  that API in the kernel or removing the dependent commands (and their frontend
+  callers). Per boundary #1 the frontend must ultimately stop talking to an
+  external controller; the replacement controller surface belongs in
+  `learn-gripe`. This is the last step of Phase 5 and is intentionally deferred
+  until that kernel API exists.
 
 ## Definition of done for a roadmap PR
 
