@@ -1,6 +1,7 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::socks5;
+use crate::trojan;
 use crate::vless;
 use anyhow::{Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -30,6 +31,7 @@ pub async fn connect(mode: &OutboundMode, target: &TargetAddr) -> Result<BoxedSt
             Ok(Box::new(stream))
         }
         OutboundMode::Vless(config) => vless::connect(config, target).await,
+        OutboundMode::Trojan(config) => trojan::connect(config, target).await,
     }
 }
 

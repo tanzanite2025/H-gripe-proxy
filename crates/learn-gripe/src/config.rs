@@ -1,5 +1,6 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
+use crate::trojan::TrojanOutboundConfig;
 use crate::vless::VlessOutboundConfig;
 
 /// Runtime configuration for the learn-gripe kernel MVP.
@@ -20,6 +21,8 @@ pub enum OutboundMode {
     Socks5Upstream { addr: SocketAddr },
     /// Forward through a VLESS outbound.
     Vless(Box<VlessOutboundConfig>),
+    /// Forward through a Trojan outbound.
+    Trojan(Box<TrojanOutboundConfig>),
 }
 
 impl Default for GripeConfig {
