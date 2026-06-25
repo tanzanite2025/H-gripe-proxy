@@ -34,7 +34,7 @@ use crate::outbound::{self, UdpEgress};
 use crate::socks5;
 
 /// Upper bound on a single UDP datagram (IPv4 total length limit).
-const MAX_DATAGRAM: usize = 65_535;
+pub(crate) const MAX_DATAGRAM: usize = 65_535;
 
 /// Per-destination egress queue depth. Datagrams beyond this while the egress
 /// is busy are dropped, matching UDP's lossy semantics rather than stalling the
@@ -215,7 +215,7 @@ async fn run_proxy_egress(
 
 /// Per-packet framing applied on a proxy-tunnel UDP stream.
 #[derive(Clone, Copy)]
-enum ProxyFraming {
+pub(crate) enum ProxyFraming {
     /// Trojan: `SOCKS5-addr | len(2) | CRLF | payload` per packet.
     Trojan,
     /// VLESS UDP: `len(2 BE) | payload` per packet.
@@ -226,7 +226,7 @@ enum ProxyFraming {
 }
 
 impl ProxyFraming {
-    fn for_egress(egress: &UdpEgress) -> Self {
+    pub(crate) fn for_egress(egress: &UdpEgress) -> Self {
         match egress {
             UdpEgress::Trojan(_) => ProxyFraming::Trojan,
             UdpEgress::Vless(_) => ProxyFraming::LengthPrefixed,
@@ -236,7 +236,12 @@ impl ProxyFraming {
     }
 }
 
-async fn write_proxy_packet<W>(writer: &mut W, framing: ProxyFraming, target: &TargetAddr, payload: &[u8]) -> Result<()>
+pub(crate) async fn write_proxy_packet<W>(
+    writer: &mut W,
+    framing: ProxyFraming,
+    target: &TargetAddr,
+    payload: &[u8],
+) -> Result<()>
 where
     W: AsyncWrite + Unpin,
 {
@@ -261,7 +266,7 @@ where
     Ok(())
 }
 
-async fn read_proxy_packet<R>(reader: &mut R, framing: ProxyFraming) -> Result<Vec<u8>>
+pub(crate) async fn read_proxy_packet<R>(reader: &mut R, framing: ProxyFraming) -> Result<Vec<u8>>
 where
     R: AsyncRead + Unpin,
 {
@@ -290,7 +295,7 @@ where
 }
 
 /// Bind an egress socket on the unspecified address of the destination family.
-async fn bind_egress(dest: SocketAddr) -> Result<UdpSocket> {
+pub(crate) async fn bind_egress(dest: SocketAddr) -> Result<UdpSocket> {
     let bind: SocketAddr = match dest {
         SocketAddr::V4(_) => (Ipv4Addr::UNSPECIFIED, 0).into(),
         SocketAddr::V6(_) => (Ipv6Addr::UNSPECIFIED, 0).into(),
@@ -302,7 +307,7 @@ async fn bind_egress(dest: SocketAddr) -> Result<UdpSocket> {
 
 /// Resolve a target to a concrete socket address (first DNS answer for a
 /// domain).
-async fn resolve(target: &TargetAddr) -> Result<SocketAddr> {
+pub(crate) async fn resolve(target: &TargetAddr) -> Result<SocketAddr> {
     match target {
         TargetAddr::Ip(addr) => Ok(*addr),
         TargetAddr::Domain(host, port) => tokio::net::lookup_host((host.as_str(), *port))

@@ -24,7 +24,7 @@ use smoltcp::wire::{
 use std::collections::VecDeque;
 use std::net::Ipv4Addr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Notify, mpsc};
 
 #[tokio::test]
@@ -442,6 +442,63 @@ async fn tun_answers_dns_query_from_fake_ip_pool() {
     };
     // First usable address of the default 198.18.0.0/15 fake-IP pool.
     assert_eq!(Ipv4Addr::from(addr.0), Ipv4Addr::new(198, 18, 0, 1));
+
+    shutdown.notify_waiters();
+    kernel.abort();
+}
+
+/// A non-DNS UDP datagram is relayed through the `Direct` outbound: it leaves
+/// over a real OS UDP socket to a tokio echo server, and the reply is rewritten
+/// back into an IP frame addressed to the original client endpoint.
+#[tokio::test]
+async fn tun_relays_udp_datagram_through_direct_outbound() {
+    // UDP echo server reached via the kernel's Direct outbound.
+    let echo = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let echo_addr = echo.local_addr().unwrap();
+    let SocketAddr::V4(echo_v4) = echo_addr else {
+        panic!("expected an IPv4 echo address");
+    };
+    tokio::spawn(async move {
+        let mut buf = vec![0u8; 2048];
+        loop {
+            let Ok((n, from)) = echo.recv_from(&mut buf).await else {
+                break;
+            };
+            if echo.send_to(&buf[..n], from).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let (to_kernel_tx, to_kernel_rx) = mpsc::channel::<Vec<u8>>(16);
+    let (from_kernel_tx, mut from_kernel_rx) = mpsc::channel::<Vec<u8>>(16);
+    let shutdown = Arc::new(Notify::new());
+    let kernel = tokio::spawn(serve_tun(
+        to_kernel_rx,
+        from_kernel_tx,
+        OutboundMode::Direct,
+        None,
+        shutdown.clone(),
+        DEFAULT_MTU,
+    ));
+
+    let client = Ipv4Address::new(10, 0, 0, 2);
+    let o = echo_v4.ip().octets();
+    let server = Ipv4Address::new(o[0], o[1], o[2], o[3]);
+    let payload = b"hello udp over tun";
+    let frame = build_udp4_frame(client, 41000, server, echo_v4.port(), payload);
+    to_kernel_tx.send(frame).await.unwrap();
+
+    let reply_frame = tokio::time::timeout(Duration::from_secs(5), from_kernel_rx.recv())
+        .await
+        .expect("udp reply timed out")
+        .expect("kernel closed without replying");
+
+    let (src, src_port, dst, dst_port, body) = parse_udp4_frame(&reply_frame).expect("reply is a udp4 datagram");
+    // The reply comes back from the server endpoint to the client's source port.
+    assert_eq!((src, src_port), (server, echo_v4.port()));
+    assert_eq!((dst, dst_port), (client, 41000));
+    assert_eq!(body, payload);
 
     shutdown.notify_waiters();
     kernel.abort();
