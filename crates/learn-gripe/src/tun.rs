@@ -33,7 +33,7 @@ use smoltcp::wire::{
     HardwareAddress, IpAddress, IpCidr, IpEndpoint, IpProtocol, Ipv4Address, Ipv4Packet, Ipv6Address, Ipv6Packet,
     TcpPacket,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{Notify, mpsc};
 
 /// Default MTU for the userspace stack. The OS TUN device should be configured
@@ -95,6 +95,86 @@ pub async fn serve_tun(
             }
         }
     }
+}
+
+/// Number of frames buffered between the device pump and the userspace stack.
+const DEVICE_QUEUE_DEPTH: usize = 256;
+
+/// Run the TUN inbound against a byte-stream device that delivers and accepts
+/// **one IP packet per read/write** — the contract the `tun` crate's async
+/// device exposes. This is the thin adapter an OS TUN binding calls: it spawns
+/// [`serve_tun`] over internal channels and pumps frames between the device and
+/// those channels in both directions, terminating when `shutdown` fires or the
+/// device hits EOF/error.
+///
+/// The device must be configured **without** a packet-information header (Linux
+/// `IFF_NO_PI`, Windows wintun has none); platforms whose header cannot be
+/// disabled (e.g. macOS utun's 4-byte prefix) need a codec layered on top and
+/// are not handled here.
+pub async fn serve_tun_device<R, W>(
+    mut reader: R,
+    mut writer: W,
+    mode: OutboundMode,
+    fake_ip: FakeIp,
+    shutdown: Arc<Notify>,
+    mtu: usize,
+) where
+    R: AsyncRead + Unpin + Send + 'static,
+    W: AsyncWrite + Unpin + Send + 'static,
+{
+    let (to_kernel_tx, to_kernel_rx) = mpsc::channel::<Vec<u8>>(DEVICE_QUEUE_DEPTH);
+    let (to_device_tx, mut to_device_rx) = mpsc::channel::<Vec<u8>>(DEVICE_QUEUE_DEPTH);
+
+    let stack = tokio::spawn(serve_tun(
+        to_kernel_rx,
+        to_device_tx,
+        mode,
+        fake_ip,
+        shutdown.clone(),
+        mtu,
+    ));
+
+    // Device -> stack: each read yields a single IP packet.
+    let read_shutdown = shutdown.clone();
+    let reader_task = tokio::spawn(async move {
+        let mut buf = vec![0u8; mtu.max(DEFAULT_MTU)];
+        loop {
+            tokio::select! {
+                _ = read_shutdown.notified() => break,
+                res = reader.read(&mut buf) => match res {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        if to_kernel_tx.send(buf[..n].to_vec()).await.is_err() {
+                            break;
+                        }
+                    }
+                },
+            }
+        }
+    });
+
+    // Stack -> device: write each frame as a single packet.
+    let write_shutdown = shutdown.clone();
+    let writer_task = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = write_shutdown.notified() => break,
+                frame = to_device_rx.recv() => match frame {
+                    Some(frame) => {
+                        if writer.write_all(&frame).await.is_err() {
+                            break;
+                        }
+                    }
+                    None => break,
+                },
+            }
+        }
+    });
+
+    let _ = reader_task.await;
+    shutdown.notify_waiters();
+    let _ = writer_task.await;
+    stack.abort();
 }
 
 type FlowKey = (IpEndpoint, IpEndpoint);

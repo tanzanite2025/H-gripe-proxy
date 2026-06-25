@@ -304,12 +304,17 @@ end-to-end relay tests. Proves the in-process architecture works.
   stack drives real TCP handshakes (small + 256 KiB multi-segment) through an
   in-memory TUN pipe into `serve_tun` and gets the bytes back from a `Direct`
   echo outbound — real bytes across two real TCP state machines, no OS device
-  needed. Still pending (and *not* exercisable in the sandbox/CI): the thin OS
-  adapter that pumps an actual `tun`-crate device into these channels under
-  elevated privileges, plus the leak-safe apply + observe + rollback path and
-  wiring it into `start_core()`. UDP-over-TUN (so DNS over TUN) is also a later
-  step. This stays the highest-risk phase; the OS-facing part must land with an
-  explicit rollback.
+  needed. The device pump (`serve_tun_device`) is also landed: it adapts a
+  byte-stream device with the `tun` crate's "one IP packet per read/write"
+  contract to the `serve_tun` channels (the exact glue an OS binding calls),
+  tested end-to-end over a mock packet device via `tun_device_pump_relays_tcp_flow`.
+  Still pending (and *not* exercisable in the sandbox/CI): the OS binding that
+  creates an actual `tun`-crate device under elevated privileges and feeds it to
+  `serve_tun_device`, the address/route configuration, the leak-safe apply +
+  observe + rollback path, wiring it into `start_core()`, and the macOS utun
+  4-byte packet-information header codec. UDP-over-TUN (so DNS over TUN) is also
+  a later step. This stays the highest-risk phase; the OS-facing part must land
+  with an explicit rollback and be validated on a real machine with admin rights.
 
 ### Phase 5 — Delete Mihomo
 
