@@ -4,13 +4,15 @@ use super::{CoreManager, RunningMode};
 use crate::config::Config;
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
+use crate::core::rule_geodata::RuleGeoData;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
-use learn_gripe::{GripeConfig, GripeKernel, OutboundMode};
+use learn_gripe::{GeoLookup, GripeConfig, GripeKernel, OutboundMode};
 use scopeguard::defer;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
 
@@ -126,7 +128,19 @@ impl CoreManager {
     /// global egress. Falls back to [`OutboundMode::Direct`] when the runtime
     /// config is missing.
     async fn resolve_outbound() -> OutboundMode {
-        Self::resolve_with(outbound_select::routed_outbound).await
+        let geo = Self::load_geo_lookup();
+        Self::resolve_with(move |config, selection| outbound_select::routed_outbound(config, selection, geo.clone()))
+            .await
+    }
+
+    /// Load the *local*, user-maintained geo database (Country.mmdb / GeoIP.dat
+    /// / GeoSite.dat from the app home + resources dirs) so the rule router can
+    /// evaluate `GEOIP` / `GEOSITE` rules. The kernel never fetches or owns this
+    /// data — it only queries it through [`GeoLookup`]. When no files are
+    /// present the lookups simply never match, so those rules are skipped.
+    fn load_geo_lookup() -> Option<Arc<dyn GeoLookup>> {
+        let geo: Arc<dyn GeoLookup> = Arc::new(RuleGeoData::load_default());
+        Some(geo)
     }
 
     /// Resolve the *single global egress* for the TUN device (see

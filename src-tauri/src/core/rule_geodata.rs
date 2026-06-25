@@ -53,6 +53,19 @@ impl RuleGeoData {
     }
 }
 
+/// Bridge the app's *local*, user-maintained geo database into the kernel
+/// router. The kernel only ever queries this trait; it never reads files or
+/// fetches data itself, keeping geo data ownership in the app.
+impl learn_gripe::GeoLookup for RuleGeoData {
+    fn geoip_matches(&self, code: &str, ip: IpAddr) -> bool {
+        RuleGeoData::geoip_matches(self, code, ip)
+    }
+
+    fn geosite_matches(&self, code: &str, host: &str) -> bool {
+        RuleGeoData::geosite_matches(self, code, host)
+    }
+}
+
 #[derive(Clone)]
 pub struct GeoIpData {
     source: GeoIpSource,
