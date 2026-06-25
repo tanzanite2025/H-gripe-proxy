@@ -1,11 +1,17 @@
 use crate::config::GripeConfig;
+use crate::dns::{FakeIpPool, unmap_fake_ip};
 use crate::{outbound, socks5, udp};
 use anyhow::{Context, Result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
+
+/// Optional fake-IP pool shared with a DNS server. When present, the inbound
+/// rewrites a target that is a fake IP back to its original domain before
+/// routing (see [`unmap_fake_ip`]).
+type FakeIp = Option<Arc<Mutex<FakeIpPool>>>;
 
 /// The learn-gripe kernel. Owns the inbound listener task and exposes a handle
 /// to stop it.
@@ -16,6 +22,17 @@ impl GripeKernel {
     /// listener is bound before returning so callers observe bind failures
     /// synchronously.
     pub async fn start(config: GripeConfig) -> Result<GripeHandle> {
+        Self::start_inner(config, None).await
+    }
+
+    /// Like [`GripeKernel::start`], but share a fake-IP `pool` (typically the
+    /// one a [`crate::DnsServer`] hands out) so connections to a fake IP are
+    /// routed by their original domain.
+    pub async fn start_with_fake_ip(config: GripeConfig, pool: Arc<Mutex<FakeIpPool>>) -> Result<GripeHandle> {
+        Self::start_inner(config, Some(pool)).await
+    }
+
+    async fn start_inner(config: GripeConfig, fake_ip: FakeIp) -> Result<GripeHandle> {
         let listener = TcpListener::bind(config.socks_listen)
             .await
             .with_context(|| format!("bind SOCKS5 inbound on {}", config.socks_listen))?;
@@ -25,7 +42,7 @@ impl GripeKernel {
         let config = Arc::new(config);
         let task_shutdown = shutdown.clone();
         let task = tokio::spawn(async move {
-            serve(listener, config, task_shutdown).await;
+            serve(listener, config, task_shutdown, fake_ip).await;
         });
 
         log::info!("learn-gripe SOCKS5 inbound listening on {local_addr}");
@@ -61,7 +78,7 @@ impl GripeHandle {
     }
 }
 
-async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<Notify>) {
+async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<Notify>, fake_ip: FakeIp) {
     loop {
         tokio::select! {
             _ = shutdown.notified() => {
@@ -72,8 +89,9 @@ async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<No
                 match accepted {
                     Ok((stream, peer)) => {
                         let config = config.clone();
+                        let fake_ip = fake_ip.clone();
                         tokio::spawn(async move {
-                            if let Err(err) = handle_connection(stream, &config).await {
+                            if let Err(err) = handle_connection(stream, &config, fake_ip).await {
                                 log::debug!("learn-gripe connection from {peer} ended: {err:#}");
                             }
                         });
@@ -87,12 +105,16 @@ async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<No
     }
 }
 
-async fn handle_connection(mut inbound: TcpStream, config: &GripeConfig) -> Result<()> {
+async fn handle_connection(mut inbound: TcpStream, config: &GripeConfig, fake_ip: FakeIp) -> Result<()> {
     socks5::server_handshake(&mut inbound).await?;
-    let (command, target) = socks5::read_request(&mut inbound).await?;
+    let (command, mut target) = socks5::read_request(&mut inbound).await?;
+    // Resolve a fake IP back to its domain so routing sees the real host.
+    if let Some(pool) = &fake_ip {
+        target = unmap_fake_ip(pool, target);
+    }
     match command {
         socks5::Command::Connect => handle_connect(inbound, target, config).await,
-        socks5::Command::UdpAssociate => handle_udp_associate(inbound, config).await,
+        socks5::Command::UdpAssociate => handle_udp_associate(inbound, config, fake_ip).await,
     }
 }
 
@@ -113,7 +135,7 @@ async fn handle_connect(mut inbound: TcpStream, target: crate::TargetAddr, confi
     Ok(())
 }
 
-async fn handle_udp_associate(mut inbound: TcpStream, config: &GripeConfig) -> Result<()> {
+async fn handle_udp_associate(mut inbound: TcpStream, config: &GripeConfig, fake_ip: FakeIp) -> Result<()> {
     if !outbound::supports_udp_associate(&config.outbound) {
         let _ = socks5::write_reply(&mut inbound, socks5::REP_CMD_NOT_SUPPORTED).await;
         anyhow::bail!("udp associate not supported for the configured outbound");
@@ -136,5 +158,5 @@ async fn handle_udp_associate(mut inbound: TcpStream, config: &GripeConfig) -> R
     socks5::write_reply_with_addr(&mut inbound, socks5::REP_SUCCEEDED, relay_addr).await?;
 
     let mode = Arc::new(config.outbound.clone());
-    udp::run_associate(inbound, relay, mode).await
+    udp::run_associate(inbound, relay, mode, fake_ip).await
 }

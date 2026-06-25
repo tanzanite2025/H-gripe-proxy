@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -29,6 +29,7 @@ use tokio::sync::mpsc;
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
+use crate::dns::{FakeIpPool, unmap_fake_ip};
 use crate::outbound::{self, UdpEgress};
 use crate::socks5;
 
@@ -42,7 +43,12 @@ const EGRESS_QUEUE: usize = 128;
 
 /// Relay datagrams between the client and remote hosts until `control` (the TCP
 /// connection that requested the association) closes.
-pub async fn run_associate<C>(mut control: C, relay: UdpSocket, mode: Arc<OutboundMode>) -> Result<()>
+pub async fn run_associate<C>(
+    mut control: C,
+    relay: UdpSocket,
+    mode: Arc<OutboundMode>,
+    fake_ip: Option<Arc<Mutex<FakeIpPool>>>,
+) -> Result<()>
 where
     C: AsyncRead + Unpin,
 {
@@ -66,7 +72,7 @@ where
                     Ok(v) => v,
                     Err(_) => continue,
                 };
-                if let Err(err) = forward_client_datagram(&buf[..n], client_addr, &relay, &mode, &mut targets) {
+                if let Err(err) = forward_client_datagram(&buf[..n], client_addr, &relay, &mode, &fake_ip, &mut targets) {
                     log::debug!("learn-gripe udp: dropped client datagram: {err:#}");
                 }
             }
@@ -81,9 +87,15 @@ fn forward_client_datagram(
     client_addr: SocketAddr,
     relay: &Arc<UdpSocket>,
     mode: &Arc<OutboundMode>,
+    fake_ip: &Option<Arc<Mutex<FakeIpPool>>>,
     targets: &mut HashMap<String, mpsc::Sender<Vec<u8>>>,
 ) -> Result<()> {
     let (target, offset) = socks5::parse_udp_datagram(datagram)?;
+    // Resolve a fake IP back to its domain so routing sees the real host.
+    let target = match fake_ip {
+        Some(pool) => unmap_fake_ip(pool, target),
+        None => target,
+    };
     let mut payload = datagram[offset..].to_vec();
     let key = target.to_string();
 
