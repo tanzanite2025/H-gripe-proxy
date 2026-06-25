@@ -21,6 +21,7 @@ mod server;
 mod socks5;
 mod tls;
 mod transport;
+mod trojan;
 mod vless;
 mod ws;
 mod xhttp;
@@ -37,6 +38,7 @@ pub use proxy::{
 pub use server::{GripeHandle, GripeKernel};
 pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::{Security, Transport};
+pub use trojan::TrojanOutboundConfig;
 pub use vless::VlessOutboundConfig;
 pub use ws::WsTransportConfig;
 pub use xhttp::{XhttpMode, XhttpTransportConfig};

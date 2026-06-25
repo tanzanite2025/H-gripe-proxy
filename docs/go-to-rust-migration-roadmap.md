@@ -138,6 +138,10 @@ break REALITY.
   `with_reality()` API via `tls::connect_reality`; because Security and Transport
   are orthogonal, VLESS-REALITY works over tcp/grpc/h2/xhttp automatically (proven
   by the REALITY relay tests in `crates/learn-gripe/tests/vless_outbound.rs`).
+  The same orthogonality means every outbound protocol gets this for free: the
+  `Trojan` outbound shares the security+transport pipeline via
+  `transport::build_layers`, so Trojan-REALITY/-TLS over any transport works too
+  (proven by `crates/learn-gripe/tests/trojan_outbound.rs`).
   Faithful uTLS-style `client-fingerprint` ClientHello shaping and the separate
   `flow: xtls-rprx-vision` layer are tracked after that; the fingerprint is parsed
   and retained today but does not yet reshape the handshake.
@@ -178,7 +182,9 @@ end-to-end relay tests. Proves the in-process architecture works.
 
 ### Phase 3 — Protocol breadth + routing
 
-- VMess, VLESS, Trojan outbounds (TLS via `rustls`).
+- VMess, VLESS, Trojan outbounds (TLS via `rustls`). VLESS and Trojan are done
+  (all transports × none/tls/reality, sharing `transport::build_layers`); VMess
+  is next.
 - Routing/rule engine: reuse the already-Rust-owned rule matching to pick the
   outbound per connection (DOMAIN / CIDR / GEOIP / GEOSITE / MATCH ...).
 - UDP relay (SOCKS5 UDP ASSOCIATE) for the supported protocols.
