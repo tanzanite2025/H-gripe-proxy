@@ -98,6 +98,7 @@ control of the kernel.
 | TLS | `rustls` — **vendored Watfaq fork in `third_party/`** (see "Vendored TLS + REALITY" below) | Hand-rolled TLS is a classic source of critical CVEs. REALITY needs a ClientHello hook that upstream `rustls` does not expose, so we vendor a superset fork instead of hand-rolling. |
 | Cryptographic primitives | `ring` / `aes-gcm` / `chacha20poly1305` | Never implement your own cryptography. |
 | TUN device | `tun` | Wraps per-OS syscalls/ioctls we should not duplicate. |
+| Userspace IP/TCP stack (TUN) | `smoltcp` | Packet wire codec + per-flow TCP state machine; a hand-rolled TCP stack is a reliability minefield. We still own the orchestration (flow demux, bridging, back-pressure). |
 | DNS resolver base | `hickory-dns` | Full resolver/cache/protocol surface; reuse it. |
 | Serde / config parsing | `serde`, `serde_yaml`, `serde_json` | Standard, audited. |
 
@@ -292,11 +293,23 @@ end-to-end relay tests. Proves the in-process architecture works.
   `crates/learn-gripe/tests/fakeip_routing.rs`: the DNS server mints two fake
   IPs in the same `/16` for two domains, and connections to them reach
   *different* tagged outbounds purely by hostname.
-- TUN mode: read packets via the `tun` crate, route through `learn-gripe`
-  outbounds, with leak-safe rollback. This is the highest-risk phase; keep
-  rollback explicit. Still pending — it needs an OS TUN device and elevated
-  privileges, so it cannot be exercised in the sandbox/CI and must land with an
-  explicit apply + observe + rollback path.
+- TUN mode — userspace stack landed; OS device wiring pending. The
+  device-agnostic core is in `crates/learn-gripe/src/tun.rs` (`serve_tun`): it
+  consumes/produces raw IP frames over two channels, terminates IPv4/IPv6
+  **TCP** flows in a userspace stack (smoltcp adopted purely as the IP/TCP
+  wire-codec + per-flow state machine, like rustls for TLS), and relays each
+  flow through the normal `OutboundMode` pipeline (with fake-IP unmap), owning
+  the flow demux, back-pressure and close handling ourselves. Proven by
+  `crates/learn-gripe/tests/tun_inbound.rs`, where an independent second smoltcp
+  stack drives real TCP handshakes (small + 256 KiB multi-segment) through an
+  in-memory TUN pipe into `serve_tun` and gets the bytes back from a `Direct`
+  echo outbound — real bytes across two real TCP state machines, no OS device
+  needed. Still pending (and *not* exercisable in the sandbox/CI): the thin OS
+  adapter that pumps an actual `tun`-crate device into these channels under
+  elevated privileges, plus the leak-safe apply + observe + rollback path and
+  wiring it into `start_core()`. UDP-over-TUN (so DNS over TUN) is also a later
+  step. This stays the highest-risk phase; the OS-facing part must land with an
+  explicit rollback.
 
 ### Phase 5 — Delete Mihomo
 
