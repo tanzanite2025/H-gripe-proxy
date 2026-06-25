@@ -49,6 +49,7 @@ use crate::transport::{self, Security, Transport};
 
 const VERSION: u8 = 0x01;
 const CMD_TCP: u8 = 0x01;
+const CMD_UDP: u8 = 0x02;
 const ATYP_IPV4: u8 = 0x01;
 const ATYP_DOMAIN: u8 = 0x02;
 const ATYP_IPV6: u8 = 0x03;
@@ -155,6 +156,19 @@ impl VmessOutboundConfig {
 /// the AEAD request header already sent. The returned stream encrypts writes
 /// into VMess body chunks and decrypts the response header + body on reads.
 pub async fn connect(config: &VmessOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    connect_with_command(config, target, CMD_TCP).await
+}
+
+/// Connect a VMess outbound for UDP relay to `target`. The command header marks
+/// the stream as UDP (`0x02`); each UDP datagram is then carried as exactly one
+/// AEAD body chunk (one [`AsyncWrite::poll_write`] => one chunk, one
+/// [`AsyncRead::poll_read`] => one chunk), so packet boundaries are preserved
+/// up to the chunk size the body cipher allows.
+pub async fn connect_udp(config: &VmessOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    connect_with_command(config, target, CMD_UDP).await
+}
+
+async fn connect_with_command(config: &VmessOutboundConfig, target: &TargetAddr, command: u8) -> Result<BoxedStream> {
     let mut stream = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
 
     let mut body_key = [0u8; 16];
@@ -166,7 +180,7 @@ pub async fn connect(config: &VmessOutboundConfig, target: &TargetAddr) -> Resul
     let response_verifier = v[0];
 
     let cmd_key = command_key(&config.uuid);
-    let command = encode_command(&body_iv, &body_key, response_verifier, config.cipher, target);
+    let command = encode_command(&body_iv, &body_key, response_verifier, config.cipher, command, target);
     let header = seal_request_header(&cmd_key, &command)?;
     stream.write_all(&header).await.context("vmess: send request header")?;
 
@@ -197,6 +211,7 @@ fn encode_command(
     key: &[u8; 16],
     response_verifier: u8,
     cipher: VmessCipher,
+    command: u8,
     target: &TargetAddr,
 ) -> Vec<u8> {
     let mut buf = Vec::with_capacity(64);
@@ -208,7 +223,7 @@ fn encode_command(
     // padding length 0 in the high nibble; body security in the low nibble.
     buf.push(cipher.security_byte());
     buf.push(0); // reserved
-    buf.push(CMD_TCP);
+    buf.push(command);
     buf.extend_from_slice(&target.port().to_be_bytes());
     match target {
         TargetAddr::Ip(SocketAddr::V4(addr)) => {
@@ -819,7 +834,7 @@ mod tests {
         let iv = [1u8; 16];
         let key = [2u8; 16];
         let target = TargetAddr::Domain("example.com".to_string(), 443);
-        let cmd = encode_command(&iv, &key, 0x5a, VmessCipher::Aes128Gcm, &target);
+        let cmd = encode_command(&iv, &key, 0x5a, VmessCipher::Aes128Gcm, CMD_TCP, &target);
 
         assert_eq!(cmd[0], VERSION);
         assert_eq!(&cmd[1..17], &iv);
@@ -841,11 +856,26 @@ mod tests {
     #[test]
     fn encodes_ipv4_command_header() {
         let target = TargetAddr::Ip(SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 8443)));
-        let cmd = encode_command(&[0u8; 16], &[0u8; 16], 0, VmessCipher::Chacha20Poly1305, &target);
+        let cmd = encode_command(
+            &[0u8; 16],
+            &[0u8; 16],
+            0,
+            VmessCipher::Chacha20Poly1305,
+            CMD_TCP,
+            &target,
+        );
         assert_eq!(cmd[35], SEC_CHACHA20_POLY1305);
         assert_eq!(&cmd[38..40], &8443u16.to_be_bytes());
         assert_eq!(cmd[40], ATYP_IPV4);
         assert_eq!(&cmd[41..45], &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn encodes_udp_command_byte() {
+        let target = TargetAddr::Ip(SocketAddr::from((Ipv4Addr::new(8, 8, 8, 8), 53)));
+        let cmd = encode_command(&[0u8; 16], &[0u8; 16], 0, VmessCipher::Aes128Gcm, CMD_UDP, &target);
+        assert_eq!(cmd[37], CMD_UDP);
+        assert_eq!(&cmd[38..40], &53u16.to_be_bytes());
     }
 
     #[test]

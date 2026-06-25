@@ -39,6 +39,7 @@ use crate::vision::VISION_FLOW;
 
 const VERSION: u8 = 0x00;
 const CMD_TCP: u8 = 0x01;
+const CMD_UDP: u8 = 0x02;
 const ATYP_IPV4: u8 = 0x01;
 const ATYP_DOMAIN: u8 = 0x02;
 const ATYP_IPV6: u8 = 0x03;
@@ -107,6 +108,21 @@ pub async fn connect(config: &VlessOutboundConfig, target: &TargetAddr) -> Resul
     } else {
         Ok(Box::new(VlessStream::new(stream)))
     }
+}
+
+/// Connect a VLESS outbound for UDP relay to `target`. The request header
+/// carries the UDP command (`0x02`) and the response header is stripped by the
+/// returned [`VlessStream`]; the body is then framed as length-prefixed
+/// packets (`[2B BE length][payload]`) by the UDP relay. Vision is never used
+/// for UDP, so the addon length is zero.
+pub async fn connect_udp(config: &VlessOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    let mut stream = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
+    let header = encode_request_header(&config.uuid, CMD_UDP, target, false);
+    stream
+        .write_all(&header)
+        .await
+        .context("vless: send udp request header")?;
+    Ok(Box::new(VlessStream::new(stream)))
 }
 
 /// Encode the VLESS request header for a TCP CONNECT to `target`. When `vision`
@@ -413,6 +429,18 @@ mod tests {
              servername: www.cloudflare.com\nflow: xtls-rprx-direct\n";
         let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
         assert!(err.to_string().contains("flow"), "got: {err}");
+    }
+
+    #[test]
+    fn encodes_udp_command_header() {
+        let uuid = [0u8; 16];
+        let target = TargetAddr::Ip(SocketAddr::new(Ipv4Addr::new(8, 8, 8, 8).into(), 53));
+        let header = encode_request_header(&uuid, CMD_UDP, &target, false);
+        assert_eq!(header[17], 0); // no addon for UDP
+        assert_eq!(header[18], CMD_UDP);
+        assert_eq!(&header[19..21], &53u16.to_be_bytes());
+        assert_eq!(header[21], ATYP_IPV4);
+        assert_eq!(&header[22..26], &[8, 8, 8, 8]);
     }
 
     #[test]

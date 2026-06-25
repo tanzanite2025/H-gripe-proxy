@@ -26,16 +26,18 @@
 
 use std::net::SocketAddr;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha224};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 use crate::address::TargetAddr;
 use crate::outbound::BoxedStream;
 use crate::proxy::ProxyEntry;
+use crate::socks5;
 use crate::transport::{self, Security, Transport};
 
 const CMD_CONNECT: u8 = 0x01;
+const CMD_UDP_ASSOCIATE: u8 = 0x03;
 const ATYP_IPV4: u8 = 0x01;
 const ATYP_DOMAIN: u8 = 0x03;
 const ATYP_IPV6: u8 = 0x04;
@@ -96,6 +98,55 @@ pub async fn connect(config: &TrojanOutboundConfig, target: &TargetAddr) -> Resu
     let header = encode_request_header(&config.password_hash, CMD_CONNECT, target);
     stream.write_all(&header).await.context("trojan: send request header")?;
     Ok(stream)
+}
+
+/// Connect a Trojan outbound for UDP relay to `target`. The request header
+/// carries the `UDP ASSOCIATE` command; the returned stream then carries
+/// per-packet Trojan UDP datagrams (see [`encode_udp_packet`] /
+/// [`read_udp_packet`]). Trojan multiplexes destinations by address-per-packet,
+/// but the kernel opens one tunnel per destination, so the header address and
+/// every packet address are `target`.
+pub async fn connect_udp(config: &TrojanOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    let mut stream = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
+    let header = encode_request_header(&config.password_hash, CMD_UDP_ASSOCIATE, target);
+    stream
+        .write_all(&header)
+        .await
+        .context("trojan: send udp request header")?;
+    Ok(stream)
+}
+
+/// Encode one Trojan UDP packet: the SOCKS5-style destination address, a
+/// big-endian payload length, `CRLF`, then the payload.
+pub fn encode_udp_packet(target: &TargetAddr, payload: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(1 + 256 + 2 + 2 + 2 + payload.len());
+    socks5::encode_address(&mut buf, target);
+    buf.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+    buf.extend_from_slice(&CRLF);
+    buf.extend_from_slice(payload);
+    buf
+}
+
+/// Read one Trojan UDP packet from `stream`, returning the source address the
+/// server reports and the payload. Errors on a malformed length/`CRLF`.
+pub async fn read_udp_packet<R>(stream: &mut R) -> Result<(TargetAddr, Vec<u8>)>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut atyp = [0u8; 1];
+    stream.read_exact(&mut atyp).await?;
+    let source = socks5::read_address(stream, atyp[0]).await?;
+    let mut len = [0u8; 2];
+    stream.read_exact(&mut len).await?;
+    let length = u16::from_be_bytes(len) as usize;
+    let mut crlf = [0u8; 2];
+    stream.read_exact(&mut crlf).await?;
+    if crlf != CRLF {
+        bail!("trojan udp: missing CRLF after length");
+    }
+    let mut payload = vec![0u8; length];
+    stream.read_exact(&mut payload).await?;
+    Ok((source, payload))
 }
 
 /// Compute the on-wire Trojan password identifier: the lowercase hex of
@@ -193,6 +244,32 @@ mod tests {
         assert_eq!(&header[60..64], &[1, 2, 3, 4]);
         assert_eq!(&header[64..66], &8443u16.to_be_bytes());
         assert_eq!(&header[66..68], &CRLF);
+    }
+
+    #[tokio::test]
+    async fn udp_packet_roundtrips_domain_and_ipv4() {
+        for target in [
+            TargetAddr::Domain("example.com".to_string(), 53),
+            TargetAddr::Ip(SocketAddr::from((Ipv4Addr::new(8, 8, 8, 8), 53))),
+        ] {
+            let payload = b"hello udp world";
+            let encoded = encode_udp_packet(&target, payload);
+            let mut reader: &[u8] = &encoded;
+            let (source, decoded) = read_udp_packet(&mut reader).await.unwrap();
+            assert_eq!(source, target);
+            assert_eq!(decoded, payload);
+            assert!(reader.is_empty(), "all bytes consumed");
+        }
+    }
+
+    #[tokio::test]
+    async fn udp_packet_rejects_bad_crlf() {
+        let target = TargetAddr::Ip(SocketAddr::from((Ipv4Addr::new(1, 1, 1, 1), 53)));
+        let mut encoded = encode_udp_packet(&target, b"data");
+        // Layout: atyp(1)+ipv4(4)+port(2)=7, len(2)=7..9, CRLF=9..11; corrupt it.
+        encoded[9] = 0x00;
+        let mut reader: &[u8] = &encoded;
+        assert!(read_udp_packet(&mut reader).await.is_err());
     }
 
     #[test]

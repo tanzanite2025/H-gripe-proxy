@@ -195,7 +195,11 @@ where
     Ok(())
 }
 
-async fn read_address<S>(stream: &mut S, atyp: u8) -> Result<TargetAddr>
+/// Read a SOCKS5 address (`atyp` already consumed by the caller) and its
+/// trailing big-endian port, returning the [`TargetAddr`]. Shared by the
+/// inbound request parser, the upstream client, and the Trojan UDP packet
+/// codec, which all use the SOCKS5 address layout.
+pub(crate) async fn read_address<S>(stream: &mut S, atyp: u8) -> Result<TargetAddr>
 where
     S: AsyncRead + Unpin,
 {
@@ -240,7 +244,9 @@ where
     Ok(u16::from_be_bytes(port))
 }
 
-fn encode_address(buf: &mut Vec<u8>, target: &TargetAddr) {
+/// Append the SOCKS5 address encoding of `target` (`atyp`, address, then a
+/// big-endian port) to `buf`. Shared with the Trojan UDP packet codec.
+pub(crate) fn encode_address(buf: &mut Vec<u8>, target: &TargetAddr) {
     match target {
         TargetAddr::Ip(SocketAddr::V4(addr)) => {
             buf.push(ATYP_IPV4);

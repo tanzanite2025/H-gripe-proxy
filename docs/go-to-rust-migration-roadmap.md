@@ -206,14 +206,21 @@ end-to-end relay tests. Proves the in-process architecture works.
   by `crates/learn-gripe/tests/router_outbound.rs`). `GEOIP` / `GEOSITE` need
   external mmdb / geosite data and are left for a follow-up.
 - UDP relay (SOCKS5 UDP ASSOCIATE): the inbound now answers `UDP ASSOCIATE`,
-  binds a relay socket, and relays SOCKS5-wrapped datagrams to/from remote hosts
-  with one egress socket per destination; the association lives as long as its
-  TCP control connection (RFC 1928). Egress is **Direct** only today — the
-  outbound is gated so `Direct` / `Routed` accept the association (the route is
-  resolved per datagram) while pure proxy outbounds refuse it with
-  `REP_CMD_NOT_SUPPORTED`. Proxy-tunnelled UDP (VLESS / Trojan / VMess UDP
-  framing) is the next follow-up. Proven by
-  `crates/learn-gripe/tests/udp_relay.rs`.
+  binds a relay socket, and relays SOCKS5-wrapped datagrams to/from remote hosts;
+  the association lives as long as its TCP control connection (RFC 1928). Each
+  destination owns one **egress task** fed by a bounded channel, with the route
+  resolved per datagram. Egress is now either **Direct** (a plain OS UDP socket)
+  or **proxy-tunnelled** through the protocol's UDP framing over the existing
+  (TCP/TLS/REALITY) outbound stream:
+  - Trojan: `SOCKS5-addr | len(2 BE) | CRLF | payload` per datagram (command 0x03).
+  - VLESS: command 0x02, no Vision addon, `len(2 BE) | payload` per datagram.
+  - VMess: command 0x02, one AEAD body chunk per datagram (boundaries preserved).
+  `Direct` / `Trojan` / `VLESS` / `VMess` / `Routed` accept the association;
+  `Reject` and an upstream SOCKS5 proxy refuse it with `REP_CMD_NOT_SUPPORTED`,
+  and a datagram routed to a non-UDP-capable outbound is dropped rather than
+  leaked. Proven by `crates/learn-gripe/tests/udp_relay.rs` (Direct) and
+  `trojan_udp.rs` / `vless_udp.rs` / `vmess_udp.rs` (each protocol's tunnel, via
+  independent reverse fake servers, over `none` / `tls` security and `Routed`).
 
 ### Phase 4 — DNS + TUN
 
