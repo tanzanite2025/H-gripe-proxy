@@ -6,18 +6,24 @@
 //! outbound, so starting the core dials the node the user picked instead of
 //! always going [`OutboundMode::Direct`].
 //!
-//! Scope: this resolves a *single global egress* — the current selection of the
-//! primary `select` proxy-group (or `GLOBAL` in global mode), following nested
-//! selector groups down to a concrete node. Groups that need active measurement
-//! or balancing (`url-test`, `fallback`, `load-balance`, `relay`, …), protocols
-//! without a data plane yet, and any resolution failure fall back to `Direct`
-//! rather than risk mis-routing. Per-connection rule-based routing
-//! (`OutboundMode::Routed`) is intentionally out of scope here.
+//! Two egress strategies are produced from the same control-plane state:
+//!
+//! - [`selected_outbound`] resolves a *single global egress* — the current
+//!   selection of the primary `select` proxy-group (or `GLOBAL` in global
+//!   mode), following nested selector groups down to a concrete node. Groups
+//!   that need active measurement or balancing (`url-test`, `fallback`,
+//!   `load-balance`, `relay`, …), protocols without a data plane yet, and any
+//!   resolution failure fall back to `Direct` rather than risk mis-routing.
+//! - [`routed_outbound`] honours per-connection rule routing in `rule` mode:
+//!   it builds a [`learn_gripe::Router`] from the runtime `rules:` list so each
+//!   connection takes the outbound its first matching rule selects. It falls
+//!   back to [`selected_outbound`] in `direct`/`global` mode and for any config
+//!   without rules that resolve to a usable outbound.
 
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, anyhow, bail};
-use learn_gripe::OutboundMode;
+use learn_gripe::{IpCidr, OutboundMode, Router, Rule, RuleMatcher};
 use serde_yaml_ng::{Mapping, Value};
 
 /// Built-in policy names that are not real `proxies:` entries.
@@ -38,6 +44,139 @@ pub fn selected_outbound(config: &Mapping, selected: &HashMap<String, String>) -
             OutboundMode::Direct
         }
     }
+}
+
+/// Resolve the outbound for the mixed inbound, honouring per-connection rule
+/// routing in `rule` mode.
+///
+/// In `rule` mode (the clash default) this builds a [`learn_gripe::Router`]
+/// from the runtime `rules:` list, so each connection takes the outbound its
+/// first matching rule selects instead of forcing every connection through one
+/// node. `direct`/`global` mode, and any config without rules that resolve to a
+/// usable outbound, fall back to the single global egress
+/// ([`selected_outbound`]).
+pub fn routed_outbound(config: &Mapping, selected: &HashMap<String, String>) -> OutboundMode {
+    match build_router(config, selected) {
+        Some(router) => OutboundMode::Routed(Box::new(router)),
+        None => selected_outbound(config, selected),
+    }
+}
+
+/// Build a rule [`Router`] from the runtime config, or `None` when routing does
+/// not apply — non-`rule` mode, no `rules:` section, or no rule resolves to a
+/// usable outbound — so the caller falls back to the single global egress.
+fn build_router(config: &Mapping, selected: &HashMap<String, String>) -> Option<Router> {
+    let mode = config
+        .get("mode")
+        .and_then(Value::as_str)
+        .unwrap_or("rule")
+        .to_ascii_lowercase();
+    if mode != "rule" {
+        return None;
+    }
+
+    let groups = group_index(config);
+    let proxies = proxy_index(config);
+    let raw_rules = config.get("rules").and_then(Value::as_sequence)?;
+
+    let mut outbounds: HashMap<String, OutboundMode> = HashMap::new();
+    let mut rules: Vec<Rule> = Vec::new();
+
+    for raw in raw_rules.iter().filter_map(Value::as_str) {
+        let Some((matcher, target)) = parse_router_rule(raw) else {
+            // Unsupported rule type (GEOIP/GEOSITE/process/port/…) or malformed
+            // payload: skip it so it never matches, falling through to a later
+            // rule or the fallback rather than mis-routing.
+            continue;
+        };
+        match register_target(&target, &groups, &proxies, selected, &mut outbounds) {
+            Ok(name) => rules.push(Rule::new(matcher, name)),
+            Err(err) => {
+                clash_verge_logging::logging!(
+                    info,
+                    clash_verge_logging::Type::Core,
+                    "learn-gripe routing skips rule {raw:?}: {err:#}"
+                );
+            }
+        }
+    }
+
+    if rules.is_empty() {
+        return None;
+    }
+
+    // Fallback is `DIRECT`: real configs end with a `MATCH` rule (kept above as
+    // a catch-all `RuleMatcher::Match`), so the fallback only fires for a config
+    // with no `MATCH`, where clash also sends unmatched traffic direct.
+    match Router::new(outbounds, rules, DIRECT) {
+        Ok(router) => Some(router),
+        Err(err) => {
+            clash_verge_logging::logging!(
+                info,
+                clash_verge_logging::Type::Core,
+                "learn-gripe routing disabled, falling back to single egress: {err:#}"
+            );
+            None
+        }
+    }
+}
+
+/// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
+/// name. Returns `None` for rule types the kernel router cannot evaluate yet
+/// (`GEOIP`, `GEOSITE`, `SRC-IP-CIDR`, `DST-PORT`, `PROCESS-NAME`, `RULE-SET`,
+/// logical rules, …) or a malformed payload, so the caller drops the rule.
+fn parse_router_rule(raw: &str) -> Option<(RuleMatcher, String)> {
+    let mut parts = raw.split(',').map(str::trim);
+    let rule_type = parts.next()?.to_ascii_uppercase();
+
+    if rule_type == "MATCH" {
+        let target = parts.next()?;
+        return (!target.is_empty()).then(|| (RuleMatcher::Match, target.to_string()));
+    }
+
+    let payload = parts.next()?;
+    let target = parts.next()?;
+    if payload.is_empty() || target.is_empty() {
+        return None;
+    }
+    // Any trailing modifier (e.g. `no-resolve`) does not change how the kernel
+    // matches the connection target, so it is ignored.
+    let matcher = match rule_type.as_str() {
+        "DOMAIN" => RuleMatcher::Domain(payload.to_string()),
+        "DOMAIN-SUFFIX" => RuleMatcher::DomainSuffix(payload.to_string()),
+        "DOMAIN-KEYWORD" => RuleMatcher::DomainKeyword(payload.to_string()),
+        "IP-CIDR" | "IP-CIDR6" => RuleMatcher::IpCidr(IpCidr::parse(payload).ok()?),
+        _ => return None,
+    };
+    Some((matcher, target.to_string()))
+}
+
+/// Resolve a rule's target policy (a proxy-group, node, or built-in
+/// `DIRECT`/`REJECT`) to a concrete outbound, registering it under a stable
+/// name the rule references. Built-ins resolve to themselves without an entry;
+/// a group/node is followed to a concrete node (honouring the persisted
+/// selection) and its outbound is registered once, keyed by the target name so
+/// repeated references share one entry. Errors on an unresolvable/unsupported
+/// target so the caller drops the rule.
+fn register_target(
+    target: &str,
+    groups: &HashMap<String, &Mapping>,
+    proxies: &HashMap<String, &Mapping>,
+    selected: &HashMap<String, String>,
+    outbounds: &mut HashMap<String, OutboundMode>,
+) -> Result<String> {
+    if target == DIRECT || target == REJECT {
+        return Ok(target.to_string());
+    }
+    let node = resolve_node_name(target, groups, selected)?;
+    if node == DIRECT || node == REJECT {
+        return Ok(node);
+    }
+    if !outbounds.contains_key(target) {
+        let mode = outbound_for_node(&node, proxies)?;
+        outbounds.insert(target.to_string(), mode);
+    }
+    Ok(target.to_string())
 }
 
 /// Resolve the selected node to a concrete [`OutboundMode`], or return an error
@@ -188,6 +327,7 @@ fn named_mappings(value: Option<&Value>) -> HashMap<String, &Mapping> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use learn_gripe::TargetAddr;
 
     fn cfg(yaml: &str) -> Mapping {
         serde_yaml_ng::from_str(yaml).expect("valid yaml mapping")
@@ -195,6 +335,14 @@ mod tests {
 
     fn sel(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs.iter().map(|(g, n)| (g.to_string(), n.to_string())).collect()
+    }
+
+    fn domain(host: &str) -> TargetAddr {
+        TargetAddr::Domain(host.to_string(), 443)
+    }
+
+    fn ip(addr: &str) -> TargetAddr {
+        TargetAddr::Ip(addr.parse().expect("socket addr"))
     }
 
     const TROJAN_CFG: &str = r#"
@@ -323,5 +471,135 @@ proxy-groups:
             selected_outbound(&cfg(yaml), &sel(&[("A", "B"), ("B", "A")])),
             OutboundMode::Direct
         );
+    }
+
+    const ROUTED_CFG: &str = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - DOMAIN-SUFFIX,ads.example,REJECT
+  - DOMAIN,exact.example,DIRECT
+  - DOMAIN-SUFFIX,proxied.example,PROXY
+  - DOMAIN-KEYWORD,torrent,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,PROXY
+"#;
+
+    #[test]
+    fn rule_mode_builds_router_and_routes_per_rule() {
+        let mode = routed_outbound(&cfg(ROUTED_CFG), &HashMap::new());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // DOMAIN-SUFFIX matches the domain itself and any subdomain.
+        assert_eq!(router.select(&domain("x.ads.example")), &OutboundMode::Reject);
+        // DOMAIN is an exact match only.
+        assert_eq!(router.select(&domain("exact.example")), &OutboundMode::Direct);
+        assert!(matches!(
+            router.select(&domain("www.proxied.example")),
+            OutboundMode::Trojan(_)
+        ));
+        assert_eq!(router.select(&domain("a-torrent-site.net")), &OutboundMode::Direct);
+        assert_eq!(router.select(&ip("10.1.2.3:80")), &OutboundMode::Direct);
+        // GEOIP is skipped; the MATCH catch-all sends everything else to PROXY.
+        assert!(matches!(
+            router.select(&domain("unmatched.net")),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn non_rule_mode_uses_single_egress() {
+        for mode_name in ["global", "direct"] {
+            let yaml = ROUTED_CFG.replace("mode: rule", &format!("mode: {mode_name}"));
+            let mode = routed_outbound(&cfg(&yaml), &HashMap::new());
+            assert!(
+                !matches!(mode, OutboundMode::Routed(_)),
+                "{mode_name} mode must not route per connection, got {mode:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_supported_rules_falls_back_to_single_egress() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a] }
+rules:
+  - GEOIP,CN,DIRECT
+  - GEOSITE,google,PROXY
+  - PROCESS-NAME,curl,DIRECT
+"#;
+        // Every rule is unsupported, so routing is disabled and the single
+        // global egress (PROXY's first member) is used instead.
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new());
+        match mode {
+            OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
+            other => panic!("expected single-egress trojan, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_rules_section_falls_back_to_single_egress() {
+        // `mode: rule` but no `rules:` at all -> single global egress.
+        let mode = routed_outbound(&cfg(TROJAN_CFG), &sel(&[("PROXY", "node-b")]));
+        match mode {
+            OutboundMode::Trojan(c) => assert_eq!(c.server, "b.example"),
+            other => panic!("expected single-egress trojan, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn routed_rule_target_follows_persisted_selection() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+  - { name: node-b, type: trojan, server: b.example, port: 443, password: pb }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, node-b] }
+rules:
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &sel(&[("PROXY", "node-b")]));
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        match router.select(&domain("anything.net")) {
+            OutboundMode::Trojan(c) => assert_eq!(c.server, "b.example"),
+            other => panic!("expected node-b trojan, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rule_with_unresolvable_target_is_skipped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: hy, type: hysteria2, server: h.example, port: 443, password: pw }
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a] }
+rules:
+  - DOMAIN-SUFFIX,blocked.example,hy
+  - MATCH,PROXY
+"#;
+        // The hysteria2 target has no data plane yet, so that rule is dropped and
+        // blocked.example falls through to the MATCH catch-all (trojan PROXY).
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert!(matches!(
+            router.select(&domain("x.blocked.example")),
+            OutboundMode::Trojan(_)
+        ));
     }
 }
