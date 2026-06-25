@@ -50,7 +50,7 @@ pub use shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::{Security, Transport};
 pub use trojan::TrojanOutboundConfig;
-pub use tun::{DEFAULT_MTU, serve_tun};
+pub use tun::{DEFAULT_MTU, serve_tun, serve_tun_device};
 pub use vless::VlessOutboundConfig;
 pub use vmess::{VmessCipher, VmessOutboundConfig};
 pub use ws::WsTransportConfig;

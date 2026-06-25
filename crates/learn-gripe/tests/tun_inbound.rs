@@ -8,17 +8,19 @@
 //! traverse two real TCP state machines plus the kernel relay.
 
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context as TaskContext, Poll};
 use std::time::{Duration, Instant};
 
-use learn_gripe::{DEFAULT_MTU, OutboundMode, serve_tun};
+use learn_gripe::{DEFAULT_MTU, OutboundMode, serve_tun, serve_tun_device};
 use smoltcp::iface::{Config, Interface, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
 use smoltcp::socket::tcp;
 use smoltcp::time::Instant as SmolInstant;
 use smoltcp::wire::{HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
 use std::collections::VecDeque;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpListener;
 use tokio::sync::{Notify, mpsc};
 
@@ -113,6 +115,61 @@ async fn tun_relays_multi_segment_payload() {
 
     assert_eq!(echoed.len(), payload.len(), "all bytes should round-trip");
     assert_eq!(echoed, payload, "multi-segment payload should be intact");
+
+    shutdown.notify_waiters();
+    kernel.abort();
+}
+
+/// Same round-trip, but driven through [`serve_tun_device`] over a mock device
+/// that delivers/accepts one IP packet per read/write — the contract a real
+/// `tun`-crate device exposes. This exercises the device<->stack frame pump the
+/// OS adapter will rely on, still without any OS device.
+#[tokio::test]
+async fn tun_device_pump_relays_tcp_flow() {
+    let echo = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let echo_addr = echo.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut sock, _) = echo.accept().await.unwrap();
+        let mut buf = [0u8; 1024];
+        loop {
+            match sock.read(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    if sock.write_all(&buf[..n]).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    // Mock device: client_to_kernel feeds the device's read side; the device's
+    // write side feeds kernel_to_client. serve_tun_device pumps between the
+    // device and its internal serve_tun channels.
+    let (client_to_kernel_tx, client_to_kernel_rx) = mpsc::channel::<Vec<u8>>(256);
+    let (kernel_to_client_tx, kernel_to_client_rx) = mpsc::channel::<Vec<u8>>(256);
+    let device = MockTunDevice::new(client_to_kernel_rx, kernel_to_client_tx);
+    let (dev_reader, dev_writer) = tokio::io::split(device);
+
+    let shutdown = Arc::new(Notify::new());
+    let kernel = tokio::spawn(serve_tun_device(
+        dev_reader,
+        dev_writer,
+        OutboundMode::Direct,
+        None,
+        shutdown.clone(),
+        DEFAULT_MTU,
+    ));
+
+    let payload = b"hello tun device pump".to_vec();
+    let echoed = tokio::time::timeout(
+        Duration::from_secs(10),
+        run_client(echo_addr, payload.clone(), client_to_kernel_tx, kernel_to_client_rx),
+    )
+    .await
+    .expect("client timed out");
+
+    assert_eq!(echoed, payload, "bytes should round-trip through the device pump");
 
     shutdown.notify_waiters();
     kernel.abort();
@@ -269,5 +326,56 @@ impl TxToken for ClientTxToken<'_> {
         let result = f(&mut buf);
         self.tx.push_back(buf);
         result
+    }
+}
+
+/// A mock TUN device with the same I/O contract as the `tun` crate's async
+/// device: each `read` yields exactly one queued IP packet, and each `write`
+/// is delivered as exactly one packet. Backed by mpsc channels so a test can
+/// feed/observe frames.
+struct MockTunDevice {
+    rx: mpsc::Receiver<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
+}
+
+impl MockTunDevice {
+    fn new(rx: mpsc::Receiver<Vec<u8>>, tx: mpsc::Sender<Vec<u8>>) -> Self {
+        Self { rx, tx }
+    }
+}
+
+impl AsyncRead for MockTunDevice {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match self.rx.poll_recv(cx) {
+            Poll::Ready(Some(frame)) => {
+                let n = frame.len().min(buf.remaining());
+                buf.put_slice(&frame[..n]);
+                Poll::Ready(Ok(()))
+            }
+            // Channel closed -> EOF.
+            Poll::Ready(None) => Poll::Ready(Ok(())),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl AsyncWrite for MockTunDevice {
+    fn poll_write(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        // serve_tun_device calls write_all with one whole frame; deliver it as
+        // a single packet.
+        let _ = self.tx.try_send(buf.to_vec());
+        Poll::Ready(Ok(buf.len()))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
