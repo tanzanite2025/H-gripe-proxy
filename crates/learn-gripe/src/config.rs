@@ -69,6 +69,47 @@ impl OutboundMode {
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
         }
     }
+
+    /// The fixed upstream endpoints (`host`, `port`) this outbound dials
+    /// directly over the host network — the set a global TUN default-route
+    /// capture must route *around* (bypass) so the proxy's own traffic is not
+    /// looped back into the tunnel.
+    ///
+    /// `Direct`/`Reject` dial no fixed upstream (`Direct` reaches arbitrary
+    /// targets, so it cannot be globally captured without looping). `Routed`
+    /// unions the endpoints of its named outbounds. Hosts may be domains; the
+    /// caller resolves them to literal IPs before installing bypass routes.
+    pub fn direct_dial_endpoints(&self) -> Vec<(String, u16)> {
+        match self {
+            OutboundMode::Direct | OutboundMode::Reject => Vec::new(),
+            OutboundMode::Socks5Upstream { addr } => vec![(addr.ip().to_string(), addr.port())],
+            OutboundMode::Vless(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Trojan(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Vmess(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Shadowsocks(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Routed(router) => router
+                .outbound_modes()
+                .flat_map(OutboundMode::direct_dial_endpoints)
+                .collect(),
+        }
+    }
+
+    /// Whether installing a global TUN default-route capture is sound for this
+    /// outbound. It must dial a *fixed, bypassable* set of upstreams and tunnel
+    /// everything else through them — true only for the single-server proxy
+    /// modes. `Direct`/`Reject` would loop (arbitrary targets are dialed
+    /// directly), and `Routed` may contain a `Direct` path, so both are
+    /// excluded; capture stays off and the TUN serves only its on-link subnet.
+    pub fn supports_global_capture(&self) -> bool {
+        matches!(
+            self,
+            OutboundMode::Socks5Upstream { .. }
+                | OutboundMode::Vless(_)
+                | OutboundMode::Trojan(_)
+                | OutboundMode::Vmess(_)
+                | OutboundMode::Shadowsocks(_)
+        )
+    }
 }
 
 /// Resolve a `socks5` node's `server:port` into the literal [`SocketAddr`] the
@@ -149,6 +190,47 @@ mod tests {
     fn unimplemented_protocol_is_rejected() {
         let err = OutboundMode::from_proxy(&entry("name: h\ntype: hysteria2\nserver: a\nport: 1\n")).unwrap_err();
         assert!(err.to_string().contains("no learn-gripe outbound"), "{err}");
+    }
+
+    #[test]
+    fn endpoints_and_capture_for_each_mode() {
+        // Proxy modes expose their fixed server:port and support global capture.
+        let ss = mode("name: s\ntype: ss\nserver: ss.example\nport: 8388\ncipher: aes-256-gcm\npassword: secret\n");
+        assert_eq!(ss.direct_dial_endpoints(), vec![("ss.example".to_string(), 8388)]);
+        assert!(ss.supports_global_capture());
+
+        let socks = mode("name: s\ntype: socks5\nserver: 10.0.0.1\nport: 1080\n");
+        assert_eq!(socks.direct_dial_endpoints(), vec![("10.0.0.1".to_string(), 1080)]);
+        assert!(socks.supports_global_capture());
+
+        // Direct/Reject dial no fixed upstream and cannot be globally captured
+        // (arbitrary targets would loop back into the tunnel).
+        assert!(OutboundMode::Direct.direct_dial_endpoints().is_empty());
+        assert!(!OutboundMode::Direct.supports_global_capture());
+        assert!(!OutboundMode::Reject.supports_global_capture());
+    }
+
+    #[test]
+    fn routed_unions_endpoints_but_is_not_capturable() {
+        use crate::router::Router;
+        use std::collections::HashMap;
+
+        let trojan = mode("name: t\ntype: trojan\nserver: t.example\nport: 443\npassword: secret\n");
+        let ss = mode("name: s\ntype: ss\nserver: ss.example\nport: 8388\ncipher: aes-256-gcm\npassword: secret\n");
+        let mut outbounds = HashMap::new();
+        outbounds.insert("t".to_string(), trojan);
+        outbounds.insert("s".to_string(), ss);
+        let router = Router::new(outbounds, Vec::new(), "t").expect("router");
+        let routed = OutboundMode::Routed(Box::new(router));
+
+        let mut endpoints = routed.direct_dial_endpoints();
+        endpoints.sort();
+        assert_eq!(
+            endpoints,
+            vec![("ss.example".to_string(), 8388), ("t.example".to_string(), 443)]
+        );
+        // A router may include a Direct path, so capture stays off.
+        assert!(!routed.supports_global_capture());
     }
 
     #[test]
