@@ -1,9 +1,9 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::socks5;
-use crate::trojan;
-use crate::vless;
-use crate::vmess;
+use crate::trojan::{self, TrojanOutboundConfig};
+use crate::vless::{self, VlessOutboundConfig};
+use crate::vmess::{self, VmessOutboundConfig};
 use anyhow::{Context, Result, bail};
 use std::future::Future;
 use std::pin::Pin;
@@ -49,22 +49,56 @@ pub fn connect<'a>(
     })
 }
 
-/// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. Only `Direct` (and
-/// `Routed`, which may resolve to `Direct` per datagram) carry UDP today; the
-/// proxy-tunnelled UDP framings are a follow-up, so pure proxy outbounds make
-/// the inbound refuse the association up front.
-pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
-    matches!(mode, OutboundMode::Direct | OutboundMode::Routed(_))
+/// The concrete egress a UDP datagram takes once routing is resolved. `Direct`
+/// uses a plain OS UDP socket; the proxy variants tunnel each datagram through
+/// the protocol's UDP framing over the (TCP/TLS/REALITY) outbound stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UdpEgress {
+    Direct,
+    Trojan(Box<TrojanOutboundConfig>),
+    Vless(Box<VlessOutboundConfig>),
+    Vmess(Box<VmessOutboundConfig>),
 }
 
-/// Decide whether a UDP datagram to `target` egresses directly under `mode`.
-/// `Routed` is resolved per target so a rule can still send some destinations
-/// `DIRECT` and refuse (drop) the rest.
-pub fn udp_egress_is_direct(mode: &OutboundMode, target: &TargetAddr) -> bool {
+/// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
+/// proxy outbounds (Trojan/VLESS/VMess), and `Routed` (which resolves per
+/// datagram) accept the association; `Reject` and an upstream SOCKS5 proxy
+/// (which has no UDP relay path here) make the inbound refuse it up front.
+pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
+    matches!(
+        mode,
+        OutboundMode::Direct
+            | OutboundMode::Trojan(_)
+            | OutboundMode::Vless(_)
+            | OutboundMode::Vmess(_)
+            | OutboundMode::Routed(_)
+    )
+}
+
+/// Resolve the UDP egress for a datagram to `target` under `mode`, recursing
+/// through `Routed` per target. Returns `None` for destinations that cannot
+/// carry UDP (`Reject`, an upstream SOCKS5 proxy, or a rule resolving to one),
+/// so the relay drops them rather than leaking traffic.
+pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr) -> Option<UdpEgress> {
     match mode {
-        OutboundMode::Direct => true,
-        OutboundMode::Routed(router) => udp_egress_is_direct(router.select(target), target),
-        _ => false,
+        OutboundMode::Direct => Some(UdpEgress::Direct),
+        OutboundMode::Trojan(config) => Some(UdpEgress::Trojan(config.clone())),
+        OutboundMode::Vless(config) => Some(UdpEgress::Vless(config.clone())),
+        OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
+        OutboundMode::Routed(router) => resolve_udp_egress(router.select(target), target),
+        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
+    }
+}
+
+/// Open the proxy-tunnel stream for a UDP datagram destined to `target`. Only
+/// the proxy variants are valid here; `Direct` is handled by the relay with a
+/// plain UDP socket and never reaches this path.
+pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Result<BoxedStream> {
+    match egress {
+        UdpEgress::Trojan(config) => trojan::connect_udp(config, target).await,
+        UdpEgress::Vless(config) => vless::connect_udp(config, target).await,
+        UdpEgress::Vmess(config) => vmess::connect_udp(config, target).await,
+        UdpEgress::Direct => bail!("direct UDP egress has no proxy tunnel"),
     }
 }
 
@@ -91,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn only_direct_and_routed_accept_udp_associate() {
+    fn udp_capable_outbounds_accept_associate() {
         assert!(supports_udp_associate(&OutboundMode::Direct));
         assert!(!supports_udp_associate(&OutboundMode::Reject));
         assert!(!supports_udp_associate(&OutboundMode::Socks5Upstream {
@@ -100,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn routed_udp_egress_is_direct_per_target() {
+    fn routed_udp_egress_resolves_per_target() {
         let mut outbounds = HashMap::new();
         outbounds.insert("blocked".to_string(), OutboundMode::Reject);
         let rules = vec![Rule {
@@ -110,10 +144,13 @@ mod tests {
         let router = Router::new(outbounds, rules, "DIRECT").unwrap();
         let routed = OutboundMode::Routed(Box::new(router));
 
-        // Matches the reject rule -> not direct; falls through -> DIRECT.
-        assert!(!udp_egress_is_direct(&routed, &ip_target(10, 1, 2, 3)));
-        assert!(udp_egress_is_direct(&routed, &ip_target(8, 8, 8, 8)));
-        // A bare Reject mode never egresses directly.
-        assert!(!udp_egress_is_direct(&OutboundMode::Reject, &ip_target(8, 8, 8, 8)));
+        // Matches the reject rule -> no egress (dropped); falls through -> DIRECT.
+        assert_eq!(resolve_udp_egress(&routed, &ip_target(10, 1, 2, 3)), None);
+        assert_eq!(
+            resolve_udp_egress(&routed, &ip_target(8, 8, 8, 8)),
+            Some(UdpEgress::Direct)
+        );
+        // A bare Reject mode never produces an egress.
+        assert_eq!(resolve_udp_egress(&OutboundMode::Reject, &ip_target(8, 8, 8, 8)), None);
     }
 }

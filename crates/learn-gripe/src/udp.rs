@@ -3,29 +3,42 @@
 //! The inbound answers an associate request with a bound UDP socket; the client
 //! then sends SOCKS5-wrapped datagrams to that socket. Each datagram names its
 //! own destination, so a single association can talk to many remote hosts. We
-//! keep one egress UDP socket per destination and a background reader per
-//! socket that wraps replies back to the client.
+//! keep one **egress task** per destination, fed by a bounded channel, and that
+//! task owns the destination's egress and a reverse path that wraps replies
+//! back to the client.
+//!
+//! The egress is resolved per destination by the router:
+//! - `Direct` egresses over a plain OS UDP socket;
+//! - Trojan / VLESS / VMess tunnel each datagram through their protocol UDP
+//!   framing over the (TCP/TLS/REALITY) outbound stream;
+//! - destinations that resolve to a non-UDP-capable outbound (`Reject`, an
+//!   upstream SOCKS5 proxy) are dropped rather than leaked.
 //!
 //! Per RFC 1928 the association lives exactly as long as the TCP control
-//! connection that created it; when that connection closes we tear everything
-//! down. Only `Direct` UDP egress is implemented here — proxy-tunnelled UDP is
-//! a follow-up, so datagrams whose route is not direct are dropped.
+//! connection that created it; when that connection closes we drop the egress
+//! senders, which terminates every egress task.
 
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
-use tokio::io::{AsyncRead, AsyncReadExt};
+use anyhow::{Context, Result, anyhow, bail};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::UdpSocket;
+use tokio::sync::mpsc;
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
-use crate::outbound;
+use crate::outbound::{self, UdpEgress};
 use crate::socks5;
 
 /// Upper bound on a single UDP datagram (IPv4 total length limit).
 const MAX_DATAGRAM: usize = 65_535;
+
+/// Per-destination egress queue depth. Datagrams beyond this while the egress
+/// is busy are dropped, matching UDP's lossy semantics rather than stalling the
+/// whole association.
+const EGRESS_QUEUE: usize = 128;
 
 /// Relay datagrams between the client and remote hosts until `control` (the TCP
 /// connection that requested the association) closes.
@@ -34,7 +47,7 @@ where
     C: AsyncRead + Unpin,
 {
     let relay = Arc::new(relay);
-    let mut targets: HashMap<SocketAddr, Arc<UdpSocket>> = HashMap::new();
+    let mut targets: HashMap<String, mpsc::Sender<Vec<u8>>> = HashMap::new();
     let mut buf = vec![0u8; MAX_DATAGRAM];
     let mut control_buf = [0u8; 256];
 
@@ -53,7 +66,7 @@ where
                     Ok(v) => v,
                     Err(_) => continue,
                 };
-                if let Err(err) = forward_client_datagram(&buf[..n], client_addr, &relay, &mode, &mut targets).await {
+                if let Err(err) = forward_client_datagram(&buf[..n], client_addr, &relay, &mode, &mut targets) {
                     log::debug!("learn-gripe udp: dropped client datagram: {err:#}");
                 }
             }
@@ -61,64 +74,207 @@ where
     }
 }
 
-/// Parse one client datagram and forward its payload to the destination via a
-/// per-destination egress socket, spawning the reverse reader on first use.
-async fn forward_client_datagram(
+/// Parse one client datagram and hand its payload to the per-destination egress
+/// task, spawning that task (Direct or proxy-tunnel) on first use.
+fn forward_client_datagram(
     datagram: &[u8],
     client_addr: SocketAddr,
     relay: &Arc<UdpSocket>,
     mode: &Arc<OutboundMode>,
-    targets: &mut HashMap<SocketAddr, Arc<UdpSocket>>,
+    targets: &mut HashMap<String, mpsc::Sender<Vec<u8>>>,
 ) -> Result<()> {
     let (target, offset) = socks5::parse_udp_datagram(datagram)?;
-    if !outbound::udp_egress_is_direct(mode, &target) {
-        bail_no_direct(&target)?;
-    }
-    let payload = &datagram[offset..];
-    let dest = resolve(&target).await?;
+    let mut payload = datagram[offset..].to_vec();
+    let key = target.to_string();
 
-    let socket = match targets.get(&dest) {
-        Some(socket) => socket.clone(),
-        None => {
-            let egress = bind_egress(dest).await?;
-            egress
-                .connect(dest)
-                .await
-                .with_context(|| format!("udp connect {dest}"))?;
-            let egress = Arc::new(egress);
-            spawn_reverse(egress.clone(), relay.clone(), client_addr, target.clone());
-            targets.insert(dest, egress.clone());
-            egress
+    if let Some(tx) = targets.get(&key) {
+        match tx.try_send(payload) {
+            Ok(()) => return Ok(()),
+            // Egress busy: drop this datagram (UDP is lossy) but keep the task.
+            Err(mpsc::error::TrySendError::Full(_)) => return Ok(()),
+            // Task has exited; rebuild it below with the same payload.
+            Err(mpsc::error::TrySendError::Closed(p)) => {
+                targets.remove(&key);
+                payload = p;
+            }
         }
-    };
-    socket
-        .send(payload)
-        .await
-        .with_context(|| format!("udp send to {dest}"))?;
+    }
+
+    let egress = outbound::resolve_udp_egress(mode, &target).ok_or_else(|| anyhow!("no UDP egress for {target}"))?;
+    let (tx, rx) = mpsc::channel(EGRESS_QUEUE);
+    spawn_egress(egress, target, rx, relay.clone(), client_addr);
+    // The freshly built channel has capacity, so this only fails if the task
+    // already died (e.g. dial failure); dropping the datagram is acceptable.
+    let _ = tx.try_send(payload);
+    targets.insert(key, tx);
     Ok(())
 }
 
-fn bail_no_direct(target: &TargetAddr) -> Result<()> {
-    Err(anyhow!("no direct UDP egress for {target}"))
+/// Spawn the egress task appropriate for `egress`.
+fn spawn_egress(
+    egress: UdpEgress,
+    target: TargetAddr,
+    rx: mpsc::Receiver<Vec<u8>>,
+    relay: Arc<UdpSocket>,
+    client_addr: SocketAddr,
+) {
+    match egress {
+        UdpEgress::Direct => {
+            tokio::spawn(async move {
+                if let Err(err) = run_direct_egress(target, rx, relay, client_addr).await {
+                    log::debug!("learn-gripe udp: direct egress ended: {err:#}");
+                }
+            });
+        }
+        proxy => {
+            tokio::spawn(async move {
+                if let Err(err) = run_proxy_egress(proxy, target, rx, relay, client_addr).await {
+                    log::debug!("learn-gripe udp: proxy egress ended: {err:#}");
+                }
+            });
+        }
+    }
 }
 
-/// Background task: read replies on `egress` and forward them, SOCKS5-wrapped
-/// with `source` as the reported origin, to `client_addr` via `relay`.
-fn spawn_reverse(egress: Arc<UdpSocket>, relay: Arc<UdpSocket>, client_addr: SocketAddr, source: TargetAddr) {
-    tokio::spawn(async move {
-        let mut buf = vec![0u8; MAX_DATAGRAM];
-        loop {
-            match egress.recv(&mut buf).await {
-                Ok(n) => {
-                    let packet = socks5::encode_udp_datagram(&source, &buf[..n]);
-                    if relay.send_to(&packet, client_addr).await.is_err() {
-                        return;
-                    }
+/// Direct UDP egress: bind a socket to the destination and relay both ways
+/// until the association closes (sender dropped) or a socket error occurs.
+async fn run_direct_egress(
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    relay: Arc<UdpSocket>,
+    client_addr: SocketAddr,
+) -> Result<()> {
+    let dest = resolve(&target).await?;
+    let socket = bind_egress(dest).await?;
+    socket
+        .connect(dest)
+        .await
+        .with_context(|| format!("udp connect {dest}"))?;
+
+    let mut buf = vec![0u8; MAX_DATAGRAM];
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => {
+                    socket.send(&payload).await.with_context(|| format!("udp send to {dest}"))?;
                 }
-                Err(_) => return,
+                None => return Ok(()),
+            },
+            res = socket.recv(&mut buf) => {
+                let n = res.with_context(|| format!("udp recv from {dest}"))?;
+                let packet = socks5::encode_udp_datagram(&target, &buf[..n]);
+                if relay.send_to(&packet, client_addr).await.is_err() {
+                    return Ok(());
+                }
             }
         }
-    });
+    }
+}
+
+/// Proxy-tunnel UDP egress: open the protocol's UDP stream and relay datagrams
+/// in both directions, applying the protocol's per-packet framing.
+async fn run_proxy_egress(
+    egress: UdpEgress,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    relay: Arc<UdpSocket>,
+    client_addr: SocketAddr,
+) -> Result<()> {
+    let framing = ProxyFraming::for_egress(&egress);
+    let stream = outbound::connect_proxy_udp(&egress, &target).await?;
+    let (mut reader, mut writer) = tokio::io::split(stream);
+
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => write_proxy_packet(&mut writer, framing, &target, &payload).await?,
+                None => return Ok(()),
+            },
+            res = read_proxy_packet(&mut reader, framing) => {
+                let payload = res?;
+                let packet = socks5::encode_udp_datagram(&target, &payload);
+                if relay.send_to(&packet, client_addr).await.is_err() {
+                    return Ok(());
+                }
+            }
+        }
+    }
+}
+
+/// Per-packet framing applied on a proxy-tunnel UDP stream.
+#[derive(Clone, Copy)]
+enum ProxyFraming {
+    /// Trojan: `SOCKS5-addr | len(2) | CRLF | payload` per packet.
+    Trojan,
+    /// VLESS UDP: `len(2 BE) | payload` per packet.
+    LengthPrefixed,
+    /// VMess UDP: one AEAD body chunk per packet (the wrapper preserves the
+    /// boundary, so each read yields exactly one datagram).
+    Chunked,
+}
+
+impl ProxyFraming {
+    fn for_egress(egress: &UdpEgress) -> Self {
+        match egress {
+            UdpEgress::Trojan(_) => ProxyFraming::Trojan,
+            UdpEgress::Vless(_) => ProxyFraming::LengthPrefixed,
+            // Direct never reaches a proxy egress; treat it as chunked defensively.
+            UdpEgress::Vmess(_) | UdpEgress::Direct => ProxyFraming::Chunked,
+        }
+    }
+}
+
+async fn write_proxy_packet<W>(writer: &mut W, framing: ProxyFraming, target: &TargetAddr, payload: &[u8]) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    match framing {
+        ProxyFraming::Trojan => {
+            writer
+                .write_all(&crate::trojan::encode_udp_packet(target, payload))
+                .await?;
+        }
+        ProxyFraming::LengthPrefixed => {
+            let len = u16::try_from(payload.len()).map_err(|_| anyhow!("udp payload too large for vless framing"))?;
+            let mut buf = Vec::with_capacity(2 + payload.len());
+            buf.extend_from_slice(&len.to_be_bytes());
+            buf.extend_from_slice(payload);
+            writer.write_all(&buf).await?;
+        }
+        ProxyFraming::Chunked => {
+            writer.write_all(payload).await?;
+        }
+    }
+    writer.flush().await?;
+    Ok(())
+}
+
+async fn read_proxy_packet<R>(reader: &mut R, framing: ProxyFraming) -> Result<Vec<u8>>
+where
+    R: AsyncRead + Unpin,
+{
+    match framing {
+        ProxyFraming::Trojan => {
+            let (_source, payload) = crate::trojan::read_udp_packet(reader).await?;
+            Ok(payload)
+        }
+        ProxyFraming::LengthPrefixed => {
+            let mut len = [0u8; 2];
+            reader.read_exact(&mut len).await?;
+            let mut payload = vec![0u8; u16::from_be_bytes(len) as usize];
+            reader.read_exact(&mut payload).await?;
+            Ok(payload)
+        }
+        ProxyFraming::Chunked => {
+            let mut buf = vec![0u8; MAX_DATAGRAM];
+            let n = reader.read(&mut buf).await?;
+            if n == 0 {
+                bail!("proxy udp: stream closed");
+            }
+            buf.truncate(n);
+            Ok(buf)
+        }
+    }
 }
 
 /// Bind an egress socket on the unspecified address of the destination family.

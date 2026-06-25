@@ -3,8 +3,9 @@
 //! A client performs the SOCKS5 handshake + UDP ASSOCIATE over TCP, then sends
 //! a SOCKS5-wrapped datagram to the returned relay socket. The kernel forwards
 //! it (Direct egress) to a real UDP echo server and relays the reply back,
-//! re-wrapped. We also assert that a proxy-only outbound refuses the
-//! association, since proxy-tunnelled UDP is not implemented yet.
+//! re-wrapped. We also assert that a non-UDP-capable outbound (an upstream
+//! SOCKS5 proxy) refuses the association. Proxy-tunnelled UDP (Trojan / VLESS /
+//! VMess) is covered by the `*_udp.rs` integration tests.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -125,8 +126,8 @@ async fn udp_associate_routed_direct_fallback() {
 
 #[tokio::test]
 async fn udp_associate_refused_for_proxy_outbound() {
-    // A proxy-only outbound cannot carry UDP yet, so the associate is refused
-    // up front. The upstream address is never dialled.
+    // An upstream SOCKS5 proxy has no UDP relay path here, so the associate is
+    // refused up front. The upstream address is never dialled.
     let handle = GripeKernel::start(GripeConfig {
         socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
         outbound: OutboundMode::Socks5Upstream {
