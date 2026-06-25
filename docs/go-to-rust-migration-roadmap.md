@@ -143,9 +143,13 @@ break REALITY.
   `transport::build_layers`, so Trojan-/VMess-REALITY/-TLS over any transport
   works too (proven by `crates/learn-gripe/tests/trojan_outbound.rs` and
   `crates/learn-gripe/tests/vmess_outbound.rs`).
-  Faithful uTLS-style `client-fingerprint` ClientHello shaping and the separate
-  `flow: xtls-rprx-vision` layer are tracked after that; the fingerprint is parsed
-  and retained today but does not yet reshape the handshake.
+  Faithful uTLS-style `client-fingerprint` ClientHello shaping is tracked after
+  that; the fingerprint is parsed and retained today but does not yet reshape the
+  handshake. The `flow: xtls-rprx-vision` layer is done: it is a VLESS body
+  framing (padding of the tunneled bytes), not a security/transport layer, so it
+  composes with `none`/`tls`/`reality` over raw TCP without touching `rustls`
+  (proven by the Vision relay tests in
+  `crates/learn-gripe/tests/vless_outbound.rs`).
 
 ### Hard "do not" list
 
@@ -189,7 +193,11 @@ end-to-end relay tests. Proves the in-process architecture works.
   body security; the legacy MD5 (`alterId > 0`) format is rejected. Crypto is
   delegated to vetted RustCrypto crates; only the VMess-specific nested-HMAC KDF
   and on-wire framing are assembled in-crate (KDF cross-checked against an
-  independent implementation).
+  independent implementation). VLESS additionally supports `flow:
+  xtls-rprx-vision` over raw TCP: the request header carries the Vision flow
+  addon and the body is wrapped in the XTLS Vision padding framing
+  (`commandPaddingContinue/End/Direct`, TLS-record-aware padding), ported from
+  Xray and cross-checked end-to-end against an independent receiver.
 - Routing/rule engine: reuse the already-Rust-owned rule matching to pick the
   outbound per connection (DOMAIN / CIDR / GEOIP / GEOSITE / MATCH ...).
 - UDP relay (SOCKS5 UDP ASSOCIATE) for the supported protocols.

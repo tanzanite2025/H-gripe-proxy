@@ -76,7 +76,7 @@ impl TrojanOutboundConfig {
 
         // Trojan is TLS-by-default; security and transport are orthogonal to the
         // framing and are built by the shared layer helper.
-        let (security, transport) = transport::build_layers(opts, "trojan", true)?;
+        let (security, transport) = transport::build_layers(opts, "trojan", true, false)?;
 
         Ok(Self {
             server,

@@ -112,11 +112,22 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
 /// error messages; `default_tls` is whether security defaults to TLS when `tls`
 /// is unset (Trojan defaults on, VLESS off). Unimplemented sub-features are
 /// rejected so traffic is never silently mis-framed.
-pub(crate) fn build_layers(opts: &ProxyOptions, proto: &str, default_tls: bool) -> Result<(Security, Transport)> {
+pub(crate) fn build_layers(
+    opts: &ProxyOptions,
+    proto: &str,
+    default_tls: bool,
+    allow_vision_flow: bool,
+) -> Result<(Security, Transport)> {
     if let Some(flow) = opts.flow.as_deref()
         && !flow.is_empty()
     {
-        bail!("{proto}: flow {flow:?} not implemented yet");
+        // The VLESS layer drives `xtls-rprx-vision` itself (it is a body framing,
+        // not a security/transport layer); every other flow — and any flow on a
+        // protocol that does not support Vision — is rejected so traffic is never
+        // silently mis-framed.
+        if !(allow_vision_flow && flow == crate::vision::VISION_FLOW) {
+            bail!("{proto}: flow {flow:?} not implemented yet");
+        }
     }
 
     let client_fingerprint = match opts.client_fingerprint.as_deref() {
