@@ -6,10 +6,13 @@
 //! `ws`, `grpc`, `xhttp` (stream-one), `httpupgrade` and `h2` transports over
 //! `none` / `tls` / `reality` security are supported today (`h2` is
 //! TLS-mandatory; REALITY counts as TLS here). Because security and transport
-//! are orthogonal, VLESS-REALITY works under every transport automatically. The
-//! multi-request xhttp modes and the `flow: xtls-rprx-vision` layer land in
-//! follow-up work and are rejected by [`VlessOutboundConfig::from_proxy`] rather
-//! than silently mis-encoded.
+//! are orthogonal, VLESS-REALITY works under every transport automatically.
+//!
+//! `flow: xtls-rprx-vision` is supported over raw-TCP VLESS: the request header
+//! carries the Vision flow addon and the body is wrapped in [`crate::vision`]
+//! padding framing. Other flows (and Vision over non-TCP transports) are
+//! rejected rather than silently mis-encoded; so are the multi-request xhttp
+//! modes, which land in follow-up work.
 //!
 //! Wire format (client → server request header):
 //! ```text
@@ -32,6 +35,7 @@ use crate::address::TargetAddr;
 use crate::outbound::BoxedStream;
 use crate::proxy::{ProxyEntry, parse_uuid};
 use crate::transport::{self, Security, Transport};
+use crate::vision::VISION_FLOW;
 
 const VERSION: u8 = 0x00;
 const CMD_TCP: u8 = 0x01;
@@ -50,6 +54,8 @@ pub struct VlessOutboundConfig {
     pub uuid: [u8; 16],
     pub security: Security,
     pub transport: Transport,
+    /// Whether the `xtls-rprx-vision` flow (Vision body framing) is enabled.
+    pub vision: bool,
 }
 
 impl VlessOutboundConfig {
@@ -68,7 +74,15 @@ impl VlessOutboundConfig {
         // Security and transport are orthogonal to the protocol framing and are
         // built by the shared layer helper; VLESS security is plaintext unless
         // `tls` / `reality-opts` opt in.
-        let (security, transport) = transport::build_layers(opts, "vless", false)?;
+        let (security, transport) = transport::build_layers(opts, "vless", false, true)?;
+
+        // Vision is a body framing, not a transport: it only makes sense over
+        // raw TCP (the inner relayed bytes must be a clean stream). `build_layers`
+        // has already rejected any flow other than `xtls-rprx-vision`.
+        let vision = matches!(opts.flow.as_deref(), Some(f) if f == crate::vision::VISION_FLOW);
+        if vision && !matches!(transport, Transport::Tcp) {
+            anyhow::bail!("vless: flow {VISION_FLOW:?} requires raw tcp transport");
+        }
 
         Ok(Self {
             server,
@@ -76,6 +90,7 @@ impl VlessOutboundConfig {
             uuid,
             security,
             transport,
+            vision,
         })
     }
 }
@@ -84,17 +99,30 @@ impl VlessOutboundConfig {
 /// the request header already sent and the response header stripped.
 pub async fn connect(config: &VlessOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
     let mut stream = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
-    let header = encode_request_header(&config.uuid, CMD_TCP, target);
+    let header = encode_request_header(&config.uuid, CMD_TCP, target, config.vision);
     stream.write_all(&header).await.context("vless: send request header")?;
-    Ok(Box::new(VlessStream::new(stream)))
+    if config.vision {
+        // Vision strips the response header and unpads internally.
+        Ok(Box::new(crate::vision::VisionStream::new(stream, config.uuid)))
+    } else {
+        Ok(Box::new(VlessStream::new(stream)))
+    }
 }
 
-/// Encode the VLESS request header for a TCP CONNECT to `target` with no addons.
-fn encode_request_header(uuid: &[u8; 16], command: u8, target: &TargetAddr) -> Vec<u8> {
+/// Encode the VLESS request header for a TCP CONNECT to `target`. When `vision`
+/// is set, the addon field carries the `xtls-rprx-vision` flow protobuf;
+/// otherwise the addon length is zero.
+fn encode_request_header(uuid: &[u8; 16], command: u8, target: &TargetAddr, vision: bool) -> Vec<u8> {
     let mut buf = Vec::with_capacity(24);
     buf.push(VERSION);
     buf.extend_from_slice(uuid);
-    buf.push(0); // addon length: no flow / addons in this slice
+    if vision {
+        let addon = crate::vision::flow_addon();
+        buf.push(addon.len() as u8);
+        buf.extend_from_slice(&addon);
+    } else {
+        buf.push(0); // addon length: no flow / addons in this slice
+    }
     buf.push(command);
     buf.extend_from_slice(&target.port().to_be_bytes());
     match target {
@@ -222,7 +250,7 @@ mod tests {
     fn encodes_domain_target_header() {
         let uuid = [0xABu8; 16];
         let target = TargetAddr::Domain("example.com".to_string(), 443);
-        let header = encode_request_header(&uuid, CMD_TCP, &target);
+        let header = encode_request_header(&uuid, CMD_TCP, &target, false);
 
         assert_eq!(header[0], VERSION);
         assert_eq!(&header[1..17], &uuid);
@@ -238,7 +266,7 @@ mod tests {
     fn encodes_ipv4_target_header() {
         let uuid = [0u8; 16];
         let target = TargetAddr::Ip(SocketAddr::new(Ipv4Addr::new(1, 2, 3, 4).into(), 8080));
-        let header = encode_request_header(&uuid, CMD_TCP, &target);
+        let header = encode_request_header(&uuid, CMD_TCP, &target, false);
         assert_eq!(&header[19..21], &8080u16.to_be_bytes());
         assert_eq!(header[21], ATYP_IPV4);
         assert_eq!(&header[22..26], &[1, 2, 3, 4]);
@@ -249,7 +277,7 @@ mod tests {
         let uuid = [0u8; 16];
         let ip = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1);
         let target = TargetAddr::Ip(SocketAddr::new(ip.into(), 53));
-        let header = encode_request_header(&uuid, CMD_TCP, &target);
+        let header = encode_request_header(&uuid, CMD_TCP, &target, false);
         assert_eq!(header[21], ATYP_IPV6);
         assert_eq!(&header[22..38], &ip.octets());
     }
@@ -360,11 +388,43 @@ mod tests {
     }
 
     #[test]
-    fn flow_is_still_rejected() {
+    fn vision_flow_over_tcp_tls_is_accepted() {
         let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
              uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
              servername: www.cloudflare.com\nflow: xtls-rprx-vision\n";
+        let cfg = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap();
+        assert!(cfg.vision);
+        assert!(matches!(cfg.transport, Transport::Tcp));
+    }
+
+    #[test]
+    fn vision_flow_over_non_tcp_is_rejected() {
+        let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nnetwork: ws\nflow: xtls-rprx-vision\n";
+        let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("tcp transport"), "got: {err}");
+    }
+
+    #[test]
+    fn unknown_flow_is_still_rejected() {
+        let yaml = "name: r\ntype: vless\nserver: example.com\nport: 443\n\
+             uuid: b831381d-6324-4d53-ad4f-8cda48b30811\ntls: true\n\
+             servername: www.cloudflare.com\nflow: xtls-rprx-direct\n";
         let err = VlessOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
         assert!(err.to_string().contains("flow"), "got: {err}");
+    }
+
+    #[test]
+    fn vision_request_header_carries_flow_addon() {
+        let uuid = [0xABu8; 16];
+        let target = TargetAddr::Domain("example.com".to_string(), 443);
+        let header = encode_request_header(&uuid, CMD_TCP, &target, true);
+        // version(1) + uuid(16) then addon length + addon protobuf.
+        assert_eq!(header[17], 18);
+        assert_eq!(header[18], 0x0a);
+        assert_eq!(header[19], 0x10);
+        assert_eq!(&header[20..36], b"xtls-rprx-vision");
+        assert_eq!(header[36], CMD_TCP);
     }
 }

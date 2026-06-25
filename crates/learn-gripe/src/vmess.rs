@@ -138,7 +138,7 @@ impl VmessOutboundConfig {
 
         // VMess is plaintext unless `tls` / `reality-opts` opt in; security and
         // transport are orthogonal to the framing and built by the shared helper.
-        let (security, transport) = transport::build_layers(opts, "vmess", false)?;
+        let (security, transport) = transport::build_layers(opts, "vmess", false, false)?;
 
         Ok(Self {
             server,

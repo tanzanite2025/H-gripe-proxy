@@ -907,6 +907,7 @@ async fn relays_through_plaintext_vless_outbound() {
             uuid: TEST_UUID,
             security: Security::None,
             transport: Transport::Tcp,
+            vision: false,
         })),
     })
     .await
@@ -938,6 +939,7 @@ async fn relays_through_tls_vless_outbound() {
                 skip_cert_verify: true,
             }),
             transport: Transport::Tcp,
+            vision: false,
         })),
     })
     .await
@@ -980,6 +982,7 @@ async fn relays_through_reality_vless_outbound() {
                 client_fingerprint: Some(ClientFingerprint::Chrome),
             }),
             transport: Transport::Tcp,
+            vision: false,
         })),
     })
     .await
@@ -1020,6 +1023,7 @@ async fn relays_through_reality_grpc_vless_outbound() {
                 service_name: "GunService".to_string(),
                 host: Some("localhost".to_string()),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1051,6 +1055,7 @@ async fn relays_through_ws_vless_outbound() {
                 host: None,
                 headers: Default::default(),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1086,6 +1091,7 @@ async fn relays_through_ws_tls_vless_outbound() {
                 host: Some("localhost".to_string()),
                 headers: Default::default(),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1116,6 +1122,7 @@ async fn relays_through_grpc_vless_outbound() {
                 service_name: "GunService".to_string(),
                 host: None,
             }),
+            vision: false,
         })),
     })
     .await
@@ -1150,6 +1157,7 @@ async fn relays_through_grpc_tls_vless_outbound() {
                 service_name: "GunService".to_string(),
                 host: Some("localhost".to_string()),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1181,6 +1189,7 @@ async fn relays_through_httpupgrade_vless_outbound() {
                 host: None,
                 headers: Default::default(),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1216,6 +1225,7 @@ async fn relays_through_httpupgrade_tls_vless_outbound() {
                 host: Some("localhost".to_string()),
                 headers: Default::default(),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1247,6 +1257,7 @@ async fn relays_through_xhttp_vless_outbound() {
                 host: None,
                 mode: XhttpMode::StreamOne,
             }),
+            vision: false,
         })),
     })
     .await
@@ -1282,6 +1293,7 @@ async fn relays_through_xhttp_tls_vless_outbound() {
                 host: Some("localhost".to_string()),
                 mode: XhttpMode::StreamOne,
             }),
+            vision: false,
         })),
     })
     .await
@@ -1316,6 +1328,7 @@ async fn relays_through_h2_tls_vless_outbound() {
                 path: "/".to_string(),
                 host: Some("localhost".to_string()),
             }),
+            vision: false,
         })),
     })
     .await
@@ -1339,4 +1352,364 @@ fn uuid_str_matches_bytes() {
         .map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap())
         .collect();
     assert_eq!(bytes, TEST_UUID);
+}
+
+// ---- xtls-rprx-vision (PR-6b) end-to-end fixtures ----
+//
+// An independent re-implementation of the receiver half of the XTLS Vision
+// framing, deliberately written from scratch (not sharing the crate-private
+// `vision` module) so it cross-checks the client encoder on the wire. The
+// padding frame is `[uuid(16)]? | cmd(1) | contentLen(2 BE) | padLen(2 BE) |
+// content | pad`; the first frame of a direction is UUID-prefixed, a
+// `CommandPaddingContinue` (0x00) frame is followed by another frame, and a
+// terminal command switches the rest of the stream to raw passthrough.
+
+const VISION_CMD_CONTINUE: u8 = 0x00;
+
+/// Streaming de-padder mirroring Xray's `XtlsUnpadding`.
+struct VisionUnpad {
+    uuid: [u8; 16],
+    started: bool,
+    passthrough: bool,
+    rem_command: i32,
+    rem_content: i32,
+    rem_padding: i32,
+    cur_command: i32,
+    buf: Vec<u8>,
+}
+
+impl VisionUnpad {
+    fn new(uuid: [u8; 16]) -> Self {
+        Self {
+            uuid,
+            started: false,
+            passthrough: false,
+            rem_command: -1,
+            rem_content: -1,
+            rem_padding: -1,
+            cur_command: 0,
+            buf: Vec::new(),
+        }
+    }
+
+    /// Feed raw bytes and return any recovered application content.
+    fn feed(&mut self, data: &[u8]) -> Vec<u8> {
+        self.buf.extend_from_slice(data);
+        let mut out = Vec::new();
+        let mut pos = 0usize;
+        if self.passthrough {
+            out.extend_from_slice(&self.buf);
+            self.buf.clear();
+            return out;
+        }
+        loop {
+            let idle = self.rem_command == -1 && self.rem_content == -1 && self.rem_padding == -1;
+            if idle {
+                if !self.started {
+                    if self.buf.len() - pos < 21 {
+                        break;
+                    }
+                    if self.buf[pos..pos + 16] == self.uuid {
+                        pos += 16;
+                        self.rem_command = 5;
+                        self.started = true;
+                    } else {
+                        self.passthrough = true;
+                        out.extend_from_slice(&self.buf[pos..]);
+                        pos = self.buf.len();
+                        break;
+                    }
+                } else {
+                    self.passthrough = true;
+                    out.extend_from_slice(&self.buf[pos..]);
+                    pos = self.buf.len();
+                    break;
+                }
+            }
+            if self.rem_command > 0 {
+                if pos >= self.buf.len() {
+                    break;
+                }
+                let d = self.buf[pos];
+                pos += 1;
+                match self.rem_command {
+                    5 => self.cur_command = d as i32,
+                    4 => self.rem_content = (d as i32) << 8,
+                    3 => self.rem_content |= d as i32,
+                    2 => self.rem_padding = (d as i32) << 8,
+                    1 => self.rem_padding |= d as i32,
+                    _ => {}
+                }
+                self.rem_command -= 1;
+            } else if self.rem_content > 0 {
+                if pos >= self.buf.len() {
+                    break;
+                }
+                let take = (self.rem_content as usize).min(self.buf.len() - pos);
+                out.extend_from_slice(&self.buf[pos..pos + take]);
+                pos += take;
+                self.rem_content -= take as i32;
+            } else if self.rem_padding > 0 {
+                if pos >= self.buf.len() {
+                    break;
+                }
+                let take = (self.rem_padding as usize).min(self.buf.len() - pos);
+                pos += take;
+                self.rem_padding -= take as i32;
+            }
+            if self.rem_command <= 0 && self.rem_content <= 0 && self.rem_padding <= 0 {
+                if self.cur_command == VISION_CMD_CONTINUE as i32 {
+                    self.rem_command = 5;
+                    self.rem_content = -1;
+                    self.rem_padding = -1;
+                } else {
+                    self.rem_command = -1;
+                    self.rem_content = -1;
+                    self.rem_padding = -1;
+                    self.passthrough = true;
+                    out.extend_from_slice(&self.buf[pos..]);
+                    pos = self.buf.len();
+                    break;
+                }
+            }
+        }
+        self.buf.drain(..pos);
+        out
+    }
+}
+
+/// Minimal padder: emits one `CommandPaddingContinue` frame per chunk (with the
+/// UUID prefix on the very first one and zero padding), which the client reader
+/// must accept and unwrap.
+struct VisionPad {
+    uuid: Option<[u8; 16]>,
+}
+
+impl VisionPad {
+    fn new(uuid: [u8; 16]) -> Self {
+        Self { uuid: Some(uuid) }
+    }
+
+    fn frame(&mut self, content: &[u8]) -> Vec<u8> {
+        let mut f = Vec::with_capacity(content.len() + 21);
+        if let Some(u) = self.uuid.take() {
+            f.extend_from_slice(&u);
+        }
+        let clen = content.len() as u16;
+        f.push(VISION_CMD_CONTINUE);
+        f.extend_from_slice(&clen.to_be_bytes());
+        f.extend_from_slice(&0u16.to_be_bytes());
+        f.extend_from_slice(content);
+        f
+    }
+}
+
+/// Fake VLESS-Vision server: validate the request header (including the Vision
+/// flow addon), reply with the response header, then unpad uplink frames and
+/// re-pad the echoed bytes downlink.
+async fn serve_vless_vision<S>(mut stream: S)
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut version = [0u8; 1];
+    stream.read_exact(&mut version).await.unwrap();
+    assert_eq!(version[0], 0x00, "VLESS version");
+
+    let mut uuid = [0u8; 16];
+    stream.read_exact(&mut uuid).await.unwrap();
+    assert_eq!(uuid, TEST_UUID, "VLESS uuid");
+
+    let mut addon_len = [0u8; 1];
+    stream.read_exact(&mut addon_len).await.unwrap();
+    assert_eq!(addon_len[0], 18, "Vision addon length");
+    let mut addons = vec![0u8; addon_len[0] as usize];
+    stream.read_exact(&mut addons).await.unwrap();
+    assert_eq!(addons[0], 0x0a, "addon field 1 (Flow), wire-type 2");
+    assert_eq!(addons[1], 0x10, "flow string length");
+    assert_eq!(&addons[2..], b"xtls-rprx-vision", "Vision flow id");
+
+    let mut command = [0u8; 1];
+    stream.read_exact(&mut command).await.unwrap();
+    assert_eq!(command[0], 0x01, "VLESS command should be TCP");
+
+    let mut port = [0u8; 2];
+    stream.read_exact(&mut port).await.unwrap();
+    let mut atyp = [0u8; 1];
+    stream.read_exact(&mut atyp).await.unwrap();
+    match atyp[0] {
+        0x01 => {
+            let mut addr = [0u8; 4];
+            stream.read_exact(&mut addr).await.unwrap();
+        }
+        0x03 => {
+            let mut addr = [0u8; 16];
+            stream.read_exact(&mut addr).await.unwrap();
+        }
+        0x02 => {
+            let mut len = [0u8; 1];
+            stream.read_exact(&mut len).await.unwrap();
+            let mut host = vec![0u8; len[0] as usize];
+            stream.read_exact(&mut host).await.unwrap();
+        }
+        other => panic!("unexpected atyp {other}"),
+    }
+
+    // VLESS response header (plain), then Vision-framed body.
+    stream.write_all(&[0x00, 0x00]).await.unwrap();
+
+    let mut unpad = VisionUnpad::new(TEST_UUID);
+    let mut pad = VisionPad::new(TEST_UUID);
+    let mut buf = [0u8; 1024];
+    loop {
+        match stream.read(&mut buf).await {
+            Ok(0) | Err(_) => return,
+            Ok(n) => {
+                let content = unpad.feed(&buf[..n]);
+                if !content.is_empty() {
+                    let framed = pad.frame(&content);
+                    if stream.write_all(&framed).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn spawn_fake_vision_server() -> SocketAddr {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            tokio::spawn(serve_vless_vision(stream));
+        }
+    });
+    addr
+}
+
+async fn spawn_fake_vision_tls_server() -> SocketAddr {
+    let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let key = rustls_pemfile::private_key(&mut TEST_KEY.as_bytes()).unwrap().unwrap();
+    let server_config = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .unwrap();
+    let acceptor = TlsAcceptor::from(Arc::new(server_config));
+
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                if let Ok(tls) = acceptor.accept(tcp).await {
+                    serve_vless_vision(tls).await;
+                }
+            });
+        }
+    });
+    addr
+}
+
+async fn spawn_fake_vision_reality_server() -> SocketAddr {
+    spawn_reality_listener(Vec::new(), |tls| Box::pin(serve_vless_vision(tls))).await
+}
+
+#[tokio::test]
+async fn relays_through_vision_tcp_vless_outbound() {
+    let server = spawn_fake_vision_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::None,
+            transport: Transport::Tcp,
+            vision: true,
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello vision vless").await.unwrap();
+    let mut buf = [0u8; 18];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello vision vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_vision_tls_vless_outbound() {
+    let server = spawn_fake_vision_tls_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Tls(TlsClientConfig {
+                server_name: Some("localhost".to_string()),
+                alpn: Vec::new(),
+                skip_cert_verify: true,
+            }),
+            transport: Transport::Tcp,
+            vision: true,
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello vision tls vless").await.unwrap();
+    let mut buf = [0u8; 22];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello vision tls vless");
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn relays_through_vision_reality_vless_outbound() {
+    let server = spawn_fake_vision_reality_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Vless(Box::new(VlessOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            uuid: TEST_UUID,
+            security: Security::Reality(RealityClientConfig {
+                server_name: "localhost".to_string(),
+                public_key: TEST_REALITY_PUBLIC_KEY,
+                short_id: vec![0x01, 0x23, 0x45, 0x67],
+                alpn: Vec::new(),
+                skip_cert_verify: true,
+                client_fingerprint: Some(ClientFingerprint::Chrome),
+            }),
+            transport: Transport::Tcp,
+            vision: true,
+        })),
+    })
+    .await
+    .unwrap();
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+    conn.write_all(b"hello vision reality vless").await.unwrap();
+    let mut buf = [0u8; 26];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello vision reality vless");
+
+    handle.shutdown().await;
 }
