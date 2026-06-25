@@ -36,7 +36,7 @@ mod xhttp;
 
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
-pub use dns::{DnsConfig, DnsHandle, DnsMode, DnsServer, FakeIpConfig, FakeIpPool, unmap_fake_ip};
+pub use dns::{DnsConfig, DnsHandle, DnsMode, DnsServer, FakeIpConfig, FakeIpPool, answer_query, unmap_fake_ip};
 pub use grpc::GrpcTransportConfig;
 pub use http2::H2TransportConfig;
 pub use httpupgrade::HttpUpgradeTransportConfig;

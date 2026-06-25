@@ -251,7 +251,7 @@ async fn serve(socket: UdpSocket, mode: Arc<DnsMode>, shutdown: Arc<Notify>) {
                 let mode = mode.clone();
                 let socket = socket.clone();
                 tokio::spawn(async move {
-                    match answer(&query, &mode).await {
+                    match answer_query(&query, &mode).await {
                         Ok(response) => {
                             let _ = socket.send_to(&response, peer).await;
                         }
@@ -263,8 +263,10 @@ async fn serve(socket: UdpSocket, mode: Arc<DnsMode>, shutdown: Arc<Notify>) {
     }
 }
 
-/// Produce the response bytes for one query under `mode`.
-async fn answer(query: &[u8], mode: &DnsMode) -> Result<Vec<u8>> {
+/// Produce the response bytes for one query under `mode`. Public so other
+/// inbounds (e.g. the TUN stack answering DNS over the virtual interface) can
+/// reuse the exact same fake-IP/forward logic instead of duplicating it.
+pub async fn answer_query(query: &[u8], mode: &DnsMode) -> Result<Vec<u8>> {
     match mode {
         DnsMode::Forward { upstream } => forward(query, *upstream).await,
         DnsMode::FakeIp { pool } => build_fake_ip_response(query, pool),

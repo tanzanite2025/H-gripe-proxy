@@ -12,12 +12,15 @@
 //! orchestration — reading frames, demultiplexing flows, bridging each flow to
 //! the outbound pipeline, and the back-pressure/close handling — is ours.
 //!
-//! Scope of this first slice: IPv4/IPv6 **TCP**. UDP-over-TUN (and thus DNS over
-//! TUN) is not handled here; non-TCP packets are ignored.
+//! Scope: IPv4/IPv6 **TCP**, plus **DNS over TUN** — UDP datagrams to port 53
+//! are answered in-stack through the kernel's DNS logic (fake-IP allocation or
+//! upstream forwarding), which is what lets a global default route capture all
+//! traffic without black-holing name resolution. General (non-DNS) UDP relay is
+//! not handled here; such packets are ignored.
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
-use crate::dns::{FakeIpPool, unmap_fake_ip};
+use crate::dns::{DnsMode, FakeIpPool, answer_query, unmap_fake_ip};
 use crate::outbound;
 
 use std::collections::{HashMap, VecDeque};
@@ -26,12 +29,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketHandle, SocketSet};
+use smoltcp::phy::ChecksumCapabilities;
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
 use smoltcp::socket::tcp;
 use smoltcp::time::Instant as SmolInstant;
 use smoltcp::wire::{
-    HardwareAddress, IpAddress, IpCidr, IpEndpoint, IpProtocol, Ipv4Address, Ipv4Packet, Ipv6Address, Ipv6Packet,
-    TcpPacket,
+    HardwareAddress, IpAddress, IpCidr, IpEndpoint, IpProtocol, Ipv4Address, Ipv4Packet, Ipv4Repr, Ipv6Address,
+    Ipv6Packet, Ipv6Repr, TcpPacket, UdpPacket, UdpRepr,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{Notify, mpsc};
@@ -58,11 +62,19 @@ pub async fn serve_tun(
     mut frames_in: mpsc::Receiver<Vec<u8>>,
     frames_out: mpsc::Sender<Vec<u8>>,
     mode: OutboundMode,
-    fake_ip: FakeIp,
+    dns: Option<DnsMode>,
     shutdown: Arc<Notify>,
     mtu: usize,
 ) {
     let mode = Arc::new(mode);
+    let dns = dns.map(Arc::new);
+    // The fake-IP pool used to unmap TCP destinations is the *same* pool the DNS
+    // server allocates from, so a connection to a synthesized IP routes by the
+    // domain that DNS just handed out.
+    let fake_ip: FakeIp = dns.as_ref().and_then(|mode| match mode.as_ref() {
+        DnsMode::FakeIp { pool } => Some(pool.clone()),
+        DnsMode::Forward { .. } => None,
+    });
     let start = StdInstant::now();
     let mut phy = TunPhy::new(mtu);
     let mut iface = build_interface(&mut phy, smol_now(start));
@@ -87,6 +99,14 @@ pub async fn serve_tun(
             frame = frames_in.recv() => {
                 match frame {
                     Some(frame) => {
+                        // DNS datagrams are terminated here and never reach the
+                        // TCP stack; everything else is fed to smoltcp.
+                        if dns
+                            .as_ref()
+                            .is_some_and(|dns| try_answer_dns(&frame, dns, &frames_out))
+                        {
+                            continue;
+                        }
                         new_flow_for_syn(&frame, &mut sockets, &mut flows, &mode, &fake_ip, &wake);
                         phy.rx.push_back(frame);
                     }
@@ -115,7 +135,7 @@ pub async fn serve_tun_device<R, W>(
     mut reader: R,
     mut writer: W,
     mode: OutboundMode,
-    fake_ip: FakeIp,
+    dns: Option<DnsMode>,
     shutdown: Arc<Notify>,
     mtu: usize,
 ) where
@@ -125,14 +145,7 @@ pub async fn serve_tun_device<R, W>(
     let (to_kernel_tx, to_kernel_rx) = mpsc::channel::<Vec<u8>>(DEVICE_QUEUE_DEPTH);
     let (to_device_tx, mut to_device_rx) = mpsc::channel::<Vec<u8>>(DEVICE_QUEUE_DEPTH);
 
-    let stack = tokio::spawn(serve_tun(
-        to_kernel_rx,
-        to_device_tx,
-        mode,
-        fake_ip,
-        shutdown.clone(),
-        mtu,
-    ));
+    let stack = tokio::spawn(serve_tun(to_kernel_rx, to_device_tx, mode, dns, shutdown.clone(), mtu));
 
     // Device -> stack: each read yields a single IP packet.
     let read_shutdown = shutdown.clone();
@@ -406,6 +419,146 @@ fn endpoint_socketaddr(endpoint: IpEndpoint) -> SocketAddr {
         IpAddress::Ipv6(addr) => IpAddr::V6(Ipv6Addr::from(addr.octets())),
     };
     SocketAddr::new(ip, endpoint.port)
+}
+
+/// UDP port DNS queries are sent to.
+const DNS_PORT: u16 = 53;
+
+/// A parsed UDP datagram addressed to the DNS port, retaining the L3/L4
+/// endpoints so the reply can be built by swapping source and destination.
+struct DnsDatagram {
+    src_addr: IpAddress,
+    dst_addr: IpAddress,
+    src_port: u16,
+    dst_port: u16,
+    payload: Vec<u8>,
+}
+
+/// If `frame` is a UDP datagram to [`DNS_PORT`], answer it in the background via
+/// the kernel DNS logic and emit the reply back to the device, returning `true`
+/// so the caller drops the frame instead of feeding it to the TCP stack. Any
+/// other frame returns `false` and is handled normally.
+fn try_answer_dns(frame: &[u8], dns: &Arc<DnsMode>, frames_out: &mpsc::Sender<Vec<u8>>) -> bool {
+    let Some(query) = parse_dns_datagram(frame) else {
+        return false;
+    };
+
+    let dns = dns.clone();
+    let frames_out = frames_out.clone();
+    tokio::spawn(async move {
+        match answer_query(&query.payload, &dns).await {
+            Ok(response) => {
+                if let Some(frame) = build_dns_reply_frame(&query, &response) {
+                    let _ = frames_out.send(frame).await;
+                }
+            }
+            Err(err) => log::debug!("learn-gripe tun dns: dropped query: {err:#}"),
+        }
+    });
+    true
+}
+
+/// Parse an IP frame as a UDP datagram destined for the DNS port, extracting the
+/// endpoints and the DNS payload. Returns `None` for anything else.
+fn parse_dns_datagram(frame: &[u8]) -> Option<DnsDatagram> {
+    match frame.first().map(|b| b >> 4) {
+        Some(4) => {
+            let ip = Ipv4Packet::new_checked(frame).ok()?;
+            if ip.next_header() != IpProtocol::Udp {
+                return None;
+            }
+            let udp = UdpPacket::new_checked(ip.payload()).ok()?;
+            if udp.dst_port() != DNS_PORT {
+                return None;
+            }
+            Some(DnsDatagram {
+                src_addr: IpAddress::Ipv4(ip.src_addr()),
+                dst_addr: IpAddress::Ipv4(ip.dst_addr()),
+                src_port: udp.src_port(),
+                dst_port: udp.dst_port(),
+                payload: udp.payload().to_vec(),
+            })
+        }
+        Some(6) => {
+            let ip = Ipv6Packet::new_checked(frame).ok()?;
+            if ip.next_header() != IpProtocol::Udp {
+                return None;
+            }
+            let udp = UdpPacket::new_checked(ip.payload()).ok()?;
+            if udp.dst_port() != DNS_PORT {
+                return None;
+            }
+            Some(DnsDatagram {
+                src_addr: IpAddress::Ipv6(ip.src_addr()),
+                dst_addr: IpAddress::Ipv6(ip.dst_addr()),
+                src_port: udp.src_port(),
+                dst_port: udp.dst_port(),
+                payload: udp.payload().to_vec(),
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Build the IP+UDP reply frame for `query`, carrying `response` as payload. The
+/// reply swaps source/destination (so it appears to come from the resolver the
+/// client targeted) and lets smoltcp compute the checksums.
+fn build_dns_reply_frame(query: &DnsDatagram, response: &[u8]) -> Option<Vec<u8>> {
+    let udp_repr = UdpRepr {
+        src_port: query.dst_port,
+        dst_port: query.src_port,
+    };
+    let caps = ChecksumCapabilities::default();
+
+    match (query.dst_addr, query.src_addr) {
+        // Reply source = original destination, reply destination = original source.
+        (IpAddress::Ipv4(reply_src), IpAddress::Ipv4(reply_dst)) => {
+            let ip_repr = Ipv4Repr {
+                src_addr: reply_src,
+                dst_addr: reply_dst,
+                next_header: IpProtocol::Udp,
+                payload_len: udp_repr.header_len() + response.len(),
+                hop_limit: 64,
+            };
+            let mut frame = vec![0u8; ip_repr.buffer_len() + ip_repr.payload_len];
+            let mut packet = Ipv4Packet::new_unchecked(&mut frame);
+            ip_repr.emit(&mut packet, &caps);
+            let mut udp = UdpPacket::new_unchecked(packet.payload_mut());
+            udp_repr.emit(
+                &mut udp,
+                &IpAddress::Ipv4(reply_src),
+                &IpAddress::Ipv4(reply_dst),
+                response.len(),
+                |buf| buf.copy_from_slice(response),
+                &caps,
+            );
+            Some(frame)
+        }
+        (IpAddress::Ipv6(reply_src), IpAddress::Ipv6(reply_dst)) => {
+            let ip_repr = Ipv6Repr {
+                src_addr: reply_src,
+                dst_addr: reply_dst,
+                next_header: IpProtocol::Udp,
+                payload_len: udp_repr.header_len() + response.len(),
+                hop_limit: 64,
+            };
+            let mut frame = vec![0u8; ip_repr.buffer_len() + ip_repr.payload_len];
+            let mut packet = Ipv6Packet::new_unchecked(&mut frame);
+            ip_repr.emit(&mut packet);
+            let mut udp = UdpPacket::new_unchecked(packet.payload_mut());
+            udp_repr.emit(
+                &mut udp,
+                &IpAddress::Ipv6(reply_src),
+                &IpAddress::Ipv6(reply_dst),
+                response.len(),
+                |buf| buf.copy_from_slice(response),
+                &caps,
+            );
+            Some(frame)
+        }
+        // Mixed address families cannot occur within a single IP packet.
+        _ => None,
+    }
 }
 
 /// Build the interface in transparent mode: `any_ip` lets it accept packets
