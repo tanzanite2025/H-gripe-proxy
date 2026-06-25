@@ -121,6 +121,10 @@ hex = "0.4"
 rand = "0.8"
 maxminddb = "0.28.1"
 prost = "0.14.3"
+# OS TUN device for the learn-gripe TUN inbound. Wraps the per-OS syscalls/ioctls
+# (wintun on Windows, /dev/net/tun on Linux, utun on macOS); we only pump its
+# packets into `learn_gripe::serve_tun_device`.
+tun = { version = "0.7.13", features = ["async"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"

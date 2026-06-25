@@ -308,13 +308,20 @@ end-to-end relay tests. Proves the in-process architecture works.
   byte-stream device with the `tun` crate's "one IP packet per read/write"
   contract to the `serve_tun` channels (the exact glue an OS binding calls),
   tested end-to-end over a mock packet device via `tun_device_pump_relays_tcp_flow`.
-  Still pending (and *not* exercisable in the sandbox/CI): the OS binding that
-  creates an actual `tun`-crate device under elevated privileges and feeds it to
-  `serve_tun_device`, the address/route configuration, the leak-safe apply +
-  observe + rollback path, wiring it into `start_core()`, and the macOS utun
-  4-byte packet-information header codec. UDP-over-TUN (so DNS over TUN) is also
-  a later step. This stays the highest-risk phase; the OS-facing part must land
-  with an explicit rollback and be validated on a real machine with admin rights.
+  The OS device binding is also landed (compile-verified, **off by default**):
+  `src-tauri/src/core/manager/tun_inbound.rs` creates a real OS TUN interface via
+  the `tun` crate (wintun/`/dev/net/tun`/utun), brings it up with an address, and
+  feeds it to `serve_tun_device`, gated behind `enable_tun_mode` in `start_core()`
+  with every privileged mutation recorded on a `RollbackStack` undone in reverse
+  on stop (and on `Drop`). It deliberately binds the device and relays **TCP**
+  only — it does *not* install a global default route, because with UDP/DNS over
+  TUN still unimplemented a global capture would black-hole DNS even with perfect
+  rollback. Still pending (and *not* exercisable in the sandbox/CI, so this binding
+  is compile-checked only and must be validated on a real machine with admin/root):
+  global default-route capture + DNS redirect with leak-safe apply/observe/rollback,
+  UDP-over-TUN (hence DNS-over-TUN), sharing the kernel's fake-IP pool into the TUN
+  flows, and the macOS utun 4-byte packet-information header codec. This stays the
+  highest-risk phase.
 
 ### Phase 5 — Delete Mihomo
 

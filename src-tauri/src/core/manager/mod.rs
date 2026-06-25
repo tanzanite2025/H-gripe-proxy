@@ -2,6 +2,7 @@ mod config;
 mod lifecycle;
 mod outbound_select;
 mod state;
+mod tun_inbound;
 
 use crate::singleton;
 use anyhow::Result;
@@ -35,6 +36,8 @@ pub struct CoreManager {
     state: ArcSwap<State>,
     last_update: ArcSwapOption<Instant>,
     gripe: tokio::sync::Mutex<Option<learn_gripe::GripeHandle>>,
+    /// The OS TUN inbound, present only while TUN mode is enabled and running.
+    tun: tokio::sync::Mutex<Option<tun_inbound::TunInbound>>,
 }
 
 #[derive(Debug)]
@@ -56,6 +59,7 @@ impl Default for CoreManager {
             state: ArcSwap::new(Arc::new(State::default())),
             last_update: ArcSwapOption::new(None),
             gripe: tokio::sync::Mutex::new(None),
+            tun: tokio::sync::Mutex::new(None),
         }
     }
 }
