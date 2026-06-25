@@ -138,6 +138,13 @@ fn spawn_egress(
                 }
             });
         }
+        UdpEgress::Shadowsocks(config) => {
+            tokio::spawn(async move {
+                if let Err(err) = run_ss_egress(config, target, rx, relay, client_addr).await {
+                    log::debug!("learn-gripe udp: shadowsocks egress ended: {err:#}");
+                }
+            });
+        }
         proxy => {
             tokio::spawn(async move {
                 if let Err(err) = run_proxy_egress(proxy, target, rx, relay, client_addr).await {
@@ -175,6 +182,33 @@ async fn run_direct_egress(
             res = socket.recv(&mut buf) => {
                 let n = res.with_context(|| format!("udp recv from {dest}"))?;
                 let packet = socks5::encode_udp_datagram(&target, &buf[..n]);
+                if relay.send_to(&packet, client_addr).await.is_err() {
+                    return Ok(());
+                }
+            }
+        }
+    }
+}
+
+/// Shadowsocks UDP egress: relay datagrams over a UDP socket to the Shadowsocks
+/// server, sealing/opening each packet with per-packet AEAD framing.
+async fn run_ss_egress(
+    config: Box<crate::shadowsocks::ShadowsocksOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    relay: Arc<UdpSocket>,
+    client_addr: SocketAddr,
+) -> Result<()> {
+    let assoc = crate::shadowsocks::ShadowsocksUdp::connect(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                let packet = socks5::encode_udp_datagram(&target, &payload);
                 if relay.send_to(&packet, client_addr).await.is_err() {
                     return Ok(());
                 }
@@ -230,8 +264,9 @@ impl ProxyFraming {
         match egress {
             UdpEgress::Trojan(_) => ProxyFraming::Trojan,
             UdpEgress::Vless(_) => ProxyFraming::LengthPrefixed,
-            // Direct never reaches a proxy egress; treat it as chunked defensively.
-            UdpEgress::Vmess(_) | UdpEgress::Direct => ProxyFraming::Chunked,
+            // Direct and Shadowsocks never reach a proxy egress (they relay over
+            // a UDP socket); treat them as chunked defensively.
+            UdpEgress::Vmess(_) | UdpEgress::Direct | UdpEgress::Shadowsocks(_) => ProxyFraming::Chunked,
         }
     }
 }

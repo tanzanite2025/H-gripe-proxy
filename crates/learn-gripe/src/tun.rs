@@ -24,6 +24,7 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::dns::{DnsMode, FakeIpPool, answer_query, unmap_fake_ip};
 use crate::outbound::{self, UdpEgress};
+use crate::shadowsocks::{ShadowsocksOutboundConfig, ShadowsocksUdp};
 use crate::udp;
 
 use anyhow::Result;
@@ -562,6 +563,7 @@ async fn run_udp_session(
 ) {
     let result = match egress {
         UdpEgress::Direct => run_udp_direct(target, reply, rx, frames_out).await,
+        UdpEgress::Shadowsocks(config) => run_udp_ss(config, target, reply, rx, frames_out).await,
         proxy => run_udp_proxy(proxy, target, reply, rx, frames_out).await,
     };
     if let Err(err) = result {
@@ -593,6 +595,35 @@ async fn run_udp_direct(
             res = socket.recv(&mut buf) => {
                 let n = res?;
                 if let Some(frame) = build_udp_reply_frame(&reply, &buf[..n])
+                    && frames_out.send(frame).await.is_err()
+                {
+                    return Ok(());
+                }
+            }
+            _ = tokio::time::sleep(UDP_IDLE_TIMEOUT) => return Ok(()),
+        }
+    }
+}
+
+/// Shadowsocks UDP egress: relay datagrams over a UDP socket to the Shadowsocks
+/// server (per-packet AEAD framing), rewriting replies back into IP frames.
+async fn run_udp_ss(
+    config: Box<ShadowsocksOutboundConfig>,
+    target: TargetAddr,
+    reply: UdpFlow,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    frames_out: mpsc::Sender<Vec<u8>>,
+) -> Result<()> {
+    let assoc = ShadowsocksUdp::connect(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                if let Some(frame) = build_udp_reply_frame(&reply, &payload)
                     && frames_out.send(frame).await.is_err()
                 {
                     return Ok(());

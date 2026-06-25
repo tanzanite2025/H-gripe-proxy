@@ -231,9 +231,15 @@ end-to-end relay tests. Proves the in-process architecture works.
   key schedule (HKDF cross-checked against RFC 5869, HMAC against RFC 2202) and
   on-wire framing are assembled in-crate. Legacy stream ciphers, the
   `2022-blake3-*` methods and SIP003 plugins are rejected rather than
-  mis-framed; Shadowsocks UDP is not implemented yet. End-to-end relay tests for
-  all three ciphers (plus a multi-chunk payload) against an independent fake SS
-  server in `crates/learn-gripe/tests/shadowsocks_outbound.rs`.
+  mis-framed. **Shadowsocks UDP egress** is landed too (`ShadowsocksUdp`): each
+  datagram is framed independently as `salt | AEAD(subkey, nonce=0, socks5_addr |
+  payload)` with a fresh per-packet salt and `subkey = HKDF-SHA1(master, salt,
+  "ss-subkey")` — no length-prefixing or nonce counter, unlike the TCP stream —
+  and it plugs into the SOCKS5/TUN UDP relay as a `UdpEgress::Shadowsocks` variant
+  (`resolve_udp_egress`, `run_ss_egress` / `run_udp_ss`). End-to-end relay tests
+  for all three ciphers (plus a multi-chunk payload) against an independent fake
+  SS server in `crates/learn-gripe/tests/shadowsocks_outbound.rs` (TCP) and
+  `shadowsocks_udp.rs` (per-packet UDP).
 
 ### Phase 3 — Protocol breadth + routing
 
@@ -265,12 +271,15 @@ end-to-end relay tests. Proves the in-process architecture works.
   - Trojan: `SOCKS5-addr | len(2 BE) | CRLF | payload` per datagram (command 0x03).
   - VLESS: command 0x02, no Vision addon, `len(2 BE) | payload` per datagram.
   - VMess: command 0x02, one AEAD body chunk per datagram (boundaries preserved).
-  `Direct` / `Trojan` / `VLESS` / `VMess` / `Routed` accept the association;
-  `Reject` and an upstream SOCKS5 proxy refuse it with `REP_CMD_NOT_SUPPORTED`,
-  and a datagram routed to a non-UDP-capable outbound is dropped rather than
-  leaked. Proven by `crates/learn-gripe/tests/udp_relay.rs` (Direct) and
-  `trojan_udp.rs` / `vless_udp.rs` / `vmess_udp.rs` (each protocol's tunnel, via
-  independent reverse fake servers, over `none` / `tls` security and `Routed`).
+  - Shadowsocks: a UDP socket to the SS server, each datagram framed as
+    `salt | AEAD(nonce=0, socks5_addr | payload)` with a fresh per-packet salt.
+  `Direct` / `Trojan` / `VLESS` / `VMess` / `Shadowsocks` / `Routed` accept the
+  association; `Reject` and an upstream SOCKS5 proxy refuse it with
+  `REP_CMD_NOT_SUPPORTED`, and a datagram routed to a non-UDP-capable outbound is
+  dropped rather than leaked. Proven by `crates/learn-gripe/tests/udp_relay.rs`
+  (Direct) and `trojan_udp.rs` / `vless_udp.rs` / `vmess_udp.rs` /
+  `shadowsocks_udp.rs` (each protocol's tunnel, via independent reverse fake
+  servers, over `none` / `tls` security and `Routed`).
 
 ### Phase 4 — DNS + TUN
 
@@ -334,9 +343,8 @@ end-to-end relay tests. Proves the in-process architecture works.
   binding is compile-checked only and must be validated on a real machine with
   admin/root): global default-route capture + DNS redirect with leak-safe
   apply/observe/rollback, wiring a fake-IP `DnsMode` from the kernel into the
-  src-tauri TUN inbound (it currently passes `None`), Shadowsocks UDP egress (its
-  associate is still refused), and the macOS utun 4-byte packet-information header
-  codec. This stays the highest-risk phase.
+  src-tauri TUN inbound (it currently passes `None`), and the macOS utun 4-byte
+  packet-information header codec. This stays the highest-risk phase.
 
 ### Phase 5 — Delete Mihomo
 

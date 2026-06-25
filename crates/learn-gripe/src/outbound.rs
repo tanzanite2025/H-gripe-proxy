@@ -1,6 +1,6 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
-use crate::shadowsocks;
+use crate::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::socks5;
 use crate::trojan::{self, TrojanOutboundConfig};
 use crate::vless::{self, VlessOutboundConfig};
@@ -60,11 +60,12 @@ pub enum UdpEgress {
     Trojan(Box<TrojanOutboundConfig>),
     Vless(Box<VlessOutboundConfig>),
     Vmess(Box<VmessOutboundConfig>),
+    Shadowsocks(Box<ShadowsocksOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
-/// proxy outbounds (Trojan/VLESS/VMess), and `Routed` (which resolves per
-/// datagram) accept the association; `Reject` and an upstream SOCKS5 proxy
+/// proxy outbounds (Trojan/VLESS/VMess/Shadowsocks), and `Routed` (which resolves
+/// per datagram) accept the association; `Reject` and an upstream SOCKS5 proxy
 /// (which has no UDP relay path here) make the inbound refuse it up front.
 pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
     matches!(
@@ -73,6 +74,7 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::Trojan(_)
             | OutboundMode::Vless(_)
             | OutboundMode::Vmess(_)
+            | OutboundMode::Shadowsocks(_)
             | OutboundMode::Routed(_)
     )
 }
@@ -87,10 +89,11 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr) -> Option<Ud
         OutboundMode::Trojan(config) => Some(UdpEgress::Trojan(config.clone())),
         OutboundMode::Vless(config) => Some(UdpEgress::Vless(config.clone())),
         OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
+        OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
         OutboundMode::Routed(router) => resolve_udp_egress(router.select(target), target),
-        // Shadowsocks UDP (separate per-packet AEAD framing) is not implemented
-        // yet, so its associations are refused rather than carried.
-        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } | OutboundMode::Shadowsocks(_) => None,
+        // Reject blocks the datagram; an upstream SOCKS5 proxy has no UDP relay
+        // path here, so its associations are refused rather than leaked.
+        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
     }
 }
 
@@ -102,7 +105,8 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         UdpEgress::Trojan(config) => trojan::connect_udp(config, target).await,
         UdpEgress::Vless(config) => vless::connect_udp(config, target).await,
         UdpEgress::Vmess(config) => vmess::connect_udp(config, target).await,
-        UdpEgress::Direct => bail!("direct UDP egress has no proxy tunnel"),
+        // Direct and Shadowsocks relay over a UDP socket, not a proxy stream.
+        UdpEgress::Direct | UdpEgress::Shadowsocks(_) => bail!("egress has no proxy tunnel"),
     }
 }
 
