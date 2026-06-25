@@ -382,8 +382,18 @@ end-to-end relay tests. Proves the in-process architecture works.
     `capture_routes_present_v6`, `v6_route_*_args`, `v6_*_address_args`) have unit
     tests; the `netsh` mutations remain **compile-checked only and must be
     validated on a real Windows machine with admin**.
-  The macOS utun 4-byte packet-information header codec is the remaining TUN
-  follow-up (deferred — Windows first).
+  The **macOS/iOS utun packet-information header** is now handled: utun always
+  prepends a 4-byte address-family header at the kernel (it cannot be disabled),
+  and `serve_tun_device` expects raw L3, so the OS binding enables the `tun`
+  crate's packet-information handling on macOS/iOS (it strips that header on read
+  and prepends `AF_INET`/`AF_INET6` on write) while keeping `IFF_NO_PI` on Linux.
+  The earlier code disabled it on all three, which left the 4-byte header in the
+  frames on macOS. The binding also stops forcing the `clash-verge` interface
+  name on macOS/iOS (utun names must be `utunN`, so the kernel assigns one).
+  macOS global default-route capture (the v4/v6 route + DNS takeover, currently
+  Windows-only) is the remaining TUN follow-up; the macOS device itself now comes
+  up correctly. All of this is compile-verified only and needs validation on a
+  real Mac.
 
 ### Phase 5 — Delete Mihomo
 
