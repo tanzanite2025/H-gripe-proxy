@@ -302,7 +302,9 @@ end-to-end relay tests. Proves the in-process architecture works.
   `crates/learn-gripe/tests/fakeip_routing.rs`: the DNS server mints two fake
   IPs in the same `/16` for two domains, and connections to them reach
   *different* tagged outbounds purely by hostname.
-- TUN mode — userspace stack landed; OS device wiring pending. The
+- TUN mode — userspace stack, OS device binding, and Windows global IPv4
+  default-route capture all landed (off by default); IPv6 capture is the next
+  step (see below). The
   device-agnostic core is in `crates/learn-gripe/src/tun.rs` (`serve_tun`): it
   consumes/produces raw IP frames over two channels, terminates IPv4/IPv6
   **TCP** flows in a userspace stack (smoltcp adopted purely as the IP/TCP
@@ -356,9 +358,28 @@ end-to-end relay tests. Proves the in-process architecture works.
   on-link subnet (they would loop). The route-parsing/command-building logic has unit
   tests; the actual `route`/`netsh` mutations need admin and a real default route, so
   they are **compile-checked only and must be validated on a real Windows machine**.
-  Still pending (also not exercisable in the sandbox/CI): IPv6 default-route capture
-  (a known leak gap), and the macOS utun 4-byte packet-information header codec. This
-  stays the highest-risk phase.
+  This stays the highest-risk phase.
+
+  **Next step — Windows IPv6 default-route capture (closes the current leak gap).**
+  The capture above is IPv4-only: with IPv6 connectivity present, AAAA-reachable
+  destinations still egress over the physical adapter and bypass the tunnel. The
+  plan mirrors the IPv4 path inside the same `install_global_capture` /
+  `RollbackStack` flow, gated on the same `supports_global_capture` outbound:
+  - Assign an IPv6 address to the TUN (e.g. an fd00::/8 ULA gateway) so the
+    interface has an on-link v6 next-hop, analogous to `198.18.0.1`.
+  - Bypass: pin each resolved IPv6 proxy-server address with a `/128` route to
+    the physical v6 gateway (parsed from `route print -6` /
+    `netsh interface ipv6 show route`), the v6 analogue of the `/32` bypass.
+  - Capture: add `::/1` + `8000::/1` through the TUN (more specific than the
+    untouched `::/0` default, so rollback is a clean delete), the v6 analogue of
+    the `0.0.0.0/1` + `128.0.0.0/1` split.
+  - Observe: re-read the v6 route table to confirm the `::/1` split took effect,
+    rolling back and failing start otherwise.
+  - The route-building / table-parsing helpers get unit tests like the IPv4 ones;
+    the `route`/`netsh` mutations remain compile-checked only and must be
+    validated on a real Windows machine with admin.
+  After this, the macOS utun 4-byte packet-information header codec is the
+  remaining TUN follow-up (deferred — Windows first).
 
 ### Phase 5 — Delete Mihomo
 
