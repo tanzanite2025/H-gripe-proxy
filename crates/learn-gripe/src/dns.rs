@@ -13,7 +13,7 @@
 //! We own the product logic (pool allocation, mapping, mode selection) and
 //! delegate only the DNS wire format to `hickory-proto`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -89,6 +89,9 @@ pub struct FakeIpPool {
     cursor: u32,
     domain_to_ip: HashMap<String, Ipv4Addr>,
     ip_to_domain: HashMap<Ipv4Addr, String>,
+    /// IPs that are inside the CIDR but must never be handed out (e.g. the TUN
+    /// gateway address, which the OS owns on the interface).
+    reserved: HashSet<Ipv4Addr>,
 }
 
 impl FakeIpPool {
@@ -98,6 +101,17 @@ impl FakeIpPool {
             cursor: 0,
             domain_to_ip: HashMap::new(),
             ip_to_domain: HashMap::new(),
+            reserved: HashSet::new(),
+        }
+    }
+
+    /// Mark `ip` as reserved so [`allocate`](Self::allocate) never returns it.
+    /// Typically the TUN interface/gateway address, which collides with the
+    /// first usable host of the conventional `198.18.0.0/16` pool. A no-op when
+    /// `ip` falls outside the pool's CIDR.
+    pub fn reserve(&mut self, ip: Ipv4Addr) {
+        if self.contains(ip) {
+            self.reserved.insert(ip);
         }
     }
 
@@ -115,14 +129,23 @@ impl FakeIpPool {
             return ip;
         }
         // First usable host is base + 1 (base itself is the network address).
-        let ip = Ipv4Addr::from(self.config.base + 1 + self.cursor);
-        if let Some(old) = self.ip_to_domain.remove(&ip) {
-            self.domain_to_ip.remove(&old);
+        // Skip any reserved slot, bounded by capacity so a fully reserved pool
+        // cannot loop forever.
+        for _ in 0..self.config.capacity {
+            let ip = Ipv4Addr::from(self.config.base + 1 + self.cursor);
+            self.cursor = (self.cursor + 1) % self.config.capacity;
+            if self.reserved.contains(&ip) {
+                continue;
+            }
+            if let Some(old) = self.ip_to_domain.remove(&ip) {
+                self.domain_to_ip.remove(&old);
+            }
+            self.ip_to_domain.insert(ip, key.clone());
+            self.domain_to_ip.insert(key, ip);
+            return ip;
         }
-        self.ip_to_domain.insert(ip, key.clone());
-        self.domain_to_ip.insert(key, ip);
-        self.cursor = (self.cursor + 1) % self.config.capacity;
-        ip
+        // Degenerate: every slot reserved. Fall back to the first usable host.
+        Ipv4Addr::from(self.config.base + 1)
     }
 
     /// Reverse lookup: the domain a fake IP currently maps to, if any.
@@ -349,6 +372,19 @@ mod tests {
         assert_eq!(pool.domain_for(first), Some("example.com"));
         assert!(pool.contains(first));
         assert!(!pool.contains(Ipv4Addr::new(10, 0, 0, 1)));
+    }
+
+    #[test]
+    fn reserve_skips_the_gateway_address() {
+        let mut pool = FakeIpPool::new(FakeIpConfig::default());
+        // The TUN gateway (first usable host) must never be handed out.
+        pool.reserve(Ipv4Addr::new(198, 18, 0, 1));
+        assert_eq!(pool.allocate("example.com"), Ipv4Addr::new(198, 18, 0, 2));
+        assert_eq!(pool.allocate("other.test"), Ipv4Addr::new(198, 18, 0, 3));
+        // The reserved IP has no domain mapping.
+        assert_eq!(pool.domain_for(Ipv4Addr::new(198, 18, 0, 1)), None);
+        // Reserving an out-of-pool IP is a no-op (allocation is unaffected).
+        pool.reserve(Ipv4Addr::new(10, 0, 0, 1));
     }
 
     #[test]
