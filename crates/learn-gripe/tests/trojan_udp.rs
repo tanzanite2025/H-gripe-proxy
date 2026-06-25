@@ -170,6 +170,7 @@ fn tls_security() -> Security {
         server_name: Some("localhost".to_string()),
         alpn: Vec::new(),
         skip_cert_verify: true,
+        client_fingerprint: None,
     })
 }
 

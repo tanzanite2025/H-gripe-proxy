@@ -450,6 +450,7 @@ async fn relays_through_tls_vmess() {
                 server_name: Some("localhost".to_string()),
                 alpn: Vec::new(),
                 skip_cert_verify: true,
+                client_fingerprint: None,
             }),
         ),
         b"hello vmess over tls",
