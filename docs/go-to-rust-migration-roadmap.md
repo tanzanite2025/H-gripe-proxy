@@ -217,11 +217,23 @@ end-to-end relay tests. Proves the in-process architecture works.
 
 ### Phase 4 — DNS + TUN
 
-- DNS handling inside the kernel (fake-ip + upstream resolution) on top of
-  `hickory-dns`.
+- DNS handling inside the kernel (fake-ip + upstream resolution): a UDP DNS
+  server (`dns::DnsServer`) answers queries in one of two modes. **Fake-IP**
+  hands out a synthetic `A` from a CIDR pool (`FakeIpPool`, default
+  `198.18.0.0/16`), keeping a bidirectional `domain <-> ip` map so the routing
+  path can recover the hostname from a fake IP (reverse lookup); `AAAA` gets an
+  empty `NOERROR` so clients use the fake `A`. **Forward** relays the query to
+  an upstream resolver over UDP and returns its answer verbatim. The DNS wire
+  format is delegated to `hickory-proto`; pool allocation, mapping and mode
+  selection are ours. Proven by `crates/learn-gripe/tests/dns.rs` (fake-IP
+  synthesize + reverse, and forward via an independent fake upstream). Wiring
+  fake-IP reverse lookup into the SOCKS connect path (route a connection to a
+  fake IP by its original domain) is the next follow-up.
 - TUN mode: read packets via the `tun` crate, route through `learn-gripe`
   outbounds, with leak-safe rollback. This is the highest-risk phase; keep
-  rollback explicit.
+  rollback explicit. Still pending — it needs an OS TUN device and elevated
+  privileges, so it cannot be exercised in the sandbox/CI and must land with an
+  explicit apply + observe + rollback path.
 
 ### Phase 5 — Delete Mihomo
 
