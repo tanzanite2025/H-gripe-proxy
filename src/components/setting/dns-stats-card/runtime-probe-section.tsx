@@ -93,7 +93,7 @@ export function RuntimeProbeSection({
 
       <div className="mb-2 text-xs text-muted-foreground">
         使用当前运行态 DNS 列表构造 planning-only YAML，只探测 Rust resolver
-        可支持的 nameserver，不修改 Mihomo runtime。
+        可支持的 nameserver，不修改内核 runtime。
       </div>
 
       {!canProbe && (

@@ -69,7 +69,7 @@ export function PolicyEditorDialog({
           {editingIndex === -1 ? '新建安全策略' : '编辑安全策略'}
         </div>
         <div className="mt-1 text-sm text-muted-foreground">
-          策略定义保存在高级配置中，保存配置后再手动应用到 Mihomo 运行态。
+          策略定义保存在高级配置中，保存配置后再手动应用到内核运行态。
         </div>
       </DialogTitle>
 

@@ -559,9 +559,9 @@ export function RuntimePostExecutionSection() {
       <div className="mb-2 text-xs text-muted-foreground">
         Batch Q 只读取 Batch P active state、execution audit 与 rollback
         metadata；比较执行后 observed query 与执行前 shadow evidence，不自动
-        rollout、不自动 rollback、不 reload Mihomo。Expanded gate / preflight
+        rollout、不自动 rollback、不 reload 内核。Expanded gate / preflight
         只判断是否允许后续更大范围显式 opt-in，并持久化 active profile reload
-        候选预检记录；Expanded execute 需要用户显式点击，才会通过现有 Mihomo config
+        候选预检记录；Expanded execute 需要用户显式点击，才会通过现有内核 config
         reload 路径应用 DNS config，并可由 Expanded rollback 恢复。
         Expanded verify / drill 只读取 Batch T active state 与 audit
         metadata，生成 failure audit，不自动回滚。Expanded stability 只决定当前 session
@@ -603,7 +603,7 @@ export function RuntimePostExecutionSection() {
               value={verificationReport.activeState?.activeRuntime ?? '未激活'}
             />
             <DnsTextRow
-              label="Reload Mihomo"
+              label="Reload 内核"
               value={verificationReport.reloadMihomo ? '会 reload' : '不会 reload'}
             />
           </div>
@@ -1451,7 +1451,7 @@ export function RuntimePostExecutionSection() {
               }
             />
             <DnsTextRow
-              label="Would reload Mihomo"
+              label="Would reload 内核"
               value={
                 preflightReport.preflightRecord.mutationPlan.mihomoReload
                   ? '候选会 reload'

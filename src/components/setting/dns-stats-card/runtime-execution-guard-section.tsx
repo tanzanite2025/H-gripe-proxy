@@ -69,7 +69,7 @@ export function RuntimeExecutionGuardSection() {
 
       <div className="mb-2 text-xs text-muted-foreground">
         真实切换前最后门禁：要求 executor preflight ready，并持久化 audit /
-        rollback / superseded metadata；仍不写配置、不 reload Mihomo、不执行切换。
+        rollback / superseded metadata；仍不写配置、不 reload 内核、不执行切换。
       </div>
 
       {report ? (
@@ -108,7 +108,7 @@ export function RuntimeExecutionGuardSection() {
               value={report.executed ? '已执行' : '未执行'}
             />
             <DnsTextRow
-              label="Reload Mihomo"
+              label="Reload 内核"
               value={report.reloadMihomo ? '会 reload' : '不会 reload'}
             />
           </div>

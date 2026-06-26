@@ -105,15 +105,15 @@ const formatUnavailableSummary = (identity?: CurrentEgressIdentity) => {
     normalizedMessage.includes('has not observed a public egress ip yet') &&
     normalizedMessage.includes('proxy probe also did not produce')
   ) {
-    return 'Mihomo 暂未观测到出口 IP，主动探测也没有拿到结果'
+    return '内核暂未观测到出口 IP，主动探测也没有拿到结果'
   }
 
   if (normalizedMessage.includes('has not observed a public egress ip yet')) {
-    return 'Mihomo 暂未观测到出口 IP'
+    return '内核暂未观测到出口 IP'
   }
 
   if (normalizedMessage.includes('failed to query mihomo egress status')) {
-    return '读取 Mihomo 出口快照失败'
+    return '读取内核出口快照失败'
   }
 
   return message
@@ -124,9 +124,9 @@ const formatIdentitySourceText = (
 ) => {
   switch (source) {
     case 'mihomoEgressStatus':
-      return 'Mihomo 出口快照'
+      return '内核出口快照'
     case 'mihomoProxyProbe':
-      return 'Mihomo 主动探测'
+      return '内核主动探测'
     default:
       return '内核未观测'
   }

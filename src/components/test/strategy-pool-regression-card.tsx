@@ -180,7 +180,7 @@ export function StrategyPoolRegressionCard() {
         iconColor="info"
       >
         <div className="mb-3 text-xs leading-6 text-text-secondary">
-          这个区域完全走本地内存状态，不依赖 Tauri、Mihomo 或真实订阅，
+          这个区域完全走本地内存状态，不依赖 Tauri、内核或真实订阅，
           专门用来回归验证策略池的创建、编辑、搜索和保存链路。
         </div>
 

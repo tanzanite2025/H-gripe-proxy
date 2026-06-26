@@ -69,7 +69,7 @@ export function RuntimeExecutorPreflightSection() {
 
       <div className="mb-2 text-xs text-muted-foreground">
         只生成默认 DNS runtime 执行器 dry-run、mutation diff、audit record 与 rollback
-        marker；不写配置、不 reload Mihomo、不执行切换。
+        marker；不写配置、不 reload 内核、不执行切换。
       </div>
 
       {report ? (
@@ -100,7 +100,7 @@ export function RuntimeExecutorPreflightSection() {
               value={report.executed ? '已执行' : '未执行'}
             />
             <DnsTextRow
-              label="Reload Mihomo"
+              label="Reload 内核"
               value={report.reloadMihomo ? '会 reload' : '不会 reload'}
             />
             <DnsTextRow
