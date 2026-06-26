@@ -13,7 +13,7 @@
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
 //! `DST-PORT`, `SRC-PORT`, `NETWORK`, `PROCESS-NAME`, `PROCESS-PATH`, `MATCH`,
-//! plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
+//! plus `GEOIP` / `GEOSITE` / `IP-ASN` / `SRC-IP-ASN` and `RULE-SET`. The geo matchers
 //! carry a shared [`GeoLookup`] handle to a locally-maintained geo database
 //! (mmdb / geosite `.dat`), `RULE-SET` carries a shared [`RuleSetLookup`]
 //! handle to locally-loaded rule providers, and the process matchers carry a
@@ -92,7 +92,7 @@ pub const REJECT: &str = "REJECT";
 /// A single routing predicate.
 ///
 /// `Clone` is derived; `Debug`/`PartialEq`/`Eq` are hand-written because the
-/// `GeoIp`/`GeoSite`/`Asn` variants carry an `Arc<dyn GeoLookup>`, `RuleSet` /
+/// `GeoIp`/`GeoSite`/`Asn`/`SrcIpAsn` variants carry an `Arc<dyn GeoLookup>`, `RuleSet` /
 /// `SrcRuleSet` an `Arc<dyn RuleSetLookup>`, and `ProcessName` / `ProcessPath`
 /// an `Arc<dyn ProcessLookup>` trait object that cannot derive them. Two such
 /// matchers are equal when they name the same code/ASN/set/pattern and share
@@ -124,6 +124,14 @@ pub enum RuleMatcher {
     /// `asn`. Like `IpCidr` / `GeoIp`, it only applies to a resolved IP target,
     /// never a domain.
     Asn { asn: u32, db: Arc<dyn GeoLookup> },
+    /// Matches when the connection's *source* IP is announced by the autonomous
+    /// system number `asn`. Unlike [`Asn`](RuleMatcher::Asn), which queries the
+    /// destination, this feeds the source address (supplied by the embedder at
+    /// selection time) to the ASN database, so it never depends on the
+    /// (possibly unresolved) target and applies to IP and domain targets alike.
+    /// When the source is unknown the rule never matches, mirroring
+    /// `SRC-IP-CIDR`.
+    SrcIpAsn { asn: u32, db: Arc<dyn GeoLookup> },
     /// Matches when the target is contained in the locally-loaded rule-set
     /// ("rule provider") named `name`. The set decides whether it matches the
     /// domain or the IP, so unlike the geo matchers it applies to either kind
@@ -209,6 +217,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::GeoIp { code, .. } => f.debug_struct("GeoIp").field("code", code).finish_non_exhaustive(),
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
+            RuleMatcher::SrcIpAsn { asn, .. } => f.debug_struct("SrcIpAsn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
             RuleMatcher::SrcRuleSet { name, .. } => {
                 f.debug_struct("SrcRuleSet").field("name", name).finish_non_exhaustive()
@@ -245,6 +254,9 @@ impl PartialEq for RuleMatcher {
                 a == b && Arc::ptr_eq(da, db2)
             }
             (RuleMatcher::Asn { asn: a, db: da }, RuleMatcher::Asn { asn: b, db: db2 }) => {
+                a == b && Arc::ptr_eq(da, db2)
+            }
+            (RuleMatcher::SrcIpAsn { asn: a, db: da }, RuleMatcher::SrcIpAsn { asn: b, db: db2 }) => {
                 a == b && Arc::ptr_eq(da, db2)
             }
             (RuleMatcher::RuleSet { name: a, provider: pa }, RuleMatcher::RuleSet { name: b, provider: pb }) => {
@@ -298,9 +310,9 @@ impl RuleMatcher {
     }
 
     /// Whether this matcher applies to a connection to `target` over `network`
-    /// from source `src`. Only `NETWORK` rules depend on `network`; `SRC-PORT`,
-    /// `SRC-IP-RULE-SET`, `PROCESS-NAME` and `PROCESS-PATH` rules depend on
-    /// `src`; every other matcher ignores them. `src` is `None` when the
+    /// from source `src`. Only `NETWORK` rules depend on `network`; `SRC-IP-CIDR`,
+    /// `SRC-PORT`, `SRC-IP-RULE-SET`, `SRC-IP-ASN`, `PROCESS-NAME` and
+    /// `PROCESS-PATH` rules depend on `src`; every other matcher ignores them. `src` is `None` when the
     /// embedder cannot supply the source (in which case those source-dependent
     /// rules never match). Logical sub-rules inherit the same `network` and
     /// `src`.
@@ -335,6 +347,7 @@ impl RuleMatcher {
                 TargetAddr::Ip(addr) => db.asn_matches(*asn, addr.ip()),
                 TargetAddr::Domain(_, _) => false,
             },
+            RuleMatcher::SrcIpAsn { asn, db } => src.is_some_and(|addr| db.asn_matches(*asn, addr.ip())),
             RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
             RuleMatcher::SrcRuleSet { name, provider } => {
                 src.is_some_and(|addr| provider.rule_set_matches(name, &TargetAddr::Ip(addr)))
@@ -377,6 +390,7 @@ impl RuleMatcher {
             RuleMatcher::GeoIp { .. } => "GeoIP",
             RuleMatcher::GeoSite { .. } => "GeoSite",
             RuleMatcher::Asn { .. } => "IPASN",
+            RuleMatcher::SrcIpAsn { .. } => "SrcIPASN",
             RuleMatcher::RuleSet { .. } => "RuleSet",
             RuleMatcher::SrcRuleSet { .. } => "SrcRuleSet",
             RuleMatcher::DstPort(_) => "DstPort",
@@ -405,6 +419,7 @@ impl RuleMatcher {
             RuleMatcher::GeoIp { code, .. } => code.clone(),
             RuleMatcher::GeoSite { code, .. } => code.clone(),
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
+            RuleMatcher::SrcIpAsn { asn, .. } => asn.to_string(),
             RuleMatcher::RuleSet { name, .. } => name.clone(),
             RuleMatcher::SrcRuleSet { name, .. } => name.clone(),
             RuleMatcher::DstPort(range) => range.to_string(),
@@ -1801,6 +1816,112 @@ mod tests {
         assert_ne!(a, RuleMatcher::IpCidr(IpCidr::parse("192.168.1.0/24").unwrap()));
         assert_eq!(a.kind_str(), "SrcIpCidr");
         assert_eq!(a.payload(), "192.168.1.0/24");
+    }
+
+    #[test]
+    fn src_ip_asn_matches_source_ip_independent_of_target() {
+        // FakeGeo announces AS13335 for the 1.0.0.0/8 block.
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let m = RuleMatcher::SrcIpAsn { asn: 13335, db };
+        let inside = SocketAddr::new(Ipv4Addr::new(1, 2, 3, 4).into(), 50000);
+        let outside = SocketAddr::new(Ipv4Addr::new(8, 8, 8, 8).into(), 50000);
+        // The source IP's ASN is matched regardless of the destination kind.
+        assert!(m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, Some(inside)));
+        assert!(m.matches_conn(&ipv4(8, 8, 8, 8), ConnNetwork::Udp, Some(inside)));
+        // A source outside AS13335 misses.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, Some(outside)));
+    }
+
+    #[test]
+    fn src_ip_asn_never_matches_without_a_known_source() {
+        // With no source the rule cannot match, so the `matches` /
+        // `matches_network` wrappers (which pass `None`) always miss, even for
+        // an ASN that covers the destination IP.
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let m = RuleMatcher::SrcIpAsn { asn: 13335, db };
+        assert!(!m.matches_conn(&ipv4(1, 1, 1, 1), ConnNetwork::Tcp, None));
+        assert!(!m.matches_network(&ipv4(1, 1, 1, 1), ConnNetwork::Tcp));
+        assert!(!m.matches(&ipv4(1, 1, 1, 1)));
+    }
+
+    #[test]
+    fn router_routes_src_ip_asn_rule() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(RuleMatcher::SrcIpAsn { asn: 13335, db }, DIRECT)];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        let inside = SocketAddr::new(Ipv4Addr::new(1, 2, 3, 4).into(), 40000);
+        let outside = SocketAddr::new(Ipv4Addr::new(8, 8, 4, 4).into(), 40000);
+        // Source in AS13335 -> DIRECT, regardless of destination.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, Some(inside)),
+            OutboundMode::Direct
+        ));
+        // Source outside the ASN -> fallback proxy.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, Some(outside)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // No source (the `select`/`select_network` wrappers) -> never matches.
+        assert!(matches!(
+            router.select_network(&ipv4(1, 1, 1, 1), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn src_ip_asn_as_logical_sub_rule_respects_source() {
+        // AND,((DOMAIN-SUFFIX,example.com),(SRC-IP-ASN,13335)) only matches a
+        // connection to that domain from a source in AS13335; the source
+        // threads into the sub-rule.
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::SrcIpAsn { asn: 13335, db },
+            ],
+        };
+        let inside = SocketAddr::new(Ipv4Addr::new(1, 2, 3, 4).into(), 50000);
+        let outside = SocketAddr::new(Ipv4Addr::new(10, 0, 0, 1).into(), 50000);
+        assert!(m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(inside)));
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(outside)));
+        assert!(!m.matches_conn(&domain("other.net"), ConnNetwork::Tcp, Some(inside)));
+        // Without a known source the SRC-IP-ASN sub-rule cannot match.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, None));
+    }
+
+    #[test]
+    fn src_ip_asn_equality_and_metadata() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let other: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let a = RuleMatcher::SrcIpAsn {
+            asn: 13335,
+            db: Arc::clone(&db),
+        };
+        let same = RuleMatcher::SrcIpAsn {
+            asn: 13335,
+            db: Arc::clone(&db),
+        };
+        let different_db = RuleMatcher::SrcIpAsn { asn: 13335, db: other };
+        let different_asn = RuleMatcher::SrcIpAsn {
+            asn: 15169,
+            db: Arc::clone(&db),
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_db);
+        assert_ne!(a, different_asn);
+        // A same-ASN destination matcher is a different variant, never equal.
+        assert_ne!(a, RuleMatcher::Asn { asn: 13335, db });
+        assert_eq!(a.kind_str(), "SrcIPASN");
+        assert_eq!(a.payload(), "13335");
     }
 
     #[test]

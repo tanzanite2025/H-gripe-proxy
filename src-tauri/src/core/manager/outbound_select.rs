@@ -201,7 +201,7 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-ASN`, …) or a malformed payload, so the caller drops the rule.
+/// (`IN-PORT`, `UID`, …) or a malformed payload, so the caller drops the rule.
 /// `IP-CIDR` / `IP-CIDR6` match the destination IP and `SRC-IP-CIDR` /
 /// `SRC-IP-CIDR6` the inbound peer's source IP (when the embedder supplies it).
 /// `DST-PORT` and `SRC-PORT` accept a single port
@@ -216,12 +216,13 @@ fn build_router(
 /// sub-rule is malformed or uses a type the kernel cannot evaluate, the whole
 /// logical rule is dropped rather than silently ignoring a condition.
 ///
-/// `GEOIP` / `GEOSITE` / `IP-ASN` are evaluated against `geo` (a [`GeoLookup`]
-/// over local geo data) and `RULE-SET` / `SRC-IP-RULE-SET` against `rule_sets`
+/// `GEOIP` / `GEOSITE` / `IP-ASN` / `SRC-IP-ASN` are evaluated against `geo` (a
+/// [`GeoLookup`] over local geo data) and `RULE-SET` / `SRC-IP-RULE-SET` against `rule_sets`
 /// (a [`RuleSetLookup`] over the locally-loaded rule providers); when the
 /// matching lookup is `None` those rules are dropped, since without local data
 /// there is nothing to match against. `SRC-IP-RULE-SET` matches the inbound
-/// peer's source IP against the set (when the embedder supplies the source).
+/// peer's source IP against the set, and `SRC-IP-ASN` the inbound peer's source
+/// IP against the ASN database (both when the embedder supplies the source).
 ///
 /// `PROCESS-NAME` / `PROCESS-PATH` match the executable base name / full path
 /// of the local process that owns the connection's source socket, resolved by
@@ -297,6 +298,10 @@ fn parse_matcher<'a>(
             db: Arc::clone(geo?),
         },
         "IP-ASN" => RuleMatcher::Asn {
+            asn: payload.parse().ok()?,
+            db: Arc::clone(geo?),
+        },
+        "SRC-IP-ASN" => RuleMatcher::SrcIpAsn {
             asn: payload.parse().ok()?,
             db: Arc::clone(geo?),
         },
@@ -1687,6 +1692,96 @@ rules:
                 &ip("8.8.8.8:80"),
                 ConnNetwork::Tcp,
                 Some("192.168.1.5:50000".parse().unwrap())
+            ),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn src_ip_asn_rules_route_by_source_asn() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-IP-ASN,13335,DIRECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets(), no_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // Source IP in AS13335 (FakeGeo: 1.0.0.0/8) -> DIRECT, regardless of dest.
+        assert_eq!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src("1.2.3.4:50000")),
+            &OutboundMode::Direct
+        );
+        // A source outside the ASN -> MATCH catch-all (PROXY -> node-a).
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src("203.0.113.7:50000")),
+            OutboundMode::Trojan(_)
+        ));
+        // No known source -> SRC-IP-ASN never matches -> MATCH catch-all.
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn src_ip_asn_rule_skipped_without_local_data() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-IP-ASN,13335,DIRECT
+  - MATCH,PROXY
+"#;
+        // No local geo data: the SRC-IP-ASN rule is dropped, so even an AS13335
+        // source falls through to the MATCH catch-all (PROXY -> node-a).
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert!(matches!(
+            router.select_conn(
+                &ip("8.8.8.8:80"),
+                ConnNetwork::Tcp,
+                Some("1.2.3.4:50000".parse().unwrap())
+            ),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_src_ip_asn_rules_are_dropped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-IP-ASN,not-a-number,DIRECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets(), no_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // Non-numeric ASN -> rule dropped -> even an AS13335 source falls
+        // through to MATCH.
+        assert!(matches!(
+            router.select_conn(
+                &ip("8.8.8.8:80"),
+                ConnNetwork::Tcp,
+                Some("1.2.3.4:50000".parse().unwrap())
             ),
             OutboundMode::Trojan(_)
         ));
