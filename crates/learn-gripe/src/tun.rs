@@ -24,7 +24,7 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::dns::{DnsMode, FakeIpPool, answer_query, unmap_fake_ip};
 use crate::outbound::{self, UdpEgress};
-use crate::shadowsocks::{ShadowsocksOutboundConfig, ShadowsocksUdp};
+use crate::protocols::shadowsocks::{ShadowsocksOutboundConfig, ShadowsocksUdp};
 use crate::udp;
 
 use anyhow::Result;

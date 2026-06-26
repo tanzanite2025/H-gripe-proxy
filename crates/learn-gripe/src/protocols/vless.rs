@@ -9,7 +9,7 @@
 //! are orthogonal, VLESS-REALITY works under every transport automatically.
 //!
 //! `flow: xtls-rprx-vision` is supported over raw-TCP VLESS: the request header
-//! carries the Vision flow addon and the body is wrapped in [`crate::vision`]
+//! carries the Vision flow addon and the body is wrapped in [`crate::protocols::vision`]
 //! padding framing. Other flows (and Vision over non-TCP transports) are
 //! rejected rather than silently mis-encoded; so are the multi-request xhttp
 //! modes, which land in follow-up work.
@@ -33,9 +33,9 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
 use crate::outbound::BoxedStream;
+use crate::protocols::vision::VISION_FLOW;
 use crate::proxy::{ProxyEntry, parse_uuid};
 use crate::transport::{self, Security, Transport};
-use crate::vision::VISION_FLOW;
 
 const VERSION: u8 = 0x00;
 const CMD_TCP: u8 = 0x01;
@@ -80,7 +80,7 @@ impl VlessOutboundConfig {
         // Vision is a body framing, not a transport: it only makes sense over
         // raw TCP (the inner relayed bytes must be a clean stream). `build_layers`
         // has already rejected any flow other than `xtls-rprx-vision`.
-        let vision = matches!(opts.flow.as_deref(), Some(f) if f == crate::vision::VISION_FLOW);
+        let vision = matches!(opts.flow.as_deref(), Some(f) if f == crate::protocols::vision::VISION_FLOW);
         if vision && !matches!(transport, Transport::Tcp) {
             anyhow::bail!("vless: flow {VISION_FLOW:?} requires raw tcp transport");
         }
@@ -104,7 +104,10 @@ pub async fn connect(config: &VlessOutboundConfig, target: &TargetAddr) -> Resul
     stream.write_all(&header).await.context("vless: send request header")?;
     if config.vision {
         // Vision strips the response header and unpads internally.
-        Ok(Box::new(crate::vision::VisionStream::new(stream, config.uuid)))
+        Ok(Box::new(crate::protocols::vision::VisionStream::new(
+            stream,
+            config.uuid,
+        )))
     } else {
         Ok(Box::new(VlessStream::new(stream)))
     }
@@ -133,7 +136,7 @@ fn encode_request_header(uuid: &[u8; 16], command: u8, target: &TargetAddr, visi
     buf.push(VERSION);
     buf.extend_from_slice(uuid);
     if vision {
-        let addon = crate::vision::flow_addon();
+        let addon = crate::protocols::vision::flow_addon();
         buf.push(addon.len() as u8);
         buf.extend_from_slice(&addon);
     } else {

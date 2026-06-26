@@ -1,11 +1,11 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
-use crate::shadowsocks::{self, ShadowsocksOutboundConfig};
+use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
+use crate::protocols::trojan::{self, TrojanOutboundConfig};
+use crate::protocols::vless::{self, VlessOutboundConfig};
+use crate::protocols::vmess::{self, VmessOutboundConfig};
 use crate::socks5;
-use crate::trojan::{self, TrojanOutboundConfig};
-use crate::vless::{self, VlessOutboundConfig};
-use crate::vmess::{self, VmessOutboundConfig};
 use anyhow::{Context, Result, bail};
 use std::future::Future;
 use std::net::SocketAddr;

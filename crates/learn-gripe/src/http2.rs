@@ -7,7 +7,7 @@
 //! `POST`), so both share [`crate::h2stream`]; only the request line differs.
 //!
 //! `h2` is always run over TLS (the handshake negotiates ALPN `h2`); that
-//! requirement is enforced in [`crate::vless`] at config-build time. Security
+//! requirement is enforced in [`crate::protocols::vless`] at config-build time. Security
 //! lives below in [`crate::transport`], so this module never deals with
 //! certificates and always speaks the `https` scheme.
 

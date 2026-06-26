@@ -125,7 +125,7 @@ pub(crate) fn build_layers(
         // not a security/transport layer); every other flow — and any flow on a
         // protocol that does not support Vision — is rejected so traffic is never
         // silently mis-framed.
-        if !(allow_vision_flow && flow == crate::vision::VISION_FLOW) {
+        if !(allow_vision_flow && flow == crate::protocols::vision::VISION_FLOW) {
             bail!("{proto}: flow {flow:?} not implemented yet");
         }
     }
