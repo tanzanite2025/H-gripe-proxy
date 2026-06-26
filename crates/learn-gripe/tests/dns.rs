@@ -37,7 +37,7 @@ async fn ask(server: SocketAddr, query: &[u8]) -> Message {
 
 #[tokio::test]
 async fn fake_ip_mode_synthesizes_and_reverses() {
-    let (mode, pool) = DnsMode::fake_ip(FakeIpConfig::default());
+    let (mode, pool, _stats) = DnsMode::fake_ip(FakeIpConfig::default());
     let handle = DnsServer::start(DnsConfig {
         listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
         mode,

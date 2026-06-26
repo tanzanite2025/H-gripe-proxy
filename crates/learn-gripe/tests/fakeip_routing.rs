@@ -159,7 +159,7 @@ async fn fake_ip_drives_domain_routing() {
     let upstream_b = spawn_tagged_upstream(b"B:").await;
 
     // Fake-IP DNS and the kernel share one pool.
-    let (mode, pool) = DnsMode::fake_ip(FakeIpConfig::default());
+    let (mode, pool, _stats) = DnsMode::fake_ip(FakeIpConfig::default());
     let dns = DnsServer::start(DnsConfig {
         listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
         mode,

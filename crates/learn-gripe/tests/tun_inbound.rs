@@ -392,7 +392,7 @@ async fn tun_answers_dns_query_from_fake_ip_pool() {
     use hickory_proto::op::{Message, MessageType, OpCode, Query};
     use hickory_proto::rr::{Name, RData, RecordType};
 
-    let (mode, _pool) = DnsMode::fake_ip(FakeIpConfig::default());
+    let (mode, _pool, _stats) = DnsMode::fake_ip(FakeIpConfig::default());
 
     let (to_kernel_tx, to_kernel_rx) = mpsc::channel::<Vec<u8>>(16);
     let (from_kernel_tx, mut from_kernel_rx) = mpsc::channel::<Vec<u8>>(16);

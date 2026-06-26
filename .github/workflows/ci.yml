@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "devin/**"
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kernel:
+    name: learn-gripe kernel (fmt + clippy + test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Cache cargo build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: kernel
+
+      - name: Check formatting
+        run: cargo fmt -p learn-gripe -- --check
+
+      - name: Clippy lint
+        run: cargo clippy --all-targets -p learn-gripe
+
+      # Pure-logic kernel: 218 unit tests + cross-platform integration tests
+      # (socks5 / http / udp / tun / dns / per-protocol outbound). This locks
+      # down all 12 Router matchers (#412-#423) against silent regressions.
+      - name: Run tests
+        run: cargo test -p learn-gripe
+
+  app:
+    name: clash-verge-optimized app (fmt + clippy + compile)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Cache cargo build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: app
+
+      - name: Check formatting
+        run: cargo fmt -p clash-verge-optimized -- --check
+
+      # The `clippy` feature skips tauri_build / frontend dist so the app crate
+      # builds without `pnpm prebuild`. The test binary cannot be *run* in CI
+      # (it needs platform GUI/WinRT bindings at runtime), but compiling it
+      # catches breaking changes to the app-side router/parser bridge.
+      - name: Clippy lint (app lib)
+        run: cargo clippy -p clash-verge-optimized --lib --features clippy
+
+      - name: Compile app library tests
+        run: cargo test -p clash-verge-optimized --lib --no-run --features clippy
