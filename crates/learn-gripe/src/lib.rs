@@ -12,6 +12,7 @@
 mod address;
 mod config;
 mod conntrack;
+mod delay;
 mod dns;
 mod grpc;
 mod h2stream;
@@ -38,6 +39,7 @@ mod xhttp;
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
 pub use conntrack::{ConnMeta, ConnNetwork, ConnRegistry, ConnSnapshot, ConnTableSnapshot, TrackedConn};
+pub use delay::measure_delay;
 pub use dns::{DnsConfig, DnsHandle, DnsMode, DnsServer, FakeIpConfig, FakeIpPool, answer_query, unmap_fake_ip};
 pub use grpc::GrpcTransportConfig;
 pub use http2::H2TransportConfig;

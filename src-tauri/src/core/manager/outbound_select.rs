@@ -72,6 +72,60 @@ pub fn routed_outbound(
     }
 }
 
+/// Resolve a single policy name (a `proxies:` node, a selector proxy-group
+/// followed to its selected node, or a built-in `DIRECT`/`REJECT`) to the
+/// concrete [`OutboundMode`] a delay probe should dial.
+///
+/// This is the delay-measurement counterpart of [`selected_outbound`]: the
+/// control plane hands it the name the UI wants tested (matching the Mihomo
+/// `/proxies/{name}/delay` semantics, where a group name tests its selected
+/// node), and gets back the outbound to time.
+pub fn outbound_for_proxy(config: &Mapping, selected: &HashMap<String, String>, name: &str) -> Result<OutboundMode> {
+    let groups = group_index(config);
+    let proxies = proxy_index(config);
+    let node = resolve_node_name(name, &groups, selected)?;
+    outbound_for_node(&node, &proxies)
+}
+
+/// Resolve every member of a selector proxy-group to `(member_name, outbound)`
+/// pairs the control plane can probe to fill a group delay test (the in-process
+/// replacement for the Mihomo `/group/{name}/delay` call).
+///
+/// Each listed member is keyed by the name the UI references and resolved to a
+/// concrete node (sub-selectors are followed to their selected node). Members
+/// that resolve to `REJECT`, to an unselectable sub-group (`url-test`,
+/// `load-balance`, …), or to a protocol without a data plane are dropped — they
+/// have no measurable delay — rather than failing the whole group. Errors only
+/// when the group is missing or empty.
+pub fn group_member_outbounds(
+    config: &Mapping,
+    selected: &HashMap<String, String>,
+    group_name: &str,
+) -> Result<Vec<(String, OutboundMode)>> {
+    let groups = group_index(config);
+    let proxies = proxy_index(config);
+    let group = groups
+        .get(group_name)
+        .ok_or_else(|| anyhow!("proxy-group {group_name:?} not found"))?;
+    let members = group_members(group);
+    if members.is_empty() {
+        bail!("proxy-group {group_name:?} has no members");
+    }
+
+    let outbounds = members
+        .into_iter()
+        .filter_map(|member| {
+            let node = resolve_node_name(&member, &groups, selected).ok()?;
+            if node == REJECT {
+                return None;
+            }
+            let mode = outbound_for_node(&node, &proxies).ok()?;
+            Some((member, mode))
+        })
+        .collect();
+    Ok(outbounds)
+}
+
 /// Build a rule [`Router`] from the runtime config, or `None` when routing does
 /// not apply — non-`rule` mode, no `rules:` section, or no rule resolves to a
 /// usable outbound — so the caller falls back to the single global egress.
@@ -718,5 +772,61 @@ rules:
             OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn outbound_for_proxy_resolves_a_node_a_group_and_builtins() {
+        let config = cfg(TROJAN_CFG);
+        let selected = sel(&[("PROXY", "node-b")]);
+
+        // A concrete node name maps straight to its outbound.
+        match outbound_for_proxy(&config, &selected, "node-a").unwrap() {
+            OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
+            other => panic!("expected node-a trojan, got {other:?}"),
+        }
+        // A group name follows the persisted selection to the chosen node.
+        match outbound_for_proxy(&config, &selected, "PROXY").unwrap() {
+            OutboundMode::Trojan(c) => assert_eq!(c.server, "b.example"),
+            other => panic!("expected selected node-b trojan, got {other:?}"),
+        }
+        // Built-in policies resolve without a proxies entry.
+        assert_eq!(
+            outbound_for_proxy(&config, &HashMap::new(), "DIRECT").unwrap(),
+            OutboundMode::Direct
+        );
+        assert_eq!(
+            outbound_for_proxy(&config, &HashMap::new(), "REJECT").unwrap(),
+            OutboundMode::Reject
+        );
+        // An unknown node name errors so the caller can report it.
+        assert!(outbound_for_proxy(&config, &HashMap::new(), "ghost").is_err());
+    }
+
+    #[test]
+    fn group_member_outbounds_expands_members_and_drops_unmeasurable() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+  - { name: node-b, type: ss, server: b.example, port: 8388, cipher: aes-256-gcm, password: pb }
+  - { name: hy, type: hysteria2, server: h.example, port: 443, password: pw }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, node-b, hy, DIRECT, REJECT] }
+"#;
+        let members = group_member_outbounds(&cfg(yaml), &HashMap::new(), "PROXY").unwrap();
+        let by_name: HashMap<_, _> = members.into_iter().collect();
+
+        // Supported nodes and DIRECT are measurable; hysteria2 (no data plane)
+        // and REJECT (never connects) are dropped.
+        assert!(matches!(by_name.get("node-a"), Some(OutboundMode::Trojan(_))));
+        assert!(matches!(by_name.get("node-b"), Some(OutboundMode::Shadowsocks(_))));
+        assert_eq!(by_name.get("DIRECT"), Some(&OutboundMode::Direct));
+        assert!(!by_name.contains_key("hy"));
+        assert!(!by_name.contains_key("REJECT"));
+    }
+
+    #[test]
+    fn group_member_outbounds_errors_for_missing_group() {
+        assert!(group_member_outbounds(&cfg(TROJAN_CFG), &HashMap::new(), "NOPE").is_err());
     }
 }

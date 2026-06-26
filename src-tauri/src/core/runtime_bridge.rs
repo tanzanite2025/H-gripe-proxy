@@ -32,17 +32,20 @@ pub async fn measure_runtime_proxy_delay(
     timeout: u32,
     group_name: Option<&str>,
 ) -> Result<ProxyDelay> {
-    let result = Handle::mihomo()
-        .await
-        .delay_proxy_by_name(proxy_name, test_url, timeout)
+    // Measured in-process by dialing the node's own outbound and timing the
+    // probe, replacing the Mihomo controller `/proxies/{name}/delay` call.
+    let result = CoreManager::global()
+        .measure_runtime_proxy_delay(proxy_name, test_url, timeout)
         .await;
     let detail = Some(format!("proxy={proxy_name};url={test_url};timeout={timeout}"));
     record_runtime_bridge_result("measure-runtime-proxy-delay", result.as_ref().map(|_| ()), detail);
-    let result = result?;
+    // A failed probe (timeout / refused) is the UI's `delay == 0` timeout
+    // sentinel, not a hard error — the same shape the former Mihomo call had.
+    let delay = result.unwrap_or(0);
     if let Some(group_name) = group_name.filter(|value| !value.is_empty()) {
-        runtime_snapshot::record_and_persist_runtime_proxy_delay(group_name, proxy_name, result.delay, test_url);
+        runtime_snapshot::record_and_persist_runtime_proxy_delay(group_name, proxy_name, delay, test_url);
     }
-    Ok(result)
+    Ok(ProxyDelay { delay })
 }
 
 pub async fn measure_runtime_group_delay(
@@ -50,7 +53,11 @@ pub async fn measure_runtime_group_delay(
     test_url: &str,
     timeout: u32,
 ) -> Result<HashMap<String, u32>> {
-    let result = Handle::mihomo().await.delay_group(group_name, test_url, timeout).await;
+    // Measured in-process by probing every member outbound concurrently,
+    // replacing the Mihomo controller `/group/{name}/delay` call.
+    let result = CoreManager::global()
+        .measure_runtime_group_delay(group_name, test_url, timeout)
+        .await;
     record_runtime_bridge_result(
         "measure-runtime-group-delay",
         result.as_ref().map(|_| ()),
