@@ -42,8 +42,8 @@ pub use config::{GripeConfig, OutboundMode};
 pub use conntrack::{ConnMeta, ConnNetwork, ConnRegistry, ConnSnapshot, ConnTableSnapshot, TrackedConn};
 pub use delay::measure_delay;
 pub use dns::{
-    DnsConfig, DnsHandle, DnsMode, DnsServer, DnsStats, DnsStatsSnapshot, FakeIpConfig, FakeIpPool, answer_query,
-    unmap_fake_ip,
+    DnsConfig, DnsHandle, DnsMode, DnsRecentQuery, DnsServer, DnsStats, DnsStatsSnapshot, FakeIpConfig, FakeIpPool,
+    answer_query, unmap_fake_ip,
 };
 pub use grpc::GrpcTransportConfig;
 pub use http2::H2TransportConfig;
