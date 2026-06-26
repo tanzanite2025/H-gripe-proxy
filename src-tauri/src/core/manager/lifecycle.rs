@@ -164,6 +164,17 @@ impl CoreManager {
         learn_gripe::reset_obfuscation_stats();
     }
 
+    /// Record an operator-requested TLS fingerprint rotation and return the
+    /// active fingerprint label. learn-gripe re-rolls `random` / `randomized`
+    /// fingerprints per dial and pins concrete ones to per-proxy config, so a
+    /// forced rotation has no on-the-wire effect; it is counted for telemetry
+    /// parity with the former Mihomo controller `/engine/obfuscation/tls/rotate`
+    /// call. The counter is process-global, so this succeeds whether or not the
+    /// kernel is running.
+    pub async fn force_runtime_tls_rotation(&self) -> String {
+        learn_gripe::force_obfuscation_tls_rotation()
+    }
+
     /// Measure the delay (RTT) of dialing `test_url` through the outbound for
     /// `proxy_name` — a `proxies:` node, or a proxy-group followed to its
     /// selected node — capped at `timeout` milliseconds. Returns the delay in

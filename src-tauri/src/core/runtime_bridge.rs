@@ -177,9 +177,18 @@ pub async fn upgrade_runtime_geo() -> Result<()> {
 }
 
 pub async fn force_runtime_tls_rotation() -> Result<TLSRotationResult> {
-    let result = Handle::mihomo().await.force_tls_rotation().await;
-    record_runtime_bridge_result("force-runtime-tls-rotation", result.as_ref().map(|_| ()), None);
-    Ok(result?)
+    // Recorded in-process by the kernel's obfuscation counters; learn-gripe
+    // re-rolls random fingerprints per dial and pins concrete ones to per-proxy
+    // config, so this has no on-the-wire effect and only marks a rotation event
+    // for telemetry parity. Replaces the Mihomo controller
+    // `/engine/obfuscation/tls/rotate` call.
+    let new_fingerprint = CoreManager::global().force_runtime_tls_rotation().await;
+    record_runtime_bridge_result::<anyhow::Error>(
+        "force-runtime-tls-rotation",
+        Ok(()),
+        Some(format!("fingerprint={new_fingerprint}")),
+    );
+    Ok(TLSRotationResult { new_fingerprint })
 }
 
 pub async fn connect_runtime_connections_stream<F>(on_message: F) -> Result<ConnectionId>
