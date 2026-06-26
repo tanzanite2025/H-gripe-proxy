@@ -139,6 +139,81 @@ impl CoreManager {
         }
     }
 
+    /// Measure the delay (RTT) of dialing `test_url` through the outbound for
+    /// `proxy_name` — a `proxies:` node, or a proxy-group followed to its
+    /// selected node — capped at `timeout` milliseconds. Returns the delay in
+    /// milliseconds. Replaces the Mihomo controller `/proxies/{name}/delay`
+    /// call: the probe dials the node's own outbound in-process and times the
+    /// handshake plus a minimal HTTP request, so the figure includes the
+    /// proxy's protocol/TLS setup exactly as a real connection pays it.
+    ///
+    /// Errors when no runtime config exists, the name has no usable outbound,
+    /// or the probe fails (timeout / refused). The caller maps a failed probe
+    /// to the UI's `delay == 0` timeout sentinel.
+    pub async fn measure_runtime_proxy_delay(&self, proxy_name: &str, test_url: &str, timeout: u32) -> Result<u32> {
+        let mode = Self::outbound_for_named(proxy_name).await?;
+        learn_gripe::measure_delay(&mode, test_url, Duration::from_millis(u64::from(timeout)))
+            .await
+            .map_err(|err| anyhow!("delay probe for {proxy_name:?} failed: {err:#}"))
+    }
+
+    /// Measure the delay of every measurable member of `group_name`, probing
+    /// them concurrently, and return `{ member_name -> delay_ms }`. Replaces
+    /// the Mihomo controller `/group/{name}/delay` call. A member whose probe
+    /// times out or fails is reported as `0` (the UI timeout sentinel) rather
+    /// than dropped, so the UI still shows every node. Errors only when no
+    /// runtime config exists or the group is missing/empty.
+    pub async fn measure_runtime_group_delay(
+        &self,
+        group_name: &str,
+        test_url: &str,
+        timeout: u32,
+    ) -> Result<HashMap<String, u32>> {
+        let members = Self::group_member_outbounds_for(group_name).await?;
+        let timeout = Duration::from_millis(u64::from(timeout));
+
+        let mut probes = tokio::task::JoinSet::new();
+        for (name, mode) in members {
+            let test_url = test_url.to_string();
+            probes.spawn(async move {
+                let delay = learn_gripe::measure_delay(&mode, &test_url, timeout).await.unwrap_or(0);
+                (name, delay)
+            });
+        }
+
+        let mut delays = HashMap::new();
+        while let Some(joined) = probes.join_next().await {
+            if let Ok((name, delay)) = joined {
+                delays.insert(name, delay);
+            }
+        }
+        Ok(delays)
+    }
+
+    /// Resolve one policy name to the outbound a delay probe should dial, using
+    /// the current runtime config plus persisted selection.
+    async fn outbound_for_named(name: &str) -> Result<OutboundMode> {
+        let runtime = Config::runtime().await.latest_arc();
+        let config = runtime
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow!("no runtime config available for delay test"))?;
+        let selection = Self::current_group_selection().await;
+        outbound_select::outbound_for_proxy(config, &selection, name)
+    }
+
+    /// Resolve every measurable member of a proxy-group to `(name, outbound)`
+    /// pairs, using the current runtime config plus persisted selection.
+    async fn group_member_outbounds_for(group_name: &str) -> Result<Vec<(String, OutboundMode)>> {
+        let runtime = Config::runtime().await.latest_arc();
+        let config = runtime
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow!("no runtime config available for delay test"))?;
+        let selection = Self::current_group_selection().await;
+        outbound_select::group_member_outbounds(config, &selection, group_name)
+    }
+
     pub async fn restart_core(&self) -> Result<()> {
         logging!(info, Type::Core, "Restarting core");
         self.stop_core().await?;
