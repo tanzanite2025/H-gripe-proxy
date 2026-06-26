@@ -64,9 +64,9 @@ const TUN_NAME: &str = "clash-verge";
 
 /// IPv6 gateway assigned to the TUN for the global IPv6 capture. `fd00::/8` is
 /// the IANA unique-local range — the v6 analogue of the v4 benchmarking address.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const TUN_ADDRESS_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 0, 0, 0, 0, 0, 0, 1);
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const TUN_V6_PREFIX_LEN: u8 = 64;
 
 /// A reversible system mutation: a human-readable description plus the closure

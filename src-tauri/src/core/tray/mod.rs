@@ -66,18 +66,6 @@ impl TrayState {
     }
 
     fn default_icon(kind: IconKind) -> (bool, Vec<u8>) {
-        #[cfg(target_os = "macos")]
-        {
-            return (
-                false,
-                match kind {
-                    IconKind::Common => include_bytes!("../../../icons/tray-icon-mono.ico").to_vec(),
-                    IconKind::SysProxy => include_bytes!("../../../icons/tray-icon-sys-mono-new.ico").to_vec(),
-                    IconKind::Tun => include_bytes!("../../../icons/tray-icon-tun-mono-new.ico").to_vec(),
-                },
-            );
-        }
-
         (
             false,
             match kind {

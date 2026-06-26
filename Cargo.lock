@@ -1181,6 +1181,7 @@ dependencies = [
  "hickory-proto",
  "hickory-resolver",
  "learn-gripe",
+ "libc",
  "log",
  "maxminddb",
  "nanoid",
