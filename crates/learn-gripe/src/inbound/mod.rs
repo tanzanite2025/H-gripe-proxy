@@ -1,7 +1,10 @@
+pub mod http;
+pub mod socks5;
+
 use crate::config::GripeConfig;
 use crate::conntrack::{ConnMeta, ConnNetwork, ConnRegistry, ConnTableSnapshot, relay_tracked};
 use crate::dns::{FakeIpPool, unmap_fake_ip};
-use crate::{http, outbound, socks5, udp};
+use crate::{outbound, udp};
 use anyhow::{Context, Result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};

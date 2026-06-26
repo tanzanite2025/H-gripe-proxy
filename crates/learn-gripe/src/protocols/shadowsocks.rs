@@ -38,9 +38,9 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpStream, UdpSocket, lookup_host};
 
 use crate::address::TargetAddr;
+use crate::inbound::socks5;
 use crate::outbound::BoxedStream;
 use crate::proxy::ProxyEntry;
-use crate::socks5;
 
 /// HKDF `info` string that derives the per-session subkey from the master key.
 const SS_SUBKEY_INFO: &[u8] = b"ss-subkey";

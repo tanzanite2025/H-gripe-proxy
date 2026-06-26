@@ -7,7 +7,7 @@ use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
 use crate::protocols::vmess::VmessOutboundConfig;
 use crate::proxy::{ProxyEntry, ProxyType};
-use crate::router::Router;
+use crate::routing::Router;
 
 /// Runtime configuration for the learn-gripe kernel MVP.
 #[derive(Debug, Clone)]
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn routed_unions_endpoints_but_is_not_capturable() {
-        use crate::router::Router;
+        use crate::routing::Router;
         use std::collections::HashMap;
 
         let trojan = mode("name: t\ntype: trojan\nserver: t.example\nport: 443\npassword: secret\n");

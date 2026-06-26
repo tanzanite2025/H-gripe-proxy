@@ -1,11 +1,11 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
+use crate::inbound::socks5;
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
 use crate::protocols::vmess::{self, VmessOutboundConfig};
-use crate::socks5;
 use anyhow::{Context, Result, bail};
 use std::future::Future;
 use std::net::SocketAddr;
@@ -135,7 +135,7 @@ async fn dial_direct(target: &TargetAddr) -> Result<TcpStream> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::router::{Router, Rule, RuleMatcher};
+    use crate::routing::{Router, Rule, RuleMatcher};
     use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -157,7 +157,7 @@ mod tests {
         let mut outbounds = HashMap::new();
         outbounds.insert("blocked".to_string(), OutboundMode::Reject);
         let rules = vec![Rule {
-            matcher: RuleMatcher::IpCidr(crate::router::IpCidr::parse("10.0.0.0/8").unwrap()),
+            matcher: RuleMatcher::IpCidr(crate::routing::IpCidr::parse("10.0.0.0/8").unwrap()),
             outbound: "blocked".to_string(),
         }];
         let router = Router::new(outbounds, rules, "DIRECT").unwrap();
