@@ -2,11 +2,12 @@ use super::outbound_select;
 use super::tun_inbound::TunInbound;
 use super::{CoreManager, RunningMode};
 use crate::config::Config;
+use crate::core::geo_update;
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
 use crate::core::rule_geodata::RuleGeoData;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use learn_gripe::{GeoLookup, GripeConfig, GripeKernel, OutboundMode};
 use scopeguard::defer;
@@ -246,6 +247,24 @@ impl CoreManager {
         tokio::time::sleep(Duration::from_millis(350)).await;
 
         self.start_core().await
+    }
+
+    /// Update the local GeoIP/GeoSite/ASN databases in process.
+    ///
+    /// Downloads the upstream files (honouring any custom `geox-url` source),
+    /// validates them, and atomically replaces the local copies. When the
+    /// kernel is running it is restarted so the router reloads the refreshed
+    /// geo data through [`GeoLookup`] — the same boundary config changes use.
+    pub async fn update_geo(&self) -> Result<()> {
+        let updated = geo_update::update_geo_files().await?;
+        logging!(info, Type::Core, "Updated geo databases: {}", updated.join(", "));
+
+        if matches!(self.get_running_mode().as_ref(), RunningMode::Gripe) {
+            self.restart_core()
+                .await
+                .context("failed to reload kernel after geo update")?;
+        }
+        Ok(())
     }
 
     /// TCP port the kernel's mixed inbound binds on. This is the same port the

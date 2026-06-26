@@ -146,7 +146,7 @@ pub async fn close_all_runtime_connections(reason: &str) -> Result<()> {
 }
 
 pub async fn update_runtime_geo() -> Result<()> {
-    let result = Handle::mihomo().await.update_geo().await;
+    let result = CoreManager::global().update_geo().await;
     record_runtime_bridge_result("update-runtime-geo", result.as_ref().map(|_| ()), None);
     result?;
     Ok(())
@@ -168,7 +168,9 @@ pub async fn upgrade_runtime_ui() -> Result<()> {
 }
 
 pub async fn upgrade_runtime_geo() -> Result<()> {
-    let result = Handle::mihomo().await.upgrade_geo().await;
+    // `upgrade_geo` is semantically identical to `update_geo` (download +
+    // reload the local geo databases); the in-process path serves both.
+    let result = CoreManager::global().update_geo().await;
     record_runtime_bridge_result("upgrade-runtime-geo", result.as_ref().map(|_| ()), None);
     result?;
     Ok(())

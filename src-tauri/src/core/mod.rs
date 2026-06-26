@@ -15,6 +15,7 @@ pub mod dns_config_explain;
 pub mod dns_runtime;
 pub mod egress_identity;
 pub mod egress_monitor;
+pub mod geo_update;
 pub mod handle;
 pub mod hotkey;
 pub mod identity_consistency;
