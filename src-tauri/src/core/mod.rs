@@ -23,6 +23,7 @@ pub mod ip_reputation;
 pub mod kernel_runtime;
 pub mod latency_test;
 pub mod log_monitor;
+pub mod log_stream;
 pub mod logger;
 pub mod manager;
 pub mod mihomo_runtime_guard;

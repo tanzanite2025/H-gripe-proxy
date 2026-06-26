@@ -16,9 +16,10 @@ use crate::core::{CoreManager, handle::Handle, runtime_snapshot};
 /// Mihomo `/connections` WebSocket tick.
 const CONNECTION_STREAM_TICK: Duration = Duration::from_secs(1);
 
-/// Active in-process connection streams, keyed by the id handed back to the
-/// consumer so [`disconnect_runtime_stream`] can stop the right one.
-static CONNECTION_STREAMS: Lazy<Mutex<HashMap<ConnectionId, tokio::task::JoinHandle<()>>>> =
+/// Active in-process push streams (live connections and core logs), keyed by
+/// the id handed back to the consumer so [`disconnect_runtime_stream`] can stop
+/// the right one.
+static STREAMS: Lazy<Mutex<HashMap<ConnectionId, tokio::task::JoinHandle<()>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static NEXT_STREAM_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -208,7 +209,7 @@ where
         }
     });
 
-    CONNECTION_STREAMS.lock().unwrap().insert(connection_id, task);
+    STREAMS.lock().unwrap().insert(connection_id, task);
     record_runtime_bridge_result::<anyhow::Error>(
         "connect-connections-stream",
         Ok(()),
@@ -232,42 +233,52 @@ pub async fn connect_runtime_log_stream<F>(level: LogLevel, on_message: F) -> Re
 where
     F: Fn(Value) + Send + 'static,
 {
-    let result = Handle::mihomo().await.ws_logs(level, on_message).await;
-    record_runtime_bridge_result(
+    // Core logs are produced in-process by the kernel via the `log` facade and
+    // captured by the app's logger; there is no external controller WebSocket.
+    // Subscribe to the in-process core-log broadcast and forward records that
+    // pass the requested level threshold as Mihomo-compatible JSON.
+    let mut receiver = crate::core::log_stream::subscribe();
+    let connection_id = NEXT_STREAM_ID.fetch_add(1, Ordering::Relaxed);
+
+    let task = tokio::spawn(async move {
+        loop {
+            match receiver.recv().await {
+                Ok(record) => {
+                    if crate::core::log_stream::level_passes(level, record.level) {
+                        on_message(crate::core::log_stream::to_frontend_value(&record));
+                    }
+                }
+                // A lagging consumer drops the oldest records; keep streaming.
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                // The broadcast sender is a process-lifetime static, so this is
+                // only reached if the channel is ever torn down; end the stream.
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+
+    STREAMS.lock().unwrap().insert(connection_id, task);
+    record_runtime_bridge_result::<anyhow::Error>(
         "connect-log-stream",
-        result.as_ref().map(|_| ()),
-        Some(format!("level={level}")),
+        Ok(()),
+        Some(format!("level={level};connection_id={connection_id}")),
     );
-    let connection_id = result?;
     Ok(connection_id)
 }
 
 pub async fn disconnect_runtime_stream(connection_id: ConnectionId, _close_code: Option<u64>) {
-    // The connections stream is in-process now; "disconnect" stops its push task.
-    // The log stream is still served over Mihomo IPC, so fall back to that when
-    // the id is not one of ours.
-    let task = CONNECTION_STREAMS.lock().unwrap().remove(&connection_id);
-    match task {
-        Some(task) => {
-            task.abort();
-            record_runtime_bridge_result::<anyhow::Error>(
-                "disconnect-runtime-stream",
-                Ok(()),
-                Some(format!("connection_id={connection_id}")),
-            );
-        }
-        None => {
-            let result = Handle::mihomo().await.disconnect(connection_id, _close_code).await;
-            record_runtime_bridge_result(
-                "disconnect-runtime-stream",
-                result.as_ref().map(|_| ()),
-                Some(format!("connection_id={connection_id}")),
-            );
-            if let Err(error) = result {
-                log::debug!("failed to disconnect runtime stream {connection_id}: {error}");
-            }
-        }
+    // Both the live-connections stream and the core-log stream are served
+    // in-process now; "disconnect" stops the matching push task. An unknown id
+    // (e.g. an already-finished stream) is a no-op.
+    let task = STREAMS.lock().unwrap().remove(&connection_id);
+    if let Some(task) = task {
+        task.abort();
     }
+    record_runtime_bridge_result::<anyhow::Error>(
+        "disconnect-runtime-stream",
+        Ok(()),
+        Some(format!("connection_id={connection_id}")),
+    );
 }
 
 pub async fn read_runtime_obfuscation_stats() -> Result<Value> {
