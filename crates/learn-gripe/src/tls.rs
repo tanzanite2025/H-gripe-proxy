@@ -46,12 +46,19 @@ pub struct TlsClientConfig {
 /// suites the ring provider implements; the full suite *set* is preserved so
 /// interop is never reduced, only the order changes to match the browser.
 ///
-/// NOTE: this shapes the cipher-suite order (and, for `random`/`randomized`,
-/// chooses/shuffles it at connect time). The vendored `rustls` fork does not
-/// expose hooks for the remaining JA3 surface — TLS extension ordering, GREASE
-/// values, padding — so byte-perfect per-browser mimicry remains follow-up
-/// work. The supported-groups order already matches every modern browser
-/// (`x25519`, `secp256r1`, `secp384r1`) so it is left at the provider default.
+/// The fingerprint also shapes the ClientHello's **TLS extension ordering** —
+/// the other JA3 list field — via the vendored fork's per-connection
+/// `extension_order_seed` (see [`ClientFingerprint::extension_order_seed`]).
+/// Non-randomizing browsers (Firefox, Safari/iOS) pin a stable seed so their
+/// extension order stays fixed connection-to-connection, matching real
+/// behaviour; Chromium-family fingerprints leave the seed unset so rustls keeps
+/// reshuffling the order on every ClientHello, which is exactly what modern
+/// Chrome/Edge do.
+///
+/// NOTE: GREASE values and record/extension padding are still not shaped, so
+/// byte-perfect per-browser mimicry remains follow-up work. The supported-groups
+/// order already matches every modern browser (`x25519`, `secp256r1`,
+/// `secp384r1`) so it is left at the provider default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientFingerprint {
     Chrome,
@@ -153,7 +160,40 @@ impl ClientFingerprint {
         provider.cipher_suites = self.cipher_suites(provider.secure_random);
         provider
     }
+
+    /// The fixed ClientHello extension-ordering seed this fingerprint pins, or
+    /// `None` to let the vendored rustls fork keep drawing a fresh random seed
+    /// per ClientHello (so the extension order reshuffles connection-to-
+    /// connection).
+    ///
+    /// This maps to how real browsers behave: Firefox and Safari/iOS emit a
+    /// stable extension order, so they pin a fixed (per-family) seed; modern
+    /// Chromium browsers (Chrome/Edge/QQ/Android WebView) deliberately shuffle
+    /// their extension order on every ClientHello, so they — like the explicit
+    /// `random`/`randomized` fingerprints — keep the randomized default. The
+    /// concrete seed values are arbitrary but stable: they only need to be
+    /// fixed and distinct per family so each browser presents a consistent,
+    /// recognisable extension order rather than a per-connection random one.
+    pub fn extension_order_seed(self) -> Option<u16> {
+        match self {
+            // Chromium-family browsers randomize extension order per ClientHello.
+            Self::Chrome | Self::Edge | Self::Qq | Self::Android => None,
+            Self::Firefox => Some(FIREFOX_EXTENSION_ORDER_SEED),
+            Self::Safari | Self::Ios => Some(SAFARI_EXTENSION_ORDER_SEED),
+            // Explicitly rotating fingerprints keep rustls's per-dial randomization.
+            Self::Random | Self::Randomized => None,
+        }
+    }
 }
+
+/// Stable ClientHello extension-ordering seed for the Firefox fingerprint.
+/// Arbitrary but fixed so Firefox presents a consistent extension order.
+const FIREFOX_EXTENSION_ORDER_SEED: u16 = 0xF1F0;
+
+/// Stable ClientHello extension-ordering seed for the Safari / iOS fingerprint.
+/// Arbitrary but fixed, and distinct from Firefox's, so Safari presents its own
+/// consistent extension order.
+const SAFARI_EXTENSION_ORDER_SEED: u16 = 0x5AF1;
 
 /// Chrome / Chromium (also Edge, QQ, Android WebView) cipher-suite order,
 /// restricted to the suites the ring provider implements. Real Chrome leads
@@ -282,6 +322,9 @@ where
     };
 
     client_config.alpn_protocols = config.alpn.iter().map(|p| p.as_bytes().to_vec()).collect();
+    client_config.extension_order_seed = config
+        .client_fingerprint
+        .and_then(ClientFingerprint::extension_order_seed);
 
     let sni = config
         .server_name
@@ -342,6 +385,9 @@ where
     };
 
     client_config.alpn_protocols = config.alpn.iter().map(|p| p.as_bytes().to_vec()).collect();
+    client_config.extension_order_seed = config
+        .client_fingerprint
+        .and_then(ClientFingerprint::extension_order_seed);
 
     let sni = config.server_name.as_str();
     if sni.is_empty() {
@@ -527,5 +573,50 @@ mod tests {
         // so the provider order is actually reshaped.
         assert_ne!(ids(&chrome.cipher_suites), default_ids);
         assert_eq!(ids(&chrome.cipher_suites), ids(CHROME_CIPHER_ORDER));
+    }
+
+    #[test]
+    fn stable_browsers_pin_a_deterministic_extension_seed() {
+        // Firefox and Safari/iOS emit a stable extension order, so they pin a
+        // fixed seed; the value must be deterministic across calls.
+        for fp in [
+            ClientFingerprint::Firefox,
+            ClientFingerprint::Safari,
+            ClientFingerprint::Ios,
+        ] {
+            let seed = fp.extension_order_seed();
+            assert!(seed.is_some(), "{fp:?} should pin a seed");
+            assert_eq!(seed, fp.extension_order_seed(), "{fp:?} seed not deterministic");
+        }
+        // iOS reuses the desktop Safari extension order.
+        assert_eq!(
+            ClientFingerprint::Ios.extension_order_seed(),
+            ClientFingerprint::Safari.extension_order_seed(),
+        );
+    }
+
+    #[test]
+    fn distinct_stable_families_have_distinct_extension_seeds() {
+        assert_ne!(
+            ClientFingerprint::Firefox.extension_order_seed(),
+            ClientFingerprint::Safari.extension_order_seed(),
+        );
+    }
+
+    #[test]
+    fn randomizing_fingerprints_leave_the_extension_seed_unset() {
+        // Chromium-family browsers reshuffle extension order per ClientHello, as
+        // do the explicit random/randomized fingerprints — all keep rustls's
+        // per-connection randomized seed (None).
+        for fp in [
+            ClientFingerprint::Chrome,
+            ClientFingerprint::Edge,
+            ClientFingerprint::Qq,
+            ClientFingerprint::Android,
+            ClientFingerprint::Random,
+            ClientFingerprint::Randomized,
+        ] {
+            assert_eq!(fp.extension_order_seed(), None, "{fp:?} should not pin a seed");
+        }
     }
 }

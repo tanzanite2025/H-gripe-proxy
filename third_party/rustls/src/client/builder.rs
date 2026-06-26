@@ -222,6 +222,7 @@ impl ConfigBuilder<ClientConfig, WantsClientCert> {
             cert_decompressors: compress::default_cert_decompressors().to_vec(),
             ech_mode: self.state.client_ech_mode,
             reality_config: self.state.reality_config,
+            extension_order_seed: None,
         }
     }
 }
