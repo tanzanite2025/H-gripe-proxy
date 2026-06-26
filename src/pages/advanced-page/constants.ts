@@ -11,7 +11,6 @@ export const ADVANCED_TAB_IDS = {
   blackholeBreaker: 'blackhole-breaker',
   timezoneSpoof: 'timezone-spoof',
   multipath: 'multipath',
-  xdp: 'xdp',
   performance: 'performance',
 } as const
 
@@ -21,7 +20,6 @@ export type AdvancedTabId =
 export interface AdvancedTabDefinition {
   id: AdvancedTabId
   label: string
-  linuxOnly?: boolean
 }
 
 export const ADVANCED_TABS: AdvancedTabDefinition[] = [
@@ -37,6 +35,5 @@ export const ADVANCED_TABS: AdvancedTabDefinition[] = [
   { id: ADVANCED_TAB_IDS.blackholeBreaker, label: '黑洞熔断' },
   { id: ADVANCED_TAB_IDS.timezoneSpoof, label: '时区伪装' },
   { id: ADVANCED_TAB_IDS.multipath, label: '多路径路由' },
-  { id: ADVANCED_TAB_IDS.xdp, label: 'XDP 代理', linuxOnly: true },
   { id: ADVANCED_TAB_IDS.performance, label: '性能监控' },
 ]

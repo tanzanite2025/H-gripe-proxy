@@ -43,8 +43,6 @@ mod subscription;
 mod tls_fingerprint;
 mod traffic;
 pub mod utils;
-#[cfg(target_os = "linux")]
-mod xdp;
 
 use crate::constants::files;
 use crate::{
@@ -198,7 +196,6 @@ mod app_init {
             cmd::get_runtime_perf_stats,
             cmd::get_runtime_buffer_pool_stats,
             cmd::get_runtime_hot_reload_status,
-            cmd::get_runtime_xdp_status,
             cmd::get_runtime_rule_traffic,
             cmd::runtime::kernel::get_runtime_kernel_replacement_readiness,
             cmd::runtime::kernel::get_runtime_kernel_apply_preflight,
@@ -647,22 +644,6 @@ mod app_init {
             cmd::security_policy_revoke_all,
             cmd::security_policy_get_states,
             cmd::security_policy_get_state,
-        ]
-    }
-
-    #[cfg(target_os = "linux")]
-    pub fn generate_xdp_handlers() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
-        tauri::generate_handler![
-            cmd::xdp_get_config,
-            cmd::xdp_update_config,
-            cmd::xdp_get_status,
-            cmd::xdp_start,
-            cmd::xdp_stop,
-            cmd::xdp_add_route,
-            cmd::xdp_remove_route,
-            cmd::xdp_update_stats,
-            cmd::xdp_check_support,
-            cmd::xdp_get_interfaces,
         ]
     }
 }

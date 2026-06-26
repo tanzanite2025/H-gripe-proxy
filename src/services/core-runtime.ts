@@ -11,7 +11,6 @@ import type {
   RuleTrafficSnapshot,
   TLSFingerprintStats,
   TLSRotationResult,
-  XDPStatus,
 } from 'clash-dtos'
 
 export async function getRuntimeVersion() {
@@ -56,10 +55,6 @@ export async function getRuntimeBufferPoolStats() {
 
 export async function getRuntimeHotReloadStatus() {
   return invoke<HotReloadStatus>('get_runtime_hot_reload_status')
-}
-
-export async function getRuntimeXdpStatus() {
-  return invoke<XDPStatus>('get_runtime_xdp_status')
 }
 
 export async function getRuntimeRuleTraffic() {

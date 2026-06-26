@@ -24,8 +24,6 @@ use crate::multipath::MultipathConfig;
 use crate::security::ingress_countermeasure::IngressCountermeasureConfig;
 use crate::security::local_stealth::LocalStealthConfig;
 use crate::traffic::{TrafficObfuscationConfig, TrafficPaddingConfig};
-#[cfg(target_os = "linux")]
-use crate::xdp::XdpConfig;
 
 /// 高级功能配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,11 +89,6 @@ pub struct AdvancedConfig {
     /// 入站反制配置
     #[serde(default)]
     pub ingress_countermeasure: IngressCountermeasureConfig,
-
-    /// XDP 代理配置（仅 Linux）
-    #[cfg(target_os = "linux")]
-    #[serde(default)]
-    pub xdp: XdpConfig,
 }
 
 impl Default for AdvancedConfig {
@@ -117,8 +110,6 @@ impl Default for AdvancedConfig {
             timezone_spoof: TimezoneSpoofConfig::default(),
             local_stealth: LocalStealthConfig::default(),
             ingress_countermeasure: IngressCountermeasureConfig::default(),
-            #[cfg(target_os = "linux")]
-            xdp: XdpConfig::default(),
         }
     }
 }
@@ -723,14 +714,6 @@ impl AdvancedConfig {
             .validate()
             .map_err(|e| anyhow::anyhow!("流量混淆配置错误: {}", e))?;
 
-        // 验证 XDP 配置（Linux）
-        #[cfg(target_os = "linux")]
-        if self.xdp.enabled {
-            if self.xdp.interface.is_empty() {
-                return Err(anyhow::anyhow!("XDP 接口不能为空"));
-            }
-        }
-
         Ok(())
     }
 
@@ -781,11 +764,6 @@ impl AdvancedConfig {
             self.residential_pool = other.residential_pool.clone();
         }
 
-        // 合并 XDP 配置（Linux）
-        #[cfg(target_os = "linux")]
-        if other.xdp.enabled {
-            self.xdp = other.xdp.clone();
-        }
     }
 }
 
@@ -872,13 +850,6 @@ impl AdvancedConfig {
             timezone_spoof: TimezoneSpoofConfig::default(),
             local_stealth: LocalStealthConfig::default(),
             ingress_countermeasure: IngressCountermeasureConfig::recommended(),
-            #[cfg(target_os = "linux")]
-            xdp: XdpConfig {
-                enabled: false,
-                interface: "eth0".to_string(),
-                mode: crate::xdp::XdpMode::Skb,
-                queue_size: 4096,
-            },
         }
     }
 
