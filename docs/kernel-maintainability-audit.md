@@ -1,5 +1,7 @@
 # learn-gripe 内核可维护性审计
 
+> **状态：本审计建议的拆分已全部完成（2026-06）。** 下文「现状画像」记录的是重构*之前*的平铺结构，保留作为本轮重构的动机与依据记录。落地 PR：#431/#432（目录化）、#433（routing 拆分）、#434（conntrack + proxy）、#435（UDP egress 收敛）、#436（tun.rs 拆分）。当前 `crates/learn-gripe/src` 已按 `protocols/ transport/ inbound/ routing/ dns/ tun/ conntrack/ config/` 分层。
+>
 > 目的：理清 `crates/learn-gripe` 各文件职责、识别混合关注点与拆分点，给出建议的模块分层。
 > 范围：**只做分析与建议，不改任何代码**。理清后再对应前后端。
 
