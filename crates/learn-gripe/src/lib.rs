@@ -16,13 +16,16 @@ mod dns;
 mod inbound;
 mod outbound;
 mod protocols;
-mod proxy;
 mod routing;
 mod transport;
 mod tun;
 mod udp;
 
 pub use address::TargetAddr;
+pub use config::outbound_opts::{
+    AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
+    ProxyType, RealityOpts, WsOpts, XHttpOpts,
+};
 pub use config::{GripeConfig, OutboundMode};
 pub use conntrack::{ConnMeta, ConnNetwork, ConnRegistry, ConnSnapshot, ConnTableSnapshot, TrackedConn};
 pub use dns::{
@@ -34,10 +37,6 @@ pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::trojan::TrojanOutboundConfig;
 pub use protocols::vless::VlessOutboundConfig;
 pub use protocols::vmess::{VmessCipher, VmessOutboundConfig};
-pub use proxy::{
-    AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
-    ProxyType, RealityOpts, WsOpts, XHttpOpts,
-};
 pub use routing::delay::measure_delay;
 pub use routing::{
     DIRECT, GeoLookup, IpCidr, LogicalOp, PortRange, ProcessInfo, ProcessLookup, REJECT, Router, Rule, RuleMatcher,

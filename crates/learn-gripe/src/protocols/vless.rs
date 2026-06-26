@@ -32,9 +32,9 @@ use anyhow::{Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
+use crate::config::outbound_opts::{ProxyEntry, parse_uuid};
 use crate::outbound::BoxedStream;
 use crate::protocols::vision::VISION_FLOW;
-use crate::proxy::{ProxyEntry, parse_uuid};
 use crate::transport::{self, Security, Transport};
 
 const VERSION: u8 = 0x00;

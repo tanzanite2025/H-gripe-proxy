@@ -31,9 +31,9 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 use crate::address::TargetAddr;
+use crate::config::outbound_opts::ProxyEntry;
 use crate::inbound::socks5;
 use crate::outbound::BoxedStream;
-use crate::proxy::ProxyEntry;
 use crate::transport::{self, Security, Transport};
 
 const CMD_CONNECT: u8 = 0x01;
@@ -194,7 +194,7 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr};
 
     use super::*;
-    use crate::proxy::ProxyEntry;
+    use crate::config::outbound_opts::ProxyEntry;
     use crate::transport::tls::ClientFingerprint;
 
     fn parse_entry(yaml: &str) -> ProxyEntry {
