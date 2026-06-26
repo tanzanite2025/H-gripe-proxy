@@ -83,6 +83,31 @@ impl ClientFingerprint {
         Ok(fp)
     }
 
+    /// The clash/mihomo label for this fingerprint — the inverse of
+    /// [`ClientFingerprint::parse`]. Used to report the active fingerprint in
+    /// the obfuscation stats.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Chrome => "chrome",
+            Self::Firefox => "firefox",
+            Self::Safari => "safari",
+            Self::Ios => "ios",
+            Self::Android => "android",
+            Self::Edge => "edge",
+            Self::Qq => "qq",
+            Self::Random => "random",
+            Self::Randomized => "randomized",
+        }
+    }
+
+    /// Whether this fingerprint re-selects or shuffles its ClientHello cipher
+    /// order on every dial (`random` picks one real browser order per
+    /// connection, `randomized` shuffles the full suite set), i.e. the TLS
+    /// fingerprint rotates connection-to-connection instead of staying fixed.
+    pub fn rotates_per_dial(self) -> bool {
+        matches!(self, Self::Random | Self::Randomized)
+    }
+
     /// The fixed cipher-suite order this fingerprint presents in its
     /// ClientHello, or `None` for the randomizing fingerprints (`random` /
     /// `randomized`), whose order is decided at connect time.
@@ -267,10 +292,14 @@ where
         ServerName::try_from(sni.to_owned()).with_context(|| format!("invalid TLS server name {sni:?}"))?;
 
     let connector = TlsConnector::from(Arc::new(client_config));
-    connector
+    let tls = connector
         .connect(server_name, stream)
         .await
-        .with_context(|| format!("TLS handshake with {sni}"))
+        .with_context(|| format!("TLS handshake with {sni}"))?;
+    if let Some(fp) = config.client_fingerprint {
+        crate::obfuscation::record_shaped_handshake(fp);
+    }
+    Ok(tls)
 }
 
 /// Perform a REALITY TLS client handshake over an already-connected stream.
@@ -322,10 +351,14 @@ where
         ServerName::try_from(sni.to_owned()).with_context(|| format!("invalid REALITY server name {sni:?}"))?;
 
     let connector = TlsConnector::from(Arc::new(client_config));
-    connector
+    let tls = connector
         .connect(server_name, stream)
         .await
-        .with_context(|| format!("REALITY handshake (masquerade SNI {sni}, dial {dial_host})"))
+        .with_context(|| format!("REALITY handshake (masquerade SNI {sni}, dial {dial_host})"))?;
+    if let Some(fp) = config.client_fingerprint {
+        crate::obfuscation::record_shaped_handshake(fp);
+    }
+    Ok(tls)
 }
 
 /// A certificate verifier that accepts any server certificate. Used only when

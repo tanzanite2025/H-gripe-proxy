@@ -214,23 +214,23 @@ impl ObfuscationScheduler {
         log::info!("Obfuscation scheduler stopped");
     }
 
-    /// 获取统计信息（从 Go 内核 API 获取真实数据）
+    /// 获取统计信息（从 learn-gripe 内核的进程内计数器获取真实数据）
     pub async fn get_stats(&self) -> ObfuscationStats {
-        match Self::fetch_stats_from_mihomo().await {
+        match Self::fetch_stats_from_kernel().await {
             Ok(stats) => stats,
             Err(e) => {
-                log::warn!("Failed to fetch obfuscation stats from Go kernel: {}", e);
+                log::warn!("Failed to fetch obfuscation stats from kernel: {}", e);
                 ObfuscationStats::default()
             }
         }
     }
 
-    /// 重置统计信息（调用 Go 内核 API）
+    /// 重置统计信息（重置内核进程内计数器）
     pub async fn reset_stats(&self) {
-        if let Err(e) = Self::reset_stats_via_mihomo().await {
-            log::warn!("Failed to reset obfuscation stats via Go kernel: {}", e);
+        if let Err(e) = Self::reset_stats_via_kernel().await {
+            log::warn!("Failed to reset obfuscation stats via kernel: {}", e);
         } else {
-            log::info!("Obfuscation stats reset (via Go kernel)");
+            log::info!("Obfuscation stats reset (via kernel)");
         }
     }
 
@@ -254,7 +254,7 @@ impl ObfuscationScheduler {
     }
 
     /// 从运行时桥接层获取真实混淆统计
-    async fn fetch_stats_from_mihomo() -> Result<ObfuscationStats> {
+    async fn fetch_stats_from_kernel() -> Result<ObfuscationStats> {
         let raw = crate::core::runtime_bridge::read_runtime_obfuscation_stats().await?;
         let obf = &raw["obfuscation"];
         let tls = &raw["tls"];
@@ -270,7 +270,7 @@ impl ObfuscationScheduler {
     }
 
     /// 通过运行时桥接层重置统计
-    async fn reset_stats_via_mihomo() -> Result<()> {
+    async fn reset_stats_via_kernel() -> Result<()> {
         crate::core::runtime_bridge::reset_runtime_obfuscation_stats().await
     }
 }

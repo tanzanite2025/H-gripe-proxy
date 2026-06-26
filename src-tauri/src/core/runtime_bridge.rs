@@ -288,15 +288,35 @@ pub async fn disconnect_runtime_stream(connection_id: ConnectionId, _close_code:
     );
 }
 
+/// Read the kernel's in-process client-obfuscation stats (TLS ClientHello
+/// fingerprint shaping), shaped like the former Mihomo
+/// `/engine/obfuscation/stats` payload so the consumer parses it unchanged.
+/// Reports empty stats when the kernel is not running. The kernel does no
+/// payload padding and never re-keys a live session, so the byte/active/padding
+/// counters that the external Go kernel exposed are reported as zero.
 pub async fn read_runtime_obfuscation_stats() -> Result<Value> {
-    let stats = Handle::mihomo().await.get_obfuscation_stats().await?;
-    Ok(stats)
+    let stats = CoreManager::global()
+        .runtime_obfuscation_stats()
+        .await
+        .unwrap_or_default();
+    Ok(serde_json::json!({
+        "obfuscation": {
+            "totalObfuscatedConns": stats.total_obfuscated_conns,
+            "activeConns": 0,
+            "totalWriteBytes": 0,
+            "totalWriteCount": 0,
+            "totalPaddingBytes": 0,
+            "tlsRotationCount": stats.tls_rotation_count,
+        },
+        "tls": {
+            "currentFingerprint": stats.current_tls_fingerprint,
+        },
+    }))
 }
 
 pub async fn reset_runtime_obfuscation_stats() -> Result<()> {
-    let result = Handle::mihomo().await.reset_obfuscation_stats().await;
-    record_runtime_bridge_result("reset-obfuscation-stats", result.as_ref().map(|_| ()), None);
-    result?;
+    CoreManager::global().reset_runtime_obfuscation_stats().await;
+    record_runtime_bridge_result::<anyhow::Error>("reset-obfuscation-stats", Ok(()), None);
     Ok(())
 }
 

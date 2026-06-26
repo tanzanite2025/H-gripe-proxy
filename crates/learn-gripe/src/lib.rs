@@ -19,6 +19,7 @@ mod h2stream;
 mod http;
 mod http2;
 mod httpupgrade;
+mod obfuscation;
 mod outbound;
 mod proxy;
 mod router;
@@ -44,6 +45,7 @@ pub use dns::{DnsConfig, DnsHandle, DnsMode, DnsServer, FakeIpConfig, FakeIpPool
 pub use grpc::GrpcTransportConfig;
 pub use http2::H2TransportConfig;
 pub use httpupgrade::HttpUpgradeTransportConfig;
+pub use obfuscation::{ObfuscationSnapshot, reset as reset_obfuscation_stats, snapshot as snapshot_obfuscation_stats};
 pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
     ProxyType, RealityOpts, WsOpts, XHttpOpts,

@@ -49,6 +49,10 @@ impl CoreManager {
         *self.gripe.lock().await = Some(handle);
         self.set_running_mode(RunningMode::Gripe);
 
+        // Obfuscation counters are process-global; clear them so the stats
+        // track only the current kernel run.
+        learn_gripe::reset_obfuscation_stats();
+
         self.start_tun_if_enabled().await;
         Ok(())
     }
@@ -137,6 +141,26 @@ impl CoreManager {
             Some(handle) => handle.close_all_connections(),
             None => 0,
         }
+    }
+
+    /// Snapshot the kernel's in-process client-obfuscation counters — outbound
+    /// TLS ClientHello fingerprint shaping (the kernel's only client-side
+    /// obfuscation). Returns `None` when the kernel is not running, so the
+    /// bridge reports empty stats. Replaces the Mihomo controller
+    /// `/engine/obfuscation/stats` query against the external Go kernel.
+    pub async fn runtime_obfuscation_stats(&self) -> Option<learn_gripe::ObfuscationSnapshot> {
+        self.gripe
+            .lock()
+            .await
+            .as_ref()
+            .map(|_| learn_gripe::snapshot_obfuscation_stats())
+    }
+
+    /// Reset the in-process obfuscation counters. The counters are
+    /// process-global, so this succeeds whether or not the kernel is running.
+    /// Replaces the Mihomo controller `reset_obfuscation_stats` call.
+    pub async fn reset_runtime_obfuscation_stats(&self) {
+        learn_gripe::reset_obfuscation_stats();
     }
 
     /// Measure the delay (RTT) of dialing `test_url` through the outbound for
