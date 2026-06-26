@@ -24,7 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
-use learn_gripe::{GeoLookup, IpCidr, LogicalOp, OutboundMode, Router, Rule, RuleMatcher, RuleSetLookup};
+use learn_gripe::{GeoLookup, IpCidr, LogicalOp, OutboundMode, PortRange, Router, Rule, RuleMatcher, RuleSetLookup};
 use serde_yaml_ng::{Mapping, Value};
 
 /// Built-in policy names that are not real `proxies:` entries.
@@ -196,8 +196,10 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `DST-PORT`, `PROCESS-NAME`, `NETWORK`, …) or a
-/// malformed payload, so the caller drops the rule.
+/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `SRC-PORT`, `PROCESS-NAME`, `NETWORK`, …) or a
+/// malformed payload, so the caller drops the rule. `DST-PORT` accepts a single
+/// port (`443`) or an inclusive range (`8000-9000`); `SRC-PORT` stays
+/// unsupported since the matcher only sees the destination target.
 ///
 /// Logical rules `AND` / `OR` / `NOT` are supported: their parenthesized
 /// sub-rules are parsed recursively (so they nest), e.g.
@@ -283,6 +285,7 @@ fn parse_matcher<'a>(
             name: payload.to_string(),
             provider: Arc::clone(rule_sets?),
         },
+        "DST-PORT" => RuleMatcher::DstPort(PortRange::parse(payload).ok()?),
         _ => return None,
     };
     Some((matcher, tail))
@@ -1206,6 +1209,60 @@ rules:
         };
         assert_eq!(router.select(&domain("www.example.com")), &OutboundMode::Direct);
         assert_eq!(router.select(&ip("1.2.3.4:80")), &OutboundMode::Direct);
+    }
+
+    #[test]
+    fn dst_port_rules_route_single_and_range() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - DST-PORT,80,DIRECT
+  - DST-PORT,8000-9000,REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // Single port 80 -> DIRECT.
+        assert_eq!(router.select(&ip("8.8.8.8:80")), &OutboundMode::Direct);
+        // Inclusive range 8000-9000 -> REJECT (both bounds and inside).
+        assert_eq!(router.select(&ip("8.8.8.8:8000")), &OutboundMode::Reject);
+        assert_eq!(router.select(&ip("8.8.8.8:9000")), &OutboundMode::Reject);
+        assert_eq!(
+            router.select(&TargetAddr::Domain("h.example".to_string(), 8443)),
+            &OutboundMode::Reject
+        );
+        // A port outside every rule -> MATCH catch-all (PROXY -> node-a).
+        assert!(matches!(router.select(&ip("8.8.8.8:443")), OutboundMode::Trojan(_)));
+    }
+
+    #[test]
+    fn malformed_or_src_port_rules_are_dropped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-PORT,80,DIRECT
+  - DST-PORT,99999,DIRECT
+  - DST-PORT,abc,DIRECT
+  - MATCH,PROXY
+"#;
+        // SRC-PORT is unsupported and the two DST-PORT payloads are malformed
+        // (out of u16 range / non-numeric), so all three are dropped and every
+        // connection falls through to MATCH.
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert!(matches!(router.select(&ip("8.8.8.8:80")), OutboundMode::Trojan(_)));
     }
 
     #[test]
