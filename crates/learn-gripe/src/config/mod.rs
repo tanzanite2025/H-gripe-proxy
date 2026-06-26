@@ -2,12 +2,14 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use anyhow::{Context, Result, bail};
 
+use crate::config::outbound_opts::{ProxyEntry, ProxyType};
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
 use crate::protocols::vmess::VmessOutboundConfig;
-use crate::proxy::{ProxyEntry, ProxyType};
 use crate::routing::Router;
+
+pub mod outbound_opts;
 
 /// Runtime configuration for the learn-gripe kernel MVP.
 #[derive(Debug, Clone)]

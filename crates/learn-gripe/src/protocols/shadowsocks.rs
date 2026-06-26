@@ -38,9 +38,9 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpStream, UdpSocket, lookup_host};
 
 use crate::address::TargetAddr;
+use crate::config::outbound_opts::ProxyEntry;
 use crate::inbound::socks5;
 use crate::outbound::BoxedStream;
-use crate::proxy::ProxyEntry;
 
 /// HKDF `info` string that derives the per-session subkey from the master key.
 const SS_SUBKEY_INFO: &[u8] = b"ss-subkey";
@@ -596,7 +596,7 @@ impl AsyncWrite for ShadowsocksStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proxy::ProxyEntry;
+    use crate::config::outbound_opts::ProxyEntry;
 
     fn parse_entry(yaml: &str) -> ProxyEntry {
         serde_yaml_ng::from_str(yaml).expect("parse proxy entry")

@@ -36,8 +36,8 @@ pub mod xhttp;
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpStream;
 
+use crate::config::outbound_opts::{Network, ProxyOptions, RealityOpts};
 use crate::outbound::BoxedStream;
-use crate::proxy::{Network, ProxyOptions, RealityOpts};
 use crate::transport::grpc::GrpcTransportConfig;
 use crate::transport::http2::H2TransportConfig;
 use crate::transport::httpupgrade::HttpUpgradeTransportConfig;
