@@ -10,10 +10,10 @@ use std::{
 
 use crate::utils::dirs;
 
-const GEOIP_MMDB_CANDIDATES: &[&str] = &["Country.mmdb", "geoip.metadb", "geoip.db", "GeoLite2-City.mmdb"];
-const GEOIP_DAT_CANDIDATES: &[&str] = &["GeoIP.dat"];
-const GEOSITE_DAT_CANDIDATES: &[&str] = &["GeoSite.dat"];
-const ASN_MMDB_CANDIDATES: &[&str] = &["ASN.mmdb", "GeoLite2-ASN.mmdb"];
+pub(crate) const GEOIP_MMDB_CANDIDATES: &[&str] = &["Country.mmdb", "geoip.metadb", "geoip.db", "GeoLite2-City.mmdb"];
+pub(crate) const GEOIP_DAT_CANDIDATES: &[&str] = &["GeoIP.dat"];
+pub(crate) const GEOSITE_DAT_CANDIDATES: &[&str] = &["GeoSite.dat"];
+pub(crate) const ASN_MMDB_CANDIDATES: &[&str] = &["ASN.mmdb", "GeoLite2-ASN.mmdb"];
 
 #[derive(Clone, Default)]
 pub struct RuleGeoData {
@@ -363,7 +363,7 @@ fn decode_meta_geoip0(reader: &maxminddb::Reader<Vec<u8>>, ip: IpAddr) -> Result
     Ok(codes)
 }
 
-fn resolve_first_existing(candidates: &[&str]) -> Option<PathBuf> {
+pub(crate) fn resolve_first_existing(candidates: &[&str]) -> Option<PathBuf> {
     candidates.iter().find_map(|candidate| {
         standard_data_dirs()
             .into_iter()
@@ -372,7 +372,7 @@ fn resolve_first_existing(candidates: &[&str]) -> Option<PathBuf> {
     })
 }
 
-fn standard_data_dirs() -> Vec<PathBuf> {
+pub(crate) fn standard_data_dirs() -> Vec<PathBuf> {
     let mut dirs_to_check = Vec::new();
     if let Ok(app_home) = dirs::app_home_dir() {
         dirs_to_check.push(app_home);

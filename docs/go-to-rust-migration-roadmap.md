@@ -48,7 +48,7 @@ boots the Rust kernel; there is no Mihomo startup path left.
 | --- | --- |
 | learn-gripe kernel | MVP live. **Mixed inbound** on one port: SOCKS5 (no-auth CONNECT + UDP ASSOCIATE) and HTTP proxy (`CONNECT` tunnel + plain absolute-form requests) selected by peeking the first byte, relaying through the configured outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. End-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs` and `crates/learn-gripe/tests/http_inbound.rs`. |
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
-| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, and it is **not dead code**: besides the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files), it still provides the live **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`) that ~18 `core/runtime_bridge.rs` Tauri commands call (proxy delay test, close/disconnect connection, `ws_connections`/`ws_logs` streams, provider update/healthcheck, `update_geo`, `upgrade_core`/`ui`/`geo`, `force_tls_rotation`, obfuscation stats). Those calls connect to a controller that is no longer running, so they are runtime-dead but compile-live and still wired to the frontend. Dropping the crate is blocked until `learn-gripe` exposes an in-process controller API (or those commands are removed); see Phase 5. |
+| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, and it is **not dead code**: besides the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files), it still provides the live **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`) that the remaining `core/runtime_bridge.rs` Tauri commands call. Several former IPC commands now run in-process (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, and `update_geo`/`upgrade_geo`); what still routes through the IPC client is provider update/healthcheck, `upgrade_core`/`upgrade_ui`, `force_tls_rotation`, and the controller-transport probe. Those calls connect to a controller that is no longer running, so they are runtime-dead but compile-live and still wired to the frontend. Dropping the crate is blocked until `learn-gripe` exposes an in-process controller API (or those commands are removed); see Phase 5. |
 
 `start_core()` now selects the outbound from the user's chosen node:
 `OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
@@ -407,15 +407,27 @@ Only after the supported default paths above run on `learn-gripe`:
 - **Done — verified.** `git ls-files` shows no Mihomo binary outside the
   `crates/tauri-plugin-mihomo/` source crate, and the build/CI scripts pull only
   the `clash-verge-service` sidecar and local geodata.
+- **Done — in-process geo update (`update_geo` / `upgrade_geo`).** `core/geo_update.rs`
+  downloads the GeoIP, GeoSite, and ASN databases (honoring the profile's
+  `geox-url` overrides, falling back to the MetaCubeX `meta-rules-dat` releases)
+  through the app's `NetworkManager` (proxy-aware), validates each download by
+  format (`maxminddb` opens MMDBs; `.dat` files are checked for the V2Ray
+  protobuf shape), then atomically replaces the local files in the app data dir.
+  `CoreManager::update_geo()` wraps it and restarts the kernel when running so
+  the router reloads through `GeoLookup` (the same boundary config changes use).
+  `runtime_bridge.rs` `update_runtime_geo`/`upgrade_runtime_geo` now call the
+  in-process path instead of the Mihomo IPC client. Unit tests cover URL
+  resolution, format validation, and the temp-target/atomic-replace path.
 - **Remaining — the `tauri-plugin-mihomo` crate dependency.** Removing it means
   replacing two things, not deleting dead code:
   1. the compatibility DTOs (`models::*`) with Rust-native DTOs across the ~24
      `src-tauri` consumers, **and**
   2. the live Mihomo **controller-API IPC client** (`Mihomo` / `MihomoExt`) that
-     ~18 `core/runtime_bridge.rs` commands still depend on (delay test,
-     connection close/disconnect, `ws_connections`/`ws_logs`, provider
-     update/healthcheck, `update_geo`, `upgrade_core`/`ui`/`geo`,
-     `force_tls_rotation`, obfuscation stats).
+     the remaining `core/runtime_bridge.rs` commands still depend on (provider
+     update/healthcheck, `upgrade_core`/`upgrade_ui`, `force_tls_rotation`, and
+     the controller-transport probe). Delay test, connection close/disconnect,
+     `ws_connections`/`ws_logs`, obfuscation stats, and `update_geo`/`upgrade_geo`
+     have already moved in-process.
 - **Blocker.** `learn-gripe` does not yet expose an in-process controller API for
   those operations, so the crate cannot be dropped without either implementing
   that API in the kernel or removing the dependent commands (and their frontend
