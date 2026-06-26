@@ -48,7 +48,7 @@ boots the Rust kernel; there is no Mihomo startup path left.
 | --- | --- |
 | learn-gripe kernel | MVP live. **Mixed inbound** on one port: SOCKS5 (no-auth CONNECT + UDP ASSOCIATE) and HTTP proxy (`CONNECT` tunnel + plain absolute-form requests) selected by peeking the first byte, relaying through the configured outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. End-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs` and `crates/learn-gripe/tests/http_inbound.rs`. |
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
-| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, and it is **not dead code**: besides the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files), it still provides the live **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`) that the remaining `core/runtime_bridge.rs` Tauri commands call. Several former IPC commands now run in-process (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, and `update_geo`/`upgrade_geo`); what still routes through the IPC client is provider update/healthcheck, `upgrade_core`/`upgrade_ui`, `force_tls_rotation`, and the controller-transport probe. Those calls connect to a controller that is no longer running, so they are runtime-dead but compile-live and still wired to the frontend. Dropping the crate is blocked until `learn-gripe` exposes an in-process controller API (or those commands are removed); see Phase 5. |
+| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, and it is **not dead code**: besides the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files), it still provides the live **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`) that the remaining `core/runtime_bridge.rs` Tauri commands call. Several former IPC commands now run in-process (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, TLS fingerprint stats + rotation, and `update_geo`/`upgrade_geo`); what still routes through the IPC client is provider update/healthcheck, `upgrade_core`/`upgrade_ui`, and the controller-transport probe. Those calls connect to a controller that is no longer running, so they are runtime-dead but compile-live and still wired to the frontend. Dropping the crate is blocked until `learn-gripe` exposes an in-process controller API (or those commands are removed); see Phase 5. |
 
 `start_core()` now selects the outbound from the user's chosen node:
 `OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
@@ -418,16 +418,30 @@ Only after the supported default paths above run on `learn-gripe`:
   `runtime_bridge.rs` `update_runtime_geo`/`upgrade_runtime_geo` now call the
   in-process path instead of the Mihomo IPC client. Unit tests cover URL
   resolution, format validation, and the temp-target/atomic-replace path.
+- **Done — in-process TLS fingerprint stats + rotation (`get_tls_fingerprint_stats`
+  / `force_tls_rotation`).** The kernel's `obfuscation` module (which already
+  counts TLS ClientHello fingerprint-shaped handshakes) now also tracks a
+  per-fingerprint usage map and exposes `force_rotation()`. `CoreManager`
+  shapes that snapshot into the Mihomo `TLSFingerprintStats` payload
+  (`tls_fingerprint_stats_from_obfuscation`) so the telemetry consumer parses it
+  unchanged, and `force_runtime_tls_rotation()` records an operator-requested
+  rotation in-process. learn-gripe re-rolls `random`/`randomized` ClientHello
+  cipher order per dial and pins concrete fingerprints to per-proxy
+  `client-fingerprint` config, so a forced rotation has no on-the-wire effect; it
+  is counted for telemetry parity with the former Mihomo controller. Both
+  `runtime_snapshot.rs` (stats read) and `runtime_bridge.rs` (`force_runtime_tls_rotation`)
+  now use the in-process path instead of the Mihomo IPC client. Unit tests cover
+  per-fingerprint usage counting and the forced-rotation counter.
 - **Remaining — the `tauri-plugin-mihomo` crate dependency.** Removing it means
   replacing two things, not deleting dead code:
   1. the compatibility DTOs (`models::*`) with Rust-native DTOs across the ~24
      `src-tauri` consumers, **and**
   2. the live Mihomo **controller-API IPC client** (`Mihomo` / `MihomoExt`) that
      the remaining `core/runtime_bridge.rs` commands still depend on (provider
-     update/healthcheck, `upgrade_core`/`upgrade_ui`, `force_tls_rotation`, and
-     the controller-transport probe). Delay test, connection close/disconnect,
-     `ws_connections`/`ws_logs`, obfuscation stats, and `update_geo`/`upgrade_geo`
-     have already moved in-process.
+     update/healthcheck, `upgrade_core`/`upgrade_ui`, and the
+     controller-transport probe). Delay test, connection close/disconnect,
+     `ws_connections`/`ws_logs`, obfuscation stats, TLS fingerprint stats +
+     rotation, and `update_geo`/`upgrade_geo` have already moved in-process.
 - **Blocker.** `learn-gripe` does not yet expose an in-process controller API for
   those operations, so the crate cannot be dropped without either implementing
   that API in the kernel or removing the dependent commands (and their frontend

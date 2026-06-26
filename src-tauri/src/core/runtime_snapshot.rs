@@ -282,8 +282,11 @@ impl RuntimeSnapshotService {
 
     pub async fn refresh_runtime_tls_fingerprint_stats_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.tls_fingerprint_stats = Some(mihomo.get_tls_fingerprint_stats().await?);
+        let obfuscation = CoreManager::global()
+            .runtime_obfuscation_stats()
+            .await
+            .unwrap_or_default();
+        snapshot.tls_fingerprint_stats = Some(tls_fingerprint_stats_from_obfuscation(obfuscation));
         Ok(snapshot)
     }
 
@@ -320,6 +323,22 @@ impl RuntimeSnapshotService {
             core_running: *CoreManager::global().get_running_mode() != RunningMode::NotRunning,
             ..RuntimeSnapshot::default()
         }
+    }
+}
+
+/// Shape the kernel's in-process client-obfuscation snapshot (TLS ClientHello
+/// fingerprint shaping) into the Mihomo `TLSFingerprintStats` payload so the
+/// telemetry consumer parses it unchanged. Replaces the Mihomo controller
+/// `/engine/obfuscation/tls` query against the external Go kernel.
+pub(crate) fn tls_fingerprint_stats_from_obfuscation(snap: learn_gripe::ObfuscationSnapshot) -> TLSFingerprintStats {
+    TLSFingerprintStats {
+        current_fingerprint: snap.current_tls_fingerprint,
+        rotation_count: snap.tls_rotation_count as i64,
+        usage_snapshot: snap
+            .fingerprint_usage
+            .into_iter()
+            .map(|(label, count)| (label, count as i64))
+            .collect(),
     }
 }
 

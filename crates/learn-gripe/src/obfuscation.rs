@@ -17,8 +17,10 @@
 //! kernel exposed have no in-process equivalent; the bridge reports them as
 //! zero. The `random` / `randomized` fingerprints — which re-select the
 //! ClientHello cipher order on every dial — are counted as fingerprint
-//! rotations.
+//! rotations, and an explicit operator-requested rotation ([`force_rotation`])
+//! is counted alongside them.
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -36,11 +38,15 @@ pub struct ObfuscationSnapshot {
     /// Label of the most recently applied client-fingerprint (e.g. `"chrome"`),
     /// or empty when no shaped handshake has occurred.
     pub current_tls_fingerprint: String,
+    /// Per-fingerprint shaped-handshake counts, keyed by clash/mihomo label
+    /// (e.g. `"chrome"`). Empty until the first shaped handshake.
+    pub fingerprint_usage: HashMap<String, u64>,
 }
 
 static TOTAL: AtomicU64 = AtomicU64::new(0);
 static ROTATIONS: AtomicU64 = AtomicU64::new(0);
 static CURRENT_FP: Mutex<String> = Mutex::new(String::new());
+static USAGE: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
 
 /// Record that an outbound TLS / REALITY handshake shaped its ClientHello to
 /// mimic `fingerprint`. Called from the TLS dial path on a successful
@@ -54,6 +60,12 @@ pub(crate) fn record_shaped_handshake(fingerprint: ClientFingerprint) {
         current.clear();
         current.push_str(fingerprint.label());
     }
+    if let Ok(mut usage) = USAGE.lock() {
+        *usage
+            .get_or_insert_with(HashMap::new)
+            .entry(fingerprint.label().to_string())
+            .or_insert(0) += 1;
+    }
 }
 
 /// Snapshot the current counters.
@@ -62,7 +74,24 @@ pub fn snapshot() -> ObfuscationSnapshot {
         total_obfuscated_conns: TOTAL.load(Ordering::Relaxed),
         tls_rotation_count: ROTATIONS.load(Ordering::Relaxed),
         current_tls_fingerprint: CURRENT_FP.lock().map(|fp| fp.clone()).unwrap_or_default(),
+        fingerprint_usage: USAGE.lock().ok().and_then(|u| u.clone()).unwrap_or_default(),
     }
+}
+
+/// Record an operator-requested TLS fingerprint rotation and report the
+/// fingerprint that is currently active.
+///
+/// learn-gripe re-rolls the `random` / `randomized` ClientHello cipher order on
+/// every dial and pins concrete fingerprints to per-proxy `client-fingerprint`
+/// config, so there is no global live fingerprint to re-key mid-session: a
+/// forced rotation has no on-the-wire effect. It is recorded as a rotation
+/// event (bumping [`ObfuscationSnapshot::tls_rotation_count`]) for telemetry
+/// parity with the former Mihomo controller, and returns the most recently
+/// applied fingerprint label (empty when no shaped handshake has occurred).
+/// Process-wide, so it does not require a running kernel.
+pub fn force_rotation() -> String {
+    ROTATIONS.fetch_add(1, Ordering::Relaxed);
+    CURRENT_FP.lock().map(|fp| fp.clone()).unwrap_or_default()
 }
 
 /// Reset every counter to zero and clear the recorded fingerprint. Process-wide,
@@ -72,6 +101,9 @@ pub fn reset() {
     ROTATIONS.store(0, Ordering::Relaxed);
     if let Ok(mut current) = CURRENT_FP.lock() {
         current.clear();
+    }
+    if let Ok(mut usage) = USAGE.lock() {
+        *usage = None;
     }
 }
 
@@ -95,10 +127,26 @@ mod tests {
 
         record_shaped_handshake(ClientFingerprint::Chrome);
         record_shaped_handshake(ClientFingerprint::Firefox);
+        record_shaped_handshake(ClientFingerprint::Chrome);
         let snap = snapshot();
-        assert_eq!(snap.total_obfuscated_conns, 2);
+        assert_eq!(snap.total_obfuscated_conns, 3);
         assert_eq!(snap.tls_rotation_count, 0, "fixed fingerprints do not rotate");
-        assert_eq!(snap.current_tls_fingerprint, "firefox", "tracks the most recent");
+        assert_eq!(snap.current_tls_fingerprint, "chrome", "tracks the most recent");
+        assert_eq!(snap.fingerprint_usage.get("chrome").copied(), Some(2));
+        assert_eq!(snap.fingerprint_usage.get("firefox").copied(), Some(1));
+    }
+
+    #[test]
+    fn force_rotation_counts_and_reports_current_fingerprint() {
+        let _guard = serial();
+        reset();
+
+        assert_eq!(force_rotation(), "", "no shaped handshake yet");
+        assert_eq!(snapshot().tls_rotation_count, 1, "forced rotation is counted");
+
+        record_shaped_handshake(ClientFingerprint::Edge);
+        assert_eq!(force_rotation(), "edge", "reports the active fingerprint");
+        assert_eq!(snapshot().tls_rotation_count, 2);
     }
 
     #[test]
