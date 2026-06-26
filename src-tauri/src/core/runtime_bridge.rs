@@ -1,11 +1,26 @@
 use anyhow::{Result, anyhow};
+use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 use tauri_plugin_mihomo::models::{
     ConnectionId, CoreUpdaterChannel, LogLevel, Protocol, ProxyDelay, TLSRotationResult,
 };
 
 use crate::core::{CoreManager, handle::Handle, runtime_snapshot};
+
+/// Cadence at which the in-process live-connections stream re-pushes a snapshot
+/// to refresh live byte counts between structural changes, matching the former
+/// Mihomo `/connections` WebSocket tick.
+const CONNECTION_STREAM_TICK: Duration = Duration::from_secs(1);
+
+/// Active in-process connection streams, keyed by the id handed back to the
+/// consumer so [`disconnect_runtime_stream`] can stop the right one.
+static CONNECTION_STREAMS: Lazy<Mutex<HashMap<ConnectionId, tokio::task::JoinHandle<()>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static NEXT_STREAM_ID: AtomicU32 = AtomicU32::new(1);
 
 pub async fn read_runtime_controller_transport() -> Protocol {
     Handle::mihomo().await.protocol.clone()
@@ -159,12 +174,58 @@ pub async fn force_runtime_tls_rotation() -> Result<TLSRotationResult> {
 
 pub async fn connect_runtime_connections_stream<F>(on_message: F) -> Result<ConnectionId>
 where
-    F: Fn(Value) + Send + 'static,
+    F: Fn(Value) + Send + Sync + 'static,
 {
-    let result = Handle::mihomo().await.ws_connections(on_message).await;
-    record_runtime_bridge_result("connect-connections-stream", result.as_ref().map(|_| ()), None);
-    let connection_id = result?;
+    // The live connection stream is now served in-process from the kernel's
+    // connection table; there is no external controller WebSocket. Require a
+    // running kernel (the connection monitor retries on error), then push a
+    // snapshot on every table change plus on a fixed interval so live byte
+    // counts refresh between structural changes.
+    let mut changes = CoreManager::global()
+        .watch_runtime_connections()
+        .await
+        .ok_or_else(|| anyhow!("kernel not running"))?;
+
+    let connection_id = NEXT_STREAM_ID.fetch_add(1, Ordering::Relaxed);
+
+    let task = tokio::spawn(async move {
+        // Emit an initial snapshot so the consumer doesn't wait a full tick.
+        emit_connection_snapshot(&on_message).await;
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(CONNECTION_STREAM_TICK) => {
+                    emit_connection_snapshot(&on_message).await;
+                }
+                changed = changes.changed() => {
+                    // The watch sender is dropped when the kernel stops; end the
+                    // stream so the consumer reconnects against the next kernel.
+                    if changed.is_err() {
+                        break;
+                    }
+                    emit_connection_snapshot(&on_message).await;
+                }
+            }
+        }
+    });
+
+    CONNECTION_STREAMS.lock().unwrap().insert(connection_id, task);
+    record_runtime_bridge_result::<anyhow::Error>(
+        "connect-connections-stream",
+        Ok(()),
+        Some(format!("connection_id={connection_id}")),
+    );
     Ok(connection_id)
+}
+
+/// Snapshot the kernel's connection table and hand the consumer a
+/// Mihomo-compatible `Connections` JSON value. A stopped kernel yields an empty
+/// table (the same shape the consumer saw with no controller).
+async fn emit_connection_snapshot<F: Fn(Value) + Sync>(on_message: &F) {
+    let table = CoreManager::global().runtime_connections().await.unwrap_or_default();
+    let connections = runtime_snapshot::connections_from_kernel(table);
+    if let Ok(value) = serde_json::to_value(&connections) {
+        on_message(value);
+    }
 }
 
 pub async fn connect_runtime_log_stream<F>(level: LogLevel, on_message: F) -> Result<ConnectionId>
@@ -181,15 +242,31 @@ where
     Ok(connection_id)
 }
 
-pub async fn disconnect_runtime_stream(connection_id: ConnectionId, close_code: Option<u64>) {
-    let result = Handle::mihomo().await.disconnect(connection_id, close_code).await;
-    record_runtime_bridge_result(
-        "disconnect-runtime-stream",
-        result.as_ref().map(|_| ()),
-        Some(format!("connection_id={connection_id}")),
-    );
-    if let Err(error) = result {
-        log::debug!("failed to disconnect runtime stream {connection_id}: {error}");
+pub async fn disconnect_runtime_stream(connection_id: ConnectionId, _close_code: Option<u64>) {
+    // The connections stream is in-process now; "disconnect" stops its push task.
+    // The log stream is still served over Mihomo IPC, so fall back to that when
+    // the id is not one of ours.
+    let task = CONNECTION_STREAMS.lock().unwrap().remove(&connection_id);
+    match task {
+        Some(task) => {
+            task.abort();
+            record_runtime_bridge_result::<anyhow::Error>(
+                "disconnect-runtime-stream",
+                Ok(()),
+                Some(format!("connection_id={connection_id}")),
+            );
+        }
+        None => {
+            let result = Handle::mihomo().await.disconnect(connection_id, _close_code).await;
+            record_runtime_bridge_result(
+                "disconnect-runtime-stream",
+                result.as_ref().map(|_| ()),
+                Some(format!("connection_id={connection_id}")),
+            );
+            if let Err(error) = result {
+                log::debug!("failed to disconnect runtime stream {connection_id}: {error}");
+            }
+        }
     }
 }
 

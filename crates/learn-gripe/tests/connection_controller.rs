@@ -119,6 +119,44 @@ async fn tracks_then_closes_a_live_connection() {
 }
 
 #[tokio::test]
+async fn watch_signals_connect_and_disconnect() {
+    let echo = spawn_echo_server().await;
+
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Direct,
+    })
+    .await
+    .unwrap();
+    let proxy = handle.local_addr();
+
+    // Subscribe before any traffic: no change pending, table empty.
+    let mut watch = handle.watch_connections();
+    assert!(!watch.has_changed().unwrap());
+    assert!(handle.connections().connections.is_empty());
+
+    // A new connection bumps the watch; the fresh snapshot then has the entry.
+    let mut conn = socks5_connect(proxy, echo).await;
+    conn.write_all(b"hello watch").await.unwrap();
+    let mut buf = [0u8; 11];
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"hello watch");
+
+    watch.changed().await.unwrap();
+    assert!(wait_until(|| handle.connections().connections.len() == 1).await);
+    let id = handle.connections().connections[0].id;
+
+    // Closing the connection bumps the watch again; the entry then leaves.
+    assert!(handle.close_connection(id));
+    watch.changed().await.unwrap();
+    assert!(wait_until(|| handle.connections().connections.is_empty()).await);
+
+    // The watch sender lives in the kernel; shutting it down ends the stream.
+    handle.shutdown().await;
+    assert!(watch.changed().await.is_err());
+}
+
+#[tokio::test]
 async fn close_all_tears_down_every_connection() {
     let echo = spawn_echo_server().await;
 

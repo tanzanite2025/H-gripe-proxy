@@ -93,6 +93,16 @@ impl GripeHandle {
         self.registry.close_all()
     }
 
+    /// Subscribe to the connection table's structural-change signal. The watched
+    /// value is a generation counter bumped whenever a connection is registered
+    /// or removed; the app's live-connections stream awaits `changed()` to push
+    /// a fresh snapshot immediately, while still polling on an interval for live
+    /// byte-count updates. This replaces the Mihomo controller `/connections`
+    /// WebSocket subscription.
+    pub fn watch_connections(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.registry.subscribe()
+    }
+
     /// Signal the accept loop to stop and wait for it to wind down.
     pub async fn shutdown(self) {
         self.shutdown.notify_waiters();
