@@ -205,24 +205,46 @@ fn check_debugger_processes_linux() -> bool {
 fn check_debugger_macos() -> bool {
     use std::ptr;
 
+    // P_TRACED = 0x00000800（进程正被 ptrace 跟踪）
+    const P_TRACED: i32 = 0x0000_0800;
+    // `kinfo_proc.kp_proc`（`struct extern_proc`）的 `p_flag` 字段在 64 位
+    // macOS 上的稳定 ABI 偏移：p_un 联合体(16) + p_vmspace 指针(8) +
+    // p_sigacts 指针(8)。libc crate 并未导出 `kinfo_proc` 类型，故直接按
+    // 偏移读取该 i32 标志位。
+    const P_FLAG_OFFSET: usize = 32;
+
     // 使用 sysctl 检查 P_TRACED 标志
     unsafe {
-        let mut info: libc::kinfo_proc = std::mem::zeroed();
-        let mut size = std::mem::size_of::<libc::kinfo_proc>();
         let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, libc::getpid()];
 
-        let result = libc::sysctl(
+        // 先查询所需缓冲区大小（kinfo_proc 的实际长度由内核决定）。
+        let mut size: libc::size_t = 0;
+        let probe = libc::sysctl(
             mib.as_mut_ptr(),
-            4,
-            &mut info as *mut _ as *mut _,
+            mib.len() as libc::c_uint,
+            ptr::null_mut(),
             &mut size,
             ptr::null_mut(),
             0,
         );
 
-        if result == 0 {
-            // P_TRACED = 0x00000800
-            return (info.kp_proc.p_flag & 0x00000800) != 0;
+        if probe == 0 && size > P_FLAG_OFFSET + std::mem::size_of::<i32>() {
+            let mut buf = vec![0u8; size];
+            let result = libc::sysctl(
+                mib.as_mut_ptr(),
+                mib.len() as libc::c_uint,
+                buf.as_mut_ptr() as *mut _,
+                &mut size,
+                ptr::null_mut(),
+                0,
+            );
+
+            if result == 0 {
+                let mut p_flag_bytes = [0u8; 4];
+                p_flag_bytes.copy_from_slice(&buf[P_FLAG_OFFSET..P_FLAG_OFFSET + 4]);
+                let p_flag = i32::from_ne_bytes(p_flag_bytes);
+                return (p_flag & P_TRACED) != 0;
+            }
         }
     }
 
