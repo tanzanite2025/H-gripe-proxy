@@ -531,14 +531,33 @@ Only after the supported default paths above run on `learn-gripe`:
   `runtime_connections()`), returning `None` unless a TUN inbound is live.
   `refresh_runtime_dns_metrics_result()` shapes it via `dns_metrics_from_stats()`:
   the cache section (hit/miss/size/hit-rate) and query section (total/success =
-  total−errors/failed) carry real data, while per-upstream server stats, recent
-  query history, and pollution/trust analysis have no honest in-process source and
+  total−errors/failed) carry real data, while per-upstream server stats and
+  pollution/trust analysis have no honest in-process source and
   stay empty (the panel hides those sections). There is no upstream round-trip to
   time, so latency stays 0. Outside TUN mode the read returns `Err` and the panel
   honestly shows "不可用". Unit tests cover the counter increments
   (`dns_stats_count_queries_hits_and_cache_size`) and the DTO mapping
   (`dns_metrics_map_cache_hits_misses_and_query_totals`). `DnsMetrics` thus moves
   out of the no-honest-source group into real in-process data (TUN mode).
+
+- **Done — DNS recent-query history now reports real in-process data in TUN mode.**
+  The in-stack fake-IP answerer already observes every question it serves, so it
+  now records each one in a bounded ring (`DnsStats.recent`: a `Mutex<VecDeque<
+  DnsRecentQuery>>` capped at `RECENT_QUERY_CAP = 64`, oldest evicted FIFO). Each
+  entry keeps only the wire-level facts the answerer actually saw — domain
+  (root dot stripped), record type (`A`/`AAAA`/other), success (`NotImp` for
+  unsupported types counts as failure), and a `unix_ms` timestamp captured at
+  answer time. `DnsStats::snapshot()` reads the ring newest-first into
+  `DnsStatsSnapshot.recent`; `dns_metrics_from_stats()` maps those to the
+  `DnsQueryEvent` DTO (`server = "fake-ip (in-stack)"`, `protocol = "udp"`,
+  `latency_us = 0`). Routing fields (`proxy_name`/`proxy_chain`/`egress`/`rule`/
+  `rule_payload`) are **unknown at answer time** and stay `None` — the synchronous
+  fake-IP answerer has no routing context or upstream round-trip — so they are not
+  fabricated. Outside TUN mode the read returns `Err` and the panel honestly shows
+  "不可用". Unit tests cover the ring (capture/order/eviction via
+  `dns_stats_count_queries_hits_and_cache_size`) and the DTO mapping
+  (`dns_metrics_map_cache_hits_misses_and_query_totals`). Only per-upstream server
+  stats and pollution/trust analysis remain without an honest in-process source.
 
 ## Definition of done for a roadmap PR
 

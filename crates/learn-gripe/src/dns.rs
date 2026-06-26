@@ -13,11 +13,11 @@
 //! We own the product logic (pool allocation, mapping, mode selection) and
 //! delegate only the DNS wire format to `hickory-proto`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
 use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
@@ -39,6 +39,10 @@ const MAX_DNS_UDP: usize = 4096;
 
 /// How long to wait for an upstream resolver to answer a forwarded query.
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Most-recent in-stack DNS questions retained for the telemetry panel. Bounded
+/// so the ring stays cheap and never grows without limit.
+const RECENT_QUERY_CAP: usize = 64;
 
 /// CIDR the fake-IP pool draws synthetic addresses from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -216,6 +220,10 @@ pub struct DnsStats {
     /// Requests dropped before a response could be produced (parse/serialize
     /// failures).
     errors: AtomicU64,
+    /// Bounded ring of the most recent questions answered, newest pushed to the
+    /// back. Kept behind its own lock (it holds owned strings, so it cannot be a
+    /// plain atomic) and read newest-first by [`DnsStats::snapshot`].
+    recent: Mutex<VecDeque<DnsRecentQuery>>,
 }
 
 impl DnsStats {
@@ -242,6 +250,27 @@ impl DnsStats {
         self.other_queries.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Append a question to the bounded recent-query ring, evicting the oldest
+    /// entry once the cap is reached. The timestamp is captured here so it
+    /// reflects when the question was answered, not when telemetry reads it.
+    fn record_recent(&self, domain: &str, q_type: &str, success: bool) {
+        let unix_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        if let Ok(mut recent) = self.recent.lock() {
+            if recent.len() >= RECENT_QUERY_CAP {
+                recent.pop_front();
+            }
+            recent.push_back(DnsRecentQuery {
+                domain: domain.to_string(),
+                q_type: q_type.to_string(),
+                success,
+                unix_ms,
+            });
+        }
+    }
+
     /// Take a consistent-enough read of the counters. `fake_ip_entries` is the
     /// caller's live pool size (held behind its own lock), folded in so the
     /// snapshot carries the current cache size alongside the cumulative counts.
@@ -254,8 +283,29 @@ impl DnsStats {
             cache_hits: self.cache_hits.load(Ordering::Relaxed),
             errors: self.errors.load(Ordering::Relaxed),
             fake_ip_entries,
+            recent: self
+                .recent
+                .lock()
+                .map(|recent| recent.iter().rev().cloned().collect())
+                .unwrap_or_default(),
         }
     }
+}
+
+/// One answered in-stack DNS question, retained for the telemetry panel's recent
+/// query list. Routing-related fields (proxy/rule) are not known at answer time,
+/// so only the wire-level facts the answerer actually observed are recorded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsRecentQuery {
+    /// Queried domain with the trailing root dot stripped.
+    pub domain: String,
+    /// Record type asked for (`A`, `AAAA`, or another type name).
+    pub q_type: String,
+    /// Whether the answerer produced a successful response (`NotImp` for
+    /// unsupported types counts as a failure).
+    pub success: bool,
+    /// Unix-epoch milliseconds when the question was answered.
+    pub unix_ms: u64,
 }
 
 /// An immutable read of [`DnsStats`] plus the live fake-IP pool size, suitable
@@ -269,6 +319,8 @@ pub struct DnsStatsSnapshot {
     pub cache_hits: u64,
     pub errors: u64,
     pub fake_ip_entries: u64,
+    /// Most-recent answered questions, newest first.
+    pub recent: Vec<DnsRecentQuery>,
 }
 
 /// How a [`DnsServer`] answers queries.
@@ -448,22 +500,27 @@ fn build_fake_ip_response(query: &[u8], pool: &Arc<Mutex<FakeIpPool>>, stats: &D
 
     for query in request.queries() {
         response.add_query(query.clone());
+        let domain = query.name().to_ascii();
+        let domain = domain.trim_end_matches('.');
         match query.query_type() {
             RecordType::A => {
-                let domain = query.name().to_ascii();
-                let domain = domain.trim_end_matches('.');
                 let (ip, cache_hit) = {
                     let mut pool = pool.lock().map_err(|_| anyhow!("fake-ip pool poisoned"))?;
                     let cache_hit = pool.has_domain(domain);
                     (pool.allocate(domain), cache_hit)
                 };
                 stats.record_a(cache_hit);
+                stats.record_recent(domain, "A", true);
                 response.add_answer(Record::from_rdata(query.name().clone(), FAKE_IP_TTL, RData::A(A(ip))));
             }
             // No AAAA answer: clients fall back to the fake A (Clash behaviour).
-            RecordType::AAAA => stats.record_aaaa(),
-            _ => {
+            RecordType::AAAA => {
+                stats.record_aaaa();
+                stats.record_recent(domain, "AAAA", true);
+            }
+            other => {
                 stats.record_other();
+                stats.record_recent(domain, &other.to_string(), false);
                 response.set_response_code(ResponseCode::NotImp);
             }
         }
@@ -591,7 +648,8 @@ mod tests {
         let mut aaaa = Message::new();
         aaaa.set_id(7);
         aaaa.add_query(Query::query(Name::from_str("example.com.").unwrap(), RecordType::AAAA));
-        let parsed = Message::from_vec(&build_fake_ip_response(&aaaa.to_vec().unwrap(), &pool, &stats).unwrap()).unwrap();
+        let parsed =
+            Message::from_vec(&build_fake_ip_response(&aaaa.to_vec().unwrap(), &pool, &stats).unwrap()).unwrap();
         assert_eq!(parsed.response_code(), ResponseCode::NoError);
         assert!(parsed.answers().is_empty());
     }
@@ -635,5 +693,14 @@ mod tests {
         assert_eq!(snap.errors, 1);
         // Two distinct domains were allocated.
         assert_eq!(snap.fake_ip_entries, 2);
+
+        // The recent ring records each answered question, newest first. The
+        // malformed datagram never produced a question, so it is absent.
+        assert_eq!(snap.recent.len(), 4);
+        assert_eq!(snap.recent[0].domain, "example.com");
+        assert_eq!(snap.recent[0].q_type, "AAAA");
+        assert!(snap.recent[0].success);
+        assert_eq!(snap.recent[3].domain, "example.com");
+        assert_eq!(snap.recent[3].q_type, "A");
     }
 }

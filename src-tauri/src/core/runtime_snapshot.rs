@@ -13,11 +13,11 @@ use crate::{
 use anyhow::Result;
 use clash_dtos::{
     BaseConfig, BufferPoolStats, ClashMode, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
-    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryStats, DnsTrustSummary, EgressStatus,
-    EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel, MihomoVersion, Network, PerfStats, ProviderType,
-    Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior, RuleFormat, RuleProvider,
-    RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo, TLSFingerprintStats, TunConfig, TunStack,
-    VehicleType, XDPStatus,
+    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryEvent, DnsQueryStats, DnsTrustSummary,
+    EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel, MihomoVersion, Network, PerfStats,
+    ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior, RuleFormat,
+    RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo, TLSFingerprintStats,
+    TunConfig, TunStack, VehicleType, XDPStatus,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -500,6 +500,30 @@ pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> D
     let failed = stats.errors;
     let success = total.saturating_sub(failed);
 
+    // The answerer records each question it served; surface them as the recent
+    // query list (already newest-first). Routing fields (proxy/rule/egress) are
+    // unknown at answer time and stay `None`; there is no upstream round-trip to
+    // time, so latency is 0. `server` names the in-stack answerer itself.
+    let recent = stats
+        .recent
+        .iter()
+        .map(|q| DnsQueryEvent {
+            domain: q.domain.clone(),
+            q_type: q.q_type.clone(),
+            server: "fake-ip (in-stack)".to_string(),
+            protocol: "udp".to_string(),
+            proxy_name: None,
+            proxy_chain: None,
+            egress: None,
+            rule: None,
+            rule_payload: None,
+            success: q.success,
+            error: None,
+            latency_us: 0,
+            timestamp: unix_ms_to_rfc3339(q.unix_ms),
+        })
+        .collect();
+
     DnsMetrics {
         cache: DnsCacheStats {
             hit: cache_hits,
@@ -517,7 +541,7 @@ pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> D
             max_latency_us: 0,
         },
         servers: Vec::new(),
-        recent: Vec::new(),
+        recent,
         pollution: DnsPollutionStats::default(),
         trust: DnsTrustSummary::default(),
     }
@@ -2208,6 +2232,20 @@ rule-providers:
             cache_hits: 6,
             errors: 2,
             fake_ip_entries: 2,
+            recent: vec![
+                learn_gripe::DnsRecentQuery {
+                    domain: "example.com".to_string(),
+                    q_type: "A".to_string(),
+                    success: true,
+                    unix_ms: 1_700_000_000_000,
+                },
+                learn_gripe::DnsRecentQuery {
+                    domain: "blocked.test".to_string(),
+                    q_type: "HTTPS".to_string(),
+                    success: false,
+                    unix_ms: 1_700_000_000_500,
+                },
+            ],
         };
 
         let metrics = dns_metrics_from_stats(&stats);
@@ -2225,9 +2263,20 @@ rule-providers:
         assert_eq!(metrics.queries.avg_latency_us, 0);
         assert_eq!(metrics.queries.max_latency_us, 0);
 
+        // Recent queries map through newest-first with the wire-level facts the
+        // answerer observed; routing/latency fields stay unset.
+        assert_eq!(metrics.recent.len(), 2);
+        assert_eq!(metrics.recent[0].domain, "example.com");
+        assert_eq!(metrics.recent[0].q_type, "A");
+        assert_eq!(metrics.recent[0].server, "fake-ip (in-stack)");
+        assert!(metrics.recent[0].success);
+        assert_eq!(metrics.recent[0].latency_us, 0);
+        assert!(metrics.recent[0].rule.is_none());
+        assert_eq!(metrics.recent[1].domain, "blocked.test");
+        assert!(!metrics.recent[1].success);
+
         // No honest in-process source for these sections.
         assert!(metrics.servers.is_empty());
-        assert!(metrics.recent.is_empty());
         assert_eq!(metrics.pollution.total_checked, 0);
         assert_eq!(metrics.trust.total, 0);
     }
