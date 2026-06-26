@@ -6,12 +6,12 @@ use crate::{
     app::{config as app_config, runtime},
     config::{ClashInfo, Config},
 };
+use clash_dtos::LogLevel;
 use compact_str::CompactString;
 use serde::Serialize;
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::time::UNIX_EPOCH;
-use tauri_plugin_mihomo::models::LogLevel;
 
 /// 复制Clash环境变量
 #[tauri::command]

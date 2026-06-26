@@ -1,8 +1,8 @@
 use anyhow::Result;
+use clash_dtos::{ConnectionId, Connections, WebSocketMessage};
 use serde::Deserialize;
 use serde_json::Value;
 use std::time::Duration;
-use tauri_plugin_mihomo::models::{ConnectionId, Connections, WebSocketMessage};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 

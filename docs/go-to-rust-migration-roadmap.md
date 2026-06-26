@@ -48,7 +48,7 @@ boots the Rust kernel; there is no Mihomo startup path left.
 | --- | --- |
 | learn-gripe kernel | MVP live. **Mixed inbound** on one port: SOCKS5 (no-auth CONNECT + UDP ASSOCIATE) and HTTP proxy (`CONNECT` tunnel + plain absolute-form requests) selected by peeking the first byte, relaying through the configured outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. End-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs` and `crates/learn-gripe/tests/http_inbound.rs`. |
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
-| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, kept only for its compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files). It also still *defines* the **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`), but no `core/runtime_bridge.rs` command calls it anymore. **Every former IPC command now runs in-process** (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, TLS fingerprint stats + rotation, `update_geo`/`upgrade_geo`, `upgrade_core`/`upgrade_ui` no-ops, the controller-transport probe, and — final step — provider update/healthcheck `update_proxy_provider`/`healthcheck_proxy_provider`/`update_rule_provider`), so the controller-API IPC client (`Mihomo` / `MihomoExt`) is no longer reached by any command. The only remaining reason the crate is still a dependency is the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files); replacing those with Rust-native DTOs is all that is left to drop the crate. See Phase 5. |
+| Mihomo sidecar | **Fully retired.** The binary is gone from the tree and from packaging (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo), **and the `tauri-plugin-mihomo` crate itself is now deleted.** Every former IPC command runs in-process (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, TLS fingerprint stats + rotation, `update_geo`/`upgrade_geo`, `upgrade_core`/`upgrade_ui` no-ops, the controller-transport probe, provider update/healthcheck), and the remaining live telemetry reads in `runtime_snapshot.rs` were migrated to in-process sources (real data where a source exists, honest `Default::default()` for kernel telemetry not yet emitted). With no caller left, the controller-API IPC client (`Mihomo` / `MihomoExt`, `Handle::mihomo()`, `sync_mihomo_controller_state()`, `probe_mihomo_ipc()`) was removed. The shared compatibility DTOs (`models::*` + their ts-rs TypeScript bindings) moved to the dedicated **`crates/clash-dtos`** crate (+ `clash-dtos` npm package); all Rust and frontend consumers point there. **No Mihomo-owned surface remains.** See Phase 5. |
 
 `start_core()` now selects the outbound from the user's chosen node:
 `OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
@@ -461,12 +461,27 @@ Only after the supported default paths above run on `learn-gripe`:
   new file; `runtime_bridge.rs` now calls the in-process path and dropped its last
   three `Handle::mihomo()` calls. Unit tests cover proxy/rule list parsing, the
   empty-list rejection, and the temp-target/atomic-replace path.
-- **Remaining — the `tauri-plugin-mihomo` crate dependency (compatibility DTOs
-  only).** No command calls the controller-API IPC client (`Mihomo` /
-  `MihomoExt`) anymore — every former IPC command listed above runs in-process —
-  so dropping the crate now means **only one thing**: replacing the compatibility
-  DTOs (`models::*`) with Rust-native DTOs across the ~24 `src-tauri` consumers,
-  after which the IPC client and the crate dependency can be deleted outright.
+- **Done — the `tauri-plugin-mihomo` crate is deleted.** The remaining live
+  controller-API IPC reads in `core/runtime_snapshot.rs` (`get_proxies`,
+  `get_rules`, `get_version`, `get_base_config`, `get_tls_fingerprint_stats`,
+  `get_connections`/`get_egress_status`, plus the kernel-telemetry reads
+  `get_dns_metrics`, `get_engine_stats`, `get_perf_stats`, `get_buffer_pool_stats`,
+  `get_xdp_status`, `get_hot_reload_status`, `get_rule_traffic`) were the last
+  callers of the IPC client. They now run in-process: proxies/rules/version/
+  base-config are rebuilt from the runtime config (`build_proxies_from_runtime_config`,
+  `build_rules_from_runtime_config`, `build_base_config_from_runtime_config`), TLS
+  stats from the in-process obfuscation snapshot, connections/egress from the
+  existing in-process sources; the kernel-telemetry reads return honest
+  `Default::default()` values (the kernel does not yet emit them, and the old IPC
+  reads already failed at runtime since no controller socket exists — so this is
+  not a regression). With no caller left, the IPC client (`Handle::mihomo()`,
+  `sync_mihomo_controller_state()`, `probe_mihomo_ipc()`) was removed. The shared
+  compatibility DTOs (`models::*` + their ts-rs TypeScript bindings, consumed by
+  ~22 `src-tauri` files and 13 frontend files) were moved into a new dedicated
+  **`crates/clash-dtos`** crate (pure DTOs + ts-rs export + the `clash-dtos` npm
+  package); all Rust consumers now `use clash_dtos::*` and all frontend imports
+  point at the `clash-dtos` package. `crates/tauri-plugin-mihomo` is deleted
+  outright. **No Mihomo-owned surface remains.**
 
 ## Definition of done for a roadmap PR
 

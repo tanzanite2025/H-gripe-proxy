@@ -145,14 +145,14 @@ use crate::{
     },
 };
 use anyhow::{Context as _, anyhow};
-use serde_yaml_ng::{Mapping, Value};
-use smartstring::alias::String;
-use std::collections::{HashMap, HashSet};
-use tauri_plugin_mihomo::models::{
+use clash_dtos::{
     BaseConfig, BufferPoolStats, CoreUpdaterChannel, DnsMetrics, EngineStats, HotReloadStatus, MihomoVersion,
     PerfStats, Proxies, ProxyDelay, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, TLSFingerprintStats,
     TLSRotationResult, XDPStatus,
 };
+use serde_yaml_ng::{Mapping, Value};
+use smartstring::alias::String;
+use std::collections::{HashMap, HashSet};
 // Diagnostic builders have been moved into core::runtime_diagnostics; this command module keeps only thin wrappers.
 
 pub mod kernel;

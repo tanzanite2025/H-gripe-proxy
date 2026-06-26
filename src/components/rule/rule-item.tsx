@@ -1,4 +1,4 @@
-import type { Rule } from 'tauri-plugin-mihomo-api'
+import type { Rule } from 'clash-dtos'
 
 import { useAppRefreshers } from '@/providers/app-data-context'
 import { deleteRuntimeRule, disableRuntimeRules } from '@/services/rule-runtime'

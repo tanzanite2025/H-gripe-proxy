@@ -12,12 +12,12 @@
 //! broadcast, matching the old behavior where `/logs` carried the proxy core's
 //! logs and not the app's own logging.
 
+use clash_dtos::LogLevel;
 use flexi_logger::DeferredNow;
 use flexi_logger::filter::{LogLineFilter, LogLineWriter};
 use log::Record;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
-use tauri_plugin_mihomo::models::LogLevel;
 use tokio::sync::broadcast;
 
 /// Bound on buffered core-log records. A slow consumer simply drops the oldest

@@ -11,11 +11,11 @@ use crate::{
     enhance::subscription_update::SUBSCRIPTION_UPDATE_GROUP,
 };
 use anyhow::{Context as _, Result, anyhow};
+use clash_dtos::{Proxies, Proxy};
 use serde_yaml_ng::Value;
 use smartstring::alias::String;
 use std::net::IpAddr;
 use tauri::Url;
-use tauri_plugin_mihomo::models::{Proxies, Proxy};
 
 const SUBSCRIPTION_UPDATE_RULE_SOURCE: &str = "subscription-update";
 
@@ -190,8 +190,8 @@ fn order_control_plane_candidates(group: &Proxy, proxies: &Proxies) -> Vec<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clash_dtos::{DelayHistory, Extra, ProxyType};
     use std::collections::HashMap;
-    use tauri_plugin_mihomo::models::{DelayHistory, Extra, ProxyType};
 
     fn runtime_proxy(name: &str, alive: bool) -> Proxy {
         Proxy {

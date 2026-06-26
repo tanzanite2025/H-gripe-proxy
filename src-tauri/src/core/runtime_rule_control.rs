@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow, bail};
+use clash_dtos::{RuleExtra, Rules};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::{cmp::Reverse, fs, path::PathBuf};
-use tauri_plugin_mihomo::models::{RuleExtra, Rules};
 
 use crate::{
     config::Config,

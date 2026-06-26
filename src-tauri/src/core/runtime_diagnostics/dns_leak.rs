@@ -11,11 +11,11 @@ use crate::core::{
 };
 use crate::utils::network::{NetworkManager, ProxyType};
 use anyhow::{Result, anyhow};
+use clash_dtos::DnsMetrics;
 use clash_verge_logging::{Type, logging};
 use reqwest::Client;
 use smartstring::alias::String;
 use std::collections::HashSet;
-use tauri_plugin_mihomo::models::DnsMetrics;
 
 const DNS_LEAK_SERVER_SOURCE: &str = "https://ipleak.net/json/";
 
@@ -547,10 +547,8 @@ pub async fn build_dns_leak_test_result() -> Result<DnsLeakTestResult> {
 mod tests {
     use super::*;
     use crate::core::runtime_status::{DnsRuntimeDerivedState, DnsRuntimeSnapshot, DnsRuntimeStatus};
+    use clash_dtos::{DnsCacheStats, DnsPollutionStats, DnsQueryStats, DnsServerClassification, DnsTrustSummary};
     use std::collections::HashMap;
-    use tauri_plugin_mihomo::models::{
-        DnsCacheStats, DnsPollutionStats, DnsQueryStats, DnsServerClassification, DnsTrustSummary,
-    };
 
     fn runtime_status_for_risk(snapshot: DnsRuntimeSnapshot, derived: DnsRuntimeDerivedState) -> DnsRuntimeStatus {
         DnsRuntimeStatus {

@@ -8,17 +8,12 @@ use crate::core::{handle, runtime_snapshot::read_runtime_version};
 
 static MIHOMO_RECOVERY_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
-async fn probe_mihomo_ipc() -> Result<()> {
-    read_runtime_version().await.map(|_| ())
-}
-
 pub async fn ensure_mihomo_core_ready() -> Result<()> {
     let _guard = MIHOMO_RECOVERY_LOCK.lock().await;
 
-    handle::Handle::sync_mihomo_controller_state().await?;
-    probe_mihomo_ipc()
+    read_runtime_version()
         .await
-        .map_err(|err| anyhow!("Mihomo IPC recovery is retired; Rust runtime must be ready: {err}"))?;
+        .map_err(|err| anyhow!("Rust runtime is not ready: {err}"))?;
     handle::Handle::refresh_clash();
 
     Ok(())

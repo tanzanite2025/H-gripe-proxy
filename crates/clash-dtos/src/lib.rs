@@ -1,12 +1,11 @@
+//! Shared data-transfer types for clash-verge (kernel runtime, telemetry, rules,
+//! connections, DNS, providers). These are pure serde DTOs with `ts-rs` exports
+//! consumed by both the Rust app layer and the TypeScript frontend.
+
 use std::{collections::HashMap, fmt::Display};
 
-use futures_util::{SinkExt, stream::SplitSink};
 use serde::{Deserialize, Serialize};
-use tokio::{net::TcpStream, sync::RwLock};
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::Message};
 use ts_rs::TS;
-
-use crate::ipc::WrapStream;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -40,7 +39,7 @@ impl Display for Protocol {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename_all = "camelCase")]
 #[serde(rename_all(serialize = "camelCase", deserialize = "kebab-case"))]
 pub struct BaseConfig {
@@ -84,7 +83,7 @@ pub struct BaseConfig {
     pub disable_keep_alive: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename_all = "camelCase")]
 #[serde(rename_all(serialize = "camelCase", deserialize = "kebab-case"))]
 pub struct TunConfig {
@@ -251,7 +250,7 @@ pub struct TunConfig {
     pub sendmsgx: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename_all = "camelCase")]
 #[serde(rename_all(serialize = "camelCase", deserialize = "kebab-case"))]
 pub struct TuicServer {
@@ -329,11 +328,12 @@ pub struct BrutalOption {
     pub down: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     DEBUG,
+    #[default]
     INFO,
     WARNING,
     ERROR,
@@ -353,7 +353,7 @@ impl Display for LogLevel {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename_all = "camelCase")]
 #[serde(rename_all(serialize = "camelCase", deserialize = "kebab-case"))]
 pub struct GeoXUrl {
@@ -363,12 +363,13 @@ pub struct GeoXUrl {
     pub geo_site: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum FindProcessMode {
     Strict,
     Always,
+    #[default]
     Off,
 }
 
@@ -403,10 +404,11 @@ impl Display for CoreUpdaterChannel {
 }
 
 /// clash mode enum
-#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum ClashMode {
+    #[default]
     Rule,
     Global,
     Direct,
@@ -424,9 +426,10 @@ impl Display for ClashMode {
 }
 
 /// tun stack enum
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 pub enum TunStack {
+    #[default]
     Mixed,
     #[serde(rename = "gVisor")]
     Gvisor,
@@ -451,7 +454,7 @@ pub struct Groups {
     pub proxies: Vec<Proxy>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct Proxy {
@@ -517,7 +520,7 @@ pub struct Proxy {
     pub provider_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 pub enum ProxyType {
     Direct,
@@ -552,14 +555,14 @@ pub enum ProxyType {
     Unknown(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 pub struct Extra {
     pub alive: bool,
     pub history: Vec<DelayHistory>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export)]
 pub struct DelayHistory {
     pub time: String,
@@ -960,7 +963,7 @@ pub enum WebSocketMessage {
 }
 
 // DNS Metrics types
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsCacheStats {
@@ -973,7 +976,7 @@ pub struct DnsCacheStats {
     pub hit_rate: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsQueryStats {
@@ -1048,7 +1051,7 @@ pub struct DnsPollutedEntry {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsPollutionStats {
@@ -1072,7 +1075,7 @@ pub struct DnsServerClassification {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsTrustSummary {
@@ -1088,7 +1091,7 @@ pub struct DnsTrustSummary {
     pub last_evaluated: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DnsMetrics {
@@ -1101,7 +1104,7 @@ pub struct DnsMetrics {
 }
 
 // Engine API types
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineStats {
@@ -1131,7 +1134,7 @@ pub struct ConnTrafficSnapshot {
     pub last_active: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct BufferPoolStats {
@@ -1174,7 +1177,7 @@ pub struct RuleTrafficSnapshot {
     pub last_active: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct EgressStatus {
@@ -1261,7 +1264,7 @@ pub struct TLSRotationResult {
     pub new_fingerprint: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PerfStats {
@@ -1288,7 +1291,7 @@ pub struct PerfStats {
     pub rule_version: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct HotReloadStatus {
@@ -1298,7 +1301,7 @@ pub struct HotReloadStatus {
     pub xdp_loaded: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct XDPStatus {
@@ -1307,24 +1310,3 @@ pub struct XDPStatus {
 }
 
 pub type ConnectionId = u32;
-pub enum WebSocketWriter {
-    TcpStreamWriter(SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>),
-    SocketStreamWriter(SplitSink<WebSocketStream<WrapStream>, Message>),
-}
-
-impl WebSocketWriter {
-    pub async fn send(&mut self, message: Message) -> crate::Result<()> {
-        match self {
-            WebSocketWriter::TcpStreamWriter(write) => {
-                write.send(message).await?;
-            }
-            WebSocketWriter::SocketStreamWriter(write) => {
-                write.send(message).await?;
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Default)]
-pub struct ConnectionManager(pub RwLock<HashMap<ConnectionId, WebSocketWriter>>);

@@ -2,12 +2,12 @@ use crate::core::handle;
 use crate::process::AsyncHandler;
 use crate::utils::connections_stream;
 use crate::{Type, logging};
+use clash_dtos::{ConnectionId, LogLevel};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::async_runtime::JoinHandle;
-use tauri_plugin_mihomo::models::{ConnectionId, LogLevel};
 
 const LOG_MONITOR_RETRY_DELAY: Duration = Duration::from_secs(2);
 const LOG_MONITOR_IDLE_INTERVAL: Duration = Duration::from_millis(500);

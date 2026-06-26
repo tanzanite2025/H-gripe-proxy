@@ -1,7 +1,7 @@
+import type { CoreUpdaterChannel } from 'clash-dtos'
 import dayjs from 'dayjs'
 import { ArrowUpCircle, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CoreUpdaterChannel } from 'tauri-plugin-mihomo-api'
 
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'
