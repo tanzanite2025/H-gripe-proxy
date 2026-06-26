@@ -12,7 +12,7 @@
 //! connection). This mirrors Clash's built-in policies.
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
-//! `DST-PORT`, `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
+//! `DST-PORT`, `NETWORK`, `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
 //! carry a shared [`GeoLookup`] handle to a locally-maintained geo database
 //! (mmdb / geosite `.dat`) and `RULE-SET` carries a shared [`RuleSetLookup`]
 //! handle to locally-loaded rule providers; the kernel never fetches that data
@@ -28,6 +28,7 @@ use anyhow::{Result, bail};
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
+use crate::conntrack::ConnNetwork;
 
 /// Lookup into a locally-maintained geo database, used by the `GEOIP` /
 /// `GEOSITE` matchers. The kernel does not own or fetch this data: the embedder
@@ -100,6 +101,11 @@ pub enum RuleMatcher {
     /// range. A single-port rule parses as a one-wide range. Applies to both IP
     /// and domain targets, since the port is known either way.
     DstPort(PortRange),
+    /// Matches when the connection's transport protocol equals this network
+    /// (`tcp` / `udp`). The protocol is supplied by the embedder at selection
+    /// time and does not depend on the target, so it applies to IP and domain
+    /// targets alike.
+    Network(ConnNetwork),
     /// Combines its sub-matchers with a boolean operator, letting one rule mix
     /// the other predicates (`AND((DOMAIN-SUFFIX,example.com),(IP-CIDR,10.0.0.0/8))`).
     /// `And` matches when every sub-matcher matches, `Or` when any does, and
@@ -133,6 +139,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
             RuleMatcher::DstPort(r) => f.debug_tuple("DstPort").field(r).finish(),
+            RuleMatcher::Network(n) => f.debug_tuple("Network").field(n).finish(),
             RuleMatcher::Logical { op, subs } => f.debug_struct("Logical").field("op", op).field("subs", subs).finish(),
             RuleMatcher::Match => f.write_str("Match"),
         }
@@ -159,6 +166,7 @@ impl PartialEq for RuleMatcher {
                 a == b && Arc::ptr_eq(pa, pb)
             }
             (RuleMatcher::DstPort(a), RuleMatcher::DstPort(b)) => a == b,
+            (RuleMatcher::Network(a), RuleMatcher::Network(b)) => a == b,
             (RuleMatcher::Logical { op: oa, subs: sa }, RuleMatcher::Logical { op: ob, subs: sb }) => {
                 oa == ob && sa == sb
             }
@@ -171,11 +179,23 @@ impl PartialEq for RuleMatcher {
 impl Eq for RuleMatcher {}
 
 impl RuleMatcher {
-    /// Whether this matcher applies to `target`. Domain matchers never match a
-    /// raw-IP target and IP matchers never match an (unresolved) domain target,
-    /// matching Clash semantics where `IP-CIDR` only applies once an address is
-    /// known.
+    /// Whether this matcher applies to `target` on a TCP connection. Domain
+    /// matchers never match a raw-IP target and IP matchers never match an
+    /// (unresolved) domain target, matching Clash semantics where `IP-CIDR`
+    /// only applies once an address is known.
+    ///
+    /// This is a convenience wrapper over [`RuleMatcher::matches_network`] that
+    /// assumes [`ConnNetwork::Tcp`]; use `matches_network` when the connection's
+    /// protocol is known so that `NETWORK` rules evaluate correctly.
     pub fn matches(&self, target: &TargetAddr) -> bool {
+        self.matches_network(target, ConnNetwork::Tcp)
+    }
+
+    /// Whether this matcher applies to `target` on a connection of the given
+    /// `network` (transport protocol). Only `NETWORK` rules depend on
+    /// `network`; every other matcher ignores it. Logical sub-rules inherit the
+    /// same `network`.
+    pub fn matches_network(&self, target: &TargetAddr, network: ConnNetwork) -> bool {
         match self {
             RuleMatcher::Domain(d) => match target {
                 TargetAddr::Domain(host, _) => host.eq_ignore_ascii_case(d),
@@ -207,12 +227,13 @@ impl RuleMatcher {
             },
             RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
             RuleMatcher::DstPort(range) => range.contains(target.port()),
+            RuleMatcher::Network(want) => network == *want,
             RuleMatcher::Logical { op, subs } => match op {
-                LogicalOp::And => subs.iter().all(|m| m.matches(target)),
-                LogicalOp::Or => subs.iter().any(|m| m.matches(target)),
+                LogicalOp::And => subs.iter().all(|m| m.matches_network(target, network)),
+                LogicalOp::Or => subs.iter().any(|m| m.matches_network(target, network)),
                 // Built only with exactly one sub-matcher (see the parser), so
                 // negating "any matches" negates that single sub-matcher.
-                LogicalOp::Not => !subs.iter().any(|m| m.matches(target)),
+                LogicalOp::Not => !subs.iter().any(|m| m.matches_network(target, network)),
             },
             RuleMatcher::Match => true,
         }
@@ -233,6 +254,7 @@ impl RuleMatcher {
             RuleMatcher::Asn { .. } => "IPASN",
             RuleMatcher::RuleSet { .. } => "RuleSet",
             RuleMatcher::DstPort(_) => "DstPort",
+            RuleMatcher::Network(_) => "Network",
             RuleMatcher::Logical { op, .. } => match op {
                 LogicalOp::And => "AND",
                 LogicalOp::Or => "OR",
@@ -255,6 +277,7 @@ impl RuleMatcher {
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
             RuleMatcher::RuleSet { name, .. } => name.clone(),
             RuleMatcher::DstPort(range) => range.to_string(),
+            RuleMatcher::Network(n) => n.as_str().to_string(),
             // The sub-rule expression is parsed away into the matcher tree and
             // not retained verbatim, so a logical matcher has no flat payload.
             RuleMatcher::Logical { .. } => String::new(),
@@ -466,17 +489,37 @@ impl Router {
         self.outbounds.values()
     }
 
-    /// Select the outbound for `target`: the first matching rule's outbound, or
-    /// the fallback. The name is guaranteed to resolve (checked in
-    /// [`Router::new`]).
+    /// Select the outbound for `target` on a TCP connection: the first matching
+    /// rule's outbound, or the fallback. The name is guaranteed to resolve
+    /// (checked in [`Router::new`]).
+    ///
+    /// Convenience wrapper over [`select_network`](Router::select_network) that
+    /// assumes [`ConnNetwork::Tcp`]; use `select_network` when the connection's
+    /// protocol is known so that `NETWORK` rules evaluate correctly.
     pub fn select(&self, target: &TargetAddr) -> &OutboundMode {
-        self.select_detailed(target).outbound
+        self.select_network(target, ConnNetwork::Tcp)
+    }
+
+    /// Select the outbound for `target` on a connection of the given `network`
+    /// (transport protocol). Behaves like [`select`](Router::select) but lets
+    /// `NETWORK` rules match the protocol.
+    pub fn select_network(&self, target: &TargetAddr, network: ConnNetwork) -> &OutboundMode {
+        self.select_detailed_network(target, network).outbound
     }
 
     /// Like [`select`](Router::select) but also reports the chosen outbound's
     /// name and the rule that matched (if any), for connection bookkeeping.
     pub fn select_detailed<'a>(&'a self, target: &TargetAddr) -> Selection<'a> {
-        let matched = self.rules.iter().find(|rule| rule.matcher.matches(target));
+        self.select_detailed_network(target, ConnNetwork::Tcp)
+    }
+
+    /// Like [`select_detailed`](Router::select_detailed) but for a connection of
+    /// the given `network`, so `NETWORK` rules evaluate against the protocol.
+    pub fn select_detailed_network<'a>(&'a self, target: &TargetAddr, network: ConnNetwork) -> Selection<'a> {
+        let matched = self
+            .rules
+            .iter()
+            .find(|rule| rule.matcher.matches_network(target, network));
         let name = matched.map(|rule| rule.outbound.as_str()).unwrap_or(&self.fallback);
         Selection {
             outbound_name: name,
@@ -1078,6 +1121,91 @@ mod tests {
         let c = RuleMatcher::DstPort(PortRange::parse("80-90").unwrap());
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    #[test]
+    fn conn_network_parse_accepts_tcp_udp_case_insensitively() {
+        assert_eq!(ConnNetwork::parse("tcp"), Some(ConnNetwork::Tcp));
+        assert_eq!(ConnNetwork::parse("UDP"), Some(ConnNetwork::Udp));
+        assert_eq!(ConnNetwork::parse(" Tcp "), Some(ConnNetwork::Tcp));
+        assert_eq!(ConnNetwork::parse("sctp"), None);
+        assert_eq!(ConnNetwork::parse(""), None);
+    }
+
+    #[test]
+    fn network_matcher_compares_protocol_independent_of_target() {
+        let tcp = RuleMatcher::Network(ConnNetwork::Tcp);
+        // The protocol comes from the connection, not the target, so the same
+        // matcher answers per `network` for both IP and domain targets.
+        assert!(tcp.matches_network(&ipv4(8, 8, 8, 8), ConnNetwork::Tcp));
+        assert!(tcp.matches_network(&domain("example.com"), ConnNetwork::Tcp));
+        assert!(!tcp.matches_network(&ipv4(8, 8, 8, 8), ConnNetwork::Udp));
+        assert!(!tcp.matches_network(&domain("example.com"), ConnNetwork::Udp));
+
+        let udp = RuleMatcher::Network(ConnNetwork::Udp);
+        assert!(udp.matches_network(&domain("example.com"), ConnNetwork::Udp));
+        assert!(!udp.matches_network(&domain("example.com"), ConnNetwork::Tcp));
+        // The bare `matches` wrapper assumes TCP.
+        assert!(tcp.matches(&domain("example.com")));
+        assert!(!udp.matches(&domain("example.com")));
+    }
+
+    #[test]
+    fn router_routes_network_rule() {
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        // UDP -> REJECT, everything else falls back to proxy.
+        let rules = vec![Rule::new(RuleMatcher::Network(ConnNetwork::Udp), REJECT)];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // A UDP datagram to any target hits the rule.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Udp),
+            OutboundMode::Reject
+        ));
+        // The same target over TCP misses and uses the fallback.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // The TCP-default `select` wrapper agrees.
+        assert!(matches!(
+            router.select(&domain("example.com")),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn network_rule_as_logical_sub_rule_respects_protocol() {
+        // AND,((DOMAIN-SUFFIX,example.com),(NETWORK,UDP)) only matches a UDP
+        // connection to that domain; the protocol threads into sub-rules.
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::Network(ConnNetwork::Udp),
+            ],
+        };
+        assert!(m.matches_network(&domain("www.example.com"), ConnNetwork::Udp));
+        assert!(!m.matches_network(&domain("www.example.com"), ConnNetwork::Tcp));
+        assert!(!m.matches_network(&domain("other.net"), ConnNetwork::Udp));
+    }
+
+    #[test]
+    fn network_equality_and_metadata() {
+        let a = RuleMatcher::Network(ConnNetwork::Tcp);
+        let b = RuleMatcher::Network(ConnNetwork::Tcp);
+        let c = RuleMatcher::Network(ConnNetwork::Udp);
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(a.kind_str(), "Network");
+        assert_eq!(a.payload(), "tcp");
+        assert_eq!(c.payload(), "udp");
     }
 
     #[test]

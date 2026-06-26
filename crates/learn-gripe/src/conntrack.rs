@@ -48,6 +48,16 @@ impl ConnNetwork {
             ConnNetwork::Udp => "udp",
         }
     }
+
+    /// Parse a transport name (`"tcp"` / `"udp"`, case-insensitive). Used by the
+    /// router's `NETWORK` rule parsing; returns `None` for anything else.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "tcp" => Some(ConnNetwork::Tcp),
+            "udp" => Some(ConnNetwork::Udp),
+            _ => None,
+        }
+    }
 }
 
 /// Descriptive metadata captured when a connection is registered. Immutable for

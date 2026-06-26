@@ -1,5 +1,6 @@
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
+use crate::conntrack::ConnNetwork;
 use crate::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::socks5;
 use crate::trojan::{self, TrojanOutboundConfig};
@@ -46,7 +47,7 @@ pub fn connect<'a>(
             OutboundMode::Trojan(config) => trojan::connect(config, target).await,
             OutboundMode::Vmess(config) => vmess::connect(config, target).await,
             OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
-            OutboundMode::Routed(router) => connect(router.select(target), target).await,
+            OutboundMode::Routed(router) => connect(router.select_network(target, ConnNetwork::Tcp), target).await,
         }
     })
 }
@@ -90,7 +91,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr) -> Option<Ud
         OutboundMode::Vless(config) => Some(UdpEgress::Vless(config.clone())),
         OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
-        OutboundMode::Routed(router) => resolve_udp_egress(router.select(target), target),
+        OutboundMode::Routed(router) => resolve_udp_egress(router.select_network(target, ConnNetwork::Udp), target),
         // Reject blocks the datagram; an upstream SOCKS5 proxy has no UDP relay
         // path here, so its associations are refused rather than leaked.
         OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
