@@ -8,6 +8,7 @@ use crate::vless::{self, VlessOutboundConfig};
 use crate::vmess::{self, VmessOutboundConfig};
 use anyhow::{Context, Result, bail};
 use std::future::Future;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -22,13 +23,16 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
 pub type BoxedStream = Box<dyn AsyncStream>;
 
 /// Establish an outbound connection to `target` according to `mode` and return
-/// a stream that is ready for relaying.
+/// a stream that is ready for relaying. `source` is the inbound peer's address
+/// (when the embedder can supply it), used so a [`OutboundMode::Routed`]
+/// outbound can evaluate `SRC-PORT` rules; pass `None` when unknown.
 ///
 /// Boxed future so a [`OutboundMode::Routed`] outbound can recurse into the
 /// selected sub-outbound.
 pub fn connect<'a>(
     mode: &'a OutboundMode,
     target: &'a TargetAddr,
+    source: Option<SocketAddr>,
 ) -> Pin<Box<dyn Future<Output = Result<BoxedStream>> + Send + 'a>> {
     Box::pin(async move {
         match mode {
@@ -47,7 +51,9 @@ pub fn connect<'a>(
             OutboundMode::Trojan(config) => trojan::connect(config, target).await,
             OutboundMode::Vmess(config) => vmess::connect(config, target).await,
             OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
-            OutboundMode::Routed(router) => connect(router.select_network(target, ConnNetwork::Tcp), target).await,
+            OutboundMode::Routed(router) => {
+                connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
+            }
         }
     })
 }
@@ -81,17 +87,21 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
 }
 
 /// Resolve the UDP egress for a datagram to `target` under `mode`, recursing
-/// through `Routed` per target. Returns `None` for destinations that cannot
-/// carry UDP (`Reject`, an upstream SOCKS5 proxy, or a rule resolving to one),
-/// so the relay drops them rather than leaking traffic.
-pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr) -> Option<UdpEgress> {
+/// through `Routed` per target. `source` is the inbound client's address (when
+/// known), used so `Routed` can evaluate `SRC-PORT` rules; pass `None` when
+/// unknown. Returns `None` for destinations that cannot carry UDP (`Reject`, an
+/// upstream SOCKS5 proxy, or a rule resolving to one), so the relay drops them
+/// rather than leaking traffic.
+pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Option<SocketAddr>) -> Option<UdpEgress> {
     match mode {
         OutboundMode::Direct => Some(UdpEgress::Direct),
         OutboundMode::Trojan(config) => Some(UdpEgress::Trojan(config.clone())),
         OutboundMode::Vless(config) => Some(UdpEgress::Vless(config.clone())),
         OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
-        OutboundMode::Routed(router) => resolve_udp_egress(router.select_network(target, ConnNetwork::Udp), target),
+        OutboundMode::Routed(router) => {
+            resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
+        }
         // Reject blocks the datagram; an upstream SOCKS5 proxy has no UDP relay
         // path here, so its associations are refused rather than leaked.
         OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
@@ -154,12 +164,15 @@ mod tests {
         let routed = OutboundMode::Routed(Box::new(router));
 
         // Matches the reject rule -> no egress (dropped); falls through -> DIRECT.
-        assert_eq!(resolve_udp_egress(&routed, &ip_target(10, 1, 2, 3)), None);
+        assert_eq!(resolve_udp_egress(&routed, &ip_target(10, 1, 2, 3), None), None);
         assert_eq!(
-            resolve_udp_egress(&routed, &ip_target(8, 8, 8, 8)),
+            resolve_udp_egress(&routed, &ip_target(8, 8, 8, 8), None),
             Some(UdpEgress::Direct)
         );
         // A bare Reject mode never produces an egress.
-        assert_eq!(resolve_udp_egress(&OutboundMode::Reject, &ip_target(8, 8, 8, 8)), None);
+        assert_eq!(
+            resolve_udp_egress(&OutboundMode::Reject, &ip_target(8, 8, 8, 8), None),
+            None
+        );
     }
 }

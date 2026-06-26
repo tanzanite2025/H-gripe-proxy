@@ -38,7 +38,7 @@ pub async fn measure_delay(mode: &OutboundMode, test_url: &str, timeout: Duratio
 
     let elapsed = tokio::time::timeout(timeout, async {
         let start = Instant::now();
-        let stream = outbound::connect(mode, &target)
+        let stream = outbound::connect(mode, &target, None)
             .await
             .with_context(|| format!("dial {test_url} through outbound"))?;
         run_http_probe(stream, &probe).await?;

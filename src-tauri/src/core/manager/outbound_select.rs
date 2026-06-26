@@ -198,12 +198,12 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `SRC-PORT`, `PROCESS-NAME`, …) or a
-/// malformed payload, so the caller drops the rule. `DST-PORT` accepts a single
-/// port (`443`) or an inclusive range (`8000-9000`); `SRC-PORT` stays
-/// unsupported since the matcher only sees the destination target. `NETWORK`
-/// accepts `tcp` or `udp` (case-insensitive) and routes by the connection's
-/// transport protocol.
+/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `PROCESS-NAME`, …) or a malformed payload, so
+/// the caller drops the rule. `DST-PORT` and `SRC-PORT` accept a single port
+/// (`443`) or an inclusive range (`8000-9000`); `SRC-PORT` matches the inbound
+/// peer's source port (when the embedder supplies it). `NETWORK` accepts `tcp`
+/// or `udp` (case-insensitive) and routes by the connection's transport
+/// protocol.
 ///
 /// Logical rules `AND` / `OR` / `NOT` are supported: their parenthesized
 /// sub-rules are parsed recursively (so they nest), e.g.
@@ -290,6 +290,7 @@ fn parse_matcher<'a>(
             provider: Arc::clone(rule_sets?),
         },
         "DST-PORT" => RuleMatcher::DstPort(PortRange::parse(payload).ok()?),
+        "SRC-PORT" => RuleMatcher::SrcPort(PortRange::parse(payload).ok()?),
         "NETWORK" => RuleMatcher::Network(ConnNetwork::parse(payload)?),
         _ => return None,
     };
@@ -548,6 +549,7 @@ fn named_mappings(value: Option<&Value>) -> HashMap<String, &Mapping> {
 mod tests {
     use super::*;
     use learn_gripe::TargetAddr;
+    use std::net::SocketAddr;
 
     fn cfg(yaml: &str) -> Mapping {
         serde_yaml_ng::from_str(yaml).expect("valid yaml mapping")
@@ -1331,7 +1333,7 @@ rules:
     }
 
     #[test]
-    fn malformed_or_src_port_rules_are_dropped() {
+    fn src_port_rules_route_by_source_port() {
         let yaml = r#"
 mode: rule
 proxies:
@@ -1339,19 +1341,67 @@ proxies:
 proxy-groups:
   - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
 rules:
-  - SRC-PORT,80,DIRECT
-  - DST-PORT,99999,DIRECT
-  - DST-PORT,abc,DIRECT
+  - SRC-PORT,1080,DIRECT
+  - SRC-PORT,40000-50000,REJECT
   - MATCH,PROXY
 "#;
-        // SRC-PORT is unsupported and the two DST-PORT payloads are malformed
-        // (out of u16 range / non-numeric), so all three are dropped and every
-        // connection falls through to MATCH.
         let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
-        assert!(matches!(router.select(&ip("8.8.8.8:80")), OutboundMode::Trojan(_)));
+        let src = |port: u16| Some(SocketAddr::from(([127, 0, 0, 1], port)));
+        // Single source port 1080 -> DIRECT.
+        assert_eq!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src(1080)),
+            &OutboundMode::Direct
+        );
+        // Inclusive source-port range 40000-50000 -> REJECT (both bounds).
+        assert_eq!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src(40000)),
+            &OutboundMode::Reject
+        );
+        assert_eq!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src(50000)),
+            &OutboundMode::Reject
+        );
+        // A source port outside every rule -> MATCH catch-all (PROXY -> node-a).
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src(12345)),
+            OutboundMode::Trojan(_)
+        ));
+        // No known source -> SRC-PORT never matches -> MATCH catch-all.
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_port_rules_are_dropped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-PORT,99999,DIRECT
+  - DST-PORT,99999,DIRECT
+  - DST-PORT,abc,DIRECT
+  - MATCH,PROXY
+"#;
+        // All three payloads are malformed (out of u16 range / non-numeric), so
+        // every rule is dropped and connections fall through to MATCH even when
+        // a source is supplied.
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = Some(SocketAddr::from(([127, 0, 0, 1], 1080)));
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src),
+            OutboundMode::Trojan(_)
+        ));
     }
 
     #[test]

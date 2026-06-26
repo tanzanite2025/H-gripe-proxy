@@ -112,7 +112,8 @@ fn forward_client_datagram(
         }
     }
 
-    let egress = outbound::resolve_udp_egress(mode, &target).ok_or_else(|| anyhow!("no UDP egress for {target}"))?;
+    let egress = outbound::resolve_udp_egress(mode, &target, Some(client_addr))
+        .ok_or_else(|| anyhow!("no UDP egress for {target}"))?;
     let (tx, rx) = mpsc::channel(EGRESS_QUEUE);
     spawn_egress(egress, target, rx, relay.clone(), client_addr);
     // The freshly built channel has capacity, so this only fails if the task
