@@ -68,6 +68,10 @@ pub struct ProcessInfo {
     pub name: String,
     /// The executable's full path, e.g. `/usr/bin/curl`.
     pub path: String,
+    /// The owning user's numeric id (Unix `uid`), or `None` when the platform
+    /// has no such concept (Windows) or it could not be resolved. Used by the
+    /// `UID` matcher.
+    pub uid: Option<u32>,
 }
 
 /// Lookup from a connection's source socket to the local process that owns it,
@@ -93,10 +97,10 @@ pub const REJECT: &str = "REJECT";
 ///
 /// `Clone` is derived; `Debug`/`PartialEq`/`Eq` are hand-written because the
 /// `GeoIp`/`GeoSite`/`Asn`/`SrcIpAsn` variants carry an `Arc<dyn GeoLookup>`, `RuleSet` /
-/// `SrcRuleSet` an `Arc<dyn RuleSetLookup>`, and `ProcessName` / `ProcessPath`
-/// an `Arc<dyn ProcessLookup>` trait object that cannot derive them. Two such
-/// matchers are equal when they name the same code/ASN/set/pattern and share
-/// the same underlying database/provider (compared by pointer).
+/// `SrcRuleSet` an `Arc<dyn RuleSetLookup>`, and `ProcessName` / `ProcessPath` /
+/// `Uid` an `Arc<dyn ProcessLookup>` trait object that cannot derive them. Two
+/// such matchers are equal when they name the same code/ASN/set/pattern/range
+/// and share the same underlying database/provider (compared by pointer).
 #[derive(Clone)]
 pub enum RuleMatcher {
     /// Exact (case-insensitive) domain match.
@@ -185,6 +189,18 @@ pub enum RuleMatcher {
         path: String,
         provider: Arc<dyn ProcessLookup>,
     },
+    /// Matches when the local process that owns the connection runs under a
+    /// user id inside the (inclusive) `range`. A single-uid rule parses as a
+    /// one-wide range. The owning process is resolved by the embedder from the
+    /// connection's source socket at selection time (like
+    /// [`ProcessName`](RuleMatcher::ProcessName)); when the source is unknown,
+    /// no process resolves, or the platform reports no uid (e.g. Windows), the
+    /// rule never matches, mirroring how `SRC-IP-CIDR` only applies once the
+    /// source is known.
+    Uid {
+        range: UidRange,
+        provider: Arc<dyn ProcessLookup>,
+    },
     /// Combines its sub-matchers with a boolean operator, letting one rule mix
     /// the other predicates (`AND((DOMAIN-SUFFIX,example.com),(IP-CIDR,10.0.0.0/8))`).
     /// `And` matches when every sub-matcher matches, `Or` when any does, and
@@ -233,6 +249,7 @@ impl fmt::Debug for RuleMatcher {
                 .debug_struct("ProcessPath")
                 .field("path", path)
                 .finish_non_exhaustive(),
+            RuleMatcher::Uid { range, .. } => f.debug_struct("Uid").field("range", range).finish_non_exhaustive(),
             RuleMatcher::Logical { op, subs } => f.debug_struct("Logical").field("op", op).field("subs", subs).finish(),
             RuleMatcher::Match => f.write_str("Match"),
         }
@@ -276,6 +293,9 @@ impl PartialEq for RuleMatcher {
                 RuleMatcher::ProcessPath { path: a, provider: pa },
                 RuleMatcher::ProcessPath { path: b, provider: pb },
             ) => a == b && Arc::ptr_eq(pa, pb),
+            (RuleMatcher::Uid { range: a, provider: pa }, RuleMatcher::Uid { range: b, provider: pb }) => {
+                a == b && Arc::ptr_eq(pa, pb)
+            }
             (RuleMatcher::Logical { op: oa, subs: sa }, RuleMatcher::Logical { op: ob, subs: sb }) => {
                 oa == ob && sa == sb
             }
@@ -360,6 +380,12 @@ impl RuleMatcher {
                     .lookup(network, addr)
                     .is_some_and(|info| info.name.eq_ignore_ascii_case(name))
             }),
+            RuleMatcher::Uid { range, provider } => src.is_some_and(|addr| {
+                provider
+                    .lookup(network, addr)
+                    .and_then(|info| info.uid)
+                    .is_some_and(|uid| range.contains(uid))
+            }),
             RuleMatcher::ProcessPath { path, provider } => src.is_some_and(|addr| {
                 provider
                     .lookup(network, addr)
@@ -398,6 +424,7 @@ impl RuleMatcher {
             RuleMatcher::Network(_) => "Network",
             RuleMatcher::ProcessName { .. } => "Process",
             RuleMatcher::ProcessPath { .. } => "ProcessPath",
+            RuleMatcher::Uid { .. } => "Uid",
             RuleMatcher::Logical { op, .. } => match op {
                 LogicalOp::And => "AND",
                 LogicalOp::Or => "OR",
@@ -427,6 +454,7 @@ impl RuleMatcher {
             RuleMatcher::Network(n) => n.as_str().to_string(),
             RuleMatcher::ProcessName { name, .. } => name.clone(),
             RuleMatcher::ProcessPath { path, .. } => path.clone(),
+            RuleMatcher::Uid { range, .. } => range.to_string(),
             // The sub-rule expression is parsed away into the matcher tree and
             // not retained verbatim, so a logical matcher has no flat payload.
             RuleMatcher::Logical { .. } => String::new(),
@@ -541,6 +569,58 @@ impl PortRange {
 }
 
 impl fmt::Display for PortRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.start == self.end {
+            write!(f, "{}", self.start)
+        } else {
+            write!(f, "{}-{}", self.start, self.end)
+        }
+    }
+}
+
+/// An inclusive user-id range used by the `UID` matcher. A single uid (`1000`)
+/// parses as a one-wide range (`start == end`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UidRange {
+    start: u32,
+    end: u32,
+}
+
+impl UidRange {
+    /// Parse a single uid (`1000`) or an inclusive range (`1000-2000`). The
+    /// bounds must be valid `u32`s and `start` must not exceed `end`.
+    pub fn parse(s: &str) -> Result<Self> {
+        let s = s.trim();
+        let (start, end) = match s.split_once('-') {
+            Some((a, b)) => {
+                let start = a
+                    .trim()
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("invalid uid range start in {s:?}"))?;
+                let end = b
+                    .trim()
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("invalid uid range end in {s:?}"))?;
+                (start, end)
+            }
+            None => {
+                let uid = s.parse().map_err(|_| anyhow::anyhow!("invalid uid in {s:?}"))?;
+                (uid, uid)
+            }
+        };
+        if start > end {
+            bail!("uid range start {start} exceeds end {end}");
+        }
+        Ok(Self { start, end })
+    }
+
+    /// Whether `uid` falls inside this inclusive range.
+    pub fn contains(&self, uid: u32) -> bool {
+        self.start <= uid && uid <= self.end
+    }
+}
+
+impl fmt::Display for UidRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.start == self.end {
             write!(f, "{}", self.start)
@@ -1054,6 +1134,7 @@ mod tests {
                 Some(ProcessInfo {
                     name: "curl".to_string(),
                     path: "/usr/bin/curl".to_string(),
+                    uid: Some(1000),
                 })
             } else {
                 None
@@ -1214,6 +1295,156 @@ mod tests {
         assert_eq!(path.payload(), "/usr/bin/curl");
         // A ProcessName never equals a ProcessPath, even with related payloads.
         assert_ne!(a, path);
+    }
+
+    #[test]
+    fn uid_range_parses_single_and_range() {
+        let one = UidRange::parse("1000").unwrap();
+        assert!(one.contains(1000));
+        assert!(!one.contains(999) && !one.contains(1001));
+        let range = UidRange::parse("1000-2000").unwrap();
+        assert!(range.contains(1000) && range.contains(1500) && range.contains(2000));
+        assert!(!range.contains(999) && !range.contains(2001));
+        assert_eq!(one.to_string(), "1000");
+        assert_eq!(range.to_string(), "1000-2000");
+        // Whitespace is tolerated; invalid/inverted bounds are rejected.
+        assert!(UidRange::parse(" 1000 - 2000 ").is_ok());
+        assert!(UidRange::parse("").is_err());
+        assert!(UidRange::parse("abc").is_err());
+        assert!(UidRange::parse("2000-1000").is_err());
+    }
+
+    #[test]
+    fn uid_matches_owning_process_uid() {
+        // FakeProcess resolves the curl socket to uid 1000.
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let m = RuleMatcher::Uid {
+            range: UidRange::parse("1000").unwrap(),
+            provider,
+        };
+        // The match is independent of the (here domain) target.
+        assert!(m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(50000)));
+        assert!(m.matches_conn(&ipv4(8, 8, 8, 8), ConnNetwork::Tcp, src_port(50000)));
+        // A different uid misses.
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let other = RuleMatcher::Uid {
+            range: UidRange::parse("0").unwrap(),
+            provider,
+        };
+        assert!(!other.matches_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(50000)));
+    }
+
+    #[test]
+    fn uid_rule_never_matches_without_a_resolvable_source() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let m = RuleMatcher::Uid {
+            range: UidRange::parse("1000").unwrap(),
+            provider,
+        };
+        // No source at all -> the `matches`/`matches_network` wrappers miss.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, None));
+        assert!(!m.matches_network(&domain("example.com"), ConnNetwork::Tcp));
+        assert!(!m.matches(&domain("example.com")));
+        // A source the provider cannot resolve (wrong port) misses.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(40000)));
+        // The provider only knows the TCP socket, so the same source over UDP
+        // resolves to no process and misses.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Udp, src_port(50000)));
+    }
+
+    #[test]
+    fn router_routes_uid_rule() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(
+            RuleMatcher::Uid {
+                range: UidRange::parse("500-1500").unwrap(),
+                provider,
+            },
+            DIRECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // A connection owned by uid 1000 (inside 500-1500) -> DIRECT.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(50000)),
+            OutboundMode::Direct
+        ));
+        // An unresolvable source -> fallback proxy.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(40000)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // No source (the `select`/`select_network` wrappers) -> never matches.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn uid_as_logical_sub_rule_respects_source() {
+        // AND,((DOMAIN-SUFFIX,example.com),(UID,1000)) matches only a connection
+        // to that domain from a uid-1000 process; the source threads into the
+        // sub-rule just like PROCESS-NAME.
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::Uid {
+                    range: UidRange::parse("1000").unwrap(),
+                    provider,
+                },
+            ],
+        };
+        assert!(m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, src_port(50000)));
+        // Wrong domain misses despite the right uid.
+        assert!(!m.matches_conn(&domain("other.net"), ConnNetwork::Tcp, src_port(50000)));
+        // Right domain but unresolvable process misses.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, src_port(40000)));
+        // Without a source the UID sub-rule cannot match.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, None));
+    }
+
+    #[test]
+    fn uid_equality_and_metadata() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let other: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let a = RuleMatcher::Uid {
+            range: UidRange::parse("1000").unwrap(),
+            provider: Arc::clone(&provider),
+        };
+        let same = RuleMatcher::Uid {
+            range: UidRange::parse("1000").unwrap(),
+            provider: Arc::clone(&provider),
+        };
+        let different_provider = RuleMatcher::Uid {
+            range: UidRange::parse("1000").unwrap(),
+            provider: other,
+        };
+        let different_range = RuleMatcher::Uid {
+            range: UidRange::parse("1000-2000").unwrap(),
+            provider: Arc::clone(&provider),
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_provider);
+        assert_ne!(a, different_range);
+        assert_eq!(a.kind_str(), "Uid");
+        assert_eq!(a.payload(), "1000");
+        assert_eq!(different_range.payload(), "1000-2000");
+        // A UID rule never equals a ProcessName rule.
+        let name = RuleMatcher::ProcessName {
+            name: "curl".to_string(),
+            provider,
+        };
+        assert_ne!(a, name);
     }
 
     #[test]

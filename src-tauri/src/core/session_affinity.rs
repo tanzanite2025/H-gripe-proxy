@@ -754,6 +754,11 @@ pub mod process_detection {
             Ok(path)
         }
     }
+
+    /// Windows 没有 Unix uid 概念，`UID` 规则在此平台上不可解析。
+    pub fn get_uid_by_port(_port: u16) -> Result<u32> {
+        Err(anyhow::anyhow!("Windows 无 uid 概念"))
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -857,6 +862,22 @@ pub mod process_detection {
 
         Err(anyhow::anyhow!("未找到进程"))
     }
+
+    /// 根据端口获取拥有该连接的进程的 uid（/proc/net/tcp 第 8 列，十进制）。
+    pub fn get_uid_by_port(port: u16) -> Result<u32> {
+        let tcp_content = fs::read_to_string("/proc/net/tcp")?;
+        for line in tcp_content.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() > 9 {
+                let local_address = parts[1];
+                let port_hex = format!("{:04X}", port);
+                if local_address.ends_with(&format!(":{}", port_hex)) {
+                    return parts[7].parse::<u32>().map_err(|_| anyhow::anyhow!("无法解析 uid"));
+                }
+            }
+        }
+        Err(anyhow::anyhow!("未找到进程"))
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -918,6 +939,22 @@ pub mod process_detection {
         } else {
             Ok(path)
         }
+    }
+
+    /// 根据端口获取拥有该连接的进程的 uid（lsof -Fu 的 u<UID> 行）。
+    pub fn get_uid_by_port(port: u16) -> Result<u32> {
+        let output = Command::new("lsof")
+            .args(&["-i", &format!(":{}", port), "-sTCP:ESTABLISHED", "-Fu"])
+            .output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if let Some(uid_str) = line.strip_prefix('u') {
+                if let Ok(uid) = uid_str.parse::<u32>() {
+                    return Ok(uid);
+                }
+            }
+        }
+        Err(anyhow::anyhow!("未找到进程"))
     }
 }
 

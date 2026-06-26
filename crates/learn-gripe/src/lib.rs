@@ -58,7 +58,7 @@ pub use proxy::{
 };
 pub use router::{
     DIRECT, GeoLookup, IpCidr, LogicalOp, PortRange, ProcessInfo, ProcessLookup, REJECT, Router, Rule, RuleMatcher,
-    RuleSetLookup,
+    RuleSetLookup, UidRange,
 };
 pub use server::{GripeHandle, GripeKernel};
 pub use shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
