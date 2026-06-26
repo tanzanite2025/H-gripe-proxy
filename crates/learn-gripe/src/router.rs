@@ -107,6 +107,13 @@ pub enum RuleMatcher {
     DomainKeyword(String),
     /// Matches when the target is an IP inside the CIDR block.
     IpCidr(IpCidr),
+    /// Matches when the connection's *source* IP is inside the CIDR block. The
+    /// source address is supplied by the embedder at selection time (the
+    /// inbound's peer); when it is unknown the rule never matches, mirroring
+    /// `SRC-PORT` / `SRC-IP-RULE-SET`. Unlike [`IpCidr`](RuleMatcher::IpCidr),
+    /// which tests the destination, this never depends on the (possibly
+    /// unresolved) target, so it applies to IP and domain targets alike.
+    SrcIpCidr(IpCidr),
     /// Matches when the target IP belongs to the geo country `code`. Like
     /// `IpCidr`, it only applies to a resolved IP target, never a domain.
     GeoIp { code: String, db: Arc<dyn GeoLookup> },
@@ -198,6 +205,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::DomainSuffix(s) => f.debug_tuple("DomainSuffix").field(s).finish(),
             RuleMatcher::DomainKeyword(k) => f.debug_tuple("DomainKeyword").field(k).finish(),
             RuleMatcher::IpCidr(c) => f.debug_tuple("IpCidr").field(c).finish(),
+            RuleMatcher::SrcIpCidr(c) => f.debug_tuple("SrcIpCidr").field(c).finish(),
             RuleMatcher::GeoIp { code, .. } => f.debug_struct("GeoIp").field("code", code).finish_non_exhaustive(),
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
@@ -229,6 +237,7 @@ impl PartialEq for RuleMatcher {
             (RuleMatcher::DomainSuffix(a), RuleMatcher::DomainSuffix(b)) => a == b,
             (RuleMatcher::DomainKeyword(a), RuleMatcher::DomainKeyword(b)) => a == b,
             (RuleMatcher::IpCidr(a), RuleMatcher::IpCidr(b)) => a == b,
+            (RuleMatcher::SrcIpCidr(a), RuleMatcher::SrcIpCidr(b)) => a == b,
             (RuleMatcher::GeoIp { code: a, db: da }, RuleMatcher::GeoIp { code: b, db: db2 }) => {
                 a == b && Arc::ptr_eq(da, db2)
             }
@@ -313,6 +322,7 @@ impl RuleMatcher {
                 TargetAddr::Ip(addr) => cidr.contains(addr.ip()),
                 TargetAddr::Domain(_, _) => false,
             },
+            RuleMatcher::SrcIpCidr(cidr) => src.is_some_and(|addr| cidr.contains(addr.ip())),
             RuleMatcher::GeoIp { code, db } => match target {
                 TargetAddr::Ip(addr) => db.geoip_matches(code, addr.ip()),
                 TargetAddr::Domain(_, _) => false,
@@ -363,6 +373,7 @@ impl RuleMatcher {
             RuleMatcher::DomainSuffix(_) => "DomainSuffix",
             RuleMatcher::DomainKeyword(_) => "DomainKeyword",
             RuleMatcher::IpCidr(_) => "IpCidr",
+            RuleMatcher::SrcIpCidr(_) => "SrcIpCidr",
             RuleMatcher::GeoIp { .. } => "GeoIP",
             RuleMatcher::GeoSite { .. } => "GeoSite",
             RuleMatcher::Asn { .. } => "IPASN",
@@ -390,6 +401,7 @@ impl RuleMatcher {
             RuleMatcher::DomainSuffix(s) => s.clone(),
             RuleMatcher::DomainKeyword(k) => k.clone(),
             RuleMatcher::IpCidr(c) => c.to_string(),
+            RuleMatcher::SrcIpCidr(c) => c.to_string(),
             RuleMatcher::GeoIp { code, .. } => code.clone(),
             RuleMatcher::GeoSite { code, .. } => code.clone(),
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
@@ -1699,6 +1711,96 @@ mod tests {
         assert_eq!(a.kind_str(), "SrcPort");
         assert_eq!(a.payload(), "80");
         assert_eq!(c.payload(), "80-90");
+    }
+
+    #[test]
+    fn src_ip_cidr_matches_source_ip_independent_of_target() {
+        let m = RuleMatcher::SrcIpCidr(IpCidr::parse("192.168.1.0/24").unwrap());
+        let inside = SocketAddr::new(Ipv4Addr::new(192, 168, 1, 5).into(), 50000);
+        let outside = SocketAddr::new(Ipv4Addr::new(10, 0, 0, 1).into(), 50000);
+        // The source IP is matched regardless of the destination host kind.
+        assert!(m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, Some(inside)));
+        assert!(m.matches_conn(&ipv4(8, 8, 8, 8), ConnNetwork::Udp, Some(inside)));
+        // A source outside the block misses.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, Some(outside)));
+    }
+
+    #[test]
+    fn src_ip_cidr_never_matches_without_a_known_source() {
+        // With no source the rule cannot match, so the `matches` /
+        // `matches_network` wrappers (which pass `None`) always miss.
+        let m = RuleMatcher::SrcIpCidr(IpCidr::parse("0.0.0.0/0").unwrap());
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, None));
+        assert!(!m.matches_network(&domain("example.com"), ConnNetwork::Tcp));
+        assert!(!m.matches(&domain("example.com")));
+    }
+
+    #[test]
+    fn router_routes_src_ip_cidr_rule() {
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(
+            RuleMatcher::SrcIpCidr(IpCidr::parse("192.168.0.0/16").unwrap()),
+            DIRECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        let inside = SocketAddr::new(Ipv4Addr::new(192, 168, 1, 5).into(), 40000);
+        let outside = SocketAddr::new(Ipv4Addr::new(8, 8, 4, 4).into(), 40000);
+        // Source inside the block -> DIRECT.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, Some(inside)),
+            OutboundMode::Direct
+        ));
+        // Source outside the block -> fallback proxy.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, Some(outside)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // No source (the `select`/`select_network` wrappers) -> never matches.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn src_ip_cidr_as_logical_sub_rule_respects_source() {
+        // AND,((DOMAIN-SUFFIX,example.com),(SRC-IP-CIDR,192.168.1.0/24)) only
+        // matches a connection to that domain from a source in the block; the
+        // source threads into sub-rules.
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::SrcIpCidr(IpCidr::parse("192.168.1.0/24").unwrap()),
+            ],
+        };
+        let inside = SocketAddr::new(Ipv4Addr::new(192, 168, 1, 5).into(), 50000);
+        let outside = SocketAddr::new(Ipv4Addr::new(10, 0, 0, 1).into(), 50000);
+        assert!(m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(inside)));
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(outside)));
+        assert!(!m.matches_conn(&domain("other.net"), ConnNetwork::Tcp, Some(inside)));
+        // Without a known source the SRC-IP-CIDR sub-rule cannot match.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, None));
+    }
+
+    #[test]
+    fn src_ip_cidr_equality_and_metadata() {
+        let a = RuleMatcher::SrcIpCidr(IpCidr::parse("192.168.1.0/24").unwrap());
+        let b = RuleMatcher::SrcIpCidr(IpCidr::parse("192.168.1.0/24").unwrap());
+        let c = RuleMatcher::SrcIpCidr(IpCidr::parse("10.0.0.0/8").unwrap());
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        // A same-CIDR destination matcher is a different variant and never equal.
+        assert_ne!(a, RuleMatcher::IpCidr(IpCidr::parse("192.168.1.0/24").unwrap()));
+        assert_eq!(a.kind_str(), "SrcIpCidr");
+        assert_eq!(a.payload(), "192.168.1.0/24");
     }
 
     #[test]

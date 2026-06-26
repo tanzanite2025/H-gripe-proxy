@@ -201,8 +201,10 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, …) or a malformed payload, so
-/// the caller drops the rule. `DST-PORT` and `SRC-PORT` accept a single port
+/// (`SRC-IP-ASN`, …) or a malformed payload, so the caller drops the rule.
+/// `IP-CIDR` / `IP-CIDR6` match the destination IP and `SRC-IP-CIDR` /
+/// `SRC-IP-CIDR6` the inbound peer's source IP (when the embedder supplies it).
+/// `DST-PORT` and `SRC-PORT` accept a single port
 /// (`443`) or an inclusive range (`8000-9000`); `SRC-PORT` matches the inbound
 /// peer's source port (when the embedder supplies it). `NETWORK` accepts `tcp`
 /// or `udp` (case-insensitive) and routes by the connection's transport
@@ -285,6 +287,7 @@ fn parse_matcher<'a>(
         "DOMAIN-SUFFIX" => RuleMatcher::DomainSuffix(payload.to_string()),
         "DOMAIN-KEYWORD" => RuleMatcher::DomainKeyword(payload.to_string()),
         "IP-CIDR" | "IP-CIDR6" => RuleMatcher::IpCidr(IpCidr::parse(payload).ok()?),
+        "SRC-IP-CIDR" | "SRC-IP-CIDR6" => RuleMatcher::SrcIpCidr(IpCidr::parse(payload).ok()?),
         "GEOIP" => RuleMatcher::GeoIp {
             code: payload.to_string(),
             db: Arc::clone(geo?),
@@ -1617,6 +1620,74 @@ rules:
         // No known source -> SRC-PORT never matches -> MATCH catch-all.
         assert!(matches!(
             router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn src_ip_cidr_rules_route_by_source_ip() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-IP-CIDR,192.168.1.0/24,DIRECT
+  - SRC-IP-CIDR6,fc00::/7,REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // Source IP inside the v4 block -> DIRECT, regardless of destination.
+        assert_eq!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src("192.168.1.5:50000")),
+            &OutboundMode::Direct
+        );
+        // Source IP inside the v6 ULA block -> REJECT.
+        assert_eq!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src("[fc00::1]:50000")),
+            &OutboundMode::Reject
+        );
+        // A source outside every block -> MATCH catch-all (PROXY -> node-a).
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, src("203.0.113.7:50000")),
+            OutboundMode::Trojan(_)
+        ));
+        // No known source -> SRC-IP-CIDR never matches -> MATCH catch-all.
+        assert!(matches!(
+            router.select_conn(&ip("8.8.8.8:80"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_src_ip_cidr_rules_are_dropped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-IP-CIDR,not-a-cidr,DIRECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // Malformed CIDR -> rule dropped -> even a would-be matching source
+        // falls through to MATCH.
+        assert!(matches!(
+            router.select_conn(
+                &ip("8.8.8.8:80"),
+                ConnNetwork::Tcp,
+                Some("192.168.1.5:50000".parse().unwrap())
+            ),
             OutboundMode::Trojan(_)
         ));
     }
