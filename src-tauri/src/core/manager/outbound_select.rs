@@ -24,7 +24,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
-use learn_gripe::{GeoLookup, IpCidr, LogicalOp, OutboundMode, PortRange, Router, Rule, RuleMatcher, RuleSetLookup};
+use learn_gripe::{
+    ConnNetwork, GeoLookup, IpCidr, LogicalOp, OutboundMode, PortRange, Router, Rule, RuleMatcher, RuleSetLookup,
+};
 use serde_yaml_ng::{Mapping, Value};
 
 /// Built-in policy names that are not real `proxies:` entries.
@@ -196,10 +198,12 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `SRC-PORT`, `PROCESS-NAME`, `NETWORK`, …) or a
+/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `SRC-PORT`, `PROCESS-NAME`, …) or a
 /// malformed payload, so the caller drops the rule. `DST-PORT` accepts a single
 /// port (`443`) or an inclusive range (`8000-9000`); `SRC-PORT` stays
-/// unsupported since the matcher only sees the destination target.
+/// unsupported since the matcher only sees the destination target. `NETWORK`
+/// accepts `tcp` or `udp` (case-insensitive) and routes by the connection's
+/// transport protocol.
 ///
 /// Logical rules `AND` / `OR` / `NOT` are supported: their parenthesized
 /// sub-rules are parsed recursively (so they nest), e.g.
@@ -286,6 +290,7 @@ fn parse_matcher<'a>(
             provider: Arc::clone(rule_sets?),
         },
         "DST-PORT" => RuleMatcher::DstPort(PortRange::parse(payload).ok()?),
+        "NETWORK" => RuleMatcher::Network(ConnNetwork::parse(payload)?),
         _ => return None,
     };
     Some((matcher, tail))
@@ -1155,8 +1160,61 @@ rules:
 
     #[test]
     fn logical_rule_with_unsupported_sub_rule_is_dropped() {
-        // `NETWORK` is not a matcher the kernel can evaluate, so the whole
+        // `PROCESS-NAME` is not a matcher the kernel can evaluate, so the whole
         // logical rule is dropped rather than silently ignoring that condition.
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - AND,((DOMAIN-SUFFIX,example.com),(PROCESS-NAME,curl)),REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // A host that would have matched the suffix is not rejected: the rule
+        // was dropped, so it falls through to MATCH (PROXY -> node-a).
+        assert!(matches!(
+            router.select(&domain("ads.example.com")),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn network_rules_route_by_transport_protocol() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - NETWORK,udp,REJECT
+  - NETWORK,TCP,DIRECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // UDP datagrams hit the first rule -> REJECT.
+        assert_eq!(
+            router.select_network(&domain("example.com"), ConnNetwork::Udp),
+            &OutboundMode::Reject
+        );
+        // TCP connections hit the second rule -> DIRECT (case-insensitive payload).
+        assert_eq!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            &OutboundMode::Direct
+        );
+    }
+
+    #[test]
+    fn network_rule_as_logical_sub_rule_routes() {
         let yaml = r#"
 mode: rule
 proxies:
@@ -1171,10 +1229,41 @@ rules:
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
-        // A host that would have matched the suffix is not rejected: the rule
-        // was dropped, so it falls through to MATCH (PROXY -> node-a).
+        // UDP to the suffix -> REJECT; TCP to the same host falls through to MATCH.
+        assert_eq!(
+            router.select_network(&domain("ads.example.com"), ConnNetwork::Udp),
+            &OutboundMode::Reject
+        );
         assert!(matches!(
-            router.select(&domain("ads.example.com")),
+            router.select_network(&domain("ads.example.com"), ConnNetwork::Tcp),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn malformed_network_rule_is_dropped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - NETWORK,sctp,REJECT
+  - MATCH,PROXY
+"#;
+        // `sctp` is not tcp/udp, so the rule is dropped and every connection
+        // falls through to MATCH (PROXY -> node-a) for both protocols.
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Udp),
+            OutboundMode::Trojan(_)
+        ));
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
             OutboundMode::Trojan(_)
         ));
     }
