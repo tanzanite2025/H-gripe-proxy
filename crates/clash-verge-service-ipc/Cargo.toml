@@ -55,7 +55,7 @@ standalone = [
     "anyhow",
     "once_cell",
     "serde_json",
-    "clash_verge_logger",
+    "clash-verge-logging",
     "flexi_logger",
     "log",
     "response",
@@ -102,7 +102,7 @@ tokio = { version = "1.52", features = [
 ], optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
-clash_verge_logger = { path = "../clash-verge-logger", optional = true }
+clash-verge-logging = { path = "../clash-verge-logging", optional = true }
 flexi_logger = { version = "0.31", optional = true }
 log = { version = "0.4.28", optional = true }
 tracing-log = { version = "0.2", optional = true }

@@ -8,6 +8,9 @@ log = { workspace = true }
 tokio = { workspace = true }
 compact_str = { workspace = true }
 flexi_logger = { workspace = true }
+arraydeque = "0.5"
+nu-ansi-term = { version = "0.50", optional = true }
 
 [features]
 default = []
+color = ["nu-ansi-term"]

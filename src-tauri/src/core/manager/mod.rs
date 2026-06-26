@@ -7,7 +7,7 @@ mod tun_inbound;
 use crate::singleton;
 use anyhow::Result;
 use arc_swap::{ArcSwap, ArcSwapOption};
-use clash_verge_logger::AsyncLogger;
+use clash_verge_logging::AsyncLogger;
 use once_cell::sync::Lazy;
 use std::{fmt, sync::Arc, time::Instant};
 

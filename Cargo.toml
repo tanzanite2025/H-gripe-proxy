@@ -11,7 +11,6 @@ members = [
   "crates/clash-dtos",
 ]
 exclude = [
-  "crates/clash-verge-logger",
   "crates/clash-verge-service-ipc",
   "crates/sysproxy",
   "third_party/rustls",
@@ -72,7 +71,6 @@ clash-verge-limiter = { path = "crates/clash-verge-limiter" }
 tauri-plugin-clash-verge-sysinfo = { path = "crates/tauri-plugin-clash-verge-sysinfo" }
 clash-dtos = { path = "crates/clash-dtos" }
 learn-gripe = { path = "crates/learn-gripe" }
-clash_verge_logger = { path = "crates/clash-verge-logger" }
 clash_verge_service_ipc = { path = "crates/clash-verge-service-ipc" }
 sysproxy = { path = "crates/sysproxy" }
 

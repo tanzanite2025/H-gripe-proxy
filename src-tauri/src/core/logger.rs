@@ -67,8 +67,8 @@ impl Logger {
             let logger = flexi_logger::Logger::with(log_spec)
                 .log_to_file(FileSpec::default().directory(log_dir).basename(""))
                 .duplicate_to_stdout(log_level.into())
-                .format(clash_verge_logger::console_format)
-                .format_for_files(clash_verge_logger::file_format_with_level)
+                .format(clash_verge_logging::console_format)
+                .format_for_files(clash_verge_logging::file_format_with_level)
                 .rotate(
                     Criterion::Size(log_max_size * 1024),
                     flexi_logger::Naming::TimestampsCustomFormat {
