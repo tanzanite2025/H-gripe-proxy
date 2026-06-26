@@ -83,7 +83,9 @@ impl Logger {
             filter_modules.push("tauri");
             #[cfg(feature = "tracing")]
             filter_modules.extend(["tauri_plugin_mihomo", "kode_bridge"]);
-            let logger = logger.filter(Box::new(clash_verge_logging::NoModuleFilter(filter_modules)));
+            let logger = logger.filter(Box::new(crate::core::log_stream::CoreLogTap::new(Box::new(
+                clash_verge_logging::NoModuleFilter(filter_modules),
+            ))));
 
             let handle = logger.start()?;
             *self.handle.lock() = Some(handle);
