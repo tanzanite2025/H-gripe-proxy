@@ -116,7 +116,13 @@ impl ProcessStealthManager {
     #[cfg(not(target_os = "windows"))]
     fn set_title(&self, title: &str) {
         // 非 Windows 平台使用环境变量方式
-        std::env::set_var("APP_NAME", title);
+        // SAFETY: edition 2024 marks `set_var` unsafe because POSIX `setenv` can
+        // race concurrent `getenv`. `APP_NAME` is a private marker only this
+        // module writes and nothing in-process reads via the C `getenv` path, so
+        // there is no such concurrent reader to race with.
+        unsafe {
+            std::env::set_var("APP_NAME", title);
+        }
     }
 }
 
