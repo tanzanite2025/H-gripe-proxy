@@ -194,8 +194,7 @@ clash-verge-optimized/
 │   ├── clash-verge-i18n/       # 国际化支持
 │   ├── clash-verge-limiter/    # 流量限速器
 │   ├── clash-verge-logging/    # 日志系统
-│   ├── clash-verge-signal/     # 信号处理
-│   └── clash-verge-xdp/        # XDP 防探测 (Linux)
+│   └── clash-verge-signal/     # 信号处理
 ├── mihomo/                     # 仓库内私有 runtime kernel 组件
 ├── scripts/                    # 构建 & 工具脚本
 ├── Cargo.toml                  # Rust workspace 配置
