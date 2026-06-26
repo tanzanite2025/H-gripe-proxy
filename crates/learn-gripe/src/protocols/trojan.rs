@@ -195,7 +195,7 @@ mod tests {
 
     use super::*;
     use crate::proxy::ProxyEntry;
-    use crate::tls::ClientFingerprint;
+    use crate::transport::tls::ClientFingerprint;
 
     fn parse_entry(yaml: &str) -> ProxyEntry {
         serde_yaml_ng::from_str(yaml).expect("parse proxy entry")

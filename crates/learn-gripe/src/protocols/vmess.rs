@@ -753,7 +753,7 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr};
 
     use super::*;
-    use crate::tls::ClientFingerprint;
+    use crate::transport::tls::ClientFingerprint;
 
     fn parse_entry(yaml: &str) -> ProxyEntry {
         serde_yaml_ng::from_str(yaml).expect("parse proxy entry")

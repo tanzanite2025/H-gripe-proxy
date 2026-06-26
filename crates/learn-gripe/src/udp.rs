@@ -194,13 +194,13 @@ async fn run_direct_egress(
 /// Shadowsocks UDP egress: relay datagrams over a UDP socket to the Shadowsocks
 /// server, sealing/opening each packet with per-packet AEAD framing.
 async fn run_ss_egress(
-    config: Box<crate::shadowsocks::ShadowsocksOutboundConfig>,
+    config: Box<crate::protocols::shadowsocks::ShadowsocksOutboundConfig>,
     target: TargetAddr,
     mut rx: mpsc::Receiver<Vec<u8>>,
     relay: Arc<UdpSocket>,
     client_addr: SocketAddr,
 ) -> Result<()> {
-    let assoc = crate::shadowsocks::ShadowsocksUdp::connect(&config, &target).await?;
+    let assoc = crate::protocols::shadowsocks::ShadowsocksUdp::connect(&config, &target).await?;
     loop {
         tokio::select! {
             maybe = rx.recv() => match maybe {
@@ -284,7 +284,7 @@ where
     match framing {
         ProxyFraming::Trojan => {
             writer
-                .write_all(&crate::trojan::encode_udp_packet(target, payload))
+                .write_all(&crate::protocols::trojan::encode_udp_packet(target, payload))
                 .await?;
         }
         ProxyFraming::LengthPrefixed => {
@@ -308,7 +308,7 @@ where
 {
     match framing {
         ProxyFraming::Trojan => {
-            let (_source, payload) = crate::trojan::read_udp_packet(reader).await?;
+            let (_source, payload) = crate::protocols::trojan::read_udp_packet(reader).await?;
             Ok(payload)
         }
         ProxyFraming::LengthPrefixed => {

@@ -2,12 +2,12 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use anyhow::{Context, Result, bail};
 
+use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
+use crate::protocols::trojan::TrojanOutboundConfig;
+use crate::protocols::vless::VlessOutboundConfig;
+use crate::protocols::vmess::VmessOutboundConfig;
 use crate::proxy::{ProxyEntry, ProxyType};
 use crate::router::Router;
-use crate::shadowsocks::ShadowsocksOutboundConfig;
-use crate::trojan::TrojanOutboundConfig;
-use crate::vless::VlessOutboundConfig;
-use crate::vmess::VmessOutboundConfig;
 
 /// Runtime configuration for the learn-gripe kernel MVP.
 #[derive(Debug, Clone)]

@@ -3,7 +3,7 @@
 //! Vision is *not* a security or transport layer — it is an extra framing
 //! applied to the VLESS body, orthogonal to [`crate::transport`]. It only runs
 //! over raw-TCP VLESS (the inner relayed bytes must be a clean stream), which
-//! [`crate::vless`] enforces. The point of Vision is to hide the length
+//! [`crate::protocols::vless`] enforces. The point of Vision is to hide the length
 //! signature of the *tunneled* TLS handshake: while the inner connection is
 //! still handshaking, each application write is wrapped in a small padding frame
 //! so the on-wire record sizes don't fingerprint the proxy; once the inner TLS
