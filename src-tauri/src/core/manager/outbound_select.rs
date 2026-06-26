@@ -26,7 +26,7 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow, bail};
 use learn_gripe::{
     ConnNetwork, GeoLookup, IpCidr, LogicalOp, OutboundMode, PortRange, ProcessLookup, Router, Rule, RuleMatcher,
-    RuleSetLookup,
+    RuleSetLookup, UidRange,
 };
 use serde_yaml_ng::{Mapping, Value};
 
@@ -225,10 +225,12 @@ fn build_router(
 /// IP against the ASN database (both when the embedder supplies the source).
 ///
 /// `PROCESS-NAME` / `PROCESS-PATH` match the executable base name / full path
-/// of the local process that owns the connection's source socket, resolved by
-/// `process` (a [`ProcessLookup`]) at selection time; when it is `None`, or no
-/// process can be resolved from the source, the rule is dropped / never
-/// matches, matching `SRC-PORT`'s source-dependent behaviour.
+/// of the local process that owns the connection's source socket, and `UID`
+/// matches that process's owning user id (a single uid `1000` or an inclusive
+/// range `1000-2000`); all are resolved by `process` (a [`ProcessLookup`]) at
+/// selection time. When it is `None`, no process can be resolved from the
+/// source, or the platform reports no uid, the rule is dropped / never matches,
+/// matching `SRC-PORT`'s source-dependent behaviour.
 fn parse_router_rule(
     raw: &str,
     geo: Option<&Arc<dyn GeoLookup>>,
@@ -322,6 +324,10 @@ fn parse_matcher<'a>(
         },
         "PROCESS-PATH" => RuleMatcher::ProcessPath {
             path: payload.to_string(),
+            provider: Arc::clone(process?),
+        },
+        "UID" => RuleMatcher::Uid {
+            range: UidRange::parse(payload).ok()?,
             provider: Arc::clone(process?),
         },
         _ => return None,
@@ -659,8 +665,8 @@ mod tests {
     }
 
     /// In-memory process lookup for routing tests: a connection from source
-    /// port `51000` is owned by `curl` at `/usr/bin/curl`; every other source
-    /// resolves to no process (`None`).
+    /// port `51000` is owned by `curl` at `/usr/bin/curl` running under uid
+    /// `1000`; every other source resolves to no process (`None`).
     #[derive(Debug)]
     struct FakeProcess;
 
@@ -669,6 +675,7 @@ mod tests {
             (src.port() == 51000).then(|| learn_gripe::ProcessInfo {
                 name: "curl".to_string(),
                 path: "/usr/bin/curl".to_string(),
+                uid: Some(1000),
             })
         }
     }
@@ -1288,6 +1295,110 @@ rules:
             no_rule_sets(),
             no_process(),
         );
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = Some("127.0.0.1:51000".parse::<SocketAddr>().unwrap());
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn uid_rule_routes_when_lookup_present() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - UID,1000,REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), fake_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // Source port 51000 is owned by uid 1000 -> UID,1000 matches (REJECT).
+        assert_eq!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:51000")),
+            &OutboundMode::Reject
+        );
+        // Unresolved source -> UID rule misses -> MATCH (PROXY -> node-a).
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:40000")),
+            OutboundMode::Trojan(_)
+        ));
+        // No source at all -> never matches.
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn uid_range_rule_matches_inclusive_bounds() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - UID,500-1500,DIRECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), fake_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // uid 1000 is inside 500-1500 -> DIRECT.
+        assert_eq!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:51000")),
+            &OutboundMode::Direct
+        );
+    }
+
+    #[test]
+    fn uid_rule_skipped_without_lookup_or_when_malformed() {
+        // No process lookup: the UID rule is dropped, so a uid-1000 source falls
+        // through to MATCH (PROXY) rather than rejecting.
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - UID,1000,REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = Some("127.0.0.1:51000".parse::<SocketAddr>().unwrap());
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src),
+            OutboundMode::Trojan(_)
+        ));
+
+        // A malformed UID payload is dropped even when a lookup is present.
+        let bad = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - UID,abc,REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(bad), &HashMap::new(), no_geo(), no_rule_sets(), fake_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
