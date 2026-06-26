@@ -212,10 +212,11 @@ fn build_router(
 /// logical rule is dropped rather than silently ignoring a condition.
 ///
 /// `GEOIP` / `GEOSITE` / `IP-ASN` are evaluated against `geo` (a [`GeoLookup`]
-/// over local geo data) and `RULE-SET` against `rule_sets` (a [`RuleSetLookup`]
-/// over the locally-loaded rule providers); when the matching lookup is `None`
-/// those rules are dropped, since without local data there is nothing to match
-/// against.
+/// over local geo data) and `RULE-SET` / `SRC-IP-RULE-SET` against `rule_sets`
+/// (a [`RuleSetLookup`] over the locally-loaded rule providers); when the
+/// matching lookup is `None` those rules are dropped, since without local data
+/// there is nothing to match against. `SRC-IP-RULE-SET` matches the inbound
+/// peer's source IP against the set (when the embedder supplies the source).
 fn parse_router_rule(
     raw: &str,
     geo: Option<&Arc<dyn GeoLookup>>,
@@ -286,6 +287,10 @@ fn parse_matcher<'a>(
             db: Arc::clone(geo?),
         },
         "RULE-SET" => RuleMatcher::RuleSet {
+            name: payload.to_string(),
+            provider: Arc::clone(rule_sets?),
+        },
+        "SRC-IP-RULE-SET" => RuleMatcher::SrcRuleSet {
             name: payload.to_string(),
             provider: Arc::clone(rule_sets?),
         },
@@ -1049,6 +1054,58 @@ rules:
             OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
         }
+    }
+
+    const SRC_IP_RULE_SET_CFG: &str = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - SRC-IP-RULE-SET,ads,REJECT
+  - MATCH,PROXY
+"#;
+
+    #[test]
+    fn src_ip_rule_set_routes_by_source_ip() {
+        let mode = routed_outbound(&cfg(SRC_IP_RULE_SET_CFG), &HashMap::new(), no_geo(), fake_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // The `ads` set matches IPs in 9.9.9.0/24, so a connection *from* such a
+        // source is REJECTed regardless of its destination.
+        assert_eq!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("9.9.9.9:50000")),
+            &OutboundMode::Reject
+        );
+        // A source IP outside the set falls through to the MATCH catch-all.
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("8.8.8.8:50000")),
+            OutboundMode::Trojan(_)
+        ));
+        // No known source -> SRC-IP-RULE-SET never matches -> MATCH catch-all,
+        // even when the *destination* IP would belong to the set.
+        assert!(matches!(
+            router.select_conn(&ip("9.9.9.9:80"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn src_ip_rule_set_skipped_without_provider_data() {
+        // Same config but no rule-provider data: the SRC-IP-RULE-SET rule is
+        // dropped, so a set-member source falls through to MATCH (PROXY).
+        let mode = routed_outbound(&cfg(SRC_IP_RULE_SET_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = Some("9.9.9.9:50000".parse::<SocketAddr>().unwrap());
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src),
+            OutboundMode::Trojan(_)
+        ));
     }
 
     #[test]
