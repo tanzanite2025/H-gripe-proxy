@@ -72,6 +72,40 @@ pub enum NetworkType {
 }
 
 // ---------------------------------------------------------------------------
+// Kernel bridge — let the learn-gripe router query loaded rule-set providers
+// ---------------------------------------------------------------------------
+
+/// Bridge the app's locally-loaded rule-set providers into the kernel router's
+/// `RULE-SET` matcher. The kernel only ever queries a set by name through this
+/// trait; it never reads or fetches provider payloads itself — the app loads
+/// them in [`RuleSetData::from_rule_providers`].
+impl learn_gripe::RuleSetLookup for RuleSetData {
+    fn rule_set_matches(&self, name: &str, target: &learn_gripe::TargetAddr) -> bool {
+        self.matches(name, &connection_meta_from_target(target))
+    }
+}
+
+/// Build the [`ConnectionMeta`] the rule-set engine matches against from the
+/// kernel's connection target. A domain target only sets `host`, a resolved-IP
+/// target only sets `dst_ip`, so domain-behaviour sets match hostnames and
+/// ipcidr-behaviour sets match addresses, mirroring how the router feeds the
+/// geo matchers.
+fn connection_meta_from_target(target: &learn_gripe::TargetAddr) -> ConnectionMeta {
+    match target {
+        learn_gripe::TargetAddr::Domain(host, port) => ConnectionMeta {
+            host: host.to_ascii_lowercase(),
+            dst_port: *port,
+            ..ConnectionMeta::default()
+        },
+        learn_gripe::TargetAddr::Ip(addr) => ConnectionMeta {
+            dst_ip: Some(addr.ip()),
+            dst_port: addr.port(),
+            ..ConnectionMeta::default()
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Match result
 // ---------------------------------------------------------------------------
 

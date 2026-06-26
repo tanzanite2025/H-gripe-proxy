@@ -6,11 +6,12 @@ use crate::core::geo_update;
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
 use crate::core::provider_update;
+use crate::core::rule_engine::{RuleProviderConfig, RuleSetData};
 use crate::core::rule_geodata::RuleGeoData;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Context as _, Result, anyhow};
 use clash_verge_logging::{Type, logging};
-use learn_gripe::{GeoLookup, GripeConfig, GripeKernel, OutboundMode};
+use learn_gripe::{GeoLookup, GripeConfig, GripeKernel, OutboundMode, RuleSetLookup};
 use scopeguard::defer;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -345,8 +346,37 @@ impl CoreManager {
     /// config is missing.
     async fn resolve_outbound() -> OutboundMode {
         let geo = Self::load_geo_lookup();
-        Self::resolve_with(move |config, selection| outbound_select::routed_outbound(config, selection, geo.clone()))
-            .await
+        Self::resolve_with(move |config, selection| {
+            let rule_sets = Self::load_rule_sets(config);
+            outbound_select::routed_outbound(config, selection, geo.clone(), rule_sets)
+        })
+        .await
+    }
+
+    /// Build the locally-loaded rule-set providers (`rule-providers:`) from the
+    /// runtime config so the rule router can evaluate `RULE-SET` rules. The
+    /// kernel never fetches or owns this data — it only queries it through
+    /// [`RuleSetLookup`]. When the config declares no providers, or none can be
+    /// loaded, the lookup is absent and `RULE-SET` rules are simply skipped.
+    fn load_rule_sets(config: &serde_yaml_ng::Mapping) -> Option<Arc<dyn RuleSetLookup>> {
+        let providers = config.get("rule-providers")?.clone();
+        let providers: HashMap<String, RuleProviderConfig> = match serde_yaml_ng::from_value(providers) {
+            Ok(providers) => providers,
+            Err(err) => {
+                logging!(warn, Type::Core, "failed to parse rule-providers: {err:#}");
+                return None;
+            }
+        };
+        if providers.is_empty() {
+            return None;
+        }
+        match RuleSetData::from_rule_providers(providers) {
+            Ok(data) => Some(Arc::new(data) as Arc<dyn RuleSetLookup>),
+            Err(err) => {
+                logging!(warn, Type::Core, "failed to load rule providers: {err:#}");
+                None
+            }
+        }
     }
 
     /// Load the *local*, user-maintained geo database (Country.mmdb / GeoIP.dat
