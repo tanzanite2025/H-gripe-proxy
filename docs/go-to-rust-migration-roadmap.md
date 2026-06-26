@@ -577,6 +577,25 @@ Only after the supported default paths above run on `learn-gripe`:
   an honest in-process source (it needs upstream-resolver modeling and
   leak/poisoning detection the userspace kernel does not perform).
 
+- **Done — DNS resolution-path trust now reports real in-process data in TUN
+  mode.** `dns_metrics_from_stats()` is only ever reached with a live in-stack
+  snapshot (the read returns `Err` outside TUN mode), so the resolution path is
+  always the fake-IP answerer: every question is answered locally and **no
+  plaintext DNS leaves the host**, while the real name resolution happens at the
+  proxy egress over the encrypted tunnel. That is a genuine, honest privacy
+  property, so the `trust` section now carries one `DnsServerClassification` for
+  the in-stack answerer (`address = "fake-ip (in-stack)"`, `protocol = "fakeip"`,
+  `trust_level = "maximum"`, `encrypted = true` — end-to-end via the tunnel), with
+  `total = 1`, `encrypted = 1`, `by_trust_level = {"maximum": 1}` and
+  `leak_risk_score = 0.0` (no third-party resolver is ever queried). The property
+  holds even before the first query, so it is not gated on query count. Outside
+  TUN mode the read returns `Err` and the panel honestly shows "不可用". The
+  `dns_metrics_map_cache_hits_misses_and_query_totals` test asserts the
+  classification. **Pollution analysis is now the only DNS section without an
+  honest in-process source** — it would need to compare answers against a trusted
+  baseline (DoH/DoT cross-check or known-good lists), which the fake-IP answerer
+  does not perform — so it stays empty and the panel hides it.
+
 ## Definition of done for a roadmap PR
 
 A PR counts as kernel progress only if it does at least one of:

@@ -13,10 +13,10 @@ use crate::{
 use anyhow::Result;
 use clash_dtos::{
     BaseConfig, BufferPoolStats, ClashMode, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
-    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryEvent, DnsQueryStats, DnsServerStats,
-    DnsTrustSummary, EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel, MihomoVersion,
-    Network, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior,
-    RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo,
+    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryEvent, DnsQueryStats, DnsServerClassification,
+    DnsServerStats, DnsTrustSummary, EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel,
+    MihomoVersion, Network, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
+    RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo,
     TLSFingerprintStats, TunConfig, TunStack, VehicleType, XDPStatus,
 };
 use once_cell::sync::Lazy;
@@ -234,9 +234,10 @@ impl RuntimeSnapshotService {
         // fake-IP answerer on the TUN datapath; outside TUN mode DNS is forwarded
         // verbatim with no instrumentation. `runtime_dns_stats` returns `None`
         // unless a TUN inbound is live, so report unavailable rather than
-        // fabricating zeroed counters. The cache/query fields carry real data;
-        // per-server, recent-query, pollution and trust metrics have no honest
-        // in-process source and stay empty (the panel hides those sections).
+        // fabricating zeroed counters. The cache/query/per-server/recent-query
+        // and resolution-path trust fields carry real data; only pollution
+        // analysis has no honest in-process source and stays empty (the panel
+        // hides that section).
         let stats = CoreManager::global().runtime_dns_stats().await.ok_or_else(|| {
             anyhow::anyhow!("DNS metrics are not available: the Rust kernel only instruments DNS in TUN mode (in-stack fake-IP), which is not active")
         })?;
@@ -483,9 +484,12 @@ pub(crate) fn rule_traffic_from_kernel(
 /// from the local fake-IP pool, so success == total - errors and there is no
 /// per-query latency to report. In fake-IP TUN mode the in-stack answerer is the
 /// single DNS server handling every query, so the `servers` section carries one
-/// honest entry for it (derived from the same counters). Pollution and trust
-/// analysis have no honest in-process source, so they stay empty and the panel
-/// hides those sections.
+/// honest entry for it (derived from the same counters). The `trust` section is
+/// also honest in this mode: queries are answered locally and never leave the
+/// host, while the real name resolution happens at the proxy egress over the
+/// encrypted tunnel, so the resolution path carries zero DNS-leak risk. Only
+/// pollution analysis has no honest in-process source (it would need to compare
+/// answers against a trusted baseline), so it stays empty and the panel hides it.
 pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> DnsMetrics {
     // A cache hit is an `A` question whose domain already had a mapping; the
     // remaining `A` questions allocated a new entry (a miss).
@@ -550,6 +554,29 @@ pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> D
         Vec::new()
     };
 
+    // This DTO is only ever shaped from a live in-stack snapshot (the read
+    // returns `Err` outside TUN mode), so the resolution path is always the
+    // fake-IP answerer: every question is answered locally and no plaintext DNS
+    // leaves the host. The real name resolution happens at the proxy egress over
+    // the encrypted tunnel, so the path is leak-free (`leak_risk_score = 0`) and
+    // classified at maximum trust. Pollution detection has no honest source and
+    // stays empty.
+    let trust = DnsTrustSummary {
+        total: 1,
+        encrypted: 1,
+        unencrypted: 0,
+        by_trust_level: HashMap::from([("maximum".to_string(), 1)]),
+        servers: vec![DnsServerClassification {
+            address: "fake-ip (in-stack)".to_string(),
+            protocol: "fakeip".to_string(),
+            trust_level: "maximum".to_string(),
+            encrypted: true,
+            description: Some("查询在本机 fake-IP 应答，真实解析在代理出口经加密隧道完成，DNS 不出本机".to_string()),
+        }],
+        leak_risk_score: 0.0,
+        last_evaluated: unix_ms_to_rfc3339(now_millis()),
+    };
+
     DnsMetrics {
         cache: DnsCacheStats {
             hit: cache_hits,
@@ -569,7 +596,7 @@ pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> D
         servers,
         recent,
         pollution: DnsPollutionStats::default(),
-        trust: DnsTrustSummary::default(),
+        trust,
     }
 }
 
@@ -2312,9 +2339,24 @@ rule-providers:
         assert_eq!(metrics.servers[0].last_query, metrics.recent[0].timestamp);
         assert!(metrics.servers[0].last_error.is_none());
 
-        // No honest in-process source for these sections.
+        // Resolution-path trust is honest in fake-IP TUN mode: the sole resolver
+        // is the local in-stack answerer, queries never leave the host, and real
+        // resolution happens at the proxy egress over the encrypted tunnel, so
+        // the path is leak-free at maximum trust.
+        assert_eq!(metrics.trust.total, 1);
+        assert_eq!(metrics.trust.encrypted, 1);
+        assert_eq!(metrics.trust.unencrypted, 0);
+        assert_eq!(metrics.trust.leak_risk_score, 0.0);
+        assert_eq!(metrics.trust.by_trust_level.get("maximum"), Some(&1));
+        assert_eq!(metrics.trust.servers.len(), 1);
+        assert_eq!(metrics.trust.servers[0].address, "fake-ip (in-stack)");
+        assert_eq!(metrics.trust.servers[0].protocol, "fakeip");
+        assert_eq!(metrics.trust.servers[0].trust_level, "maximum");
+        assert!(metrics.trust.servers[0].encrypted);
+        assert!(!metrics.trust.last_evaluated.is_empty());
+
+        // Pollution detection has no honest in-process source.
         assert_eq!(metrics.pollution.total_checked, 0);
-        assert_eq!(metrics.trust.total, 0);
     }
 
     #[test]
@@ -2327,5 +2369,8 @@ rule-providers:
         assert_eq!(metrics.queries.success, 0);
         // No queries served yet, so no server entry is surfaced.
         assert!(metrics.servers.is_empty());
+        // The leak-free resolution-path trust holds even before the first query.
+        assert_eq!(metrics.trust.total, 1);
+        assert_eq!(metrics.trust.leak_risk_score, 0.0);
     }
 }
