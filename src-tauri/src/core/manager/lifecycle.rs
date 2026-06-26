@@ -11,7 +11,7 @@ use crate::core::rule_geodata::RuleGeoData;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Context as _, Result, anyhow};
 use clash_verge_logging::{Type, logging};
-use learn_gripe::{GeoLookup, GripeConfig, GripeKernel, OutboundMode, RuleSetLookup};
+use learn_gripe::{GeoLookup, GripeConfig, GripeKernel, OutboundMode, ProcessLookup, RuleSetLookup};
 use scopeguard::defer;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -346,11 +346,23 @@ impl CoreManager {
     /// config is missing.
     async fn resolve_outbound() -> OutboundMode {
         let geo = Self::load_geo_lookup();
+        let process = Self::load_process_lookup();
         Self::resolve_with(move |config, selection| {
             let rule_sets = Self::load_rule_sets(config);
-            outbound_select::routed_outbound(config, selection, geo.clone(), rule_sets)
+            outbound_select::routed_outbound(config, selection, geo.clone(), rule_sets, process.clone())
         })
         .await
+    }
+
+    /// Build the OS-level process lookup so the rule router can evaluate
+    /// `PROCESS-NAME` / `PROCESS-PATH` rules. The kernel never performs the
+    /// socket→process resolution itself — it only queries the owning local
+    /// process of a connection's source socket through [`ProcessLookup`].
+    /// There is no config to load; the lookup is always available and simply
+    /// resolves nothing (so those rules never match) on platforms or
+    /// connections where the owning process cannot be determined.
+    fn load_process_lookup() -> Option<Arc<dyn ProcessLookup>> {
+        Some(Arc::new(crate::core::process_lookup::ProcessData) as Arc<dyn ProcessLookup>)
     }
 
     /// Build the locally-loaded rule-set providers (`rule-providers:`) from the

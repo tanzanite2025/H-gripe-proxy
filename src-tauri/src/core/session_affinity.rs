@@ -715,6 +715,45 @@ pub mod process_detection {
 
         Err(anyhow::anyhow!("未找到进程"))
     }
+
+    /// 根据端口获取进程可执行文件完整路径
+    pub fn get_process_path_by_port(port: u16) -> Result<String> {
+        let pid = get_pid_by_port(port)?;
+        get_process_path_by_pid(pid)
+    }
+
+    /// 根据端口解析出 PID（netstat -ano 的最后一列）
+    fn get_pid_by_port(port: u16) -> Result<u32> {
+        let output = Command::new("netstat").args(&["-ano"]).output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if line.contains(&format!(":{}", port)) && line.contains("ESTABLISHED") {
+                if let Some(pid_str) = line.split_whitespace().last() {
+                    if let Ok(pid) = pid_str.parse::<u32>() {
+                        return Ok(pid);
+                    }
+                }
+            }
+        }
+        Err(anyhow::anyhow!("未找到进程"))
+    }
+
+    /// 根据 PID 获取进程可执行文件完整路径
+    fn get_process_path_by_pid(pid: u32) -> Result<String> {
+        let output = Command::new("powershell")
+            .args(&[
+                "-NoProfile",
+                "-Command",
+                &format!("(Get-Process -Id {} -ErrorAction SilentlyContinue).Path", pid),
+            ])
+            .output()?;
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() {
+            Err(anyhow::anyhow!("未找到进程路径"))
+        } else {
+            Ok(path)
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -775,6 +814,49 @@ pub mod process_detection {
 
         Err(anyhow::anyhow!("未找到进程"))
     }
+
+    /// 根据端口获取进程可执行文件完整路径
+    pub fn get_process_path_by_port(port: u16) -> Result<String> {
+        let tcp_content = fs::read_to_string("/proc/net/tcp")?;
+        for line in tcp_content.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() > 9 {
+                let local_address = parts[1];
+                let port_hex = format!("{:04X}", port);
+                if local_address.ends_with(&format!(":{}", port_hex)) {
+                    let inode = parts[9];
+                    return find_process_path_by_inode(inode);
+                }
+            }
+        }
+        Err(anyhow::anyhow!("未找到进程"))
+    }
+
+    /// 根据 inode 查找进程可执行文件路径（读取 /proc/<pid>/exe 符号链接）
+    fn find_process_path_by_inode(inode: &str) -> Result<String> {
+        for entry in fs::read_dir("/proc")? {
+            let entry = entry?;
+            let path = entry.path();
+            if let Some(pid_str) = path.file_name().and_then(|n| n.to_str()) {
+                if pid_str.chars().all(|c| c.is_ascii_digit()) {
+                    let fd_dir = path.join("fd");
+                    if let Ok(entries) = fs::read_dir(fd_dir) {
+                        for fd_entry in entries.flatten() {
+                            if let Ok(link) = fs::read_link(fd_entry.path()) {
+                                if link.to_string_lossy().contains(inode) {
+                                    if let Ok(exe) = fs::read_link(path.join("exe")) {
+                                        return Ok(exe.to_string_lossy().into_owned());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(anyhow::anyhow!("未找到进程"))
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -801,6 +883,41 @@ pub mod process_detection {
         }
 
         process_name.ok_or_else(|| anyhow::anyhow!("未找到进程"))
+    }
+
+    /// 根据端口获取进程可执行文件完整路径
+    pub fn get_process_path_by_port(port: u16) -> Result<String> {
+        let pid = get_pid_by_port(port)?;
+        get_process_path_by_pid(pid)
+    }
+
+    /// 根据端口解析出 PID（lsof -Fp 的 p<PID> 行）
+    fn get_pid_by_port(port: u16) -> Result<u32> {
+        let output = Command::new("lsof")
+            .args(&["-i", &format!(":{}", port), "-sTCP:ESTABLISHED", "-Fp"])
+            .output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if let Some(pid_str) = line.strip_prefix('p') {
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    return Ok(pid);
+                }
+            }
+        }
+        Err(anyhow::anyhow!("未找到进程"))
+    }
+
+    /// 根据 PID 获取进程可执行文件完整路径（ps -o comm= 在 macOS 返回完整路径）
+    fn get_process_path_by_pid(pid: u32) -> Result<String> {
+        let output = Command::new("ps")
+            .args(&["-p", &pid.to_string(), "-o", "comm="])
+            .output()?;
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() {
+            Err(anyhow::anyhow!("未找到进程路径"))
+        } else {
+            Ok(path)
+        }
     }
 }
 

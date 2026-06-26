@@ -12,12 +12,15 @@
 //! connection). This mirrors Clash's built-in policies.
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
-//! `DST-PORT`, `SRC-PORT`, `NETWORK`, `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
+//! `DST-PORT`, `SRC-PORT`, `NETWORK`, `PROCESS-NAME`, `PROCESS-PATH`, `MATCH`,
+//! plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
 //! carry a shared [`GeoLookup`] handle to a locally-maintained geo database
-//! (mmdb / geosite `.dat`) and `RULE-SET` carries a shared [`RuleSetLookup`]
-//! handle to locally-loaded rule providers; the kernel never fetches that data
-//! itself — the embedder loads the local files and supplies the lookup, keeping
-//! data sourcing out of the data plane.
+//! (mmdb / geosite `.dat`), `RULE-SET` carries a shared [`RuleSetLookup`]
+//! handle to locally-loaded rule providers, and the process matchers carry a
+//! shared [`ProcessLookup`] handle that maps a connection's source socket to
+//! the owning local process; the kernel never fetches that data itself — the
+//! embedder loads the local files / performs the OS lookup and supplies the
+//! handle, keeping data sourcing out of the data plane.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -57,6 +60,30 @@ pub trait RuleSetLookup: Send + Sync {
     fn rule_set_matches(&self, name: &str, target: &TargetAddr) -> bool;
 }
 
+/// The executable that originated a connection, resolved by a
+/// [`ProcessLookup`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessInfo {
+    /// The executable's base name, e.g. `curl` or `chrome.exe`.
+    pub name: String,
+    /// The executable's full path, e.g. `/usr/bin/curl`.
+    pub path: String,
+}
+
+/// Lookup from a connection's source socket to the local process that owns it,
+/// used by the `PROCESS-NAME` / `PROCESS-PATH` matchers. Like [`GeoLookup`] and
+/// [`RuleSetLookup`], the kernel neither owns the OS tables nor performs the
+/// (platform-specific) socket→PID→executable resolution itself: the embedder
+/// supplies an implementation, so the routing data plane only ever *queries*
+/// the owning process for a connection.
+pub trait ProcessLookup: Send + Sync {
+    /// Resolve the process that owns the local socket identified by `src` on
+    /// `network` (the inbound peer the connection arrived from), or `None` when
+    /// no owning process can be found — e.g. the socket has already closed, the
+    /// caller is on another host, or the OS lookup is unsupported.
+    fn lookup(&self, network: ConnNetwork, src: SocketAddr) -> Option<ProcessInfo>;
+}
+
 /// Built-in outbound name that connects straight to the target.
 pub const DIRECT: &str = "DIRECT";
 /// Built-in outbound name that refuses the connection.
@@ -65,10 +92,11 @@ pub const REJECT: &str = "REJECT";
 /// A single routing predicate.
 ///
 /// `Clone` is derived; `Debug`/`PartialEq`/`Eq` are hand-written because the
-/// `GeoIp`/`GeoSite`/`Asn` variants carry an `Arc<dyn GeoLookup>` and `RuleSet`
-/// an `Arc<dyn RuleSetLookup>` trait object that cannot derive them. Two such
-/// matchers are equal when they name the same code/ASN/set and share the same
-/// underlying database/provider (compared by pointer).
+/// `GeoIp`/`GeoSite`/`Asn` variants carry an `Arc<dyn GeoLookup>`, `RuleSet` /
+/// `SrcRuleSet` an `Arc<dyn RuleSetLookup>`, and `ProcessName` / `ProcessPath`
+/// an `Arc<dyn ProcessLookup>` trait object that cannot derive them. Two such
+/// matchers are equal when they name the same code/ASN/set/pattern and share
+/// the same underlying database/provider (compared by pointer).
 #[derive(Clone)]
 pub enum RuleMatcher {
     /// Exact (case-insensitive) domain match.
@@ -123,6 +151,25 @@ pub enum RuleMatcher {
     /// time and does not depend on the target, so it applies to IP and domain
     /// targets alike.
     Network(ConnNetwork),
+    /// Matches when the local process that owns the connection has this
+    /// executable base name (e.g. `curl`, `chrome.exe`), compared
+    /// case-insensitively. The owning process is resolved by the embedder from
+    /// the connection's source socket at selection time; when the source is
+    /// unknown or no process can be resolved the rule never matches, mirroring
+    /// how `SRC-IP-CIDR` only applies once the source is known.
+    ProcessName {
+        name: String,
+        provider: Arc<dyn ProcessLookup>,
+    },
+    /// Matches when the local process that owns the connection has this
+    /// executable full path (e.g. `/usr/bin/curl`), compared case-insensitively.
+    /// Like [`ProcessName`](RuleMatcher::ProcessName) the process is resolved
+    /// from the source socket and the rule never matches without a resolvable
+    /// source.
+    ProcessPath {
+        path: String,
+        provider: Arc<dyn ProcessLookup>,
+    },
     /// Combines its sub-matchers with a boolean operator, letting one rule mix
     /// the other predicates (`AND((DOMAIN-SUFFIX,example.com),(IP-CIDR,10.0.0.0/8))`).
     /// `And` matches when every sub-matcher matches, `Or` when any does, and
@@ -161,6 +208,14 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::DstPort(r) => f.debug_tuple("DstPort").field(r).finish(),
             RuleMatcher::SrcPort(r) => f.debug_tuple("SrcPort").field(r).finish(),
             RuleMatcher::Network(n) => f.debug_tuple("Network").field(n).finish(),
+            RuleMatcher::ProcessName { name, .. } => f
+                .debug_struct("ProcessName")
+                .field("name", name)
+                .finish_non_exhaustive(),
+            RuleMatcher::ProcessPath { path, .. } => f
+                .debug_struct("ProcessPath")
+                .field("path", path)
+                .finish_non_exhaustive(),
             RuleMatcher::Logical { op, subs } => f.debug_struct("Logical").field("op", op).field("subs", subs).finish(),
             RuleMatcher::Match => f.write_str("Match"),
         }
@@ -192,6 +247,14 @@ impl PartialEq for RuleMatcher {
             (RuleMatcher::DstPort(a), RuleMatcher::DstPort(b)) => a == b,
             (RuleMatcher::SrcPort(a), RuleMatcher::SrcPort(b)) => a == b,
             (RuleMatcher::Network(a), RuleMatcher::Network(b)) => a == b,
+            (
+                RuleMatcher::ProcessName { name: a, provider: pa },
+                RuleMatcher::ProcessName { name: b, provider: pb },
+            ) => a == b && Arc::ptr_eq(pa, pb),
+            (
+                RuleMatcher::ProcessPath { path: a, provider: pa },
+                RuleMatcher::ProcessPath { path: b, provider: pb },
+            ) => a == b && Arc::ptr_eq(pa, pb),
             (RuleMatcher::Logical { op: oa, subs: sa }, RuleMatcher::Logical { op: ob, subs: sb }) => {
                 oa == ob && sa == sb
             }
@@ -226,11 +289,12 @@ impl RuleMatcher {
     }
 
     /// Whether this matcher applies to a connection to `target` over `network`
-    /// from source `src`. Only `NETWORK` rules depend on `network` and only
-    /// `SRC-PORT` rules depend on `src`; every other matcher ignores them.
-    /// `src` is `None` when the embedder cannot supply the source (in which
-    /// case `SRC-PORT` never matches). Logical sub-rules inherit the same
-    /// `network` and `src`.
+    /// from source `src`. Only `NETWORK` rules depend on `network`; `SRC-PORT`,
+    /// `SRC-IP-RULE-SET`, `PROCESS-NAME` and `PROCESS-PATH` rules depend on
+    /// `src`; every other matcher ignores them. `src` is `None` when the
+    /// embedder cannot supply the source (in which case those source-dependent
+    /// rules never match). Logical sub-rules inherit the same `network` and
+    /// `src`.
     pub fn matches_conn(&self, target: &TargetAddr, network: ConnNetwork, src: Option<SocketAddr>) -> bool {
         match self {
             RuleMatcher::Domain(d) => match target {
@@ -268,6 +332,16 @@ impl RuleMatcher {
             RuleMatcher::DstPort(range) => range.contains(target.port()),
             RuleMatcher::SrcPort(range) => src.is_some_and(|addr| range.contains(addr.port())),
             RuleMatcher::Network(want) => network == *want,
+            RuleMatcher::ProcessName { name, provider } => src.is_some_and(|addr| {
+                provider
+                    .lookup(network, addr)
+                    .is_some_and(|info| info.name.eq_ignore_ascii_case(name))
+            }),
+            RuleMatcher::ProcessPath { path, provider } => src.is_some_and(|addr| {
+                provider
+                    .lookup(network, addr)
+                    .is_some_and(|info| info.path.eq_ignore_ascii_case(path))
+            }),
             RuleMatcher::Logical { op, subs } => match op {
                 LogicalOp::And => subs.iter().all(|m| m.matches_conn(target, network, src)),
                 LogicalOp::Or => subs.iter().any(|m| m.matches_conn(target, network, src)),
@@ -297,6 +371,8 @@ impl RuleMatcher {
             RuleMatcher::DstPort(_) => "DstPort",
             RuleMatcher::SrcPort(_) => "SrcPort",
             RuleMatcher::Network(_) => "Network",
+            RuleMatcher::ProcessName { .. } => "Process",
+            RuleMatcher::ProcessPath { .. } => "ProcessPath",
             RuleMatcher::Logical { op, .. } => match op {
                 LogicalOp::And => "AND",
                 LogicalOp::Or => "OR",
@@ -322,6 +398,8 @@ impl RuleMatcher {
             RuleMatcher::DstPort(range) => range.to_string(),
             RuleMatcher::SrcPort(range) => range.to_string(),
             RuleMatcher::Network(n) => n.as_str().to_string(),
+            RuleMatcher::ProcessName { name, .. } => name.clone(),
+            RuleMatcher::ProcessPath { path, .. } => path.clone(),
             // The sub-rule expression is parsed away into the matcher tree and
             // not retained verbatim, so a logical matcher has no flat payload.
             RuleMatcher::Logical { .. } => String::new(),
@@ -935,6 +1013,180 @@ mod tests {
             provider: provider2,
         };
         assert_ne!(dst, src);
+    }
+
+    /// Resolves a single well-known source socket to `curl` at `/usr/bin/curl`,
+    /// but only for TCP; everything else (other ports, UDP, unknown sockets)
+    /// resolves to no process, exercising the network + source dependence.
+    #[derive(Debug)]
+    struct FakeProcess;
+
+    impl ProcessLookup for FakeProcess {
+        fn lookup(&self, network: ConnNetwork, src: SocketAddr) -> Option<ProcessInfo> {
+            if network == ConnNetwork::Tcp && src.port() == 50000 {
+                Some(ProcessInfo {
+                    name: "curl".to_string(),
+                    path: "/usr/bin/curl".to_string(),
+                })
+            } else {
+                None
+            }
+        }
+    }
+
+    fn src_port(port: u16) -> Option<SocketAddr> {
+        Some(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+    }
+
+    #[test]
+    fn process_name_matches_owning_process_case_insensitively() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        // Pattern casing is ignored, mirroring Mihomo's case-insensitive match.
+        let m = RuleMatcher::ProcessName {
+            name: "CURL".to_string(),
+            provider,
+        };
+        assert!(m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(50000)));
+        // A different process name misses.
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let other = RuleMatcher::ProcessName {
+            name: "wget".to_string(),
+            provider,
+        };
+        assert!(!other.matches_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(50000)));
+    }
+
+    #[test]
+    fn process_path_matches_full_executable_path() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let m = RuleMatcher::ProcessPath {
+            path: "/usr/bin/curl".to_string(),
+            provider,
+        };
+        assert!(m.matches_conn(&ipv4(8, 8, 8, 8), ConnNetwork::Tcp, src_port(50000)));
+        // The base name alone is not the full path, so a name fed to a PATH
+        // rule misses.
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let name_only = RuleMatcher::ProcessPath {
+            path: "curl".to_string(),
+            provider,
+        };
+        assert!(!name_only.matches_conn(&ipv4(8, 8, 8, 8), ConnNetwork::Tcp, src_port(50000)));
+    }
+
+    #[test]
+    fn process_rules_never_match_without_a_resolvable_source() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let m = RuleMatcher::ProcessName {
+            name: "curl".to_string(),
+            provider,
+        };
+        // No source at all -> the `matches`/`matches_network` wrappers miss.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, None));
+        assert!(!m.matches_network(&domain("example.com"), ConnNetwork::Tcp));
+        assert!(!m.matches(&domain("example.com")));
+        // A source the provider cannot resolve (wrong port) misses too.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(40000)));
+        // The provider only knows the TCP socket, so the same source over UDP
+        // resolves to no process and misses.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Udp, src_port(50000)));
+    }
+
+    #[test]
+    fn router_routes_process_name_rule() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(
+            RuleMatcher::ProcessName {
+                name: "curl".to_string(),
+                provider,
+            },
+            DIRECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // A connection owned by `curl` -> DIRECT.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(50000)),
+            OutboundMode::Direct
+        ));
+        // An unresolvable source -> fallback proxy.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, src_port(40000)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // No source (the `select`/`select_network` wrappers) -> never matches.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn process_name_as_logical_sub_rule_respects_source() {
+        // AND,((DOMAIN-SUFFIX,example.com),(PROCESS-NAME,curl)) matches only a
+        // connection to that domain from the `curl` process; both the target
+        // and the source thread into the sub-rules.
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::ProcessName {
+                    name: "curl".to_string(),
+                    provider,
+                },
+            ],
+        };
+        assert!(m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, src_port(50000)));
+        // Wrong domain misses despite the right process.
+        assert!(!m.matches_conn(&domain("other.net"), ConnNetwork::Tcp, src_port(50000)));
+        // Right domain but unresolvable process misses.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, src_port(40000)));
+        // Without a source the PROCESS-NAME sub-rule cannot match.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, None));
+    }
+
+    #[test]
+    fn process_equality_and_metadata() {
+        let provider: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let other: Arc<dyn ProcessLookup> = Arc::new(FakeProcess);
+        let a = RuleMatcher::ProcessName {
+            name: "curl".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        let same = RuleMatcher::ProcessName {
+            name: "curl".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        let different_provider = RuleMatcher::ProcessName {
+            name: "curl".to_string(),
+            provider: other,
+        };
+        let different_name = RuleMatcher::ProcessName {
+            name: "wget".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_provider);
+        assert_ne!(a, different_name);
+        assert_eq!(a.kind_str(), "Process");
+        assert_eq!(a.payload(), "curl");
+
+        let path = RuleMatcher::ProcessPath {
+            path: "/usr/bin/curl".to_string(),
+            provider,
+        };
+        assert_eq!(path.kind_str(), "ProcessPath");
+        assert_eq!(path.payload(), "/usr/bin/curl");
+        // A ProcessName never equals a ProcessPath, even with related payloads.
+        assert_ne!(a, path);
     }
 
     #[test]

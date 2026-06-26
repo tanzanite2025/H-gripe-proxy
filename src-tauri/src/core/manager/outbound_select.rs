@@ -25,7 +25,8 @@ use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
 use learn_gripe::{
-    ConnNetwork, GeoLookup, IpCidr, LogicalOp, OutboundMode, PortRange, Router, Rule, RuleMatcher, RuleSetLookup,
+    ConnNetwork, GeoLookup, IpCidr, LogicalOp, OutboundMode, PortRange, ProcessLookup, Router, Rule, RuleMatcher,
+    RuleSetLookup,
 };
 use serde_yaml_ng::{Mapping, Value};
 
@@ -70,8 +71,9 @@ pub fn routed_outbound(
     selected: &HashMap<String, String>,
     geo: Option<Arc<dyn GeoLookup>>,
     rule_sets: Option<Arc<dyn RuleSetLookup>>,
+    process: Option<Arc<dyn ProcessLookup>>,
 ) -> OutboundMode {
-    match build_router(config, selected, geo, rule_sets) {
+    match build_router(config, selected, geo, rule_sets, process) {
         Some(router) => OutboundMode::Routed(Box::new(router)),
         None => selected_outbound(config, selected),
     }
@@ -139,6 +141,7 @@ fn build_router(
     selected: &HashMap<String, String>,
     geo: Option<Arc<dyn GeoLookup>>,
     rule_sets: Option<Arc<dyn RuleSetLookup>>,
+    process: Option<Arc<dyn ProcessLookup>>,
 ) -> Option<Router> {
     let mode = config
         .get("mode")
@@ -157,7 +160,7 @@ fn build_router(
     let mut rules: Vec<Rule> = Vec::new();
 
     for raw in raw_rules.iter().filter_map(Value::as_str) {
-        let Some((matcher, target)) = parse_router_rule(raw, geo.as_ref(), rule_sets.as_ref()) else {
+        let Some((matcher, target)) = parse_router_rule(raw, geo.as_ref(), rule_sets.as_ref(), process.as_ref()) else {
             // Unsupported rule type (process/port/logical/…), a geo or
             // rule-set rule with no local data, or a malformed payload: skip
             // it so it never matches, falling through to a later rule or the
@@ -198,7 +201,7 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `PROCESS-NAME`, …) or a malformed payload, so
+/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, …) or a malformed payload, so
 /// the caller drops the rule. `DST-PORT` and `SRC-PORT` accept a single port
 /// (`443`) or an inclusive range (`8000-9000`); `SRC-PORT` matches the inbound
 /// peer's source port (when the embedder supplies it). `NETWORK` accepts `tcp`
@@ -217,10 +220,17 @@ fn build_router(
 /// matching lookup is `None` those rules are dropped, since without local data
 /// there is nothing to match against. `SRC-IP-RULE-SET` matches the inbound
 /// peer's source IP against the set (when the embedder supplies the source).
+///
+/// `PROCESS-NAME` / `PROCESS-PATH` match the executable base name / full path
+/// of the local process that owns the connection's source socket, resolved by
+/// `process` (a [`ProcessLookup`]) at selection time; when it is `None`, or no
+/// process can be resolved from the source, the rule is dropped / never
+/// matches, matching `SRC-PORT`'s source-dependent behaviour.
 fn parse_router_rule(
     raw: &str,
     geo: Option<&Arc<dyn GeoLookup>>,
     rule_sets: Option<&Arc<dyn RuleSetLookup>>,
+    process: Option<&Arc<dyn ProcessLookup>>,
 ) -> Option<(RuleMatcher, String)> {
     let trimmed = raw.trim();
     let rule_type = trimmed.split(',').next()?.trim().to_ascii_uppercase();
@@ -233,7 +243,7 @@ fn parse_router_rule(
     // Every other rule is a matcher followed by its target (and optional
     // modifiers): parse the matcher, then take the target from the tail it
     // leaves behind.
-    let (matcher, tail) = parse_matcher(trimmed, geo, rule_sets)?;
+    let (matcher, tail) = parse_matcher(trimmed, geo, rule_sets, process)?;
     let target = tail.trim_start_matches(',').split(',').next()?.trim();
     (!target.is_empty()).then(|| (matcher, target.to_string()))
 }
@@ -248,6 +258,7 @@ fn parse_matcher<'a>(
     spec: &'a str,
     geo: Option<&Arc<dyn GeoLookup>>,
     rule_sets: Option<&Arc<dyn RuleSetLookup>>,
+    process: Option<&Arc<dyn ProcessLookup>>,
 ) -> Option<(RuleMatcher, &'a str)> {
     let spec = spec.trim();
     let comma = spec.find(',')?;
@@ -258,7 +269,7 @@ fn parse_matcher<'a>(
         // The matcher's payload is the parenthesized sub-rule group; the target
         // (if any) follows it.
         let (group, tail) = split_paren_group(rest.trim_start())?;
-        let matcher = parse_logical(op, group, geo, rule_sets)?;
+        let matcher = parse_logical(op, group, geo, rule_sets, process)?;
         return Some((matcher, tail));
     }
 
@@ -297,6 +308,14 @@ fn parse_matcher<'a>(
         "DST-PORT" => RuleMatcher::DstPort(PortRange::parse(payload).ok()?),
         "SRC-PORT" => RuleMatcher::SrcPort(PortRange::parse(payload).ok()?),
         "NETWORK" => RuleMatcher::Network(ConnNetwork::parse(payload)?),
+        "PROCESS-NAME" => RuleMatcher::ProcessName {
+            name: payload.to_string(),
+            provider: Arc::clone(process?),
+        },
+        "PROCESS-PATH" => RuleMatcher::ProcessPath {
+            path: payload.to_string(),
+            provider: Arc::clone(process?),
+        },
         _ => return None,
     };
     Some((matcher, tail))
@@ -324,12 +343,13 @@ fn parse_logical(
     group: &str,
     geo: Option<&Arc<dyn GeoLookup>>,
     rule_sets: Option<&Arc<dyn RuleSetLookup>>,
+    process: Option<&Arc<dyn ProcessLookup>>,
 ) -> Option<RuleMatcher> {
     let mut subs = Vec::new();
     let mut rest = strip_outer_parens(group)?.trim();
     while !rest.is_empty() {
         let (sub_group, after) = split_paren_group(rest)?;
-        let (matcher, _modifiers) = parse_matcher(strip_outer_parens(sub_group)?, geo, rule_sets)?;
+        let (matcher, _modifiers) = parse_matcher(strip_outer_parens(sub_group)?, geo, rule_sets, process)?;
         subs.push(matcher);
         rest = after.trim_start();
         match rest.strip_prefix(',') {
@@ -630,6 +650,31 @@ mod tests {
         None
     }
 
+    /// In-memory process lookup for routing tests: a connection from source
+    /// port `51000` is owned by `curl` at `/usr/bin/curl`; every other source
+    /// resolves to no process (`None`).
+    #[derive(Debug)]
+    struct FakeProcess;
+
+    impl ProcessLookup for FakeProcess {
+        fn lookup(&self, _network: ConnNetwork, src: SocketAddr) -> Option<learn_gripe::ProcessInfo> {
+            (src.port() == 51000).then(|| learn_gripe::ProcessInfo {
+                name: "curl".to_string(),
+                path: "/usr/bin/curl".to_string(),
+            })
+        }
+    }
+
+    fn fake_process() -> Option<Arc<dyn ProcessLookup>> {
+        Some(Arc::new(FakeProcess))
+    }
+
+    /// No process lookup available (the common case in tests): `PROCESS-NAME` /
+    /// `PROCESS-PATH` rules are skipped just like any other unsupported rule.
+    fn no_process() -> Option<Arc<dyn ProcessLookup>> {
+        None
+    }
+
     const TROJAN_CFG: &str = r#"
 mode: rule
 proxies:
@@ -776,7 +821,13 @@ rules:
 
     #[test]
     fn rule_mode_builds_router_and_routes_per_rule() {
-        let mode = routed_outbound(&cfg(ROUTED_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(
+            &cfg(ROUTED_CFG),
+            &HashMap::new(),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -801,7 +852,7 @@ rules:
     fn non_rule_mode_uses_single_egress() {
         for mode_name in ["global", "direct"] {
             let yaml = ROUTED_CFG.replace("mode: rule", &format!("mode: {mode_name}"));
-            let mode = routed_outbound(&cfg(&yaml), &HashMap::new(), no_geo(), no_rule_sets());
+            let mode = routed_outbound(&cfg(&yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
             assert!(
                 !matches!(mode, OutboundMode::Routed(_)),
                 "{mode_name} mode must not route per connection, got {mode:?}"
@@ -824,7 +875,7 @@ rules:
 "#;
         // Every rule is unsupported, so routing is disabled and the single
         // global egress (PROXY's first member) is used instead.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         match mode {
             OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
@@ -834,7 +885,13 @@ rules:
     #[test]
     fn missing_rules_section_falls_back_to_single_egress() {
         // `mode: rule` but no `rules:` at all -> single global egress.
-        let mode = routed_outbound(&cfg(TROJAN_CFG), &sel(&[("PROXY", "node-b")]), no_geo(), no_rule_sets());
+        let mode = routed_outbound(
+            &cfg(TROJAN_CFG),
+            &sel(&[("PROXY", "node-b")]),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
         match mode {
             OutboundMode::Trojan(c) => assert_eq!(c.server, "b.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
@@ -853,7 +910,13 @@ proxy-groups:
 rules:
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &sel(&[("PROXY", "node-b")]), no_geo(), no_rule_sets());
+        let mode = routed_outbound(
+            &cfg(yaml),
+            &sel(&[("PROXY", "node-b")]),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -878,7 +941,7 @@ rules:
 "#;
         // The hysteria2 target has no data plane yet, so that rule is dropped and
         // blocked.example falls through to the MATCH catch-all (trojan PROXY).
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -902,7 +965,7 @@ rules:
 
     #[test]
     fn geo_rules_route_when_local_data_present() {
-        let mode = routed_outbound(&cfg(GEO_CFG), &HashMap::new(), fake_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(GEO_CFG), &HashMap::new(), fake_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -922,7 +985,7 @@ rules:
     fn geo_rules_skipped_without_local_data() {
         // Same config but no local geo data: both geo rules are dropped, so
         // everything falls through to the MATCH catch-all (PROXY).
-        let mode = routed_outbound(&cfg(GEO_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(GEO_CFG), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -946,7 +1009,7 @@ rules:
 
     #[test]
     fn asn_rule_routes_when_local_data_present() {
-        let mode = routed_outbound(&cfg(ASN_CFG), &HashMap::new(), fake_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(ASN_CFG), &HashMap::new(), fake_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -965,7 +1028,7 @@ rules:
     fn asn_rule_skipped_without_local_data() {
         // Same config but no local geo data: the IP-ASN rule is dropped, so an
         // AS13335 IP falls through to the MATCH catch-all (PROXY).
-        let mode = routed_outbound(&cfg(ASN_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(ASN_CFG), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -986,7 +1049,7 @@ rules:
 "#;
         // The ASN payload does not parse, so the rule is dropped and every
         // target falls through to the MATCH catch-all (PROXY).
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1006,7 +1069,13 @@ rules:
 
     #[test]
     fn rule_set_rule_routes_when_provider_data_present() {
-        let mode = routed_outbound(&cfg(RULE_SET_CFG), &HashMap::new(), no_geo(), fake_rule_sets());
+        let mode = routed_outbound(
+            &cfg(RULE_SET_CFG),
+            &HashMap::new(),
+            no_geo(),
+            fake_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1025,7 +1094,13 @@ rules:
     fn rule_set_rule_skipped_without_provider_data() {
         // Same config but no rule-provider data: the RULE-SET rule is dropped,
         // so a set member falls through to the MATCH catch-all (PROXY).
-        let mode = routed_outbound(&cfg(RULE_SET_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(
+            &cfg(RULE_SET_CFG),
+            &HashMap::new(),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1049,7 +1124,7 @@ rules:
 "#;
         // No MATCH and no provider data: every rule is dropped, routing is
         // disabled, and the single global egress is used.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         match mode {
             OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
@@ -1069,7 +1144,13 @@ rules:
 
     #[test]
     fn src_ip_rule_set_routes_by_source_ip() {
-        let mode = routed_outbound(&cfg(SRC_IP_RULE_SET_CFG), &HashMap::new(), no_geo(), fake_rule_sets());
+        let mode = routed_outbound(
+            &cfg(SRC_IP_RULE_SET_CFG),
+            &HashMap::new(),
+            no_geo(),
+            fake_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1097,11 +1178,112 @@ rules:
     fn src_ip_rule_set_skipped_without_provider_data() {
         // Same config but no rule-provider data: the SRC-IP-RULE-SET rule is
         // dropped, so a set-member source falls through to MATCH (PROXY).
-        let mode = routed_outbound(&cfg(SRC_IP_RULE_SET_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(
+            &cfg(SRC_IP_RULE_SET_CFG),
+            &HashMap::new(),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
         let src = Some("9.9.9.9:50000".parse::<SocketAddr>().unwrap());
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    const PROCESS_CFG: &str = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - PROCESS-NAME,curl,REJECT
+  - PROCESS-PATH,/usr/bin/curl,DIRECT
+  - MATCH,PROXY
+"#;
+
+    #[test]
+    fn process_rules_route_when_lookup_present() {
+        let mode = routed_outbound(
+            &cfg(PROCESS_CFG),
+            &HashMap::new(),
+            no_geo(),
+            no_rule_sets(),
+            fake_process(),
+        );
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // Source port 51000 is owned by `curl`: PROCESS-NAME,curl matches first
+        // (REJECT), regardless of destination. Match is case-insensitive.
+        assert_eq!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:51000")),
+            &OutboundMode::Reject
+        );
+        // A source the lookup cannot resolve -> no process rule matches -> MATCH
+        // catch-all (PROXY -> node-a).
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:40000")),
+            OutboundMode::Trojan(_)
+        ));
+        // No known source at all -> process rules never match -> MATCH.
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, None),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn process_path_rule_matches_full_path() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - PROCESS-PATH,/usr/bin/curl,DIRECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), fake_process());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = |addr: &str| Some(addr.parse::<SocketAddr>().unwrap());
+        // The owning process's full path matches -> DIRECT.
+        assert_eq!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:51000")),
+            &OutboundMode::Direct
+        );
+        // Unresolved source -> falls through to MATCH.
+        assert!(matches!(
+            router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src("127.0.0.1:40000")),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn process_rules_skipped_without_lookup() {
+        // Same config but no process lookup: both PROCESS rules are dropped, so
+        // a `curl`-owned source falls through to MATCH (PROXY) rather than
+        // rejecting.
+        let mode = routed_outbound(
+            &cfg(PROCESS_CFG),
+            &HashMap::new(),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        let src = Some("127.0.0.1:51000".parse::<SocketAddr>().unwrap());
         assert!(matches!(
             router.select_conn(&domain("www.example.com"), ConnNetwork::Tcp, src),
             OutboundMode::Trojan(_)
@@ -1122,7 +1304,7 @@ rules:
 "#;
         // No MATCH and no local geo data: every rule is dropped, routing is
         // disabled, and the single global egress is used.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         match mode {
             OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
@@ -1143,7 +1325,13 @@ rules:
 
     #[test]
     fn logical_and_or_rules_route() {
-        let mode = routed_outbound(&cfg(LOGICAL_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(
+            &cfg(LOGICAL_CFG),
+            &HashMap::new(),
+            no_geo(),
+            no_rule_sets(),
+            no_process(),
+        );
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1173,7 +1361,7 @@ rules:
   - NOT,((DOMAIN-SUFFIX,example.com)),REJECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1199,7 +1387,7 @@ rules:
   - AND,((DOMAIN-SUFFIX,example.com),(NOT,((DOMAIN-KEYWORD,safe)))),REJECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1231,7 +1419,7 @@ rules:
   - AND,((DOMAIN-SUFFIX,example.com),(PROCESS-NAME,curl)),REJECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1256,7 +1444,7 @@ rules:
   - NETWORK,TCP,DIRECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1284,7 +1472,7 @@ rules:
   - AND,((DOMAIN-SUFFIX,example.com),(NETWORK,UDP)),REJECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1313,7 +1501,7 @@ rules:
 "#;
         // `sctp` is not tcp/udp, so the rule is dropped and every connection
         // falls through to MATCH (PROXY -> node-a) for both protocols.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1341,7 +1529,7 @@ rules:
 "#;
         // Without geo data the GEOIP sub-rule cannot be built, so the whole
         // logical rule is dropped: even the example.com branch falls to MATCH.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1351,7 +1539,7 @@ rules:
         ));
 
         // With geo data present both branches route DIRECT.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1372,7 +1560,7 @@ rules:
   - DST-PORT,8000-9000,REJECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1402,7 +1590,7 @@ rules:
   - SRC-PORT,40000-50000,REJECT
   - MATCH,PROXY
 "#;
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
@@ -1450,7 +1638,7 @@ rules:
         // All three payloads are malformed (out of u16 range / non-numeric), so
         // every rule is dropped and connections fall through to MATCH even when
         // a source is supplied.
-        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets(), no_process());
         let OutboundMode::Routed(router) = mode else {
             panic!("expected Routed, got {mode:?}");
         };
