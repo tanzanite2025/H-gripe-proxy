@@ -27,14 +27,14 @@ const buildRuntimeSectionDescription = ({
   if (observed) {
     return currentIdentity?.rule
       ? `匹配规则: ${currentIdentity.rule}`
-      : 'Mihomo 已返回当前实际链路。'
+      : '内核已返回当前实际链路。'
   }
 
   if (fallbackRootGroup) {
-    return `Mihomo 尚未返回实际链路，当前按 ${fallbackRootGroup} 的运行态解析显示。`
+    return `内核尚未返回实际链路，当前按 ${fallbackRootGroup} 的运行态解析显示。`
   }
 
-  return 'Mihomo 尚未返回实际链路，当前按本地运行态解析显示。'
+  return '内核尚未返回实际链路，当前按本地运行态解析显示。'
 }
 
 const buildRuntimeDetailDescription = ({

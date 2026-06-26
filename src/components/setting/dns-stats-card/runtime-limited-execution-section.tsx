@@ -110,7 +110,7 @@ export function RuntimeLimitedExecutionSection() {
       <div className="mb-2 text-xs text-muted-foreground">
         实验性危险区：只在 execution guard ready 且持久化 metadata 可验证后，写入
         Rust-owned default DNS runtime active state；不写 active profile、不 reload
-        Mihomo、不碰 TUN/协议栈。
+        内核、不碰 TUN/协议栈。
       </div>
 
       {executionReport ? (
@@ -143,7 +143,7 @@ export function RuntimeLimitedExecutionSection() {
               value={executionReport.rollbackAvailable ? '可回滚' : '不可回滚'}
             />
             <DnsTextRow
-              label="Reload Mihomo"
+              label="Reload 内核"
               value={executionReport.reloadMihomo ? '会 reload' : '不会 reload'}
             />
           </div>
@@ -199,7 +199,7 @@ export function RuntimeLimitedExecutionSection() {
               value={rollbackReport.restoredState?.activeRuntime ?? '未恢复'}
             />
             <DnsTextRow
-              label="Reload Mihomo"
+              label="Reload 内核"
               value={rollbackReport.reloadMihomo ? '会 reload' : '不会 reload'}
             />
           </div>

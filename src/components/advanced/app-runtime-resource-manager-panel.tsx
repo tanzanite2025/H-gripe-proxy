@@ -86,7 +86,7 @@ export function AppRuntimeResourceManagerPanel({
           <div className="text-sm font-semibold">Rust state 管理</div>
           <div className="mt-1 text-xs text-muted-foreground">
             基于现有 app-runtime upsert/delete commands 管理 Rust
-            state；保存后仍只生成 planning / projection，不直接修改 Mihomo
+            state；保存后仍只生成 planning / projection，不直接修改内核
             runtime。
           </div>
         </div>

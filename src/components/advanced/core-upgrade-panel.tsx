@@ -83,7 +83,7 @@ export function CoreUpgradePanel() {
               内核升级（Rust 门禁）
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              通过 Rust app-owned 命令触发 Mihomo 内核 / UI / Geo 升级，结果记录到
+              通过 Rust app-owned 命令触发内核 / UI / Geo 升级，结果记录到
               app-runtime/core-upgrade-history.yaml，保留最近 50 条。当前内核版本：
               {version || '-'}
             </div>

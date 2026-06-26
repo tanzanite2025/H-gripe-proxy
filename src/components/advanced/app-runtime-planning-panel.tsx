@@ -1152,7 +1152,7 @@ export function AppRuntimePlanningPanel() {
       })
       setState(nextState)
       showNotice.success(
-        '已标记 active projection artifact（未 reload Mihomo）',
+        '已标记 active projection artifact（未 reload 内核）',
       )
     } catch (error) {
       showNotice.error(error)
@@ -2035,7 +2035,7 @@ export function AppRuntimePlanningPanel() {
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               读取 Rust AppRuntimeStateDocument，生成计划、Mihomo projection
-              与诊断摘要；不会启动应用或修改 Mihomo runtime。
+              与诊断摘要；不会启动应用或修改内核 runtime。
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2209,7 +2209,7 @@ export function AppRuntimePlanningPanel() {
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
                   记录显式 allow/defer/rollback 决策；不 apply runtime、不
-                  reload Mihomo。
+                  reload 内核。
                 </div>
               </div>
               <Chip

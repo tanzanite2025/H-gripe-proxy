@@ -158,7 +158,7 @@ export function SecurityPolicyPanel({
       async () => {
         await securityPolicyApply(name)
       },
-      `策略“${name}”已应用到 Mihomo。`,
+      `策略“${name}”已应用到内核。`,
       '应用策略失败。',
     )
   })
@@ -168,7 +168,7 @@ export function SecurityPolicyPanel({
       async () => {
         await securityPolicyRevoke(name)
       },
-      `策略“${name}”已从 Mihomo 撤销。`,
+      `策略“${name}”已从内核撤销。`,
       '撤销策略失败。',
     )
   })
@@ -215,7 +215,7 @@ export function SecurityPolicyPanel({
   return (
     <div className="space-y-4">
       <Alert severity="info" className="text-sm">
-        安全策略通过 Mihomo 规则引擎控制域名、进程和入口访问。策略定义会保存在高级配置里，保存后还需要手动应用到运行态才会真正生效。
+        安全策略通过内核规则引擎控制域名、进程和入口访问。策略定义会保存在高级配置里，保存后还需要手动应用到运行态才会真正生效。
       </Alert>
 
       {hasUnsavedChanges ? (

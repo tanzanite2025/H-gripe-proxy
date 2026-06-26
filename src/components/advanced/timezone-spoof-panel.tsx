@@ -73,7 +73,7 @@ export function TimezoneSpoofPanel({ config, onChange }: Props) {
             <div className="text-base font-medium">时区/NTP 伪装</div>
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
               当出口节点在日本但系统时钟显示 UTC+8（中国），目标服务器可通过时间偏移推断用户不在日本。
-              启用后，Mihomo 将通过代理同步出口区域附近的 NTP 服务器时间，减少时钟偏差泄露。
+              启用后，内核将通过代理同步出口区域附近的 NTP 服务器时间，减少时钟偏差泄露。
             </div>
           </div>
           <Switch checked={config.enabled} onCheckedChange={handleToggleEnabled} />

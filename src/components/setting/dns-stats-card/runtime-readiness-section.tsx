@@ -91,7 +91,7 @@ export function RuntimeReadinessSection({
 
       <div className="mb-2 text-xs text-muted-foreground">
         只读评估当前 runtime DNS 是否具备切换到 Rust 默认 resolver
-        的条件；不会修改配置、不会 reload Mihomo。
+        的条件；不会修改配置、不会 reload 内核。
       </div>
 
       {report ? (

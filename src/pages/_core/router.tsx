@@ -8,7 +8,6 @@ import HomePage from '../home'
 import NetworkDiagnosticPage from '../network-diagnostic'
 import ProfilesPage from '../profiles'
 import ProxiesPage from '../proxies'
-// import RulesPage from '../rules'
 import SecurityPage from '../security'
 import SettingsPage from '../settings'
 
