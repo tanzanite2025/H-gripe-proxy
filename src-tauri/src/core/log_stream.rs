@@ -185,7 +185,7 @@ mod tests {
     fn kernel_record_detection() {
         let kernel = RecordBuilder::new()
             .level(Level::Info)
-            .module_path(Some("learn_gripe::server"))
+            .module_path(Some("learn_gripe::inbound"))
             .args(format_args!("listening"))
             .build();
         assert!(is_kernel_record(&kernel));
