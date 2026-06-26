@@ -559,6 +559,24 @@ Only after the supported default paths above run on `learn-gripe`:
   (`dns_metrics_map_cache_hits_misses_and_query_totals`). Only per-upstream server
   stats and pollution/trust analysis remain without an honest in-process source.
 
+- **Done — DNS servers section now reports real in-process data in TUN mode.**
+  In fake-IP TUN mode the in-stack answerer is the *sole* DNS server: every
+  question is answered synchronously from the local fake-IP pool, with no
+  configured upstream resolver to enumerate. So instead of per-upstream stats
+  (which have no honest source here), `dns_metrics_from_stats()` surfaces one
+  honest `DnsServerStats` entry for it whenever at least one query has been served
+  (`total > 0`): `server = "fake-ip (in-stack)"`, `queries = total`,
+  `successes = total − errors`, `failures = errors` — all derived from the same
+  counters, no new kernel instrumentation. `last_query` is the newest recorded
+  question's timestamp (from the recent ring); `avg_latency_us = 0` (synchronous
+  in-memory answer, no round-trip) and `last_error = None` (parse/serialize
+  failures are not attributable to a specific upstream). Before any query the
+  `servers` vec stays empty. Outside TUN mode the read returns `Err` and the panel
+  honestly shows "不可用". The `dns_metrics_map_cache_hits_misses_and_query_totals`
+  test asserts the entry mapping. Only pollution/trust analysis now remains without
+  an honest in-process source (it needs upstream-resolver modeling and
+  leak/poisoning detection the userspace kernel does not perform).
+
 ## Definition of done for a roadmap PR
 
 A PR counts as kernel progress only if it does at least one of:

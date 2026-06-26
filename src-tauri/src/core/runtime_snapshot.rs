@@ -13,11 +13,11 @@ use crate::{
 use anyhow::Result;
 use clash_dtos::{
     BaseConfig, BufferPoolStats, ClashMode, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
-    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryEvent, DnsQueryStats, DnsTrustSummary,
-    EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel, MihomoVersion, Network, PerfStats,
-    ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior, RuleFormat,
-    RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo, TLSFingerprintStats,
-    TunConfig, TunStack, VehicleType, XDPStatus,
+    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryEvent, DnsQueryStats, DnsServerStats,
+    DnsTrustSummary, EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel, MihomoVersion,
+    Network, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior,
+    RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo,
+    TLSFingerprintStats, TunConfig, TunStack, VehicleType, XDPStatus,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -481,9 +481,11 @@ pub(crate) fn rule_traffic_from_kernel(
 /// either hit an existing fake-IP mapping or allocate a new one (a miss), and
 /// every accepted question counts toward the totals. The kernel answers entirely
 /// from the local fake-IP pool, so success == total - errors and there is no
-/// per-query latency to report. Per-upstream server stats, recent-query history,
-/// pollution and trust analysis have no honest in-process source, so they stay
-/// empty and the panel hides those sections.
+/// per-query latency to report. In fake-IP TUN mode the in-stack answerer is the
+/// single DNS server handling every query, so the `servers` section carries one
+/// honest entry for it (derived from the same counters). Pollution and trust
+/// analysis have no honest in-process source, so they stay empty and the panel
+/// hides those sections.
 pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> DnsMetrics {
     // A cache hit is an `A` question whose domain already had a mapping; the
     // remaining `A` questions allocated a new entry (a miss).
@@ -524,6 +526,30 @@ pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> D
         })
         .collect();
 
+    // In fake-IP TUN mode every query is answered by the one in-stack answerer,
+    // so it is the sole DNS "server". Surface a single honest entry derived from
+    // the same counters once at least one query has been served. `last_query` is
+    // the newest recorded question's timestamp; `last_error` stays `None` because
+    // parse/serialize failures are not tied to a specific upstream.
+    let servers = if total > 0 {
+        let last_query = stats
+            .recent
+            .first()
+            .map(|q| unix_ms_to_rfc3339(q.unix_ms))
+            .unwrap_or_default();
+        vec![DnsServerStats {
+            server: "fake-ip (in-stack)".to_string(),
+            queries: total,
+            successes: success,
+            failures: failed,
+            avg_latency_us: 0,
+            last_query,
+            last_error: None,
+        }]
+    } else {
+        Vec::new()
+    };
+
     DnsMetrics {
         cache: DnsCacheStats {
             hit: cache_hits,
@@ -540,7 +566,7 @@ pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> D
             avg_latency_us: 0,
             max_latency_us: 0,
         },
-        servers: Vec::new(),
+        servers,
         recent,
         pollution: DnsPollutionStats::default(),
         trust: DnsTrustSummary::default(),
@@ -2275,8 +2301,18 @@ rule-providers:
         assert_eq!(metrics.recent[1].domain, "blocked.test");
         assert!(!metrics.recent[1].success);
 
+        // The in-stack answerer is surfaced as the single DNS server, carrying
+        // the same totals; `last_query` is the newest recorded question's time.
+        assert_eq!(metrics.servers.len(), 1);
+        assert_eq!(metrics.servers[0].server, "fake-ip (in-stack)");
+        assert_eq!(metrics.servers[0].queries, 10);
+        assert_eq!(metrics.servers[0].successes, 8);
+        assert_eq!(metrics.servers[0].failures, 2);
+        assert_eq!(metrics.servers[0].avg_latency_us, 0);
+        assert_eq!(metrics.servers[0].last_query, metrics.recent[0].timestamp);
+        assert!(metrics.servers[0].last_error.is_none());
+
         // No honest in-process source for these sections.
-        assert!(metrics.servers.is_empty());
         assert_eq!(metrics.pollution.total_checked, 0);
         assert_eq!(metrics.trust.total, 0);
     }
@@ -2289,5 +2325,7 @@ rule-providers:
         assert_eq!(metrics.cache.hit_rate, 0.0);
         assert_eq!(metrics.queries.total, 0);
         assert_eq!(metrics.queries.success, 0);
+        // No queries served yet, so no server entry is surfaced.
+        assert!(metrics.servers.is_empty());
     }
 }
