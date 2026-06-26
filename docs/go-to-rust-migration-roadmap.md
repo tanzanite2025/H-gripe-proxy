@@ -52,16 +52,20 @@ boots the Rust kernel; there is no Mihomo startup path left.
 
 `start_core()` now selects the outbound from the user's chosen node:
 `OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
-outbound, and `core/manager/outbound_select.rs` resolves the current selection
-of the primary `select` group (following nested selectors, honoring the
-persisted per-group selection) before falling back to Direct on any
-unsupported/unresolvable case. This is a single global egress; per-connection
-rule routing through `OutboundMode::Routed` is not wired into `start_core()`
-yet. The OS system proxy now points at the kernel: `start_core()` binds the
-mixed inbound to the same port the system proxy and PAC target
-(`verge_mixed_port`, else clash `mixed-port`) instead of the unrelated
+outbound, and `core/manager/outbound_select.rs` resolves the egress. In
+**`rule` mode** the kernel runs the full per-connection rule router
+(`OutboundMode::Routed`, built by `routed_outbound` from the generated runtime
+config + the persisted per-group selection, fed `GeoLookup` / `RuleSetLookup` /
+`ProcessLookup` providers); in **`global`/single-node mode** it resolves the
+current selection of the primary `select` group (following nested selectors,
+honoring the persisted per-group selection) before falling back to Direct on any
+unsupported/unresolvable case. The OS system proxy now points at the kernel:
+`start_core()` binds the mixed inbound to the same port the system proxy and PAC
+target (`verge_mixed_port`, else clash `mixed-port`) instead of the unrelated
 `socks-port`, so enabling the system proxy routes traffic through learn-gripe.
-What the live path still does **not** do: TUN.
+TUN mode is implemented end to end but **off by default** (see Phase 4): the
+only piece not yet exercised on real hardware is true global default-route
+capture (Windows v4/v6 is compile-checked, macOS capture is not yet written).
 
 ## Build vs adopt boundary
 
@@ -152,9 +156,15 @@ break REALITY.
   `transport::build_layers`, so Trojan-/VMess-REALITY/-TLS over any transport
   works too (proven by `crates/learn-gripe/tests/trojan_outbound.rs` and
   `crates/learn-gripe/tests/vmess_outbound.rs`).
-  Faithful uTLS-style `client-fingerprint` ClientHello shaping is tracked after
-  that; the fingerprint is parsed and retained today but does not yet reshape the
-  handshake. The `flow: xtls-rprx-vision` layer is done: it is a VLESS body
+  uTLS-style `client-fingerprint` ClientHello shaping is **partially landed**:
+  the fork seeds the ClientHello cipher order and the TLS extension order from
+  the configured fingerprint (Firefox / Safari use fixed per-browser seeds,
+  Chromium-family and `random` keep rustls's per-handshake reshuffle), matching
+  the two list fields JA3 keys on. Byte-level GREASE-value and record/extension
+  padding modeling is **not** done and is deliberately deferred — it requires
+  hand-editing the typed ClientHello and can only be verified with real-machine
+  JA3 packet capture, which would push against the "do not hand-roll TLS" line.
+  The `flow: xtls-rprx-vision` layer is done: it is a VLESS body
   framing (padding of the tunneled bytes), not a security/transport layer, so it
   composes with `none`/`tls`/`reality` over raw TCP without touching `rustls`
   (proven by the Vision relay tests in
@@ -254,13 +264,27 @@ end-to-end relay tests. Proves the in-process architecture works.
   addon and the body is wrapped in the XTLS Vision padding framing
   (`commandPaddingContinue/End/Direct`, TLS-record-aware padding), ported from
   Xray and cross-checked end-to-end against an independent receiver.
-- Routing/rule engine: done for the in-kernel data plane. `learn-gripe` now has
-  a `Router` (`OutboundMode::Routed`) that selects the outbound per connection
-  from an ordered rule list (`DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD` /
-  `IP-CIDR` v4+v6 / `MATCH`), resolving to named outbounds plus the built-in
-  `DIRECT` / `REJECT` policies, with a `fallback` for the no-match case (proven
-  by `crates/learn-gripe/tests/router_outbound.rs`). `GEOIP` / `GEOSITE` need
-  external mmdb / geosite data and are left for a follow-up.
+- Routing/rule engine: done for the in-kernel data plane and **wired into
+  `start_core()` rule mode** (`resolve_outbound` → `routed_outbound`).
+  `learn-gripe`'s `Router` (`OutboundMode::Routed`) selects the outbound per
+  connection from an ordered rule list, resolving to named outbounds plus the
+  built-in `DIRECT` / `REJECT` policies, with a `fallback` for the no-match case.
+  The matcher set now covers the standard Mihomo rule vocabulary:
+  - Destination: `DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD`, `IP-CIDR`(v4+v6),
+    `GEOIP`, `GEOSITE`, `IP-ASN`, `DST-PORT`, `NETWORK` (tcp/udp), `RULE-SET`.
+  - Source: `SRC-IP-CIDR`(v4+v6), `SRC-IP-ASN`, `SRC-PORT`, `SRC-IP-RULE-SET`,
+    `PROCESS-NAME` / `PROCESS-PATH`, `UID`.
+  - Combinators: `AND` / `OR` / `NOT` (arbitrarily nested sub-rules), plus `MATCH`.
+  Data-backed matchers query app-provided providers through narrow traits the
+  kernel never fetches itself — `GeoLookup` (GeoIP / GeoSite / ASN mmdb, via
+  `RuleGeoData`), `RuleSetLookup` (local rule-providers), and `ProcessLookup`
+  (OS socket→process / UID). A matcher whose data or source is absent (no
+  geodata, unknown rule-set, unresolvable source socket) is skipped rather than
+  mis-matched, so configs stay backward-compatible. Proven by
+  `crates/learn-gripe/tests/router_outbound.rs` plus per-matcher unit tests in
+  `router.rs` (each `router_routes_*_rule` test drives a real `Router::select*`)
+  and the app-side `parse_router_rule` / `parse_matcher` parser tests in
+  `outbound_select.rs`. (Implemented across PRs #412–#423.)
 - UDP relay (SOCKS5 UDP ASSOCIATE): the inbound now answers `UDP ASSOCIATE`,
   binds a relay socket, and relays SOCKS5-wrapped datagrams to/from remote hosts;
   the association lives as long as its TCP control connection (RFC 1928). Each
@@ -302,9 +326,8 @@ end-to-end relay tests. Proves the in-process architecture works.
   `crates/learn-gripe/tests/fakeip_routing.rs`: the DNS server mints two fake
   IPs in the same `/16` for two domains, and connections to them reach
   *different* tagged outbounds purely by hostname.
-- TUN mode — userspace stack, OS device binding, and Windows global IPv4
-  default-route capture all landed (off by default); IPv6 capture is the next
-  step (see below). The
+- TUN mode — userspace stack, OS device binding, and Windows global IPv4 **and
+  IPv6** default-route capture all landed (off by default). The
   device-agnostic core is in `crates/learn-gripe/src/tun.rs` (`serve_tun`): it
   consumes/produces raw IP frames over two channels, terminates IPv4/IPv6
   **TCP** flows in a userspace stack (smoltcp adopted purely as the IP/TCP
@@ -595,6 +618,56 @@ Only after the supported default paths above run on `learn-gripe`:
   honest in-process source** — it would need to compare answers against a trusted
   baseline (DoH/DoT cross-check or known-good lists), which the fake-IP answerer
   does not perform — so it stays empty and the panel hides it.
+
+### Continuous verification (CI)
+
+`.github/workflows/ci.yml` gates every push to `main` / `devin/**` and every PR
+to `main`, locking the completed kernel + app surface against silent regressions
+(the repo previously ran Rust tests only locally, so any of the matchers /
+protocols above could regress unnoticed):
+
+- **kernel job** (`ubuntu-latest`): `cargo fmt -p learn-gripe --check`,
+  `cargo clippy --all-targets -p learn-gripe`, and `cargo test -p learn-gripe`
+  (the full unit + protocol / router / dns / tun integration suite — pure logic,
+  so it runs cross-platform on Linux).
+- **app job** (`windows-latest`, mirroring `release.yml`'s toolchain):
+  `cargo fmt` / `clippy` / `cargo test --lib --no-run` for `clash-verge-optimized`
+  with the `clippy` feature (skips `tauri_build` / frontend). The app test binary
+  cannot *run* in CI (it needs platform GUI/WinRT bindings at runtime), but
+  compiling it catches breaking changes to the app-side router / parser bridge.
+
+The release packaging workflow (`release.yml`) is unchanged and still
+tag-triggered. (Added in PR #424.)
+
+## Next step
+
+The kernel data plane is now feature-complete for the standard config surface —
+all inbound/outbound protocols, the full routing matcher set, DNS, and TUN are
+implemented and (as of PR #424) CI-gated. The remaining work is **validation and
+polish, not new kernel features**, and the highest-value next step is the one
+thing CI cannot cover:
+
+1. **Real-hardware TUN validation (highest priority — needs your machines).**
+   Enable `enable_tun_mode` on a real Windows box (admin) and a real Mac and
+   confirm global default-route capture actually takes over v4/v6 + DNS without
+   stranding the network. The Windows v4/v6 `route` / `netsh` mutations are
+   compile-checked only; **macOS global capture is not yet written** — it is the
+   one missing TUN feature and should be implemented + validated together on a
+   real Mac (the macOS utun device itself already comes up). This is the only
+   thing standing between TUN mode and shipping it on by default.
+2. **DNS pollution analysis (last telemetry gap — optional).** Every other
+   diagnostics panel now has an honest in-process source; pollution/trust
+   comparison is the only section left empty because it needs a DoH/DoT
+   cross-check the userspace kernel deliberately does not perform. Closing it
+   means adding a trusted-baseline resolver path (a real feature, not a stub),
+   or it stays intentionally hidden.
+3. **uTLS GREASE / padding (deferred — not recommended).** Byte-level
+   ClientHello GREASE values and record/extension padding remain; they need
+   real-machine JA3 capture to verify and push against the "do not hand-roll
+   TLS" boundary.
+
+Recommendation: do (1) when Windows + macOS hardware is available to test on;
+(2) and (3) are optional and can stay deferred.
 
 ## Definition of done for a roadmap PR
 
