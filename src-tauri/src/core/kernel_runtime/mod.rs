@@ -11,7 +11,6 @@ use std::{
     },
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri_plugin_mihomo::models::Protocol;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener as TokioTcpListener, TcpStream, UdpSocket as TokioUdpSocket},

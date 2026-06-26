@@ -26,9 +26,7 @@ impl KernelRuntime for MihomoKernelRuntime {
         KernelRuntimeStatus {
             runtime_id: self.runtime_id().into(),
             active_kernel: active_kernel_label(),
-            controller_transport: controller_transport_label(
-                &crate::core::runtime_bridge::read_runtime_controller_transport().await,
-            ),
+            controller_transport: crate::core::runtime_bridge::read_runtime_controller_transport().into(),
             mutates_runtime: false,
             mihomo_fallback: true,
         }
@@ -571,14 +569,6 @@ fn active_kernel_label() -> String {
         RunningMode::Gripe => "learn-gripe",
     }
     .into()
-}
-
-fn controller_transport_label(protocol: &Protocol) -> String {
-    match protocol {
-        Protocol::Http => "http".into(),
-        Protocol::LocalSocket => "local-socket".into(),
-        Protocol::Auto => "auto".into(),
-    }
 }
 
 fn rust_owned_control_plane() -> Vec<String> {

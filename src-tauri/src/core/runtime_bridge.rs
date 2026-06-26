@@ -5,9 +5,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
-use tauri_plugin_mihomo::models::{
-    ConnectionId, CoreUpdaterChannel, LogLevel, Protocol, ProxyDelay, TLSRotationResult,
-};
+use tauri_plugin_mihomo::models::{ConnectionId, CoreUpdaterChannel, LogLevel, ProxyDelay, TLSRotationResult};
 
 use crate::core::{CoreManager, handle::Handle, runtime_snapshot};
 
@@ -23,8 +21,12 @@ static STREAMS: Lazy<Mutex<HashMap<ConnectionId, tokio::task::JoinHandle<()>>>> 
     Lazy::new(|| Mutex::new(HashMap::new()));
 static NEXT_STREAM_ID: AtomicU32 = AtomicU32::new(1);
 
-pub async fn read_runtime_controller_transport() -> Protocol {
-    Handle::mihomo().await.protocol.clone()
+/// The control plane runs fully in-process (the kernel is compiled into the app
+/// over `learn-gripe`); there is no external Mihomo controller socket to probe,
+/// so the transport is reported as `in-process` rather than the former
+/// `http`/`local-socket`/`auto` controller protocol.
+pub fn read_runtime_controller_transport() -> &'static str {
+    "in-process"
 }
 
 pub async fn measure_runtime_proxy_delay(
@@ -153,17 +155,28 @@ pub async fn update_runtime_geo() -> Result<()> {
 }
 
 pub async fn upgrade_runtime_core(channel: CoreUpdaterChannel, force: bool) -> Result<()> {
-    let detail = Some(format!("channel={channel:?};force={force}"));
-    let result = Handle::mihomo().await.upgrade_core(channel, force).await;
-    record_runtime_bridge_result("upgrade-runtime-core", result.as_ref().map(|_| ()), detail);
-    result?;
+    // In the pure-Rust runtime the kernel is compiled into the app (`learn-gripe`),
+    // so there is no external Mihomo binary to download and hot-swap; kernel
+    // upgrades ship through the application updater. This is an in-process no-op
+    // that records the request for parity with the former Mihomo controller
+    // `/upgrade` call instead of routing to a controller that no longer exists.
+    let detail = Some(format!(
+        "channel={channel:?};force={force};no external core in pure-Rust runtime"
+    ));
+    record_runtime_bridge_result::<anyhow::Error>("upgrade-runtime-core", Ok(()), detail);
     Ok(())
 }
 
 pub async fn upgrade_runtime_ui() -> Result<()> {
-    let result = Handle::mihomo().await.upgrade_ui().await;
-    record_runtime_bridge_result("upgrade-runtime-ui", result.as_ref().map(|_| ()), None);
-    result?;
+    // The dashboard UI is bundled with the app, so there is no external panel to
+    // download; UI upgrades ship through the application updater. In-process
+    // no-op recorded for parity with the former Mihomo controller `/upgrade/ui`
+    // call.
+    record_runtime_bridge_result::<anyhow::Error>(
+        "upgrade-runtime-ui",
+        Ok(()),
+        Some("no external dashboard in pure-Rust runtime".into()),
+    );
     Ok(())
 }
 
@@ -342,4 +355,17 @@ fn record_runtime_bridge_result<E: std::fmt::Display>(
         result.err().map(ToString::to_string),
         detail,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn controller_transport_is_in_process() {
+        // The pure-Rust runtime has no external Mihomo controller socket; the
+        // probe must report the in-process surface instead of the former
+        // http/local-socket/auto controller protocol.
+        assert_eq!(read_runtime_controller_transport(), "in-process");
+    }
 }
