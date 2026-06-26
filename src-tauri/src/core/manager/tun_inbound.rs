@@ -787,6 +787,29 @@ fn macos_bypass_route_delete_args_v6(ip: Ipv6Addr) -> Vec<String> {
     ]
 }
 
+/// `ifconfig <tun> inet6 <ip> prefixlen <plen> alias` — give the utun an on-link
+/// IPv6 address (the analogue of the IPv4 198.18.0.1). `route` cannot add the
+/// crate-created utun an IPv6 address, and without a local v6 source address the
+/// kernel cannot source-select for IPv6 it routes into the TUN, so the capture
+/// routes alone would black-hole locally-originated IPv6.
+#[cfg(target_os = "macos")]
+fn macos_v6_add_address_args(tun: &str, ip: Ipv6Addr, prefix_len: u8) -> Vec<String> {
+    vec![
+        tun.into(),
+        "inet6".into(),
+        ip.to_string(),
+        "prefixlen".into(),
+        prefix_len.to_string(),
+        "alias".into(),
+    ]
+}
+
+/// `ifconfig <tun> inet6 <ip> -alias` — the inverse of the v6 address add above.
+#[cfg(target_os = "macos")]
+fn macos_v6_delete_address_args(tun: &str, ip: Ipv6Addr) -> Vec<String> {
+    vec![tun.into(), "inet6".into(), ip.to_string(), "-alias".into()]
+}
+
 /// Parse a single `field:` value out of `route -n get ...` output, e.g.
 /// `gateway: 192.168.1.1` or `interface: en0`. Returns `None` when the field is
 /// absent or empty.
@@ -975,6 +998,18 @@ fn install_global_capture_v6_macos(
         logging!(info, Type::Core, "no IPv6 default gateway; skipping IPv6 capture");
         return Ok(());
     };
+
+    // Give the TUN an on-link IPv6 address (the analogue of 198.18.0.1), so the
+    // kernel has a local source address for IPv6 routed into the utun. The `tun`
+    // crate only configures the v4 address on macOS, so do it via `ifconfig`.
+    run_cmd(
+        "ifconfig",
+        &str_refs(&macos_v6_add_address_args(tun_name, TUN_ADDRESS_V6, TUN_V6_PREFIX_LEN)),
+    )?;
+    let undo = macos_v6_delete_address_args(tun_name, TUN_ADDRESS_V6);
+    rollback.push("remove TUN IPv6 address", move || {
+        let _ = run_cmd("ifconfig", &str_refs(&undo));
+    });
 
     // Bypass each IPv6 proxy server address via the physical default.
     for ip in server_ips {
@@ -1238,6 +1273,18 @@ mod macos_tests {
         assert_eq!(
             macos_bypass_route_delete_args_v6(ip),
             vec!["-n", "delete", "-inet6", "-host", "2001:db8::1"]
+        );
+    }
+
+    #[test]
+    fn v6_address_arg_builders_are_inverses() {
+        assert_eq!(
+            macos_v6_add_address_args("utun5", TUN_ADDRESS_V6, TUN_V6_PREFIX_LEN),
+            vec!["utun5", "inet6", "fd00::1", "prefixlen", "64", "alias"]
+        );
+        assert_eq!(
+            macos_v6_delete_address_args("utun5", TUN_ADDRESS_V6),
+            vec!["utun5", "inet6", "fd00::1", "-alias"]
         );
     }
 

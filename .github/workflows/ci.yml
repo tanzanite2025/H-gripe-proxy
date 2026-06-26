@@ -74,3 +74,33 @@ jobs:
 
       - name: Compile app library tests
         run: cargo test -p clash-verge-optimized --lib --no-run --features clippy
+
+  app-macos:
+    name: clash-verge-optimized app (macOS datapath compile)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: clippy
+
+      - name: Cache cargo build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: app-macos
+
+      # The Windows `app` job never compiles the `#[cfg(target_os = "macos")]`
+      # global default-route capture (route/networksetup/ifconfig takeover) in
+      # `core::manager::tun_inbound`, so it could rot undetected. Build the app
+      # lib + its test binary natively on macOS to compile-check that datapath
+      # and its `macos_tests`. It still cannot be *run* in CI (it needs root and
+      # a real utun), so real-machine validation remains a manual step.
+      - name: Clippy lint (app lib)
+        run: cargo clippy -p clash-verge-optimized --lib --features clippy
+
+      - name: Compile app library tests
+        run: cargo test -p clash-verge-optimized --lib --no-run --features clippy
