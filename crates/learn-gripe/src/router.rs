@@ -97,6 +97,17 @@ pub enum RuleMatcher {
         name: String,
         provider: Arc<dyn RuleSetLookup>,
     },
+    /// Matches when the connection's *source* IP is contained in the
+    /// locally-loaded rule-set ("rule provider") named `name`. Unlike
+    /// [`RuleSet`](RuleMatcher::RuleSet), which queries the target, this feeds
+    /// the source address (supplied by the embedder at selection time) to the
+    /// set as an IP target, so an ipcidr/classical set matches the source IP
+    /// and a domain set never matches. When the source is unknown the rule
+    /// never matches, mirroring `SRC-IP-CIDR`.
+    SrcRuleSet {
+        name: String,
+        provider: Arc<dyn RuleSetLookup>,
+    },
     /// Matches when the target's destination port falls inside the (inclusive)
     /// range. A single-port rule parses as a one-wide range. Applies to both IP
     /// and domain targets, since the port is known either way.
@@ -144,6 +155,9 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
+            RuleMatcher::SrcRuleSet { name, .. } => {
+                f.debug_struct("SrcRuleSet").field("name", name).finish_non_exhaustive()
+            }
             RuleMatcher::DstPort(r) => f.debug_tuple("DstPort").field(r).finish(),
             RuleMatcher::SrcPort(r) => f.debug_tuple("SrcPort").field(r).finish(),
             RuleMatcher::Network(n) => f.debug_tuple("Network").field(n).finish(),
@@ -170,6 +184,9 @@ impl PartialEq for RuleMatcher {
                 a == b && Arc::ptr_eq(da, db2)
             }
             (RuleMatcher::RuleSet { name: a, provider: pa }, RuleMatcher::RuleSet { name: b, provider: pb }) => {
+                a == b && Arc::ptr_eq(pa, pb)
+            }
+            (RuleMatcher::SrcRuleSet { name: a, provider: pa }, RuleMatcher::SrcRuleSet { name: b, provider: pb }) => {
                 a == b && Arc::ptr_eq(pa, pb)
             }
             (RuleMatcher::DstPort(a), RuleMatcher::DstPort(b)) => a == b,
@@ -245,6 +262,9 @@ impl RuleMatcher {
                 TargetAddr::Domain(_, _) => false,
             },
             RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
+            RuleMatcher::SrcRuleSet { name, provider } => {
+                src.is_some_and(|addr| provider.rule_set_matches(name, &TargetAddr::Ip(addr)))
+            }
             RuleMatcher::DstPort(range) => range.contains(target.port()),
             RuleMatcher::SrcPort(range) => src.is_some_and(|addr| range.contains(addr.port())),
             RuleMatcher::Network(want) => network == *want,
@@ -273,6 +293,7 @@ impl RuleMatcher {
             RuleMatcher::GeoSite { .. } => "GeoSite",
             RuleMatcher::Asn { .. } => "IPASN",
             RuleMatcher::RuleSet { .. } => "RuleSet",
+            RuleMatcher::SrcRuleSet { .. } => "SrcRuleSet",
             RuleMatcher::DstPort(_) => "DstPort",
             RuleMatcher::SrcPort(_) => "SrcPort",
             RuleMatcher::Network(_) => "Network",
@@ -297,6 +318,7 @@ impl RuleMatcher {
             RuleMatcher::GeoSite { code, .. } => code.clone(),
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
             RuleMatcher::RuleSet { name, .. } => name.clone(),
+            RuleMatcher::SrcRuleSet { name, .. } => name.clone(),
             RuleMatcher::DstPort(range) => range.to_string(),
             RuleMatcher::SrcPort(range) => range.to_string(),
             RuleMatcher::Network(n) => n.as_str().to_string(),
@@ -754,6 +776,165 @@ mod tests {
         assert_eq!(a, same);
         assert_ne!(a, different_provider);
         assert_ne!(a, different_name);
+    }
+
+    #[test]
+    fn src_rule_set_matches_source_ip_via_provider() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let m = RuleMatcher::SrcRuleSet {
+            name: "ads".to_string(),
+            provider,
+        };
+        // The source IP is fed to the set as an IP target, so the `ads` set's
+        // member 1.0.0.1 matches regardless of the destination (here a domain).
+        assert!(m.matches_conn(
+            &domain("good.example"),
+            ConnNetwork::Tcp,
+            Some(SocketAddr::new(Ipv4Addr::new(1, 0, 0, 1).into(), 50000)),
+        ));
+        // A non-member source IP misses even though the destination is fine.
+        assert!(!m.matches_conn(
+            &domain("good.example"),
+            ConnNetwork::Tcp,
+            Some(SocketAddr::new(Ipv4Addr::new(8, 8, 8, 8).into(), 50000)),
+        ));
+    }
+
+    #[test]
+    fn src_rule_set_with_unknown_set_never_matches() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let m = RuleMatcher::SrcRuleSet {
+            name: "missing".to_string(),
+            provider,
+        };
+        assert!(!m.matches_conn(
+            &domain("good.example"),
+            ConnNetwork::Tcp,
+            Some(SocketAddr::new(Ipv4Addr::new(1, 0, 0, 1).into(), 50000)),
+        ));
+    }
+
+    #[test]
+    fn src_rule_set_never_matches_without_a_known_source() {
+        // Like `SRC-IP-CIDR`, the rule needs the source to apply; the
+        // `matches`/`matches_network` wrappers (which pass `None`) always miss
+        // even when the target IP would belong to the set.
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let m = RuleMatcher::SrcRuleSet {
+            name: "ads".to_string(),
+            provider,
+        };
+        assert!(!m.matches_conn(&domain("good.example"), ConnNetwork::Tcp, None));
+        assert!(!m.matches_network(&ipv4(1, 0, 0, 1), ConnNetwork::Tcp));
+        assert!(!m.matches(&ipv4(1, 0, 0, 1)));
+    }
+
+    #[test]
+    fn router_routes_src_rule_set_rule() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(
+            RuleMatcher::SrcRuleSet {
+                name: "ads".to_string(),
+                provider,
+            },
+            DIRECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // Source IP in the `ads` set -> DIRECT.
+        assert!(matches!(
+            router.select_conn(
+                &domain("example.com"),
+                ConnNetwork::Tcp,
+                Some(SocketAddr::new(Ipv4Addr::new(1, 0, 0, 1).into(), 50000)),
+            ),
+            OutboundMode::Direct
+        ));
+        // Source IP not in the set -> fallback proxy.
+        assert!(matches!(
+            router.select_conn(
+                &domain("example.com"),
+                ConnNetwork::Tcp,
+                Some(SocketAddr::new(Ipv4Addr::new(8, 8, 8, 8).into(), 50000)),
+            ),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // No source (the `select`/`select_network` wrappers) -> never matches.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn src_rule_set_as_logical_sub_rule_respects_source() {
+        // AND,((DOMAIN-SUFFIX,example.com),(SRC-IP-RULE-SET,ads)) matches only a
+        // connection to that domain from a source IP in the `ads` set; the
+        // source threads into sub-rules.
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::SrcRuleSet {
+                    name: "ads".to_string(),
+                    provider,
+                },
+            ],
+        };
+        let member = SocketAddr::new(Ipv4Addr::new(1, 0, 0, 1).into(), 50000);
+        let other = SocketAddr::new(Ipv4Addr::new(8, 8, 8, 8).into(), 50000);
+        assert!(m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(member)));
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(other)));
+        assert!(!m.matches_conn(&domain("other.net"), ConnNetwork::Tcp, Some(member)));
+        // Without a known source the SRC-IP-RULE-SET sub-rule cannot match.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, None));
+    }
+
+    #[test]
+    fn src_rule_set_equality_and_metadata() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let other: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let a = RuleMatcher::SrcRuleSet {
+            name: "ads".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        let same = RuleMatcher::SrcRuleSet {
+            name: "ads".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        let different_provider = RuleMatcher::SrcRuleSet {
+            name: "ads".to_string(),
+            provider: other,
+        };
+        let different_name = RuleMatcher::SrcRuleSet {
+            name: "cdn".to_string(),
+            provider,
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_provider);
+        assert_ne!(a, different_name);
+        assert_eq!(a.kind_str(), "SrcRuleSet");
+        assert_eq!(a.payload(), "ads");
+        // A SrcRuleSet never equals a target-side RuleSet, even with the same
+        // name and provider.
+        let provider2: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let dst = RuleMatcher::RuleSet {
+            name: "ads".to_string(),
+            provider: Arc::clone(&provider2),
+        };
+        let src = RuleMatcher::SrcRuleSet {
+            name: "ads".to_string(),
+            provider: provider2,
+        };
+        assert_ne!(dst, src);
     }
 
     #[test]
