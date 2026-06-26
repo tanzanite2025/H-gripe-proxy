@@ -5,7 +5,7 @@ use crate::core::runtime::{CoreRuntimeRecord, remove_core_runtime_record, write_
 use crate::core::state::set_service_lifecycle_state;
 use crate::core::structure::ServiceLifecycleState;
 use anyhow::{Result, anyhow};
-use clash_verge_logger::AsyncLogger;
+use clash_verge_logging::AsyncLogger;
 use compact_str::CompactString;
 use flexi_logger::writers::LogWriter;
 use flexi_logger::{DeferredNow, Record};
