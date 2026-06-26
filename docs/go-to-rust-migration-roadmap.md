@@ -48,7 +48,7 @@ boots the Rust kernel; there is no Mihomo startup path left.
 | --- | --- |
 | learn-gripe kernel | MVP live. **Mixed inbound** on one port: SOCKS5 (no-auth CONNECT + UDP ASSOCIATE) and HTTP proxy (`CONNECT` tunnel + plain absolute-form requests) selected by peeking the first byte, relaying through the configured outbound via `tokio::io::copy_bidirectional`. Bound + started inside `CoreManager::start_core()`; lifecycle via `GripeHandle` (`local_addr`, graceful `shutdown`). New `RunningMode::Gripe`. End-to-end relay tests in `crates/learn-gripe/tests/socks5_relay.rs` and `crates/learn-gripe/tests/http_inbound.rs`. |
 | Rust control plane | Mature. Validation, planning, projection artifacts, subscription pipeline, monitor paths, audit, telemetry, and frontend type surfaces are Rust-owned (see "Completed control-plane milestones"). |
-| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, and it is **not dead code**: besides the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files), it still provides the live **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`) that the remaining `core/runtime_bridge.rs` Tauri commands call. Several former IPC commands now run in-process (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, TLS fingerprint stats + rotation, `update_geo`/`upgrade_geo`, `upgrade_core`/`upgrade_ui` no-ops, and the controller-transport probe); what still routes through the IPC client is only provider update/healthcheck (`update_proxy_provider`, `healthcheck_proxy_provider`, `update_rule_provider`). Those calls connect to a controller that is no longer running, so they are runtime-dead but compile-live and still wired to the frontend. Dropping the crate is blocked until `learn-gripe` models proxy/rule providers and exposes an in-process provider API (or those commands are removed); see Phase 5. |
+| Mihomo sidecar | No longer started, and the binary is **gone from the tree and from packaging** (no tracked binary; `scripts/prebuild.mjs`, `tauri.conf.json`, `tauri.linux.conf.json` `externalBin`, and `.github/workflows/release.yml` reference only the `clash-verge-service` sidecar and local geodata, never Mihomo). What remains is the `tauri-plugin-mihomo` **crate** dependency, kept only for its compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files). It also still *defines* the **Mihomo controller-API IPC client** (`Mihomo` / `MihomoExt`, built in `src-tauri/src/lib.rs` over a `LocalSocket`), but no `core/runtime_bridge.rs` command calls it anymore. **Every former IPC command now runs in-process** (proxy delay test, connection close/disconnect, `ws_connections`/`ws_logs` streams, obfuscation stats, TLS fingerprint stats + rotation, `update_geo`/`upgrade_geo`, `upgrade_core`/`upgrade_ui` no-ops, the controller-transport probe, and — final step — provider update/healthcheck `update_proxy_provider`/`healthcheck_proxy_provider`/`update_rule_provider`), so the controller-API IPC client (`Mihomo` / `MihomoExt`) is no longer reached by any command. The only remaining reason the crate is still a dependency is the compatibility DTOs (`models::*`, used as data types across ~24 `src-tauri` files); replacing those with Rust-native DTOs is all that is left to drop the crate. See Phase 5. |
 
 `start_core()` now selects the outbound from the user's chosen node:
 `OutboundMode::from_proxy()` maps a clash `proxies:` entry to the kernel
@@ -442,26 +442,31 @@ Only after the supported default paths above run on `learn-gripe`:
   history parity — the kernel and dashboard ship with the app and are upgraded
   through the application updater, so there is no external binary or panel to
   download. All three dropped their `Handle::mihomo()` calls.
-- **Remaining — the `tauri-plugin-mihomo` crate dependency.** Removing it means
-  replacing two things, not deleting dead code:
-  1. the compatibility DTOs (`models::*`) with Rust-native DTOs across the ~24
-     `src-tauri` consumers, **and**
-  2. the live Mihomo **controller-API IPC client** (`Mihomo` / `MihomoExt`) that
-     the remaining `core/runtime_bridge.rs` commands still depend on — now only
-     provider update/healthcheck (`update_proxy_provider`,
-     `healthcheck_proxy_provider`, `update_rule_provider`). Delay test, connection
-     close/disconnect, `ws_connections`/`ws_logs`, obfuscation stats, TLS
-     fingerprint stats + rotation, `update_geo`/`upgrade_geo`,
-     `upgrade_core`/`upgrade_ui`, and the controller-transport probe have already
-     moved in-process.
-- **Blocker.** `learn-gripe` does not model proxy/rule providers at all
-  (`outbound_select`/config have no provider concept), so there is no in-process
-  object to update or health-check; the crate cannot be dropped without either
-  building provider support in the kernel or removing the dependent commands (and
-  their frontend callers). Per boundary #1 the frontend must ultimately stop
-  talking to an external controller; the replacement provider surface belongs in
-  `learn-gripe`. This is the last step of Phase 5 and is intentionally deferred
-  until that kernel support exists.
+- **Done — in-process provider update + health-check (`update_proxy_provider`,
+  `update_rule_provider`, `healthcheck_proxy_provider`).** The kernel never owned
+  provider data: rule providers are consumed from local files by
+  `core/rule_engine`, proxy providers parsed from local files by
+  `runtime_snapshot`. The former Mihomo `update` call only re-fetched the remote
+  list into that local file, so `core/provider_update.rs` does exactly that
+  in-process — same shape as the geo update: download the upstream list through
+  the proxy-aware `NetworkManager` (with a direct fallback), validate it parses
+  (reject empty/garbage so a bad fetch never blanks a working file), then
+  atomically swap it in via a `.download.tmp` sibling + rename. File/inline
+  providers have nothing remote to fetch and succeed as a no-op.
+  `healthcheck_proxy_provider` resolves the provider's nodes to kernel outbounds
+  and probes each concurrently with the in-process `learn_gripe::measure_delay`,
+  persisting per-node delays through `runtime_snapshot` (replacing the controller
+  `/providers/proxies/{name}/healthcheck` call). `CoreManager` wraps all three and
+  restarts the kernel after an update so the rule engine / snapshot re-read the
+  new file; `runtime_bridge.rs` now calls the in-process path and dropped its last
+  three `Handle::mihomo()` calls. Unit tests cover proxy/rule list parsing, the
+  empty-list rejection, and the temp-target/atomic-replace path.
+- **Remaining — the `tauri-plugin-mihomo` crate dependency (compatibility DTOs
+  only).** No command calls the controller-API IPC client (`Mihomo` /
+  `MihomoExt`) anymore — every former IPC command listed above runs in-process —
+  so dropping the crate now means **only one thing**: replacing the compatibility
+  DTOs (`models::*`) with Rust-native DTOs across the ~24 `src-tauri` consumers,
+  after which the IPC client and the crate dependency can be deleted outright.
 
 ## Definition of done for a roadmap PR
 
