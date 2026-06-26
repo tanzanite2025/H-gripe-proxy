@@ -13,10 +13,11 @@ use crate::{
 use anyhow::Result;
 use clash_dtos::{
     BaseConfig, BufferPoolStats, ClashMode, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
-    DelayHistory, DnsMetrics, EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel,
-    MihomoVersion, Network, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
-    RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo,
-    TLSFingerprintStats, TunConfig, TunStack, VehicleType, XDPStatus,
+    DelayHistory, DnsCacheStats, DnsMetrics, DnsPollutionStats, DnsQueryStats, DnsTrustSummary, EgressStatus,
+    EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel, MihomoVersion, Network, PerfStats, ProviderType,
+    Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior, RuleFormat, RuleProvider,
+    RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo, TLSFingerprintStats, TunConfig, TunStack,
+    VehicleType, XDPStatus,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -229,11 +230,19 @@ impl RuntimeSnapshotService {
     }
 
     pub async fn refresh_runtime_dns_metrics_result(&self) -> Result<RuntimeSnapshot> {
-        // The Rust runtime kernel forwards DNS queries verbatim with no cache or
-        // per-query instrumentation, so there is no honest source for cache,
-        // query, server, pollution, or trust metrics. Report unavailable rather
-        // than fabricating zeroed counters.
-        anyhow::bail!("DNS metrics are not available: the Rust runtime kernel does not instrument DNS resolution")
+        // The only resolver the Rust kernel answers itself is the in-stack
+        // fake-IP answerer on the TUN datapath; outside TUN mode DNS is forwarded
+        // verbatim with no instrumentation. `runtime_dns_stats` returns `None`
+        // unless a TUN inbound is live, so report unavailable rather than
+        // fabricating zeroed counters. The cache/query fields carry real data;
+        // per-server, recent-query, pollution and trust metrics have no honest
+        // in-process source and stay empty (the panel hides those sections).
+        let stats = CoreManager::global().runtime_dns_stats().await.ok_or_else(|| {
+            anyhow::anyhow!("DNS metrics are not available: the Rust kernel only instruments DNS in TUN mode (in-stack fake-IP), which is not active")
+        })?;
+        let mut snapshot = self.runtime_read_snapshot();
+        snapshot.dns_metrics = Some(dns_metrics_from_stats(&stats));
+        Ok(snapshot)
     }
 
     pub async fn refresh_runtime_engine_stats_result(&self) -> Result<RuntimeSnapshot> {
@@ -465,6 +474,53 @@ pub(crate) fn rule_traffic_from_kernel(
         entry.last_active = entry.last_active.max(conn.start_unix_ms as i64);
     }
     map
+}
+
+/// Shape the in-stack DNS counters into the `DnsMetrics` DTO the telemetry panel
+/// renders. Only the cache and query sections carry real data: `A` questions
+/// either hit an existing fake-IP mapping or allocate a new one (a miss), and
+/// every accepted question counts toward the totals. The kernel answers entirely
+/// from the local fake-IP pool, so success == total - errors and there is no
+/// per-query latency to report. Per-upstream server stats, recent-query history,
+/// pollution and trust analysis have no honest in-process source, so they stay
+/// empty and the panel hides those sections.
+pub(crate) fn dns_metrics_from_stats(stats: &learn_gripe::DnsStatsSnapshot) -> DnsMetrics {
+    // A cache hit is an `A` question whose domain already had a mapping; the
+    // remaining `A` questions allocated a new entry (a miss).
+    let cache_hits = stats.cache_hits;
+    let cache_misses = stats.a_queries.saturating_sub(cache_hits);
+    let cache_lookups = stats.a_queries;
+    let hit_rate = if cache_lookups > 0 {
+        cache_hits as f64 / cache_lookups as f64
+    } else {
+        0.0
+    };
+
+    let total = stats.total_queries;
+    let failed = stats.errors;
+    let success = total.saturating_sub(failed);
+
+    DnsMetrics {
+        cache: DnsCacheStats {
+            hit: cache_hits,
+            miss: cache_misses,
+            size: stats.fake_ip_entries,
+            hit_rate,
+        },
+        queries: DnsQueryStats {
+            total,
+            success,
+            failed,
+            // The fake-IP answerer resolves synchronously from an in-memory pool;
+            // there is no upstream round-trip to time.
+            avg_latency_us: 0,
+            max_latency_us: 0,
+        },
+        servers: Vec::new(),
+        recent: Vec::new(),
+        pollution: DnsPollutionStats::default(),
+        trust: DnsTrustSummary::default(),
+    }
 }
 
 fn connection_from_kernel(conn: learn_gripe::ConnSnapshot) -> Connection {
@@ -2140,5 +2196,49 @@ rule-providers:
         assert_eq!(geoip.upload, 10);
 
         assert!(traffic.keys().all(|key| !key.starts_with(':')));
+    }
+
+    #[test]
+    fn dns_metrics_map_cache_hits_misses_and_query_totals() {
+        let stats = learn_gripe::DnsStatsSnapshot {
+            total_queries: 10,
+            a_queries: 8,
+            aaaa_queries: 1,
+            other_queries: 1,
+            cache_hits: 6,
+            errors: 2,
+            fake_ip_entries: 2,
+        };
+
+        let metrics = dns_metrics_from_stats(&stats);
+
+        // Cache: 6 of 8 A-questions hit; the other 2 allocated new entries.
+        assert_eq!(metrics.cache.hit, 6);
+        assert_eq!(metrics.cache.miss, 2);
+        assert_eq!(metrics.cache.size, 2);
+        assert!((metrics.cache.hit_rate - 0.75).abs() < 1e-9);
+
+        // Queries: success == total - errors; no latency source.
+        assert_eq!(metrics.queries.total, 10);
+        assert_eq!(metrics.queries.success, 8);
+        assert_eq!(metrics.queries.failed, 2);
+        assert_eq!(metrics.queries.avg_latency_us, 0);
+        assert_eq!(metrics.queries.max_latency_us, 0);
+
+        // No honest in-process source for these sections.
+        assert!(metrics.servers.is_empty());
+        assert!(metrics.recent.is_empty());
+        assert_eq!(metrics.pollution.total_checked, 0);
+        assert_eq!(metrics.trust.total, 0);
+    }
+
+    #[test]
+    fn dns_metrics_empty_snapshot_has_zero_hit_rate() {
+        let metrics = dns_metrics_from_stats(&learn_gripe::DnsStatsSnapshot::default());
+        assert_eq!(metrics.cache.hit, 0);
+        assert_eq!(metrics.cache.miss, 0);
+        assert_eq!(metrics.cache.hit_rate, 0.0);
+        assert_eq!(metrics.queries.total, 0);
+        assert_eq!(metrics.queries.success, 0);
     }
 }

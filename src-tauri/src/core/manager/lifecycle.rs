@@ -114,6 +114,14 @@ impl CoreManager {
         self.gripe.lock().await.as_ref().map(|handle| handle.connections())
     }
 
+    /// Snapshot the in-stack DNS answerer's counters. Returns `None` unless a
+    /// TUN inbound is running, because the fake-IP answerer on the TUN datapath
+    /// is the only resolver the Rust kernel answers itself — there is no honest
+    /// DNS source outside TUN mode (queries are forwarded verbatim).
+    pub async fn runtime_dns_stats(&self) -> Option<learn_gripe::DnsStatsSnapshot> {
+        self.tun.lock().await.as_ref().map(|tun| tun.dns_stats())
+    }
+
     /// Subscribe to the running kernel's connection-table change signal. Returns
     /// `None` when the kernel is not running. Drives the live-connections stream
     /// (push a fresh snapshot on every membership change) and lets the stream

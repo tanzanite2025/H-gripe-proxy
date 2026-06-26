@@ -77,7 +77,7 @@ pub async fn serve_tun(
     // server allocates from, so a connection to a synthesized IP routes by the
     // domain that DNS just handed out.
     let fake_ip: FakeIp = dns.as_ref().and_then(|mode| match mode.as_ref() {
-        DnsMode::FakeIp { pool } => Some(pool.clone()),
+        DnsMode::FakeIp { pool, .. } => Some(pool.clone()),
         DnsMode::Forward { .. } => None,
     });
     let start = StdInstant::now();
