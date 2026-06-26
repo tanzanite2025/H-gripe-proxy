@@ -413,10 +413,24 @@ end-to-end relay tests. Proves the in-process architecture works.
   The earlier code disabled it on all three, which left the 4-byte header in the
   frames on macOS. The binding also stops forcing the `clash-verge` interface
   name on macOS/iOS (utun names must be `utunN`, so the kernel assigns one).
-  macOS global default-route capture (the v4/v6 route + DNS takeover, currently
-  Windows-only) is the remaining TUN follow-up; the macOS device itself now comes
-  up correctly. All of this is compile-verified only and needs validation on a
-  real Mac.
+  **macOS global default-route capture** is now landed too
+  (`install_global_capture_macos` / `install_global_capture_v6_macos`), so the
+  v4/v6 route + DNS takeover is no longer Windows-only. It mirrors the Windows
+  design with BSD tooling inside the same `RollbackStack` flow and
+  `supports_global_capture` gate: routes are pinned by interface *name* (the utun
+  is point-to-point, so capture routes use `route … -interface utunN` with no
+  gateway address), each resolved proxy-server IP is bypassed with a host route
+  via the physical gateway, `0.0.0.0/1` + `128.0.0.0/1` (and, purely additively,
+  `::/1` + `8000::/1`) capture the rest through the TUN, DNS is taken over on the
+  primary network service via `networksetup` (restored on rollback), and the v6
+  path assigns the utun an `fd00::1/64` on-link address via `ifconfig` (the
+  analogue of the IPv4 `198.18.0.1`) so the kernel can source-select for captured
+  IPv6. The route/service/DNS parsers and command builders have unit tests (the
+  `macos_tests` module). As of this PR the macOS datapath is also compiled by a
+  dedicated `macos-latest` CI job; like Windows the `route` / `networksetup` /
+  `ifconfig` mutations are **compile-checked only and must be validated on a real
+  Mac with admin** (CI cannot exercise them — they need root and a real utun).
+  The macOS utun device itself already comes up correctly.
 
 ### Phase 5 — Delete Mihomo
 
@@ -635,6 +649,11 @@ protocols above could regress unnoticed):
   with the `clippy` feature (skips `tauri_build` / frontend). The app test binary
   cannot *run* in CI (it needs platform GUI/WinRT bindings at runtime), but
   compiling it catches breaking changes to the app-side router / parser bridge.
+- **app-macos job** (`macos-latest`): the same `clippy` + `cargo test --lib
+  --no-run` for `clash-verge-optimized`, run natively on macOS so the
+  `#[cfg(target_os = "macos")]` global default-route capture in
+  `core::manager::tun_inbound` (and its `macos_tests`) is compile-checked — the
+  Windows `app` job never builds that datapath. It still cannot *run* in CI.
 
 The release packaging workflow (`release.yml`) is unchanged and still
 tag-triggered. (Added in PR #424.)
@@ -650,11 +669,12 @@ thing CI cannot cover:
 1. **Real-hardware TUN validation (highest priority — needs your machines).**
    Enable `enable_tun_mode` on a real Windows box (admin) and a real Mac and
    confirm global default-route capture actually takes over v4/v6 + DNS without
-   stranding the network. The Windows v4/v6 `route` / `netsh` mutations are
-   compile-checked only; **macOS global capture is not yet written** — it is the
-   one missing TUN feature and should be implemented + validated together on a
-   real Mac (the macOS utun device itself already comes up). This is the only
-   thing standing between TUN mode and shipping it on by default.
+   stranding the network. Both platforms' global capture is now implemented — the
+   Windows (`route` / `netsh`) and macOS (`route` / `networksetup` / `ifconfig`)
+   mutations are **compile-checked only** (the macOS datapath now also has a
+   `macos-latest` CI compile job, but neither platform can be exercised in CI —
+   they need admin/root and a real TUN). This real-machine validation is the only
+   thing left standing between TUN mode and shipping it on by default.
 2. **DNS pollution analysis (last telemetry gap — optional).** Every other
    diagnostics panel now has an honest in-process source; pollution/trust
    comparison is the only section left empty because it needs a DoH/DoT
