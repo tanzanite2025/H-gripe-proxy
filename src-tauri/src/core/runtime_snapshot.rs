@@ -229,45 +229,69 @@ impl RuntimeSnapshotService {
     }
 
     pub async fn refresh_runtime_dns_metrics_result(&self) -> Result<RuntimeSnapshot> {
-        let mut snapshot = self.runtime_read_snapshot();
-        snapshot.dns_metrics = Some(DnsMetrics::default());
-        Ok(snapshot)
+        // The Rust runtime kernel forwards DNS queries verbatim with no cache or
+        // per-query instrumentation, so there is no honest source for cache,
+        // query, server, pollution, or trust metrics. Report unavailable rather
+        // than fabricating zeroed counters.
+        anyhow::bail!("DNS metrics are not available: the Rust runtime kernel does not instrument DNS resolution")
     }
 
     pub async fn refresh_runtime_engine_stats_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        snapshot.engine_stats = Some(EngineStats::default());
+        let live = runtime_live_connection_count().await;
+        snapshot.engine_stats = Some(EngineStats {
+            active_connections: live,
+            tracked_conns: live,
+        });
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_perf_stats_result(&self) -> Result<RuntimeSnapshot> {
-        let mut snapshot = self.runtime_read_snapshot();
-        snapshot.perf_stats = Some(PerfStats::default());
-        Ok(snapshot)
+        // PerfStats models the Go runtime (goroutines, GOGC, GC pauses, Go heap),
+        // none of which exist in the Rust kernel. Report unavailable rather than
+        // surfacing meaningless zeros under Go-specific labels.
+        anyhow::bail!("perf stats are not available: the Rust runtime kernel does not expose Go-runtime metrics")
     }
 
     pub async fn refresh_runtime_buffer_pool_stats_result(&self) -> Result<RuntimeSnapshot> {
-        let mut snapshot = self.runtime_read_snapshot();
-        snapshot.buffer_pool_stats = Some(BufferPoolStats::default());
-        Ok(snapshot)
+        // The Rust kernel relies on tokio's built-in copy buffers and has no
+        // custom size-classed buffer pool to report on.
+        anyhow::bail!("buffer pool stats are not available: the Rust runtime kernel has no custom buffer pool")
     }
 
     pub async fn refresh_runtime_hot_reload_status_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        snapshot.hot_reload_status = Some(HotReloadStatus::default());
+        let rule_version = self.rule_version_from_runtime_config().await.unwrap_or_default();
+        snapshot.hot_reload_status = Some(HotReloadStatus {
+            rule_version,
+            protected_conns: runtime_live_connection_count().await,
+            xdp_loaded: false,
+        });
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_xdp_status_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        snapshot.xdp_status = Some(XDPStatus::default());
+        // XDP/eBPF is a Linux in-kernel datapath; the userspace Rust kernel never
+        // loads it. `false`/`false` is the genuine state, not a placeholder.
+        snapshot.xdp_status = Some(XDPStatus {
+            loaded: false,
+            enabled: false,
+        });
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_rule_traffic_result(&self) -> Result<RuntimeSnapshot> {
-        let mut snapshot = self.runtime_read_snapshot();
-        snapshot.rule_traffic = Some(HashMap::default());
-        Ok(snapshot)
+        // The router does not attribute per-connection byte counts to the matched
+        // rule, so there is no honest per-rule traffic breakdown to report.
+        anyhow::bail!("rule traffic is not available: the Rust runtime kernel does not attribute traffic per rule")
+    }
+
+    async fn rule_version_from_runtime_config(&self) -> Option<String> {
+        let runtime = Config::runtime().await;
+        let runtime = runtime.latest_arc();
+        let config = runtime.config.as_ref()?;
+        Some(rule_version_from_runtime_config(config))
     }
 
     pub async fn refresh_runtime_tls_fingerprint_stats_result(&self) -> Result<RuntimeSnapshot> {
@@ -463,6 +487,44 @@ fn split_socket_addr(addr: Option<std::net::SocketAddr>) -> (String, String) {
 fn unix_ms_to_rfc3339(unix_ms: u64) -> String {
     let time = UNIX_EPOCH + std::time::Duration::from_millis(unix_ms);
     chrono::DateTime::<chrono::Utc>::from(time).to_rfc3339()
+}
+
+/// Number of live connections tracked by the in-process kernel conntrack table.
+/// This is the real data source backing engine/hot-reload telemetry that the
+/// retired Go kernel previously reported over the controller API. Returns 0 when
+/// the kernel is not running (no table to snapshot).
+async fn runtime_live_connection_count() -> i64 {
+    CoreManager::global()
+        .runtime_connections()
+        .await
+        .map(|table| table.connections.len() as i64)
+        .unwrap_or(0)
+}
+
+/// Derive a stable rule-set version identifier from the loaded runtime config.
+/// The retired Go kernel exposed a hot-reload rule version; the Rust runtime
+/// reloads rules by restarting the kernel, so we surface a content hash of the
+/// active `rules` and `rule-providers` that changes whenever the rule set does.
+/// Returns an empty string when the config declares no rules.
+fn rule_version_from_runtime_config(config: &serde_yaml_ng::Mapping) -> String {
+    use std::hash::{Hash, Hasher};
+
+    let rules = config.get("rules");
+    let providers = config.get("rule-providers");
+    if rules.is_none() && providers.is_none() {
+        return String::new();
+    }
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    if let Some(rules) = rules {
+        serde_yaml_ng::to_string(rules).unwrap_or_default().hash(&mut hasher);
+    }
+    if let Some(providers) = providers {
+        serde_yaml_ng::to_string(providers)
+            .unwrap_or_default()
+            .hash(&mut hasher);
+    }
+    format!("{:016x}", hasher.finish())
 }
 
 pub async fn read_runtime_version() -> Result<MihomoVersion> {

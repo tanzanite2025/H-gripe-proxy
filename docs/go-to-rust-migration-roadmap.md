@@ -482,6 +482,28 @@ Only after the supported default paths above run on `learn-gripe`:
   package); all Rust consumers now `use clash_dtos::*` and all frontend imports
   point at the `clash-dtos` package. `crates/tauri-plugin-mihomo` is deleted
   outright. **No Mihomo-owned surface remains.**
+- **Done — kernel telemetry now reports honestly instead of zeroed defaults.**
+  The crate-deletion PR temporarily wired the kernel-telemetry reads to
+  `Default::default()`, which made the diagnostics panel mark fabricated zeros as
+  "available". Those reads now split by whether the userspace Rust kernel has a
+  real source:
+  - **Real in-process data:** `EngineStats` (`active_connections`/`tracked_conns`)
+    comes from the live conntrack table (`runtime_live_connection_count()`);
+    `HotReloadStatus` reports `rule_version` as a content hash of the active
+    `rules` + `rule-providers` (`rule_version_from_runtime_config()`, stable and
+    changes when the rule set does), `protected_conns` from conntrack, and
+    `xdp_loaded=false`; `XDPStatus` is `loaded=false`/`enabled=false` — the
+    genuine state of a userspace kernel with no eBPF datapath.
+  - **No honest source → `Err` → panel shows "不可用":** `PerfStats` (Go-runtime
+    goroutines/GOGC/GC/heap), `BufferPoolStats` (no custom size-classed pool; uses
+    tokio buffers), `DnsMetrics` (DNS is forwarded verbatim with no cache or
+    instrumentation), and `RuleTrafficSnapshot` (the router does not attribute
+    per-connection bytes to the matched rule). Each `refresh_*_result()` returns
+    `anyhow::bail!` with the reason; the frontend's `.catch(() => null)` renders
+    the "不可用" chip instead of fake values. `runtime_dns_warmup` became an honest
+    no-op success (nothing to warm in an on-demand resolver) rather than surfacing
+    the DNS-metrics read error. The panel description text dropped the stale
+    "Mihomo" wording.
 
 ## Definition of done for a roadmap PR
 
