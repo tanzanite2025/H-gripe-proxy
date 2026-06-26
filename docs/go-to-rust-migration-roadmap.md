@@ -495,14 +495,14 @@ Only after the supported default paths above run on `learn-gripe`:
     `xdp_loaded=false`; `XDPStatus` is `loaded=false`/`enabled=false` — the
     genuine state of a userspace kernel with no eBPF datapath.
   - **No honest source → `Err` → panel shows "不可用":** `PerfStats` (Go-runtime
-    goroutines/GOGC/GC/heap), `BufferPoolStats` (no custom size-classed pool; uses
-    tokio buffers), and `DnsMetrics` (DNS is forwarded verbatim with no cache or
-    instrumentation). Each `refresh_*_result()` returns
+    goroutines/GOGC/GC/heap) and `BufferPoolStats` (no custom size-classed pool;
+    uses tokio buffers). Each `refresh_*_result()` returns
     `anyhow::bail!` with the reason; the frontend's `.catch(() => null)` renders
     the "不可用" chip instead of fake values. `runtime_dns_warmup` became an honest
     no-op success (nothing to warm in an on-demand resolver) rather than surfacing
     the DNS-metrics read error. The panel description text dropped the stale
-    "Mihomo" wording.
+    "Mihomo" wording. (`DnsMetrics` later gained a real in-process source in TUN
+    mode — see below.)
 
 - **Done — per-rule traffic now reports real in-process data.** Every tracked
   connection already records the rule type/payload the router matched
@@ -515,6 +515,30 @@ Only after the supported default paths above run on `learn-gripe`:
   skipped; when the kernel is not running the read still returns `Err` so the
   panel honestly shows "不可用". `RuleTrafficSnapshot` thus moves out of the
   no-honest-source group above into real in-process data.
+
+- **Done — DNS cache/query metrics now report real in-process data in TUN mode.**
+  The only resolver the Rust kernel answers itself is the in-stack fake-IP
+  answerer on the TUN datapath (`build_fake_ip_response` in `learn-gripe/dns.rs`);
+  outside TUN mode DNS is forwarded verbatim with no instrumentation. That
+  answerer now carries a lock-free `DnsStats` (atomic counters, `Relaxed`,
+  incremented on the hot path with no extra allocation): total accepted datagrams,
+  `A`/`AAAA`/other questions, `A`-question cache hits (the domain already had a
+  pool mapping — detected via `FakeIpPool::has_domain` before allocating), and
+  parse/serialize errors. `DnsMode::fake_ip()` returns the shared `Arc<DnsStats>`,
+  `TunInbound` holds it plus the pool, and `TunInbound::dns_stats()` snapshots the
+  counters together with the live fake-IP cache size (`FakeIpPool::len()`).
+  `CoreManager::runtime_dns_stats()` exposes the snapshot (parallel to
+  `runtime_connections()`), returning `None` unless a TUN inbound is live.
+  `refresh_runtime_dns_metrics_result()` shapes it via `dns_metrics_from_stats()`:
+  the cache section (hit/miss/size/hit-rate) and query section (total/success =
+  total−errors/failed) carry real data, while per-upstream server stats, recent
+  query history, and pollution/trust analysis have no honest in-process source and
+  stay empty (the panel hides those sections). There is no upstream round-trip to
+  time, so latency stays 0. Outside TUN mode the read returns `Err` and the panel
+  honestly shows "不可用". Unit tests cover the counter increments
+  (`dns_stats_count_queries_hits_and_cache_size`) and the DTO mapping
+  (`dns_metrics_map_cache_hits_misses_and_query_totals`). `DnsMetrics` thus moves
+  out of the no-honest-source group into real in-process data (TUN mode).
 
 ## Definition of done for a roadmap PR
 

@@ -45,11 +45,13 @@
 
 use anyhow::{Context, Result, anyhow, bail};
 use clash_verge_logging::{Type, logging};
-use learn_gripe::{DEFAULT_MTU, DnsMode, FakeIpConfig, OutboundMode, serve_tun_device};
+use learn_gripe::{
+    DEFAULT_MTU, DnsMode, DnsStats, DnsStatsSnapshot, FakeIpConfig, FakeIpPool, OutboundMode, serve_tun_device,
+};
 use std::net::Ipv4Addr;
 #[cfg(any(windows, target_os = "macos"))]
 use std::net::Ipv6Addr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tun::AbstractDevice;
@@ -124,6 +126,11 @@ pub struct TunInbound {
     shutdown: Arc<Notify>,
     pump: JoinHandle<()>,
     rollback: RollbackStack,
+    /// The fake-IP pool the in-stack DNS allocates from; held so the live cache
+    /// size can be reported as a DNS metric.
+    fake_ip_pool: Arc<Mutex<FakeIpPool>>,
+    /// Cumulative counters for the in-stack DNS answerer.
+    dns_stats: Arc<DnsStats>,
 }
 
 impl std::fmt::Debug for TunInbound {
@@ -191,7 +198,7 @@ impl TunInbound {
         // Answer DNS over the TUN from a fake-IP pool on the interface subnet so
         // a global capture won't black-hole name resolution. Reserve the gateway
         // (the interface address) so it is never handed out as a fake IP.
-        let (dns, pool) = DnsMode::fake_ip(FakeIpConfig::default());
+        let (dns, pool, dns_stats) = DnsMode::fake_ip(FakeIpConfig::default());
         match pool.lock() {
             Ok(mut pool) => pool.reserve(TUN_ADDRESS),
             Err(err) => return Err(anyhow!("fake-IP pool mutex poisoned: {err}")),
@@ -248,7 +255,17 @@ impl TunInbound {
             shutdown,
             pump,
             rollback,
+            fake_ip_pool: pool,
+            dns_stats,
         })
+    }
+
+    /// Snapshot the in-stack DNS counters together with the live fake-IP cache
+    /// size. This is the only honest in-process DNS telemetry source: the Rust
+    /// kernel answers DNS itself solely on this TUN datapath.
+    pub fn dns_stats(&self) -> DnsStatsSnapshot {
+        let entries = self.fake_ip_pool.lock().map(|pool| pool.len() as u64).unwrap_or(0);
+        self.dns_stats.snapshot(entries)
     }
 
     /// Stop the inbound: signal shutdown, undo every system mutation in reverse,

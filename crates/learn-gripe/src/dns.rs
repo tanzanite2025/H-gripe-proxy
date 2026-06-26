@@ -15,6 +15,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -153,6 +154,24 @@ impl FakeIpPool {
         self.ip_to_domain.get(&ip).map(String::as_str)
     }
 
+    /// Number of distinct domains currently holding a fake-IP mapping. This is
+    /// the live cache size surfaced as a DNS metric.
+    pub fn len(&self) -> usize {
+        self.domain_to_ip.len()
+    }
+
+    /// Whether the pool currently holds no mappings.
+    pub fn is_empty(&self) -> bool {
+        self.domain_to_ip.is_empty()
+    }
+
+    /// Whether `domain` already has a mapping (a cache hit on the next
+    /// [`allocate`](Self::allocate)). Matched case-insensitively, like
+    /// allocation.
+    pub fn has_domain(&self, domain: &str) -> bool {
+        self.domain_to_ip.contains_key(&domain.to_ascii_lowercase())
+    }
+
     /// Whether `ip` falls inside this pool's CIDR (the network/broadcast ends
     /// included), i.e. it could be a fake IP this pool hands out.
     pub fn contains(&self, ip: Ipv4Addr) -> bool {
@@ -177,21 +196,110 @@ pub fn unmap_fake_ip(pool: &Mutex<FakeIpPool>, target: TargetAddr) -> TargetAddr
     target
 }
 
+/// Live counters for the in-stack DNS answerer. Shared (via `Arc`) between the
+/// answering path, which increments them, and the telemetry path, which reads a
+/// [`DnsStatsSnapshot`]. Only the fake-IP mode is instrumented: it is the one
+/// resolver the Rust kernel answers itself (the TUN datapath), so its counters
+/// are the only honest in-process DNS source.
+#[derive(Debug, Default)]
+pub struct DnsStats {
+    /// DNS request datagrams the answerer accepted.
+    total: AtomicU64,
+    /// `A` questions seen (one datagram may carry several questions).
+    a_queries: AtomicU64,
+    /// `AAAA` questions seen (answered empty so clients fall back to the A).
+    aaaa_queries: AtomicU64,
+    /// Questions of any other record type (refused with `NotImp`).
+    other_queries: AtomicU64,
+    /// `A` questions whose domain already had a pool mapping (cache hits).
+    cache_hits: AtomicU64,
+    /// Requests dropped before a response could be produced (parse/serialize
+    /// failures).
+    errors: AtomicU64,
+}
+
+impl DnsStats {
+    fn record_total(&self) {
+        self.total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_error(&self) {
+        self.errors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_a(&self, cache_hit: bool) {
+        self.a_queries.fetch_add(1, Ordering::Relaxed);
+        if cache_hit {
+            self.cache_hits.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn record_aaaa(&self) {
+        self.aaaa_queries.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_other(&self) {
+        self.other_queries.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Take a consistent-enough read of the counters. `fake_ip_entries` is the
+    /// caller's live pool size (held behind its own lock), folded in so the
+    /// snapshot carries the current cache size alongside the cumulative counts.
+    pub fn snapshot(&self, fake_ip_entries: u64) -> DnsStatsSnapshot {
+        DnsStatsSnapshot {
+            total_queries: self.total.load(Ordering::Relaxed),
+            a_queries: self.a_queries.load(Ordering::Relaxed),
+            aaaa_queries: self.aaaa_queries.load(Ordering::Relaxed),
+            other_queries: self.other_queries.load(Ordering::Relaxed),
+            cache_hits: self.cache_hits.load(Ordering::Relaxed),
+            errors: self.errors.load(Ordering::Relaxed),
+            fake_ip_entries,
+        }
+    }
+}
+
+/// An immutable read of [`DnsStats`] plus the live fake-IP pool size, suitable
+/// for shaping into the telemetry DNS metrics.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DnsStatsSnapshot {
+    pub total_queries: u64,
+    pub a_queries: u64,
+    pub aaaa_queries: u64,
+    pub other_queries: u64,
+    pub cache_hits: u64,
+    pub errors: u64,
+    pub fake_ip_entries: u64,
+}
+
 /// How a [`DnsServer`] answers queries.
 #[derive(Clone)]
 pub enum DnsMode {
     /// Forward every query to `upstream` over UDP and relay its reply verbatim.
     Forward { upstream: SocketAddr },
     /// Answer address queries from a shared fake-IP pool. The caller keeps the
-    /// `Arc` so it can perform reverse lookups (e.g. from the routing path).
-    FakeIp { pool: Arc<Mutex<FakeIpPool>> },
+    /// pool `Arc` so it can perform reverse lookups (e.g. from the routing
+    /// path) and the `stats` `Arc` so it can read DNS telemetry.
+    FakeIp {
+        pool: Arc<Mutex<FakeIpPool>>,
+        stats: Arc<DnsStats>,
+    },
 }
 
 impl DnsMode {
-    /// Convenience constructor for a fake-IP mode backed by a fresh pool.
-    pub fn fake_ip(config: FakeIpConfig) -> (Self, Arc<Mutex<FakeIpPool>>) {
+    /// Convenience constructor for a fake-IP mode backed by a fresh pool and a
+    /// fresh stats collector. Returns both `Arc`s so the caller can reverse-map
+    /// fake IPs and read DNS telemetry.
+    pub fn fake_ip(config: FakeIpConfig) -> (Self, Arc<Mutex<FakeIpPool>>, Arc<DnsStats>) {
         let pool = Arc::new(Mutex::new(FakeIpPool::new(config)));
-        (Self::FakeIp { pool: pool.clone() }, pool)
+        let stats = Arc::new(DnsStats::default());
+        (
+            Self::FakeIp {
+                pool: pool.clone(),
+                stats: stats.clone(),
+            },
+            pool,
+            stats,
+        )
     }
 }
 
@@ -292,7 +400,7 @@ async fn serve(socket: UdpSocket, mode: Arc<DnsMode>, shutdown: Arc<Notify>) {
 pub async fn answer_query(query: &[u8], mode: &DnsMode) -> Result<Vec<u8>> {
     match mode {
         DnsMode::Forward { upstream } => forward(query, *upstream).await,
-        DnsMode::FakeIp { pool } => build_fake_ip_response(query, pool),
+        DnsMode::FakeIp { pool, stats } => build_fake_ip_response(query, pool, stats),
     }
 }
 
@@ -320,8 +428,15 @@ async fn forward(query: &[u8], upstream: SocketAddr) -> Result<Vec<u8>> {
 
 /// Build a fake-IP response for `query`: synthesize an `A` answer per `A` query
 /// from the pool, return an empty `NOERROR` for `AAAA`, and `NotImp` otherwise.
-fn build_fake_ip_response(query: &[u8], pool: &Arc<Mutex<FakeIpPool>>) -> Result<Vec<u8>> {
-    let request = Message::from_vec(query).context("parse dns query")?;
+fn build_fake_ip_response(query: &[u8], pool: &Arc<Mutex<FakeIpPool>>, stats: &DnsStats) -> Result<Vec<u8>> {
+    stats.record_total();
+    let request = match Message::from_vec(query) {
+        Ok(request) => request,
+        Err(err) => {
+            stats.record_error();
+            return Err(anyhow::Error::new(err).context("parse dns query"));
+        }
+    };
 
     let mut response = Message::new();
     response.set_id(request.id());
@@ -337,21 +452,30 @@ fn build_fake_ip_response(query: &[u8], pool: &Arc<Mutex<FakeIpPool>>) -> Result
             RecordType::A => {
                 let domain = query.name().to_ascii();
                 let domain = domain.trim_end_matches('.');
-                let ip = {
+                let (ip, cache_hit) = {
                     let mut pool = pool.lock().map_err(|_| anyhow!("fake-ip pool poisoned"))?;
-                    pool.allocate(domain)
+                    let cache_hit = pool.has_domain(domain);
+                    (pool.allocate(domain), cache_hit)
                 };
+                stats.record_a(cache_hit);
                 response.add_answer(Record::from_rdata(query.name().clone(), FAKE_IP_TTL, RData::A(A(ip))));
             }
             // No AAAA answer: clients fall back to the fake A (Clash behaviour).
-            RecordType::AAAA => {}
+            RecordType::AAAA => stats.record_aaaa(),
             _ => {
+                stats.record_other();
                 response.set_response_code(ResponseCode::NotImp);
             }
         }
     }
 
-    response.to_vec().context("serialize dns response")
+    match response.to_vec() {
+        Ok(bytes) => Ok(bytes),
+        Err(err) => {
+            stats.record_error();
+            Err(anyhow::Error::new(err).context("serialize dns response"))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -439,8 +563,8 @@ mod tests {
         use hickory_proto::rr::Name;
         use std::str::FromStr;
 
-        let (mode, pool) = DnsMode::fake_ip(FakeIpConfig::default());
-        let DnsMode::FakeIp { pool: _ } = &mode else {
+        let (mode, pool, stats) = DnsMode::fake_ip(FakeIpConfig::default());
+        let DnsMode::FakeIp { pool: _, stats: _ } = &mode else {
             panic!("expected fake-ip mode");
         };
 
@@ -451,7 +575,7 @@ mod tests {
         request.add_query(Query::query(Name::from_str("example.com.").unwrap(), RecordType::A));
         let bytes = request.to_vec().unwrap();
 
-        let response = build_fake_ip_response(&bytes, &pool).unwrap();
+        let response = build_fake_ip_response(&bytes, &pool, &stats).unwrap();
         let parsed = Message::from_vec(&response).unwrap();
         assert_eq!(parsed.id(), 0x1234);
         assert_eq!(parsed.answers().len(), 1);
@@ -467,8 +591,49 @@ mod tests {
         let mut aaaa = Message::new();
         aaaa.set_id(7);
         aaaa.add_query(Query::query(Name::from_str("example.com.").unwrap(), RecordType::AAAA));
-        let parsed = Message::from_vec(&build_fake_ip_response(&aaaa.to_vec().unwrap(), &pool).unwrap()).unwrap();
+        let parsed = Message::from_vec(&build_fake_ip_response(&aaaa.to_vec().unwrap(), &pool, &stats).unwrap()).unwrap();
         assert_eq!(parsed.response_code(), ResponseCode::NoError);
         assert!(parsed.answers().is_empty());
+    }
+
+    #[test]
+    fn dns_stats_count_queries_hits_and_cache_size() {
+        use hickory_proto::op::Query;
+        use hickory_proto::rr::Name;
+        use std::str::FromStr;
+
+        fn a_query(domain: &str) -> Vec<u8> {
+            let mut request = Message::new();
+            request.set_id(1);
+            request.add_query(Query::query(Name::from_str(domain).unwrap(), RecordType::A));
+            request.to_vec().unwrap()
+        }
+
+        let (_mode, pool, stats) = DnsMode::fake_ip(FakeIpConfig::default());
+
+        // First lookup is a cache miss (new allocation); the repeat is a hit.
+        build_fake_ip_response(&a_query("example.com."), &pool, &stats).unwrap();
+        build_fake_ip_response(&a_query("example.com."), &pool, &stats).unwrap();
+        // A distinct domain is another miss.
+        build_fake_ip_response(&a_query("other.test."), &pool, &stats).unwrap();
+
+        // An AAAA question is answered (empty) but allocates nothing.
+        let mut aaaa = Message::new();
+        aaaa.set_id(2);
+        aaaa.add_query(Query::query(Name::from_str("example.com.").unwrap(), RecordType::AAAA));
+        build_fake_ip_response(&aaaa.to_vec().unwrap(), &pool, &stats).unwrap();
+
+        // A malformed datagram is counted as an error.
+        assert!(build_fake_ip_response(&[0xff, 0x00, 0x01], &pool, &stats).is_err());
+
+        let entries = pool.lock().unwrap().len() as u64;
+        let snap = stats.snapshot(entries);
+        assert_eq!(snap.total_queries, 5);
+        assert_eq!(snap.a_queries, 3);
+        assert_eq!(snap.aaaa_queries, 1);
+        assert_eq!(snap.cache_hits, 1);
+        assert_eq!(snap.errors, 1);
+        // Two distinct domains were allocated.
+        assert_eq!(snap.fake_ip_entries, 2);
     }
 }
