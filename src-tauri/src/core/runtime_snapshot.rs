@@ -282,9 +282,16 @@ impl RuntimeSnapshotService {
     }
 
     pub async fn refresh_runtime_rule_traffic_result(&self) -> Result<RuntimeSnapshot> {
-        // The router does not attribute per-connection byte counts to the matched
-        // rule, so there is no honest per-rule traffic breakdown to report.
-        anyhow::bail!("rule traffic is not available: the Rust runtime kernel does not attribute traffic per rule")
+        // Each tracked connection records the rule the router matched plus its
+        // live byte counters, so the conntrack table already carries a real
+        // per-rule traffic breakdown — no extra kernel bookkeeping needed.
+        let table = CoreManager::global()
+            .runtime_connections()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("rule traffic is not available: the kernel is not running"))?;
+        let mut snapshot = self.runtime_read_snapshot();
+        snapshot.rule_traffic = Some(rule_traffic_from_kernel(&table));
+        Ok(snapshot)
     }
 
     async fn rule_version_from_runtime_config(&self) -> Option<String> {
@@ -425,6 +432,39 @@ pub(crate) fn connections_from_kernel(table: learn_gripe::ConnTableSnapshot) -> 
         connections: Some(connections),
         memory: 0,
     }
+}
+
+/// Aggregate the live conntrack table into per-rule traffic totals. Every
+/// tracked connection records the rule type/payload the router matched plus its
+/// live upload/download counters, so summing those by `(rule type, payload)`
+/// yields a real per-rule traffic breakdown — the same shape the retired Go
+/// controller reported over `/engine/rules/traffic`, but sourced in-process.
+/// Connections no rule router matched (empty rule, e.g. a non-routed outbound
+/// mode) are skipped since they carry no rule attribution. `last_active` is the
+/// newest connection start for the rule, the closest signal the table exposes.
+pub(crate) fn rule_traffic_from_kernel(
+    table: &learn_gripe::ConnTableSnapshot,
+) -> HashMap<std::string::String, RuleTrafficSnapshot> {
+    let mut map: HashMap<std::string::String, RuleTrafficSnapshot> = HashMap::new();
+    for conn in &table.connections {
+        if conn.meta.rule.is_empty() {
+            continue;
+        }
+        let key = format!("{}:{}", conn.meta.rule, conn.meta.rule_payload);
+        let entry = map.entry(key).or_insert_with(|| RuleTrafficSnapshot {
+            rule_type: conn.meta.rule.clone(),
+            rule_payload: conn.meta.rule_payload.clone(),
+            upload: 0,
+            download: 0,
+            connections: 0,
+            last_active: 0,
+        });
+        entry.upload = entry.upload.saturating_add(conn.upload as i64);
+        entry.download = entry.download.saturating_add(conn.download as i64);
+        entry.connections = entry.connections.saturating_add(1);
+        entry.last_active = entry.last_active.max(conn.start_unix_ms as i64);
+    }
+    map
 }
 
 fn connection_from_kernel(conn: learn_gripe::ConnSnapshot) -> Connection {
@@ -2048,5 +2088,57 @@ rule-providers:
         assert_eq!(provider.format, RuleFormat::Text);
         assert_eq!(provider.provider_type, ProviderType::Rule);
         assert_eq!(provider.vehicle_type, VehicleType::File);
+    }
+
+    fn conn(id: u64, rule: &str, payload: &str, upload: u64, download: u64, start: u64) -> learn_gripe::ConnSnapshot {
+        learn_gripe::ConnSnapshot {
+            id,
+            meta: learn_gripe::ConnMeta {
+                network: learn_gripe::ConnNetwork::Tcp,
+                source: None,
+                inbound_local: None,
+                host: "example.com".into(),
+                destination_ip: None,
+                destination_port: 443,
+                chains: vec!["DIRECT".into()],
+                rule: rule.into(),
+                rule_payload: payload.into(),
+            },
+            upload,
+            download,
+            start_unix_ms: start,
+        }
+    }
+
+    #[test]
+    fn rule_traffic_aggregates_bytes_and_connections_per_rule() {
+        let table = learn_gripe::ConnTableSnapshot {
+            connections: vec![
+                conn(1, "DomainSuffix", "example.com", 100, 200, 1_000),
+                conn(2, "DomainSuffix", "example.com", 50, 70, 2_000),
+                conn(3, "GeoIP", "CN", 10, 20, 1_500),
+                // No rule router matched -> skipped (no rule attribution).
+                conn(4, "", "", 999, 999, 3_000),
+            ],
+            upload_total: 1159,
+            download_total: 1289,
+        };
+
+        let traffic = rule_traffic_from_kernel(&table);
+
+        assert_eq!(traffic.len(), 2);
+        let suffix = traffic.get("DomainSuffix:example.com").unwrap();
+        assert_eq!(suffix.rule_type, "DomainSuffix");
+        assert_eq!(suffix.rule_payload, "example.com");
+        assert_eq!(suffix.upload, 150);
+        assert_eq!(suffix.download, 270);
+        assert_eq!(suffix.connections, 2);
+        assert_eq!(suffix.last_active, 2_000);
+
+        let geoip = traffic.get("GeoIP:CN").unwrap();
+        assert_eq!(geoip.connections, 1);
+        assert_eq!(geoip.upload, 10);
+
+        assert!(traffic.keys().all(|key| !key.starts_with(':')));
     }
 }

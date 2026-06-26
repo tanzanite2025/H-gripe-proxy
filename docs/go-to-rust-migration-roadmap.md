@@ -496,14 +496,25 @@ Only after the supported default paths above run on `learn-gripe`:
     genuine state of a userspace kernel with no eBPF datapath.
   - **No honest source → `Err` → panel shows "不可用":** `PerfStats` (Go-runtime
     goroutines/GOGC/GC/heap), `BufferPoolStats` (no custom size-classed pool; uses
-    tokio buffers), `DnsMetrics` (DNS is forwarded verbatim with no cache or
-    instrumentation), and `RuleTrafficSnapshot` (the router does not attribute
-    per-connection bytes to the matched rule). Each `refresh_*_result()` returns
+    tokio buffers), and `DnsMetrics` (DNS is forwarded verbatim with no cache or
+    instrumentation). Each `refresh_*_result()` returns
     `anyhow::bail!` with the reason; the frontend's `.catch(() => null)` renders
     the "不可用" chip instead of fake values. `runtime_dns_warmup` became an honest
     no-op success (nothing to warm in an on-demand resolver) rather than surfacing
     the DNS-metrics read error. The panel description text dropped the stale
     "Mihomo" wording.
+
+- **Done — per-rule traffic now reports real in-process data.** Every tracked
+  connection already records the rule type/payload the router matched
+  (`ConnMeta.rule`/`rule_payload`) plus its live upload/download counters, so
+  `RuleTrafficSnapshot` is aggregated directly from the conntrack table
+  (`rule_traffic_from_kernel()` sums bytes + connection counts by `(rule type,
+  payload)`) instead of returning `Err`. This is the same shape the retired Go
+  controller reported over `/engine/rules/traffic`, now sourced in-process with
+  no new kernel bookkeeping. Connections no rule router matched (empty rule) are
+  skipped; when the kernel is not running the read still returns `Err` so the
+  panel honestly shows "不可用". `RuleTrafficSnapshot` thus moves out of the
+  no-honest-source group above into real in-process data.
 
 ## Definition of done for a roadmap PR
 
