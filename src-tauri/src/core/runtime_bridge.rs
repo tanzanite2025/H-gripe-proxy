@@ -5,7 +5,7 @@ use tauri_plugin_mihomo::models::{
     ConnectionId, CoreUpdaterChannel, LogLevel, Protocol, ProxyDelay, TLSRotationResult,
 };
 
-use crate::core::{handle::Handle, runtime_snapshot};
+use crate::core::{CoreManager, handle::Handle, runtime_snapshot};
 
 pub async fn read_runtime_controller_transport() -> Protocol {
     Handle::mihomo().await.protocol.clone()
@@ -97,55 +97,29 @@ pub async fn update_runtime_rule_provider(provider_name: &str) -> Result<()> {
 }
 
 pub async fn close_runtime_connection(connection_id: &str) -> Result<()> {
-    let result = Handle::mihomo().await.close_connection(connection_id).await;
+    let result = match connection_id.parse::<u64>() {
+        Ok(id) => {
+            CoreManager::global().close_runtime_connection(id).await;
+            Ok(())
+        }
+        Err(_) => Err(anyhow!("invalid connection id: {connection_id}")),
+    };
     record_runtime_bridge_result(
         "close-runtime-connection",
         result.as_ref().map(|_| ()),
         Some(format!("connection_id={connection_id}")),
     );
-    result?;
-    Ok(())
+    result
 }
 
 pub async fn close_all_runtime_connections(reason: &str) -> Result<()> {
-    let connections = runtime_snapshot::read_runtime_connections().await?;
-    let Some(connections) = connections.connections else {
-        record_runtime_bridge_result::<anyhow::Error>(
-            "close-all-runtime-connections",
-            Ok(()),
-            Some(format!("reason={reason};count=0")),
-        );
-        return Ok(());
-    };
-
-    let mut errors = Vec::new();
-    let count = connections.len();
-    for connection in connections {
-        if let Err(error) = Handle::mihomo().await.close_connection(&connection.id).await {
-            errors.push(format!("{}:{error}", connection.id));
-        }
-    }
-
-    if errors.is_empty() {
-        record_runtime_bridge_result::<anyhow::Error>(
-            "close-all-runtime-connections",
-            Ok(()),
-            Some(format!("reason={reason};count={count}")),
-        );
-        Ok(())
-    } else {
-        let error = anyhow!(
-            "failed to close {} of {count} runtime connections: {}",
-            errors.len(),
-            errors.join("; ")
-        );
-        record_runtime_bridge_result(
-            "close-all-runtime-connections",
-            Err(&error),
-            Some(format!("reason={reason};count={count}")),
-        );
-        Err(error)
-    }
+    let count = CoreManager::global().close_all_runtime_connections().await;
+    record_runtime_bridge_result::<anyhow::Error>(
+        "close-all-runtime-connections",
+        Ok(()),
+        Some(format!("reason={reason};count={count}")),
+    );
+    Ok(())
 }
 
 pub async fn update_runtime_geo() -> Result<()> {

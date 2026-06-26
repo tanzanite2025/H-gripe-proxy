@@ -101,6 +101,31 @@ impl CoreManager {
         Ok(())
     }
 
+    /// Snapshot the in-process connection table from the running kernel.
+    /// Returns `None` when the kernel is not running. Replaces the Mihomo
+    /// controller `/connections` query.
+    pub async fn runtime_connections(&self) -> Option<learn_gripe::ConnTableSnapshot> {
+        self.gripe.lock().await.as_ref().map(|handle| handle.connections())
+    }
+
+    /// Signal the kernel to close the connection with `id`. Returns `true` if it
+    /// was live. Replaces the Mihomo controller `close_connection` call.
+    pub async fn close_runtime_connection(&self, id: u64) -> bool {
+        match self.gripe.lock().await.as_ref() {
+            Some(handle) => handle.close_connection(id),
+            None => false,
+        }
+    }
+
+    /// Signal the kernel to close every live connection, returning the number
+    /// signalled. Replaces iterating the Mihomo controller `close_connection`.
+    pub async fn close_all_runtime_connections(&self) -> usize {
+        match self.gripe.lock().await.as_ref() {
+            Some(handle) => handle.close_all_connections(),
+            None => 0,
+        }
+    }
+
     pub async fn restart_core(&self) -> Result<()> {
         logging!(info, Type::Core, "Restarting core");
         self.stop_core().await?;

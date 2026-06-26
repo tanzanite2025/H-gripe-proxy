@@ -1,4 +1,5 @@
 use crate::config::GripeConfig;
+use crate::conntrack::{ConnMeta, ConnNetwork, ConnRegistry, ConnTableSnapshot, relay_tracked};
 use crate::dns::{FakeIpPool, unmap_fake_ip};
 use crate::{http, outbound, socks5, udp};
 use anyhow::{Context, Result};
@@ -39,10 +40,12 @@ impl GripeKernel {
         let local_addr = listener.local_addr().unwrap_or(config.socks_listen);
 
         let shutdown = Arc::new(Notify::new());
+        let registry = Arc::new(ConnRegistry::default());
         let config = Arc::new(config);
         let task_shutdown = shutdown.clone();
+        let task_registry = registry.clone();
         let task = tokio::spawn(async move {
-            serve(listener, config, task_shutdown, fake_ip).await;
+            serve(listener, config, task_shutdown, fake_ip, task_registry).await;
         });
 
         log::info!("learn-gripe mixed (SOCKS5 + HTTP) inbound listening on {local_addr}");
@@ -50,6 +53,7 @@ impl GripeKernel {
             local_addr,
             shutdown,
             task,
+            registry,
         })
     }
 }
@@ -61,6 +65,7 @@ pub struct GripeHandle {
     local_addr: SocketAddr,
     shutdown: Arc<Notify>,
     task: JoinHandle<()>,
+    registry: Arc<ConnRegistry>,
 }
 
 impl GripeHandle {
@@ -68,6 +73,24 @@ impl GripeHandle {
     /// requested an ephemeral port 0).
     pub fn local_addr(&self) -> SocketAddr {
         self.local_addr
+    }
+
+    /// Snapshot the live connection table plus cumulative byte totals. This is
+    /// the in-process replacement for the Mihomo controller `/connections`
+    /// query.
+    pub fn connections(&self) -> ConnTableSnapshot {
+        self.registry.snapshot()
+    }
+
+    /// Signal the connection with `id` to close. Returns `true` if it was live.
+    /// Replaces the Mihomo controller `close_connection` call.
+    pub fn close_connection(&self, id: u64) -> bool {
+        self.registry.close(id)
+    }
+
+    /// Signal every live connection to close, returning the number signalled.
+    pub fn close_all_connections(&self) -> usize {
+        self.registry.close_all()
     }
 
     /// Signal the accept loop to stop and wait for it to wind down.
@@ -78,7 +101,13 @@ impl GripeHandle {
     }
 }
 
-async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<Notify>, fake_ip: FakeIp) {
+async fn serve(
+    listener: TcpListener,
+    config: Arc<GripeConfig>,
+    shutdown: Arc<Notify>,
+    fake_ip: FakeIp,
+    registry: Arc<ConnRegistry>,
+) {
     loop {
         tokio::select! {
             _ = shutdown.notified() => {
@@ -90,8 +119,9 @@ async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<No
                     Ok((stream, peer)) => {
                         let config = config.clone();
                         let fake_ip = fake_ip.clone();
+                        let registry = registry.clone();
                         tokio::spawn(async move {
-                            if let Err(err) = handle_connection(stream, &config, fake_ip).await {
+                            if let Err(err) = handle_connection(stream, &config, fake_ip, &registry).await {
                                 log::debug!("learn-gripe connection from {peer} ended: {err:#}");
                             }
                         });
@@ -105,7 +135,12 @@ async fn serve(listener: TcpListener, config: Arc<GripeConfig>, shutdown: Arc<No
     }
 }
 
-async fn handle_connection(mut inbound: TcpStream, config: &GripeConfig, fake_ip: FakeIp) -> Result<()> {
+async fn handle_connection(
+    mut inbound: TcpStream,
+    config: &GripeConfig,
+    fake_ip: FakeIp,
+    registry: &Arc<ConnRegistry>,
+) -> Result<()> {
     // The inbound is a mixed listener: SOCKS5 (RFC 1928) and HTTP proxy share
     // the same port the way the app's mixed-port does. Peek the first byte
     // (without consuming it) to pick the protocol: 0x05 is the SOCKS version,
@@ -115,7 +150,7 @@ async fn handle_connection(mut inbound: TcpStream, config: &GripeConfig, fake_ip
         return Ok(());
     }
     if first[0] != socks5::VERSION {
-        return http::handle(inbound, config, fake_ip.as_ref()).await;
+        return http::handle(inbound, config, fake_ip.as_ref(), registry).await;
     }
 
     socks5::server_handshake(&mut inbound).await?;
@@ -125,13 +160,18 @@ async fn handle_connection(mut inbound: TcpStream, config: &GripeConfig, fake_ip
         target = unmap_fake_ip(pool, target);
     }
     match command {
-        socks5::Command::Connect => handle_connect(inbound, target, config).await,
+        socks5::Command::Connect => handle_connect(inbound, target, config, registry).await,
         socks5::Command::UdpAssociate => handle_udp_associate(inbound, config, fake_ip).await,
     }
 }
 
-async fn handle_connect(mut inbound: TcpStream, target: crate::TargetAddr, config: &GripeConfig) -> Result<()> {
-    let mut outbound = match outbound::connect(&config.outbound, &target).await {
+async fn handle_connect(
+    mut inbound: TcpStream,
+    target: crate::TargetAddr,
+    config: &GripeConfig,
+    registry: &Arc<ConnRegistry>,
+) -> Result<()> {
+    let outbound = match outbound::connect(&config.outbound, &target).await {
         Ok(stream) => stream,
         Err(err) => {
             let _ = socks5::write_reply(&mut inbound, socks5::REP_GENERAL_FAILURE).await;
@@ -141,7 +181,15 @@ async fn handle_connect(mut inbound: TcpStream, target: crate::TargetAddr, confi
 
     socks5::write_reply(&mut inbound, socks5::REP_SUCCEEDED).await?;
 
-    tokio::io::copy_bidirectional(&mut inbound, &mut outbound)
+    let meta = ConnMeta::for_target(
+        ConnNetwork::Tcp,
+        inbound.peer_addr().ok(),
+        inbound.local_addr().ok(),
+        &config.outbound,
+        &target,
+    );
+    let conn = registry.register(meta);
+    relay_tracked(inbound, outbound, &conn)
         .await
         .with_context(|| format!("relay to {target}"))?;
     Ok(())

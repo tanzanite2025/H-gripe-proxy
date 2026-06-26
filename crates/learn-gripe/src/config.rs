@@ -94,6 +94,21 @@ impl OutboundMode {
         }
     }
 
+    /// Short outbound type label used for connection bookkeeping (the chain
+    /// entry when no named rule router selected the outbound).
+    pub fn type_label(&self) -> &'static str {
+        match self {
+            OutboundMode::Direct => "DIRECT",
+            OutboundMode::Reject => "REJECT",
+            OutboundMode::Socks5Upstream { .. } => "socks5",
+            OutboundMode::Vless(_) => "vless",
+            OutboundMode::Trojan(_) => "trojan",
+            OutboundMode::Vmess(_) => "vmess",
+            OutboundMode::Shadowsocks(_) => "shadowsocks",
+            OutboundMode::Routed(_) => "routed",
+        }
+    }
+
     /// Whether installing a global TUN default-route capture is sound for this
     /// outbound. It must dial a *fixed, bypassable* set of upstreams and tunnel
     /// everything else through them — true only for the single-server proxy
