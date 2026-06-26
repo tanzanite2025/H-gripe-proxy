@@ -12,7 +12,7 @@
 //! connection). This mirrors Clash's built-in policies.
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
-//! `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
+//! `DST-PORT`, `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
 //! carry a shared [`GeoLookup`] handle to a locally-maintained geo database
 //! (mmdb / geosite `.dat`) and `RULE-SET` carries a shared [`RuleSetLookup`]
 //! handle to locally-loaded rule providers; the kernel never fetches that data
@@ -96,6 +96,10 @@ pub enum RuleMatcher {
         name: String,
         provider: Arc<dyn RuleSetLookup>,
     },
+    /// Matches when the target's destination port falls inside the (inclusive)
+    /// range. A single-port rule parses as a one-wide range. Applies to both IP
+    /// and domain targets, since the port is known either way.
+    DstPort(PortRange),
     /// Combines its sub-matchers with a boolean operator, letting one rule mix
     /// the other predicates (`AND((DOMAIN-SUFFIX,example.com),(IP-CIDR,10.0.0.0/8))`).
     /// `And` matches when every sub-matcher matches, `Or` when any does, and
@@ -128,6 +132,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
+            RuleMatcher::DstPort(r) => f.debug_tuple("DstPort").field(r).finish(),
             RuleMatcher::Logical { op, subs } => f.debug_struct("Logical").field("op", op).field("subs", subs).finish(),
             RuleMatcher::Match => f.write_str("Match"),
         }
@@ -153,6 +158,7 @@ impl PartialEq for RuleMatcher {
             (RuleMatcher::RuleSet { name: a, provider: pa }, RuleMatcher::RuleSet { name: b, provider: pb }) => {
                 a == b && Arc::ptr_eq(pa, pb)
             }
+            (RuleMatcher::DstPort(a), RuleMatcher::DstPort(b)) => a == b,
             (RuleMatcher::Logical { op: oa, subs: sa }, RuleMatcher::Logical { op: ob, subs: sb }) => {
                 oa == ob && sa == sb
             }
@@ -200,6 +206,7 @@ impl RuleMatcher {
                 TargetAddr::Domain(_, _) => false,
             },
             RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
+            RuleMatcher::DstPort(range) => range.contains(target.port()),
             RuleMatcher::Logical { op, subs } => match op {
                 LogicalOp::And => subs.iter().all(|m| m.matches(target)),
                 LogicalOp::Or => subs.iter().any(|m| m.matches(target)),
@@ -225,6 +232,7 @@ impl RuleMatcher {
             RuleMatcher::GeoSite { .. } => "GeoSite",
             RuleMatcher::Asn { .. } => "IPASN",
             RuleMatcher::RuleSet { .. } => "RuleSet",
+            RuleMatcher::DstPort(_) => "DstPort",
             RuleMatcher::Logical { op, .. } => match op {
                 LogicalOp::And => "AND",
                 LogicalOp::Or => "OR",
@@ -246,6 +254,7 @@ impl RuleMatcher {
             RuleMatcher::GeoSite { code, .. } => code.clone(),
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
             RuleMatcher::RuleSet { name, .. } => name.clone(),
+            RuleMatcher::DstPort(range) => range.to_string(),
             // The sub-rule expression is parsed away into the matcher tree and
             // not retained verbatim, so a logical matcher has no flat payload.
             RuleMatcher::Logical { .. } => String::new(),
@@ -314,6 +323,58 @@ impl IpCidr {
 impl fmt::Display for IpCidr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", self.network, self.prefix)
+    }
+}
+
+/// An inclusive destination-port range used by the `DST-PORT` matcher. A single
+/// port (`443`) parses as a one-wide range (`start == end`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortRange {
+    start: u16,
+    end: u16,
+}
+
+impl PortRange {
+    /// Parse a single port (`443`) or an inclusive range (`8000-9000`). The
+    /// bounds must be valid `u16`s and `start` must not exceed `end`.
+    pub fn parse(s: &str) -> Result<Self> {
+        let s = s.trim();
+        let (start, end) = match s.split_once('-') {
+            Some((a, b)) => {
+                let start = a
+                    .trim()
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("invalid port range start in {s:?}"))?;
+                let end = b
+                    .trim()
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("invalid port range end in {s:?}"))?;
+                (start, end)
+            }
+            None => {
+                let port = s.parse().map_err(|_| anyhow::anyhow!("invalid port in {s:?}"))?;
+                (port, port)
+            }
+        };
+        if start > end {
+            bail!("port range start {start} exceeds end {end}");
+        }
+        Ok(Self { start, end })
+    }
+
+    /// Whether `port` falls inside this inclusive range.
+    pub fn contains(&self, port: u16) -> bool {
+        self.start <= port && port <= self.end
+    }
+}
+
+impl fmt::Display for PortRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.start == self.end {
+            write!(f, "{}", self.start)
+        } else {
+            write!(f, "{}-{}", self.start, self.end)
+        }
     }
 }
 
@@ -942,6 +1003,81 @@ mod tests {
         assert!(matches!(router.select(&ipv4(10, 1, 1, 1)), OutboundMode::Direct));
         // No rule matches a public IP -> fallback DIRECT.
         assert!(matches!(router.select(&ipv4(1, 1, 1, 1)), OutboundMode::Direct));
+    }
+
+    #[test]
+    fn port_range_parses_single_and_range() {
+        let single = PortRange::parse("443").unwrap();
+        assert!(single.contains(443));
+        assert!(!single.contains(442));
+        assert_eq!(single.to_string(), "443");
+
+        let range = PortRange::parse("8000-9000").unwrap();
+        assert!(range.contains(8000) && range.contains(8500) && range.contains(9000));
+        assert!(!range.contains(7999) && !range.contains(9001));
+        assert_eq!(range.to_string(), "8000-9000");
+    }
+
+    #[test]
+    fn port_range_rejects_bad_input() {
+        assert!(PortRange::parse("").is_err());
+        assert!(PortRange::parse("70000").is_err()); // out of u16 range
+        assert!(PortRange::parse("80-").is_err());
+        assert!(PortRange::parse("abc").is_err());
+        // Inverted bounds are rejected.
+        assert!(PortRange::parse("9000-8000").is_err());
+    }
+
+    #[test]
+    fn dst_port_matcher_applies_to_ip_and_domain_targets() {
+        let m = RuleMatcher::DstPort(PortRange::parse("443").unwrap());
+        // The destination port is matched regardless of host kind.
+        assert!(m.matches(&domain("example.com"))); // helper uses port 443
+        assert!(m.matches(&TargetAddr::Ip(SocketAddr::new(Ipv4Addr::new(8, 8, 8, 8).into(), 443))));
+        // A different port misses.
+        assert!(!m.matches(&ipv4(8, 8, 8, 8))); // helper uses port 80
+        assert!(!m.matches(&TargetAddr::Domain("example.com".to_string(), 80)));
+    }
+
+    #[test]
+    fn dst_port_range_matches_inclusive_bounds() {
+        let m = RuleMatcher::DstPort(PortRange::parse("8000-9000").unwrap());
+        for port in [8000u16, 8443, 9000] {
+            assert!(m.matches(&TargetAddr::Domain("h".to_string(), port)));
+        }
+        for port in [7999u16, 9001] {
+            assert!(!m.matches(&TargetAddr::Domain("h".to_string(), port)));
+        }
+    }
+
+    #[test]
+    fn router_routes_dst_port_rule() {
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(RuleMatcher::DstPort(PortRange::parse("80").unwrap()), DIRECT)];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // Port 80 -> DIRECT (the ipv4 helper uses port 80).
+        assert!(matches!(router.select(&ipv4(8, 8, 8, 8)), OutboundMode::Direct));
+        // Port 443 (domain helper) -> no rule, fallback proxy.
+        assert!(matches!(
+            router.select(&domain("example.com")),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn dst_port_equality_compares_range() {
+        let a = RuleMatcher::DstPort(PortRange::parse("80").unwrap());
+        let b = RuleMatcher::DstPort(PortRange::parse("80").unwrap());
+        let c = RuleMatcher::DstPort(PortRange::parse("80-90").unwrap());
+        assert_eq!(a, b);
+        assert_ne!(a, c);
     }
 
     #[test]
