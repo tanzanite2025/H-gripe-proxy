@@ -12,15 +12,12 @@
 mod address;
 mod config;
 mod conntrack;
-mod delay;
 mod dns;
-mod http;
+mod inbound;
 mod outbound;
 mod protocols;
 mod proxy;
-mod router;
-mod server;
-mod socks5;
+mod routing;
 mod transport;
 mod tun;
 mod udp;
@@ -28,11 +25,11 @@ mod udp;
 pub use address::TargetAddr;
 pub use config::{GripeConfig, OutboundMode};
 pub use conntrack::{ConnMeta, ConnNetwork, ConnRegistry, ConnSnapshot, ConnTableSnapshot, TrackedConn};
-pub use delay::measure_delay;
 pub use dns::{
     DnsConfig, DnsHandle, DnsMode, DnsRecentQuery, DnsServer, DnsStats, DnsStatsSnapshot, FakeIpConfig, FakeIpPool,
     answer_query, unmap_fake_ip,
 };
+pub use inbound::{GripeHandle, GripeKernel};
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::trojan::TrojanOutboundConfig;
 pub use protocols::vless::VlessOutboundConfig;
@@ -41,11 +38,11 @@ pub use proxy::{
     AntiDpiOpts, EchOpts, GrpcOpts, H2Opts, HttpOpts, Network, PluginOpts, ProtocolSupport, ProxyEntry, ProxyOptions,
     ProxyType, RealityOpts, WsOpts, XHttpOpts,
 };
-pub use router::{
+pub use routing::delay::measure_delay;
+pub use routing::{
     DIRECT, GeoLookup, IpCidr, LogicalOp, PortRange, ProcessInfo, ProcessLookup, REJECT, Router, Rule, RuleMatcher,
     RuleSetLookup, UidRange,
 };
-pub use server::{GripeHandle, GripeKernel};
 pub use transport::grpc::GrpcTransportConfig;
 pub use transport::http2::H2TransportConfig;
 pub use transport::httpupgrade::HttpUpgradeTransportConfig;

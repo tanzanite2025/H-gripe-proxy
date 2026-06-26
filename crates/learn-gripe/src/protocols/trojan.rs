@@ -31,9 +31,9 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 use crate::address::TargetAddr;
+use crate::inbound::socks5;
 use crate::outbound::BoxedStream;
 use crate::proxy::ProxyEntry;
-use crate::socks5;
 use crate::transport::{self, Security, Transport};
 
 const CMD_CONNECT: u8 = 0x01;

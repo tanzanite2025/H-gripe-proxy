@@ -30,8 +30,8 @@ use tokio::sync::mpsc;
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::dns::{FakeIpPool, unmap_fake_ip};
+use crate::inbound::socks5;
 use crate::outbound::{self, UdpEgress};
-use crate::socks5;
 
 /// Upper bound on a single UDP datagram (IPv4 total length limit).
 pub(crate) const MAX_DATAGRAM: usize = 65_535;

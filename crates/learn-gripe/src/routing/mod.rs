@@ -22,6 +22,8 @@
 //! embedder loads the local files / performs the OS lookup and supplies the
 //! handle, keeping data sourcing out of the data plane.
 
+pub mod delay;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
