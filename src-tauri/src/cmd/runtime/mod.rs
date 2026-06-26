@@ -234,14 +234,11 @@ pub async fn get_runtime_dns_metrics() -> CmdResult<DnsMetrics> {
 
 #[tauri::command]
 pub async fn runtime_dns_warmup() -> CmdResult<()> {
-    let result = crate::core::runtime_snapshot::read_runtime_dns_metrics().await;
-    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
-        "runtime_dns_warmup",
-        result.is_ok(),
-        result.as_ref().err().map(ToString::to_string),
-        None,
-    );
-    result.map(|_| ()).stringify_err()
+    // The Rust runtime kernel resolves DNS on demand with no warmable cache, so
+    // warmup is an honest no-op that always succeeds (nothing to warm, nothing
+    // fails) rather than surfacing the "DNS metrics unavailable" read error.
+    crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event("runtime_dns_warmup", true, None, None);
+    Ok(())
 }
 #[tauri::command]
 pub async fn get_runtime_engine_stats() -> CmdResult<EngineStats> {

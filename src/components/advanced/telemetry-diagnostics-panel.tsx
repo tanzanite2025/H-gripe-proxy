@@ -144,8 +144,8 @@ export function TelemetryDiagnosticsPanel() {
               数据面遥测诊断
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              通过 Rust 运行时命令读取 Mihomo 数据面遥测（引擎 / 性能 / 缓冲池 /
-              热重载 / XDP / 规则流量 / TLS 指纹）。部分指标依赖具体内核构建，不支持时显示“不可用”。
+              通过 Rust 运行时命令读取数据面遥测（引擎 / 热重载 / XDP / TLS 指纹）。
+              Rust 内核不暴露的指标（性能 / 缓冲池 / DNS / 规则流量为 Go 内核专属）显示“不可用”。
             </div>
           </div>
           <Button
