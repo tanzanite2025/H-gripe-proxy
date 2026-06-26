@@ -325,9 +325,17 @@ fn new_flow_for_syn(
         target = unmap_fake_ip(pool, target);
     }
 
+    let source = endpoint_socketaddr(src);
     let (to_out_tx, to_out_rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
     let (from_out_tx, from_out_rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
-    tokio::spawn(run_flow(target, mode.clone(), to_out_rx, from_out_tx, wake.clone()));
+    tokio::spawn(run_flow(
+        target,
+        source,
+        mode.clone(),
+        to_out_rx,
+        from_out_tx,
+        wake.clone(),
+    ));
 
     flows.insert(
         (src, dst),
@@ -347,12 +355,13 @@ fn new_flow_for_syn(
 /// Dial the outbound and pump bytes between it and the flow's bridge channels.
 async fn run_flow(
     target: TargetAddr,
+    source: SocketAddr,
     mode: Arc<OutboundMode>,
     mut to_out_rx: mpsc::Receiver<Vec<u8>>,
     from_out_tx: mpsc::Sender<Vec<u8>>,
     wake: Arc<Notify>,
 ) {
-    let stream = match outbound::connect(mode.as_ref(), &target).await {
+    let stream = match outbound::connect(mode.as_ref(), &target, Some(source)).await {
         Ok(stream) => stream,
         Err(err) => {
             log::debug!("learn-gripe tun: outbound to {target} failed: {err:#}");
@@ -542,7 +551,8 @@ fn relay_udp(
     }
 
     // No UDP egress (Reject, an upstream SOCKS5 proxy): drop, don't leak.
-    let Some(egress) = outbound::resolve_udp_egress(mode, &target) else {
+    let source = endpoint_socketaddr(flow.src());
+    let Some(egress) = outbound::resolve_udp_egress(mode, &target, Some(source)) else {
         return;
     };
 

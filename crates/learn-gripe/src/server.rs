@@ -181,7 +181,8 @@ async fn handle_connect(
     config: &GripeConfig,
     registry: &Arc<ConnRegistry>,
 ) -> Result<()> {
-    let outbound = match outbound::connect(&config.outbound, &target).await {
+    let source = inbound.peer_addr().ok();
+    let outbound = match outbound::connect(&config.outbound, &target, source).await {
         Ok(stream) => stream,
         Err(err) => {
             let _ = socks5::write_reply(&mut inbound, socks5::REP_GENERAL_FAILURE).await;

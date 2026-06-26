@@ -12,7 +12,7 @@
 //! connection). This mirrors Clash's built-in policies.
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
-//! `DST-PORT`, `NETWORK`, `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
+//! `DST-PORT`, `SRC-PORT`, `NETWORK`, `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
 //! carry a shared [`GeoLookup`] handle to a locally-maintained geo database
 //! (mmdb / geosite `.dat`) and `RULE-SET` carries a shared [`RuleSetLookup`]
 //! handle to locally-loaded rule providers; the kernel never fetches that data
@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
@@ -101,6 +101,12 @@ pub enum RuleMatcher {
     /// range. A single-port rule parses as a one-wide range. Applies to both IP
     /// and domain targets, since the port is known either way.
     DstPort(PortRange),
+    /// Matches when the connection's *source* port falls inside the (inclusive)
+    /// range. A single-port rule parses as a one-wide range. The source address
+    /// is supplied by the embedder at selection time (the inbound's peer); when
+    /// it is unknown the rule never matches, mirroring how `SRC-IP-CIDR` only
+    /// applies once the source is known.
+    SrcPort(PortRange),
     /// Matches when the connection's transport protocol equals this network
     /// (`tcp` / `udp`). The protocol is supplied by the embedder at selection
     /// time and does not depend on the target, so it applies to IP and domain
@@ -139,6 +145,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
             RuleMatcher::DstPort(r) => f.debug_tuple("DstPort").field(r).finish(),
+            RuleMatcher::SrcPort(r) => f.debug_tuple("SrcPort").field(r).finish(),
             RuleMatcher::Network(n) => f.debug_tuple("Network").field(n).finish(),
             RuleMatcher::Logical { op, subs } => f.debug_struct("Logical").field("op", op).field("subs", subs).finish(),
             RuleMatcher::Match => f.write_str("Match"),
@@ -166,6 +173,7 @@ impl PartialEq for RuleMatcher {
                 a == b && Arc::ptr_eq(pa, pb)
             }
             (RuleMatcher::DstPort(a), RuleMatcher::DstPort(b)) => a == b,
+            (RuleMatcher::SrcPort(a), RuleMatcher::SrcPort(b)) => a == b,
             (RuleMatcher::Network(a), RuleMatcher::Network(b)) => a == b,
             (RuleMatcher::Logical { op: oa, subs: sa }, RuleMatcher::Logical { op: ob, subs: sb }) => {
                 oa == ob && sa == sb
@@ -192,10 +200,21 @@ impl RuleMatcher {
     }
 
     /// Whether this matcher applies to `target` on a connection of the given
-    /// `network` (transport protocol). Only `NETWORK` rules depend on
-    /// `network`; every other matcher ignores it. Logical sub-rules inherit the
-    /// same `network`.
+    /// `network` (transport protocol). Convenience wrapper over
+    /// [`matches_conn`](RuleMatcher::matches_conn) with an unknown source, so
+    /// `SRC-PORT` rules never match; use `matches_conn` when the source is
+    /// known.
     pub fn matches_network(&self, target: &TargetAddr, network: ConnNetwork) -> bool {
+        self.matches_conn(target, network, None)
+    }
+
+    /// Whether this matcher applies to a connection to `target` over `network`
+    /// from source `src`. Only `NETWORK` rules depend on `network` and only
+    /// `SRC-PORT` rules depend on `src`; every other matcher ignores them.
+    /// `src` is `None` when the embedder cannot supply the source (in which
+    /// case `SRC-PORT` never matches). Logical sub-rules inherit the same
+    /// `network` and `src`.
+    pub fn matches_conn(&self, target: &TargetAddr, network: ConnNetwork, src: Option<SocketAddr>) -> bool {
         match self {
             RuleMatcher::Domain(d) => match target {
                 TargetAddr::Domain(host, _) => host.eq_ignore_ascii_case(d),
@@ -227,13 +246,14 @@ impl RuleMatcher {
             },
             RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
             RuleMatcher::DstPort(range) => range.contains(target.port()),
+            RuleMatcher::SrcPort(range) => src.is_some_and(|addr| range.contains(addr.port())),
             RuleMatcher::Network(want) => network == *want,
             RuleMatcher::Logical { op, subs } => match op {
-                LogicalOp::And => subs.iter().all(|m| m.matches_network(target, network)),
-                LogicalOp::Or => subs.iter().any(|m| m.matches_network(target, network)),
+                LogicalOp::And => subs.iter().all(|m| m.matches_conn(target, network, src)),
+                LogicalOp::Or => subs.iter().any(|m| m.matches_conn(target, network, src)),
                 // Built only with exactly one sub-matcher (see the parser), so
                 // negating "any matches" negates that single sub-matcher.
-                LogicalOp::Not => !subs.iter().any(|m| m.matches_network(target, network)),
+                LogicalOp::Not => !subs.iter().any(|m| m.matches_conn(target, network, src)),
             },
             RuleMatcher::Match => true,
         }
@@ -254,6 +274,7 @@ impl RuleMatcher {
             RuleMatcher::Asn { .. } => "IPASN",
             RuleMatcher::RuleSet { .. } => "RuleSet",
             RuleMatcher::DstPort(_) => "DstPort",
+            RuleMatcher::SrcPort(_) => "SrcPort",
             RuleMatcher::Network(_) => "Network",
             RuleMatcher::Logical { op, .. } => match op {
                 LogicalOp::And => "AND",
@@ -277,6 +298,7 @@ impl RuleMatcher {
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
             RuleMatcher::RuleSet { name, .. } => name.clone(),
             RuleMatcher::DstPort(range) => range.to_string(),
+            RuleMatcher::SrcPort(range) => range.to_string(),
             RuleMatcher::Network(n) => n.as_str().to_string(),
             // The sub-rule expression is parsed away into the matcher tree and
             // not retained verbatim, so a logical matcher has no flat payload.
@@ -502,9 +524,18 @@ impl Router {
 
     /// Select the outbound for `target` on a connection of the given `network`
     /// (transport protocol). Behaves like [`select`](Router::select) but lets
-    /// `NETWORK` rules match the protocol.
+    /// `NETWORK` rules match the protocol. Convenience wrapper over
+    /// [`select_conn`](Router::select_conn) with an unknown source.
     pub fn select_network(&self, target: &TargetAddr, network: ConnNetwork) -> &OutboundMode {
-        self.select_detailed_network(target, network).outbound
+        self.select_conn(target, network, None)
+    }
+
+    /// Select the outbound for a connection to `target` over `network` from
+    /// source `src`. Behaves like [`select_network`](Router::select_network)
+    /// but also lets `SRC-PORT` rules match the source port. `src` is `None`
+    /// when the embedder cannot supply the source.
+    pub fn select_conn(&self, target: &TargetAddr, network: ConnNetwork, src: Option<SocketAddr>) -> &OutboundMode {
+        self.select_detailed_conn(target, network, src).outbound
     }
 
     /// Like [`select`](Router::select) but also reports the chosen outbound's
@@ -515,11 +546,26 @@ impl Router {
 
     /// Like [`select_detailed`](Router::select_detailed) but for a connection of
     /// the given `network`, so `NETWORK` rules evaluate against the protocol.
+    /// Convenience wrapper over [`select_detailed_conn`](Router::select_detailed_conn)
+    /// with an unknown source.
     pub fn select_detailed_network<'a>(&'a self, target: &TargetAddr, network: ConnNetwork) -> Selection<'a> {
+        self.select_detailed_conn(target, network, None)
+    }
+
+    /// Like [`select_detailed_network`](Router::select_detailed_network) but
+    /// also carries the connection's source `src`, so `SRC-PORT` rules evaluate
+    /// against the source port. `src` is `None` when the embedder cannot supply
+    /// the source.
+    pub fn select_detailed_conn<'a>(
+        &'a self,
+        target: &TargetAddr,
+        network: ConnNetwork,
+        src: Option<SocketAddr>,
+    ) -> Selection<'a> {
         let matched = self
             .rules
             .iter()
-            .find(|rule| rule.matcher.matches_network(target, network));
+            .find(|rule| rule.matcher.matches_conn(target, network, src));
         let name = matched.map(|rule| rule.outbound.as_str()).unwrap_or(&self.fallback);
         Selection {
             outbound_name: name,
@@ -1121,6 +1167,105 @@ mod tests {
         let c = RuleMatcher::DstPort(PortRange::parse("80-90").unwrap());
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    fn src(port: u16) -> SocketAddr {
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port)
+    }
+
+    #[test]
+    fn src_port_matches_source_port_independent_of_target() {
+        let m = RuleMatcher::SrcPort(PortRange::parse("12345").unwrap());
+        // The source port is matched regardless of the destination host kind.
+        assert!(m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, Some(src(12345))));
+        assert!(m.matches_conn(&ipv4(8, 8, 8, 8), ConnNetwork::Udp, Some(src(12345))));
+        // A different source port misses.
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, Some(src(12346))));
+    }
+
+    #[test]
+    fn src_port_never_matches_without_a_known_source() {
+        // Mirrors how `SRC-IP-CIDR` only applies once the source is known: with
+        // no source the rule cannot match, and the `matches`/`matches_network`
+        // wrappers (which pass `None`) therefore always miss.
+        let m = RuleMatcher::SrcPort(PortRange::parse("443").unwrap());
+        assert!(!m.matches_conn(&domain("example.com"), ConnNetwork::Tcp, None));
+        assert!(!m.matches_network(&domain("example.com"), ConnNetwork::Tcp));
+        assert!(!m.matches(&domain("example.com")));
+    }
+
+    #[test]
+    fn src_port_range_matches_inclusive_bounds() {
+        let m = RuleMatcher::SrcPort(PortRange::parse("8000-9000").unwrap());
+        for port in [8000u16, 8443, 9000] {
+            assert!(m.matches_conn(&domain("h"), ConnNetwork::Tcp, Some(src(port))));
+        }
+        for port in [7999u16, 9001] {
+            assert!(!m.matches_conn(&domain("h"), ConnNetwork::Tcp, Some(src(port))));
+        }
+    }
+
+    #[test]
+    fn router_routes_src_port_rule() {
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(
+            RuleMatcher::SrcPort(PortRange::parse("50000").unwrap()),
+            DIRECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // Source port 50000 -> DIRECT.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, Some(src(50000))),
+            OutboundMode::Direct
+        ));
+        // A different source port misses and uses the fallback proxy.
+        assert!(matches!(
+            router.select_conn(&domain("example.com"), ConnNetwork::Tcp, Some(src(40000))),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // No source (the `select`/`select_network` wrappers) -> never matches.
+        assert!(matches!(
+            router.select_network(&domain("example.com"), ConnNetwork::Tcp),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn src_port_as_logical_sub_rule_respects_source() {
+        // AND,((DOMAIN-SUFFIX,example.com),(SRC-PORT,50000)) only matches a
+        // connection to that domain from source port 50000; the source threads
+        // into sub-rules.
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::SrcPort(PortRange::parse("50000").unwrap()),
+            ],
+        };
+        assert!(m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(src(50000))));
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, Some(src(40000))));
+        assert!(!m.matches_conn(&domain("other.net"), ConnNetwork::Tcp, Some(src(50000))));
+        // Without a known source the SRC-PORT sub-rule cannot match, so the AND fails.
+        assert!(!m.matches_conn(&domain("www.example.com"), ConnNetwork::Tcp, None));
+    }
+
+    #[test]
+    fn src_port_equality_and_metadata() {
+        let a = RuleMatcher::SrcPort(PortRange::parse("80").unwrap());
+        let b = RuleMatcher::SrcPort(PortRange::parse("80").unwrap());
+        let c = RuleMatcher::SrcPort(PortRange::parse("80-90").unwrap());
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(a.kind_str(), "SrcPort");
+        assert_eq!(a.payload(), "80");
+        assert_eq!(c.payload(), "80-90");
     }
 
     #[test]

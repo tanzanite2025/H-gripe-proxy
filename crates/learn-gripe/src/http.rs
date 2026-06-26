@@ -66,7 +66,8 @@ pub(crate) async fn handle(
         target = unmap_fake_ip(pool, target);
     }
 
-    let mut outbound = match outbound::connect(&config.outbound, &target).await {
+    let source = inbound.peer_addr().ok();
+    let mut outbound = match outbound::connect(&config.outbound, &target, source).await {
         Ok(stream) => stream,
         Err(err) => {
             let _ = inbound.write_all(RESP_BAD_GATEWAY).await;
