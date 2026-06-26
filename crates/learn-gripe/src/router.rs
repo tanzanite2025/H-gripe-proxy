@@ -12,11 +12,12 @@
 //! connection). This mirrors Clash's built-in policies.
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
-//! `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN`. The geo matchers carry a
-//! shared [`GeoLookup`] handle to a locally-maintained geo database (mmdb /
-//! geosite `.dat`); the kernel never fetches geo data itself — the embedder
-//! loads the local files and supplies the lookup, keeping data sourcing out of
-//! the data plane.
+//! `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN` and `RULE-SET`. The geo matchers
+//! carry a shared [`GeoLookup`] handle to a locally-maintained geo database
+//! (mmdb / geosite `.dat`) and `RULE-SET` carries a shared [`RuleSetLookup`]
+//! handle to locally-loaded rule providers; the kernel never fetches that data
+//! itself — the embedder loads the local files and supplies the lookup, keeping
+//! data sourcing out of the data plane.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -42,6 +43,19 @@ pub trait GeoLookup: Send + Sync {
     fn asn_matches(&self, asn: u32, ip: IpAddr) -> bool;
 }
 
+/// Lookup into a locally-loaded named rule-set ("rule provider"), used by the
+/// `RULE-SET` matcher. Like [`GeoLookup`], the kernel neither owns nor fetches
+/// this data: the embedder loads the rule-provider payloads it maintains
+/// (inline lists, cached files, …) and supplies an implementation, so the
+/// routing data plane only ever *queries* a set by name.
+pub trait RuleSetLookup: Send + Sync {
+    /// Whether `target` is contained in the rule-set named `name`. The set's
+    /// behaviour (domain / ipcidr / classical) is decided by the provider, so
+    /// unlike the geo matchers it is handed the whole target and matches a
+    /// domain or an IP as appropriate; an unknown `name` matches nothing.
+    fn rule_set_matches(&self, name: &str, target: &TargetAddr) -> bool;
+}
+
 /// Built-in outbound name that connects straight to the target.
 pub const DIRECT: &str = "DIRECT";
 /// Built-in outbound name that refuses the connection.
@@ -50,9 +64,10 @@ pub const REJECT: &str = "REJECT";
 /// A single routing predicate.
 ///
 /// `Clone` is derived; `Debug`/`PartialEq`/`Eq` are hand-written because the
-/// `GeoIp`/`GeoSite`/`Asn` variants carry an `Arc<dyn GeoLookup>` trait object
-/// that cannot derive them. Two geo matchers are equal when they name the same
-/// code/ASN and share the same underlying database (compared by pointer).
+/// `GeoIp`/`GeoSite`/`Asn` variants carry an `Arc<dyn GeoLookup>` and `RuleSet`
+/// an `Arc<dyn RuleSetLookup>` trait object that cannot derive them. Two such
+/// matchers are equal when they name the same code/ASN/set and share the same
+/// underlying database/provider (compared by pointer).
 #[derive(Clone)]
 pub enum RuleMatcher {
     /// Exact (case-insensitive) domain match.
@@ -73,6 +88,14 @@ pub enum RuleMatcher {
     /// `asn`. Like `IpCidr` / `GeoIp`, it only applies to a resolved IP target,
     /// never a domain.
     Asn { asn: u32, db: Arc<dyn GeoLookup> },
+    /// Matches when the target is contained in the locally-loaded rule-set
+    /// ("rule provider") named `name`. The set decides whether it matches the
+    /// domain or the IP, so unlike the geo matchers it applies to either kind
+    /// of target.
+    RuleSet {
+        name: String,
+        provider: Arc<dyn RuleSetLookup>,
+    },
     /// Catch-all: matches every target.
     Match,
 }
@@ -87,6 +110,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::GeoIp { code, .. } => f.debug_struct("GeoIp").field("code", code).finish_non_exhaustive(),
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
+            RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
             RuleMatcher::Match => f.write_str("Match"),
         }
     }
@@ -107,6 +131,9 @@ impl PartialEq for RuleMatcher {
             }
             (RuleMatcher::Asn { asn: a, db: da }, RuleMatcher::Asn { asn: b, db: db2 }) => {
                 a == b && Arc::ptr_eq(da, db2)
+            }
+            (RuleMatcher::RuleSet { name: a, provider: pa }, RuleMatcher::RuleSet { name: b, provider: pb }) => {
+                a == b && Arc::ptr_eq(pa, pb)
             }
             (RuleMatcher::Match, RuleMatcher::Match) => true,
             _ => false,
@@ -151,6 +178,7 @@ impl RuleMatcher {
                 TargetAddr::Ip(addr) => db.asn_matches(*asn, addr.ip()),
                 TargetAddr::Domain(_, _) => false,
             },
+            RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
             RuleMatcher::Match => true,
         }
     }
@@ -168,6 +196,7 @@ impl RuleMatcher {
             RuleMatcher::GeoIp { .. } => "GeoIP",
             RuleMatcher::GeoSite { .. } => "GeoSite",
             RuleMatcher::Asn { .. } => "IPASN",
+            RuleMatcher::RuleSet { .. } => "RuleSet",
             RuleMatcher::Match => "Match",
         }
     }
@@ -183,6 +212,7 @@ impl RuleMatcher {
             RuleMatcher::GeoIp { code, .. } => code.clone(),
             RuleMatcher::GeoSite { code, .. } => code.clone(),
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
+            RuleMatcher::RuleSet { name, .. } => name.clone(),
             RuleMatcher::Match => String::new(),
         }
     }
@@ -470,6 +500,76 @@ mod tests {
         }
     }
 
+    /// Test rule-set provider: the `ads` set matches any host containing `ad`
+    /// and the IP `1.0.0.1` (a mixed/classical set); every other set name
+    /// matches nothing.
+    #[derive(Debug)]
+    struct FakeRuleSet;
+
+    impl RuleSetLookup for FakeRuleSet {
+        fn rule_set_matches(&self, name: &str, target: &TargetAddr) -> bool {
+            if name != "ads" {
+                return false;
+            }
+            match target {
+                TargetAddr::Domain(host, _) => host.contains("ad"),
+                TargetAddr::Ip(addr) => addr.ip() == IpAddr::V4(Ipv4Addr::new(1, 0, 0, 1)),
+            }
+        }
+    }
+
+    #[test]
+    fn rule_set_matcher_delegates_to_provider_for_domain_and_ip() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let m = RuleMatcher::RuleSet {
+            name: "ads".to_string(),
+            provider,
+        };
+        // The provider decides per target kind, so both a matching domain and
+        // a matching IP hit the same set.
+        assert!(m.matches(&domain("ads.example")));
+        assert!(m.matches(&TargetAddr::Ip(SocketAddr::new(Ipv4Addr::new(1, 0, 0, 1).into(), 80))));
+        // Non-members of either kind miss.
+        assert!(!m.matches(&domain("good.example")));
+        assert!(!m.matches(&ipv4(8, 8, 8, 8)));
+    }
+
+    #[test]
+    fn rule_set_matcher_with_unknown_set_never_matches() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let m = RuleMatcher::RuleSet {
+            name: "missing".to_string(),
+            provider,
+        };
+        assert!(!m.matches(&domain("ads.example")));
+        assert!(!m.matches(&ipv4(1, 0, 0, 1)));
+    }
+
+    #[test]
+    fn rule_set_matcher_equality_compares_name_and_shared_provider() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let other: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let a = RuleMatcher::RuleSet {
+            name: "ads".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        let same = RuleMatcher::RuleSet {
+            name: "ads".to_string(),
+            provider: Arc::clone(&provider),
+        };
+        let different_provider = RuleMatcher::RuleSet {
+            name: "ads".to_string(),
+            provider: other,
+        };
+        let different_name = RuleMatcher::RuleSet {
+            name: "cdn".to_string(),
+            provider,
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_provider);
+        assert_ne!(a, different_name);
+    }
+
     #[test]
     fn geoip_matcher_uses_lookup_and_ignores_domains() {
         let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
@@ -620,6 +720,35 @@ mod tests {
         // A domain target never matches an IP-ASN rule.
         assert!(matches!(
             router.select(&domain("example.com")),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn router_routes_rule_set_rule() {
+        let provider: Arc<dyn RuleSetLookup> = Arc::new(FakeRuleSet);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(
+            RuleMatcher::RuleSet {
+                name: "ads".to_string(),
+                provider,
+            },
+            REJECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // Both a domain and an IP member of the set are rejected; non-members
+        // fall back to `proxy`.
+        assert!(matches!(router.select(&domain("ads.example")), OutboundMode::Reject));
+        assert!(matches!(router.select(&ipv4(1, 0, 0, 1)), OutboundMode::Reject));
+        assert!(matches!(
+            router.select(&domain("good.example")),
             OutboundMode::Socks5Upstream { .. }
         ));
     }
