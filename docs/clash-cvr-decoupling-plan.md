@@ -8,16 +8,17 @@
 
 ## 当前阶段更新
 
-截至 2026-06-15，以下事项已经落地或主体完成：
+截至 2026-06-26，以下事项已经落地或主体完成：
 
-- `src-tauri` 对 `sysproxy`、`clash-verge-logger`、`clash-verge-service-ipc` 的依赖已切为 workspace 本地 crate
-- `scripts/prebuild.mjs` 的 sidecar / service bundle / geodata / loopback / SimpleSC 资源链路已改为本地受控
+- **品牌/元数据（Phase 1 主体已完成）**：`src-tauri/Cargo.toml` 的 `authors` 已为 `["tanzanite2025"]`；`package.json` 的 `name` 已为 `clash-verge-optimized`；app id 已为 `io.github.tanzanite2025.clash-verge-optimized`；README 内核说明已改为「进程内纯 Rust 内核 `learn-gripe`」；模板/配置头部已为 `Clash Verge Optimized`。
+- **供应链（Phase 2/3 主体已完成）**：仓库内已无任何 `clash-verge-rev/*` 的 Git 依赖或 release 下载链；`sysproxy`、`clash-verge-logging`、`clash-verge-service-ipc` 均为 `crates/` 下的 workspace 本地 crate（策略 B：vendor）。`scripts/prebuild.mjs` 不再下载外部 latest，sidecar/service/geodata/loopback/SimpleSC 资源已改为本地受控。
+- **内核（与本计划相关的上游脱离已完成）**：Go/Mihomo sidecar 已完全退役，`crates/tauri-plugin-mihomo` 已删除，数据面由进程内 `learn-gripe` 承载。详见 [`docs/go-to-rust-migration-roadmap.md`](go-to-rust-migration-roadmap.md)。
 - macOS service identity 已集中，现役身份与 legacy cleanup 已分边界
 - Windows installer 的 legacy cleanup 已从主安装/卸载流程中抽离
 - Linux / macOS 的兼容迁移职责已开始按平台边界收束
-- `src-tauri/src/utils/dirs.rs` 中跨平台共享的 legacy path migration 已集中为配置化边界
+- `src-tauri/src/utils/dirs.rs` 中跨平台共享的 legacy path migration 已集中为配置化边界；Tauri 配置兼容边界已收口到 `src-tauri/compatibility-boundaries.md`
 
-因此，本文档里部分阶段描述更适合作为“迁移记录与后续删除窗口”，而不是当前实现状态。
+因此，本文档里 Phase 1–3 大部分描述应作为「迁移记录」阅读，而非当前待办；仍未做的主要是 **Phase 6**（app id / service name / deep-link 正式改名）及其前置的 legacy 删除窗口（Phase 5）。下文凡是引用已删除路径（如 `crates/tauri-plugin-mihomo/`、`mihomo/Dockerfile`）的条目已不再适用，保留仅作历史上下文。
 
 ## 核心原则
 
@@ -37,8 +38,8 @@
 
 - `src-tauri` 的 `sysproxy`、`clash-verge-logger`、`clash-verge-service-ipc` 已改为 workspace 本地 crate。
 - `scripts/prebuild.mjs` 已改为校验本地 sidecar、service bundle、geodata、loopback、SimpleSC 资源，不再下载外部 latest。
-- `mihomo` 默认 geodata / dashboard URL 已清空；缺本地资源时返回明确错误，只有用户显式配置 URL 才联网。
-- `mihomo/Dockerfile` 不再隐式下载外部 geodata，镜像构建必须提供受控本地 geodata。
+- 默认 geodata / dashboard URL 已清空；缺本地资源时返回明确错误，只有用户显式配置 URL 才联网。
+- ~~`mihomo/Dockerfile`~~ 已不存在（Go/Mihomo 内核与其容器构建链已随 sidecar 一并移除），此条不再适用。
 
 后续原则：新增构建资源必须固定来源、版本和校验，不再引入默认 latest 下载链。
 
@@ -48,10 +49,10 @@
 
 | 文件 | 残留 | 建议 |
 | --- | --- | --- |
-| `src-tauri/Cargo.toml` | `authors = ["zzzgydi", "Tunglies", "wonfen", "MystiPanda"]` | 改为当前维护者 / 组织 |
-| `package.json` | `"name": "clash-verge"` | 改为新 npm/workspace 名称 |
-| `README.md` | 原始项目和 MetaCubeX/mihomo 说明 | 调整为历史致谢 + 当前独立内核说明 |
-| `crates/tauri-plugin-mihomo/README.md` | 示例从 `clash-verge-rev/tauri-plugin-mihomo` 拉取 | 改成本仓库 path 或个人 fork |
+| ~~`src-tauri/Cargo.toml`~~ | — | **已完成**：`authors = ["tanzanite2025"]` |
+| ~~`package.json`~~ | — | **已完成**：`"name": "clash-verge-optimized"` |
+| ~~`README.md`~~ | 原始项目和 MetaCubeX/mihomo 说明 | **已完成**：README 已改为当前独立内核说明（`learn-gripe`），不再描述 Mihomo/CVR 派生 |
+| ~~`crates/tauri-plugin-mihomo/README.md`~~ | — | **不再适用**：`tauri-plugin-mihomo` crate 已删除 |
 | `src-tauri/src/utils/tmpl.rs` | 模板注释仍写 `Clash Verge` | 改为新产品名 |
 | `src-tauri/src/config/*.rs` | 生成 YAML 头仍写 `Clash Verge` | 改为新产品名 |
 | i18n 文案 | 部分语言仍写 `Clash Verge` | 批量统一 |
@@ -101,7 +102,7 @@
 
 如果新产品名暂未确定，第一批可以只做“去 CVR / 上游链接 / 作者残留”，不碰 app id。
 
-### Phase 1：低风险品牌清理
+### Phase 1：低风险品牌清理（主体已完成）
 
 目标：清理不会影响运行时和用户升级的文案/元数据。
 
@@ -113,12 +114,12 @@ docs/chore: remove stale Clash Verge Rev branding references
 
 范围：
 
-- `src-tauri/Cargo.toml` authors 改为当前维护者。
-- `package.json` name 改为 `clash-verge-optimized` 或新名称。
-- README 中内核说明改为个人独立维护内核。
-- `crates/tauri-plugin-mihomo/README.md` 示例改成本仓库 path / 当前仓库 URL。
-- config/profile/template 注释改为当前产品名。
-- i18n 中纯显示文案改为当前产品名。
+- [x] `src-tauri/Cargo.toml` authors 已为 `["tanzanite2025"]`。
+- [x] `package.json` name 已为 `clash-verge-optimized`。
+- [x] README 内核说明已改为个人独立维护内核（`learn-gripe`）。
+- [x] ~~`crates/tauri-plugin-mihomo/README.md`~~ — crate 已删除，此项不再适用。
+- [ ] config/profile/template 注释：已为 `Clash Verge Optimized`；若最终产品名脱离“Clash”字样需再调。
+- [ ] i18n 中纯显示文案：部分语言（如 `src/locales/ru/*`）仍写 `Clash Verge`，待统一。
 
 不包含：
 
@@ -135,7 +136,9 @@ pnpm typecheck
 pnpm format:check
 ```
 
-### Phase 2：CVR Git 依赖脱离
+### Phase 2：CVR Git 依赖脱离（已完成）
+
+> **状态：已落地。** 仓库内已无 `clash-verge-rev/*` Git 依赖；`sysproxy`、`clash-verge-logging`、`clash-verge-service-ipc` 均已按**策略 B（vendor 到 `crates/`）**落地。下文保留作为当时决策记录。
 
 目标：不再从 `clash-verge-rev/*` 拉 Rust crate。
 
@@ -194,7 +197,9 @@ pnpm typecheck
 
 Windows Rust 编译环境当前可能因 MSVC linker 阻断，需在可用 CI/本地验证 `cargo check`。
 
-### Phase 3：service bundle 发布源脱离
+### Phase 3：service bundle 发布源脱离（主体已完成）
+
+> **状态：`scripts/prebuild.mjs` 已不再从外部 release 下载。** 现为校验本地 sidecar/service 资源，仓库内无 `clash-verge-rev/*` 下载链。下文的下载-URL 方案仅作为“若未来改为远程发布”的参考；如仍走本地受控资源则无需实现。
 
 目标：`scripts/prebuild.mjs` 不再从 CVR release 下载 service bundle。
 
@@ -223,7 +228,9 @@ const SERVICE_SHA256 = {
 }
 ```
 
-### Phase 4：MetaCubeX geodata / dashboard 脱离
+### Phase 4：MetaCubeX geodata / dashboard 脱离（主体已完成）
+
+> **状态：默认资源不再指向 MetaCubeX。** 已清空内置远程默认 geodata / dashboard URL；缺本地资源时报错，仅用户显式配置才联网。下述“后续可选决策”（自建 geodata 镜像 / sha256 / 自建 dashboard）仍待定。
 
 目标：默认资源来源不再指向 MetaCubeX。
 
@@ -289,17 +296,19 @@ const SERVICE_SHA256 = {
 ## 推荐的执行顺序
 
 ```text
-PR 1: 文案和元数据清理
-PR 2: plugin README / README / package name / authors
-PR 3: fork or vendor logger
-PR 4: fork or vendor sysproxy/service-ipc
-PR 5: service bundle release source + sha256
-PR 6: geodata/dashboard source policy + sha256
-PR 7: mark legacy migration blocks with retention window
-PR 8: add new app scheme / new app id migration
-PR 9: service name migration
-PR 10: remove legacy cleanup after migration window
+[x] PR 1: 文案和元数据清理
+[x] PR 2: plugin README / README / package name / authors（plugin crate 已删除）
+[x] PR 3: fork or vendor logger（已 vendor 为 clash-verge-logging）
+[x] PR 4: fork or vendor sysproxy/service-ipc（已 vendor 到 crates/）
+[x] PR 5: service bundle release source（已改为本地受控，无外部下载）
+[x] PR 6: geodata/dashboard source policy（默认已不指向 MetaCubeX）
+[ ] PR 7: mark legacy migration blocks with retention window
+[ ] PR 8: add new app scheme / new app id migration
+[ ] PR 9: service name migration
+[ ] PR 10: remove legacy cleanup after migration window
 ```
+
+> 注：PR 5/6 的 sha256 完整性校验仍为可选后续项；上面打勾仅表示“不再依赖 CVR/MetaCubeX 外部源”。
 
 ## 不建议现在做
 
@@ -314,13 +323,13 @@ PR 10: remove legacy cleanup after migration window
 
 如果下一步要动代码，建议第一批只做：
 
-1. `src-tauri/Cargo.toml` authors。
-2. `package.json` name。
-3. README 当前内核说明。
-4. `crates/tauri-plugin-mihomo/README.md` 使用示例。
-5. YAML/template 文件头部的 `Clash Verge` 文案。
-6. i18n 里用户可见的 `Clash Verge` 文案。
-7. 给 legacy blocks 加注释，但不删除。
+1. [x] `src-tauri/Cargo.toml` authors。
+2. [x] `package.json` name。
+3. [x] README 当前内核说明。
+4. [x] ~~`crates/tauri-plugin-mihomo/README.md`~~ — crate 已删除，不适用。
+5. [ ] YAML/template 文件头部的 `Clash Verge` 文案（当前为 `Clash Verge Optimized`）。
+6. [ ] i18n 里用户可见的 `Clash Verge` 文案。
+7. [ ] 给 legacy blocks 加注释，但不删除。
 
 这批不需要 fork 外部仓库，风险最低。
 

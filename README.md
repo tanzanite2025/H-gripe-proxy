@@ -18,17 +18,17 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 当前仓库的真实职责边界是：
 
 - Rust / Tauri 桌面层负责配置、控制面、运行时协调、诊断、安全边界和平台集成
-- `mihomo/` 是本仓库内私有维护的 runtime kernel 组件；尚未 Rust 化的真实转发、协议栈、TUN、DNS runtime 等能力仍在该组件边界内
-- 打包链默认只接受本仓库内受控的 kernel binary / service / resources，不依赖外部 latest 下载链
+- 数据面（真实转发、协议栈、路由、DNS、TUN、conntrack、TLS/REALITY、传输）由**进程内纯 Rust 内核 `learn-gripe`**（crate `learn-gripe`）承载；不再打包、启动或依赖 Go/Mihomo sidecar 二进制
+- 打包链默认只接受本仓库内受控的 service / resources / geodata，不依赖外部 latest 下载链
 
 ### 当前主线 / Current Mainline
 
 当前 README 只描述主线仍在维护、且已经落地的能力；更细的迁移批次记录见 [Go → Rust Migration](#go--rust-migration)。
 
 - **桌面控制面**：Tauri / Rust 后端承接配置校验、规则解释、诊断、订阅 artifact、连接/日志事件转发和 app-runtime 编排。
-- **Runtime kernel 边界**：`mihomo/` 作为仓库内私有 runtime kernel 组件，仍承载尚未迁入 Rust 的真实转发、协议栈、TUN、DNS runtime 与 adapter/tunnel runtime。
+- **进程内 Rust 内核**：`learn-gripe` 在 `start_core()` 内启动，单端口 mixed inbound（SOCKS5 + HTTP）按首字节分流，按连接规则路由（`rule` 模式跑完整 router，`global`/单节点模式解析当前 select 组），承载协议转发、UDP、DNS 与 TUN 数据面。
 - **安全边界**：Release 默认关闭 DevTools；高风险 shell / fs 权限从前端移走；外部 URL、备份恢复、WebDAV TLS 和 CSP 均走显式约束。
-- **可复现打包**：构建链优先使用仓库内受控 kernel binary / service / resources；修改 `mihomo/` 后必须重编并同步本地 kernel binary。
+- **可复现打包**：构建链优先使用仓库内受控 service / resources / geodata；内核随应用一起编译，无需外部二进制。
 
 ### 已落地能力概览 / Implemented Capabilities
 
@@ -41,9 +41,9 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 
 ### Next Direction
 
-- Continue reducing retained Mihomo fallback only when a PR removes a concrete Go-owned runtime surface from the review list.
-- Keep Rust evidence bounded/read-only unless an operator-approved cutover explicitly allows privileged DNS, route, TUN, plugin, or forwarding mutation.
-- Do not remove the Mihomo sidecar until default-path ownership and unsupported fallback retention are empty in the roadmap review.
+- Go/Mihomo sidecar 已完全退役；后续重点是把仍为 read-only/bounded 的运行时证据，在 operator 批准后推进到默认路径 cutover（DNS / route / TUN / 转发）。
+- Rust evidence 默认保持 bounded/read-only，除非 operator 批准的 cutover 显式允许特权 DNS、route、TUN、plugin 或转发变更。
+- 真机 TUN 全局默认路由捕获仍待在真实硬件上验证（见 roadmap Phase 4）。
 
 ---
 
@@ -75,7 +75,6 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 - pnpm 10.33.0（见 `packageManager`）
 - Rust 1.95.0（见 `rust-toolchain.toml`）
 - Tauri CLI（通过项目脚本调用即可）
-- Go >= 1.21（仅在修改 Mihomo 内核时需要）
 
 ### 编译构建
 
@@ -130,35 +129,17 @@ target/release/bundle/nsis/
 
 ## Go → Rust Migration
 
-The detailed migration ledger lives in [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md). README keeps only the current target, ownership boundary, and what remains Mihomo-owned.
+**迁移已完成**：应用不再打包、启动或依赖 Go/Mihomo sidecar 二进制。数据面在进程内由纯 Rust 内核 `learn-gripe` 承载，原 Mihomo 兼容 DTO 已迁入 `crates/clash-dtos`。按 Phase 记录的详细实现台账见 [`docs/go-to-rust-migration-roadmap.md`](docs/go-to-rust-migration-roadmap.md)。
 
-### Final Target
+### 现状 / Current Status
 
-The end state is a Rust-owned runtime stack for the app-facing data plane: DNS policy/cache, rule and adapter decisions, protocol forwarding, UDP/plugin transport, TUN/system route handling, rollback/evidence, and default-path cutover controls. The Go-based Mihomo sidecar may only be removed after final review shows every default path and unsupported fallback has Rust ownership, rollback, and hold-window evidence.
+- **Mihomo sidecar 已完全退役**：树内无二进制，打包 / release 链（`prebuild.mjs`、`tauri.conf.json`、`tauri.linux.conf.json` 的 `externalBin`、`release.yml`）不再引用；`tauri-plugin-mihomo` crate 已删除，控制器 IPC 客户端已移除，所有原 IPC 命令改为进程内执行。
+- **数据面 = `learn-gripe`（进程内）**：单端口 mixed inbound（SOCKS5 + HTTP）、按连接规则路由、协议转发、UDP、DNS、TUN 全在 Rust 内；不再有任何 Mihomo 所属运行面。
+- **控制面成熟**：校验、planning、projection artifact、订阅 pipeline、监控、审计、前端类型面均 Rust 所有。
 
-### Current Status
+### 仍受 gate 的部分 / Still Gated
 
-Rust already owns these bounded or control-plane surfaces:
-
-- App runtime planning, diagnostics, projection artifacts, staged activation, runtime-apply boundary manifests, and closeout evidence.
-- DNS default-path blocker reductions: live resolver/cache/geodata-refresh evidence, cutover hold evidence, and read-only system resolver leak/restore evidence.
-- Protocol/UDP blocker reductions: SOCKS UDP fragments/queues, encrypted protocol local non-loopback canaries, QUIC-like UDP local profile evidence, plugin supervision, plugin binary compatibility contracts, bounded default-forwarding hold evidence, a committed production default-forwarding approval manifest, and guarded apply/rollback/post-apply hold evidence.
-- TUN/route blocker reductions: route snapshots, route mutation apply/rollback plans, synthetic TUN lifecycle evidence, packet-capture hold evidence, packet leak hold evidence, guarded TUN/packet-capture apply/rollback checkpoints, fallback-retirement closeout manifests, final Mihomo binary removal gate manifests, release packaging closeout manifests, sidecar invocation retirement runtime changes, Mihomo service startup retirement, runtime service/sidecar cleanup, plugin mutation/recovery API retirement, and final runtime-config restart-boundary closeout.
-- Fallback retirement support: sidecar dependency audit, sidecar-independent rollback archive, GeoIP/GeoSite candidate discovery, bounded lookup matrix evidence, and retained-fallback reconciliation.
-
-### Runtime Boundary
-
-Most migration evidence is intentionally bounded. It can write YAML evidence under the app runtime directory and can exercise loopback or local non-loopback canaries, but it does not silently mutate production networking state.
-
-Still Mihomo/service-owned until explicitly approved:
-
-- Production DNS cutover and privileged system resolver apply/restore.
-- Real remote encrypted/QUIC peer compatibility and default-forwarding rollback-surface retirement.
-- Real plugin binary compatibility and plugin forwarding apply/verification.
-- Unsupported Mihomo-owned fallback paths that do not yet have Rust apply, hold, leak, and rollback proof.
-- Production geodata refresh/file availability and final Mihomo sidecar removal.
-
-In short: Rust has moved from gate-only metadata to concrete bounded runtime evidence, but default-path ownership is still conservative. Do not claim full kernel replacement until roadmap final review has no retained fallback blockers.
+特权默认路径 cutover（生产 DNS apply/restore、route/TUN 变更、转发 cutover）默认仍是 bounded / read-only evidence，需 operator 显式批准才执行；真机 TUN 全局默认路由捕获仍待真机验证。详见 roadmap 的 Phase 4 / Phase 5。
 
 ---
 
@@ -188,14 +169,17 @@ clash-verge-optimized/
 │   │   ├── enhance/            # 配置增强（StableEgress、ResidentialChain）
 │   │   └── feat/               # 业务功能模块
 │   └── capabilities/           # Tauri 权限配置
-├── crates/                     # Rust 库模块
-│   ├── tauri-plugin-mihomo/    # runtime kernel Tauri 插件
+├── crates/                     # Rust 库模块 / workspace 成员
+│   ├── learn-gripe/            # 进程内纯 Rust 代理内核（数据面）
+│   ├── clash-dtos/             # Mihomo 兼容 DTO + ts-rs TypeScript bindings
 │   ├── clash-verge-draft/      # 草稿配置管理
 │   ├── clash-verge-i18n/       # 国际化支持
 │   ├── clash-verge-limiter/    # 流量限速器
-│   ├── clash-verge-logging/    # 日志系统
-│   └── clash-verge-signal/     # 信号处理
-├── mihomo/                     # 仓库内私有 runtime kernel 组件
+│   ├── clash-verge-logging/    # 日志系统（统一日志链路）
+│   ├── clash-verge-signal/     # 信号处理
+│   ├── clash-verge-service-ipc/# 特权 helper service IPC
+│   ├── sysproxy/               # 系统代理设置
+│   └── tauri-plugin-clash-verge-sysinfo/  # 系统信息 Tauri 插件
 ├── scripts/                    # 构建 & 工具脚本
 ├── Cargo.toml                  # Rust workspace 配置
 ├── package.json                # Node.js 依赖配置
@@ -225,5 +209,5 @@ clash-verge-optimized/
 
 ---
 
-**最后更新** / Last Updated: 2026-06-23
+**最后更新** / Last Updated: 2026-06-26
 **维护者** / Maintainer: tanzanite2025
