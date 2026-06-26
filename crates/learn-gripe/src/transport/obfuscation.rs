@@ -1,7 +1,7 @@
 //! In-process client-side obfuscation statistics.
 //!
 //! learn-gripe's only outbound traffic obfuscation is TLS ClientHello
-//! fingerprint shaping (see [`crate::tls::ClientFingerprint`]): an outbound
+//! fingerprint shaping (see [`crate::transport::tls::ClientFingerprint`]): an outbound
 //! whose proxy carries a `client-fingerprint` reshapes its ClientHello
 //! cipher-suite ordering to mimic a real browser. This module counts those
 //! shaped handshakes in process, replacing the Mihomo controller
@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::tls::ClientFingerprint;
+use crate::transport::tls::ClientFingerprint;
 
 /// A point-in-time snapshot of the process-global obfuscation counters.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -5,7 +5,7 @@
 //! HTTP/2 `POST` whose request body carries the uplink and whose response body
 //! carries the downlink, with **raw** application bytes in both directions (no
 //! gRPC/`Hunk` framing). The HTTP/2 byte-stream itself lives in
-//! [`crate::h2stream`] and is shared with the `h2` (`PUT`) transport.
+//! [`crate::transport::h2stream`] and is shared with the `h2` (`PUT`) transport.
 //!
 //! The multi-request `stream-up`/`packet-up` modes (separate uplink POSTs and a
 //! downlink GET, correlated by a session id) need request-sequencing machinery
@@ -18,7 +18,7 @@ use anyhow::{Context, Result};
 use http::{Method, Request};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::h2stream::{self, H2ByteStream};
+use crate::transport::h2stream::{self, H2ByteStream};
 
 /// XHTTP transmission mode. Only `stream-one` is implemented in this slice.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

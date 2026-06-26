@@ -340,7 +340,7 @@ where
         .await
         .with_context(|| format!("TLS handshake with {sni}"))?;
     if let Some(fp) = config.client_fingerprint {
-        crate::obfuscation::record_shaped_handshake(fp);
+        crate::transport::obfuscation::record_shaped_handshake(fp);
     }
     Ok(tls)
 }
@@ -402,7 +402,7 @@ where
         .await
         .with_context(|| format!("REALITY handshake (masquerade SNI {sni}, dial {dial_host})"))?;
     if let Some(fp) = config.client_fingerprint {
-        crate::obfuscation::record_shaped_handshake(fp);
+        crate::transport::obfuscation::record_shaped_handshake(fp);
     }
     Ok(tls)
 }

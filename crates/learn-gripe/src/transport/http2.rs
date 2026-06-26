@@ -4,7 +4,7 @@
 //! full-duplex HTTP/2 `PUT`: the request body carries the uplink and the
 //! response body carries the downlink, with **raw** application bytes in both
 //! directions. It is byte-stream-identical to XHTTP `stream-one` (which uses
-//! `POST`), so both share [`crate::h2stream`]; only the request line differs.
+//! `POST`), so both share [`crate::transport::h2stream`]; only the request line differs.
 //!
 //! `h2` is always run over TLS (the handshake negotiates ALPN `h2`); that
 //! requirement is enforced in [`crate::protocols::vless`] at config-build time. Security
@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 use http::{Method, Request};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::h2stream::{self, H2ByteStream};
+use crate::transport::h2stream::{self, H2ByteStream};
 
 /// Resolved HTTP/2 transport options.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

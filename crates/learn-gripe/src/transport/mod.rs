@@ -24,17 +24,26 @@
 //! into the same `Security` enum, VLESS-REALITY works under every transport
 //! automatically.
 
+pub mod grpc;
+pub mod h2stream;
+pub mod http2;
+pub mod httpupgrade;
+pub mod obfuscation;
+pub mod tls;
+pub mod ws;
+pub mod xhttp;
+
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpStream;
 
-use crate::grpc::GrpcTransportConfig;
-use crate::http2::H2TransportConfig;
-use crate::httpupgrade::HttpUpgradeTransportConfig;
 use crate::outbound::BoxedStream;
 use crate::proxy::{Network, ProxyOptions, RealityOpts};
-use crate::tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
-use crate::ws::WsTransportConfig;
-use crate::xhttp::{XhttpMode, XhttpTransportConfig};
+use crate::transport::grpc::GrpcTransportConfig;
+use crate::transport::http2::H2TransportConfig;
+use crate::transport::httpupgrade::HttpUpgradeTransportConfig;
+use crate::transport::tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
+use crate::transport::ws::WsTransportConfig;
+use crate::transport::xhttp::{XhttpMode, XhttpTransportConfig};
 
 /// The security layer wrapping the raw TCP socket.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,17 +96,17 @@ pub async fn establish(server: &str, port: u16, security: &Security, transport: 
     let over_tls = matches!(security, Security::Tls(_) | Security::Reality(_));
     let secured: BoxedStream = match security {
         Security::None => Box::new(tcp),
-        Security::Tls(cfg) => Box::new(crate::tls::connect(cfg, server, tcp).await?),
-        Security::Reality(cfg) => Box::new(crate::tls::connect_reality(cfg, server, tcp).await?),
+        Security::Tls(cfg) => Box::new(crate::transport::tls::connect(cfg, server, tcp).await?),
+        Security::Reality(cfg) => Box::new(crate::transport::tls::connect_reality(cfg, server, tcp).await?),
     };
 
     let transported: BoxedStream = match transport {
         Transport::Tcp => secured,
-        Transport::Ws(cfg) => Box::new(crate::ws::connect(secured, server, cfg).await?),
-        Transport::Grpc(cfg) => Box::new(crate::grpc::connect(secured, server, over_tls, cfg).await?),
-        Transport::Xhttp(cfg) => Box::new(crate::xhttp::connect(secured, server, over_tls, cfg).await?),
-        Transport::HttpUpgrade(cfg) => Box::new(crate::httpupgrade::connect(secured, server, cfg).await?),
-        Transport::H2(cfg) => Box::new(crate::http2::connect(secured, server, cfg).await?),
+        Transport::Ws(cfg) => Box::new(crate::transport::ws::connect(secured, server, cfg).await?),
+        Transport::Grpc(cfg) => Box::new(crate::transport::grpc::connect(secured, server, over_tls, cfg).await?),
+        Transport::Xhttp(cfg) => Box::new(crate::transport::xhttp::connect(secured, server, over_tls, cfg).await?),
+        Transport::HttpUpgrade(cfg) => Box::new(crate::transport::httpupgrade::connect(secured, server, cfg).await?),
+        Transport::H2(cfg) => Box::new(crate::transport::http2::connect(secured, server, cfg).await?),
     };
 
     Ok(transported)

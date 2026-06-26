@@ -17,7 +17,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::outbound::{self, BoxedStream};
-use crate::tls::{self, TlsClientConfig};
+use crate::transport::tls::{self, TlsClientConfig};
 
 /// Measure the round-trip delay of dialing `test_url` through `mode`, capped at
 /// `timeout`.

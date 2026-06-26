@@ -250,7 +250,7 @@ mod tests {
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
     use super::*;
-    use crate::tls::ClientFingerprint;
+    use crate::transport::tls::ClientFingerprint;
 
     #[test]
     fn parses_canonical_uuid() {
