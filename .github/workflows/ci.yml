@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - "devin/**"
   pull_request:
     branches:
       - main
@@ -78,6 +77,10 @@ jobs:
   app-macos:
     name: clash-verge-optimized app (macOS datapath compile)
     runs-on: macos-latest
+    # macOS runners bill at a 10x minute multiplier, so only compile-check the
+    # macOS datapath after merge to main (push), not on every PR. PR-time
+    # changes to that datapath are validated locally / on real hardware.
+    if: github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
