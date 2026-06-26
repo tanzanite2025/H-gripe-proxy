@@ -24,10 +24,8 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::dns::{DnsMode, FakeIpPool, answer_query, unmap_fake_ip};
 use crate::outbound::{self, UdpEgress};
-use crate::protocols::shadowsocks::{ShadowsocksOutboundConfig, ShadowsocksUdp};
 use crate::udp;
 
-use anyhow::Result;
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
@@ -564,6 +562,9 @@ fn relay_udp(
 }
 
 /// Drive one UDP NAT session until it goes idle, errors, or its sender drops.
+/// The relay loop, transports, and framing are shared with the SOCKS5 inbound
+/// via [`udp::run_egress`]; the TUN side only differs in how replies are
+/// delivered ([`TunSink`]) and that idle sessions are reaped (UDP has no close).
 async fn run_udp_session(
     egress: UdpEgress,
     target: TargetAddr,
@@ -571,107 +572,27 @@ async fn run_udp_session(
     rx: mpsc::Receiver<Vec<u8>>,
     frames_out: mpsc::Sender<Vec<u8>>,
 ) {
-    let result = match egress {
-        UdpEgress::Direct => run_udp_direct(target, reply, rx, frames_out).await,
-        UdpEgress::Shadowsocks(config) => run_udp_ss(config, target, reply, rx, frames_out).await,
-        proxy => run_udp_proxy(proxy, target, reply, rx, frames_out).await,
-    };
-    if let Err(err) = result {
+    let sink = TunSink { reply, frames_out };
+    if let Err(err) = udp::run_egress(egress, target, rx, sink, Some(UDP_IDLE_TIMEOUT)).await {
         log::debug!("learn-gripe tun udp: session ended: {err:#}");
     }
 }
 
-/// Direct UDP egress over a plain OS socket: forward client payloads to the
-/// destination and rewrite each reply back into an IP frame for the client.
-async fn run_udp_direct(
-    target: TargetAddr,
+/// [`udp::ReplySink`] for the TUN stack: rewrite each reply into an IP+UDP frame
+/// (sourced from the host the client targeted) and push it onto the device's
+/// outbound frame queue.
+struct TunSink {
     reply: UdpFlow,
-    mut rx: mpsc::Receiver<Vec<u8>>,
     frames_out: mpsc::Sender<Vec<u8>>,
-) -> Result<()> {
-    let dest = udp::resolve(&target).await?;
-    let socket = udp::bind_egress(dest).await?;
-    socket.connect(dest).await?;
-
-    let mut buf = vec![0u8; udp::MAX_DATAGRAM];
-    loop {
-        tokio::select! {
-            maybe = rx.recv() => match maybe {
-                Some(payload) => {
-                    socket.send(&payload).await?;
-                }
-                None => return Ok(()),
-            },
-            res = socket.recv(&mut buf) => {
-                let n = res?;
-                if let Some(frame) = build_udp_reply_frame(&reply, &buf[..n])
-                    && frames_out.send(frame).await.is_err()
-                {
-                    return Ok(());
-                }
-            }
-            _ = tokio::time::sleep(UDP_IDLE_TIMEOUT) => return Ok(()),
-        }
-    }
 }
 
-/// Shadowsocks UDP egress: relay datagrams over a UDP socket to the Shadowsocks
-/// server (per-packet AEAD framing), rewriting replies back into IP frames.
-async fn run_udp_ss(
-    config: Box<ShadowsocksOutboundConfig>,
-    target: TargetAddr,
-    reply: UdpFlow,
-    mut rx: mpsc::Receiver<Vec<u8>>,
-    frames_out: mpsc::Sender<Vec<u8>>,
-) -> Result<()> {
-    let assoc = ShadowsocksUdp::connect(&config, &target).await?;
-    loop {
-        tokio::select! {
-            maybe = rx.recv() => match maybe {
-                Some(payload) => assoc.send(&payload).await?,
-                None => return Ok(()),
-            },
-            res = assoc.recv() => {
-                let payload = res?;
-                if let Some(frame) = build_udp_reply_frame(&reply, &payload)
-                    && frames_out.send(frame).await.is_err()
-                {
-                    return Ok(());
-                }
-            }
-            _ = tokio::time::sleep(UDP_IDLE_TIMEOUT) => return Ok(()),
-        }
-    }
-}
-
-/// Proxy-tunnel UDP egress: relay datagrams over the protocol's UDP stream,
-/// applying its per-packet framing, and rewrite replies back into IP frames.
-async fn run_udp_proxy(
-    egress: UdpEgress,
-    target: TargetAddr,
-    reply: UdpFlow,
-    mut rx: mpsc::Receiver<Vec<u8>>,
-    frames_out: mpsc::Sender<Vec<u8>>,
-) -> Result<()> {
-    let framing = udp::ProxyFraming::for_egress(&egress);
-    let stream = outbound::connect_proxy_udp(&egress, &target).await?;
-    let (mut reader, mut writer) = tokio::io::split(stream);
-
-    loop {
-        tokio::select! {
-            maybe = rx.recv() => match maybe {
-                Some(payload) => udp::write_proxy_packet(&mut writer, framing, &target, &payload).await?,
-                None => return Ok(()),
-            },
-            res = udp::read_proxy_packet(&mut reader, framing) => {
-                let payload = res?;
-                if let Some(frame) = build_udp_reply_frame(&reply, &payload)
-                    && frames_out.send(frame).await.is_err()
-                {
-                    return Ok(());
-                }
-            }
-            _ = tokio::time::sleep(UDP_IDLE_TIMEOUT) => return Ok(()),
+impl udp::ReplySink for TunSink {
+    async fn deliver(&self, payload: &[u8]) -> bool {
+        match build_udp_reply_frame(&self.reply, payload) {
+            Some(frame) => self.frames_out.send(frame).await.is_ok(),
+            // Unbuildable frame (e.g. mixed address families): drop it but keep
+            // the session alive, matching the original per-egress relays.
+            None => true,
         }
     }
 }

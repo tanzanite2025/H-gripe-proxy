@@ -21,6 +21,7 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -115,7 +116,19 @@ fn forward_client_datagram(
     let egress = outbound::resolve_udp_egress(mode, &target, Some(client_addr))
         .ok_or_else(|| anyhow!("no UDP egress for {target}"))?;
     let (tx, rx) = mpsc::channel(EGRESS_QUEUE);
-    spawn_egress(egress, target, rx, relay.clone(), client_addr);
+    let sink = Socks5Sink {
+        relay: relay.clone(),
+        client_addr,
+        target: target.clone(),
+    };
+    // A SOCKS5 association lives exactly as long as its control connection, so
+    // there is no idle reaping here (`idle = None`); dropping the senders ends
+    // the task.
+    tokio::spawn(async move {
+        if let Err(err) = run_egress(egress, target, rx, sink, None).await {
+            log::debug!("learn-gripe udp: egress ended: {err:#}");
+        }
+    });
     // The freshly built channel has capacity, so this only fails if the task
     // already died (e.g. dial failure); dropping the datagram is acceptable.
     let _ = tx.try_send(payload);
@@ -123,46 +136,67 @@ fn forward_client_datagram(
     Ok(())
 }
 
-/// Spawn the egress task appropriate for `egress`.
-fn spawn_egress(
-    egress: UdpEgress,
-    target: TargetAddr,
-    rx: mpsc::Receiver<Vec<u8>>,
+/// Where a UDP egress task delivers a reply that came back from the
+/// destination. The SOCKS5 relay wraps it as a SOCKS5 datagram back to the
+/// client socket; the TUN stack rewrites it into an IP frame. Returning `false`
+/// means the inbound is gone, so the egress task should stop.
+///
+/// This is the one place the two UDP relays differ: the relay loops, transports,
+/// and framing in [`run_egress`] are shared, only the reply destination is not.
+pub(crate) trait ReplySink {
+    fn deliver(&self, payload: &[u8]) -> impl std::future::Future<Output = bool> + Send;
+}
+
+/// [`ReplySink`] for the SOCKS5 `UDP ASSOCIATE` relay: wrap each reply as a
+/// SOCKS5 datagram sourced from `target` and send it back to the client socket.
+struct Socks5Sink {
     relay: Arc<UdpSocket>,
     client_addr: SocketAddr,
-) {
-    match egress {
-        UdpEgress::Direct => {
-            tokio::spawn(async move {
-                if let Err(err) = run_direct_egress(target, rx, relay, client_addr).await {
-                    log::debug!("learn-gripe udp: direct egress ended: {err:#}");
-                }
-            });
-        }
-        UdpEgress::Shadowsocks(config) => {
-            tokio::spawn(async move {
-                if let Err(err) = run_ss_egress(config, target, rx, relay, client_addr).await {
-                    log::debug!("learn-gripe udp: shadowsocks egress ended: {err:#}");
-                }
-            });
-        }
-        proxy => {
-            tokio::spawn(async move {
-                if let Err(err) = run_proxy_egress(proxy, target, rx, relay, client_addr).await {
-                    log::debug!("learn-gripe udp: proxy egress ended: {err:#}");
-                }
-            });
-        }
+    target: TargetAddr,
+}
+
+impl ReplySink for Socks5Sink {
+    async fn deliver(&self, payload: &[u8]) -> bool {
+        let packet = socks5::encode_udp_datagram(&self.target, payload);
+        self.relay.send_to(&packet, self.client_addr).await.is_ok()
     }
 }
 
-/// Direct UDP egress: bind a socket to the destination and relay both ways
-/// until the association closes (sender dropped) or a socket error occurs.
-async fn run_direct_egress(
+/// Drive a UDP egress (the destination half of an association / NAT session)
+/// until its inbound senders drop, an IO error occurs, the inbound goes away, or
+/// `idle` elapses without any traffic. `egress` selects the transport; replies
+/// are handed to `sink`. `idle` is `None` for SOCKS5 (the association is bounded
+/// by its control connection) and `Some` for TUN (UDP has no close, so sessions
+/// are reaped after an idle window).
+pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
+    egress: UdpEgress,
+    target: TargetAddr,
+    rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    match egress {
+        UdpEgress::Direct => run_direct_egress(target, rx, sink, idle).await,
+        UdpEgress::Shadowsocks(config) => run_ss_egress(config, target, rx, sink, idle).await,
+        proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
+    }
+}
+
+/// Resolve once `idle` elapses, or never if `idle` is `None`. Built fresh on
+/// each loop turn so any traffic resets the idle window.
+async fn idle_elapsed(idle: Option<Duration>) {
+    match idle {
+        Some(dur) => tokio::time::sleep(dur).await,
+        None => std::future::pending::<()>().await,
+    }
+}
+
+/// Direct UDP egress: bind a socket to the destination and relay both ways.
+async fn run_direct_egress<S: ReplySink>(
     target: TargetAddr,
     mut rx: mpsc::Receiver<Vec<u8>>,
-    relay: Arc<UdpSocket>,
-    client_addr: SocketAddr,
+    sink: S,
+    idle: Option<Duration>,
 ) -> Result<()> {
     let dest = resolve(&target).await?;
     let socket = bind_egress(dest).await?;
@@ -182,23 +216,23 @@ async fn run_direct_egress(
             },
             res = socket.recv(&mut buf) => {
                 let n = res.with_context(|| format!("udp recv from {dest}"))?;
-                let packet = socks5::encode_udp_datagram(&target, &buf[..n]);
-                if relay.send_to(&packet, client_addr).await.is_err() {
+                if !sink.deliver(&buf[..n]).await {
                     return Ok(());
                 }
             }
+            _ = idle_elapsed(idle) => return Ok(()),
         }
     }
 }
 
 /// Shadowsocks UDP egress: relay datagrams over a UDP socket to the Shadowsocks
 /// server, sealing/opening each packet with per-packet AEAD framing.
-async fn run_ss_egress(
+async fn run_ss_egress<S: ReplySink>(
     config: Box<crate::protocols::shadowsocks::ShadowsocksOutboundConfig>,
     target: TargetAddr,
     mut rx: mpsc::Receiver<Vec<u8>>,
-    relay: Arc<UdpSocket>,
-    client_addr: SocketAddr,
+    sink: S,
+    idle: Option<Duration>,
 ) -> Result<()> {
     let assoc = crate::protocols::shadowsocks::ShadowsocksUdp::connect(&config, &target).await?;
     loop {
@@ -209,23 +243,23 @@ async fn run_ss_egress(
             },
             res = assoc.recv() => {
                 let payload = res?;
-                let packet = socks5::encode_udp_datagram(&target, &payload);
-                if relay.send_to(&packet, client_addr).await.is_err() {
+                if !sink.deliver(&payload).await {
                     return Ok(());
                 }
             }
+            _ = idle_elapsed(idle) => return Ok(()),
         }
     }
 }
 
 /// Proxy-tunnel UDP egress: open the protocol's UDP stream and relay datagrams
 /// in both directions, applying the protocol's per-packet framing.
-async fn run_proxy_egress(
+async fn run_proxy_egress<S: ReplySink>(
     egress: UdpEgress,
     target: TargetAddr,
     mut rx: mpsc::Receiver<Vec<u8>>,
-    relay: Arc<UdpSocket>,
-    client_addr: SocketAddr,
+    sink: S,
+    idle: Option<Duration>,
 ) -> Result<()> {
     let framing = ProxyFraming::for_egress(&egress);
     let stream = outbound::connect_proxy_udp(&egress, &target).await?;
@@ -239,11 +273,11 @@ async fn run_proxy_egress(
             },
             res = read_proxy_packet(&mut reader, framing) => {
                 let payload = res?;
-                let packet = socks5::encode_udp_datagram(&target, &payload);
-                if relay.send_to(&packet, client_addr).await.is_err() {
+                if !sink.deliver(&payload).await {
                     return Ok(());
                 }
             }
+            _ = idle_elapsed(idle) => return Ok(()),
         }
     }
 }
