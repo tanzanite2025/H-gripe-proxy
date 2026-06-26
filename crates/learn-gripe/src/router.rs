@@ -12,11 +12,11 @@
 //! connection). This mirrors Clash's built-in policies.
 //!
 //! Scope: `DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` (v4 and v6),
-//! `MATCH`, plus `GEOIP` / `GEOSITE`. The geo matchers carry a shared
-//! [`GeoLookup`] handle to a locally-maintained geo database (mmdb / geosite
-//! `.dat`); the kernel never fetches geo data itself — the embedder loads the
-//! local files and supplies the lookup, keeping data sourcing out of the data
-//! plane.
+//! `MATCH`, plus `GEOIP` / `GEOSITE` / `IP-ASN`. The geo matchers carry a
+//! shared [`GeoLookup`] handle to a locally-maintained geo database (mmdb /
+//! geosite `.dat`); the kernel never fetches geo data itself — the embedder
+//! loads the local files and supplies the lookup, keeping data sourcing out of
+//! the data plane.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -37,6 +37,9 @@ pub trait GeoLookup: Send + Sync {
     fn geoip_matches(&self, code: &str, ip: IpAddr) -> bool;
     /// Whether `host` belongs to the geosite category `code` (e.g. `"google"`).
     fn geosite_matches(&self, code: &str, host: &str) -> bool;
+    /// Whether `ip` is announced by the autonomous system number `asn` (e.g.
+    /// `13335`).
+    fn asn_matches(&self, asn: u32, ip: IpAddr) -> bool;
 }
 
 /// Built-in outbound name that connects straight to the target.
@@ -47,9 +50,9 @@ pub const REJECT: &str = "REJECT";
 /// A single routing predicate.
 ///
 /// `Clone` is derived; `Debug`/`PartialEq`/`Eq` are hand-written because the
-/// `GeoIp`/`GeoSite` variants carry an `Arc<dyn GeoLookup>` trait object that
-/// cannot derive them. Two geo matchers are equal when they name the same code
-/// and share the same underlying database (compared by pointer).
+/// `GeoIp`/`GeoSite`/`Asn` variants carry an `Arc<dyn GeoLookup>` trait object
+/// that cannot derive them. Two geo matchers are equal when they name the same
+/// code/ASN and share the same underlying database (compared by pointer).
 #[derive(Clone)]
 pub enum RuleMatcher {
     /// Exact (case-insensitive) domain match.
@@ -66,6 +69,10 @@ pub enum RuleMatcher {
     /// Matches when the target domain belongs to the geosite category `code`.
     /// Like the domain matchers, it never applies to a raw-IP target.
     GeoSite { code: String, db: Arc<dyn GeoLookup> },
+    /// Matches when the target IP is announced by the autonomous system number
+    /// `asn`. Like `IpCidr` / `GeoIp`, it only applies to a resolved IP target,
+    /// never a domain.
+    Asn { asn: u32, db: Arc<dyn GeoLookup> },
     /// Catch-all: matches every target.
     Match,
 }
@@ -79,6 +86,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::IpCidr(c) => f.debug_tuple("IpCidr").field(c).finish(),
             RuleMatcher::GeoIp { code, .. } => f.debug_struct("GeoIp").field("code", code).finish_non_exhaustive(),
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
+            RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::Match => f.write_str("Match"),
         }
     }
@@ -95,6 +103,9 @@ impl PartialEq for RuleMatcher {
                 a == b && Arc::ptr_eq(da, db2)
             }
             (RuleMatcher::GeoSite { code: a, db: da }, RuleMatcher::GeoSite { code: b, db: db2 }) => {
+                a == b && Arc::ptr_eq(da, db2)
+            }
+            (RuleMatcher::Asn { asn: a, db: da }, RuleMatcher::Asn { asn: b, db: db2 }) => {
                 a == b && Arc::ptr_eq(da, db2)
             }
             (RuleMatcher::Match, RuleMatcher::Match) => true,
@@ -136,6 +147,10 @@ impl RuleMatcher {
                 TargetAddr::Domain(host, _) => db.geosite_matches(code, host),
                 TargetAddr::Ip(_) => false,
             },
+            RuleMatcher::Asn { asn, db } => match target {
+                TargetAddr::Ip(addr) => db.asn_matches(*asn, addr.ip()),
+                TargetAddr::Domain(_, _) => false,
+            },
             RuleMatcher::Match => true,
         }
     }
@@ -152,6 +167,7 @@ impl RuleMatcher {
             RuleMatcher::IpCidr(_) => "IpCidr",
             RuleMatcher::GeoIp { .. } => "GeoIP",
             RuleMatcher::GeoSite { .. } => "GeoSite",
+            RuleMatcher::Asn { .. } => "IPASN",
             RuleMatcher::Match => "Match",
         }
     }
@@ -166,6 +182,7 @@ impl RuleMatcher {
             RuleMatcher::IpCidr(c) => c.to_string(),
             RuleMatcher::GeoIp { code, .. } => code.clone(),
             RuleMatcher::GeoSite { code, .. } => code.clone(),
+            RuleMatcher::Asn { asn, .. } => asn.to_string(),
             RuleMatcher::Match => String::new(),
         }
     }
@@ -430,7 +447,8 @@ mod tests {
     }
 
     /// Test geo database: `cn` covers the 1.0.0.0/8 block; the `ads` category
-    /// covers any host containing `ad`; the `cdn` category covers `cdn.test`.
+    /// covers any host containing `ad`; the `cdn` category covers `cdn.test`;
+    /// AS13335 covers the 1.0.0.0/8 block.
     #[derive(Debug)]
     struct FakeGeo;
 
@@ -445,6 +463,10 @@ mod tests {
                 "cdn" => host == "cdn.test",
                 _ => false,
             }
+        }
+
+        fn asn_matches(&self, asn: u32, ip: IpAddr) -> bool {
+            asn == 13335 && matches!(ip, IpAddr::V4(v4) if v4.octets()[0] == 1)
         }
     }
 
@@ -471,6 +493,36 @@ mod tests {
         assert!(m.matches(&domain("cdn.test")));
         assert!(!m.matches(&domain("www.test")));
         assert!(!m.matches(&ipv4(1, 2, 3, 4)));
+    }
+
+    #[test]
+    fn asn_matcher_uses_lookup_and_ignores_domains() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let m = RuleMatcher::Asn { asn: 13335, db };
+        assert!(m.matches(&ipv4(1, 2, 3, 4)));
+        // Wrong ASN and a non-AS13335 address both miss.
+        assert!(!m.matches(&ipv4(8, 8, 8, 8)));
+        // A domain target is never matched by IP-ASN (no resolved IP).
+        assert!(!m.matches(&domain("example.com")));
+    }
+
+    #[test]
+    fn asn_matcher_equality_compares_asn_and_shared_db() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let other: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let a = RuleMatcher::Asn {
+            asn: 13335,
+            db: Arc::clone(&db),
+        };
+        let same = RuleMatcher::Asn {
+            asn: 13335,
+            db: Arc::clone(&db),
+        };
+        let different_db = RuleMatcher::Asn { asn: 13335, db: other };
+        let different_asn = RuleMatcher::Asn { asn: 15169, db };
+        assert_eq!(a, same);
+        assert_ne!(a, different_db);
+        assert_ne!(a, different_asn);
     }
 
     #[test]
@@ -542,6 +594,32 @@ mod tests {
         // No geo rule matches a foreign IP -> fallback `proxy`.
         assert!(matches!(
             router.select(&ipv4(8, 8, 8, 8)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn router_routes_asn_rule() {
+        let db: Arc<dyn GeoLookup> = Arc::new(FakeGeo);
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        let rules = vec![Rule::new(RuleMatcher::Asn { asn: 13335, db }, DIRECT)];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        // An AS13335 IP routes DIRECT; everything else falls back to `proxy`.
+        assert!(matches!(router.select(&ipv4(1, 1, 1, 1)), OutboundMode::Direct));
+        assert!(matches!(
+            router.select(&ipv4(8, 8, 8, 8)),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+        // A domain target never matches an IP-ASN rule.
+        assert!(matches!(
+            router.select(&domain("example.com")),
             OutboundMode::Socks5Upstream { .. }
         ));
     }

@@ -57,10 +57,10 @@ pub fn selected_outbound(config: &Mapping, selected: &HashMap<String, String>) -
 /// usable outbound, fall back to the single global egress
 /// ([`selected_outbound`]).
 ///
-/// `GEOIP` / `GEOSITE` rules are only routable when the embedder supplies a
-/// [`GeoLookup`] backed by *local* geo data; the kernel never reads or fetches
-/// that data itself. When `geo` is `None` (no local data) those rules are
-/// skipped, exactly as any other unsupported rule type.
+/// `GEOIP` / `GEOSITE` / `IP-ASN` rules are only routable when the embedder
+/// supplies a [`GeoLookup`] backed by *local* geo data; the kernel never reads
+/// or fetches that data itself. When `geo` is `None` (no local data) those
+/// rules are skipped, exactly as any other unsupported rule type.
 pub fn routed_outbound(
     config: &Mapping,
     selected: &HashMap<String, String>,
@@ -152,9 +152,10 @@ fn build_router(
 
     for raw in raw_rules.iter().filter_map(Value::as_str) {
         let Some((matcher, target)) = parse_router_rule(raw, geo.as_ref()) else {
-            // Unsupported rule type (GEOIP/GEOSITE/process/port/…) or malformed
-            // payload: skip it so it never matches, falling through to a later
-            // rule or the fallback rather than mis-routing.
+            // Unsupported rule type (RULE-SET/process/port/…), a geo rule with
+            // no local data, or a malformed payload: skip it so it never
+            // matches, falling through to a later rule or the fallback rather
+            // than mis-routing.
             continue;
         };
         match register_target(&target, &groups, &proxies, selected, &mut outbounds) {
@@ -191,12 +192,12 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `DST-PORT`, `PROCESS-NAME`, `RULE-SET`, logical rules, …) or
-/// a malformed payload, so the caller drops the rule.
+/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `DST-PORT`, `PROCESS-NAME`, `RULE-SET`,
+/// logical rules, …) or a malformed payload, so the caller drops the rule.
 ///
-/// `GEOIP` / `GEOSITE` are evaluated against `geo` (a [`GeoLookup`] over local
-/// geo data) when present; when `geo` is `None` they are dropped too, since
-/// without local data there is nothing to match against.
+/// `GEOIP` / `GEOSITE` / `IP-ASN` are evaluated against `geo` (a [`GeoLookup`]
+/// over local geo data) when present; when `geo` is `None` they are dropped
+/// too, since without local data there is nothing to match against.
 fn parse_router_rule(raw: &str, geo: Option<&Arc<dyn GeoLookup>>) -> Option<(RuleMatcher, String)> {
     let mut parts = raw.split(',').map(str::trim);
     let rule_type = parts.next()?.to_ascii_uppercase();
@@ -224,6 +225,10 @@ fn parse_router_rule(raw: &str, geo: Option<&Arc<dyn GeoLookup>>) -> Option<(Rul
         },
         "GEOSITE" => RuleMatcher::GeoSite {
             code: payload.to_string(),
+            db: Arc::clone(geo?),
+        },
+        "IP-ASN" => RuleMatcher::Asn {
+            asn: payload.parse().ok()?,
             db: Arc::clone(geo?),
         },
         _ => return None,
@@ -431,8 +436,9 @@ mod tests {
         None
     }
 
-    /// In-memory geo database for routing tests: `cn` covers `1.0.0.0/8`, and
-    /// the `cn` geosite category covers any host ending in `.cn`.
+    /// In-memory geo database for routing tests: `cn` covers `1.0.0.0/8`, the
+    /// `cn` geosite category covers any host ending in `.cn`, and AS13335
+    /// covers `1.0.0.0/8`.
     #[derive(Debug)]
     struct FakeGeo;
 
@@ -443,6 +449,10 @@ mod tests {
 
         fn geosite_matches(&self, code: &str, host: &str) -> bool {
             code == "cn" && (host == "cn" || host.ends_with(".cn"))
+        }
+
+        fn asn_matches(&self, asn: u32, ip: std::net::IpAddr) -> bool {
+            asn == 13335 && matches!(ip, std::net::IpAddr::V4(v4) if v4.octets()[0] == 1)
         }
     }
 
@@ -750,6 +760,66 @@ rules:
             router.select(&domain("www.example.cn")),
             OutboundMode::Trojan(_)
         ));
+        assert!(matches!(router.select(&ip("1.2.3.4:80")), OutboundMode::Trojan(_)));
+    }
+
+    const ASN_CFG: &str = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - IP-ASN,13335,DIRECT
+  - MATCH,PROXY
+"#;
+
+    #[test]
+    fn asn_rule_routes_when_local_data_present() {
+        let mode = routed_outbound(&cfg(ASN_CFG), &HashMap::new(), fake_geo());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // IP-ASN,13335 matches an IP in AS13335 (1.0.0.0/8) -> DIRECT.
+        assert_eq!(router.select(&ip("1.2.3.4:80")), &OutboundMode::Direct);
+        // A foreign IP falls through to the MATCH catch-all (PROXY).
+        assert!(matches!(router.select(&ip("8.8.8.8:80")), OutboundMode::Trojan(_)));
+        // A domain target never matches an IP-ASN rule -> MATCH catch-all.
+        assert!(matches!(
+            router.select(&domain("www.example.cn")),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn asn_rule_skipped_without_local_data() {
+        // Same config but no local geo data: the IP-ASN rule is dropped, so an
+        // AS13335 IP falls through to the MATCH catch-all (PROXY).
+        let mode = routed_outbound(&cfg(ASN_CFG), &HashMap::new(), no_geo());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert!(matches!(router.select(&ip("1.2.3.4:80")), OutboundMode::Trojan(_)));
+    }
+
+    #[test]
+    fn malformed_asn_rule_is_skipped() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - IP-ASN,not-a-number,DIRECT
+  - MATCH,PROXY
+"#;
+        // The ASN payload does not parse, so the rule is dropped and every
+        // target falls through to the MATCH catch-all (PROXY).
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
         assert!(matches!(router.select(&ip("1.2.3.4:80")), OutboundMode::Trojan(_)));
     }
 

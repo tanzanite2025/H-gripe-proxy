@@ -64,6 +64,10 @@ impl learn_gripe::GeoLookup for RuleGeoData {
     fn geosite_matches(&self, code: &str, host: &str) -> bool {
         RuleGeoData::geosite_matches(self, code, host)
     }
+
+    fn asn_matches(&self, asn: u32, ip: IpAddr) -> bool {
+        RuleGeoData::asn_matches(self, asn, ip)
+    }
 }
 
 #[derive(Clone)]
