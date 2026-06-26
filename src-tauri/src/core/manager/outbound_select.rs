@@ -24,7 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
-use learn_gripe::{GeoLookup, IpCidr, OutboundMode, Router, Rule, RuleMatcher, RuleSetLookup};
+use learn_gripe::{GeoLookup, IpCidr, LogicalOp, OutboundMode, Router, Rule, RuleMatcher, RuleSetLookup};
 use serde_yaml_ng::{Mapping, Value};
 
 /// Built-in policy names that are not real `proxies:` entries.
@@ -196,8 +196,14 @@ fn build_router(
 
 /// Parse one clash rule string into a [`RuleMatcher`] plus its target policy
 /// name. Returns `None` for rule types the kernel router cannot evaluate yet
-/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `DST-PORT`, `PROCESS-NAME`, logical rules, …)
-/// or a malformed payload, so the caller drops the rule.
+/// (`SRC-IP-CIDR`, `SRC-IP-ASN`, `DST-PORT`, `PROCESS-NAME`, `NETWORK`, …) or a
+/// malformed payload, so the caller drops the rule.
+///
+/// Logical rules `AND` / `OR` / `NOT` are supported: their parenthesized
+/// sub-rules are parsed recursively (so they nest), e.g.
+/// `AND,((DOMAIN-SUFFIX,example.com),(IP-CIDR,10.0.0.0/8)),DIRECT`. If any
+/// sub-rule is malformed or uses a type the kernel cannot evaluate, the whole
+/// logical rule is dropped rather than silently ignoring a condition.
 ///
 /// `GEOIP` / `GEOSITE` / `IP-ASN` are evaluated against `geo` (a [`GeoLookup`]
 /// over local geo data) and `RULE-SET` against `rule_sets` (a [`RuleSetLookup`]
@@ -209,21 +215,53 @@ fn parse_router_rule(
     geo: Option<&Arc<dyn GeoLookup>>,
     rule_sets: Option<&Arc<dyn RuleSetLookup>>,
 ) -> Option<(RuleMatcher, String)> {
-    let mut parts = raw.split(',').map(str::trim);
-    let rule_type = parts.next()?.to_ascii_uppercase();
+    let trimmed = raw.trim();
+    let rule_type = trimmed.split(',').next()?.trim().to_ascii_uppercase();
 
     if rule_type == "MATCH" {
-        let target = parts.next()?;
+        let target = trimmed.split(',').nth(1)?.trim();
         return (!target.is_empty()).then(|| (RuleMatcher::Match, target.to_string()));
     }
 
-    let payload = parts.next()?;
-    let target = parts.next()?;
-    if payload.is_empty() || target.is_empty() {
+    // Every other rule is a matcher followed by its target (and optional
+    // modifiers): parse the matcher, then take the target from the tail it
+    // leaves behind.
+    let (matcher, tail) = parse_matcher(trimmed, geo, rule_sets)?;
+    let target = tail.trim_start_matches(',').split(',').next()?.trim();
+    (!target.is_empty()).then(|| (matcher, target.to_string()))
+}
+
+/// Parse a matcher spec — a rule string without its target policy — into a
+/// [`RuleMatcher`], returning the matcher and the unconsumed tail (the text
+/// after the matcher's own fields, starting with the `,` separator, or empty).
+/// The tail carries a top-level rule's target (and any modifier) or a logical
+/// sub-rule's modifiers (e.g. `no-resolve`), which never affect matching.
+/// Returns `None` for an unsupported rule type or a malformed payload.
+fn parse_matcher<'a>(
+    spec: &'a str,
+    geo: Option<&Arc<dyn GeoLookup>>,
+    rule_sets: Option<&Arc<dyn RuleSetLookup>>,
+) -> Option<(RuleMatcher, &'a str)> {
+    let spec = spec.trim();
+    let comma = spec.find(',')?;
+    let rule_type = spec[..comma].trim().to_ascii_uppercase();
+    let rest = &spec[comma + 1..];
+
+    if let Some(op) = logical_op(&rule_type) {
+        // The matcher's payload is the parenthesized sub-rule group; the target
+        // (if any) follows it.
+        let (group, tail) = split_paren_group(rest.trim_start())?;
+        let matcher = parse_logical(op, group, geo, rule_sets)?;
+        return Some((matcher, tail));
+    }
+
+    let (payload, tail) = match rest.find(',') {
+        Some(i) => (rest[..i].trim(), &rest[i..]),
+        None => (rest.trim(), ""),
+    };
+    if payload.is_empty() {
         return None;
     }
-    // Any trailing modifier (e.g. `no-resolve`) does not change how the kernel
-    // matches the connection target, so it is ignored.
     let matcher = match rule_type.as_str() {
         "DOMAIN" => RuleMatcher::Domain(payload.to_string()),
         "DOMAIN-SUFFIX" => RuleMatcher::DomainSuffix(payload.to_string()),
@@ -247,7 +285,82 @@ fn parse_router_rule(
         },
         _ => return None,
     };
-    Some((matcher, target.to_string()))
+    Some((matcher, tail))
+}
+
+/// The [`LogicalOp`] a rule type names, or `None` for a non-logical type.
+fn logical_op(rule_type: &str) -> Option<LogicalOp> {
+    match rule_type {
+        "AND" => Some(LogicalOp::And),
+        "OR" => Some(LogicalOp::Or),
+        "NOT" => Some(LogicalOp::Not),
+        _ => None,
+    }
+}
+
+/// Parse a logical rule's sub-rule group (`group` includes its outer parens,
+/// e.g. `((DOMAIN,a.com),(IP-CIDR,10.0.0.0/8))`) into a
+/// [`RuleMatcher::Logical`]. Each sub-rule is parsed recursively, so logical
+/// rules nest. Returns `None` if the group is malformed, if any sub-rule is
+/// malformed or uses a type the kernel cannot evaluate (so a condition is never
+/// silently dropped, which would change the combined result), or — for `NOT` —
+/// if there is not exactly one sub-rule.
+fn parse_logical(
+    op: LogicalOp,
+    group: &str,
+    geo: Option<&Arc<dyn GeoLookup>>,
+    rule_sets: Option<&Arc<dyn RuleSetLookup>>,
+) -> Option<RuleMatcher> {
+    let mut subs = Vec::new();
+    let mut rest = strip_outer_parens(group)?.trim();
+    while !rest.is_empty() {
+        let (sub_group, after) = split_paren_group(rest)?;
+        let (matcher, _modifiers) = parse_matcher(strip_outer_parens(sub_group)?, geo, rule_sets)?;
+        subs.push(matcher);
+        rest = after.trim_start();
+        match rest.strip_prefix(',') {
+            Some(next) => rest = next.trim_start(),
+            // Anything other than a separator between sub-rule groups (or the
+            // end) is malformed.
+            None if !rest.is_empty() => return None,
+            None => {}
+        }
+    }
+    if subs.is_empty() || (op == LogicalOp::Not && subs.len() != 1) {
+        return None;
+    }
+    Some(RuleMatcher::Logical { op, subs })
+}
+
+/// Split a string that begins (after leading spaces) with `(` into its balanced
+/// parenthesized prefix (parens included) and the unconsumed tail. Returns
+/// `None` when it does not start with `(` or the parentheses are unbalanced.
+fn split_paren_group(s: &str) -> Option<(&str, &str)> {
+    let s = s.trim_start();
+    if !s.starts_with('(') {
+        return None;
+    }
+    let mut depth = 0u32;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((&s[..=i], &s[i + ch.len_utf8()..]));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Strip one pair of wrapping parentheses from `s` (trimmed). Intended for a
+/// group already validated by [`split_paren_group`].
+fn strip_outer_parens(s: &str) -> Option<&str> {
+    let s = s.trim();
+    s.strip_prefix('(')?.strip_suffix(')')
 }
 
 /// Resolve a rule's target policy (a proxy-group, node, or built-in
@@ -947,6 +1060,152 @@ rules:
             OutboundMode::Trojan(c) => assert_eq!(c.server, "a.example"),
             other => panic!("expected single-egress trojan, got {other:?}"),
         }
+    }
+
+    const LOGICAL_CFG: &str = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - AND,((DOMAIN-SUFFIX,example.com),(DOMAIN-KEYWORD,ads)),REJECT
+  - OR,((DOMAIN-SUFFIX,test.cn),(IP-CIDR,10.0.0.0/8)),DIRECT
+  - MATCH,PROXY
+"#;
+
+    #[test]
+    fn logical_and_or_rules_route() {
+        let mode = routed_outbound(&cfg(LOGICAL_CFG), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // AND: both the suffix and the keyword must hold.
+        assert_eq!(router.select(&domain("ads.example.com")), &OutboundMode::Reject);
+        // Suffix matches but no `ads` keyword -> AND misses, OR misses, MATCH.
+        assert!(matches!(
+            router.select(&domain("www.example.com")),
+            OutboundMode::Trojan(_)
+        ));
+        // OR: either branch suffices (the domain branch, then the IP branch).
+        assert_eq!(router.select(&domain("foo.test.cn")), &OutboundMode::Direct);
+        assert_eq!(router.select(&ip("10.1.2.3:80")), &OutboundMode::Direct);
+        // Neither logical rule matches -> MATCH catch-all (PROXY -> node-a).
+        assert!(matches!(router.select(&ip("8.8.8.8:80")), OutboundMode::Trojan(_)));
+    }
+
+    #[test]
+    fn logical_not_rule_routes() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - NOT,((DOMAIN-SUFFIX,example.com)),REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // NOT inverts: an `example.com` host is excluded (falls to MATCH),
+        // everything else is rejected.
+        assert!(matches!(
+            router.select(&domain("www.example.com")),
+            OutboundMode::Trojan(_)
+        ));
+        assert_eq!(router.select(&domain("other.net")), &OutboundMode::Reject);
+    }
+
+    #[test]
+    fn nested_logical_rule_routes() {
+        // AND( suffix example.com, NOT( keyword safe ) )
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - AND,((DOMAIN-SUFFIX,example.com),(NOT,((DOMAIN-KEYWORD,safe)))),REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // Under example.com and not a `safe` host -> reject.
+        assert_eq!(router.select(&domain("ads.example.com")), &OutboundMode::Reject);
+        // The inner NOT excludes `safe` hosts -> falls to MATCH.
+        assert!(matches!(
+            router.select(&domain("safe.example.com")),
+            OutboundMode::Trojan(_)
+        ));
+        // Outside example.com the outer AND misses -> MATCH.
+        assert!(matches!(
+            router.select(&domain("ads.other.net")),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn logical_rule_with_unsupported_sub_rule_is_dropped() {
+        // `NETWORK` is not a matcher the kernel can evaluate, so the whole
+        // logical rule is dropped rather than silently ignoring that condition.
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - AND,((DOMAIN-SUFFIX,example.com),(NETWORK,UDP)),REJECT
+  - MATCH,PROXY
+"#;
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        // A host that would have matched the suffix is not rejected: the rule
+        // was dropped, so it falls through to MATCH (PROXY -> node-a).
+        assert!(matches!(
+            router.select(&domain("ads.example.com")),
+            OutboundMode::Trojan(_)
+        ));
+    }
+
+    #[test]
+    fn logical_rule_with_geo_sub_rule_needs_local_data() {
+        let yaml = r#"
+mode: rule
+proxies:
+  - { name: node-a, type: trojan, server: a.example, port: 443, password: pa }
+proxy-groups:
+  - { name: PROXY, type: select, proxies: [node-a, DIRECT] }
+rules:
+  - OR,((GEOIP,cn),(DOMAIN-SUFFIX,example.com)),DIRECT
+  - MATCH,PROXY
+"#;
+        // Without geo data the GEOIP sub-rule cannot be built, so the whole
+        // logical rule is dropped: even the example.com branch falls to MATCH.
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), no_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert!(matches!(
+            router.select(&domain("www.example.com")),
+            OutboundMode::Trojan(_)
+        ));
+
+        // With geo data present both branches route DIRECT.
+        let mode = routed_outbound(&cfg(yaml), &HashMap::new(), fake_geo(), no_rule_sets());
+        let OutboundMode::Routed(router) = mode else {
+            panic!("expected Routed, got {mode:?}");
+        };
+        assert_eq!(router.select(&domain("www.example.com")), &OutboundMode::Direct);
+        assert_eq!(router.select(&ip("1.2.3.4:80")), &OutboundMode::Direct);
     }
 
     #[test]
