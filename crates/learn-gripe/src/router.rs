@@ -96,8 +96,25 @@ pub enum RuleMatcher {
         name: String,
         provider: Arc<dyn RuleSetLookup>,
     },
+    /// Combines its sub-matchers with a boolean operator, letting one rule mix
+    /// the other predicates (`AND((DOMAIN-SUFFIX,example.com),(IP-CIDR,10.0.0.0/8))`).
+    /// `And` matches when every sub-matcher matches, `Or` when any does, and
+    /// `Not` when its single sub-matcher does not. Sub-matchers may themselves
+    /// be logical, so the tree nests arbitrarily.
+    Logical { op: LogicalOp, subs: Vec<RuleMatcher> },
     /// Catch-all: matches every target.
     Match,
+}
+
+/// Boolean operator for a [`RuleMatcher::Logical`] matcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogicalOp {
+    /// Every sub-matcher must match.
+    And,
+    /// At least one sub-matcher must match.
+    Or,
+    /// The single sub-matcher must not match.
+    Not,
 }
 
 impl fmt::Debug for RuleMatcher {
@@ -111,6 +128,7 @@ impl fmt::Debug for RuleMatcher {
             RuleMatcher::GeoSite { code, .. } => f.debug_struct("GeoSite").field("code", code).finish_non_exhaustive(),
             RuleMatcher::Asn { asn, .. } => f.debug_struct("Asn").field("asn", asn).finish_non_exhaustive(),
             RuleMatcher::RuleSet { name, .. } => f.debug_struct("RuleSet").field("name", name).finish_non_exhaustive(),
+            RuleMatcher::Logical { op, subs } => f.debug_struct("Logical").field("op", op).field("subs", subs).finish(),
             RuleMatcher::Match => f.write_str("Match"),
         }
     }
@@ -134,6 +152,9 @@ impl PartialEq for RuleMatcher {
             }
             (RuleMatcher::RuleSet { name: a, provider: pa }, RuleMatcher::RuleSet { name: b, provider: pb }) => {
                 a == b && Arc::ptr_eq(pa, pb)
+            }
+            (RuleMatcher::Logical { op: oa, subs: sa }, RuleMatcher::Logical { op: ob, subs: sb }) => {
+                oa == ob && sa == sb
             }
             (RuleMatcher::Match, RuleMatcher::Match) => true,
             _ => false,
@@ -179,6 +200,13 @@ impl RuleMatcher {
                 TargetAddr::Domain(_, _) => false,
             },
             RuleMatcher::RuleSet { name, provider } => provider.rule_set_matches(name, target),
+            RuleMatcher::Logical { op, subs } => match op {
+                LogicalOp::And => subs.iter().all(|m| m.matches(target)),
+                LogicalOp::Or => subs.iter().any(|m| m.matches(target)),
+                // Built only with exactly one sub-matcher (see the parser), so
+                // negating "any matches" negates that single sub-matcher.
+                LogicalOp::Not => !subs.iter().any(|m| m.matches(target)),
+            },
             RuleMatcher::Match => true,
         }
     }
@@ -197,6 +225,11 @@ impl RuleMatcher {
             RuleMatcher::GeoSite { .. } => "GeoSite",
             RuleMatcher::Asn { .. } => "IPASN",
             RuleMatcher::RuleSet { .. } => "RuleSet",
+            RuleMatcher::Logical { op, .. } => match op {
+                LogicalOp::And => "AND",
+                LogicalOp::Or => "OR",
+                LogicalOp::Not => "NOT",
+            },
             RuleMatcher::Match => "Match",
         }
     }
@@ -213,6 +246,9 @@ impl RuleMatcher {
             RuleMatcher::GeoSite { code, .. } => code.clone(),
             RuleMatcher::Asn { asn, .. } => asn.to_string(),
             RuleMatcher::RuleSet { name, .. } => name.clone(),
+            // The sub-rule expression is parsed away into the matcher tree and
+            // not retained verbatim, so a logical matcher has no flat payload.
+            RuleMatcher::Logical { .. } => String::new(),
             RuleMatcher::Match => String::new(),
         }
     }
@@ -749,6 +785,135 @@ mod tests {
         assert!(matches!(router.select(&ipv4(1, 0, 0, 1)), OutboundMode::Reject));
         assert!(matches!(
             router.select(&domain("good.example")),
+            OutboundMode::Socks5Upstream { .. }
+        ));
+    }
+
+    #[test]
+    fn logical_and_requires_every_sub_matcher() {
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::DomainKeyword("ads".to_string()),
+            ],
+        };
+        // Both sub-matchers hit.
+        assert!(m.matches(&domain("ads.example.com")));
+        // Only the suffix hits.
+        assert!(!m.matches(&domain("www.example.com")));
+        // Only the keyword hits (different apex).
+        assert!(!m.matches(&domain("ads.other.net")));
+    }
+
+    #[test]
+    fn logical_or_needs_any_sub_matcher() {
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::Or,
+            subs: vec![
+                RuleMatcher::DomainSuffix("example.com".to_string()),
+                RuleMatcher::IpCidr(IpCidr::parse("10.0.0.0/8").unwrap()),
+            ],
+        };
+        // The domain branch matches a domain target...
+        assert!(m.matches(&domain("www.example.com")));
+        // ...and the CIDR branch matches an IP target.
+        assert!(m.matches(&ipv4(10, 1, 2, 3)));
+        // Neither branch matches.
+        assert!(!m.matches(&domain("other.net")));
+        assert!(!m.matches(&ipv4(8, 8, 8, 8)));
+    }
+
+    #[test]
+    fn logical_not_inverts_its_single_sub_matcher() {
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::Not,
+            subs: vec![RuleMatcher::DomainSuffix("example.com".to_string())],
+        };
+        assert!(!m.matches(&domain("www.example.com")));
+        assert!(m.matches(&domain("other.net")));
+        // A domain matcher never matches an IP target, so NOT of it does.
+        assert!(m.matches(&ipv4(8, 8, 8, 8)));
+    }
+
+    #[test]
+    fn logical_matchers_nest() {
+        // OR( AND(suffix example.com, keyword ads), NOT(suffix example.com) )
+        let m = RuleMatcher::Logical {
+            op: LogicalOp::Or,
+            subs: vec![
+                RuleMatcher::Logical {
+                    op: LogicalOp::And,
+                    subs: vec![
+                        RuleMatcher::DomainSuffix("example.com".to_string()),
+                        RuleMatcher::DomainKeyword("ads".to_string()),
+                    ],
+                },
+                RuleMatcher::Logical {
+                    op: LogicalOp::Not,
+                    subs: vec![RuleMatcher::DomainSuffix("example.com".to_string())],
+                },
+            ],
+        };
+        // Inner AND hits.
+        assert!(m.matches(&domain("ads.example.com")));
+        // Inner AND misses but NOT(example.com) hits.
+        assert!(m.matches(&domain("foo.net")));
+        // Under example.com without the keyword: AND misses and NOT misses.
+        assert!(!m.matches(&domain("www.example.com")));
+    }
+
+    #[test]
+    fn logical_equality_compares_op_and_subs() {
+        let a = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![RuleMatcher::DomainSuffix("example.com".to_string())],
+        };
+        let same = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![RuleMatcher::DomainSuffix("example.com".to_string())],
+        };
+        let different_op = RuleMatcher::Logical {
+            op: LogicalOp::Or,
+            subs: vec![RuleMatcher::DomainSuffix("example.com".to_string())],
+        };
+        let different_subs = RuleMatcher::Logical {
+            op: LogicalOp::And,
+            subs: vec![RuleMatcher::DomainSuffix("other.net".to_string())],
+        };
+        assert_eq!(a, same);
+        assert_ne!(a, different_op);
+        assert_ne!(a, different_subs);
+    }
+
+    #[test]
+    fn router_routes_logical_rule() {
+        let mut outbounds = HashMap::new();
+        outbounds.insert(
+            "proxy".to_string(),
+            OutboundMode::Socks5Upstream {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+            },
+        );
+        // AND(suffix example.com, keyword ads) -> REJECT, else fallback proxy.
+        let rules = vec![Rule::new(
+            RuleMatcher::Logical {
+                op: LogicalOp::And,
+                subs: vec![
+                    RuleMatcher::DomainSuffix("example.com".to_string()),
+                    RuleMatcher::DomainKeyword("ads".to_string()),
+                ],
+            },
+            REJECT,
+        )];
+        let router = Router::new(outbounds, rules, "proxy").unwrap();
+
+        assert!(matches!(
+            router.select(&domain("ads.example.com")),
+            OutboundMode::Reject
+        ));
+        assert!(matches!(
+            router.select(&domain("www.example.com")),
             OutboundMode::Socks5Upstream { .. }
         ));
     }
