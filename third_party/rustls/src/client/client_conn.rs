@@ -290,6 +290,18 @@ pub struct ClientConfig {
 
     /// VLESS Reality protocol configuration. The default is None (disabled).
     pub(super) reality_config: Option<Arc<crate::client::reality::RealityConfig>>,
+
+    /// Override for the ClientHello extension-ordering seed.
+    ///
+    /// By default (`None`) rustls draws a fresh random seed for every
+    /// ClientHello, so the extension order — a prominent JA3 field — varies
+    /// connection-to-connection (anti-ossification). Setting a fixed seed pins
+    /// the extension order so it stays stable across connections, which is how
+    /// non-randomizing browsers (e.g. Firefox, Safari) actually behave. This is
+    /// the hook a uTLS-style `client-fingerprint` uses to shape extension
+    /// ordering; leaving it `None` preserves the randomized default for
+    /// fingerprints (e.g. Chromium) that reshuffle per ClientHello.
+    pub extension_order_seed: Option<u16>,
 }
 
 impl ClientConfig {

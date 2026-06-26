@@ -127,7 +127,13 @@ where
     };
 
     let random = Random::new(config.provider.secure_random)?;
-    let extension_order_seed = crate::rand::random_u16(config.provider.secure_random)?;
+    // A uTLS-style `client-fingerprint` may pin the extension order to mimic a
+    // specific browser; otherwise fall back to rustls's per-ClientHello random
+    // seed (anti-ossification).
+    let extension_order_seed = match config.extension_order_seed {
+        Some(seed) => seed,
+        None => crate::rand::random_u16(config.provider.secure_random)?,
+    };
 
     let hello = ClientHelloDetails::new(
         extra_exts
