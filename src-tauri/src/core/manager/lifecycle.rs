@@ -5,6 +5,7 @@ use crate::config::Config;
 use crate::core::geo_update;
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
+use crate::core::provider_update;
 use crate::core::rule_geodata::RuleGeoData;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
 use anyhow::{Context as _, Result, anyhow};
@@ -274,6 +275,46 @@ impl CoreManager {
             self.restart_core()
                 .await
                 .context("failed to reload kernel after geo update")?;
+        }
+        Ok(())
+    }
+
+    /// Refresh a proxy provider's local node list in process, then reload the
+    /// kernel so the new nodes take effect. Replaces the Mihomo controller
+    /// `/providers/proxies/{name}` update call: an HTTP provider is downloaded,
+    /// validated, and atomically swapped in; file/inline providers are no-ops.
+    pub async fn update_proxy_provider(&self, name: &str) -> Result<()> {
+        provider_update::update_proxy_provider(name).await?;
+        self.reload_after_provider_update().await
+    }
+
+    /// Refresh a rule provider's local file in process and reload the kernel so
+    /// the rule engine re-parses it. Replaces the Mihomo controller
+    /// `/providers/rules/{name}` update call.
+    pub async fn update_rule_provider(&self, name: &str) -> Result<()> {
+        provider_update::update_rule_provider(name).await?;
+        self.reload_after_provider_update().await
+    }
+
+    /// Probe every measurable node of a proxy provider in process and persist
+    /// the per-node delays. Replaces the Mihomo controller
+    /// `/providers/proxies/{name}/healthcheck` call; no reload is needed since
+    /// the snapshot reads the recorded delays directly.
+    pub async fn healthcheck_proxy_provider(&self, name: &str) -> Result<()> {
+        let probed = provider_update::healthcheck_proxy_provider(name).await?;
+        logging!(
+            info,
+            Type::Core,
+            "Health-checked {probed} node(s) in proxy provider {name:?}"
+        );
+        Ok(())
+    }
+
+    async fn reload_after_provider_update(&self) -> Result<()> {
+        if matches!(self.get_running_mode().as_ref(), RunningMode::Gripe) {
+            self.restart_core()
+                .await
+                .context("failed to reload kernel after provider update")?;
         }
         Ok(())
     }

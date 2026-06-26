@@ -31,6 +31,7 @@ pub mod mihomo_runtime_guard;
 pub mod native_config_validator;
 pub mod node_selection;
 mod notification;
+pub mod provider_update;
 pub mod residential_verification;
 pub mod rule_engine;
 pub mod rule_geodata;

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 use tauri_plugin_mihomo::models::{ConnectionId, CoreUpdaterChannel, LogLevel, ProxyDelay, TLSRotationResult};
 
-use crate::core::{CoreManager, handle::Handle, runtime_snapshot};
+use crate::core::{CoreManager, runtime_snapshot};
 
 /// Cadence at which the in-process live-connections stream re-pushes a snapshot
 /// to refresh live byte counts between structural changes, matching the former
@@ -74,7 +74,9 @@ pub async fn measure_runtime_group_delay(
 }
 
 pub async fn update_runtime_proxy_provider(provider_name: &str) -> Result<()> {
-    let result = Handle::mihomo().await.update_proxy_provider(provider_name).await;
+    // Refreshed in-process (download + validate + atomic replace + reload),
+    // replacing the Mihomo controller `/providers/proxies/{name}` update call.
+    let result = CoreManager::global().update_proxy_provider(provider_name).await;
     record_runtime_bridge_result(
         "update-runtime-proxy-provider",
         result.as_ref().map(|_| ()),
@@ -90,7 +92,9 @@ pub async fn update_runtime_proxy_provider(provider_name: &str) -> Result<()> {
 }
 
 pub async fn healthcheck_runtime_proxy_provider(provider_name: &str) -> Result<()> {
-    let result = Handle::mihomo().await.healthcheck_proxy_provider(provider_name).await;
+    // Probed in-process by dialing each provider node, replacing the Mihomo
+    // controller `/providers/proxies/{name}/healthcheck` call.
+    let result = CoreManager::global().healthcheck_proxy_provider(provider_name).await;
     record_runtime_bridge_result(
         "healthcheck-runtime-proxy-provider",
         result.as_ref().map(|_| ()),
@@ -106,7 +110,9 @@ pub async fn healthcheck_runtime_proxy_provider(provider_name: &str) -> Result<(
 }
 
 pub async fn update_runtime_rule_provider(provider_name: &str) -> Result<()> {
-    let result = Handle::mihomo().await.update_rule_provider(provider_name).await;
+    // Refreshed in-process, replacing the Mihomo controller
+    // `/providers/rules/{name}` update call.
+    let result = CoreManager::global().update_rule_provider(provider_name).await;
     record_runtime_bridge_result(
         "update-runtime-rule-provider",
         result.as_ref().map(|_| ()),
