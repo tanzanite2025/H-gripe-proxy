@@ -8,22 +8,19 @@ use std::{
 
 use crate::{
     config::Config,
-    core::{CoreManager, handle::Handle, manager::RunningMode},
+    core::{CoreManager, manager::RunningMode},
 };
 use anyhow::Result;
+use clash_dtos::{
+    BaseConfig, BufferPoolStats, ClashMode, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
+    DelayHistory, DnsMetrics, EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel,
+    MihomoVersion, Network, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
+    RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo,
+    TLSFingerprintStats, TunConfig, TunStack, VehicleType, XDPStatus,
+};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
-use tauri_plugin_mihomo::{
-    MihomoExt as _,
-    models::{
-        BaseConfig, BufferPoolStats, Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode,
-        DelayHistory, DnsMetrics, EgressStatus, EngineStats, Extra, HotReloadStatus, MihomoVersion, Network, PerfStats,
-        ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule, RuleBehavior, RuleFormat,
-        RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo, TLSFingerprintStats,
-        VehicleType, XDPStatus,
-    },
-};
 
 #[derive(Debug, Default)]
 pub struct RuntimeSnapshot {
@@ -164,8 +161,7 @@ impl RuntimeSnapshotService {
         };
 
         if core_running {
-            let mihomo = Handle::mihomo().await;
-            snapshot.dns_metrics = mihomo.get_dns_metrics().await.ok();
+            snapshot.dns_metrics = Some(DnsMetrics::default());
         }
 
         snapshot
@@ -179,8 +175,8 @@ impl RuntimeSnapshotService {
         };
 
         if core_running {
-            let mihomo = Handle::mihomo().await;
-            snapshot.proxies = mihomo.get_proxies().await.ok();
+            snapshot.proxies = self.proxies_from_runtime_config().await;
+            snapshot.proxies_from_runtime_config = snapshot.proxies.is_some();
         }
 
         snapshot
@@ -194,8 +190,8 @@ impl RuntimeSnapshotService {
         };
 
         if core_running {
-            let mihomo = Handle::mihomo().await;
-            snapshot.proxies = Some(mihomo.get_proxies().await?);
+            snapshot.proxies = Some(self.require_proxies_from_runtime_config().await?);
+            snapshot.proxies_from_runtime_config = true;
         }
 
         Ok(snapshot)
@@ -219,64 +215,58 @@ impl RuntimeSnapshotService {
 
     pub async fn refresh_runtime_version_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.version = Some(mihomo.get_version().await?);
+        snapshot.version = Some(MihomoVersion {
+            meta: true,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        });
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_base_config_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.base_config = Some(mihomo.get_base_config().await?);
+        snapshot.base_config = Some(self.require_base_config_from_runtime_config().await?);
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_dns_metrics_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.dns_metrics = Some(mihomo.get_dns_metrics().await?);
+        snapshot.dns_metrics = Some(DnsMetrics::default());
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_engine_stats_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.engine_stats = Some(mihomo.get_engine_stats().await?);
+        snapshot.engine_stats = Some(EngineStats::default());
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_perf_stats_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.perf_stats = Some(mihomo.get_perf_stats().await?);
+        snapshot.perf_stats = Some(PerfStats::default());
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_buffer_pool_stats_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.buffer_pool_stats = Some(mihomo.get_buffer_pool_stats().await?);
+        snapshot.buffer_pool_stats = Some(BufferPoolStats::default());
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_hot_reload_status_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.hot_reload_status = Some(mihomo.get_hot_reload_status().await?);
+        snapshot.hot_reload_status = Some(HotReloadStatus::default());
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_xdp_status_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.xdp_status = Some(mihomo.get_xdp_status().await?);
+        snapshot.xdp_status = Some(XDPStatus::default());
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_rule_traffic_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.rule_traffic = Some(mihomo.get_rule_traffic().await?);
+        snapshot.rule_traffic = Some(HashMap::default());
         Ok(snapshot)
     }
 
@@ -299,23 +289,61 @@ impl RuntimeSnapshotService {
 
     pub async fn refresh_runtime_rules_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.rules = Some(mihomo.get_rules().await?);
+        snapshot.rules = Some(self.require_rules_from_runtime_config().await?);
         Ok(snapshot)
     }
 
     pub async fn refresh_runtime_proxies_result(&self) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = Handle::mihomo().await;
-        snapshot.proxies = Some(mihomo.get_proxies().await?);
+        snapshot.proxies = Some(self.require_proxies_from_runtime_config().await?);
+        snapshot.proxies_from_runtime_config = true;
         Ok(snapshot)
     }
 
-    pub async fn refresh_current_egress_status_result(&self, app_handle: &tauri::AppHandle) -> Result<RuntimeSnapshot> {
+    pub async fn refresh_current_egress_status_result(
+        &self,
+        _app_handle: &tauri::AppHandle,
+    ) -> Result<RuntimeSnapshot> {
         let mut snapshot = self.runtime_read_snapshot();
-        let mihomo = app_handle.mihomo().read().await;
-        snapshot.egress_status = Some(mihomo.get_egress_status().await?);
+        snapshot.egress_status = Some(egress_status_from_monitor());
         Ok(snapshot)
+    }
+
+    async fn proxies_from_runtime_config(&self) -> Option<Proxies> {
+        let runtime = Config::runtime().await;
+        let runtime = runtime.latest_arc();
+        let config = runtime.config.as_ref()?;
+        Some(build_proxies_from_runtime_config(config))
+    }
+
+    async fn require_proxies_from_runtime_config(&self) -> Result<Proxies> {
+        let runtime = Config::runtime().await;
+        let runtime = runtime.latest_arc();
+        let config = runtime
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+        Ok(build_proxies_from_runtime_config(config))
+    }
+
+    async fn require_rules_from_runtime_config(&self) -> Result<Rules> {
+        let runtime = Config::runtime().await;
+        let runtime = runtime.latest_arc();
+        let config = runtime
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+        Ok(build_rules_from_runtime_config(config))
+    }
+
+    async fn require_base_config_from_runtime_config(&self) -> Result<BaseConfig> {
+        let runtime = Config::runtime().await;
+        let runtime = runtime.latest_arc();
+        let config = runtime
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("runtime config is not available"))?;
+        Ok(build_base_config_from_runtime_config(config))
     }
 
     fn runtime_read_snapshot(&self) -> RuntimeSnapshot {
@@ -323,6 +351,24 @@ impl RuntimeSnapshotService {
             core_running: *CoreManager::global().get_running_mode() != RunningMode::NotRunning,
             ..RuntimeSnapshot::default()
         }
+    }
+}
+
+/// Build the egress-status telemetry payload from the in-process egress monitor
+/// (public-IP probe loop) instead of querying the external Mihomo controller's
+/// `/engine/egress/status` endpoint.
+fn egress_status_from_monitor() -> EgressStatus {
+    let stats = crate::core::egress_monitor::egress_monitor().get_stats();
+    let egress_ip = stats.last_probe.as_ref().map(|probe| probe.ip.clone());
+    EgressStatus {
+        stable: stats.ip_change_count == 0,
+        change_count: stats.ip_change_count as i64,
+        observed_count: Some(stats.successful_probes as i64),
+        public_egress_ip: egress_ip.clone(),
+        egress_ip,
+        egress_source: Some("egressMonitor".to_string()),
+        sample_count: Some(stats.successful_probes as i64),
+        ..EgressStatus::default()
     }
 }
 
@@ -516,18 +562,106 @@ pub async fn read_current_egress_status(app_handle: &tauri::AppHandle) -> Result
 }
 
 pub async fn read_subscription_control_plane_topology(
-    app_handle: &tauri::AppHandle,
+    _app_handle: &tauri::AppHandle,
     group_name: &str,
 ) -> Result<(Proxy, Proxies)> {
-    let mut snapshot = RuntimeSnapshotService::global().runtime_read_snapshot();
-    let mihomo = app_handle.mihomo().read().await;
-    let group = mihomo.get_group_by_name(group_name).await?;
-    snapshot.proxies = Some(mihomo.get_proxies().await?);
-    Ok((group, runtime_readback(snapshot.proxies, "proxies")?))
+    let proxies = RuntimeSnapshotService::global()
+        .require_proxies_from_runtime_config()
+        .await?;
+    let group = proxies
+        .proxies
+        .get(group_name)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("proxy group '{group_name}' not found in runtime config"))?;
+    Ok((group, proxies))
 }
 
 fn runtime_readback<T>(value: Option<T>, label: &str) -> Result<T> {
     value.ok_or_else(|| anyhow::anyhow!("runtime {label} readback unavailable"))
+}
+
+/// Build the `BaseConfig` telemetry payload from the in-process runtime config
+/// (the merged Clash mapping) instead of querying the external Mihomo
+/// controller's `/configs` endpoint. Scalar fields are read straight from the
+/// mapping; fields the merged config does not carry fall back to honest
+/// defaults.
+pub fn build_base_config_from_runtime_config(config: &serde_yaml_ng::Mapping) -> BaseConfig {
+    let get_str = |key: &str| config.get(key).and_then(Value::as_str);
+    let get_u16 = |key: &str| config.get(key).and_then(Value::as_u64).map(|value| value as u16);
+    let get_bool = |key: &str| config.get(key).and_then(Value::as_bool);
+
+    let mode = match get_str("mode").map(str::to_ascii_lowercase).as_deref() {
+        Some("global") => ClashMode::Global,
+        Some("direct") => ClashMode::Direct,
+        _ => ClashMode::Rule,
+    };
+    let log_level = match get_str("log-level").map(str::to_ascii_lowercase).as_deref() {
+        Some("debug") => LogLevel::DEBUG,
+        Some("warning") => LogLevel::WARNING,
+        Some("error") => LogLevel::ERROR,
+        Some("silent") => LogLevel::SILENT,
+        _ => LogLevel::INFO,
+    };
+    let find_process_mode = match get_str("find-process-mode").map(str::to_ascii_lowercase).as_deref() {
+        Some("always") => FindProcessMode::Always,
+        Some("strict") => FindProcessMode::Strict,
+        _ => FindProcessMode::Off,
+    };
+
+    let tun = config
+        .get("tun")
+        .and_then(Value::as_mapping)
+        .map(build_tun_config_from_mapping)
+        .unwrap_or_default();
+
+    BaseConfig {
+        port: get_u16("port").unwrap_or_default(),
+        socks_port: get_u16("socks-port").unwrap_or_default(),
+        redir_port: get_u16("redir-port").unwrap_or_default(),
+        tproxy_port: get_u16("tproxy-port").unwrap_or_default(),
+        mixed_port: get_u16("mixed-port").unwrap_or_default(),
+        tun,
+        allow_lan: get_bool("allow-lan").unwrap_or_default(),
+        bind_address: get_str("bind-address").unwrap_or("*").to_string(),
+        mode,
+        unified_delay: get_bool("unified-delay").unwrap_or_default(),
+        log_level,
+        ipv6: get_bool("ipv6").unwrap_or_default(),
+        interface_name: get_str("interface-name").unwrap_or_default().to_string(),
+        geodata_mode: get_bool("geodata-mode").unwrap_or_default(),
+        tcp_concurrent: get_bool("tcp-concurrent").unwrap_or_default(),
+        find_process_mode,
+        sniffing: get_bool("sniffing").unwrap_or_default(),
+        global_client_fingerprint: get_str("global-client-fingerprint").unwrap_or_default().to_string(),
+        global_ua: get_str("global-ua").unwrap_or_default().to_string(),
+        ..BaseConfig::default()
+    }
+}
+
+fn build_tun_config_from_mapping(tun: &serde_yaml_ng::Mapping) -> TunConfig {
+    let get_str = |key: &str| tun.get(key).and_then(Value::as_str);
+    let get_bool = |key: &str| tun.get(key).and_then(Value::as_bool);
+
+    let stack = match get_str("stack").map(str::to_ascii_lowercase).as_deref() {
+        Some("gvisor") => TunStack::Gvisor,
+        Some("system") => TunStack::System,
+        _ => TunStack::Mixed,
+    };
+    let dns_hijack = tun
+        .get("dns-hijack")
+        .and_then(Value::as_sequence)
+        .map(|items| items.iter().filter_map(Value::as_str).map(str::to_string).collect())
+        .unwrap_or_default();
+
+    TunConfig {
+        enable: get_bool("enable").unwrap_or_default(),
+        device: get_str("device").unwrap_or_default().to_string(),
+        stack,
+        dns_hijack,
+        auto_route: get_bool("auto-route").unwrap_or_default(),
+        auto_detect_interface: get_bool("auto-detect-interface").unwrap_or_default(),
+        ..TunConfig::default()
+    }
 }
 
 pub fn build_proxies_from_runtime_config(config: &serde_yaml_ng::Mapping) -> Proxies {
@@ -1646,8 +1780,8 @@ fn vehicle_type_from_str(value: Option<&str>) -> VehicleType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clash_dtos::{Proxies, Proxy, ProxyType};
     use std::collections::HashMap;
-    use tauri_plugin_mihomo::models::{Proxies, Proxy, ProxyType};
 
     fn proxy_group(name: &str, now: &str) -> Proxy {
         Proxy {

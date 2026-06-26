@@ -1,5 +1,5 @@
 use crate::core::runtime_snapshot::{RuntimeSnapshot, RuntimeSnapshotService};
-use tauri_plugin_mihomo::models::DnsMetrics;
+use clash_dtos::DnsMetrics;
 
 #[derive(Debug, Default)]
 pub struct DiagnosticsInput {

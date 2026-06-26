@@ -1,11 +1,11 @@
 use crate::core::{runtime_lifecycle, runtime_snapshot::read_runtime_connections};
 use anyhow::Result;
+use clash_dtos::{Connection, Connections};
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri_plugin_mihomo::models::{Connection, Connections};
 use tokio::sync::{RwLock, watch};
 
 /// Per-connection speed snapshot computed from two consecutive Mihomo snapshots.
@@ -263,7 +263,7 @@ pub async fn reset_connection_metrics() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tauri_plugin_mihomo::models::{Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode, Network};
+    use clash_dtos::{Connection, ConnectionMetaData, ConnectionType, Connections, DNSMode, Network};
 
     fn make_connection(id: &str, upload: u64, download: u64) -> Connection {
         Connection {

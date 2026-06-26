@@ -1,5 +1,3 @@
-import { Activity, RefreshCw } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   BufferPoolStats,
   EngineStats,
@@ -8,7 +6,9 @@ import type {
   RuleTrafficSnapshot,
   TLSFingerprintStats,
   XDPStatus,
-} from 'tauri-plugin-mihomo-api'
+} from 'clash-dtos'
+import { Activity, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/tailwind/Button'
 import { Card } from '@/components/tailwind/Card'

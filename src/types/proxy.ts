@@ -1,4 +1,4 @@
-import type { Proxy, ProxyProvider } from 'tauri-plugin-mihomo-api'
+import type { Proxy, ProxyProvider } from 'clash-dtos'
 
 type ProxyViewBase = Partial<
   Omit<Proxy, 'all' | 'history' | 'name' | 'type'>

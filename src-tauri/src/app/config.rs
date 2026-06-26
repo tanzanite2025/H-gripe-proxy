@@ -39,14 +39,6 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
             Config::clash().await.apply();
             let clash_data = Config::clash().await.data_arc();
             clash_data.save_config().await?;
-            if let Err(err) = handle::Handle::sync_mihomo_controller_state().await {
-                logging!(
-                    warn,
-                    Type::Config,
-                    "Failed to sync Mihomo controller state after clash config update: {}",
-                    err
-                );
-            }
             if !sensitive_keys.is_empty() {
                 crate::core::runtime_snapshot::record_and_persist_runtime_lifecycle_event(
                     LIFECYCLE_PATCH_SENSITIVE,
@@ -287,14 +279,6 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     }
     verge.apply();
     maybe_close_connections_after_route_change(current_verge.as_ref(), patch).await;
-    if let Err(err) = handle::Handle::sync_mihomo_controller_state().await {
-        logging!(
-            warn,
-            Type::Config,
-            "Failed to sync Mihomo controller state after verge config update: {}",
-            err
-        );
-    }
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
         let verge_data = Config::verge().await.data_arc();

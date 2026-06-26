@@ -82,7 +82,7 @@ impl Logger {
             #[cfg(not(feature = "tracing"))]
             filter_modules.push("tauri");
             #[cfg(feature = "tracing")]
-            filter_modules.extend(["tauri_plugin_mihomo", "kode_bridge"]);
+            filter_modules.push("kode_bridge");
             let logger = logger.filter(Box::new(crate::core::log_stream::CoreLogTap::new(Box::new(
                 clash_verge_logging::NoModuleFilter(filter_modules),
             ))));
@@ -119,8 +119,7 @@ impl Logger {
         spec.default(log_level);
         #[cfg(feature = "tracing")]
         spec.module("tauri", log::LevelFilter::Debug)
-            .module("wry", log::LevelFilter::Off)
-            .module("tauri_plugin_mihomo", log::LevelFilter::Off);
+            .module("wry", log::LevelFilter::Off);
         spec.build()
     }
 

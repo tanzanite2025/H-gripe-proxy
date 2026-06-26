@@ -1,0 +1,11 @@
+[package]
+name = "clash-dtos"
+version = "0.1.0"
+authors = ["clash-verge"]
+description = "Shared serde + ts-rs data-transfer types for clash-verge (runtime, telemetry, rules, connections, DNS, providers)"
+edition = "2024"
+exclude = ["/dist-js", "/guest-js", "/bindings", "/node_modules"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+ts-rs = "11.0"

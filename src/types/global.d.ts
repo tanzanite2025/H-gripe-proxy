@@ -166,7 +166,7 @@ interface ILogItem {
   payload: string
 }
 
-type LogLevel = import('tauri-plugin-mihomo-api').LogLevel
+type LogLevel = import('clash-dtos').LogLevel
 type LogFilter = 'all' | 'debug' | 'info' | 'warn' | 'err'
 type LogOrder = 'asc' | 'desc'
 

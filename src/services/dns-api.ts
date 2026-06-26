@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import type { DnsMetrics } from 'tauri-plugin-mihomo-api'
+import type { DnsMetrics } from 'clash-dtos'
 
 import {
   getRuntimeDnsMetrics,

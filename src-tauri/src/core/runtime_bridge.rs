@@ -1,11 +1,11 @@
 use anyhow::{Result, anyhow};
+use clash_dtos::{ConnectionId, CoreUpdaterChannel, LogLevel, ProxyDelay, TLSRotationResult};
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
-use tauri_plugin_mihomo::models::{ConnectionId, CoreUpdaterChannel, LogLevel, ProxyDelay, TLSRotationResult};
 
 use crate::core::{CoreManager, runtime_snapshot};
 

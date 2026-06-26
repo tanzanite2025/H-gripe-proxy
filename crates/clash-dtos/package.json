@@ -1,8 +1,8 @@
 {
-  "name": "tauri-plugin-mihomo-api",
-  "version": "0.1.5",
-  "author": "oomeow",
-  "description": "Generated Mihomo bindings and Rust-only Mihomo bridge",
+  "name": "clash-dtos",
+  "version": "0.1.0",
+  "author": "clash-verge",
+  "description": "Shared ts-rs generated data-transfer types for clash-verge",
   "type": "module",
   "types": "./dist-js/index.d.ts",
   "main": "./dist-js/index.cjs",

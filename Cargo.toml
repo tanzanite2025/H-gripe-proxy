@@ -8,6 +8,7 @@ members = [
   "crates/clash-verge-i18n",
   "crates/clash-verge-limiter",
   "crates/learn-gripe",
+  "crates/clash-dtos",
 ]
 exclude = [
   "crates/clash-verge-logger",
@@ -69,7 +70,7 @@ clash-verge-signal = { path = "crates/clash-verge-signal" }
 clash-verge-i18n = { path = "crates/clash-verge-i18n" }
 clash-verge-limiter = { path = "crates/clash-verge-limiter" }
 tauri-plugin-clash-verge-sysinfo = { path = "crates/tauri-plugin-clash-verge-sysinfo" }
-tauri-plugin-mihomo = { path = "crates/tauri-plugin-mihomo" }
+clash-dtos = { path = "crates/clash-dtos" }
 learn-gripe = { path = "crates/learn-gripe" }
 clash_verge_logger = { path = "crates/clash-verge-logger" }
 clash_verge_service_ipc = { path = "crates/clash-verge-service-ipc" }

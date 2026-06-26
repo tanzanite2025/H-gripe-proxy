@@ -1,4 +1,4 @@
-import type { Rule } from 'tauri-plugin-mihomo-api'
+import type { Rule } from 'clash-dtos'
 
 export interface RuleConflict {
   /** The rule that is shadowed (will never match) */

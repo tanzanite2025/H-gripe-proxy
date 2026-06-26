@@ -12,7 +12,7 @@ import type {
   TLSFingerprintStats,
   TLSRotationResult,
   XDPStatus,
-} from 'tauri-plugin-mihomo-api'
+} from 'clash-dtos'
 
 export async function getRuntimeVersion() {
   return invoke<MihomoVersion>('get_runtime_version')

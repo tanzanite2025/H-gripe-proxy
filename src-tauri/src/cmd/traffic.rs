@@ -6,7 +6,7 @@ use crate::{
     core::connection_metrics::ConnectionMetricsSnapshot,
     traffic::{ObfuscationProfile, ObfuscationStats, TrafficObfuscationConfig},
 };
-use tauri_plugin_mihomo::models::Connections;
+use clash_dtos::Connections;
 
 /// 应用混淆配置（供内部调用，委托 feat 层）
 pub async fn apply_traffic_obfuscation_config(config: TrafficObfuscationConfig) -> CmdResult<()> {

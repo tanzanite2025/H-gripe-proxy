@@ -59,7 +59,6 @@ use tauri::{AppHandle, Manager as _};
 #[cfg(target_os = "macos")]
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_deep_link::DeepLinkExt as _;
-use tauri_plugin_mihomo::RejectPolicy;
 
 pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
 /// Application initialization helper functions
@@ -77,8 +76,6 @@ mod app_init {
 
     /// Setup plugins for the Tauri builder
     pub fn setup_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-        let mihomo_protocol = tauri_plugin_mihomo::models::Protocol::LocalSocket;
-
         #[allow(unused_mut)]
         let mut builder = builder
             .plugin(tauri_plugin_clash_verge_sysinfo::init())
@@ -89,24 +86,7 @@ mod app_init {
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_deep_link::init())
-            .plugin(tauri_plugin_http::init())
-            .plugin(
-                tauri_plugin_mihomo::Builder::new()
-                    .protocol(mihomo_protocol)
-                    .external_host("127.0.0.1")
-                    .external_port(9097)
-                    .socket_path(crate::config::IClashTemp::guard_external_controller_ipc())
-                    .pool_config(
-                        tauri_plugin_mihomo::IpcPoolConfigBuilder::new()
-                            .min_connections(3)
-                            .max_connections(32)
-                            .idle_timeout(std::time::Duration::from_secs(60))
-                            .health_check_interval(std::time::Duration::from_secs(60))
-                            .reject_policy(RejectPolicy::Wait)
-                            .build(),
-                    )
-                    .build(),
-            );
+            .plugin(tauri_plugin_http::init());
 
         // Devtools plugin only in debug mode with feature tauri-dev
         // to avoid duplicated registering of logger since the devtools plugin also registers a logger
@@ -740,15 +720,6 @@ pub fn run() {
                 .expect("failed to set global app handle");
 
             resolve::init_work_dir_and_logger()?;
-
-            if let Err(err) = AsyncHandler::block_on(async { handle::Handle::sync_mihomo_controller_state().await }) {
-                logging!(
-                    warn,
-                    Type::Setup,
-                    "Failed to sync Mihomo controller state during setup: {}",
-                    err
-                );
-            }
 
             logging!(info, Type::Setup, "å¼€å§‹åº”ç”¨åˆå§‹åŒ–...");
             if let Err(e) = app_init::setup_autostart(app) {

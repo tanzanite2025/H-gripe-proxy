@@ -1,6 +1,6 @@
 use anyhow::Result;
+use clash_dtos::EgressStatus;
 use serde::{Deserialize, Serialize};
-use tauri_plugin_mihomo::models::EgressStatus;
 
 use crate::core::{ip_reputation::IpReputation, runtime_lifecycle, timezone_spoof::remember_observed_egress_region};
 
@@ -240,7 +240,7 @@ fn normalize_metadata_text(value: Option<&str>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tauri_plugin_mihomo::models::EgressStatus;
+    use clash_dtos::EgressStatus;
 
     #[test]
     fn test_non_empty_string_trims_blank_values() {

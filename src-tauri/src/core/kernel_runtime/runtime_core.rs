@@ -65,7 +65,7 @@ impl KernelRuntime for MihomoKernelRuntime {
             can_apply_with_rust_kernel: false,
             mihomo_fallback: true,
             facts: vec![
-                "MihomoKernelRuntime is the current adapter over CoreManager and tauri-plugin-mihomo".into(),
+                "MihomoKernelRuntime is the current adapter over CoreManager".into(),
                 "This preflight is read-only and does not start, stop, reload, or patch Mihomo".into(),
                 "Rust-native kernel apply remains blocked until shadow runtime evidence exists".into(),
             ],
@@ -671,7 +671,7 @@ fn shadow_components() -> Vec<KernelShadowComponent> {
     ]
 }
 
-fn kernel_rule_shadow_rule(rule: &tauri_plugin_mihomo::models::Rule) -> KernelRuleShadowRule {
+fn kernel_rule_shadow_rule(rule: &clash_dtos::Rule) -> KernelRuleShadowRule {
     KernelRuleShadowRule {
         index: rule.index,
         rule_type: format!("{:?}", rule.rule_type).into(),
@@ -704,7 +704,7 @@ fn rule_shadow_mismatch_reason(
 }
 
 fn proxy_type_counts(
-    proxies: &std::collections::HashMap<std::string::String, tauri_plugin_mihomo::models::Proxy>,
+    proxies: &std::collections::HashMap<std::string::String, clash_dtos::Proxy>,
 ) -> BTreeMap<String, usize> {
     let mut counts = BTreeMap::new();
     for proxy in proxies.values() {
@@ -713,7 +713,7 @@ fn proxy_type_counts(
     counts
 }
 
-fn proxy_type_label(proxy: &tauri_plugin_mihomo::models::Proxy) -> String {
+fn proxy_type_label(proxy: &clash_dtos::Proxy) -> String {
     format!("{:?}", proxy.proxy_type).into()
 }
 
@@ -722,7 +722,7 @@ fn increment_count(counts: &mut BTreeMap<String, usize>, key: String) {
 }
 
 fn connection_session_sample(
-    (sample_index, session): (usize, &tauri_plugin_mihomo::models::Connection),
+    (sample_index, session): (usize, &clash_dtos::Connection),
 ) -> KernelConnectionSessionSample {
     KernelConnectionSessionSample {
         sample_index,

@@ -62,7 +62,7 @@ pub struct DnsLeakTestResult {
     pub warnings: Vec<String>,
     pub recommendations: Vec<String>,
     pub dns_servers: Vec<DnsLeakServer>,
-    pub dns_metrics: Option<tauri_plugin_mihomo::models::DnsMetrics>,
+    pub dns_metrics: Option<clash_dtos::DnsMetrics>,
     pub dns_location: Option<String>,
     pub ip_location: String,
     pub location_match: bool,
