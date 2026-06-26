@@ -108,6 +108,19 @@ impl CoreManager {
         self.gripe.lock().await.as_ref().map(|handle| handle.connections())
     }
 
+    /// Subscribe to the running kernel's connection-table change signal. Returns
+    /// `None` when the kernel is not running. Drives the live-connections stream
+    /// (push a fresh snapshot on every membership change) and lets the stream
+    /// detect a stopped kernel (the receiver errors once the kernel is dropped).
+    /// Replaces the Mihomo controller `/connections` WebSocket subscription.
+    pub async fn watch_runtime_connections(&self) -> Option<tokio::sync::watch::Receiver<u64>> {
+        self.gripe
+            .lock()
+            .await
+            .as_ref()
+            .map(|handle| handle.watch_connections())
+    }
+
     /// Signal the kernel to close the connection with `id`. Returns `true` if it
     /// was live. Replaces the Mihomo controller `close_connection` call.
     pub async fn close_runtime_connection(&self, id: u64) -> bool {

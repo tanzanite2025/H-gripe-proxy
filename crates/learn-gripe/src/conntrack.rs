@@ -28,7 +28,7 @@ use std::task::{Context, Poll};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::sync::Notify;
+use tokio::sync::{Notify, watch};
 
 use crate::address::TargetAddr;
 use crate::config::OutboundMode;
@@ -150,9 +150,25 @@ struct RegistryInner {
 }
 
 /// Registry of live connections owned by a running kernel.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ConnRegistry {
     inner: Mutex<RegistryInner>,
+    /// Monotonic generation counter, bumped whenever the table's membership
+    /// changes (a connection registered or removed). Drives [`subscribe`] so the
+    /// live-connections stream can refresh on structural changes without
+    /// busy-polling. Byte-count-only changes are not signalled here (consumers
+    /// poll on an interval for those).
+    change: watch::Sender<u64>,
+}
+
+impl Default for ConnRegistry {
+    fn default() -> Self {
+        let (change, _) = watch::channel(0);
+        Self {
+            inner: Mutex::new(RegistryInner::default()),
+            change,
+        }
+    }
 }
 
 impl ConnRegistry {
@@ -182,6 +198,7 @@ impl ConnRegistry {
             );
             id
         };
+        self.bump_generation();
 
         TrackedConn {
             registry: self.clone(),
@@ -219,6 +236,16 @@ impl ConnRegistry {
         }
     }
 
+    /// Subscribe to structural changes of the table (a connection registered or
+    /// removed). The watched value is a monotonically increasing generation
+    /// counter; consumers await `changed()` to learn membership changed, then
+    /// re-[`snapshot`](Self::snapshot). The receiver's `changed()` resolves with
+    /// an error once the registry (and the kernel owning it) is dropped, which
+    /// the stream uses to detect a stopped kernel.
+    pub fn subscribe(&self) -> watch::Receiver<u64> {
+        self.change.subscribe()
+    }
+
     /// Number of live connections.
     pub fn len(&self) -> usize {
         self.inner.lock().unwrap().entries.len()
@@ -252,13 +279,28 @@ impl ConnRegistry {
 
     /// Remove a connection, rolling its final byte counts into the totals.
     fn deregister(&self, id: u64) {
-        let mut inner = self.inner.lock().unwrap();
-        if let Some(entry) = inner.entries.remove(&id) {
-            let upload = entry.upload.load(Ordering::Relaxed);
-            let download = entry.download.load(Ordering::Relaxed);
-            inner.closed_upload = inner.closed_upload.saturating_add(upload);
-            inner.closed_download = inner.closed_download.saturating_add(download);
+        let removed = {
+            let mut inner = self.inner.lock().unwrap();
+            match inner.entries.remove(&id) {
+                Some(entry) => {
+                    let upload = entry.upload.load(Ordering::Relaxed);
+                    let download = entry.download.load(Ordering::Relaxed);
+                    inner.closed_upload = inner.closed_upload.saturating_add(upload);
+                    inner.closed_download = inner.closed_download.saturating_add(download);
+                    true
+                }
+                None => false,
+            }
+        };
+        if removed {
+            self.bump_generation();
         }
+    }
+
+    /// Signal subscribers that the table's membership changed.
+    fn bump_generation(&self) {
+        self.change
+            .send_modify(|generation| *generation = generation.wrapping_add(1));
     }
 }
 
@@ -442,6 +484,28 @@ mod tests {
         assert!(!registry.close(9999));
         // Signalling does not remove the entry; the relay's guard does on drop.
         assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn subscribe_signals_register_and_deregister() {
+        let registry = Arc::new(ConnRegistry::default());
+        let mut rx = registry.subscribe();
+        assert!(!rx.has_changed().unwrap());
+
+        let conn = registry.register(meta("example.com"));
+        // Registering bumped the generation.
+        assert!(rx.has_changed().unwrap());
+        let after_register = *rx.borrow_and_update();
+        assert_ne!(after_register, 0);
+
+        // Byte-count changes do not bump the generation.
+        conn.upload().fetch_add(10, Ordering::Relaxed);
+        assert!(!rx.has_changed().unwrap());
+
+        drop(conn);
+        // Dropping (deregister) bumped it again.
+        assert!(rx.has_changed().unwrap());
+        assert_ne!(*rx.borrow(), after_register);
     }
 
     #[tokio::test]

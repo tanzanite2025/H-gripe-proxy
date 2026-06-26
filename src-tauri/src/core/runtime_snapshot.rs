@@ -328,7 +328,7 @@ impl RuntimeSnapshotService {
 /// data plane, so this replaces the former Mihomo controller `/connections`
 /// query. Fields the kernel does not track (process info, GeoIP/ASN, sniffing,
 /// DSCP) are left empty/default, as they were with no Mihomo controller.
-fn connections_from_kernel(table: learn_gripe::ConnTableSnapshot) -> Connections {
+pub(crate) fn connections_from_kernel(table: learn_gripe::ConnTableSnapshot) -> Connections {
     let connections = table.connections.into_iter().map(connection_from_kernel).collect();
     Connections {
         download_total: table.download_total,
