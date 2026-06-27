@@ -5,7 +5,7 @@ use crate::inbound::socks5;
 use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
-use crate::protocols::snell;
+use crate::protocols::snell::{self, SnellOutboundConfig};
 use crate::protocols::ssr::{self, SsrOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
@@ -87,6 +87,9 @@ pub enum UdpEgress {
     /// SSR seals each datagram with a per-packet stream cipher + protocol
     /// framing over a plain UDP socket (no obfs layer for UDP).
     Ssr(Box<SsrOutboundConfig>),
+    /// Snell carries datagrams over a `CommandUDP` UDP-over-TCP session (v3),
+    /// one AEAD chunk per packet on the shared shadowaead stream.
+    Snell(Box<SnellOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
@@ -108,7 +111,7 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::AnyTls(_)
             | OutboundMode::Ssr(_)
             | OutboundMode::Routed(_)
-    )
+    ) || matches!(mode, OutboundMode::Snell(config) if config.supports_udp())
 }
 
 /// Resolve the UDP egress for a datagram to `target` under `mode`, recursing
@@ -127,7 +130,9 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
         OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
         OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
-        // Snell UDP (CommandUDP packet framing) is not implemented yet; TCP only.
+        // Snell UDP (CommandUDP) is v3-only; v1/v2 carry TCP only, so drop UDP
+        // rather than mis-frame it.
+        OutboundMode::Snell(config) if config.supports_udp() => Some(UdpEgress::Snell(config.clone())),
         OutboundMode::Snell(_) => None,
         OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),
         OutboundMode::Routed(router) => {
@@ -153,6 +158,7 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         UdpEgress::Direct
         | UdpEgress::Shadowsocks(_)
         | UdpEgress::Ssr(_)
+        | UdpEgress::Snell(_)
         | UdpEgress::Hysteria2(_)
         | UdpEgress::Tuic(_) => {
             bail!("egress has no proxy tunnel")

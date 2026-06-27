@@ -18,11 +18,19 @@
 //!   first plaintext byte the server sends back is the command response
 //!   (`Tunnel(0)` = ok, `Error(2)` = `code | msg-len | msg`).
 //!
+//! UDP (`CommandUDP`) is carried over the same shadowaead chunk stream as TCP
+//! ([`SnellUdp`], v3 only): the handshake header becomes `0x01 | CommandUDP |
+//! clientID-len(0)` and every datagram is one AEAD chunk whose plaintext is
+//! `UDPForward(0x01) | addr | payload` (client->server) or `addr | payload`
+//! (server->client). One chunk == one datagram, so the AEAD boundary preserves
+//! packet boundaries.
+//!
 //! Scoped out for follow-up (kept explicit so traffic is never mis-framed):
-//! UDP (`CommandUDP` packet framing), session reuse / connection pooling, the
-//! v4/v5 connection types, and `obfs-opts` (http / tls simple-obfs).
+//! session reuse / connection pooling, the v4/v5 connection types, and
+//! `obfs-opts` (http / tls simple-obfs).
 
 use std::io;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll, ready};
 
@@ -32,8 +40,10 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use anyhow::{Context, Result, anyhow, bail};
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::ChaCha20Poly1305;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::sync::Mutex;
 
 use crate::address::TargetAddr;
 use crate::config::outbound_opts::ProxyEntry;
@@ -45,6 +55,14 @@ const SNELL_PROTO_BYTE: u8 = 1;
 const COMMAND_CONNECT: u8 = 1;
 /// Request command: open a reuse-capable TCP relay (sent for v2).
 const COMMAND_CONNECT_V2: u8 = 5;
+/// Request command: relay UDP datagrams (UDP-over-TCP). Requires protocol v3.
+const COMMAND_UDP: u8 = 6;
+/// Per-packet command byte the client prefixes to each forwarded datagram.
+const UDP_FORWARD: u8 = 1;
+/// Reply address type: the server's source address is IPv4 (`type | 4B | port`).
+const UDP_ADDR_IPV4: u8 = 4;
+/// Reply address type: the server's source address is IPv6 (`type | 16B | port`).
+const UDP_ADDR_IPV6: u8 = 6;
 /// Response command: the relay tunnel was established.
 const RESP_TUNNEL: u8 = 0;
 /// Response command: the server rejected the request (`code | len | msg`).
@@ -134,6 +152,12 @@ impl SnellOutboundConfig {
             COMMAND_CONNECT
         }
     }
+
+    /// Whether this outbound can carry UDP. Snell's `CommandUDP` framing is only
+    /// defined for protocol v3, so v1/v2 reject UDP rather than mis-frame it.
+    pub fn supports_udp(&self) -> bool {
+        self.version >= 3
+    }
 }
 
 /// Connect a Snell outbound to `target` and return a relay-ready stream. The
@@ -160,6 +184,210 @@ pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Resul
     stream.write_all(&header).await.context("snell: send request header")?;
 
     Ok(Box::new(stream))
+}
+
+/// A Snell UDP-over-TCP association (one per destination, mirroring the other
+/// UDP egresses' `connect` / `send` / `recv` shape). It runs over the same
+/// shadowaead chunk stream as TCP, but the handshake uses `CommandUDP` and each
+/// datagram is a single AEAD chunk so packet boundaries survive. The TCP stream
+/// is split so `send` and `recv` can run concurrently in the egress `select!`;
+/// each half guards its own cipher + counter nonce behind a mutex.
+pub struct SnellUdp {
+    /// The fixed destination sealed into every packet sent on this association.
+    target: TargetAddr,
+    /// The Snell PSK, used to derive the read subkey from the server's salt.
+    psk: Vec<u8>,
+    /// The AEAD cipher family (v3 => AES-128-GCM).
+    cipher: SnellCipher,
+    write: Mutex<UdpWriteSide>,
+    read: Mutex<UdpReadSide>,
+}
+
+struct UdpWriteSide {
+    writer: OwnedWriteHalf,
+    cipher: AeadCipher,
+    nonce: [u8; 12],
+}
+
+struct UdpReadSide {
+    reader: OwnedReadHalf,
+    /// Derived from the server's salt on the first `recv`; `None` until then.
+    cipher: Option<AeadCipher>,
+    nonce: [u8; 12],
+    salt_done: bool,
+}
+
+impl SnellUdp {
+    /// Open a Snell UDP association to `config.server` for datagrams destined to
+    /// `target`. Sends the client salt and the `CommandUDP` handshake header
+    /// (one AEAD chunk) before returning. Requires protocol v3.
+    pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<Self> {
+        if !config.supports_udp() {
+            bail!("snell udp: requires version 3 (got v{})", config.version);
+        }
+        let cipher = config.cipher();
+        let tcp = TcpStream::connect((config.server.as_str(), config.port))
+            .await
+            .with_context(|| format!("snell udp: connect {}:{}", config.server, config.port))?;
+        let (reader, mut writer) = tcp.into_split();
+
+        let mut salt = [0u8; SALT_LEN];
+        random_bytes(&mut salt);
+        writer.write_all(&salt).await.context("snell udp: send salt")?;
+
+        let subkey = snell_kdf(&config.psk, &salt, cipher.key_size());
+        let write_cipher = AeadCipher::new(cipher, &subkey)?;
+        let mut write_nonce = [0u8; 12];
+
+        // UDP handshake header: `proto(1) | CommandUDP | clientID-len(0)`; no
+        // host/port (every datagram carries its own address).
+        let header = [SNELL_PROTO_BYTE, COMMAND_UDP, 0];
+        write_packet_chunk(&mut writer, &write_cipher, &mut write_nonce, &header)
+            .await
+            .context("snell udp: send handshake header")?;
+
+        Ok(Self {
+            target: target.clone(),
+            psk: config.psk.clone(),
+            cipher,
+            write: Mutex::new(UdpWriteSide {
+                writer,
+                cipher: write_cipher,
+                nonce: write_nonce,
+            }),
+            read: Mutex::new(UdpReadSide {
+                reader,
+                cipher: None,
+                nonce: [0u8; 12],
+                salt_done: false,
+            }),
+        })
+    }
+
+    /// Seal `payload` as one datagram (`UDPForward | addr | payload`) and send it
+    /// to the server as a single AEAD chunk.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        let mut plain = Vec::with_capacity(1 + 1 + 16 + 2 + payload.len());
+        plain.push(UDP_FORWARD);
+        encode_udp_addr(&mut plain, &self.target)?;
+        plain.extend_from_slice(payload);
+        if plain.len() > MAX_CHUNK {
+            bail!(
+                "snell udp: packet too large for one chunk ({} > {MAX_CHUNK})",
+                plain.len()
+            );
+        }
+        let mut w = self.write.lock().await;
+        let UdpWriteSide { writer, cipher, nonce } = &mut *w;
+        write_packet_chunk(writer, cipher, nonce, &plain).await
+    }
+
+    /// Receive one reply datagram (one AEAD chunk), strip the server's source
+    /// address, and return the application payload.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        let mut r = self.read.lock().await;
+        if !r.salt_done {
+            let mut salt = [0u8; SALT_LEN];
+            r.reader.read_exact(&mut salt).await.context("snell udp: read salt")?;
+            let subkey = snell_kdf(&self.psk, &salt, self.cipher.key_size());
+            r.cipher = Some(AeadCipher::new(self.cipher, &subkey)?);
+            r.salt_done = true;
+        }
+        let UdpReadSide {
+            reader, cipher, nonce, ..
+        } = &mut *r;
+        let cipher = cipher.as_ref().ok_or_else(|| anyhow!("snell udp: read cipher unset"))?;
+        let plain = read_packet_chunk(reader, cipher, nonce).await?;
+        decode_udp_reply(&plain)
+    }
+}
+
+/// Seal `plaintext` as one length-prefixed AEAD chunk and write it (with a
+/// flush) to `writer`, advancing the counter nonce twice.
+async fn write_packet_chunk(
+    writer: &mut OwnedWriteHalf,
+    cipher: &AeadCipher,
+    nonce: &mut [u8; 12],
+    plaintext: &[u8],
+) -> Result<()> {
+    let len = u16::try_from(plaintext.len()).map_err(|_| anyhow!("snell udp: chunk too large"))?;
+    let sealed_len = cipher.seal(nonce, &len.to_be_bytes())?;
+    increment_nonce(nonce);
+    let sealed_payload = cipher.seal(nonce, plaintext)?;
+    increment_nonce(nonce);
+
+    let mut out = Vec::with_capacity(sealed_len.len() + sealed_payload.len());
+    out.extend_from_slice(&sealed_len);
+    out.extend_from_slice(&sealed_payload);
+    writer.write_all(&out).await.context("snell udp: write chunk")?;
+    writer.flush().await.context("snell udp: flush chunk")?;
+    Ok(())
+}
+
+/// Read exactly one length-prefixed AEAD chunk and return its plaintext,
+/// advancing the counter nonce twice.
+async fn read_packet_chunk(reader: &mut OwnedReadHalf, cipher: &AeadCipher, nonce: &mut [u8; 12]) -> Result<Vec<u8>> {
+    let mut sealed_len = [0u8; 2 + TAG_LEN];
+    reader
+        .read_exact(&mut sealed_len)
+        .await
+        .context("snell udp: read chunk length")?;
+    let len_plain = cipher.open(nonce, &sealed_len)?;
+    increment_nonce(nonce);
+    let clen = u16::from_be_bytes([len_plain[0], len_plain[1]]) as usize;
+    if clen == 0 || clen > MAX_CHUNK {
+        bail!("snell udp: invalid chunk length {clen}");
+    }
+    let mut sealed = vec![0u8; clen + TAG_LEN];
+    reader
+        .read_exact(&mut sealed)
+        .await
+        .context("snell udp: read chunk payload")?;
+    let plain = cipher.open(nonce, &sealed)?;
+    increment_nonce(nonce);
+    Ok(plain)
+}
+
+/// Encode a Snell UDP destination address into `buf`. The wire form differs from
+/// SOCKS5: a domain is `len(1) | host | port(2 BE)`; an IP is `0x00 | family |
+/// addr | port(2 BE)` where `family` is `4` (IPv4) or `6` (IPv6).
+fn encode_udp_addr(buf: &mut Vec<u8>, target: &TargetAddr) -> Result<()> {
+    match target {
+        TargetAddr::Domain(host, port) => {
+            let host_len = u8::try_from(host.len()).map_err(|_| anyhow!("snell udp: host longer than 255 bytes"))?;
+            buf.push(host_len);
+            buf.extend_from_slice(host.as_bytes());
+            buf.extend_from_slice(&port.to_be_bytes());
+        }
+        TargetAddr::Ip(SocketAddr::V4(addr)) => {
+            buf.push(0);
+            buf.push(UDP_ADDR_IPV4);
+            buf.extend_from_slice(&addr.ip().octets());
+            buf.extend_from_slice(&addr.port().to_be_bytes());
+        }
+        TargetAddr::Ip(SocketAddr::V6(addr)) => {
+            buf.push(0);
+            buf.push(UDP_ADDR_IPV6);
+            buf.extend_from_slice(&addr.ip().octets());
+            buf.extend_from_slice(&addr.port().to_be_bytes());
+        }
+    }
+    Ok(())
+}
+
+/// Strip the server's source address from a reply chunk and return the payload.
+/// Replies are `type | addr | payload` with `type` = `4` (IPv4) or `6` (IPv6).
+fn decode_udp_reply(plain: &[u8]) -> Result<Vec<u8>> {
+    let kind = *plain.first().ok_or_else(|| anyhow!("snell udp: empty reply"))?;
+    let payload_off = match kind {
+        UDP_ADDR_IPV4 => 1 + 4 + 2,
+        UDP_ADDR_IPV6 => 1 + 16 + 2,
+        other => bail!("snell udp: unexpected reply address type {other}"),
+    };
+    if plain.len() < payload_off {
+        bail!("snell udp: reply truncated");
+    }
+    Ok(plain[payload_off..].to_vec())
 }
 
 /// Build the Snell request header:
@@ -547,6 +775,56 @@ mod tests {
         expected.extend_from_slice(b"example.com");
         expected.extend_from_slice(&443u16.to_be_bytes());
         assert_eq!(header, expected);
+    }
+
+    #[test]
+    fn supports_udp_only_on_v3() {
+        let cfg = |v: u8| SnellOutboundConfig {
+            server: "h".into(),
+            port: 1,
+            psk: b"p".to_vec(),
+            version: v,
+        };
+        assert!(!cfg(1).supports_udp());
+        assert!(!cfg(2).supports_udp());
+        assert!(cfg(3).supports_udp());
+    }
+
+    #[test]
+    fn encodes_udp_addr_per_family() {
+        let mut domain = Vec::new();
+        encode_udp_addr(&mut domain, &TargetAddr::Domain("ex.com".into(), 443)).unwrap();
+        let mut expected = vec![6u8];
+        expected.extend_from_slice(b"ex.com");
+        expected.extend_from_slice(&443u16.to_be_bytes());
+        assert_eq!(domain, expected);
+
+        let mut v4 = Vec::new();
+        encode_udp_addr(&mut v4, &TargetAddr::Ip("1.2.3.4:443".parse().unwrap())).unwrap();
+        assert_eq!(v4, vec![0, 4, 1, 2, 3, 4, 0x01, 0xbb]);
+
+        let mut v6 = Vec::new();
+        encode_udp_addr(&mut v6, &TargetAddr::Ip("[::1]:53".parse().unwrap())).unwrap();
+        let mut expected_v6 = vec![0u8, 6];
+        expected_v6.extend_from_slice(&std::net::Ipv6Addr::LOCALHOST.octets());
+        expected_v6.extend_from_slice(&53u16.to_be_bytes());
+        assert_eq!(v6, expected_v6);
+    }
+
+    #[test]
+    fn decodes_udp_reply_strips_source_address() {
+        let mut v4 = vec![UDP_ADDR_IPV4, 9, 9, 9, 9, 0x00, 0x35];
+        v4.extend_from_slice(b"payload");
+        assert_eq!(decode_udp_reply(&v4).unwrap(), b"payload");
+
+        let mut v6 = vec![UDP_ADDR_IPV6];
+        v6.extend_from_slice(&std::net::Ipv6Addr::LOCALHOST.octets());
+        v6.extend_from_slice(&53u16.to_be_bytes());
+        v6.extend_from_slice(b"reply6");
+        assert_eq!(decode_udp_reply(&v6).unwrap(), b"reply6");
+
+        assert!(decode_udp_reply(&[0x03, 1, 2, 3]).is_err());
+        assert!(decode_udp_reply(&[]).is_err());
     }
 
     #[test]
