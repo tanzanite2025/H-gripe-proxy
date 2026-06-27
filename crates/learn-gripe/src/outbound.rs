@@ -6,7 +6,7 @@ use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell;
-use crate::protocols::ssr;
+use crate::protocols::ssr::{self, SsrOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
@@ -84,6 +84,9 @@ pub enum UdpEgress {
     Tuic(Box<TuicOutboundConfig>),
     /// AnyTLS carries datagrams over a udp-over-tcp v2 session stream.
     AnyTls(Box<AnyTlsOutboundConfig>),
+    /// SSR seals each datagram with a per-packet stream cipher + protocol
+    /// framing over a plain UDP socket (no obfs layer for UDP).
+    Ssr(Box<SsrOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
@@ -103,6 +106,7 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::Tuic(_)
             | OutboundMode::Hysteria2(_)
             | OutboundMode::AnyTls(_)
+            | OutboundMode::Ssr(_)
             | OutboundMode::Routed(_)
     )
 }
@@ -125,8 +129,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
         // Snell UDP (CommandUDP packet framing) is not implemented yet; TCP only.
         OutboundMode::Snell(_) => None,
-        // SSR is TCP-only in this implementation.
-        OutboundMode::Ssr(_) => None,
+        OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
@@ -145,9 +148,13 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         UdpEgress::Vless(config) => vless::connect_udp(config, target).await,
         UdpEgress::Vmess(config) => vmess::connect_udp(config, target).await,
         UdpEgress::AnyTls(config) => anytls::connect_udp(config, target).await,
-        // Direct/Shadowsocks relay over a UDP socket and Hysteria2/TUIC over QUIC
-        // datagrams, none of which is a proxy stream.
-        UdpEgress::Direct | UdpEgress::Shadowsocks(_) | UdpEgress::Hysteria2(_) | UdpEgress::Tuic(_) => {
+        // Direct/Shadowsocks/SSR relay over a UDP socket and Hysteria2/TUIC over
+        // QUIC datagrams, none of which is a proxy stream.
+        UdpEgress::Direct
+        | UdpEgress::Shadowsocks(_)
+        | UdpEgress::Ssr(_)
+        | UdpEgress::Hysteria2(_)
+        | UdpEgress::Tuic(_) => {
             bail!("egress has no proxy tunnel")
         }
     }
