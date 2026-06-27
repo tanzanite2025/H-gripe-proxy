@@ -40,14 +40,14 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use anyhow::{Context, Result, anyhow, bail};
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::ChaCha20Poly1305;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::Mutex;
 
 use crate::address::TargetAddr;
-use crate::config::outbound_opts::ProxyEntry;
+use crate::config::outbound_opts::{ObfsOpts, ProxyEntry};
 use crate::outbound::BoxedStream;
+use crate::transport::simple_obfs;
 
 /// Snell protocol byte that prefixes every client request header (constant 1).
 const SNELL_PROTO_BYTE: u8 = 1;
@@ -93,6 +93,51 @@ impl SnellCipher {
     }
 }
 
+/// simple-obfs (`obfs-opts`) transport that wraps the Snell shadowaead stream,
+/// disguising it as innocuous HTTP or TLS 1.2 traffic. The framing is the same
+/// one-shot-header simple-obfs the Shadowsocks plugin uses, applied beneath the
+/// AEAD layer so it covers both TCP and UDP-over-TCP.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SnellObfs {
+    /// http mode: a fake WebSocket-upgrade request; `host`/`path` populate it.
+    Http { host: String, path: String },
+    /// tls mode: a fake TLS 1.2 handshake; `host` is sent as the SNI.
+    Tls { host: String },
+}
+
+impl SnellObfs {
+    /// Resolve `obfs-opts` into an obfs transport, or `None` when unset.
+    /// Unknown modes are rejected so traffic is never silently mis-framed.
+    fn parse(opts: Option<&ObfsOpts>) -> Result<Option<Self>> {
+        let opts = match opts {
+            None => return Ok(None),
+            Some(o) => o,
+        };
+        let host = opts
+            .host
+            .clone()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "bing.com".to_string());
+        match opts.mode.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            None => Ok(None),
+            Some("http") => Ok(Some(SnellObfs::Http {
+                host,
+                path: "/".to_string(),
+            })),
+            Some("tls") => Ok(Some(SnellObfs::Tls { host })),
+            Some(other) => bail!("snell: unknown obfs mode {other:?} (use http or tls)"),
+        }
+    }
+
+    /// Wrap an established TCP stream in the obfs framing.
+    async fn wrap(&self, tcp: TcpStream) -> Result<BoxedStream> {
+        match self {
+            SnellObfs::Http { host, path } => Ok(Box::new(simple_obfs::connect_http(tcp, host, path).await?)),
+            SnellObfs::Tls { host } => Ok(Box::new(simple_obfs::connect_tls(tcp, host).await?)),
+        }
+    }
+}
+
 /// Fully-resolved Snell outbound parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnellOutboundConfig {
@@ -102,6 +147,8 @@ pub struct SnellOutboundConfig {
     pub psk: Vec<u8>,
     /// Protocol version (1, 2 or 3).
     pub version: u8,
+    /// simple-obfs transport (`obfs-opts`), if any. `None` dials the raw socket.
+    pub obfs: Option<SnellObfs>,
 }
 
 impl SnellOutboundConfig {
@@ -128,11 +175,13 @@ impl SnellOutboundConfig {
             v @ 1..=3 => v as u8,
             other => bail!("snell: version {other} not supported (use 1, 2 or 3)"),
         };
+        let obfs = SnellObfs::parse(opts.obfs_opts.as_ref())?;
         Ok(Self {
             server,
             port,
             psk,
             version,
+            obfs,
         })
     }
 
@@ -164,11 +213,7 @@ impl SnellOutboundConfig {
 /// salt and the AEAD-sealed request header are sent before the stream is handed
 /// back; the server's command response is consumed transparently on first read.
 pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let mut transport: BoxedStream = Box::new(
-        TcpStream::connect((config.server.as_str(), config.port))
-            .await
-            .with_context(|| format!("snell: connect {}:{}", config.server, config.port))?,
-    );
+    let mut transport = connect_transport(config).await?;
 
     let cipher = config.cipher();
     let mut salt = [0u8; SALT_LEN];
@@ -184,6 +229,21 @@ pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Resul
     stream.write_all(&header).await.context("snell: send request header")?;
 
     Ok(Box::new(stream))
+}
+
+/// Dial `config.server:port` and wrap the socket in the configured simple-obfs
+/// transport (if any), returning the byte stream the shadowaead layer runs over.
+async fn connect_transport(config: &SnellOutboundConfig) -> Result<BoxedStream> {
+    let tcp = TcpStream::connect((config.server.as_str(), config.port))
+        .await
+        .with_context(|| format!("snell: connect {}:{}", config.server, config.port))?;
+    match &config.obfs {
+        None => Ok(Box::new(tcp)),
+        Some(obfs) => obfs
+            .wrap(tcp)
+            .await
+            .with_context(|| format!("snell: obfs connect {}:{}", config.server, config.port)),
+    }
 }
 
 /// A Snell UDP-over-TCP association (one per destination, mirroring the other
@@ -204,13 +264,13 @@ pub struct SnellUdp {
 }
 
 struct UdpWriteSide {
-    writer: OwnedWriteHalf,
+    writer: WriteHalf<BoxedStream>,
     cipher: AeadCipher,
     nonce: [u8; 12],
 }
 
 struct UdpReadSide {
-    reader: OwnedReadHalf,
+    reader: ReadHalf<BoxedStream>,
     /// Derived from the server's salt on the first `recv`; `None` until then.
     cipher: Option<AeadCipher>,
     nonce: [u8; 12],
@@ -226,10 +286,8 @@ impl SnellUdp {
             bail!("snell udp: requires version 3 (got v{})", config.version);
         }
         let cipher = config.cipher();
-        let tcp = TcpStream::connect((config.server.as_str(), config.port))
-            .await
-            .with_context(|| format!("snell udp: connect {}:{}", config.server, config.port))?;
-        let (reader, mut writer) = tcp.into_split();
+        let transport = connect_transport(config).await?;
+        let (reader, mut writer) = tokio::io::split(transport);
 
         let mut salt = [0u8; SALT_LEN];
         random_bytes(&mut salt);
@@ -304,8 +362,8 @@ impl SnellUdp {
 
 /// Seal `plaintext` as one length-prefixed AEAD chunk and write it (with a
 /// flush) to `writer`, advancing the counter nonce twice.
-async fn write_packet_chunk(
-    writer: &mut OwnedWriteHalf,
+async fn write_packet_chunk<W: AsyncWrite + Unpin>(
+    writer: &mut W,
     cipher: &AeadCipher,
     nonce: &mut [u8; 12],
     plaintext: &[u8],
@@ -326,7 +384,11 @@ async fn write_packet_chunk(
 
 /// Read exactly one length-prefixed AEAD chunk and return its plaintext,
 /// advancing the counter nonce twice.
-async fn read_packet_chunk(reader: &mut OwnedReadHalf, cipher: &AeadCipher, nonce: &mut [u8; 12]) -> Result<Vec<u8>> {
+async fn read_packet_chunk<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    cipher: &AeadCipher,
+    nonce: &mut [u8; 12],
+) -> Result<Vec<u8>> {
     let mut sealed_len = [0u8; 2 + TAG_LEN];
     reader
         .read_exact(&mut sealed_len)
@@ -784,6 +846,7 @@ mod tests {
             port: 1,
             psk: b"p".to_vec(),
             version: v,
+            obfs: None,
         };
         assert!(!cfg(1).supports_udp());
         assert!(!cfg(2).supports_udp());
@@ -837,5 +900,45 @@ mod tests {
         assert_eq!(k32.len(), 32);
         // Truncation: the 16-byte key is the prefix of the 32-byte derivation.
         assert_eq!(&k32[..16], &k16[..]);
+    }
+
+    #[test]
+    fn obfs_parses_modes_and_rejects_unknown() {
+        assert_eq!(SnellObfs::parse(None).unwrap(), None);
+        // Empty `obfs-opts` (no mode) means no obfs.
+        assert_eq!(SnellObfs::parse(Some(&ObfsOpts::default())).unwrap(), None);
+
+        let http = SnellObfs::parse(Some(&ObfsOpts {
+            mode: Some("http".into()),
+            host: Some("a.example".into()),
+        }))
+        .unwrap();
+        assert_eq!(
+            http,
+            Some(SnellObfs::Http {
+                host: "a.example".into(),
+                path: "/".into(),
+            })
+        );
+
+        // Unset host defaults to a plausible value.
+        let tls = SnellObfs::parse(Some(&ObfsOpts {
+            mode: Some("tls".into()),
+            host: None,
+        }))
+        .unwrap();
+        assert_eq!(
+            tls,
+            Some(SnellObfs::Tls {
+                host: "bing.com".into()
+            })
+        );
+
+        let err = SnellObfs::parse(Some(&ObfsOpts {
+            mode: Some("quic".into()),
+            host: None,
+        }))
+        .unwrap_err();
+        assert!(err.to_string().contains("unknown obfs mode"), "got: {err}");
     }
 }

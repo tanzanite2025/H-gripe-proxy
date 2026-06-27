@@ -241,6 +241,9 @@ pub struct ProxyOptions {
     /// ShadowsocksR obfs parameter (`obfs-param`).
     #[serde(rename = "obfs-param")]
     pub obfs_param: Option<String>,
+    /// Snell simple-obfs options (`obfs-opts`: http / tls).
+    #[serde(rename = "obfs-opts")]
+    pub obfs_opts: Option<ObfsOpts>,
 
     // ShadowsocksR specific knobs.
     /// SSR protocol layer (`protocol`): origin / auth_aes128_sha1 / auth_aes128_md5 / auth_chain_a.
@@ -296,6 +299,15 @@ pub struct H2Opts {
 pub struct GrpcOpts {
     #[serde(rename = "grpc-service-name")]
     pub grpc_service_name: Option<String>,
+}
+
+/// Snell simple-obfs options (`obfs-opts`): `mode` is `http` or `tls`, `host`
+/// populates the fake HTTP `Host` / fake-TLS SNI.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct ObfsOpts {
+    pub mode: Option<String>,
+    pub host: Option<String>,
 }
 
 /// XHTTP transport options (`xhttp-opts`).
