@@ -2,7 +2,7 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
-use crate::protocols::anytls;
+use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
@@ -78,11 +78,14 @@ pub enum UdpEgress {
     Hysteria2(Box<Hysteria2OutboundConfig>),
     /// TUIC carries datagrams over QUIC `Packet` datagram frames.
     Tuic(Box<TuicOutboundConfig>),
+    /// AnyTLS carries datagrams over a udp-over-tcp v2 session stream.
+    AnyTls(Box<AnyTlsOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
-/// proxy outbounds (Trojan/VLESS/VMess/Shadowsocks, plus the QUIC Hysteria2/TUIC
-/// datagram relays), and `Routed` (which resolves per datagram) accept the
+/// proxy outbounds (Trojan/VLESS/VMess/Shadowsocks, the QUIC Hysteria2/TUIC
+/// datagram relays, and AnyTLS over udp-over-tcp v2), and `Routed` (which
+/// resolves per datagram) accept the
 /// association; `Reject` and an upstream SOCKS5 proxy (which has no UDP relay
 /// path here) make the inbound refuse it up front.
 pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
@@ -95,6 +98,7 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::Shadowsocks(_)
             | OutboundMode::Tuic(_)
             | OutboundMode::Hysteria2(_)
+            | OutboundMode::AnyTls(_)
             | OutboundMode::Routed(_)
     )
 }
@@ -114,8 +118,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
         OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
         OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
-        // AnyTLS UDP (sing-box udp-over-tcp v2) is not implemented yet; TCP only.
-        OutboundMode::AnyTls(_) => None,
+        OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
@@ -133,6 +136,7 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         UdpEgress::Trojan(config) => trojan::connect_udp(config, target).await,
         UdpEgress::Vless(config) => vless::connect_udp(config, target).await,
         UdpEgress::Vmess(config) => vmess::connect_udp(config, target).await,
+        UdpEgress::AnyTls(config) => anytls::connect_udp(config, target).await,
         // Direct/Shadowsocks relay over a UDP socket and Hysteria2/TUIC over QUIC
         // datagrams, none of which is a proxy stream.
         UdpEgress::Direct | UdpEgress::Shadowsocks(_) | UdpEgress::Hysteria2(_) | UdpEgress::Tuic(_) => {
