@@ -431,6 +431,32 @@ fn build_ech_mode(config: &TlsClientConfig) -> Result<Option<EchMode>> {
     Ok(Some(EchMode::Enable(ech)))
 }
 
+/// Build a TLS 1.3 client config for a QUIC-based outbound (TUIC today, and the
+/// other QUIC protocols later). QUIC mandates TLS 1.3 and carries ALPN in the
+/// crypto handshake, so the caller's `alpn` is applied here. Certificate
+/// verification reuses the same roots / `skip-cert-verify` path as the TCP TLS
+/// transport. The returned config is handed to `quinn` via `QuicClientConfig`.
+pub(crate) fn quic_client_config(alpn: &[String], skip_cert_verify: bool) -> Result<rustls::ClientConfig> {
+    let provider = Arc::new(ring::default_provider());
+    let builder = rustls::ClientConfig::builder_with_provider(provider.clone())
+        .with_protocol_versions(&[&rustls::version::TLS13])
+        .context("configure TLS 1.3 for QUIC")?;
+
+    let mut config = if skip_cert_verify {
+        builder
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoCertVerification(provider)))
+            .with_no_client_auth()
+    } else {
+        let mut roots = RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        builder.with_root_certificates(roots).with_no_client_auth()
+    };
+
+    config.alpn_protocols = alpn.iter().map(|p| p.as_bytes().to_vec()).collect();
+    Ok(config)
+}
+
 /// A certificate verifier that accepts any server certificate. Used only when
 /// the proxy explicitly opts into `skip-cert-verify`. Signature verification is
 /// still delegated to the crypto provider so the handshake stays well-formed.

@@ -35,6 +35,7 @@ pub use dns::{
 pub use inbound::{GripeHandle, GripeKernel};
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::trojan::TrojanOutboundConfig;
+pub use protocols::tuic::TuicOutboundConfig;
 pub use protocols::vless::VlessOutboundConfig;
 pub use protocols::vmess::{VmessCipher, VmessOutboundConfig};
 pub use routing::delay::measure_delay;
@@ -49,6 +50,7 @@ pub use transport::obfuscation::{
     ObfuscationSnapshot, force_rotation as force_obfuscation_tls_rotation, reset as reset_obfuscation_stats,
     snapshot as snapshot_obfuscation_stats,
 };
+pub use transport::quic::Congestion;
 pub use transport::tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::ws::WsTransportConfig;
 pub use transport::xhttp::{XhttpMode, XhttpTransportConfig};

@@ -233,6 +233,8 @@ pub struct ProxyOptions {
     #[serde(rename = "obfs-password")]
     pub obfs_password: Option<String>,
     pub cwnd: Option<u32>,
+    #[serde(rename = "congestion-controller")]
+    pub congestion_controller: Option<String>,
 }
 
 /// WebSocket transport options (`ws-opts`).

@@ -45,6 +45,12 @@ hickory-proto = { version = "0.24", default-features = false }
 # per-flow TCP state machine. `medium-ip` = no Ethernet framing (raw L3, as a
 # TUN device delivers).
 smoltcp = { version = "0.12.0", default-features = false, features = ["std", "medium-ip", "proto-ipv4", "proto-ipv6", "socket-tcp"] }
+# QUIC data plane for the TUIC outbound (and, later, Hysteria2 / MASQUE). quinn
+# drives the QUIC state machine + UDP I/O; it layers on the same vendored rustls
+# fork we already use (the workspace patch redirects `rustls` to it), with the
+# pure-Rust `ring` provider — no aws-lc-rs/C toolchain. `platform-verifier` is
+# left off because the kernel supplies its own certificate verification.
+quinn = { version = "0.11.9", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

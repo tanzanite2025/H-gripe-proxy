@@ -4269,6 +4269,7 @@ dependencies = [
  "http 1.4.0",
  "log",
  "md-5",
+ "quinn",
  "rustls 0.23.40",
  "rustls-pemfile 2.2.0",
  "serde",
