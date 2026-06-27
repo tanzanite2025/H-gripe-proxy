@@ -1,4 +1,4 @@
-﻿# ⚡ Clash Verge Optimized
+﻿# ⚡ H-gripe-proxy
 
 > **重要声明 / Important Notice**
 > 
@@ -7,13 +7,13 @@
 > - 当前维护仓库 / Maintained repository: [tanzanite2025/H-gripe-proxy](https://github.com/tanzanite2025/H-gripe-proxy)
 > - 授权信息以仓库内 [LICENSE](./LICENSE) 为准 / Licensing follows the repository-local [LICENSE](./LICENSE)
 > - 当前主线重点是 **Rust 控制面迁移**、**安全边界收紧** 和 **本仓库可复现打包链** / Current mainline focus: **Rust control-plane migration**, **security boundary hardening**, and **reproducible in-repo packaging**
-> - 发布页面 / Releases: [Clash Verge Optimized Releases](https://github.com/tanzanite2025/H-gripe-proxy/releases)
+> - 发布页面 / Releases: [H-gripe-proxy Releases](https://github.com/tanzanite2025/H-gripe-proxy/releases)
 
 ---
 
 ## 项目介绍 / Project Introduction
 
-Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/tauri) 与 Rust 主导架构构建的私有维护代理桌面应用。
+H-gripe-proxy 是一个基于 [Tauri](https://github.com/tauri-apps/tauri) 与 Rust 主导架构构建的私有维护代理桌面应用。
 
 当前仓库的真实职责边界是：
 
@@ -58,7 +58,7 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 ## 安装 / Installation
 
 ### 当前发布版 / Current Release
-请访问 [Clash Verge Optimized Releases](https://github.com/tanzanite2025/H-gripe-proxy/releases) 获取当前维护版本。
+请访问 [H-gripe-proxy Releases](https://github.com/tanzanite2025/H-gripe-proxy/releases) 获取当前维护版本。
 
 ### 项目仓库 / Repository
 请访问 [tanzanite2025/H-gripe-proxy](https://github.com/tanzanite2025/H-gripe-proxy) 查看源码与说明。
@@ -114,7 +114,7 @@ target/release/bundle/nsis/
 
 - 开发和打包时放入 `src-tauri/resources/`
 - 已安装版本可直接放入应用数据目录
-  Windows: `%APPDATA%/io.github.tanzanite2025.clash-verge-optimized/`
+  Windows: `%APPDATA%/io.github.tanzanite2025.h-gripe-proxy/`
 
 程序启动时会把 `resources/` 中较新的数据库复制到应用数据目录，所以正式打包时只要把这些文件带进 `src-tauri/resources/`，运行态就会自动接管。
 

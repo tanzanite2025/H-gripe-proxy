@@ -365,7 +365,7 @@ async fn save_state_document(state: &SubscriptionStateDocument) -> Result<()> {
     fs::create_dir_all(&subscriptions_dir).await?;
 
     let path = dirs::subscription_state_path()?;
-    help::save_yaml(&path, state, Some("# Subscription State for Clash Verge Optimized")).await
+    help::save_yaml(&path, state, Some("# Subscription State for H-gripe-proxy")).await
 }
 
 pub async fn persist_artifact_candidate(source_id: &str, candidate: &SubscriptionArtifactCandidate) -> Result<()> {

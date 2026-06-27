@@ -378,7 +378,7 @@ impl SilentUpdater {
 
         let splash_url = format!("update-splash.html?version={}", encode_url_component(version));
         match WebviewWindowBuilder::new(app_handle, "update-splash", WebviewUrl::App(splash_url.into()))
-            .title("Clash Verge Optimized - Updating")
+            .title("H-gripe-proxy - Updating")
             .inner_size(300.0, 180.0)
             .resizable(false)
             .maximizable(false)

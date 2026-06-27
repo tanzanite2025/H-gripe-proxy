@@ -19,18 +19,18 @@ notifications:
     body: پروفایل دوباره فعال شد.
   appQuit:
     title: در آستانه خروج
-    body: Clash Verge Optimized در آستانه خروج است.
+    body: H-gripe-proxy در آستانه خروج است.
   appHidden:
     title: برنامه پنهان شد
-    body: Clash Verge Optimized در پس‌زمینه در حال اجراست.
+    body: H-gripe-proxy در پس‌زمینه در حال اجراست.
   updateReady:
-    title: Clash Verge Optimized Update
+    title: H-gripe-proxy Update
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
 service:
-  adminInstallPrompt: نصب سرویس Clash Verge Optimized به دسترسی مدیر نیاز دارد.
-  adminUninstallPrompt: حذف سرویس Clash Verge Optimized به دسترسی مدیر نیاز دارد.
+  adminInstallPrompt: نصب سرویس H-gripe-proxy به دسترسی مدیر نیاز دارد.
+  adminUninstallPrompt: حذف سرویس H-gripe-proxy به دسترسی مدیر نیاز دارد.
 tray:
   dashboard: داشبورد
   ruleMode: حالت قوانین

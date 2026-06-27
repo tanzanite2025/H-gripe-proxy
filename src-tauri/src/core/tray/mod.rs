@@ -233,7 +233,7 @@ impl Tray {
         );
 
         let tooltip = format!(
-            "Clash Verge Optimized {}\n{}: {}\n{}: {}\n{}: {}",
+            "H-gripe-proxy {}\n{}: {}\n{}: {}\n{}: {}",
             reassembled_version,
             sys_proxy_text,
             switch_str(system_proxy),

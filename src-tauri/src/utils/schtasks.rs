@@ -8,8 +8,8 @@ use std::process::{Command, Output};
 use windows::Win32::Globalization::{GetACP, GetOEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-const CURRENT_TASK_NAME_USER: &str = "Clash Verge Optimized";
-const CURRENT_TASK_NAME_ADMIN: &str = "Clash Verge Optimized (Admin)";
+const CURRENT_TASK_NAME_USER: &str = "H-gripe-proxy";
+const CURRENT_TASK_NAME_ADMIN: &str = "H-gripe-proxy (Admin)";
 const LEGACY_TASK_NAME_USER: &str = "Clash Verge";
 const LEGACY_TASK_NAME_ADMIN: &str = "Clash Verge (Admin)";
 const TASK_XML_DIR: &str = "tasks";

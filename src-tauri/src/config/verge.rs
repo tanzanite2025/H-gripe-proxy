@@ -271,7 +271,7 @@ impl IVerge {
 
     /// Save IVerge App Config
     pub async fn save_file(&self) -> Result<()> {
-        help::save_yaml(&dirs::verge_path()?, &self, Some("# Clash Verge Optimized Config")).await
+        help::save_yaml(&dirs::verge_path()?, &self, Some("# H-gripe-proxy Config")).await
     }
 
     /// patch verge config

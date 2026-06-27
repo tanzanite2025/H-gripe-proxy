@@ -19,18 +19,18 @@ notifications:
     body: Профиль повторно активирован.
   appQuit:
     title: Скорый выход
-    body: Clash Verge Optimized скоро завершит работу.
+    body: H-gripe-proxy скоро завершит работу.
   appHidden:
     title: Приложение скрыто
-    body: Clash Verge Optimized работает в фоновом режиме.
+    body: H-gripe-proxy работает в фоновом режиме.
   updateReady:
-    title: Clash Verge Optimized Update
+    title: H-gripe-proxy Update
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
 service:
-  adminInstallPrompt: Для установки службы Clash Verge Optimized требуются права администратора.
-  adminUninstallPrompt: Для удаления службы Clash Verge Optimized требуются права администратора.
+  adminInstallPrompt: Для установки службы H-gripe-proxy требуются права администратора.
+  adminUninstallPrompt: Для удаления службы H-gripe-proxy требуются права администратора.
 tray:
   dashboard: Панель
   ruleMode: Режим правил

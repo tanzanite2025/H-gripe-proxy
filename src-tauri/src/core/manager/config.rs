@@ -28,7 +28,7 @@ impl CoreManager {
             }
         });
 
-        help::save_yaml(&runtime_path, &clash_config, Some("# Clash Verge Optimized Runtime")).await?;
+        help::save_yaml(&runtime_path, &clash_config, Some("# H-gripe-proxy Runtime")).await?;
         handle::Handle::notice_message(error_key, error_msg);
         Ok(())
     }
