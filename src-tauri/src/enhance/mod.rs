@@ -607,13 +607,6 @@ async fn merge_default_config(
                 config.remove("port");
                 continue;
             }
-            if key.as_str() == Some("redir-port") {
-                continue;
-            }
-            if key.as_str() == Some("tproxy-port") {
-                config.remove("tproxy-port");
-                continue;
-            }
             // 处理 external-controller 键的开关逻辑
             if key.as_str() == Some("external-controller") {
                 let verge = Config::verge().await;

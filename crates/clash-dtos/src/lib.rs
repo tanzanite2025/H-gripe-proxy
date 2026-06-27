@@ -45,8 +45,6 @@ impl Display for Protocol {
 pub struct BaseConfig {
     pub port: u16,
     pub socks_port: u16,
-    pub redir_port: u16,
-    pub tproxy_port: u16,
     pub mixed_port: u16,
     pub tun: TunConfig,
     pub tuic_server: TuicServer,

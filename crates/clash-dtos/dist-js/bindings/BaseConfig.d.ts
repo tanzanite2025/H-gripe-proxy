@@ -7,8 +7,6 @@ import type { TunConfig } from "./TunConfig";
 export type BaseConfig = {
     port: number;
     socksPort: number;
-    redirPort: number;
-    tproxyPort: number;
     mixedPort: number;
     tun: TunConfig;
     tuicServer: TuicServer;

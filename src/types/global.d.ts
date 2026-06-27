@@ -32,9 +32,7 @@ interface IConfigData {
   'allow-lan': boolean
   'log-level': string
   'mixed-port': number
-  'redir-port': number
   'socks-port': number
-  'tproxy-port': number
   'external-controller': string
   'external-controller-cors': {
     'allow-private-network': boolean
@@ -1109,11 +1107,7 @@ interface IVergeConfig {
   enable_random_port?: boolean
   verge_mixed_port?: number
   verge_socks_port?: number
-  verge_redir_port?: number
-  verge_tproxy_port?: number
   verge_port?: number
-  verge_redir_enabled?: boolean
-  verge_tproxy_enabled?: boolean
   verge_socks_enabled?: boolean
   verge_http_enabled?: boolean
   enable_proxy_guard?: boolean
