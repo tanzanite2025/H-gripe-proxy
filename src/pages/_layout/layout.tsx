@@ -32,7 +32,6 @@ import { useVerge } from '@/hooks/system'
 import { useI18n, useWindowDecorations } from '@/hooks/ui'
 import { navItems } from '@/pages/_core/router'
 import type { SubscriptionUpdateEvent } from '@/types/subscription-update'
-import getSystem from '@/utils/misc'
 
 import LogsPage from '../logs'
 
@@ -96,8 +95,6 @@ const SortableNavMenuItem = ({ item, label }: SortableNavMenuItemProps) => {
 }
 
 dayjs.extend(relativeTime)
-
-const OS = getSystem()
 
 const Layout = () => {
   const { t } = useTranslation()
@@ -249,19 +246,13 @@ const Layout = () => {
           `}
       </style>
       <div
-        className={`${OS} layout bg-background`}
+        className="windows layout bg-background"
         style={{
           borderTopLeftRadius: '0px',
           borderTopRightRadius: '0px',
-          ...(OS === 'linux' ? {
-            borderRadius: '8px',
-            width: '100vw',
-            height: '100vh',
-          } : {}),
         }}
         onContextMenu={(e) => {
           if (
-            OS === 'windows' &&
             !['input', 'textarea'].includes(
               e.currentTarget.tagName.toLowerCase(),
             ) &&
@@ -343,11 +334,9 @@ const Layout = () => {
 
               <UpdateButton className="the-newbtn" />
 
-              {OS !== 'macos' && (
-                <div className="the-window-ctrls">
-                  <WindowControls ref={windowControlsRef} />
-                </div>
-              )}
+              <div className="the-window-ctrls">
+                <WindowControls ref={windowControlsRef} />
+              </div>
             </div>
           </div>
 

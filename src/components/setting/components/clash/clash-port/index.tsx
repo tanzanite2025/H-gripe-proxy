@@ -9,7 +9,6 @@ import { useClashInfo } from '@/hooks/data'
 import { useVerge } from '@/hooks/system'
 import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import getSystem from '@/utils/misc'
 
 import {
   buildClashPortConfigs,
@@ -25,8 +24,6 @@ import type {
   ClashPortValues,
   ClashPortViewerRef,
 } from './types'
-
-const os = getSystem()
 
 export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   const { t } = useTranslation()
@@ -134,30 +131,6 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       enableToggle: true,
       onToggleEnabled: (enabled: boolean) => updateValue('httpEnabled', enabled),
     },
-    ...(os !== 'windows'
-      ? [
-          {
-            key: 'redirPort' as const,
-            label: t('settings.modals.clashPort.fields.redir'),
-            enabled: values.redirEnabled,
-            enableToggle: true,
-            onToggleEnabled: (enabled: boolean) =>
-              updateValue('redirEnabled', enabled),
-          },
-        ]
-      : []),
-    ...(os === 'linux'
-      ? [
-          {
-            key: 'tproxyPort' as const,
-            label: t('settings.modals.clashPort.fields.tproxy'),
-            enabled: values.tproxyEnabled,
-            enableToggle: true,
-            onToggleEnabled: (enabled: boolean) =>
-              updateValue('tproxyEnabled', enabled),
-          },
-        ]
-      : []),
   ]
 
   return (
