@@ -224,6 +224,7 @@ async fn run_relay_test(payload: Vec<u8>) {
             alpn: vec!["h3".to_string()],
             skip_cert_verify: true,
             congestion: Congestion::Bbr,
+            reduce_rtt: false,
         })),
     })
     .await

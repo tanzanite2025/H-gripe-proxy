@@ -1,13 +1,13 @@
-//! End-to-end proof that traffic flows through a TUIC v5 (QUIC) outbound:
-//! a SOCKS5 client -> gripe inbound -> TUIC outbound -> fake TUIC server.
+//! End-to-end proof that TUIC's 0-RTT mode (`reduce-rtt`) relays correctly:
+//! a SOCKS5 client -> gripe inbound -> TUIC outbound (reduce-rtt) -> fake TUIC
+//! server that issues TLS 1.3 session tickets and accepts 0-RTT early data.
 //!
-//! The fake server runs on a real QUIC endpoint (quinn, the same vendored
-//! rustls fork). It validates the `Authenticate` token by re-deriving it from
-//! its own side of the TLS session — proving the client computed the RFC 5705
-//! keying-material export with `label = UUID`, `context = password` — parses the
-//! `Connect` command address, and echoes the relayed payload. This exercises
-//! the full client path: QUIC handshake, authentication, Connect framing, and
-//! bidirectional TCP relay through the kernel's SOCKS5 inbound.
+//! The first dial has no cached ticket and completes a full handshake (the
+//! `None` branch of the client's connect path); later dials resume the session
+//! and send the `Connect` request as 0-RTT early data, authenticating once the
+//! handshake completes (the `Some` branch). The fake server re-derives the
+//! RFC 5705 auth token and echoes the payload, so every dial — 1-RTT or
+//! 0-RTT — must relay the message verbatim.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
@@ -17,7 +17,6 @@ use quinn::Endpoint;
 use quinn::crypto::rustls::QuicServerConfig;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::oneshot;
 
 const TEST_CERT: &str = include_str!("data/vless_tls_cert.pem");
 const TEST_KEY: &str = include_str!("data/vless_tls_key.pem");
@@ -27,17 +26,18 @@ const TEST_UUID: [u8; 16] = [
 ];
 const PASSWORD: &str = "correct horse battery staple";
 const MESSAGE: &[u8] = b"the quick brown fox jumps over the lazy dog";
+const DIALS: usize = 4;
 
-// TUIC v5 wire constants (mirrored independently of the kernel module).
 const VERSION: u8 = 0x05;
 const CMD_AUTHENTICATE: u8 = 0x00;
 const CMD_CONNECT: u8 = 0x01;
-const ATYP_DOMAIN: u8 = 0x00;
 const ATYP_IPV4: u8 = 0x01;
 const ATYP_IPV6: u8 = 0x02;
+const ATYP_DOMAIN: u8 = 0x00;
 
-/// Build a quinn server config from the baked test cert/key, offering the "h3"
-/// ALPN the client defaults to.
+/// quinn server config that offers "h3", issues TLS 1.3 tickets, and accepts
+/// 0-RTT early data (`max_early_data_size = 0xffff_ffff`, the only non-zero
+/// value QUIC allows, paired with the default stateful session cache).
 fn server_config() -> quinn::ServerConfig {
     let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
         .collect::<Result<Vec<_>, _>>()
@@ -50,11 +50,12 @@ fn server_config() -> quinn::ServerConfig {
         .with_single_cert(certs, key)
         .unwrap();
     crypto.alpn_protocols = vec![b"h3".to_vec()];
+    crypto.max_early_data_size = u32::MAX;
     let quic = QuicServerConfig::try_from(crypto).unwrap();
     quinn::ServerConfig::with_crypto(Arc::new(quic))
 }
 
-/// Read a TUIC `Address` (type, address, big-endian port) from `recv`.
+/// Read a TUIC `Address` and advance past it (value unused here).
 async fn read_address(recv: &mut quinn::RecvStream) -> SocketAddr {
     let mut atyp = [0u8; 1];
     recv.read_exact(&mut atyp).await.unwrap();
@@ -73,28 +74,15 @@ async fn read_address(recv: &mut quinn::RecvStream) -> SocketAddr {
             recv.read_exact(&mut port).await.unwrap();
             SocketAddr::from((Ipv6Addr::from(addr), u16::from_be_bytes(port)))
         }
-        ATYP_DOMAIN => {
-            let mut len = [0u8; 1];
-            recv.read_exact(&mut len).await.unwrap();
-            let mut host = vec![0u8; len[0] as usize];
-            recv.read_exact(&mut host).await.unwrap();
-            let mut port = [0u8; 2];
-            recv.read_exact(&mut port).await.unwrap();
-            panic!(
-                "test uses an IPv4 target, got domain {:?}",
-                String::from_utf8_lossy(&host)
-            );
-        }
+        ATYP_DOMAIN => panic!("test uses an IPv4 target, got a domain address"),
         other => panic!("unexpected TUIC address type {other:#x}"),
     }
 }
 
-/// Run the fake TUIC server: accept one connection, verify auth, parse the
-/// `Connect` address, and echo the relayed payload. Reports the parsed target.
-async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<SocketAddr>) {
-    let conn = endpoint.accept().await.unwrap().await.unwrap();
-
-    // Authenticate arrives on a unidirectional stream.
+/// Handle one TUIC connection: validate auth, parse Connect, echo the payload.
+/// The client may send the Connect stream as 0-RTT before the Authenticate
+/// stream; quinn buffers both, so reading auth then connect works either way.
+async fn serve_connection(conn: quinn::Connection) {
     let mut auth_stream = conn.accept_uni().await.unwrap();
     let auth = auth_stream.read_to_end(2 + 16 + 32).await.unwrap();
     assert_eq!(auth[0], VERSION, "auth version");
@@ -105,24 +93,28 @@ async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<SocketAddr>) 
         .unwrap();
     assert_eq!(&auth[18..50], &expected_token, "auth token (server-side re-derivation)");
 
-    // Connect arrives on a bidirectional stream: header + address, then payload.
     let (mut send, mut recv) = conn.accept_bi().await.unwrap();
     let mut header = [0u8; 2];
     recv.read_exact(&mut header).await.unwrap();
     assert_eq!(header, [VERSION, CMD_CONNECT], "connect header");
-    let target = read_address(&mut recv).await;
-    target_tx.send(target).unwrap();
+    let _target = read_address(&mut recv).await;
 
-    // Echo the relayed payload back to the client, then finish the send half so
-    // the kernel's relay sees EOF on this direction (mirrors a target closing
-    // after it has replied).
     let mut payload = vec![0u8; MESSAGE.len()];
     recv.read_exact(&mut payload).await.unwrap();
     send.write_all(&payload).await.unwrap();
     send.finish().unwrap();
-
-    // Hold the connection open until the client has read the echo.
     conn.closed().await;
+}
+
+/// Accept connections forever, serving each on its own task.
+async fn run_server(endpoint: Endpoint) {
+    while let Some(incoming) = endpoint.accept().await {
+        tokio::spawn(async move {
+            if let Ok(conn) = incoming.await {
+                serve_connection(conn).await;
+            }
+        });
+    }
 }
 
 /// Drive a minimal SOCKS5 CONNECT to `target` through the kernel inbound.
@@ -150,12 +142,10 @@ async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
 }
 
 #[tokio::test]
-async fn relays_through_tuic_outbound() {
+async fn reduce_rtt_relays_across_resumed_dials() {
     let endpoint = Endpoint::server(server_config(), (Ipv4Addr::LOCALHOST, 0).into()).unwrap();
     let server_addr = endpoint.local_addr().unwrap();
-
-    let (target_tx, target_rx) = oneshot::channel();
-    let server = tokio::spawn(run_server(endpoint, target_tx));
+    let server = tokio::spawn(run_server(endpoint));
 
     let handle = GripeKernel::start(GripeConfig {
         socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
@@ -164,29 +154,35 @@ async fn relays_through_tuic_outbound() {
             port: server_addr.port(),
             uuid: TEST_UUID,
             password: PASSWORD.to_string(),
-            server_name: "example.com".to_string(),
+            server_name: "tuic-0rtt.example".to_string(),
             alpn: vec!["h3".to_string()],
             skip_cert_verify: true,
             congestion: Congestion::Bbr,
-            reduce_rtt: false,
+            reduce_rtt: true,
         })),
     })
     .await
     .unwrap();
 
     let dummy_target = SocketAddr::from((Ipv4Addr::new(93, 184, 216, 34), 443));
-    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
 
-    conn.write_all(MESSAGE).await.unwrap();
-    conn.flush().await.unwrap();
+    // The first dial completes a full handshake; subsequent dials resume the
+    // cached session and exercise the 0-RTT early-data path. Every dial must
+    // relay the message verbatim.
+    for dial in 0..DIALS {
+        let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+        conn.write_all(MESSAGE).await.unwrap();
+        conn.flush().await.unwrap();
 
-    let mut echo = vec![0u8; MESSAGE.len()];
-    conn.read_exact(&mut echo).await.unwrap();
-    assert_eq!(echo, MESSAGE, "payload relayed and echoed verbatim through TUIC");
+        let mut echo = vec![0u8; MESSAGE.len()];
+        conn.read_exact(&mut echo).await.unwrap();
+        assert_eq!(echo, MESSAGE, "payload relayed and echoed on dial {dial}");
+        drop(conn);
 
-    let parsed = target_rx.await.unwrap();
-    assert_eq!(parsed, dummy_target, "server parsed the Connect target address");
+        // Give the just-issued NewSessionTicket time to reach the client cache
+        // so the next dial can resume.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 
-    drop(conn);
-    server.await.unwrap();
+    server.abort();
 }

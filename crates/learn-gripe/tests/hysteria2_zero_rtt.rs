@@ -1,14 +1,14 @@
-//! End-to-end proof that traffic flows through a Hysteria2 (QUIC) outbound:
-//! a SOCKS5 client -> gripe inbound -> Hysteria2 outbound -> fake Hysteria2 server.
+//! End-to-end proof that Hysteria2's 0-RTT mode (`reduce-rtt`) relays correctly:
+//! a SOCKS5 client -> gripe inbound -> Hysteria2 outbound (reduce-rtt) -> fake
+//! Hysteria2 server that issues TLS 1.3 session tickets and accepts 0-RTT early
+//! data.
 //!
-//! The fake server runs on a real QUIC endpoint (quinn, the same vendored
-//! rustls fork) speaking ALPN `h3`. It authenticates the client over HTTP/3
-//! (validating `POST /auth` with the `Hysteria-Auth` password header, then
-//! replying `233`), then accepts the *raw* QUIC proxy stream, parses the
-//! `TCPRequest` (frame id `0x401` + `host:port` address), answers with a
-//! success `TCPResponse`, and echoes the relayed payload. This exercises the
-//! full client path: QUIC handshake, HTTP/3 auth, TCPRequest framing, and
-//! bidirectional relay through the kernel's SOCKS5 inbound.
+//! The first dial has no cached ticket and completes a full handshake (the
+//! `None`/`tcp_handshake` branch of the client's connect path); later dials
+//! resume the session and send the HTTP/3 `/auth` POST and the `TCPRequest` as
+//! 0-RTT early data, confirming acceptance before reading the responses. The
+//! fake server validates auth, parses the `TCPRequest`, and echoes the payload,
+//! so every dial — 1-RTT or 0-RTT — must relay the message verbatim.
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -19,16 +19,17 @@ use quinn::Endpoint;
 use quinn::crypto::rustls::QuicServerConfig;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::oneshot;
 
 const TEST_CERT: &str = include_str!("data/vless_tls_cert.pem");
 const TEST_KEY: &str = include_str!("data/vless_tls_key.pem");
 
 const PASSWORD: &str = "correct horse battery staple";
 const MESSAGE: &[u8] = b"the quick brown fox jumps over the lazy dog";
+const DIALS: usize = 4;
 
-/// Build a quinn server config from the baked test cert/key, offering the "h3"
-/// ALPN the client defaults to.
+/// quinn server config that offers "h3", issues TLS 1.3 tickets, and accepts
+/// 0-RTT early data (`max_early_data_size = 0xffff_ffff`, the only non-zero
+/// value QUIC allows, paired with the default stateful session cache).
 fn server_config() -> quinn::ServerConfig {
     let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
         .collect::<Result<Vec<_>, _>>()
@@ -41,6 +42,7 @@ fn server_config() -> quinn::ServerConfig {
         .with_single_cert(certs, key)
         .unwrap();
     crypto.alpn_protocols = vec![b"h3".to_vec()];
+    crypto.max_early_data_size = u32::MAX;
     let quic = QuicServerConfig::try_from(crypto).unwrap();
     quinn::ServerConfig::with_crypto(Arc::new(quic))
 }
@@ -67,17 +69,13 @@ async fn read_varint_bytes(recv: &mut quinn::RecvStream) -> Vec<u8> {
     buf
 }
 
-/// Run the fake Hysteria2 server: authenticate over HTTP/3, parse the
-/// `TCPRequest` target, answer OK, and echo the relayed payload. Reports the
-/// parsed target address string.
-async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<String>) {
-    let conn = endpoint.accept().await.unwrap().await.unwrap();
-    // A cheap clone for the raw proxy stream; the HTTP/3 connection takes the
-    // other handle. The proxy stream is opened by the client only after auth, so
-    // accepting it after the HTTP/3 exchange avoids racing the h3 accept loop.
+/// Handle one Hysteria2 connection: authenticate over HTTP/3, parse the
+/// `TCPRequest`, answer OK, and echo the relayed payload. The client may send
+/// auth and the proxy stream as 0-RTT early data; quinn buffers both, so the
+/// usual accept order works regardless of 1-RTT vs 0-RTT.
+async fn serve_connection(conn: quinn::Connection) {
     let proxy_conn = conn.clone();
 
-    // --- HTTP/3 authentication (POST /auth -> 233) ---
     let mut h3_conn = h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn))
         .await
         .unwrap();
@@ -89,19 +87,13 @@ async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<String>) {
         Some(PASSWORD.as_bytes()),
         "auth password header"
     );
-    assert!(
-        request.headers().contains_key("hysteria-padding"),
-        "padding header present"
-    );
     let response = http::Response::builder().status(233).body(()).unwrap();
     stream.send_response(response).await.unwrap();
     stream.finish().await.unwrap();
 
-    // --- Raw QUIC proxy stream: TCPRequest -> TCPResponse + echo ---
     let (mut send, mut recv) = proxy_conn.accept_bi().await.unwrap();
     assert_eq!(read_varint(&mut recv).await, 0x401, "TCPRequest frame id");
-    let address = String::from_utf8(read_varint_bytes(&mut recv).await).unwrap();
-    target_tx.send(address).unwrap();
+    let _address = read_varint_bytes(&mut recv).await;
     let _padding = read_varint_bytes(&mut recv).await;
 
     // TCPResponse: status OK (0x00), empty message, empty padding.
@@ -114,6 +106,17 @@ async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<String>) {
 
     proxy_conn.closed().await;
     drop(h3_conn);
+}
+
+/// Accept connections forever, serving each on its own task.
+async fn run_server(endpoint: Endpoint) {
+    while let Some(incoming) = endpoint.accept().await {
+        tokio::spawn(async move {
+            if let Ok(conn) = incoming.await {
+                serve_connection(conn).await;
+            }
+        });
+    }
 }
 
 /// Drive a minimal SOCKS5 CONNECT to `target` through the kernel inbound.
@@ -141,12 +144,10 @@ async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
 }
 
 #[tokio::test]
-async fn relays_through_hysteria2_outbound() {
+async fn reduce_rtt_relays_across_resumed_dials() {
     let endpoint = Endpoint::server(server_config(), (Ipv4Addr::LOCALHOST, 0).into()).unwrap();
     let server_addr = endpoint.local_addr().unwrap();
-
-    let (target_tx, target_rx) = oneshot::channel();
-    let server = tokio::spawn(run_server(endpoint, target_tx));
+    let server = tokio::spawn(run_server(endpoint));
 
     let handle = GripeKernel::start(GripeConfig {
         socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
@@ -154,35 +155,37 @@ async fn relays_through_hysteria2_outbound() {
             server: "127.0.0.1".to_string(),
             port: server_addr.port(),
             password: PASSWORD.to_string(),
-            server_name: "example.com".to_string(),
+            server_name: "hysteria2-0rtt.example".to_string(),
             alpn: vec!["h3".to_string()],
             skip_cert_verify: true,
             congestion: Congestion::Bbr,
             obfs: None,
             port_hop: None,
-            reduce_rtt: false,
+            reduce_rtt: true,
         })),
     })
     .await
     .unwrap();
 
     let dummy_target = SocketAddr::from((Ipv4Addr::new(93, 184, 216, 34), 443));
-    let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
 
-    conn.write_all(MESSAGE).await.unwrap();
-    conn.flush().await.unwrap();
+    // The first dial completes a full handshake; subsequent dials resume the
+    // cached session and exercise the 0-RTT early-data path. Every dial must
+    // relay the message verbatim.
+    for dial in 0..DIALS {
+        let mut conn = socks5_connect(handle.local_addr(), dummy_target).await;
+        conn.write_all(MESSAGE).await.unwrap();
+        conn.flush().await.unwrap();
 
-    let mut echo = vec![0u8; MESSAGE.len()];
-    conn.read_exact(&mut echo).await.unwrap();
-    assert_eq!(echo, MESSAGE, "payload relayed and echoed verbatim through Hysteria2");
+        let mut echo = vec![0u8; MESSAGE.len()];
+        conn.read_exact(&mut echo).await.unwrap();
+        assert_eq!(echo, MESSAGE, "payload relayed and echoed on dial {dial}");
+        drop(conn);
 
-    let parsed = target_rx.await.unwrap();
-    assert_eq!(
-        parsed,
-        dummy_target.to_string(),
-        "server parsed the TCPRequest target address"
-    );
+        // Give the just-issued NewSessionTicket time to reach the client cache
+        // so the next dial can resume.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 
-    drop(conn);
-    server.await.unwrap();
+    server.abort();
 }

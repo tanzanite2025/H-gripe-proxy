@@ -238,6 +238,10 @@ pub struct ProxyOptions {
     pub cwnd: Option<u32>,
     #[serde(rename = "congestion-controller")]
     pub congestion_controller: Option<String>,
+    /// Attempt a 0-RTT QUIC handshake (`reduce-rtt`) for TUIC/Hysteria2, sending
+    /// the relay request as early data once a resumption ticket is cached.
+    #[serde(rename = "reduce-rtt")]
+    pub reduce_rtt: Option<bool>,
 }
 
 /// WebSocket transport options (`ws-opts`).

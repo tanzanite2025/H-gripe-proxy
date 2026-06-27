@@ -221,6 +221,7 @@ async fn run_relay_test(payload: Vec<u8>) {
             congestion: Congestion::Bbr,
             obfs: None,
             port_hop: None,
+            reduce_rtt: false,
         })),
     })
     .await

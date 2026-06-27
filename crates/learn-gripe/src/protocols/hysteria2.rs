@@ -38,9 +38,12 @@
 //!
 //! Scope: TCP relay plus UDP relay over a single connection. **Salamander
 //! packet obfuscation** (`obfs: salamander`) and **port hopping** (`ports`) are
-//! implemented below QUIC in [`crate::transport::quic_obfs`]. 0-RTT is not
-//! implemented. `congestion-controller` is honored as a local send-rate choice;
-//! `up`/`down` bandwidth caps are not sent (server-side BBR is used).
+//! implemented below QUIC in [`crate::transport::quic_obfs`]. **0-RTT**
+//! (`reduce-rtt`) sends the HTTP/3 authentication and `TCPRequest` as early data
+//! once a TLS session ticket is cached; the auth header carries no exporter
+//! secret, so it is 0-RTT-safe. `congestion-controller` is honored as a local
+//! send-rate choice; `up`/`down` bandwidth caps are not sent (server-side BBR is
+//! used).
 
 use std::io;
 use std::pin::Pin;
@@ -94,6 +97,9 @@ pub struct Hysteria2OutboundConfig {
     /// Port hopping derived from `ports` (+ `hop-interval`), or `None` to always
     /// dial the configured `port`.
     pub port_hop: Option<PortHopConfig>,
+    /// Attempt a 0-RTT handshake (`reduce-rtt`): send authentication and the
+    /// `TCPRequest` as early data on a resumed connection.
+    pub reduce_rtt: bool,
 }
 
 impl Hysteria2OutboundConfig {
@@ -165,6 +171,7 @@ impl Hysteria2OutboundConfig {
             congestion,
             obfs,
             port_hop,
+            reduce_rtt: opts.reduce_rtt.unwrap_or(false),
         })
     }
 
@@ -178,6 +185,7 @@ impl Hysteria2OutboundConfig {
             congestion: self.congestion,
             obfs: self.obfs.clone(),
             port_hop: self.port_hop.clone(),
+            zero_rtt: self.reduce_rtt,
         }
     }
 }
@@ -193,7 +201,56 @@ pub async fn connect(config: &Hysteria2OutboundConfig, target: &TargetAddr) -> R
     // connection handles are cheap clones over the same connection.
     let connection = quic.connection.clone();
 
-    let (h3_send, _udp_enabled) = authenticate(quic.connection, config)
+    // With `reduce-rtt` the QUIC connection may be a 0-RTT one. The HTTP/3 `/auth`
+    // POST and the `TCPRequest` are both idempotent and carry no exporter secret,
+    // so they are safe to send as early data: `tcp_handshake` issues those writes
+    // immediately, which `quinn` flushes in the 0-RTT first flight, and only the
+    // response reads wait for the handshake. If the server rejects 0-RTT the
+    // early streams are reset (so the attempt errors), so confirm acceptance and
+    // rebuild the handshake on the established 1-RTT connection.
+    let handshake = match quic.zero_rtt {
+        Some(accepted) => {
+            let attempt = tcp_handshake(&connection, config, target).await;
+            if accepted.await {
+                attempt.context("hysteria2: 0-RTT handshake")?
+            } else {
+                drop(attempt);
+                tcp_handshake(&connection, config, target)
+                    .await
+                    .context("hysteria2: handshake after 0-RTT rejection")?
+            }
+        }
+        None => tcp_handshake(&connection, config, target)
+            .await
+            .context("hysteria2: handshake")?,
+    };
+
+    Ok(Box::new(Hysteria2Stream {
+        _endpoint: quic.endpoint,
+        _connection: connection,
+        _h3_send: handshake.h3_send,
+        send: handshake.send,
+        recv: handshake.recv,
+    }))
+}
+
+/// The live stream handles produced by a Hysteria2 TCP handshake.
+struct TcpHandshake {
+    /// HTTP/3 request handle kept alive for the connection's lifetime.
+    h3_send: SendRequest<h3_quinn::OpenStreams, Bytes>,
+    send: SendStream,
+    recv: RecvStream,
+}
+
+/// Authenticate over HTTP/3 and open the proxy `TCPRequest` stream for `target`.
+/// All writes happen before any response read, so on a 0-RTT connection the
+/// request rides as early data while only the reads await the handshake.
+async fn tcp_handshake(
+    connection: &Connection,
+    config: &Hysteria2OutboundConfig,
+    target: &TargetAddr,
+) -> Result<TcpHandshake> {
+    let (h3_send, _udp_enabled) = authenticate(connection.clone(), config)
         .await
         .context("hysteria2: authenticate")?;
 
@@ -204,13 +261,7 @@ pub async fn connect(config: &Hysteria2OutboundConfig, target: &TargetAddr) -> R
         .await
         .context("hysteria2: read TCPResponse")?;
 
-    Ok(Box::new(Hysteria2Stream {
-        _endpoint: quic.endpoint,
-        _connection: connection,
-        _h3_send: h3_send,
-        send,
-        recv,
-    }))
+    Ok(TcpHandshake { h3_send, send, recv })
 }
 
 /// Connect a Hysteria2 UDP relay session for `target`. Authenticates over
@@ -222,6 +273,11 @@ pub async fn connect_udp(config: &Hysteria2OutboundConfig, target: &TargetAddr) 
         .context("hysteria2: QUIC connect")?;
     let connection = quic.connection.clone();
 
+    // UDP relay rides QUIC datagrams that need the established 1-RTT keys, so
+    // wait out any 0-RTT handshake before authenticating.
+    if let Some(accepted) = quic.zero_rtt {
+        accepted.await;
+    }
     let (h3_send, udp_enabled) = authenticate(quic.connection, config)
         .await
         .context("hysteria2: authenticate")?;
@@ -679,6 +735,22 @@ mod tests {
         let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\n";
         let err = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
         assert!(err.to_string().contains("password"), "got: {err}");
+    }
+
+    #[test]
+    fn reduce_rtt_defaults_off_and_parses() {
+        let base = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\npassword: pw\n";
+        assert!(
+            !Hysteria2OutboundConfig::from_proxy(&parse_entry(base))
+                .unwrap()
+                .reduce_rtt
+        );
+        let yaml = format!("{base}reduce-rtt: true\n");
+        assert!(
+            Hysteria2OutboundConfig::from_proxy(&parse_entry(&yaml))
+                .unwrap()
+                .reduce_rtt
+        );
     }
 
     #[test]

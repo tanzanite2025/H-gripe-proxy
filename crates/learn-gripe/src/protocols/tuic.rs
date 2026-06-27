@@ -31,11 +31,13 @@
 //! ```
 //! Reassembly lives in [`crate::protocols::quic_udp`].
 //!
-//! Scope: TCP relay plus UDP relay (`native` datagram mode). The `quic`
-//! (uni-stream) UDP mode and the 0-RTT (`reduce-rtt`) optimization are not yet
-//! implemented; a fresh authenticated QUIC connection is established per dial
-//! (connection pooling is a follow-up). `congestion-controller` is honored as a
-//! local send-rate choice.
+//! Scope: TCP relay plus UDP relay (`native` datagram mode), with optional 0-RTT
+//! (`reduce-rtt`): once a TLS session ticket is cached, the TCP `Connect`
+//! request is sent as 0-RTT early data while authentication waits for the
+//! handshake (the RFC 5705 token needs the finished exporter). The `quic`
+//! (uni-stream) UDP mode is not yet implemented, and a fresh authenticated QUIC
+//! connection is established per dial (connection pooling is a follow-up).
+//! `congestion-controller` is honored as a local send-rate choice.
 //!
 //! [RFC 5705]: https://www.rfc-editor.org/rfc/rfc5705
 
@@ -83,6 +85,10 @@ pub struct TuicOutboundConfig {
     pub alpn: Vec<String>,
     pub skip_cert_verify: bool,
     pub congestion: Congestion,
+    /// Attempt a 0-RTT handshake (`reduce-rtt`): send the `Connect` request as
+    /// early data on a resumed connection, authenticating concurrently once the
+    /// handshake completes (the RFC 5705 token needs the finished exporter).
+    pub reduce_rtt: bool,
 }
 
 impl TuicOutboundConfig {
@@ -131,6 +137,7 @@ impl TuicOutboundConfig {
             alpn,
             skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
             congestion,
+            reduce_rtt: opts.reduce_rtt.unwrap_or(false),
         })
     }
 
@@ -145,6 +152,7 @@ impl TuicOutboundConfig {
             // TUIC has no packet obfuscation or port hopping.
             obfs: None,
             port_hop: None,
+            zero_rtt: self.reduce_rtt,
         }
     }
 }
@@ -156,21 +164,47 @@ pub async fn connect(config: &TuicOutboundConfig, target: &TargetAddr) -> Result
     let quic = quic::connect(&config.quic_params())
         .await
         .context("tuic: QUIC connect")?;
-
-    authenticate(&quic.connection, &config.uuid, &config.password)
-        .await
-        .context("tuic: authenticate")?;
-
-    let (mut send, recv) = quic.connection.open_bi().await.context("tuic: open Connect stream")?;
+    let connection = quic.connection.clone();
     let header = encode_connect_header(target);
-    send.write_all(&header).await.context("tuic: send Connect header")?;
+
+    let (send, recv) = match quic.zero_rtt {
+        // 0-RTT (`reduce-rtt`): the `Connect` request carries no secret, so send
+        // it as early data right away; authentication needs the finished TLS
+        // exporter, so it waits for the handshake. If the server rejects 0-RTT
+        // the early stream is dead, so re-send the request on a 1-RTT stream.
+        Some(accepted) => {
+            let early = open_connect_stream(&connection, &header).await?;
+            let accepted = accepted.await;
+            authenticate(&connection, &config.uuid, &config.password)
+                .await
+                .context("tuic: authenticate")?;
+            if accepted {
+                early
+            } else {
+                open_connect_stream(&connection, &header).await?
+            }
+        }
+        None => {
+            authenticate(&connection, &config.uuid, &config.password)
+                .await
+                .context("tuic: authenticate")?;
+            open_connect_stream(&connection, &header).await?
+        }
+    };
 
     Ok(Box::new(TuicStream {
         _endpoint: quic.endpoint,
-        _connection: quic.connection,
+        _connection: connection,
         send,
         recv,
     }))
+}
+
+/// Open a `Connect` bidirectional stream and write the request header.
+async fn open_connect_stream(connection: &Connection, header: &[u8]) -> Result<(SendStream, RecvStream)> {
+    let (mut send, recv) = connection.open_bi().await.context("tuic: open Connect stream")?;
+    send.write_all(header).await.context("tuic: send Connect header")?;
+    Ok((send, recv))
 }
 
 /// Connect a TUIC UDP relay session for `target` in `native` (QUIC datagram)
@@ -182,6 +216,12 @@ pub async fn connect_udp(config: &TuicOutboundConfig, target: &TargetAddr) -> Re
         .context("tuic: QUIC connect")?;
     let connection = quic.connection.clone();
 
+    // UDP relay rides QUIC datagrams that need the established 1-RTT keys, and
+    // the auth token needs the finished exporter, so wait out any 0-RTT handshake
+    // before authenticating.
+    if let Some(accepted) = quic.zero_rtt {
+        accepted.await;
+    }
     authenticate(&quic.connection, &config.uuid, &config.password)
         .await
         .context("tuic: authenticate")?;
@@ -500,6 +540,14 @@ mod tests {
         let yaml = format!("name: t\ntype: tuic\nserver: example.com\nport: 443\nuuid: {UUID}\n");
         let err = TuicOutboundConfig::from_proxy(&parse_entry(&yaml)).unwrap_err();
         assert!(err.to_string().contains("password"), "got: {err}");
+    }
+
+    #[test]
+    fn reduce_rtt_defaults_off_and_parses() {
+        let base = format!("name: t\ntype: tuic\nserver: example.com\nport: 443\nuuid: {UUID}\npassword: pw\n");
+        assert!(!TuicOutboundConfig::from_proxy(&parse_entry(&base)).unwrap().reduce_rtt);
+        let yaml = format!("{base}reduce-rtt: true\n");
+        assert!(TuicOutboundConfig::from_proxy(&parse_entry(&yaml)).unwrap().reduce_rtt);
     }
 
     fn encoded_address(target: &TargetAddr) -> Vec<u8> {
