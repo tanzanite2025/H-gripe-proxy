@@ -2,6 +2,7 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
+use crate::protocols::anytls;
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
@@ -55,6 +56,7 @@ pub fn connect<'a>(
             OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
             OutboundMode::Tuic(config) => tuic::connect(config, target).await,
             OutboundMode::Hysteria2(config) => hysteria2::connect(config, target).await,
+            OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
             OutboundMode::Routed(router) => {
                 connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
             }
@@ -112,6 +114,8 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
         OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
         OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
+        // AnyTLS UDP (sing-box udp-over-tcp v2) is not implemented yet; TCP only.
+        OutboundMode::AnyTls(_) => None,
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }

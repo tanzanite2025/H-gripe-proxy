@@ -33,6 +33,7 @@ pub use dns::{
     answer_query, unmap_fake_ip,
 };
 pub use inbound::{GripeHandle, GripeKernel};
+pub use protocols::anytls::AnyTlsOutboundConfig;
 pub use protocols::hysteria2::Hysteria2OutboundConfig;
 pub use protocols::salamander::Salamander;
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
