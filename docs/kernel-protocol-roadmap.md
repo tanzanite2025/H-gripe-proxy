@@ -34,8 +34,9 @@
 | tuic | ✅ | ✅ | TUIC v5（QUIC，quinn 栈）；TLS 密钥导出鉴权 + bidi 流 TCP relay；UDP 走 `Packet` 命令的 QUIC datagram（分片/重组）；`reduce-rtt` 0-RTT（`Connect` 走早期数据、鉴权等握手完成）；`quic`(uni-stream) UDP 模式 / 连接池为后续 |
 | hysteria2 | ✅ | ✅ | QUIC（quinn 栈）；HTTP/3 `POST /auth` 鉴权（`h3`/`h3-quinn`）+ 裸 QUIC 流 `TCPRequest(0x401)` TCP relay；UDP 走 QUIC datagram（`Hysteria-UDP` 协商 + 分片/重组）；Salamander obfs / 端口跳跃；`reduce-rtt` 0-RTT（鉴权 + `TCPRequest` 走早期数据） |
 | anytls | ✅ | ✅ | TLS 之上的会话层（`build_layers` 全传输/安全）；`SHA256(password)` 认证 + `cmdSettings`/`cmdSYN`/`cmdPSH(SocksAddr)` 帧多路复用；单连接单 stream（不做会话池复用），处理 `cmdSYNACK`/`cmdFIN`/`cmdAlert`/`cmdHeartRequest`；UDP 走 udp-over-tcp v2（开到 `sp.v2.udp-over-tcp.arpa`，connect 模式 `len(2)|payload` 逐包，逐目的一条流）；padding scheme 流量整形未做（仅声明默认 `padding-md5`） |
+| snell | ✅ | ❌ | Shadowsocks-AEAD 分块帧（16B salt + `AEAD(len)|AEAD(payload)`，12B LE 计数 nonce），会话子密钥用 **Argon2id**（`t=3,m=8KiB,p=1,32` 截断）而非 HKDF；cipher 按版本：v1 ChaCha20-Poly1305 / v2·v3 AES-128-GCM；请求头 `proto|command|clientID-len(0)|host|port`，首回包字节为命令响应（`Tunnel`/`Error`）；v2 走 `CommandConnectV2`；独立 fake Snell server 互通测试 `tests/snell_outbound.rs`（v1/v3、多块大包、Routed）。UDP（`CommandUDP`）/ 会话复用连接池 / v4·v5 / `obfs-opts`(http·tls simple-obfs) 为后续 |
 
-**解析但无数据面（导入显示 OK，跑不通）：** `ssr / snell / http / hysteria / wireguard / ssh / masque / gost-relay / trusttunnel / openvpn / tailscale / mieru / sudoku / dns`。
+**解析但无数据面（导入显示 OK，跑不通）：** `ssr / http / hysteria / wireguard / ssh / masque / gost-relay / trusttunnel / openvpn / tailscale / mieru / sudoku / dns`。
 
 ## 2. 传输 × 安全（VMess / VLESS / Trojan 共用 `transport::build_layers`）
 
@@ -89,7 +90,7 @@
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | ~~xhttp packet-up/stream-up 模式~~ | 低（小众） | 低-中 | 中 | ✅ **已完成**（`stream-up` + `packet-up`：单 h2 连接上 GET 下行 + POST 上行，对齐 Xray splithttp 线格式；独立 fake h2 server 互通测试 `tests/xhttp_multi.rs`） |
 | 7 | **TUIC / Hysteria2（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（引入 QUIC 栈 quinn + 协议层） | 高 | ✅ **TUIC v5 已完成**（TCP relay `tests/tuic_outbound.rs` + UDP relay `tests/tuic_udp_outbound.rs`）。✅ **Hysteria2 已完成**（TCP relay `tests/hysteria2_outbound.rs` + UDP relay `tests/hysteria2_udp_outbound.rs`）。**UDP 走 QUIC datagram**（Hysteria2 datagram + TUIC `Packet`，含 >MTU 分片/重组，共享 `protocols/quic_udp.rs`；独立 fake QUIC server 互通测试覆盖单包 + 分片）。✅ **Hysteria2 Salamander obfs + 端口跳跃已完成**（`obfs: salamander` 用 `BLAKE2b-256(psk‖salt)` keystream 逐 datagram XOR 混淆，`ports`/`hop-interval` 在 QUIC 之下的自定义 `AsyncUdpSocket`（`transport/quic_obfs.rs`）里跳端口；独立 fake Salamander server 互通测试 `tests/hysteria2_obfs.rs`）。✅ **TUIC / Hysteria2 0-RTT 已完成**（`reduce-rtt: true`：进程级 rustls session ticket 缓存 + `quinn::Connecting::into_0rtt`；TUIC 把无密的 `Connect` 头作为早期数据、RFC 5705 鉴权 token 等握手完成后再发，Hysteria2 把幂等的 HTTP/3 `/auth` + `TCPRequest` 作为早期数据；服务端拒绝 0-RTT 时自动回退 1-RTT 重发；互通测试 `tests/tuic_zero_rtt.rs` + `tests/hysteria2_zero_rtt.rs` 覆盖首拨 1-RTT + 续拨 0-RTT） |
-| 8 | WireGuard / ssr / snell / anytls 数据面 | 视订阅而定 | 大（各自独立工程） | 中-高 | ✅ **anytls 已完成**（TLS 之上的会话层：`SHA256(password)` 认证 + `cmdSettings`/`cmdSYN`/`cmdPSH(SocksAddr)` 帧多路复用，单连接单 stream，处理 `cmdSYNACK`/`cmdFIN`/`cmdAlert`/`cmdHeartRequest`；独立 fake AnyTLS server 互通测试 `tests/anytls_outbound.rs` 覆盖 plaintext/TLS/多帧大包；TCP relay，UDP 与 padding 整形为后续）。WireGuard / ssr / snell 按实际订阅命中再排；anytls UDP 已补（udp-over-tcp v2，connect 模式）。padding 流量整形仍为后续 |
+| 8 | WireGuard / ssr / snell / anytls 数据面 | 视订阅而定 | 大（各自独立工程） | 中-高 | ✅ **anytls 已完成**（TLS 之上的会话层：`SHA256(password)` 认证 + `cmdSettings`/`cmdSYN`/`cmdPSH(SocksAddr)` 帧多路复用，单连接单 stream，处理 `cmdSYNACK`/`cmdFIN`/`cmdAlert`/`cmdHeartRequest`；独立 fake AnyTLS server 互通测试 `tests/anytls_outbound.rs` 覆盖 plaintext/TLS/多帧大包；TCP relay，UDP 与 padding 整形为后续）。✅ **snell 已完成**（Shadowsocks-AEAD 分块帧 + Argon2id 会话子密钥；v1 ChaCha20-Poly1305 / v2·v3 AES-128-GCM；请求头 + 命令响应；独立 fake Snell server 互通测试 `tests/snell_outbound.rs`；TCP relay，UDP / 会话复用 / v4·v5 / `obfs-opts` 为后续）。WireGuard / ssr 按实际订阅命中再排；anytls UDP 已补（udp-over-tcp v2，connect 模式）。padding 流量整形仍为后续 |
 
 ---
 
@@ -98,7 +99,7 @@
 **已接通的主线**：SS(AEAD，含 2022 TCP+UDP) / VMess / VLESS / Trojan × `tcp/ws/grpc/xhttp(stream-one/stream-up/packet-up)/h2(over TLS)/httpupgrade` × `none/tls/reality`（+ VLESS Vision，raw TCP；+ TUIC v5 与 Hysteria2 over QUIC，TCP relay **及 UDP relay（QUIC datagram）**）。这套已经覆盖绝大多数现代订阅的 TCP + UDP 链路。
 
 **接下来的岔路口（待 owner 拍板）：**
-0. ~~#8 AnyTLS 数据面~~（已完成，TLS 会话层多路复用 + SocksAddr 代理；TCP relay）。
+0. ~~#8 AnyTLS 数据面~~（已完成，TLS 会话层多路复用 + SocksAddr 代理；TCP+UDP relay）、~~#8 Snell 数据面~~（已完成，Shadowsocks-AEAD 分块帧 + Argon2id 子密钥；v1/v2/v3；TCP relay）。剩 WireGuard / ssr 按订阅命中再排。
 1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http/tls 全部完成）。稳、低风险。
 2. **直接上 QUIC 系新协议** → ~~#7 TUIC~~（TUIC v5 TCP relay 已完成，引入 quinn QUIC 栈）、~~Hysteria2~~（HTTP/3 鉴权 + 裸 QUIC 流 TCP relay 已完成）、~~两者 UDP relay~~（QUIC datagram：Hysteria2 datagram + TUIC `Packet`，含分片/重组，已完成）；~~Hysteria2 的 Salamander obfs/端口跳跃~~（已完成）；~~TUIC/Hysteria2 的 0-RTT~~（`reduce-rtt`：session ticket 缓存 + `into_0rtt` 早期数据，已完成）。价值最高但工作量最大。
 3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成，含 `query-server-name` DNS 拉取 ECHConfig）、~~#6 xhttp stream-up/packet-up~~（已完成）。

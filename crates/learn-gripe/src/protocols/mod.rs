@@ -10,6 +10,7 @@ pub mod hysteria2;
 pub mod quic_udp;
 pub mod salamander;
 pub mod shadowsocks;
+pub mod snell;
 pub mod ss_plugin;
 pub mod trojan;
 pub mod tuic;
