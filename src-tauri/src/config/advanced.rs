@@ -763,7 +763,6 @@ impl AdvancedConfig {
         if other.residential_pool.enabled {
             self.residential_pool = other.residential_pool.clone();
         }
-
     }
 }
 

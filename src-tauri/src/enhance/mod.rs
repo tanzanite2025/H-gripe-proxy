@@ -741,13 +741,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = normalize_subscription_runtime(config, &root_group_name);
 
     // merge default clash config
-    let config = merge_default_config(
-        config,
-        clash_config,
-        socks_enabled,
-        http_enabled,
-    )
-    .await;
+    let config = merge_default_config(config, clash_config, socks_enabled, http_enabled).await;
 
     let mut config = config;
     config = cleanup_proxy_groups(config);

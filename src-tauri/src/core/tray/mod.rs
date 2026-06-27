@@ -302,7 +302,6 @@ impl Tray {
         }
         allow
     }
-
 }
 
 fn create_hotkeys(hotkeys: &Option<Vec<String>>) -> HashMap<String, String> {
