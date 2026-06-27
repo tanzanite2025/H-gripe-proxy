@@ -116,7 +116,7 @@ impl SsPlugin {
                 alpn: Vec::new(),
                 skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
                 client_fingerprint,
-                ech_config_list: None,
+                ech: None,
             })
         } else {
             None

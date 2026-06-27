@@ -62,7 +62,7 @@ async fn run_http_probe(stream: BoxedStream, probe: &ProbeTarget) -> Result<()> 
             alpn: vec!["http/1.1".to_string()],
             skip_cert_verify: false,
             client_fingerprint: None,
-            ech_config_list: None,
+            ech: None,
         };
         let tls_stream = tls::connect(&tls_config, &probe.host, stream)
             .await

@@ -938,7 +938,7 @@ async fn relays_through_tls_vless_outbound() {
                 alpn: Vec::new(),
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::Tcp,
             vision: false,
@@ -1088,7 +1088,7 @@ async fn relays_through_ws_tls_vless_outbound() {
                 alpn: Vec::new(),
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::Ws(WsTransportConfig {
                 path: "/ws".to_string(),
@@ -1157,7 +1157,7 @@ async fn relays_through_grpc_tls_vless_outbound() {
                 alpn: vec!["h2".to_string()],
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::Grpc(GrpcTransportConfig {
                 service_name: "GunService".to_string(),
@@ -1226,7 +1226,7 @@ async fn relays_through_httpupgrade_tls_vless_outbound() {
                 alpn: Vec::new(),
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::HttpUpgrade(HttpUpgradeTransportConfig {
                 path: "/up".to_string(),
@@ -1296,7 +1296,7 @@ async fn relays_through_xhttp_tls_vless_outbound() {
                 alpn: vec!["h2".to_string()],
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::Xhttp(XhttpTransportConfig {
                 path: "/".to_string(),
@@ -1334,7 +1334,7 @@ async fn relays_through_h2_tls_vless_outbound() {
                 alpn: vec!["h2".to_string()],
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::H2(H2TransportConfig {
                 path: "/".to_string(),
@@ -1674,7 +1674,7 @@ async fn relays_through_vision_tls_vless_outbound() {
                 alpn: Vec::new(),
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::Tcp,
             vision: true,

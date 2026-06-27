@@ -37,6 +37,8 @@ pub mod tls;
 pub mod ws;
 pub mod xhttp;
 
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpStream;
 
@@ -45,7 +47,7 @@ use crate::outbound::BoxedStream;
 use crate::transport::grpc::GrpcTransportConfig;
 use crate::transport::http2::H2TransportConfig;
 use crate::transport::httpupgrade::HttpUpgradeTransportConfig;
-use crate::transport::tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
+use crate::transport::tls::{ClientFingerprint, EchClientConfig, RealityClientConfig, TlsClientConfig};
 use crate::transport::ws::WsTransportConfig;
 use crate::transport::xhttp::{XhttpMode, XhttpTransportConfig};
 
@@ -156,7 +158,7 @@ pub(crate) fn build_layers(
             alpn: opts.alpn.clone().unwrap_or_default(),
             skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
             client_fingerprint,
-            ech_config_list: build_ech_config_list(opts.ech_opts.as_ref(), proto)?,
+            ech: build_ech_config(opts.ech_opts.as_ref(), proto)?,
         })
     } else {
         Security::None
@@ -236,28 +238,41 @@ pub(crate) fn build_layers(
     Ok((security, transport))
 }
 
-/// Decode the raw `ECHConfigList` for Encrypted Client Hello from a proxy's
+/// Default recursive resolver for ECH `query-server-name` lookups when the
+/// kernel has no DNS configured to thread through. Cloudflare's `1.1.1.1`
+/// serves the `HTTPS` records ECH relies on and is the de-facto bootstrap
+/// clash/mihomo use for the same purpose.
+const DEFAULT_ECH_RESOLVER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 53);
+
+/// Build the [`EchClientConfig`] for Encrypted Client Hello from a proxy's
 /// `ech-opts`, or `None` when ECH is absent/disabled.
 ///
-/// clash/mihomo's `ech-opts.config` carries the base64-encoded `ECHConfigList`.
-/// When `enable` is set we require it: fetching the config over DNS (the
-/// `query-server-name` HTTPS-RR path) is not implemented, so a missing config is
-/// rejected rather than silently downgrading to a cleartext SNI.
-fn build_ech_config_list(ech: Option<&EchOpts>, proto: &str) -> Result<Option<Vec<u8>>> {
+/// clash/mihomo's `ech-opts.config` carries the base64-encoded `ECHConfigList`;
+/// when it is empty, `query-server-name` names the host whose `HTTPS` DNS record
+/// holds the `ech` SvcParam (fetched at connection time). When `enable` is set
+/// at least one of the two must be present, so a missing config is rejected
+/// rather than silently downgrading to a cleartext SNI.
+fn build_ech_config(ech: Option<&EchOpts>, proto: &str) -> Result<Option<EchClientConfig>> {
     let Some(ech) = ech else {
         return Ok(None);
     };
     if !ech.enable.unwrap_or(false) {
         return Ok(None);
     }
-    let config = ech.config.as_deref().filter(|s| !s.is_empty()).ok_or_else(|| {
-        anyhow!(
-            "{proto}: ech-opts.enable is set but ech-opts.config is empty \
-             (DNS-based ECH config fetch is not supported; supply the base64 ECHConfigList)"
-        )
-    })?;
-    let bytes = decode_base64(config).with_context(|| format!("{proto}: invalid base64 in ech-opts.config"))?;
-    Ok(Some(bytes))
+    if let Some(config) = ech.config.as_deref().filter(|s| !s.is_empty()) {
+        let bytes = decode_base64(config).with_context(|| format!("{proto}: invalid base64 in ech-opts.config"))?;
+        return Ok(Some(EchClientConfig::Config(bytes)));
+    }
+    if let Some(server_name) = ech.query_server_name.as_deref().filter(|s| !s.is_empty()) {
+        return Ok(Some(EchClientConfig::Query {
+            server_name: server_name.to_string(),
+            resolver: DEFAULT_ECH_RESOLVER,
+        }));
+    }
+    bail!(
+        "{proto}: ech-opts.enable is set but neither ech-opts.config nor \
+         ech-opts.query-server-name is provided"
+    )
 }
 
 /// Decode standard or URL-safe Base64 (padding and ASCII whitespace ignored).
@@ -435,5 +450,48 @@ mod tests {
     fn decode_public_key_requires_32_bytes() {
         assert_eq!(decode_reality_public_key(&"A".repeat(43), "t").unwrap(), [0u8; 32]);
         assert!(decode_reality_public_key("AAAA", "t").is_err());
+    }
+
+    #[test]
+    fn build_ech_config_selects_config_query_or_errors() {
+        // Disabled / absent -> no ECH.
+        assert_eq!(build_ech_config(None, "t").unwrap(), None);
+        let disabled = EchOpts {
+            enable: Some(false),
+            ..Default::default()
+        };
+        assert_eq!(build_ech_config(Some(&disabled), "t").unwrap(), None);
+
+        // ech-opts.config wins and is base64-decoded into raw bytes.
+        let with_config = EchOpts {
+            enable: Some(true),
+            config: Some("AAAA".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            build_ech_config(Some(&with_config), "t").unwrap(),
+            Some(EchClientConfig::Config(vec![0, 0, 0]))
+        );
+
+        // query-server-name -> DNS lookup against the default resolver.
+        let with_query = EchOpts {
+            enable: Some(true),
+            query_server_name: Some("crypto.example".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            build_ech_config(Some(&with_query), "t").unwrap(),
+            Some(EchClientConfig::Query {
+                server_name: "crypto.example".to_string(),
+                resolver: DEFAULT_ECH_RESOLVER,
+            })
+        );
+
+        // enable without config or query-server-name is rejected.
+        let enabled_empty = EchOpts {
+            enable: Some(true),
+            ..Default::default()
+        };
+        assert!(build_ech_config(Some(&enabled_empty), "t").is_err());
     }
 }

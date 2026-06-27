@@ -238,7 +238,7 @@ async fn relays_through_tls_trojan_outbound() {
                 alpn: Vec::new(),
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
             transport: Transport::Tcp,
         })),
