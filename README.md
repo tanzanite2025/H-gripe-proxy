@@ -4,10 +4,10 @@
 > 
 > 📌 这是一个 **私有维护的 Rust 主导实现** / This is a **privately maintained Rust-led implementation**
 > 
-> - 当前维护仓库 / Maintained repository: [tanzanite2025/clash-verge-optimized](https://github.com/tanzanite2025/clash-verge-optimized)
+> - 当前维护仓库 / Maintained repository: [tanzanite2025/H-gripe-proxy](https://github.com/tanzanite2025/H-gripe-proxy)
 > - 授权信息以仓库内 [LICENSE](./LICENSE) 为准 / Licensing follows the repository-local [LICENSE](./LICENSE)
 > - 当前主线重点是 **Rust 控制面迁移**、**安全边界收紧** 和 **本仓库可复现打包链** / Current mainline focus: **Rust control-plane migration**, **security boundary hardening**, and **reproducible in-repo packaging**
-> - 发布页面 / Releases: [Clash Verge Optimized Releases](https://github.com/tanzanite2025/clash-verge-optimized/releases)
+> - 发布页面 / Releases: [Clash Verge Optimized Releases](https://github.com/tanzanite2025/H-gripe-proxy/releases)
 
 ---
 
@@ -58,10 +58,10 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 ## 安装 / Installation
 
 ### 当前发布版 / Current Release
-请访问 [Clash Verge Optimized Releases](https://github.com/tanzanite2025/clash-verge-optimized/releases) 获取当前维护版本。
+请访问 [Clash Verge Optimized Releases](https://github.com/tanzanite2025/H-gripe-proxy/releases) 获取当前维护版本。
 
 ### 项目仓库 / Repository
-请访问 [tanzanite2025/clash-verge-optimized](https://github.com/tanzanite2025/clash-verge-optimized) 查看源码与说明。
+请访问 [tanzanite2025/H-gripe-proxy](https://github.com/tanzanite2025/H-gripe-proxy) 查看源码与说明。
 
 ---
 
@@ -196,8 +196,8 @@ clash-verge-optimized/
 
 如遇到问题或有任何建议：
 
-- 📝 提交 [Issue](https://github.com/tanzanite2025/clash-verge-optimized/issues)
-- 🔄 提交 [Pull Request](https://github.com/tanzanite2025/clash-verge-optimized/pulls)
+- 📝 提交 [Issue](https://github.com/tanzanite2025/H-gripe-proxy/issues)
+- 🔄 提交 [Pull Request](https://github.com/tanzanite2025/H-gripe-proxy/pulls)
 
 ---
 

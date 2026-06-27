@@ -224,7 +224,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
             className="whitespace-nowrap"
             onClick={() => {
               void openWebUrl(
-                `https://github.com/tanzanite2025/clash-verge-optimized/releases/tag/v${updateInfo?.version}`,
+                `https://github.com/tanzanite2025/H-gripe-proxy/releases/tag/v${updateInfo?.version}`,
               )
             }}
           >
