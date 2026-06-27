@@ -81,7 +81,7 @@
 |---|---|---|---|---|---|
 | 1 | ~~SS `2022-blake3-*` TCP~~ | 高（现代 SS 主流） | 中 | 低 | ✅ **已完成 (PR #446)** |
 | 2 | ~~SS `2022-blake3-*` UDP~~ | 中（UDP-over-SS：节点内跑 QUIC/HTTP3、游戏、WebRTC、DNS；full-cone NAT） | 中 | 中（separate-header：gcm 用 AES-ECB 头加密、chacha 用 XChaCha20，跟 TCP 完全不同的封装） | ✅ **已完成**（SIP022 UDP：AES separate-header + XChaCha20-Poly1305） |
-| 3 | **SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆） | 中（带混淆的 SS 节点直接断） | 中 | 中 | 复用现有 transport 层思路 |
+| 3 | ~~**SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆）~~ | 中（带混淆的 SS 节点直接断） | 中 | 中 | 🟡 **部分完成**（v2ray-plugin websocket + 可选 TLS、simple-obfs http；复用现有 ws/tls transport）。**剩余**：simple-obfs 伪 TLS 模式（记录层复杂，单列后续项） |
 | 4 | **ECH 接线**（`ech-opts` → 实际握手） | 低-中（少量启用 ECH 的节点） | 中 | 中（依赖 vendored rustls 的 ECH 支持程度） | 视订阅是否真的用到 |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | xhttp packet-up/down 模式 | 低（小众） | 低-中 | 中 | 视需求 |
@@ -95,7 +95,7 @@
 **已接通的主线**：SS(AEAD，含 2022 TCP+UDP) / VMess / VLESS / Trojan × `tcp/ws/grpc/xhttp(stream-one)/h2(over TLS)/httpupgrade` × `none/tls/reality`（+ VLESS Vision，raw TCP）。这套已经覆盖绝大多数现代订阅的 TCP 链路。
 
 **接下来的岔路口（待 owner 拍板）：**
-1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、#3 SIP003 plugin。稳、低风险。
+1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http 已完成；仅剩 simple-obfs 伪 TLS）。稳、低风险。
 2. **直接上 QUIC 系新协议** → #7 Hysteria2 / TUIC。价值最高但工作量最大。
 3. **补已有传输的洞** → #4 ECH 接线 / #6 xhttp 其它模式。
 

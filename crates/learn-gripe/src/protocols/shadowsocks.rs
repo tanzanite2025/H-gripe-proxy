@@ -8,8 +8,13 @@
 //!
 //! The legacy stream ciphers (`aes-*-cfb`, `rc4-md5`, …) use a different
 //! construction and are rejected by [`ShadowsocksOutboundConfig::from_proxy`]
-//! rather than silently mis-encoded, as are SIP003 `plugin`s (obfs /
-//! v2ray-plugin), which would need their own transport layer.
+//! rather than silently mis-encoded.
+//!
+//! SIP003 `plugin` transports are supported via [`crate::protocols::ss_plugin`]:
+//! the Shadowsocks stream runs over the plugin transport (simple-obfs HTTP, or
+//! v2ray-plugin WebSocket optionally over TLS) instead of the raw socket. The
+//! simple-obfs fake-TLS mode and v2ray-plugin's non-WebSocket modes are
+//! rejected rather than mis-framed.
 //!
 //! UDP is supported for both generations. The 2017 methods use the stateless,
 //! per-packet salted construction; the 2022 methods use the SIP022 UDP packet
@@ -58,6 +63,7 @@ use crate::address::TargetAddr;
 use crate::config::outbound_opts::ProxyEntry;
 use crate::inbound::socks5;
 use crate::outbound::BoxedStream;
+use crate::protocols::ss_plugin::SsPlugin;
 
 /// HKDF `info` string that derives the per-session subkey from the master key.
 const SS_SUBKEY_INFO: &[u8] = b"ss-subkey";
@@ -142,6 +148,9 @@ pub struct ShadowsocksOutboundConfig {
     pub port: u16,
     pub cipher: ShadowsocksCipher,
     pub key: Vec<u8>,
+    /// SIP003 plugin transport the Shadowsocks stream runs over, if any
+    /// (simple-obfs / v2ray-plugin). `None` dials the raw socket directly.
+    pub plugin: Option<SsPlugin>,
 }
 
 impl ShadowsocksOutboundConfig {
@@ -177,11 +186,10 @@ impl ShadowsocksOutboundConfig {
             ),
         };
 
-        // SIP003 plugins (obfs / v2ray-plugin) wrap the stream in another
-        // transport that is not implemented; reject rather than dial blindly.
-        if let Some(plugin) = opts.plugin.as_deref().filter(|s| !s.is_empty()) {
-            bail!("shadowsocks: plugin {plugin:?} not supported");
-        }
+        // SIP003 plugin transport (obfs / v2ray-plugin), if configured. The
+        // parser rejects unsupported plugins/modes so traffic is never
+        // mis-framed.
+        let plugin = SsPlugin::parse(opts.plugin.as_deref(), opts.plugin_opts.as_ref())?;
 
         let key = if cipher.is_2022() {
             // Shadowsocks 2022 PSK: the password is Base64-encoded raw key bytes
@@ -205,6 +213,7 @@ impl ShadowsocksOutboundConfig {
             port,
             cipher,
             key,
+            plugin,
         })
     }
 }
@@ -213,23 +222,33 @@ impl ShadowsocksOutboundConfig {
 /// The salt and the AEAD-sealed target address are sent before the stream is
 /// handed back, so reads/writes thereafter carry application data only.
 pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let mut tcp = TcpStream::connect((config.server.as_str(), config.port))
-        .await
-        .with_context(|| format!("shadowsocks: connect {}:{}", config.server, config.port))?;
+    // The Shadowsocks stream runs over the raw socket, or, when a SIP003 plugin
+    // is configured, over the plugin's transport (simple-obfs / v2ray-plugin).
+    let mut transport: BoxedStream = match &config.plugin {
+        None => Box::new(
+            TcpStream::connect((config.server.as_str(), config.port))
+                .await
+                .with_context(|| format!("shadowsocks: connect {}:{}", config.server, config.port))?,
+        ),
+        Some(plugin) => plugin
+            .connect(&config.server, config.port)
+            .await
+            .with_context(|| format!("shadowsocks: plugin connect {}:{}", config.server, config.port))?,
+    };
 
     let salt_len = config.cipher.key_size();
     let mut salt = vec![0u8; salt_len];
     random_bytes(&mut salt);
-    tcp.write_all(&salt).await.context("shadowsocks: send salt")?;
+    transport.write_all(&salt).await.context("shadowsocks: send salt")?;
 
     let subkey = session_subkey(config.cipher, &config.key, &salt);
     let write_cipher = AeadCipher::new(config.cipher, &subkey)?;
 
     if config.cipher.is_2022() {
-        return connect_2022(tcp, config, target, salt, write_cipher).await;
+        return connect_2022(transport, config, target, salt, write_cipher).await;
     }
 
-    let mut stream = ShadowsocksStream::new(tcp, config.cipher, config.key.clone(), write_cipher);
+    let mut stream = ShadowsocksStream::new(transport, config.cipher, config.key.clone(), write_cipher);
 
     // The first plaintext bytes are the SOCKS5-format destination address.
     let mut addr = Vec::with_capacity(1 + 256 + 2);
@@ -249,7 +268,7 @@ pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) ->
 /// sealed as its own AEAD chunk; application data then flows as ordinary body
 /// chunks with the write nonce continuing past the two header chunks.
 async fn connect_2022(
-    mut tcp: TcpStream,
+    mut tcp: BoxedStream,
     config: &ShadowsocksOutboundConfig,
     target: &TargetAddr,
     request_salt: Vec<u8>,
@@ -816,11 +835,12 @@ enum ReadState {
     Eof,
 }
 
-/// Wraps a TCP stream: writes seal application data into Shadowsocks AEAD
-/// chunks; reads strip the peer salt, then decrypt length-prefixed chunks. The
-/// client salt and sealed target address are sent at connect time.
+/// Wraps the underlying transport stream (raw TCP, or a SIP003 plugin
+/// transport): writes seal application data into Shadowsocks AEAD chunks; reads
+/// strip the peer salt, then decrypt length-prefixed chunks. The client salt
+/// and sealed target address are sent at connect time.
 struct ShadowsocksStream {
-    inner: TcpStream,
+    inner: BoxedStream,
     cipher: ShadowsocksCipher,
     master_key: Vec<u8>,
     /// Whether this is a Shadowsocks 2022 session (BLAKE3 subkey + SIP022
@@ -844,7 +864,7 @@ struct ShadowsocksStream {
 }
 
 impl ShadowsocksStream {
-    fn new(inner: TcpStream, cipher: ShadowsocksCipher, master_key: Vec<u8>, write_cipher: AeadCipher) -> Self {
+    fn new(inner: BoxedStream, cipher: ShadowsocksCipher, master_key: Vec<u8>, write_cipher: AeadCipher) -> Self {
         Self {
             inner,
             cipher,
@@ -868,7 +888,7 @@ impl ShadowsocksStream {
     /// already been written, so `write_nonce` continues past the two header
     /// chunks and `request_salt` is retained to validate the response header.
     fn new_2022(
-        inner: TcpStream,
+        inner: BoxedStream,
         cipher: ShadowsocksCipher,
         psk: Vec<u8>,
         write_cipher: AeadCipher,
@@ -1260,10 +1280,17 @@ mod tests {
     }
 
     #[test]
-    fn plugin_is_rejected() {
+    fn supported_plugin_is_parsed() {
         let yaml = "name: s\ntype: ss\nserver: h\nport: 1\ncipher: aes-128-gcm\npassword: p\nplugin: obfs\n";
+        let cfg = ShadowsocksOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap();
+        assert!(matches!(cfg.plugin, Some(SsPlugin::ObfsHttp { .. })));
+    }
+
+    #[test]
+    fn unsupported_plugin_is_rejected() {
+        let yaml = "name: s\ntype: ss\nserver: h\nport: 1\ncipher: aes-128-gcm\npassword: p\nplugin: kcptun\n";
         let err = ShadowsocksOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
-        assert!(err.to_string().contains("plugin"), "got: {err}");
+        assert!(err.to_string().contains("not supported"), "got: {err}");
     }
 
     #[test]

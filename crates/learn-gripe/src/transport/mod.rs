@@ -29,6 +29,7 @@ pub mod h2stream;
 pub mod http2;
 pub mod httpupgrade;
 pub mod obfuscation;
+pub mod simple_obfs;
 pub mod tls;
 pub mod ws;
 pub mod xhttp;

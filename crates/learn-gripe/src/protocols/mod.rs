@@ -6,6 +6,7 @@
 //! stream in when the Vision flow is negotiated.
 
 pub mod shadowsocks;
+pub mod ss_plugin;
 pub mod trojan;
 pub mod vision;
 pub mod vless;
