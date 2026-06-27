@@ -178,6 +178,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
     match egress {
         UdpEgress::Direct => run_direct_egress(target, rx, sink, idle).await,
         UdpEgress::Shadowsocks(config) => run_ss_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Ssr(config) => run_ssr_egress(config, target, rx, sink, idle).await,
         UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
@@ -237,6 +238,34 @@ async fn run_ss_egress<S: ReplySink>(
     idle: Option<Duration>,
 ) -> Result<()> {
     let assoc = crate::protocols::shadowsocks::ShadowsocksUdp::connect(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
+/// ShadowsocksR UDP egress: relay datagrams over a UDP socket to the SSR
+/// server, sealing/opening each packet with a per-packet stream cipher and the
+/// protocol layer's UDP framing.
+async fn run_ssr_egress<S: ReplySink>(
+    config: Box<crate::protocols::ssr::SsrOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let assoc = crate::protocols::ssr::SsrUdp::connect(&config, &target).await?;
     loop {
         tokio::select! {
             maybe = rx.recv() => match maybe {
@@ -362,6 +391,7 @@ impl ProxyFraming {
             UdpEgress::Vmess(_)
             | UdpEgress::Direct
             | UdpEgress::Shadowsocks(_)
+            | UdpEgress::Ssr(_)
             | UdpEgress::Hysteria2(_)
             | UdpEgress::Tuic(_) => ProxyFraming::Chunked,
         }
