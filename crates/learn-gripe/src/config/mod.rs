@@ -3,6 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use anyhow::{Context, Result, bail};
 
 use crate::config::outbound_opts::{ProxyEntry, ProxyType};
+use crate::protocols::anytls::AnyTlsOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
@@ -44,6 +45,8 @@ pub enum OutboundMode {
     Tuic(Box<TuicOutboundConfig>),
     /// Forward through a Hysteria2 (QUIC) outbound.
     Hysteria2(Box<Hysteria2OutboundConfig>),
+    /// Forward through an AnyTLS outbound.
+    AnyTls(Box<AnyTlsOutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
@@ -78,6 +81,7 @@ impl OutboundMode {
             ProxyType::Hysteria2 => Ok(OutboundMode::Hysteria2(Box::new(Hysteria2OutboundConfig::from_proxy(
                 entry,
             )?))),
+            ProxyType::AnyTls => Ok(OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig::from_proxy(entry)?))),
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
         }
     }
@@ -101,6 +105,7 @@ impl OutboundMode {
             OutboundMode::Shadowsocks(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Tuic(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Hysteria2(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
                 .flat_map(OutboundMode::direct_dial_endpoints)
@@ -121,6 +126,7 @@ impl OutboundMode {
             OutboundMode::Shadowsocks(_) => "shadowsocks",
             OutboundMode::Tuic(_) => "tuic",
             OutboundMode::Hysteria2(_) => "hysteria2",
+            OutboundMode::AnyTls(_) => "anytls",
             OutboundMode::Routed(_) => "routed",
         }
     }
@@ -141,6 +147,7 @@ impl OutboundMode {
                 | OutboundMode::Shadowsocks(_)
                 | OutboundMode::Tuic(_)
                 | OutboundMode::Hysteria2(_)
+                | OutboundMode::AnyTls(_)
         )
     }
 }
@@ -217,6 +224,15 @@ mod tests {
     fn trojan_entry_maps_to_trojan_outbound() {
         let m = mode("name: t\ntype: trojan\nserver: example.com\nport: 443\npassword: secret\n");
         assert!(matches!(m, OutboundMode::Trojan(_)));
+    }
+
+    #[test]
+    fn anytls_entry_maps_to_anytls_outbound() {
+        let m = mode("name: a\ntype: anytls\nserver: example.com\nport: 443\npassword: secret\n");
+        assert!(matches!(m, OutboundMode::AnyTls(_)));
+        assert_eq!(m.type_label(), "anytls");
+        assert_eq!(m.direct_dial_endpoints(), vec![("example.com".to_string(), 443)]);
+        assert!(m.supports_global_capture());
     }
 
     #[test]
