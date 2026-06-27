@@ -54,8 +54,6 @@ use anyhow::Result;
 use clash_verge_logging::{Type, logging};
 use once_cell::sync::OnceCell;
 use tauri::{AppHandle, Manager as _};
-#[cfg(target_os = "macos")]
-use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_deep_link::DeepLinkExt as _;
 
 pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
@@ -97,7 +95,7 @@ mod app_init {
 
     /// Setup deep link handling
     pub fn setup_deep_links(app: &tauri::App) {
-        #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+        #[cfg(debug_assertions)]
         {
             logging!(info, Type::Setup, "æ³¨å†Œæ·±å±‚é“¾æŽ¥...");
             let _ = app.deep_link().register_all();
@@ -117,17 +115,7 @@ mod app_init {
 
     /// Setup autostart plugin
     pub fn setup_autostart(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-        #[cfg(target_os = "macos")]
-        let mut auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
-        #[cfg(not(target_os = "macos"))]
         let auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
-
-        #[cfg(target_os = "macos")]
-        {
-            auto_start_plugin_builder = auto_start_plugin_builder
-                .macos_launcher(MacosLauncher::LaunchAgent)
-                .app_name(&app.config().identifier);
-        }
         app.handle().plugin(auto_start_plugin_builder.build())?;
         Ok(())
     }
@@ -653,11 +641,6 @@ pub fn run() {
         return;
     }
 
-    #[cfg(target_os = "linux")]
-    utils::linux::workarounds::apply_nvidia_dmabuf_renderer_workaround();
-    #[cfg(target_os = "linux")]
-    utils::linux::workarounds::apply_wayland_webkit_fix();
-
     let _ = utils::dirs::init_portable_flag();
 
     let builder = app_init::setup_plugins(tauri::Builder::default())
@@ -734,8 +717,6 @@ pub fn run() {
         };
         use clash_verge_logging::{Type, logging};
         use tauri::AppHandle;
-        #[cfg(target_os = "macos")]
-        use tauri::Manager as _;
 
         pub fn handle_ready_resumed(_app_handle: &AppHandle) {
             if handle::Handle::global().is_exiting() {
@@ -746,18 +727,7 @@ pub fn run() {
             logging!(info, Type::System, "åº”ç”¨å°±ç»ª");
         }
 
-        #[cfg(target_os = "macos")]
-        pub async fn handle_reopen(has_visible_windows: bool) {
-            if !has_visible_windows {
-                handle::Handle::global().set_activation_policy_regular();
-                let _ = WindowManager::show_main_window().await;
-            }
-        }
-
         pub fn handle_window_close(api: &tauri::WindowEvent) {
-            #[cfg(target_os = "macos")]
-            handle::Handle::global().set_activation_policy_accessory();
-
             if core::handle::Handle::global().is_exiting() {
                 return;
             }
@@ -775,42 +745,12 @@ pub fn run() {
                 let is_enable_global_hotkey = Config::verge().await.data_arc().enable_global_hotkey.unwrap_or(true);
 
                 if focused {
-                    #[cfg(target_os = "macos")]
-                    {
-                        use crate::core::hotkey::SystemHotkey;
-                        let _ = hotkey::Hotkey::global()
-                            .register_system_hotkey(SystemHotkey::CmdQ)
-                            .await;
-                        let _ = hotkey::Hotkey::global()
-                            .register_system_hotkey(SystemHotkey::CmdW)
-                            .await;
-                    }
                     if !is_enable_global_hotkey {
                         let _ = hotkey::Hotkey::global().init(false).await;
                     }
                     return;
                 }
 
-                #[cfg(target_os = "macos")]
-                {
-                    use crate::core::hotkey::SystemHotkey;
-                    let _ = hotkey::Hotkey::global().unregister_system_hotkey(SystemHotkey::CmdQ);
-                    let _ = hotkey::Hotkey::global().unregister_system_hotkey(SystemHotkey::CmdW);
-                }
-
-                if !is_enable_global_hotkey {
-                    let _ = hotkey::Hotkey::global().reset();
-                }
-            });
-        }
-
-        #[cfg(target_os = "macos")]
-        pub fn handle_window_destroyed() {
-            use crate::core::hotkey::SystemHotkey;
-            AsyncHandler::spawn(move || async move {
-                let _ = hotkey::Hotkey::global().unregister_system_hotkey(SystemHotkey::CmdQ);
-                let _ = hotkey::Hotkey::global().unregister_system_hotkey(SystemHotkey::CmdW);
-                let is_enable_global_hotkey = Config::verge().await.data_arc().enable_global_hotkey.unwrap_or(true);
                 if !is_enable_global_hotkey {
                     let _ = hotkey::Hotkey::global().reset();
                 }
@@ -839,17 +779,6 @@ pub fn run() {
             }
             event_handlers::handle_ready_resumed(app_handle);
         }
-        #[cfg(target_os = "macos")]
-        tauri::RunEvent::Reopen {
-            has_visible_windows, ..
-        } => {
-            if core::handle::Handle::global().is_exiting() {
-                return;
-            }
-            AsyncHandler::spawn(move || async move {
-                event_handlers::handle_reopen(has_visible_windows).await;
-            });
-        }
         tauri::RunEvent::Exit => {
             logging!(info, Type::System, "Application exited");
         }
@@ -870,10 +799,6 @@ pub fn run() {
             }
             tauri::WindowEvent::Focused(focused) => {
                 event_handlers::handle_window_focus(focused);
-            }
-            #[cfg(target_os = "macos")]
-            tauri::WindowEvent::Destroyed => {
-                event_handlers::handle_window_destroyed();
             }
             _ => {}
         },
