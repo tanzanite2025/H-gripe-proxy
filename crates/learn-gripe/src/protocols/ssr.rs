@@ -289,9 +289,7 @@ impl Rc4State {
         }
         let mut j: u8 = 0;
         for i in 0..256 {
-            j = j
-                .wrapping_add(s[i])
-                .wrapping_add(derived[i % derived.len()]);
+            j = j.wrapping_add(s[i]).wrapping_add(derived[i % derived.len()]);
             s.swap(i, j as usize);
         }
         Self { s, i: 0, j: 0 }
@@ -341,24 +339,15 @@ enum ProtocolState {
 }
 
 impl ProtocolState {
-    fn new(
-        protocol: SsrProtocol,
-        key: &[u8],
-        client_iv: &[u8],
-        _protocol_param: &str,
-    ) -> Self {
+    fn new(protocol: SsrProtocol, key: &[u8], client_iv: &[u8], _protocol_param: &str) -> Self {
         match protocol {
             SsrProtocol::Origin => ProtocolState::Origin,
-            SsrProtocol::AuthAes128Sha1 => ProtocolState::AuthAes128(AuthAes128State::new(
-                AuthHashKind::Sha1,
-                key,
-                client_iv,
-            )),
-            SsrProtocol::AuthAes128Md5 => ProtocolState::AuthAes128(AuthAes128State::new(
-                AuthHashKind::Md5,
-                key,
-                client_iv,
-            )),
+            SsrProtocol::AuthAes128Sha1 => {
+                ProtocolState::AuthAes128(AuthAes128State::new(AuthHashKind::Sha1, key, client_iv))
+            }
+            SsrProtocol::AuthAes128Md5 => {
+                ProtocolState::AuthAes128(AuthAes128State::new(AuthHashKind::Md5, key, client_iv))
+            }
             SsrProtocol::AuthChainA => ProtocolState::AuthChainA(AuthChainAState::new(key, client_iv)),
         }
     }
@@ -449,14 +438,12 @@ impl AuthAes128State {
     fn hmac_digest(&self, key: &[u8], data: &[u8]) -> Vec<u8> {
         match self.hash_kind {
             AuthHashKind::Sha1 => {
-                let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(key)
-                    .expect("HMAC key length");
+                let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(key).expect("HMAC key length");
                 mac.update(data);
                 mac.finalize().into_bytes().to_vec()
             }
             AuthHashKind::Md5 => {
-                let mut mac = <Hmac<Md5> as Mac>::new_from_slice(key)
-                    .expect("HMAC key length");
+                let mut mac = <Hmac<Md5> as Mac>::new_from_slice(key).expect("HMAC key length");
                 mac.update(data);
                 mac.finalize().into_bytes().to_vec()
             }
@@ -911,9 +898,7 @@ impl ObfsState {
         match obfs {
             SsrObfs::Plain => ObfsState::Plain,
             SsrObfs::HttpSimple => ObfsState::HttpSimple(HttpSimpleState::new(server, port, obfs_param)),
-            SsrObfs::Tls12TicketAuth => {
-                ObfsState::Tls12TicketAuth(Tls12TicketAuthState::new(server, obfs_param))
-            }
+            SsrObfs::Tls12TicketAuth => ObfsState::Tls12TicketAuth(Tls12TicketAuthState::new(server, obfs_param)),
         }
     }
 
@@ -978,10 +963,7 @@ impl HttpSimpleState {
 
         // Encode first ≤64 bytes of data as hex in the URI path.
         let head_size = data.len().min(64);
-        let hex_path: String = data[..head_size]
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
+        let hex_path: String = data[..head_size].iter().map(|b| format!("{b:02x}")).collect();
 
         let http_header = format!(
             "GET /{hex_path} HTTP/1.1\r\n\
@@ -1310,12 +1292,7 @@ pub async fn connect(config: &SsrOutboundConfig, target: &TargetAddr) -> Result<
     let write_cipher = StreamCryptor::new_encrypt(config.cipher, &config.key, &client_iv);
 
     // Create the protocol layer.
-    let protocol = ProtocolState::new(
-        config.protocol,
-        &config.key,
-        &client_iv,
-        &config.protocol_param,
-    );
+    let protocol = ProtocolState::new(config.protocol, &config.key, &client_iv, &config.protocol_param);
 
     // Create the obfuscation layer.
     let obfs = ObfsState::new(config.obfs, &config.server, config.port, &config.obfs_param);
@@ -1484,11 +1461,7 @@ impl AsyncRead for SsrStream {
                     continue; // need more data for IV
                 }
                 let server_iv: Vec<u8> = this.read_raw.drain(..iv_len).collect();
-                this.read_cipher = Some(StreamCryptor::new_decrypt(
-                    this.cipher_kind,
-                    &this.key,
-                    &server_iv,
-                ));
+                this.read_cipher = Some(StreamCryptor::new_decrypt(this.cipher_kind, &this.key, &server_iv));
                 this.iv_read = true;
                 if this.read_raw.is_empty() {
                     continue;
@@ -1634,9 +1607,7 @@ mod tests {
 
     #[test]
     fn parses_ssr_entry_defaults() {
-        let entry = parse_entry(
-            "name: s\ntype: ssr\nserver: s\nport: 1\ncipher: none\npassword: p\n",
-        );
+        let entry = parse_entry("name: s\ntype: ssr\nserver: s\nport: 1\ncipher: none\npassword: p\n");
         let config = SsrOutboundConfig::from_proxy(&entry).expect("valid");
         assert_eq!(config.cipher, SsrCipher::None);
         assert_eq!(config.protocol, SsrProtocol::Origin);
@@ -1645,9 +1616,7 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_cipher() {
-        let entry = parse_entry(
-            "name: s\ntype: ssr\nserver: s\nport: 1\ncipher: aes-256-gcm\npassword: p\n",
-        );
+        let entry = parse_entry("name: s\ntype: ssr\nserver: s\nport: 1\ncipher: aes-256-gcm\npassword: p\n");
         let err = SsrOutboundConfig::from_proxy(&entry).unwrap_err();
         assert!(err.to_string().contains("not supported"), "{err}");
     }
@@ -1670,7 +1639,9 @@ mod tests {
         // MD5("password") = 5f4dcc3b5aa765d61d8327deb882cf99
         assert_eq!(
             key,
-            [0x5f, 0x4d, 0xcc, 0x3b, 0x5a, 0xa7, 0x65, 0xd6, 0x1d, 0x83, 0x27, 0xde, 0xb8, 0x82, 0xcf, 0x99]
+            [
+                0x5f, 0x4d, 0xcc, 0x3b, 0x5a, 0xa7, 0x65, 0xd6, 0x1d, 0x83, 0x27, 0xde, 0xb8, 0x82, 0xcf, 0x99
+            ]
         );
     }
 

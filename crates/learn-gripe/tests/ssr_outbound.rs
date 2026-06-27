@@ -18,9 +18,7 @@ use hmac::{Hmac, Mac};
 use md5::Md5;
 use sha1::Sha1;
 
-use learn_gripe::{
-    GripeConfig, GripeKernel, OutboundMode, SsrCipher, SsrObfs, SsrOutboundConfig, SsrProtocol,
-};
+use learn_gripe::{GripeConfig, GripeKernel, OutboundMode, SsrCipher, SsrObfs, SsrOutboundConfig, SsrProtocol};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -265,12 +263,12 @@ async fn serve_ssr_origin_plain(mut stream: TcpStream, cipher_kind: SsrCipher) {
 /// Parse the SOCKS5 address length from the stream head.
 fn parse_socks5_addr_len(buf: &[u8]) -> usize {
     match buf[0] {
-        0x01 => 1 + 4 + 2,     // IPv4: type(1) + addr(4) + port(2)
+        0x01 => 1 + 4 + 2, // IPv4: type(1) + addr(4) + port(2)
         0x03 => {
             let domain_len = buf[1] as usize;
             1 + 1 + domain_len + 2 // type(1) + len(1) + domain + port(2)
         }
-        0x04 => 1 + 16 + 2,    // IPv6: type(1) + addr(16) + port(2)
+        0x04 => 1 + 16 + 2, // IPv6: type(1) + addr(16) + port(2)
         _ => panic!("unknown SOCKS5 address type: 0x{:02x}", buf[0]),
     }
 }
@@ -280,11 +278,7 @@ fn parse_socks5_addr_len(buf: &[u8]) -> usize {
 // ---------------------------------------------------------------------------
 
 /// Fake SSR server that handles auth_aes128_sha1/md5 protocol + plain obfs.
-async fn serve_ssr_auth_aes128(
-    mut stream: TcpStream,
-    cipher_kind: SsrCipher,
-    use_sha1: bool,
-) {
+async fn serve_ssr_auth_aes128(mut stream: TcpStream, cipher_kind: SsrCipher, use_sha1: bool) {
     let key = evp_bytes_to_key(PASSWORD.as_bytes(), cipher_kind.key_size());
     let iv_len = cipher_kind.iv_size();
 
@@ -727,7 +721,8 @@ async fn spawn_fake_ssr(kind: ServerKind, cipher_kind: SsrCipher) -> SocketAddr 
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        while let Ok((stream, _)) = listener.accept().await {
+        // Serve only one connection per test.
+        if let Ok((stream, _)) = listener.accept().await {
             let ck = cipher_kind;
             match kind {
                 ServerKind::OriginPlain => {
@@ -749,7 +744,6 @@ async fn spawn_fake_ssr(kind: ServerKind, cipher_kind: SsrCipher) -> SocketAddr 
                     tokio::spawn(serve_ssr_tls12_ticket(stream, ck));
                 }
             }
-            break; // serve only one connection per test
         }
     });
     addr
@@ -828,7 +822,12 @@ async fn assert_relays(outbound: OutboundMode, payload: &[u8]) {
 async fn ssr_aes128cfb_origin_plain() {
     let server = spawn_fake_ssr(ServerKind::OriginPlain, SsrCipher::Aes128Cfb).await;
     assert_relays(
-        OutboundMode::Ssr(build_ssr_config(server, SsrCipher::Aes128Cfb, SsrProtocol::Origin, SsrObfs::Plain)),
+        OutboundMode::Ssr(build_ssr_config(
+            server,
+            SsrCipher::Aes128Cfb,
+            SsrProtocol::Origin,
+            SsrObfs::Plain,
+        )),
         b"hello SSR aes128cfb",
     )
     .await;
@@ -838,7 +837,12 @@ async fn ssr_aes128cfb_origin_plain() {
 async fn ssr_aes256cfb_origin_plain() {
     let server = spawn_fake_ssr(ServerKind::OriginPlain, SsrCipher::Aes256Cfb).await;
     assert_relays(
-        OutboundMode::Ssr(build_ssr_config(server, SsrCipher::Aes256Cfb, SsrProtocol::Origin, SsrObfs::Plain)),
+        OutboundMode::Ssr(build_ssr_config(
+            server,
+            SsrCipher::Aes256Cfb,
+            SsrProtocol::Origin,
+            SsrObfs::Plain,
+        )),
         b"hello SSR aes256cfb",
     )
     .await;
@@ -848,7 +852,12 @@ async fn ssr_aes256cfb_origin_plain() {
 async fn ssr_chacha20_origin_plain() {
     let server = spawn_fake_ssr(ServerKind::OriginPlain, SsrCipher::Chacha20Ietf).await;
     assert_relays(
-        OutboundMode::Ssr(build_ssr_config(server, SsrCipher::Chacha20Ietf, SsrProtocol::Origin, SsrObfs::Plain)),
+        OutboundMode::Ssr(build_ssr_config(
+            server,
+            SsrCipher::Chacha20Ietf,
+            SsrProtocol::Origin,
+            SsrObfs::Plain,
+        )),
         b"hello SSR chacha20",
     )
     .await;
@@ -858,7 +867,12 @@ async fn ssr_chacha20_origin_plain() {
 async fn ssr_rc4md5_origin_plain() {
     let server = spawn_fake_ssr(ServerKind::OriginPlain, SsrCipher::Rc4Md5).await;
     assert_relays(
-        OutboundMode::Ssr(build_ssr_config(server, SsrCipher::Rc4Md5, SsrProtocol::Origin, SsrObfs::Plain)),
+        OutboundMode::Ssr(build_ssr_config(
+            server,
+            SsrCipher::Rc4Md5,
+            SsrProtocol::Origin,
+            SsrObfs::Plain,
+        )),
         b"hello SSR rc4md5",
     )
     .await;
@@ -868,7 +882,12 @@ async fn ssr_rc4md5_origin_plain() {
 async fn ssr_none_origin_plain() {
     let server = spawn_fake_ssr(ServerKind::OriginPlain, SsrCipher::None).await;
     assert_relays(
-        OutboundMode::Ssr(build_ssr_config(server, SsrCipher::None, SsrProtocol::Origin, SsrObfs::Plain)),
+        OutboundMode::Ssr(build_ssr_config(
+            server,
+            SsrCipher::None,
+            SsrProtocol::Origin,
+            SsrObfs::Plain,
+        )),
         b"hello SSR none cipher",
     )
     .await;
