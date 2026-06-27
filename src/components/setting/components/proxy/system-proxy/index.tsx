@@ -17,7 +17,6 @@ import {
   patchVergeConfig,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import getSystem from '@/utils/misc'
 
 import { SystemProxyUI } from '../system-proxy-ui'
 
@@ -38,12 +37,7 @@ import {
 } from './validation'
 
 export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
-  const systemName = getSystem()
-  const isWindows = systemName === 'windows'
-  const bypassValidator = useMemo(
-    () => createBypassValidator(isWindows),
-    [isWindows],
-  )
+  const bypassValidator = useMemo(() => createBypassValidator(), [])
 
   const [open, setOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -74,7 +68,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     createSystemProxyFormValue(verge),
   )
 
-  const separator = useMemo(() => (isWindows ? ';' : ','), [isWindows])
+  const separator = ';'
   const prevMixedPortRef = useRef(clashConfig?.mixedPort)
 
   useEffect(() => {
@@ -133,7 +127,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
 
   const bypassError = hasInvalidBypassValue(value, bypassValidator)
 
-  const defaultBypass = () => getDefaultBypass(systemName, isWindows)
+  const defaultBypass = () => getDefaultBypass()
 
   const fetchNetworkInterfaces = async () => {
     const options = await loadSystemProxyHostOptions()

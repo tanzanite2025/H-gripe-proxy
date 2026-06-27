@@ -5,7 +5,6 @@ import { DialogRef, Switch } from '@/components/base'
 import { MenuItem, Select } from '@/components/tailwind/Select'
 import { useClash } from '@/hooks/data'
 import { invoke_uwp_tool } from '@/services/cmds'
-import getSystem from '@/utils/misc'
 
 import { ClashPortViewer } from '../components/clash/clash-port'
 import { GeoSourceConfig } from '../components/clash/geo-source-config'
@@ -18,8 +17,6 @@ import { SettingItem, SettingList } from '../components/shared/setting-item'
 
 import { SettingActionButton } from './action-button'
 import { GeoDataSection } from './geo-data-section'
-
-const isWindows = getSystem() === 'windows'
 
 interface Props {
   onError: (err: Error) => void
@@ -159,18 +156,16 @@ const SettingClash = ({ onError }: Props) => {
         <span />
       </SettingItem>
 
-      {isWindows && (
-        <SettingItem
-          label={t('settings.sections.clash.form.fields.openUwpTool')}
-          extra={
-            <SettingActionButton onClick={invoke_uwp_tool}>
-              打开
-            </SettingActionButton>
-          }
-        >
-          <span />
-        </SettingItem>
-      )}
+      <SettingItem
+        label={t('settings.sections.clash.form.fields.openUwpTool')}
+        extra={
+          <SettingActionButton onClick={invoke_uwp_tool}>
+            打开
+          </SettingActionButton>
+        }
+      >
+        <span />
+      </SettingItem>
 
       <GeoDataSection geoSourceRef={geoSourceRef} onError={onError} />
 
