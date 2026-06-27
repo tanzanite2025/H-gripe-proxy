@@ -5,7 +5,7 @@
 > 来源：逐行核对 `crates/learn-gripe/src/{outbound,transport,protocols,udp,inbound}`。
 > 图例：✅ 已实现并接通　❌ 显式 bail 拒绝（不会静默乱编码）　△ 部分　— 不适用
 >
-> 最近更新：SS `2022-blake3-*` 的 **TCP** 已合并（PR #446）；UDP 仍未实现。
+> 最近更新：SS `2022-blake3-*` 的 **TCP** 已合并（PR #446）；**UDP** 数据面已实现（SIP022：AES 系 separate-header + chacha 系 XChaCha20-Poly1305）。
 
 ---
 
@@ -27,7 +27,7 @@
 | direct | ✅ | ✅ | UDP 走 OS socket |
 | reject | ✅ | — | 阻断 |
 | socks5（上游代理） | ✅ | ❌ | 仅 CONNECT；上游 SOCKS5 无 UDP relay |
-| shadowsocks (ss) | ✅ | △ | cipher 限制见 §3；2017 系 TCP+UDP，2022 系**仅 TCP**；无 SIP003 plugin |
+| shadowsocks (ss) | ✅ | ✅ | cipher 限制见 §3；2017 系与 2022 系均 TCP+UDP；无 SIP003 plugin |
 | trojan | ✅ | ✅ | 经 `build_layers` 全传输/安全 |
 | vmess | ✅ | ✅ | 仅 alterId 0 (AEAD)；cipher auto / aes-128-gcm / chacha20-poly1305 |
 | vless | ✅ | ✅ | 支持 Vision（仅 raw TCP）；encryption 须 none |
@@ -62,7 +62,7 @@
 | aes-128-gcm | ✅ | ✅ |
 | aes-256-gcm | ✅ | ✅ |
 | chacha20-ietf-poly1305（别名 chacha20-poly1305） | ✅ | ✅ |
-| **2022-blake3-aes-128-gcm / -aes-256-gcm / -chacha20-poly1305** | ✅ (PR #446) | ❌ |
+| **2022-blake3-aes-128-gcm / -aes-256-gcm / -chacha20-poly1305** | ✅ (PR #446) | ✅ (SIP022 UDP) |
 | 老式流密码 aes-*-cfb / rc4-md5 等 | ❌ | ❌ |
 | SIP003 plugin（obfs-local / simple-obfs / v2ray-plugin） | ❌ | ❌ |
 
@@ -80,7 +80,7 @@
 | # | 缺口 | 价值 | 工作量 | 风险 | 建议 |
 |---|---|---|---|---|---|
 | 1 | ~~SS `2022-blake3-*` TCP~~ | 高（现代 SS 主流） | 中 | 低 | ✅ **已完成 (PR #446)** |
-| 2 | **SS `2022-blake3-*` UDP** | 中（UDP-over-SS：节点内跑 QUIC/HTTP3、游戏、WebRTC、DNS；full-cone NAT） | 中 | 中（separate-header：gcm 用 AES-ECB 头加密、chacha 用 XChaCha20，跟 TCP 完全不同的封装） | 稳、低风险的"补齐 SS"项；TCP 已覆盖 SS ~99% 用途，UDP 可视需求缓做 |
+| 2 | ~~SS `2022-blake3-*` UDP~~ | 中（UDP-over-SS：节点内跑 QUIC/HTTP3、游戏、WebRTC、DNS；full-cone NAT） | 中 | 中（separate-header：gcm 用 AES-ECB 头加密、chacha 用 XChaCha20，跟 TCP 完全不同的封装） | ✅ **已完成**（SIP022 UDP：AES separate-header + XChaCha20-Poly1305） |
 | 3 | **SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆） | 中（带混淆的 SS 节点直接断） | 中 | 中 | 复用现有 transport 层思路 |
 | 4 | **ECH 接线**（`ech-opts` → 实际握手） | 低-中（少量启用 ECH 的节点） | 中 | 中（依赖 vendored rustls 的 ECH 支持程度） | 视订阅是否真的用到 |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
@@ -92,10 +92,10 @@
 
 ## 6. 结论 & 待定决策
 
-**已接通的主线**：SS(AEAD，含 2022 TCP) / VMess / VLESS / Trojan × `tcp/ws/grpc/xhttp(stream-one)/h2(over TLS)/httpupgrade` × `none/tls/reality`（+ VLESS Vision，raw TCP）。这套已经覆盖绝大多数现代订阅的 TCP 链路。
+**已接通的主线**：SS(AEAD，含 2022 TCP+UDP) / VMess / VLESS / Trojan × `tcp/ws/grpc/xhttp(stream-one)/h2(over TLS)/httpupgrade` × `none/tls/reality`（+ VLESS Vision，raw TCP）。这套已经覆盖绝大多数现代订阅的 TCP 链路。
 
 **接下来的岔路口（待 owner 拍板）：**
-1. **继续补"已有 SS"** → #2 SS-2022 UDP、#3 SIP003 plugin。稳、低风险。
+1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、#3 SIP003 plugin。稳、低风险。
 2. **直接上 QUIC 系新协议** → #7 Hysteria2 / TUIC。价值最高但工作量最大。
 3. **补已有传输的洞** → #4 ECH 接线 / #6 xhttp 其它模式。
 
