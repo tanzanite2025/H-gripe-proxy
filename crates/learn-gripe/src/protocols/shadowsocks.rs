@@ -11,10 +11,10 @@
 //! rather than silently mis-encoded.
 //!
 //! SIP003 `plugin` transports are supported via [`crate::protocols::ss_plugin`]:
-//! the Shadowsocks stream runs over the plugin transport (simple-obfs HTTP, or
-//! v2ray-plugin WebSocket optionally over TLS) instead of the raw socket. The
-//! simple-obfs fake-TLS mode and v2ray-plugin's non-WebSocket modes are
-//! rejected rather than mis-framed.
+//! the Shadowsocks stream runs over the plugin transport (simple-obfs HTTP or
+//! fake-TLS, or v2ray-plugin WebSocket optionally over TLS) instead of the raw
+//! socket. v2ray-plugin's non-WebSocket modes are rejected rather than
+//! mis-framed.
 //!
 //! UDP is supported for both generations. The 2017 methods use the stateless,
 //! per-packet salted construction; the 2022 methods use the SIP022 UDP packet

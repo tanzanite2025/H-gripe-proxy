@@ -1,21 +1,15 @@
-//! simple-obfs (obfs-local) client transport — HTTP mode.
+//! simple-obfs **http** mode client.
 //!
-//! `simple-obfs` is a SIP003 Shadowsocks plugin that disguises the proxy stream
-//! as innocuous traffic. The HTTP mode frames the connection as a WebSocket
-//! upgrade: the client sends a fake `GET ... Upgrade: websocket` request, the
-//! server replies with a `101 Switching Protocols` response, and the real
-//! Shadowsocks bytes flow as the request/response bodies. Neither side parses
-//! the other's header beyond locating the `\r\n\r\n` terminator, so the obfs
-//! layer is a one-shot header on connect with no per-packet framing thereafter.
+//! The HTTP mode frames the connection as a fake WebSocket upgrade: the client
+//! sends a `GET ... Upgrade: websocket` request, the server replies with a
+//! `101 Switching Protocols` response, and the real Shadowsocks bytes flow as
+//! the request/response bodies. Neither side parses the other's header beyond
+//! locating the `\r\n\r\n` terminator, so the obfs layer is a one-shot header on
+//! connect with no per-packet framing thereafter.
 //!
-//! Only the client side is implemented (learn-gripe dials outbound). The
-//! request header is written eagerly at [`connect_http`]; the server's response
-//! header is stripped lazily on the first read by [`ObfsHttpStream`], after
-//! which reads and writes pass straight through to the inner transport.
-//!
-//! The fake-TLS mode (`obfs=tls`) is intentionally not implemented; it requires
-//! synthesising a TLS record layer and is rejected by the Shadowsocks plugin
-//! parser rather than mis-framed.
+//! The request header is written eagerly at [`connect_http`]; the server's
+//! response header is stripped lazily on the first read by [`ObfsHttpStream`],
+//! after which reads and writes pass straight through to the inner transport.
 
 use std::io;
 use std::pin::Pin;
@@ -23,6 +17,8 @@ use std::task::{Context as TaskContext, Poll, ready};
 
 use anyhow::{Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
+
+use super::{base64_encode, find_subsequence, random_bytes};
 
 /// Maximum response header we will buffer before giving up, guarding against a
 /// peer that never sends the `\r\n\r\n` terminator.
@@ -38,7 +34,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let mut key_bytes = [0u8; 16];
-    getrandom::fill(&mut key_bytes).map_err(|_| anyhow::anyhow!("simple-obfs http: system RNG unavailable"))?;
+    random_bytes(&mut key_bytes)?;
     let key = base64_encode(&key_bytes);
 
     let request = format!(
@@ -161,61 +157,5 @@ where
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
-    }
-}
-
-/// Find the first occurrence of `needle` in `haystack`.
-fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
-    }
-    haystack.windows(needle.len()).position(|w| w == needle)
-}
-
-/// Standard Base64 (RFC 4648) encoder. Only used to synthesise a plausible
-/// `Sec-WebSocket-Key`, so it does not need to be fast.
-fn base64_encode(input: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
-    for chunk in input.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
-        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
-        let n = (b0 << 16) | (b1 << 8) | b2;
-        out.push(ALPHABET[(n >> 18) as usize & 0x3f] as char);
-        out.push(ALPHABET[(n >> 12) as usize & 0x3f] as char);
-        out.push(if chunk.len() > 1 {
-            ALPHABET[(n >> 6) as usize & 0x3f] as char
-        } else {
-            '='
-        });
-        out.push(if chunk.len() > 2 {
-            ALPHABET[n as usize & 0x3f] as char
-        } else {
-            '='
-        });
-    }
-    out
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn base64_encode_matches_rfc4648_vectors() {
-        assert_eq!(base64_encode(b""), "");
-        assert_eq!(base64_encode(b"f"), "Zg==");
-        assert_eq!(base64_encode(b"fo"), "Zm8=");
-        assert_eq!(base64_encode(b"foo"), "Zm9v");
-        assert_eq!(base64_encode(b"foob"), "Zm9vYg==");
-        assert_eq!(base64_encode(b"fooba"), "Zm9vYmE=");
-        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
-    }
-
-    #[test]
-    fn finds_header_terminator() {
-        assert_eq!(find_subsequence(b"abc\r\n\r\ndef", HEADER_TERMINATOR), Some(3));
-        assert_eq!(find_subsequence(b"no terminator", HEADER_TERMINATOR), None);
     }
 }

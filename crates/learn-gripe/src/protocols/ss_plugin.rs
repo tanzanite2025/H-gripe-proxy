@@ -8,13 +8,13 @@
 //! would over a raw socket.
 //!
 //! Implemented:
-//! - `obfs` (simple-obfs) **http** mode — fake WebSocket-upgrade header.
+//! - `obfs` (simple-obfs) **http** and **tls** (fake-TLS) modes.
 //! - `v2ray-plugin` **websocket** mode, optionally over TLS — reuses the
 //!   kernel's vetted [`ws`](crate::transport::ws) and [`tls`](crate::transport::tls)
 //!   transports.
 //!
-//! Not implemented (rejected rather than mis-framed): simple-obfs `tls`
-//! (fake-TLS) mode, and v2ray-plugin non-websocket modes / `mux`.
+//! Not implemented (rejected rather than mis-framed): v2ray-plugin
+//! non-websocket modes / `mux`.
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpStream;
@@ -31,6 +31,9 @@ pub enum SsPlugin {
     /// simple-obfs (obfs-local) HTTP mode: a fake WebSocket-upgrade request
     /// frames the stream; `host`/`path` populate the request line and header.
     ObfsHttp { host: String, path: String },
+    /// simple-obfs (obfs-local) TLS mode: a fake TLS 1.2 handshake frames the
+    /// stream; `host` is sent as the SNI.
+    ObfsTls { host: String },
     /// v2ray-plugin websocket mode, optionally over TLS.
     V2rayWebsocket {
         ws: WsTransportConfig,
@@ -71,11 +74,14 @@ impl SsPlugin {
                     .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| "/".to_string()),
             }),
-            "tls" => bail!(
-                "shadowsocks: simple-obfs tls (fake-TLS) mode not implemented yet \
-                 (use obfs http or v2ray-plugin)"
-            ),
-            other => bail!("shadowsocks: unknown simple-obfs mode {other:?} (use http)"),
+            "tls" => Ok(SsPlugin::ObfsTls {
+                host: opts
+                    .host
+                    .clone()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "bing.com".to_string()),
+            }),
+            other => bail!("shadowsocks: unknown simple-obfs mode {other:?} (use http or tls)"),
         }
     }
 
@@ -128,6 +134,10 @@ impl SsPlugin {
         match self {
             SsPlugin::ObfsHttp { host, path } => {
                 let stream = simple_obfs::connect_http(tcp, host, path).await?;
+                Ok(Box::new(stream))
+            }
+            SsPlugin::ObfsTls { host } => {
+                let stream = simple_obfs::connect_tls(tcp, host).await?;
                 Ok(Box::new(stream))
             }
             SsPlugin::V2rayWebsocket { ws, tls } => {
@@ -183,13 +193,29 @@ mod tests {
     }
 
     #[test]
-    fn obfs_tls_is_rejected() {
+    fn obfs_tls_is_parsed() {
         let opts = PluginOpts {
             mode: Some("tls".to_string()),
+            host: Some("www.example.com".to_string()),
+            ..Default::default()
+        };
+        let plugin = SsPlugin::parse(Some("obfs"), Some(&opts)).unwrap().unwrap();
+        assert_eq!(
+            plugin,
+            SsPlugin::ObfsTls {
+                host: "www.example.com".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn obfs_unknown_mode_is_rejected() {
+        let opts = PluginOpts {
+            mode: Some("quic".to_string()),
             ..Default::default()
         };
         let err = SsPlugin::parse(Some("obfs"), Some(&opts)).unwrap_err();
-        assert!(err.to_string().contains("tls"), "got: {err}");
+        assert!(err.to_string().contains("unknown simple-obfs mode"), "got: {err}");
     }
 
     #[test]
