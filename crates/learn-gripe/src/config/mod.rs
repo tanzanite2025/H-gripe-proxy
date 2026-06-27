@@ -3,6 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use anyhow::{Context, Result, bail};
 
 use crate::config::outbound_opts::{ProxyEntry, ProxyType};
+use crate::protocols::hysteria2::Hysteria2OutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::tuic::TuicOutboundConfig;
@@ -41,6 +42,8 @@ pub enum OutboundMode {
     Shadowsocks(Box<ShadowsocksOutboundConfig>),
     /// Forward through a TUIC v5 (QUIC) outbound.
     Tuic(Box<TuicOutboundConfig>),
+    /// Forward through a Hysteria2 (QUIC) outbound.
+    Hysteria2(Box<Hysteria2OutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
@@ -57,8 +60,7 @@ impl OutboundMode {
     /// actually carry its traffic or returns an error the caller can fall back
     /// on. Protocols without a data plane yet (Hysteria, TUIC, …) and the
     /// `select`/`url-test`/… proxy *groups* are reported as errors rather than
-    /// silently mis-routed. (TUIC now has a TCP data plane; Hysteria/… still do
-    /// not.)
+    /// silently mis-routed. (TUIC and Hysteria2 now have a TCP data plane.)
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         match entry.kind {
             ProxyType::Direct => Ok(OutboundMode::Direct),
@@ -73,6 +75,9 @@ impl OutboundMode {
             ProxyType::Vmess => Ok(OutboundMode::Vmess(Box::new(VmessOutboundConfig::from_proxy(entry)?))),
             ProxyType::Vless => Ok(OutboundMode::Vless(Box::new(VlessOutboundConfig::from_proxy(entry)?))),
             ProxyType::Tuic => Ok(OutboundMode::Tuic(Box::new(TuicOutboundConfig::from_proxy(entry)?))),
+            ProxyType::Hysteria2 => Ok(OutboundMode::Hysteria2(Box::new(Hysteria2OutboundConfig::from_proxy(
+                entry,
+            )?))),
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
         }
     }
@@ -95,6 +100,7 @@ impl OutboundMode {
             OutboundMode::Vmess(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Shadowsocks(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Tuic(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Hysteria2(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
                 .flat_map(OutboundMode::direct_dial_endpoints)
@@ -114,6 +120,7 @@ impl OutboundMode {
             OutboundMode::Vmess(_) => "vmess",
             OutboundMode::Shadowsocks(_) => "shadowsocks",
             OutboundMode::Tuic(_) => "tuic",
+            OutboundMode::Hysteria2(_) => "hysteria2",
             OutboundMode::Routed(_) => "routed",
         }
     }
@@ -133,6 +140,7 @@ impl OutboundMode {
                 | OutboundMode::Vmess(_)
                 | OutboundMode::Shadowsocks(_)
                 | OutboundMode::Tuic(_)
+                | OutboundMode::Hysteria2(_)
         )
     }
 }
@@ -213,7 +221,7 @@ mod tests {
 
     #[test]
     fn unimplemented_protocol_is_rejected() {
-        let err = OutboundMode::from_proxy(&entry("name: h\ntype: hysteria2\nserver: a\nport: 1\n")).unwrap_err();
+        let err = OutboundMode::from_proxy(&entry("name: h\ntype: hysteria\nserver: a\nport: 1\n")).unwrap_err();
         assert!(err.to_string().contains("no learn-gripe outbound"), "{err}");
     }
 

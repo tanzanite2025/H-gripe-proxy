@@ -51,6 +51,13 @@ smoltcp = { version = "0.12.0", default-features = false, features = ["std", "me
 # pure-Rust `ring` provider — no aws-lc-rs/C toolchain. `platform-verifier` is
 # left off because the kernel supplies its own certificate verification.
 quinn = { version = "0.11.9", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
+# Hysteria2 authenticates over an HTTP/3 request (`POST /auth` with the auth
+# headers); the proxy streams themselves are raw QUIC. Rather than hand-roll
+# QPACK + Huffman + HTTP/3 framing, we delegate that wire codec to the vetted
+# `h3`/`h3-quinn` crates (same philosophy as quinn/hickory/smoltcp) and own only
+# the Hysteria2 orchestration on top. `h3-quinn` adapts `h3` onto our quinn 0.11.
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread", "sync"] }
