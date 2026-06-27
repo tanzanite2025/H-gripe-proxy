@@ -19,18 +19,18 @@ notifications:
     body: Profil reaktiviert.
   appQuit:
     title: Beenden steht bevor
-    body: Clash Verge Optimized wird gleich beendet.
+    body: H-gripe-proxy wird gleich beendet.
   appHidden:
     title: Anwendung ausgeblendet
-    body: Clash Verge Optimized läuft im Hintergrund.
+    body: H-gripe-proxy läuft im Hintergrund.
   updateReady:
-    title: Clash Verge Optimized Update
+    title: H-gripe-proxy Update
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
 service:
-  adminInstallPrompt: Für die Installation des Clash Verge Optimized-Dienstes sind Administratorrechte erforderlich.
-  adminUninstallPrompt: Für die Deinstallation des Clash Verge Optimized-Dienstes sind Administratorrechte erforderlich.
+  adminInstallPrompt: Für die Installation des H-gripe-proxy-Dienstes sind Administratorrechte erforderlich.
+  adminUninstallPrompt: Für die Deinstallation des H-gripe-proxy-Dienstes sind Administratorrechte erforderlich.
 tray:
   dashboard: Übersicht
   ruleMode: Regelmodus

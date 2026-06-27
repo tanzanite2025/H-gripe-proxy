@@ -113,7 +113,7 @@ async function sendTelegramNotification() {
   const releaseTitle = isAutobuild ? '滚动更新版发布' : '正式发布'
   const encodedVersion = encodeURIComponent(version)
   const releaseTag = isAutobuild ? 'autobuild' : `v${version}`
-  const content = `<b>🎉 <a href="https://github.com/tanzanite2025/H-gripe-proxy/releases/tag/${releaseTag}">Clash Verge Optimized v${version}</a> ${releaseTitle}</b>\n\n${formattedContent}`
+  const content = `<b>🎉 <a href="https://github.com/tanzanite2025/H-gripe-proxy/releases/tag/${releaseTag}">H-gripe-proxy v${version}</a> ${releaseTitle}</b>\n\n${formattedContent}`
 
   // 发送到 Telegram
   try {

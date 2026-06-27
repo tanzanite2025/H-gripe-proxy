@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "identifier": "io.github.tanzanite2025.clash-verge-optimized",
+  "identifier": "io.github.tanzanite2025.h-gripe-proxy",
   "bundle": {
     "targets": ["nsis"],
     "windows": {

@@ -71,8 +71,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Clash Verge Optimized ${{ github.ref_name }}
-          releaseBody: Signed release assets for Clash Verge Optimized.
+          releaseName: H-gripe-proxy ${{ github.ref_name }}
+          releaseBody: Signed release assets for H-gripe-proxy.
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, '+') || github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'pre' }}
           args: ${{ matrix.tauri_args }}
@@ -131,8 +131,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Clash Verge Optimized ${{ github.ref_name }}
-          releaseBody: Signed release assets for Clash Verge Optimized.
+          releaseName: H-gripe-proxy ${{ github.ref_name }}
+          releaseBody: Signed release assets for H-gripe-proxy.
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, '+') || github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'pre' }}
           args: ${{ matrix.tauri_args }}

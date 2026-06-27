@@ -14,7 +14,7 @@ export const TOR_USAGE_INSTRUCTIONS = {
   steps: [
     '下载安装 Tor Browser 或 Tor Expert Bundle。',
     '启动 Tor，确认本地 SOCKS5 服务运行在 127.0.0.1:9050。',
-    '在 Clash Verge Optimized 中启用 Tor 代理并填写本地监听地址。',
+    '在 H-gripe-proxy 中启用 Tor 代理并填写本地监听地址。',
     '按需要把部分规则或应用流量切到 Tor。',
     '如果所在网络环境有限制，可以开启桥接并填入 bridge 列表。',
   ],

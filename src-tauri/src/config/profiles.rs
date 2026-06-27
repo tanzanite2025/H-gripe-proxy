@@ -222,7 +222,7 @@ impl IProfiles {
         help::save_yaml(
             &dirs::profiles_path()?,
             self,
-            Some("# Profiles Config for Clash Verge Optimized"),
+            Some("# Profiles Config for H-gripe-proxy"),
         )
         .await
     }

@@ -19,18 +19,18 @@ notifications:
     body: Профиль яңадан активлаштырылды.
   appQuit:
     title: Чыгар алдыннан
-    body: Clash Verge Optimized чыгарга җыена.
+    body: H-gripe-proxy чыгарга җыена.
   appHidden:
     title: Кушымта яшерелде
-    body: Clash Verge Optimized фон режимында эшли.
+    body: H-gripe-proxy фон режимында эшли.
   updateReady:
-    title: Clash Verge Optimized Update
+    title: H-gripe-proxy Update
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
 service:
-  adminInstallPrompt: Clash Verge Optimized хезмәтен урнаштыру өчен администратор хокуклары кирәк.
-  adminUninstallPrompt: Clash Verge Optimized хезмәтен бетерү өчен администратор хокуклары кирәк.
+  adminInstallPrompt: H-gripe-proxy хезмәтен урнаштыру өчен администратор хокуклары кирәк.
+  adminUninstallPrompt: H-gripe-proxy хезмәтен бетерү өчен администратор хокуклары кирәк.
 tray:
   dashboard: Идарә панеле
   ruleMode: Кагыйдә режимы

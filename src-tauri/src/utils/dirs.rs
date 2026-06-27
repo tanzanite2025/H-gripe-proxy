@@ -21,13 +21,13 @@ struct ReleasePathMigrationConfig {
 }
 
 #[cfg(not(feature = "verge-dev"))]
-pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized";
+pub static APP_ID: &str = "io.github.tanzanite2025.h-gripe-proxy";
 #[cfg(not(feature = "verge-dev"))]
 #[cfg(not(feature = "verge-dev"))]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup";
 
 #[cfg(feature = "verge-dev")]
-pub static APP_ID: &str = "io.github.tanzanite2025.clash-verge-optimized.dev";
+pub static APP_ID: &str = "io.github.tanzanite2025.h-gripe-proxy.dev";
 #[cfg(feature = "verge-dev")]
 pub static BACKUP_DIR: &str = "clash-verge-optimized-backup-dev";
 
@@ -60,7 +60,7 @@ const LEGACY_PATH_MIGRATION: LegacyPathMigrationConfig = LegacyPathMigrationConf
 // Legacy migration from Clash Verge Rev.
 #[cfg(feature = "verge-dev")]
 const RELEASE_PATH_MIGRATION: ReleasePathMigrationConfig = ReleasePathMigrationConfig {
-    release_app_id: "io.github.tanzanite2025.clash-verge-optimized",
+    release_app_id: "io.github.tanzanite2025.h-gripe-proxy",
     release_legacy_app_ids: &["io.github.clash-verge-rev.clash-verge-rev"],
 };
 

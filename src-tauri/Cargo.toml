@@ -1,7 +1,7 @@
 [package]
 name = "clash-verge-optimized"
 version = "0.0.5"
-description = "Clash Verge Optimized"
+description = "H-gripe-proxy"
 authors = ["tanzanite2025"]
 license = "GPL-3.0-only"
 repository = "https://github.com/tanzanite2025/H-gripe-proxy.git"
@@ -24,7 +24,7 @@ clippy = ["tauri/test"]
 tracing = []
 
 [package.metadata.bundle]
-identifier = "io.github.tanzanite2025.clash-verge-optimized"
+identifier = "io.github.tanzanite2025.h-gripe-proxy"
 
 [build-dependencies]
 tauri-build = { version = "2.6.2", features = [] }
