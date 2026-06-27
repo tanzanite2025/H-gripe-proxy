@@ -451,7 +451,7 @@ async fn relays_through_tls_vmess() {
                 alpn: Vec::new(),
                 skip_cert_verify: true,
                 client_fingerprint: None,
-                ech_config_list: None,
+                ech: None,
             }),
         ),
         b"hello vmess over tls",

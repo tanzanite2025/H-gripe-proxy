@@ -536,6 +536,8 @@ fn outbound_label(outbound: &OutboundMode) -> &'static str {
         OutboundMode::Trojan(_) => "trojan",
         OutboundMode::Vmess(_) => "vmess",
         OutboundMode::Shadowsocks(_) => "shadowsocks",
+        OutboundMode::Tuic(_) => "tuic",
+        OutboundMode::Hysteria2(_) => "hysteria2",
         OutboundMode::Routed(_) => "routed",
     }
 }

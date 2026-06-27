@@ -5,9 +5,14 @@
 //! boundary, so learn-gripe stands on a vetted implementation here.
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use hickory_proto::op::{Message, MessageType, OpCode, Query};
+use hickory_proto::rr::rdata::svcb::SvcParamValue;
+use hickory_proto::rr::{Name, RData, RecordType};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{ClientSessionMemoryCache, ClientSessionStore, EchConfig, EchMode, RealityConfig, Resumption};
 use rustls::crypto::ring::cipher_suite;
@@ -15,6 +20,7 @@ use rustls::crypto::{CryptoProvider, SecureRandom, ring, verify_tls12_signature,
 use rustls::pki_types::{CertificateDer, EchConfigListBytes, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, RootCertStore, SignatureScheme, SupportedCipherSuite};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::UdpSocket;
 use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 
@@ -32,12 +38,22 @@ pub struct TlsClientConfig {
     /// uTLS client fingerprint to mimic in the ClientHello, if any (see
     /// [`ClientFingerprint`]). `None` uses the rustls default ordering.
     pub client_fingerprint: Option<ClientFingerprint>,
-    /// Encrypted Client Hello (ECH) configuration list (`ech-opts.config`),
-    /// already base64-decoded to the raw `ECHConfigList` bytes. When set, the
-    /// real SNI is encrypted under one of these configs and the outer
-    /// ClientHello advertises only the config's public name; ECH also forces
-    /// TLS 1.3. `None` leaves ECH off.
-    pub ech_config_list: Option<Vec<u8>>,
+    /// Encrypted Client Hello (ECH) configuration. When set, the real SNI is
+    /// encrypted under one of the config's HPKE keys and the outer ClientHello
+    /// advertises only the public name; ECH also forces TLS 1.3. `None` leaves
+    /// ECH off.
+    pub ech: Option<EchClientConfig>,
+}
+
+/// Source of the ECH `ECHConfigList` for a connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EchClientConfig {
+    /// Raw `ECHConfigList` bytes supplied directly (`ech-opts.config`,
+    /// already base64-decoded).
+    Config(Vec<u8>),
+    /// Fetch the `ECHConfigList` from the `HTTPS` DNS record of `server_name`
+    /// (`ech-opts.query-server-name`), querying `resolver` over plain UDP.
+    Query { server_name: String, resolver: SocketAddr },
 }
 
 /// A uTLS-style client fingerprint to mimic in the TLS ClientHello.
@@ -312,9 +328,12 @@ where
     );
 
     // ECH (when configured) selects TLS 1.3 and supplies an HPKE-sealed inner
-    // ClientHello; otherwise offer the default protocol versions.
+    // ClientHello; otherwise offer the default protocol versions. With
+    // `query-server-name` the `ECHConfigList` is fetched from DNS here, at
+    // connection time, since the build-time config wiring is synchronous.
+    let ech_config_list = resolve_ech_config_list(config).await?;
     let versions = rustls::ClientConfig::builder_with_provider(provider.clone());
-    let verifier_stage = match build_ech_mode(config)? {
+    let verifier_stage = match build_ech_mode(ech_config_list.as_deref())? {
         Some(mode) => versions.with_ech(mode).context("configure ECH")?,
         None => versions
             .with_safe_default_protocol_versions()
@@ -418,17 +437,102 @@ where
     Ok(tls)
 }
 
-/// Build the rustls [`EchMode`] for a connection, if `ech_config_list` is set.
-/// The raw `ECHConfigList` is parsed and matched against the kernel's HPKE
-/// provider ([`crate::transport::hpke`]); an incompatible or malformed list is
-/// rejected rather than silently falling back to a cleartext SNI.
-fn build_ech_mode(config: &TlsClientConfig) -> Result<Option<EchMode>> {
-    let Some(bytes) = &config.ech_config_list else {
+/// Resolve a connection's [`EchClientConfig`] to the raw `ECHConfigList` bytes,
+/// fetching them from DNS for the `query-server-name` path. `None` leaves ECH
+/// off.
+async fn resolve_ech_config_list(config: &TlsClientConfig) -> Result<Option<Vec<u8>>> {
+    match &config.ech {
+        None => Ok(None),
+        Some(EchClientConfig::Config(bytes)) => Ok(Some(bytes.clone())),
+        Some(EchClientConfig::Query { server_name, resolver }) => {
+            let bytes = fetch_ech_config_list(server_name, *resolver)
+                .await
+                .with_context(|| format!("ECH: fetch ECHConfigList for {server_name:?} via {resolver}"))?;
+            Ok(Some(bytes))
+        }
+    }
+}
+
+/// How long to wait for the ECH `HTTPS`-record DNS reply before failing the dial.
+const ECH_DNS_TIMEOUT: Duration = Duration::from_secs(5);
+/// Max UDP DNS payload accepted for an ECH `HTTPS` answer.
+const ECH_DNS_MAX_REPLY: usize = 4096;
+
+/// Fetch the raw `ECHConfigList` from the `HTTPS` (type 65) DNS record of
+/// `server_name` by sending a recursive query to `resolver` over plain UDP and
+/// extracting the `ech` SvcParam. Errors when the record or its `ech` parameter
+/// is absent, so a stale/missing config fails the dial rather than silently
+/// leaking the real SNI in cleartext.
+async fn fetch_ech_config_list(server_name: &str, resolver: SocketAddr) -> Result<Vec<u8>> {
+    let name = Name::from_utf8(server_name).with_context(|| format!("ECH: invalid query name {server_name:?}"))?;
+    let mut request = Message::new();
+    request
+        .set_id(rand_query_id())
+        .set_message_type(MessageType::Query)
+        .set_op_code(OpCode::Query)
+        .set_recursion_desired(true)
+        .add_query(Query::query(name, RecordType::HTTPS));
+    let query = request.to_vec().context("ECH: encode HTTPS query")?;
+
+    let bind: SocketAddr = if resolver.is_ipv4() {
+        (std::net::Ipv4Addr::UNSPECIFIED, 0).into()
+    } else {
+        (std::net::Ipv6Addr::UNSPECIFIED, 0).into()
+    };
+    let socket = UdpSocket::bind(bind).await.context("ECH: bind DNS socket")?;
+    socket
+        .connect(resolver)
+        .await
+        .with_context(|| format!("ECH: connect resolver {resolver}"))?;
+    socket.send(&query).await.context("ECH: send HTTPS query")?;
+
+    let mut buf = vec![0u8; ECH_DNS_MAX_REPLY];
+    let n = tokio::time::timeout(ECH_DNS_TIMEOUT, socket.recv(&mut buf))
+        .await
+        .with_context(|| format!("ECH: resolver {resolver} timed out"))?
+        .context("ECH: receive HTTPS reply")?;
+    buf.truncate(n);
+
+    let response = Message::from_vec(&buf).context("ECH: decode HTTPS reply")?;
+    parse_ech_from_https(&response)
+        .ok_or_else(|| anyhow!("ECH: no ech SvcParam in the HTTPS record for {server_name:?}"))
+}
+
+/// Extract the raw `ECHConfigList` from the first `ech` SvcParam of any `HTTPS`
+/// answer record in a DNS response.
+fn parse_ech_from_https(response: &Message) -> Option<Vec<u8>> {
+    response.answers().iter().find_map(|record| {
+        let RData::HTTPS(https) = record.data()? else {
+            return None;
+        };
+        https.svc_params().iter().find_map(|(_, value)| match value {
+            SvcParamValue::EchConfig(ech) if !ech.0.is_empty() => Some(ech.0.clone()),
+            _ => None,
+        })
+    })
+}
+
+/// A random DNS transaction id for an ECH query (falls back to 0 if the RNG
+/// is unavailable; the reply is matched by the connected socket regardless).
+fn rand_query_id() -> u16 {
+    let mut bytes = [0u8; 2];
+    match ring::default_provider().secure_random.fill(&mut bytes) {
+        Ok(()) => u16::from_be_bytes(bytes),
+        Err(_) => 0,
+    }
+}
+
+/// Build the rustls [`EchMode`] from a raw `ECHConfigList`, if present. The list
+/// is parsed and matched against the kernel's HPKE provider
+/// ([`crate::transport::hpke`]); an incompatible or malformed list is rejected
+/// rather than silently falling back to a cleartext SNI.
+fn build_ech_mode(ech_config_list: Option<&[u8]>) -> Result<Option<EchMode>> {
+    let Some(bytes) = ech_config_list else {
         return Ok(None);
     };
-    let list = EchConfigListBytes::from(bytes.clone());
+    let list = EchConfigListBytes::from(bytes.to_vec());
     let ech = EchConfig::new(list, crate::transport::hpke::ALL_SUPPORTED_SUITES)
-        .map_err(|e| anyhow!("ECH: no usable config in ech-opts.config ({e})"))?;
+        .map_err(|e| anyhow!("ECH: no usable config in the ECHConfigList ({e})"))?;
     Ok(Some(EchMode::Enable(ech)))
 }
 
@@ -823,20 +927,9 @@ mod ech_tests {
         let (pk, _sk) = hpke::ALL_SUPPORTED_SUITES[0].generate_key_pair().unwrap();
         let list = ech_config_list(&pk.0, "public.example");
 
-        let ok = TlsClientConfig {
-            ech_config_list: Some(list),
-            ..Default::default()
-        };
-        assert!(matches!(build_ech_mode(&ok), Ok(Some(_))));
-
-        let none = TlsClientConfig::default();
-        assert!(matches!(build_ech_mode(&none), Ok(None)));
-
-        let bad = TlsClientConfig {
-            ech_config_list: Some(vec![0xff, 0xff, 0xff]),
-            ..Default::default()
-        };
-        assert!(build_ech_mode(&bad).is_err());
+        assert!(matches!(build_ech_mode(Some(&list)), Ok(Some(_))));
+        assert!(matches!(build_ech_mode(None), Ok(None)));
+        assert!(build_ech_mode(Some(&[0xff, 0xff, 0xff])).is_err());
     }
 
     #[tokio::test]
@@ -847,7 +940,7 @@ mod ech_tests {
         let config = TlsClientConfig {
             server_name: Some("secret.example".to_string()),
             skip_cert_verify: true,
-            ech_config_list: Some(list),
+            ech: Some(EchClientConfig::Config(list)),
             ..Default::default()
         };
 
@@ -874,5 +967,152 @@ mod ech_tests {
 
         drop(server_io);
         client.abort();
+    }
+
+    /// Build a DNS response carrying an `HTTPS` record whose `ech` SvcParam is
+    /// `ech_bytes`, echoing the request id/query (as a real resolver would).
+    fn https_reply_with_ech(request: &[u8], ech_bytes: &[u8]) -> Vec<u8> {
+        use hickory_proto::rr::Record;
+        use hickory_proto::rr::rdata::HTTPS;
+        use hickory_proto::rr::rdata::svcb::{EchConfig, SVCB, SvcParamKey, SvcParamValue};
+
+        let request = Message::from_vec(request).unwrap();
+        let query = request.query().unwrap().clone();
+        let svcb = SVCB::new(
+            1,
+            Name::root(),
+            vec![(
+                SvcParamKey::EchConfig,
+                SvcParamValue::EchConfig(EchConfig(ech_bytes.to_vec())),
+            )],
+        );
+        let record = Record::from_rdata(query.name().clone(), 300, RData::HTTPS(HTTPS(svcb)));
+
+        let mut response = Message::new();
+        response
+            .set_id(request.id())
+            .set_message_type(MessageType::Response)
+            .set_op_code(OpCode::Query)
+            .set_recursion_desired(true)
+            .set_recursion_available(true)
+            .add_query(query)
+            .add_answer(record);
+        response.to_vec().unwrap()
+    }
+
+    /// Spawn a one-shot fake UDP resolver that answers the next query with
+    /// `reply_with(request_bytes)`. Returns the address to point a client at.
+    async fn spawn_fake_resolver<F>(reply_with: F) -> SocketAddr
+    where
+        F: Fn(&[u8]) -> Vec<u8> + Send + 'static,
+    {
+        let socket = UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let addr = socket.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut buf = vec![0u8; 4096];
+            let (n, peer) = socket.recv_from(&mut buf).await.unwrap();
+            let reply = reply_with(&buf[..n]);
+            socket.send_to(&reply, peer).await.unwrap();
+        });
+        addr
+    }
+
+    #[test]
+    fn parse_ech_extracts_the_ech_svcparam_from_an_https_answer() {
+        let reply = https_reply_with_ech(
+            &{
+                let mut req = Message::new();
+                req.add_query(Query::query(
+                    Name::from_utf8("crypto.example").unwrap(),
+                    RecordType::HTTPS,
+                ));
+                req.to_vec().unwrap()
+            },
+            &[1, 2, 3, 4],
+        );
+        let parsed = parse_ech_from_https(&Message::from_vec(&reply).unwrap());
+        assert_eq!(parsed.as_deref(), Some(&[1, 2, 3, 4][..]));
+
+        // A reply with no HTTPS/ech param yields None.
+        let empty = Message::new();
+        assert_eq!(parse_ech_from_https(&empty), None);
+    }
+
+    #[tokio::test]
+    async fn fetch_ech_config_list_reads_the_https_record_ech_param() {
+        let (pk, _sk) = hpke::ALL_SUPPORTED_SUITES[0].generate_key_pair().unwrap();
+        let list = ech_config_list(&pk.0, "public.example");
+        let expected = list.clone();
+        let resolver = spawn_fake_resolver(move |req| https_reply_with_ech(req, &list)).await;
+
+        let fetched = fetch_ech_config_list("secret.example", resolver).await.unwrap();
+        assert_eq!(
+            fetched, expected,
+            "fetched ECHConfigList must match the HTTPS record's ech param"
+        );
+
+        // The fetched bytes are a usable ECHConfigList for the HPKE provider.
+        assert!(matches!(build_ech_mode(Some(&fetched)), Ok(Some(_))));
+    }
+
+    #[tokio::test]
+    async fn query_server_name_fetches_the_config_and_hides_the_real_sni() {
+        let (pk, _sk) = hpke::ALL_SUPPORTED_SUITES[0].generate_key_pair().unwrap();
+        let list = ech_config_list(&pk.0, "public.example");
+        let resolver = spawn_fake_resolver(move |req| https_reply_with_ech(req, &list)).await;
+
+        // ECH config is supplied only via DNS (`query-server-name`), exercising
+        // the full connect() -> resolve_ech_config_list() -> fetch path.
+        let config = TlsClientConfig {
+            server_name: Some("secret.example".to_string()),
+            skip_cert_verify: true,
+            ech: Some(EchClientConfig::Query {
+                server_name: "crypto.example".to_string(),
+                resolver,
+            }),
+            ..Default::default()
+        };
+
+        let (client_io, mut server_io) = duplex(16 * 1024);
+        let client = tokio::spawn(async move {
+            let _ = connect(&config, "secret.example", client_io).await;
+        });
+
+        let msg = read_client_hello(&mut server_io).await;
+        let (outer_sni, has_ech) = parse_client_hello(&msg);
+        assert!(has_ech, "ClientHello must carry the encrypted_client_hello extension");
+        assert_eq!(
+            outer_sni.as_deref(),
+            Some("public.example"),
+            "outer SNI must be the DNS-fetched ECH public name"
+        );
+        assert!(
+            !msg.windows(b"secret.example".len()).any(|w| w == b"secret.example"),
+            "the protected server name must not appear in cleartext"
+        );
+
+        drop(server_io);
+        client.abort();
+    }
+
+    #[tokio::test]
+    async fn fetch_ech_config_list_errors_when_the_record_has_no_ech() {
+        let resolver = spawn_fake_resolver(|req| {
+            // Echo a response with the query but an empty answer section.
+            let request = Message::from_vec(req).unwrap();
+            let mut response = Message::new();
+            response
+                .set_id(request.id())
+                .set_message_type(MessageType::Response)
+                .add_query(request.query().unwrap().clone());
+            response.to_vec().unwrap()
+        })
+        .await;
+
+        let err = fetch_ech_config_list("secret.example", resolver).await.unwrap_err();
+        assert!(
+            format!("{err:#}").contains("no ech SvcParam"),
+            "unexpected error: {err:#}"
+        );
     }
 }

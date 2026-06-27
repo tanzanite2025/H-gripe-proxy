@@ -53,7 +53,7 @@
 | none | ✅ | |
 | tls | ✅ | sni/servername、alpn、skip-cert-verify、client-fingerprint（uTLS 指纹整形） |
 | reality | ✅ | 需 servername + reality-opts.public-key(32B)，short-id ≤8B |
-| ech (ech-opts) | ✅ | `enable` + base64 `config`(ECHConfigList) → rustls `with_ech`；内置 RFC 9180 HPKE provider（X25519+HKDF-SHA256 + 3 种 AEAD，过官方测试向量）。`query-server-name`（DNS 拉取 ECHConfig）暂未实现，缺 config 时显式报错 |
+| ech (ech-opts) | ✅ | `enable` + base64 `config`(ECHConfigList) → rustls `with_ech`；内置 RFC 9180 HPKE provider（X25519+HKDF-SHA256 + 3 种 AEAD，过官方测试向量）。`query-server-name`：缺 `config` 时在握手前向 `1.1.1.1:53` 查该名的 `HTTPS`(type 65) 记录、取 `ech` SvcParam 当 ECHConfigList（`hickory-proto` 解析）；两者皆缺才报错 |
 
 > flow：仅 VLESS 的 `xtls-rprx-vision` ✅（且仅 raw TCP）；其它 flow / 其它协议带 flow → ❌。
 
@@ -84,7 +84,7 @@
 | 1 | ~~SS `2022-blake3-*` TCP~~ | 高（现代 SS 主流） | 中 | 低 | ✅ **已完成 (PR #446)** |
 | 2 | ~~SS `2022-blake3-*` UDP~~ | 中（UDP-over-SS：节点内跑 QUIC/HTTP3、游戏、WebRTC、DNS；full-cone NAT） | 中 | 中（separate-header：gcm 用 AES-ECB 头加密、chacha 用 XChaCha20，跟 TCP 完全不同的封装） | ✅ **已完成**（SIP022 UDP：AES separate-header + XChaCha20-Poly1305） |
 | 3 | ~~**SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆）~~ | 中（带混淆的 SS 节点直接断） | 中 | 中 | ✅ **已完成**（simple-obfs http + 伪 TLS、v2ray-plugin websocket + 可选 TLS；复用现有 ws/tls transport）。仅 v2ray-plugin 非 websocket 模式 / mux 仍拒绝 |
-| 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。`query-server-name` 的 DNS 拉取仍未实现 |
+| 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。✅ **`query-server-name` DNS 拉取已完成**（缺 `config` 时握手前查 `HTTPS` 记录的 `ech` SvcParam，连接时异步 UDP 查询默认 `1.1.1.1:53`；fake resolver 单测覆盖解析/拉取/无记录报错/端到端 SNI 隐藏） |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | ~~xhttp packet-up/stream-up 模式~~ | 低（小众） | 低-中 | 中 | ✅ **已完成**（`stream-up` + `packet-up`：单 h2 连接上 GET 下行 + POST 上行，对齐 Xray splithttp 线格式；独立 fake h2 server 互通测试 `tests/xhttp_multi.rs`） |
 | 7 | **TUIC / Hysteria2（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（引入 QUIC 栈 quinn + 协议层） | 高 | ✅ **TUIC v5 已完成**（TCP relay `tests/tuic_outbound.rs` + UDP relay `tests/tuic_udp_outbound.rs`）。✅ **Hysteria2 已完成**（TCP relay `tests/hysteria2_outbound.rs` + UDP relay `tests/hysteria2_udp_outbound.rs`）。**UDP 走 QUIC datagram**（Hysteria2 datagram + TUIC `Packet`，含 >MTU 分片/重组，共享 `protocols/quic_udp.rs`；独立 fake QUIC server 互通测试覆盖单包 + 分片）。✅ **Hysteria2 Salamander obfs + 端口跳跃已完成**（`obfs: salamander` 用 `BLAKE2b-256(psk‖salt)` keystream 逐 datagram XOR 混淆，`ports`/`hop-interval` 在 QUIC 之下的自定义 `AsyncUdpSocket`（`transport/quic_obfs.rs`）里跳端口；独立 fake Salamander server 互通测试 `tests/hysteria2_obfs.rs`）。✅ **TUIC / Hysteria2 0-RTT 已完成**（`reduce-rtt: true`：进程级 rustls session ticket 缓存 + `quinn::Connecting::into_0rtt`；TUIC 把无密的 `Connect` 头作为早期数据、RFC 5705 鉴权 token 等握手完成后再发，Hysteria2 把幂等的 HTTP/3 `/auth` + `TCPRequest` 作为早期数据；服务端拒绝 0-RTT 时自动回退 1-RTT 重发；互通测试 `tests/tuic_zero_rtt.rs` + `tests/hysteria2_zero_rtt.rs` 覆盖首拨 1-RTT + 续拨 0-RTT） |
@@ -99,6 +99,6 @@
 **接下来的岔路口（待 owner 拍板）：**
 1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http/tls 全部完成）。稳、低风险。
 2. **直接上 QUIC 系新协议** → ~~#7 TUIC~~（TUIC v5 TCP relay 已完成，引入 quinn QUIC 栈）、~~Hysteria2~~（HTTP/3 鉴权 + 裸 QUIC 流 TCP relay 已完成）、~~两者 UDP relay~~（QUIC datagram：Hysteria2 datagram + TUIC `Packet`，含分片/重组，已完成）；~~Hysteria2 的 Salamander obfs/端口跳跃~~（已完成）；~~TUIC/Hysteria2 的 0-RTT~~（`reduce-rtt`：session ticket 缓存 + `into_0rtt` 早期数据，已完成）。价值最高但工作量最大。
-3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成）、~~#6 xhttp stream-up/packet-up~~（已完成）。
+3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成，含 `query-server-name` DNS 拉取 ECHConfig）、~~#6 xhttp stream-up/packet-up~~（已完成）。
 
 > 建议在拍板前先确认**真实订阅里的协议分布**：如果大量是 hysteria2/tuic/reality，则把精力投向 #7 比补 SS-2022 UDP 更划算；如果仍以 SS / VMess / Trojan 为主，则按 #2 → #3 顺序补齐"已有"更稳。
