@@ -15,8 +15,10 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use quinn::crypto::rustls::QuicClientConfig;
-use quinn::{ClientConfig, Connection, Endpoint, TransportConfig};
+use quinn::{ClientConfig, Connection, Endpoint, EndpointConfig, TransportConfig};
 
+use crate::protocols::salamander::Salamander;
+use crate::transport::quic_obfs::{ObfsHopSocket, PortHopConfig};
 use crate::transport::tls;
 
 /// QUIC congestion controller selection (`congestion-controller` in clash
@@ -56,6 +58,12 @@ pub struct QuicClientParams {
     pub skip_cert_verify: bool,
     /// Send-side congestion controller.
     pub congestion: Congestion,
+    /// Salamander packet obfuscation applied to every QUIC datagram, or `None`
+    /// for a plain QUIC socket.
+    pub obfs: Option<Salamander>,
+    /// Port hopping: spread datagrams across a range of server ports, or `None`
+    /// to always dial the configured port.
+    pub port_hop: Option<PortHopConfig>,
 }
 
 /// A live QUIC connection plus the endpoint that owns its UDP socket and driver
@@ -87,7 +95,7 @@ pub async fn connect(params: &QuicClientParams) -> Result<QuicConnection> {
     } else {
         (Ipv4Addr::UNSPECIFIED, 0).into()
     };
-    let mut endpoint = Endpoint::client(bind).context("bind QUIC client endpoint")?;
+    let mut endpoint = build_endpoint(bind, addr, params)?;
     endpoint.set_default_client_config(client_config);
 
     let connection = endpoint
@@ -97,6 +105,29 @@ pub async fn connect(params: &QuicClientParams) -> Result<QuicConnection> {
         .with_context(|| format!("QUIC handshake with {} ({addr})", params.server_name))?;
 
     Ok(QuicConnection { endpoint, connection })
+}
+
+/// Build the client [`Endpoint`] bound at `bind`. When the params request
+/// Salamander obfuscation or port hopping, the runtime's UDP socket is wrapped
+/// in an [`ObfsHopSocket`] that transforms every datagram below QUIC; otherwise
+/// the plain `Endpoint::client` path is used. `canonical` is the resolved server
+/// address quinn associates with the connection.
+fn build_endpoint(bind: SocketAddr, canonical: SocketAddr, params: &QuicClientParams) -> Result<Endpoint> {
+    if params.obfs.is_none() && params.port_hop.is_none() {
+        return Endpoint::client(bind).context("bind QUIC client endpoint");
+    }
+
+    let runtime = quinn::default_runtime().ok_or_else(|| anyhow!("no async runtime found for QUIC endpoint"))?;
+    let socket = std::net::UdpSocket::bind(bind).context("bind QUIC client socket")?;
+    let inner = runtime.wrap_udp_socket(socket).context("wrap QUIC client socket")?;
+    let wrapped = Arc::new(ObfsHopSocket::new(
+        inner,
+        canonical,
+        params.obfs.clone(),
+        params.port_hop.clone(),
+    ));
+    Endpoint::new_with_abstract_socket(EndpointConfig::default(), None, wrapped, runtime)
+        .context("build QUIC endpoint with obfuscated socket")
 }
 
 /// Transport tuning shared by all QUIC outbounds: a keep-alive PING below the

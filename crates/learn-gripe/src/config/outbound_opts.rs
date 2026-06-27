@@ -227,6 +227,9 @@ pub struct ProxyOptions {
 
     // QUIC family (hysteria/hysteria2/tuic/masque) commonly-used knobs.
     pub ports: Option<String>,
+    /// Port-hopping rotation interval in seconds (`hop-interval`); 30s default.
+    #[serde(rename = "hop-interval")]
+    pub hop_interval: Option<u32>,
     pub up: Option<String>,
     pub down: Option<String>,
     pub obfs: Option<String>,

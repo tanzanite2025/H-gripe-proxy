@@ -158,6 +158,8 @@ async fn relays_through_hysteria2_outbound() {
             alpn: vec!["h3".to_string()],
             skip_cert_verify: true,
             congestion: Congestion::Bbr,
+            obfs: None,
+            port_hop: None,
         })),
     })
     .await

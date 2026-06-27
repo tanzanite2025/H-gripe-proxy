@@ -34,6 +34,7 @@ pub use dns::{
 };
 pub use inbound::{GripeHandle, GripeKernel};
 pub use protocols::hysteria2::Hysteria2OutboundConfig;
+pub use protocols::salamander::Salamander;
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::trojan::TrojanOutboundConfig;
 pub use protocols::tuic::TuicOutboundConfig;
@@ -52,6 +53,7 @@ pub use transport::obfuscation::{
     snapshot as snapshot_obfuscation_stats,
 };
 pub use transport::quic::Congestion;
+pub use transport::quic_obfs::PortHopConfig;
 pub use transport::tls::{ClientFingerprint, RealityClientConfig, TlsClientConfig};
 pub use transport::ws::WsTransportConfig;
 pub use transport::xhttp::{XhttpMode, XhttpTransportConfig};

@@ -31,6 +31,7 @@ pub mod http2;
 pub mod httpupgrade;
 pub mod obfuscation;
 pub mod quic;
+pub mod quic_obfs;
 pub mod simple_obfs;
 pub mod tls;
 pub mod ws;

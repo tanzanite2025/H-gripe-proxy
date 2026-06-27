@@ -142,6 +142,9 @@ impl TuicOutboundConfig {
             alpn: self.alpn.clone(),
             skip_cert_verify: self.skip_cert_verify,
             congestion: self.congestion,
+            // TUIC has no packet obfuscation or port hopping.
+            obfs: None,
+            port_hop: None,
         }
     }
 }

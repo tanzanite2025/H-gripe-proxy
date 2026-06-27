@@ -87,7 +87,7 @@
 | 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。`query-server-name` 的 DNS 拉取仍未实现 |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | ~~xhttp packet-up/stream-up 模式~~ | 低（小众） | 低-中 | 中 | ✅ **已完成**（`stream-up` + `packet-up`：单 h2 连接上 GET 下行 + POST 上行，对齐 Xray splithttp 线格式；独立 fake h2 server 互通测试 `tests/xhttp_multi.rs`） |
-| 7 | **TUIC / Hysteria2（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（引入 QUIC 栈 quinn + 协议层） | 高 | ✅ **TUIC v5 已完成**（TCP relay `tests/tuic_outbound.rs` + UDP relay `tests/tuic_udp_outbound.rs`）。✅ **Hysteria2 已完成**（TCP relay `tests/hysteria2_outbound.rs` + UDP relay `tests/hysteria2_udp_outbound.rs`）。**UDP 走 QUIC datagram**（Hysteria2 datagram + TUIC `Packet`，含 >MTU 分片/重组，共享 `protocols/quic_udp.rs`；独立 fake QUIC server 互通测试覆盖单包 + 分片）。剩 0-RTT、Hysteria2 的 Salamander obfs/端口跳跃 仍待做 |
+| 7 | **TUIC / Hysteria2（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（引入 QUIC 栈 quinn + 协议层） | 高 | ✅ **TUIC v5 已完成**（TCP relay `tests/tuic_outbound.rs` + UDP relay `tests/tuic_udp_outbound.rs`）。✅ **Hysteria2 已完成**（TCP relay `tests/hysteria2_outbound.rs` + UDP relay `tests/hysteria2_udp_outbound.rs`）。**UDP 走 QUIC datagram**（Hysteria2 datagram + TUIC `Packet`，含 >MTU 分片/重组，共享 `protocols/quic_udp.rs`；独立 fake QUIC server 互通测试覆盖单包 + 分片）。✅ **Hysteria2 Salamander obfs + 端口跳跃已完成**（`obfs: salamander` 用 `BLAKE2b-256(psk‖salt)` keystream 逐 datagram XOR 混淆，`ports`/`hop-interval` 在 QUIC 之下的自定义 `AsyncUdpSocket`（`transport/quic_obfs.rs`）里跳端口；独立 fake Salamander server 互通测试 `tests/hysteria2_obfs.rs`）。剩 TUIC/Hysteria2 的 0-RTT 仍待做 |
 | 8 | WireGuard / ssr / snell / anytls 数据面 | 视订阅而定 | 大（各自独立工程） | 中-高 | 按实际订阅命中再排 |
 
 ---
@@ -98,7 +98,7 @@
 
 **接下来的岔路口（待 owner 拍板）：**
 1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http/tls 全部完成）。稳、低风险。
-2. **直接上 QUIC 系新协议** → ~~#7 TUIC~~（TUIC v5 TCP relay 已完成，引入 quinn QUIC 栈）、~~Hysteria2~~（HTTP/3 鉴权 + 裸 QUIC 流 TCP relay 已完成）、~~两者 UDP relay~~（QUIC datagram：Hysteria2 datagram + TUIC `Packet`，含分片/重组，已完成）；剩 TUIC/Hysteria2 的 0-RTT、Hysteria2 的 Salamander obfs/端口跳跃。价值最高但工作量最大。
+2. **直接上 QUIC 系新协议** → ~~#7 TUIC~~（TUIC v5 TCP relay 已完成，引入 quinn QUIC 栈）、~~Hysteria2~~（HTTP/3 鉴权 + 裸 QUIC 流 TCP relay 已完成）、~~两者 UDP relay~~（QUIC datagram：Hysteria2 datagram + TUIC `Packet`，含分片/重组，已完成）；~~Hysteria2 的 Salamander obfs/端口跳跃~~（已完成）；剩 TUIC/Hysteria2 的 0-RTT。价值最高但工作量最大。
 3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成）、~~#6 xhttp stream-up/packet-up~~（已完成）。
 
 > 建议在拍板前先确认**真实订阅里的协议分布**：如果大量是 hysteria2/tuic/reality，则把精力投向 #7 比补 SS-2022 UDP 更划算；如果仍以 SS / VMess / Trojan 为主，则按 #2 → #3 顺序补齐"已有"更稳。
