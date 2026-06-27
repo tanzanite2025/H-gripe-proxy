@@ -1,10 +1,5 @@
-//! Get/Set system proxy. Supports Windows, macOS and linux (via gsettings).
+//! Get/Set system proxy for Windows.
 
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "windows")]
 mod windows;
 
 // #[cfg(feature = "utils")]
@@ -47,19 +42,6 @@ pub enum Error {
     #[error("admin privileges required to modify system proxy")]
     RequiresAdminPrivileges,
 
-    #[cfg(target_os = "macos")]
-    #[error("failed to interact with SCPreferences")]
-    SCPreferences,
-
-    #[cfg(target_os = "macos")]
-    #[error("failed to interact with SCDynamicStore")]
-    SCDynamicStore,
-
-    #[cfg(target_os = "linux")]
-    #[error(transparent)]
-    Xdg(#[from] xdg::BaseDirectoriesError),
-
-    #[cfg(target_os = "windows")]
     #[error("system call failed")]
     SystemCall(#[from] windows::Win32Error),
 }
@@ -68,12 +50,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 impl Sysproxy {
     pub const fn is_support() -> bool {
-        cfg!(any(target_os = "linux", target_os = "macos", target_os = "windows",))
+        cfg!(target_os = "windows")
     }
 }
 
 impl Autoproxy {
     pub const fn is_support() -> bool {
-        cfg!(any(target_os = "linux", target_os = "macos", target_os = "windows",))
+        cfg!(target_os = "windows")
     }
 }

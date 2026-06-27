@@ -31,10 +31,7 @@ mod tests {
             enable: true,
             host: "127.0.0.1".into(),
             port: 7897,
-            #[cfg(target_os = "windows")]
             bypass: "localhost;127.*".into(),
-            #[cfg(not(target_os = "windows"))]
-            bypass: "localhost,127.0.0.1/8".into(),
         };
         sysproxy.set_system_proxy().unwrap();
 

@@ -20,14 +20,10 @@ pub use core::{CoreWatchdogTestConfig, set_core_watchdog_config_for_tests};
 #[cfg(feature = "client")]
 pub use client::*;
 
-#[cfg(all(unix, not(feature = "test")))]
-pub static IPC_PATH: &str = "/tmp/verge/clash-verge-service.sock";
-#[cfg(all(windows, not(feature = "test")))]
+#[cfg(not(feature = "test"))]
 pub static IPC_PATH: &str = r"\\.\pipe\clash-verge-service";
 
-#[cfg(all(feature = "test", unix))]
-pub static IPC_PATH: &str = "/tmp/clash-verge-service-ipc-test/service.sock";
-#[cfg(all(feature = "test", windows))]
+#[cfg(feature = "test")]
 pub static IPC_PATH: &str = r"\\.\pipe\clash-verge-service-test";
 
 #[cfg(any(feature = "standalone", feature = "client"))]

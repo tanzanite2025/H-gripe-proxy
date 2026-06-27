@@ -7563,13 +7563,11 @@ version = "0.5.4"
 dependencies = [
  "iptools",
  "log",
- "system-configuration",
  "thiserror 2.0.18",
  "tokio",
  "url",
  "windows 0.62.2",
  "winreg 0.55.0",
- "xdg",
 ]
 
 [[package]]
@@ -10561,12 +10559,6 @@ dependencies = [
  "libc",
  "rustix 1.1.4",
 ]
-
-[[package]]
-name = "xdg"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fb433233f2df9344722454bc7e96465c9d03bff9d77c248f9e7523fe79585b5"
 
 [[package]]
 name = "xkeysym"

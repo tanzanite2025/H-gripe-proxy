@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/zzzgydi/sysproxy-rs.git"
 keywords = ["system-proxy", "proxy", "networksetup", "gsettings"]
-description = "A library for set/get system proxy. Supports Windows, macOS and linux (via gsettings)."
+description = "A library for set/get system proxy on Windows."
 
 [dependencies]
 log = "0.4"
@@ -20,14 +20,7 @@ tokio = { version = "1", features = [
     "time",
 ], optional = true }
 
-[target.'cfg(not(target_os = "macos"))'.dependencies]
 url = "2.5"
-
-[target.'cfg(target_os = "linux")'.dependencies]
-xdg = "3.0"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-system-configuration = "0.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winreg = { version = "0.55", features = ["transactions"] }
@@ -40,11 +33,6 @@ windows = { version = "0.62", features = [
 
 [dev-dependencies]
 serial_test = "3.1"
-criterion = "0.7"
-
-[[bench]]
-name = "macos_behavior"
-harness = false
 
 [features]
 default = ["iptools"]
