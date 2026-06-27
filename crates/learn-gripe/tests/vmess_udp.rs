@@ -357,6 +357,7 @@ fn tls_security() -> Security {
         alpn: Vec::new(),
         skip_cert_verify: true,
         client_fingerprint: None,
+        ech_config_list: None,
     })
 }
 

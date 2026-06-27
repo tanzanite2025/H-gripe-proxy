@@ -26,6 +26,7 @@
 
 pub mod grpc;
 pub mod h2stream;
+pub mod hpke;
 pub mod http2;
 pub mod httpupgrade;
 pub mod obfuscation;
@@ -37,7 +38,7 @@ pub mod xhttp;
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpStream;
 
-use crate::config::outbound_opts::{Network, ProxyOptions, RealityOpts};
+use crate::config::outbound_opts::{EchOpts, Network, ProxyOptions, RealityOpts};
 use crate::outbound::BoxedStream;
 use crate::transport::grpc::GrpcTransportConfig;
 use crate::transport::http2::H2TransportConfig;
@@ -153,6 +154,7 @@ pub(crate) fn build_layers(
             alpn: opts.alpn.clone().unwrap_or_default(),
             skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
             client_fingerprint,
+            ech_config_list: build_ech_config_list(opts.ech_opts.as_ref(), proto)?,
         })
     } else {
         Security::None
@@ -228,6 +230,60 @@ pub(crate) fn build_layers(
     }
 
     Ok((security, transport))
+}
+
+/// Decode the raw `ECHConfigList` for Encrypted Client Hello from a proxy's
+/// `ech-opts`, or `None` when ECH is absent/disabled.
+///
+/// clash/mihomo's `ech-opts.config` carries the base64-encoded `ECHConfigList`.
+/// When `enable` is set we require it: fetching the config over DNS (the
+/// `query-server-name` HTTPS-RR path) is not implemented, so a missing config is
+/// rejected rather than silently downgrading to a cleartext SNI.
+fn build_ech_config_list(ech: Option<&EchOpts>, proto: &str) -> Result<Option<Vec<u8>>> {
+    let Some(ech) = ech else {
+        return Ok(None);
+    };
+    if !ech.enable.unwrap_or(false) {
+        return Ok(None);
+    }
+    let config = ech.config.as_deref().filter(|s| !s.is_empty()).ok_or_else(|| {
+        anyhow!(
+            "{proto}: ech-opts.enable is set but ech-opts.config is empty \
+             (DNS-based ECH config fetch is not supported; supply the base64 ECHConfigList)"
+        )
+    })?;
+    let bytes = decode_base64(config).with_context(|| format!("{proto}: invalid base64 in ech-opts.config"))?;
+    Ok(Some(bytes))
+}
+
+/// Decode standard or URL-safe Base64 (padding and ASCII whitespace ignored).
+fn decode_base64(input: &str) -> Result<Vec<u8>> {
+    fn sextet(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' | b'-' => Some(62),
+            b'/' | b'_' => Some(63),
+            _ => None,
+        }
+    }
+    let mut out = Vec::with_capacity(input.len() / 4 * 3);
+    let mut acc = 0u32;
+    let mut bits = 0u32;
+    for &c in input.as_bytes() {
+        if c == b'=' || c.is_ascii_whitespace() {
+            continue;
+        }
+        let v = sextet(c).ok_or_else(|| anyhow!("invalid base64 character {:?}", c as char))?;
+        acc = (acc << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Ok(out)
 }
 
 /// Assemble a [`RealityClientConfig`] from a proxy's `reality-opts` plus the
