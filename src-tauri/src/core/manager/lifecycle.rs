@@ -264,7 +264,6 @@ impl CoreManager {
         logging!(info, Type::Core, "Restarting core");
         self.stop_core().await?;
 
-        #[cfg(target_os = "windows")]
         tokio::time::sleep(Duration::from_millis(350)).await;
 
         self.start_core().await
@@ -446,10 +445,8 @@ impl CoreManager {
     }
 
     async fn prepare_startup(&self) -> Result<()> {
-        #[cfg(target_os = "windows")]
         self.wait_for_service_if_needed().await;
 
-        #[cfg(target_os = "windows")]
         self.enforce_tun_fail_closed_if_needed().await?;
 
         self.set_running_mode(RunningMode::NotRunning);
@@ -461,7 +458,6 @@ impl CoreManager {
         tauri_plugin_clash_verge_sysinfo::set_app_core_mode(app_handle, self.get_running_mode().to_string());
     }
 
-    #[cfg(target_os = "windows")]
     async fn enforce_tun_fail_closed_if_needed(&self) -> Result<()> {
         use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
@@ -488,7 +484,6 @@ impl CoreManager {
         Err(anyhow!(message))
     }
 
-    #[cfg(target_os = "windows")]
     async fn wait_for_service_if_needed(&self) {
         use crate::{config::Config, core::service};
         use backon::{ConstantBuilder, Retryable as _};
