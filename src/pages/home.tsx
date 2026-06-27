@@ -238,7 +238,7 @@ const HomePage = () => {
 
   // 文档链接函数
   const toGithubDoc = useLockFn(() => {
-    return openWebUrl('https://github.com/tanzanite2025/clash-verge-optimized#readme')
+    return openWebUrl('https://github.com/tanzanite2025/H-gripe-proxy#readme')
   })
 
   // 新增：打开设置弹窗
