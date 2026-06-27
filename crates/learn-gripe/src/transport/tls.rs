@@ -7,11 +7,11 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use rustls::client::RealityConfig;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::{EchConfig, EchMode, RealityConfig};
 use rustls::crypto::ring::cipher_suite;
 use rustls::crypto::{CryptoProvider, SecureRandom, ring, verify_tls12_signature, verify_tls13_signature};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::pki_types::{CertificateDer, EchConfigListBytes, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, RootCertStore, SignatureScheme, SupportedCipherSuite};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::TlsConnector;
@@ -31,6 +31,12 @@ pub struct TlsClientConfig {
     /// uTLS client fingerprint to mimic in the ClientHello, if any (see
     /// [`ClientFingerprint`]). `None` uses the rustls default ordering.
     pub client_fingerprint: Option<ClientFingerprint>,
+    /// Encrypted Client Hello (ECH) configuration list (`ech-opts.config`),
+    /// already base64-decoded to the raw `ECHConfigList` bytes. When set, the
+    /// real SNI is encrypted under one of these configs and the outer
+    /// ClientHello advertises only the config's public name; ECH also forces
+    /// TLS 1.3. `None` leaves ECH off.
+    pub ech_config_list: Option<Vec<u8>>,
 }
 
 /// A uTLS-style client fingerprint to mimic in the TLS ClientHello.
@@ -304,21 +310,25 @@ where
             .unwrap_or_else(ring::default_provider),
     );
 
-    let mut client_config = if config.skip_cert_verify {
-        rustls::ClientConfig::builder_with_provider(provider.clone())
+    // ECH (when configured) selects TLS 1.3 and supplies an HPKE-sealed inner
+    // ClientHello; otherwise offer the default protocol versions.
+    let versions = rustls::ClientConfig::builder_with_provider(provider.clone());
+    let verifier_stage = match build_ech_mode(config)? {
+        Some(mode) => versions.with_ech(mode).context("configure ECH")?,
+        None => versions
             .with_safe_default_protocol_versions()
-            .context("configure TLS protocol versions")?
+            .context("configure TLS protocol versions")?,
+    };
+
+    let mut client_config = if config.skip_cert_verify {
+        verifier_stage
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(NoCertVerification(provider)))
             .with_no_client_auth()
     } else {
         let mut roots = RootCertStore::empty();
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        rustls::ClientConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
-            .context("configure TLS protocol versions")?
-            .with_root_certificates(roots)
-            .with_no_client_auth()
+        verifier_stage.with_root_certificates(roots).with_no_client_auth()
     };
 
     client_config.alpn_protocols = config.alpn.iter().map(|p| p.as_bytes().to_vec()).collect();
@@ -405,6 +415,20 @@ where
         crate::transport::obfuscation::record_shaped_handshake(fp);
     }
     Ok(tls)
+}
+
+/// Build the rustls [`EchMode`] for a connection, if `ech_config_list` is set.
+/// The raw `ECHConfigList` is parsed and matched against the kernel's HPKE
+/// provider ([`crate::transport::hpke`]); an incompatible or malformed list is
+/// rejected rather than silently falling back to a cleartext SNI.
+fn build_ech_mode(config: &TlsClientConfig) -> Result<Option<EchMode>> {
+    let Some(bytes) = &config.ech_config_list else {
+        return Ok(None);
+    };
+    let list = EchConfigListBytes::from(bytes.clone());
+    let ech = EchConfig::new(list, crate::transport::hpke::ALL_SUPPORTED_SUITES)
+        .map_err(|e| anyhow!("ECH: no usable config in ech-opts.config ({e})"))?;
+    Ok(Some(EchMode::Enable(ech)))
 }
 
 /// A certificate verifier that accepts any server certificate. Used only when
@@ -618,5 +642,166 @@ mod tests {
         ] {
             assert_eq!(fp.extension_order_seed(), None, "{fp:?} should not pin a seed");
         }
+    }
+}
+
+/// End-to-end wiring tests for Encrypted Client Hello: a real rustls handshake
+/// is driven through an in-memory pipe and the outbound ClientHello is parsed to
+/// prove the true SNI is hidden behind the ECH public name.
+#[cfg(test)]
+mod ech_tests {
+    use tokio::io::{AsyncReadExt, duplex};
+
+    use super::*;
+    use crate::transport::hpke;
+
+    const KEM_X25519: u16 = 0x0020;
+    const KDF_SHA256: u16 = 0x0001;
+    const AEAD_AES128: u16 = 0x0001;
+    const ECH_VERSION_V18: u16 = 0xfe0d;
+    const EXT_SNI: u16 = 0x0000;
+    const EXT_ECH: u16 = 0xfe0d;
+
+    /// Encode a single-config `ECHConfigList` (draft-ietf-tls-esni-18 wire
+    /// format) advertising DHKEM(X25519)/HKDF-SHA256/AES-128-GCM and the given
+    /// HPKE public key + public name.
+    fn ech_config_list(public_key: &[u8], public_name: &str) -> Vec<u8> {
+        let mut suites = Vec::new();
+        suites.extend_from_slice(&KDF_SHA256.to_be_bytes());
+        suites.extend_from_slice(&AEAD_AES128.to_be_bytes());
+
+        let mut contents = Vec::new();
+        contents.push(0x2a); // config_id
+        contents.extend_from_slice(&KEM_X25519.to_be_bytes());
+        contents.extend_from_slice(&(public_key.len() as u16).to_be_bytes());
+        contents.extend_from_slice(public_key);
+        contents.extend_from_slice(&(suites.len() as u16).to_be_bytes());
+        contents.extend_from_slice(&suites);
+        contents.push(0); // maximum_name_length
+        contents.push(public_name.len() as u8);
+        contents.extend_from_slice(public_name.as_bytes());
+        contents.extend_from_slice(&0u16.to_be_bytes()); // no extensions
+
+        let mut config = Vec::new();
+        config.extend_from_slice(&ECH_VERSION_V18.to_be_bytes());
+        config.extend_from_slice(&(contents.len() as u16).to_be_bytes());
+        config.extend_from_slice(&contents);
+
+        let mut list = Vec::new();
+        list.extend_from_slice(&(config.len() as u16).to_be_bytes());
+        list.extend_from_slice(&config);
+        list
+    }
+
+    /// Extract `(outer SNI host, ECH extension present)` from a ClientHello
+    /// handshake message (RFC 8446 §4.1.2).
+    fn parse_client_hello(msg: &[u8]) -> (Option<String>, bool) {
+        assert_eq!(msg[0], 0x01, "expected ClientHello handshake message");
+        let mut p = 4; // skip msg_type(1) + length(3)
+        p += 2 + 32; // legacy_version + random
+        p += 1 + msg[p] as usize; // legacy_session_id
+        let cs_len = u16::from_be_bytes([msg[p], msg[p + 1]]) as usize;
+        p += 2 + cs_len; // cipher_suites
+        p += 1 + msg[p] as usize; // legacy_compression_methods
+        let ext_total = u16::from_be_bytes([msg[p], msg[p + 1]]) as usize;
+        p += 2;
+        let end = p + ext_total;
+
+        let mut sni = None;
+        let mut has_ech = false;
+        while p + 4 <= end {
+            let ext_type = u16::from_be_bytes([msg[p], msg[p + 1]]);
+            let ext_len = u16::from_be_bytes([msg[p + 2], msg[p + 3]]) as usize;
+            let data = &msg[p + 4..p + 4 + ext_len];
+            p += 4 + ext_len;
+            match ext_type {
+                EXT_SNI => {
+                    // ServerNameList: u16 list len, then {name_type u8, HostName u16}.
+                    let mut q = 2;
+                    while q + 3 <= data.len() {
+                        let name_type = data[q];
+                        let nlen = u16::from_be_bytes([data[q + 1], data[q + 2]]) as usize;
+                        let name = &data[q + 3..q + 3 + nlen];
+                        if name_type == 0 {
+                            sni = Some(String::from_utf8_lossy(name).into_owned());
+                        }
+                        q += 3 + nlen;
+                    }
+                }
+                EXT_ECH => has_ech = true,
+                _ => {}
+            }
+        }
+        (sni, has_ech)
+    }
+
+    /// Read the first TLS handshake record and return its fragment (the
+    /// ClientHello message).
+    async fn read_client_hello<R: AsyncReadExt + Unpin>(reader: &mut R) -> Vec<u8> {
+        let mut header = [0u8; 5];
+        reader.read_exact(&mut header).await.unwrap();
+        assert_eq!(header[0], 0x16, "first record must be a handshake record");
+        let len = u16::from_be_bytes([header[3], header[4]]) as usize;
+        let mut body = vec![0u8; len];
+        reader.read_exact(&mut body).await.unwrap();
+        body
+    }
+
+    #[test]
+    fn build_ech_mode_accepts_a_valid_config_and_rejects_garbage() {
+        let (pk, _sk) = hpke::ALL_SUPPORTED_SUITES[0].generate_key_pair().unwrap();
+        let list = ech_config_list(&pk.0, "public.example");
+
+        let ok = TlsClientConfig {
+            ech_config_list: Some(list),
+            ..Default::default()
+        };
+        assert!(matches!(build_ech_mode(&ok), Ok(Some(_))));
+
+        let none = TlsClientConfig::default();
+        assert!(matches!(build_ech_mode(&none), Ok(None)));
+
+        let bad = TlsClientConfig {
+            ech_config_list: Some(vec![0xff, 0xff, 0xff]),
+            ..Default::default()
+        };
+        assert!(build_ech_mode(&bad).is_err());
+    }
+
+    #[tokio::test]
+    async fn ech_client_hello_hides_the_real_sni_behind_the_public_name() {
+        let (pk, _sk) = hpke::ALL_SUPPORTED_SUITES[0].generate_key_pair().unwrap();
+        let list = ech_config_list(&pk.0, "public.example");
+
+        let config = TlsClientConfig {
+            server_name: Some("secret.example".to_string()),
+            skip_cert_verify: true,
+            ech_config_list: Some(list),
+            ..Default::default()
+        };
+
+        let (client_io, mut server_io) = duplex(16 * 1024);
+        // Drive the client handshake; it will block reading our (absent) reply,
+        // so run it detached and just inspect the ClientHello it emits.
+        let client = tokio::spawn(async move {
+            let _ = connect(&config, "secret.example", client_io).await;
+        });
+
+        let msg = read_client_hello(&mut server_io).await;
+        let (outer_sni, has_ech) = parse_client_hello(&msg);
+
+        assert!(has_ech, "ClientHello must carry the encrypted_client_hello extension");
+        assert_eq!(
+            outer_sni.as_deref(),
+            Some("public.example"),
+            "outer SNI must be the ECH public name, not the protected server name"
+        );
+        assert!(
+            !msg.windows(b"secret.example".len()).any(|w| w == b"secret.example"),
+            "the protected server name must not appear in cleartext in the ClientHello"
+        );
+
+        drop(server_io);
+        client.abort();
     }
 }

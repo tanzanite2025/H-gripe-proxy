@@ -5,7 +5,7 @@
 > 来源：逐行核对 `crates/learn-gripe/src/{outbound,transport,protocols,udp,inbound}`。
 > 图例：✅ 已实现并接通　❌ 显式 bail 拒绝（不会静默乱编码）　△ 部分　— 不适用
 >
-> 最近更新：SS `2022-blake3-*` 的 **TCP** 已合并（PR #446）；**UDP** 数据面已实现（SIP022：AES 系 separate-header + chacha 系 XChaCha20-Poly1305）。
+> 最近更新：SS SIP003 plugin 全部完成（simple-obfs http/伪 TLS、v2ray-plugin ws±tls，PR #449/#450）；**ECH（Encrypted Client Hello）已接线**——内置 RFC 9180 HPKE provider（DHKEM-X25519-HKDF-SHA256 + AES-128/256-GCM、ChaCha20Poly1305），`ech-opts` 现已驱动真实握手。
 
 ---
 
@@ -51,7 +51,7 @@
 | none | ✅ | |
 | tls | ✅ | sni/servername、alpn、skip-cert-verify、client-fingerprint（uTLS 指纹整形） |
 | reality | ✅ | 需 servername + reality-opts.public-key(32B)，short-id ≤8B |
-| ech (ech-opts) | ❌(实质) | 字段能解析，但 `build_layers` 未接线 → **未生效** |
+| ech (ech-opts) | ✅ | `enable` + base64 `config`(ECHConfigList) → rustls `with_ech`；内置 RFC 9180 HPKE provider（X25519+HKDF-SHA256 + 3 种 AEAD，过官方测试向量）。`query-server-name`（DNS 拉取 ECHConfig）暂未实现，缺 config 时显式报错 |
 
 > flow：仅 VLESS 的 `xtls-rprx-vision` ✅（且仅 raw TCP）；其它 flow / 其它协议带 flow → ❌。
 
@@ -82,7 +82,7 @@
 | 1 | ~~SS `2022-blake3-*` TCP~~ | 高（现代 SS 主流） | 中 | 低 | ✅ **已完成 (PR #446)** |
 | 2 | ~~SS `2022-blake3-*` UDP~~ | 中（UDP-over-SS：节点内跑 QUIC/HTTP3、游戏、WebRTC、DNS；full-cone NAT） | 中 | 中（separate-header：gcm 用 AES-ECB 头加密、chacha 用 XChaCha20，跟 TCP 完全不同的封装） | ✅ **已完成**（SIP022 UDP：AES separate-header + XChaCha20-Poly1305） |
 | 3 | ~~**SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆）~~ | 中（带混淆的 SS 节点直接断） | 中 | 中 | ✅ **已完成**（simple-obfs http + 伪 TLS、v2ray-plugin websocket + 可选 TLS；复用现有 ws/tls transport）。仅 v2ray-plugin 非 websocket 模式 / mux 仍拒绝 |
-| 4 | **ECH 接线**（`ech-opts` → 实际握手） | 低-中（少量启用 ECH 的节点） | 中 | 中（依赖 vendored rustls 的 ECH 支持程度） | 视订阅是否真的用到 |
+| 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。`query-server-name` 的 DNS 拉取仍未实现 |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | xhttp packet-up/down 模式 | 低（小众） | 低-中 | 中 | 视需求 |
 | 7 | **Hysteria2 / TUIC（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（要引入 QUIC 栈 + 各自协议层） | 高 | 真正的"新协议"增量；建议作为独立大里程碑 |
@@ -97,6 +97,6 @@
 **接下来的岔路口（待 owner 拍板）：**
 1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http/tls 全部完成）。稳、低风险。
 2. **直接上 QUIC 系新协议** → #7 Hysteria2 / TUIC。价值最高但工作量最大。
-3. **补已有传输的洞** → #4 ECH 接线 / #6 xhttp 其它模式。
+3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成）/ #6 xhttp 其它模式。
 
 > 建议在拍板前先确认**真实订阅里的协议分布**：如果大量是 hysteria2/tuic/reality，则把精力投向 #7 比补 SS-2022 UDP 更划算；如果仍以 SS / VMess / Trojan 为主，则按 #2 → #3 顺序补齐"已有"更稳。
