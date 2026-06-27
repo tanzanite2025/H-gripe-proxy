@@ -12,8 +12,8 @@
 //! composition with the `none` / `tls` security layers.
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use learn_gripe::{AnyTlsOutboundConfig, GripeConfig, GripeKernel, OutboundMode, Security, TlsClientConfig, Transport};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -37,6 +37,7 @@ const CMD_SYN: u8 = 1;
 const CMD_PSH: u8 = 2;
 const CMD_FIN: u8 = 3;
 const CMD_SETTINGS: u8 = 4;
+const CMD_UPDATE_PADDING_SCHEME: u8 = 6;
 const CMD_SYNACK: u8 = 7;
 const CMD_HEART_REQUEST: u8 = 8;
 const CMD_SERVER_SETTINGS: u8 = 10;
@@ -349,6 +350,132 @@ async fn applies_padding_scheme_on_the_wire() {
         waste_seen.load(Ordering::SeqCst) >= 1,
         "expected cmdWaste padding frames"
     );
+}
+
+/// The default scheme's md5 (advertised on the first connection) and a custom
+/// scheme the fake server pushes via `cmdUpdatePaddingScheme`. `PUSHED_SCHEME`
+/// must parse (it has a `stop` line) and differ from the default so the client
+/// adopts it; its md5 was cross-checked with `md5sum`.
+const DEFAULT_SCHEME_MD5: &str = "75cff2ad89aadf5e257059ee571ebe11";
+const PUSHED_SCHEME: &[u8] = b"stop=3\n0=20-20\n1=120-120";
+const PUSHED_SCHEME_MD5: &str = "ffcbd0e4047d50ee553f450bcb24aa0c";
+
+/// Validate the handshake while recording the `padding-md5` the client
+/// advertised in `cmdSettings` and the auth `padding0` length; when
+/// `push_update` is set, send a `cmdUpdatePaddingScheme` so a later connection
+/// must adopt it. Then echo application `cmdPSH` payload like [`serve_anytls`].
+async fn serve_capture_scheme<S>(
+    mut stream: S,
+    push_update: bool,
+    advertised_md5: Arc<Mutex<Vec<String>>>,
+    last_padding0: Arc<AtomicUsize>,
+) where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut hash = [0u8; 32];
+    stream.read_exact(&mut hash).await.unwrap();
+    assert_eq!(hash, TEST_PASSWORD_SHA256, "anytls password hash");
+    let mut padding_len = [0u8; 2];
+    stream.read_exact(&mut padding_len).await.unwrap();
+    let padding_len = u16::from_be_bytes(padding_len) as usize;
+    last_padding0.store(padding_len, Ordering::SeqCst);
+    if padding_len > 0 {
+        let mut padding = vec![0u8; padding_len];
+        stream.read_exact(&mut padding).await.unwrap();
+    }
+
+    let mut expect = Settings;
+    loop {
+        let (cmd, sid, data) = read_frame(&mut stream).await;
+        if cmd == CMD_WASTE {
+            continue;
+        }
+        match expect {
+            Settings => {
+                assert_eq!(cmd, CMD_SETTINGS, "first non-waste frame is cmdSettings");
+                let text = String::from_utf8_lossy(&data);
+                let md5 = text
+                    .lines()
+                    .find_map(|line| line.strip_prefix("padding-md5="))
+                    .unwrap_or_default()
+                    .to_string();
+                advertised_md5.lock().unwrap().push(md5);
+                write_frame(&mut stream, CMD_SERVER_SETTINGS, 0, b"v=2").await;
+                expect = Syn;
+            }
+            Syn => {
+                assert_eq!(cmd, CMD_SYN, "expected cmdSYN");
+                write_frame(&mut stream, CMD_SYNACK, STREAM_ID, &[]).await;
+                expect = Addr;
+            }
+            Addr => {
+                assert_eq!(cmd, CMD_PSH, "expected cmdPSH with target address");
+                assert!(!data.is_empty(), "target address present");
+                // Push the new scheme before the echo so the client stores it
+                // while draining this connection's reads.
+                if push_update {
+                    write_frame(&mut stream, CMD_UPDATE_PADDING_SCHEME, 0, PUSHED_SCHEME).await;
+                }
+                write_frame(&mut stream, CMD_HEART_REQUEST, 0, &[]).await;
+                expect = Echo;
+            }
+            Echo => match cmd {
+                CMD_PSH if sid == STREAM_ID => write_frame(&mut stream, CMD_PSH, STREAM_ID, &data).await,
+                CMD_FIN => return,
+                _ => {}
+            },
+        }
+    }
+}
+
+#[tokio::test]
+async fn adopts_server_pushed_scheme_for_subsequent_connections() {
+    let advertised = Arc::new(Mutex::new(Vec::<String>::new()));
+    let last_padding0 = Arc::new(AtomicUsize::new(usize::MAX));
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let server = listener.local_addr().unwrap();
+    {
+        let (advertised, last_padding0) = (advertised.clone(), last_padding0.clone());
+        tokio::spawn(async move {
+            // Push the updated scheme on the first connection only; the listener
+            // is held for the whole test so its port is never reused.
+            let mut conn = 0u32;
+            while let Ok((stream, _)) = listener.accept().await {
+                conn += 1;
+                tokio::spawn(serve_capture_scheme(
+                    stream,
+                    conn == 1,
+                    advertised.clone(),
+                    last_padding0.clone(),
+                ));
+            }
+        });
+    }
+
+    let make_cfg = || {
+        OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            password_sha256: TEST_PASSWORD_SHA256,
+            security: Security::None,
+            transport: Transport::Tcp,
+        }))
+    };
+    // Connection 1 advertises the default scheme; the server pushes a new one.
+    assert_relays(make_cfg(), b"one").await;
+    // Connection 2 to the same server must advertise and shape by the pushed one.
+    assert_relays(make_cfg(), b"two").await;
+
+    let advertised = advertised.lock().unwrap().clone();
+    assert_eq!(advertised.len(), 2, "two connections observed: {advertised:?}");
+    assert_eq!(advertised[0], DEFAULT_SCHEME_MD5, "first connection advertises default");
+    assert_eq!(
+        advertised[1], PUSHED_SCHEME_MD5,
+        "second connection advertises pushed scheme"
+    );
+    // Pushed scheme packet 0 is `20-20`, so the second connection's auth
+    // `padding0` is 20 (vs the default 30) — proof it shaped by the new scheme.
+    assert_eq!(last_padding0.load(Ordering::SeqCst), 20, "padding0 from pushed scheme");
 }
 
 #[tokio::test]
