@@ -2,10 +2,8 @@ import { Minus, Square, X, Copy } from 'lucide-react'
 import { forwardRef, useImperativeHandle } from 'react'
 
 import { useWindowControls } from '@/hooks/ui/use-window'
-import getSystem from '@/utils/misc'
 
 export const WindowControls = forwardRef(function WindowControls(props, ref) {
-  const OS = getSystem()
   const {
     currentWindow,
     maximized,
@@ -43,47 +41,15 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
 
   return (
     <div className="flex items-center gap-1">
-      {OS === 'macos' && (
-        <>
-          <button type="button" className={closeBtn} onClick={close}>
-            <X className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" className={btnBase} onClick={minimize}>
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" className={btnBase} onClick={toggleMaximize}>
-            {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-          </button>
-        </>
-      )}
-
-      {OS === 'windows' && (
-        <>
-          <button type="button" className={btnBase} onClick={minimize}>
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" className={btnBase} onClick={toggleMaximize}>
-            {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-          </button>
-          <button type="button" className={closeBtn} onClick={close}>
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </>
-      )}
-
-      {OS === 'linux' && (
-        <>
-          <button type="button" className={btnBase} onClick={minimize}>
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" className={btnBase} onClick={toggleMaximize}>
-            {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-          </button>
-          <button type="button" className={closeBtn} onClick={close}>
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </>
-      )}
+      <button type="button" className={btnBase} onClick={minimize}>
+        <Minus className="w-3.5 h-3.5" />
+      </button>
+      <button type="button" className={btnBase} onClick={toggleMaximize}>
+        {maximized ? <Copy className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+      </button>
+      <button type="button" className={closeBtn} onClick={close}>
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   )
 })

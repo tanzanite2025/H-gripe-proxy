@@ -66,7 +66,6 @@
 | `src-tauri/src/utils/dirs.rs` | `LEGACY_APP_ID = io.github.clash-verge-rev...` | 迁移旧数据目录到新 app id |
 | `src-tauri/src/utils/dirs.rs` | `clash-verge-rev-backup` | 迁移旧备份目录 |
 | `src-tauri/packages/windows/installer.nsi` | 删除旧 `Clash Verge` exe / shortcut / registry | 升级和卸载清理 |
-| `src-tauri/tauri.linux.conf.json` | `conflicts/replaces/obsoletes = clash-verge` | Linux 包升级冲突处理 |
 | `tauri.conf.json` | deep-link `clash` / `clash-verge` | 订阅导入兼容 |
 | `src-tauri/src/utils/resolve/scheme.rs` | 识别 `clash` / `clash-verge` scheme | 订阅链接兼容 |
 
@@ -257,7 +256,7 @@ const SERVICE_SHA256 = {
 
 目标：让 legacy 痕迹可控，而不是散落在代码里。
 
-`src-tauri` 这层 Tauri 配置兼容边界已单独收口到 `src-tauri/compatibility-boundaries.md`，作为 `tauri.conf.json`、`tauri.linux.conf.json`、Linux deep-link 注册和 scheme 解析的唯一说明入口。
+`src-tauri` 这层 Tauri 配置兼容边界已单独收口到 `src-tauri/compatibility-boundaries.md`，作为 `tauri.conf.json`、deep-link 注册和 scheme 解析的唯一说明入口。
 
 建议新增注释规范：
 

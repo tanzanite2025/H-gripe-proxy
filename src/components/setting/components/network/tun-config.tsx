@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import {
   BaseDialog,
   BaseSplitChipEditor,
-  TooltipIcon,
   DialogRef,
   Switch,
 } from '@/components/base'
@@ -22,12 +21,9 @@ import {
 import { useClash } from '@/hooks/data'
 import { enhanceProfiles } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import getSystem from '@/utils/misc'
 import { areValidIpCidrs } from '@/utils/network'
 
 import { StackModeSwitch } from '../misc/stack-mode-switch'
-
-const OS = getSystem()
 
 const splitRouteExcludeAddress = (value: string) =>
   value
@@ -43,13 +39,12 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
     stack: 'mixed',
-    device: OS === 'macos' ? 'utun1024' : 'Mihomo',
+    device: 'Mihomo',
     autoRoute: true,
     routeExcludeAddress: '',
-    autoRedirect: false,
     autoDetectInterface: true,
     dnsHijack: ['any:53'],
-    strictRoute: OS === 'windows',
+    strictRoute: true,
     mtu: 1500,
   })
 
@@ -68,20 +63,16 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     open: () => {
       setOpen(true)
       const nextAutoRoute = clash?.tun['auto-route'] ?? true
-      const rawAutoRedirect = clash?.tun['auto-redirect'] ?? false
-      const computedAutoRedirect =
-        OS === 'linux' ? (nextAutoRoute ? rawAutoRedirect : false) : false
       setValues({
         stack: clash?.tun.stack ?? 'gvisor',
-        device: clash?.tun.device ?? (OS === 'macos' ? 'utun1024' : 'Mihomo'),
+        device: clash?.tun.device ?? 'Mihomo',
         autoRoute: nextAutoRoute,
         routeExcludeAddress: (clash?.tun['route-exclude-address'] ?? []).join(
           ',',
         ),
-        autoRedirect: computedAutoRedirect,
         autoDetectInterface: clash?.tun['auto-detect-interface'] ?? true,
         dnsHijack: clash?.tun['dns-hijack'] ?? ['any:53'],
-        strictRoute: clash?.tun['strict-route'] ?? (OS === 'windows'),
+        strictRoute: clash?.tun['strict-route'] ?? true,
         mtu: clash?.tun.mtu ?? 1500,
       })
     },
@@ -101,19 +92,9 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       const tun: IConfigData['tun'] = {
         stack: values.stack,
-        device:
-          values.device === ''
-            ? OS === 'macos'
-              ? 'utun1024'
-              : 'Mihomo'
-            : values.device,
+        device: values.device === '' ? 'Mihomo' : values.device,
         'auto-route': values.autoRoute,
         'route-exclude-address': routeExcludeAddress,
-        ...(OS === 'linux'
-          ? {
-              'auto-redirect': values.autoRedirect,
-            }
-          : {}),
         'auto-detect-interface': values.autoDetectInterface,
         'dns-hijack': values.dnsHijack[0] === '' ? [] : values.dnsHijack,
         'strict-route': values.strictRoute,
@@ -149,28 +130,22 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             onClick={async () => {
               const tun: IConfigData['tun'] = {
                 stack: 'gvisor',
-                device: OS === 'macos' ? 'utun1024' : 'Mihomo',
+                device: 'Mihomo',
                 'auto-route': true,
-                ...(OS === 'linux'
-                  ? {
-                      'auto-redirect': false,
-                    }
-                  : {}),
                 'auto-detect-interface': true,
                 'dns-hijack': ['any:53'],
                 'route-exclude-address': [],
-                'strict-route': OS === 'windows',
+                'strict-route': true,
                 mtu: 1500,
               }
               setValues({
                 stack: 'gvisor',
-                device: OS === 'macos' ? 'utun1024' : 'Mihomo',
+                device: 'Mihomo',
                 autoRoute: true,
                 routeExcludeAddress: '',
-                autoRedirect: false,
                 autoDetectInterface: true,
                 dnsHijack: ['any:53'],
-                strictRoute: OS === 'windows',
+                strictRoute: true,
                 mtu: 1500,
               })
               await patchClash({ tun })
@@ -233,35 +208,10 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
               setValues((v) => ({
                 ...v,
                 autoRoute: checked,
-                autoRedirect: checked ? v.autoRedirect : false,
               }))
             }
           />
         </ListItem>
-
-        {OS === 'linux' && (
-          <ListItem className="py-[5px] px-[2px]">
-            <ListItemText
-              primary={t('settings.modals.tun.fields.autoRedirect')}
-              className="flex-none w-[120px] mr-2"
-            />
-            <TooltipIcon
-              title={t('settings.modals.tun.tooltips.autoRedirect')}
-              className={values.autoRoute ? 'opacity-70' : 'opacity-30'}
-            />
-            <Switch
-              checked={values.autoRedirect}
-              onCheckedChange={(checked) =>
-                setValues((v) => ({
-                  ...v,
-                  autoRedirect: v.autoRoute ? checked : v.autoRedirect,
-                }))
-              }
-              disabled={!values.autoRoute}
-              className="ml-auto"
-            />
-          </ListItem>
-        )}
 
         <ListItem className="py-[5px] px-[2px]">
           <ListItemText className="flex-none w-[120px] mr-2" primary={t('settings.modals.tun.fields.strictRoute')} />

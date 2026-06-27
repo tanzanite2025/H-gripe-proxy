@@ -131,7 +131,7 @@ target/release/bundle/nsis/
 
 ### 现状 / Current Status
 
-- **Mihomo sidecar 已完全退役**：树内无二进制，打包 / release 链（`prebuild.mjs`、`tauri.conf.json`、`tauri.linux.conf.json` 的 `externalBin`、`release.yml`）不再引用；`tauri-plugin-mihomo` crate 已删除，控制器 IPC 客户端已移除，所有原 IPC 命令改为进程内执行。
+- **Mihomo sidecar 已完全退役**：树内无二进制，打包 / release 链（`prebuild.mjs`、`tauri.conf.json` 的 `externalBin`、`release.yml`）不再引用；`tauri-plugin-mihomo` crate 已删除，控制器 IPC 客户端已移除，所有原 IPC 命令改为进程内执行。
 - **数据面 = `learn-gripe`（进程内）**：单端口 mixed inbound（SOCKS5 + HTTP）、按连接规则路由、协议转发、UDP、DNS、TUN 全在 Rust 内；不再有任何 Mihomo 所属运行面。
 - **控制面成熟**：校验、planning、projection artifact、订阅 pipeline、监控、审计、前端类型面均 Rust 所有。
 
