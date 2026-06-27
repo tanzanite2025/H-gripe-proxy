@@ -2,6 +2,7 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
+use crate::protocols::hysteria2;
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic;
@@ -53,6 +54,7 @@ pub fn connect<'a>(
             OutboundMode::Vmess(config) => vmess::connect(config, target).await,
             OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
             OutboundMode::Tuic(config) => tuic::connect(config, target).await,
+            OutboundMode::Hysteria2(config) => hysteria2::connect(config, target).await,
             OutboundMode::Routed(router) => {
                 connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
             }
@@ -107,7 +109,10 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         // Reject blocks the datagram; an upstream SOCKS5 proxy has no UDP relay
         // path here, so its associations are refused rather than leaked. TUIC
         // only has a TCP relay so far, so its UDP associations are refused too.
-        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } | OutboundMode::Tuic(_) => None,
+        OutboundMode::Reject
+        | OutboundMode::Socks5Upstream { .. }
+        | OutboundMode::Tuic(_)
+        | OutboundMode::Hysteria2(_) => None,
     }
 }
 

@@ -5,6 +5,7 @@
 //! entrypoint. `vision` is the XTLS Vision flow filter that `vless` wraps the
 //! stream in when the Vision flow is negotiated.
 
+pub mod hysteria2;
 pub mod shadowsocks;
 pub mod ss_plugin;
 pub mod trojan;
