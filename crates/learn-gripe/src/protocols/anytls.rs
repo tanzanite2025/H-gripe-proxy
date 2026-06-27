@@ -167,8 +167,12 @@ impl PaddingScheme {
             let Some((key, value)) = line.split_once('=') else {
                 continue;
             };
+            // anytls `util.StringMapFromBytes` trims spaces on both key and
+            // value of every line, so a scheme delimited with `\r\n` (trailing
+            // `\r`) or written with spaces (`stop = 8`) parses identically.
+            let (key, value) = (key.trim(), value.trim());
             if key == "stop" {
-                stop = value.trim().parse::<u32>().ok();
+                stop = value.parse::<u32>().ok();
             } else if let Ok(pkt) = key.parse::<u32>() {
                 let tokens = value
                     .split(',')
@@ -1420,6 +1424,23 @@ mod tests {
         // A scheme without a `stop` line fails to parse and is ignored.
         apply_scheme_update(&key, b"0=10-10");
         assert_eq!(current_scheme(&key).md5_hex, DEFAULT_PADDING_MD5);
+    }
+
+    #[test]
+    fn scheme_parse_trims_crlf_and_spaces_like_upstream() {
+        // A scheme delimited with `\r\n` (each line keeps a trailing `\r`) and
+        // written with spaces around `=` must parse identically to its trimmed
+        // form, matching anytls `util.StringMapFromBytes`.
+        let raw = b"stop = 3\r\n0 = 20-20\r\n1 = 120-120\r\n2 = 7-7,c,9-9";
+        let scheme = PaddingScheme::parse(raw).expect("crlf/spaced scheme parses");
+        assert_eq!(scheme.stop, 3);
+        assert_eq!(scheme.record_payload_sizes(0), vec![20]);
+        assert_eq!(scheme.record_payload_sizes(1), vec![120]);
+        // The `c` check mark and both ranges survive (no token dropped to `\r`).
+        assert_eq!(scheme.record_payload_sizes(2), vec![7, CHECK_MARK, 9]);
+        // md5 is still over the raw bytes (what we advertise), not the trimmed
+        // form, so it differs from the equivalent `\n`-delimited scheme.
+        assert_eq!(scheme.md5_hex, md5_hex(raw));
     }
 
     // ---- Session-pool reuse (PR B) ----------------------------------------
