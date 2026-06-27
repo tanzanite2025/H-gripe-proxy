@@ -9,8 +9,12 @@
 //! The legacy stream ciphers (`aes-*-cfb`, `rc4-md5`, …) use a different
 //! construction and are rejected by [`ShadowsocksOutboundConfig::from_proxy`]
 //! rather than silently mis-encoded, as are SIP003 `plugin`s (obfs /
-//! v2ray-plugin), which would need their own transport layer. The 2022 methods
-//! over UDP are not implemented yet and bail at dial time.
+//! v2ray-plugin), which would need their own transport layer.
+//!
+//! UDP is supported for both generations. The 2017 methods use the stateless,
+//! per-packet salted construction; the 2022 methods use the SIP022 UDP packet
+//! format (AES separate-header for the AES methods, XChaCha20-Poly1305 for the
+//! chacha method) implemented in [`ShadowsocksUdp`].
 //!
 //! All cryptographic primitives are delegated to vetted RustCrypto crates
 //! (`aes-gcm`, `chacha20poly1305`, `md-5`, `sha1`, `blake3`); the only things
@@ -34,14 +38,17 @@
 
 use std::io;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context as TaskContext, Poll, ready};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use aes::cipher::{BlockDecrypt, BlockEncrypt};
+use aes::{Aes128, Aes256};
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use anyhow::{Context, Result, anyhow, bail};
-use chacha20poly1305::ChaCha20Poly1305;
+use chacha20poly1305::{ChaCha20Poly1305, XChaCha20Poly1305, XNonce};
 use md5::Md5;
 use sha1::{Digest, Sha1};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
@@ -71,6 +78,19 @@ const SS2022_HEADER_TYPE_RESPONSE: u8 = 1;
 /// Largest tolerated skew (seconds) between the response header timestamp and
 /// the local clock; mirrors the reference implementations' replay window.
 const SS2022_MAX_TIME_DIFF: u64 = 30;
+/// Shadowsocks 2022 UDP main-header type for the client-to-server direction.
+const SS2022_UDP_HEADER_TYPE_CLIENT: u8 = 0;
+/// Shadowsocks 2022 UDP main-header type for the server-to-client direction.
+const SS2022_UDP_HEADER_TYPE_SERVER: u8 = 1;
+/// Length of the Shadowsocks 2022 UDP session ID (and the separate-header
+/// session-ID field).
+const SS2022_SESSION_ID_LEN: usize = 8;
+/// Length of the AES separate header (`session ID | packet ID`), which is also
+/// the AES block size.
+const SS2022_SEPARATE_HEADER_LEN: usize = 16;
+/// Length of the XChaCha20-Poly1305 per-packet nonce used by the Shadowsocks
+/// 2022 chacha UDP construction.
+const SS2022_XNONCE_LEN: usize = 24;
 
 /// Shadowsocks AEAD method. The `Blake3*` variants are the Shadowsocks 2022
 /// (SIP022) methods; the others are the 2017 AEAD methods.
@@ -274,33 +294,44 @@ async fn connect_2022(
 
 /// A Shadowsocks UDP association to a single destination.
 ///
-/// Shadowsocks UDP is connectionless and frames each datagram independently —
-/// unlike the TCP stream there is no per-session salt, length-prefixing or
-/// nonce counter. Every packet is:
+/// Shadowsocks UDP frames each datagram independently — unlike the TCP stream
+/// there is no length-prefixing or running chunk nonce. The 2017 and 2022
+/// generations use different per-packet constructions:
+///
+/// **2017 AEAD** (`salt`-based, stateless):
 /// ```text
 /// salt (key_len bytes, in clear) | AEAD(subkey, nonce=0, socks5_addr | payload)
 /// ```
 /// with a fresh random `salt` per packet (so the all-zero nonce is never reused
-/// under one key) and `subkey = HKDF-SHA1(master_key, salt, "ss-subkey")`. The
-/// sealed plaintext is the SOCKS5-format destination address followed by the
-/// application payload; replies carry the source address in the same shape,
-/// which is stripped before the payload is returned.
+/// under one key) and `subkey = HKDF-SHA1(master_key, salt, "ss-subkey")`.
+///
+/// **2022 (SIP022)**: every association has a random 8-byte session ID and a
+/// monotonic packet-ID counter. The AES methods use a *separate header*
+/// (`session ID | packet ID`) encrypted with the PSK via single-block AES-ECB,
+/// then an AES-GCM body keyed by `BLAKE3(PSK || session ID)` with the nonce
+/// taken from the plaintext header's last 12 bytes; the chacha method uses
+/// XChaCha20-Poly1305 with the PSK directly and a random 24-byte nonce, merging
+/// the session/packet IDs into the body's main header. Either way the sealed
+/// body is `type | timestamp | … | socks5_addr | payload`; replies are
+/// validated (type, timestamp window, echoed client session ID) and the
+/// SOCKS5 address is stripped before the payload is returned.
 pub struct ShadowsocksUdp {
     socket: UdpSocket,
     cipher: ShadowsocksCipher,
     key: Vec<u8>,
     target: TargetAddr,
+    /// Shadowsocks 2022 client session ID: random, fixed for the lifetime of
+    /// the association. Unused by the 2017 methods.
+    session_id: [u8; SS2022_SESSION_ID_LEN],
+    /// Shadowsocks 2022 monotonic packet counter, starting at 0 and incremented
+    /// per sent datagram. Unused by the 2017 methods.
+    packet_id: AtomicU64,
 }
 
 impl ShadowsocksUdp {
     /// Bind a UDP socket and connect it to the Shadowsocks server. `target` is
     /// the eventual destination sealed into every datagram sent on this socket.
     pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) -> Result<Self> {
-        if config.cipher.is_2022() {
-            // SIP022 UDP uses a separate session-keyed packet construction that
-            // is not implemented yet; reject rather than mis-frame datagrams.
-            bail!("shadowsocks: 2022 udp relay not yet implemented");
-        }
         let server = lookup_host((config.server.as_str(), config.port))
             .await
             .with_context(|| format!("shadowsocks udp: resolve {}:{}", config.server, config.port))?
@@ -311,11 +342,17 @@ impl ShadowsocksUdp {
             .connect(server)
             .await
             .with_context(|| format!("shadowsocks udp: connect {server}"))?;
+        // A fresh random session ID per association; only consulted by the 2022
+        // methods, but cheap enough to always generate.
+        let mut session_id = [0u8; SS2022_SESSION_ID_LEN];
+        random_bytes(&mut session_id);
         Ok(Self {
             socket,
             cipher: config.cipher,
             key: config.key.clone(),
             target: target.clone(),
+            session_id,
+            packet_id: AtomicU64::new(0),
         })
     }
 
@@ -335,6 +372,9 @@ impl ShadowsocksUdp {
     }
 
     fn seal(&self, payload: &[u8]) -> Result<Vec<u8>> {
+        if self.cipher.is_2022() {
+            return self.seal_2022(payload);
+        }
         let salt_len = self.cipher.key_size();
         let mut salt = vec![0u8; salt_len];
         random_bytes(&mut salt);
@@ -350,6 +390,9 @@ impl ShadowsocksUdp {
     }
 
     fn open(&self, datagram: &[u8]) -> Result<Vec<u8>> {
+        if self.cipher.is_2022() {
+            return self.open_2022(datagram);
+        }
         let salt_len = self.cipher.key_size();
         if datagram.len() < salt_len + TAG_LEN {
             bail!("shadowsocks udp: datagram too short");
@@ -360,6 +403,158 @@ impl ShadowsocksUdp {
         let plain = cipher.open(&[0u8; 12], sealed)?;
         let (_source, offset) = socks5::decode_address(&plain)?;
         Ok(plain[offset..].to_vec())
+    }
+
+    /// Seal one Shadowsocks 2022 UDP datagram, dispatching to the AES
+    /// separate-header construction or the XChaCha20-Poly1305 construction.
+    fn seal_2022(&self, payload: &[u8]) -> Result<Vec<u8>> {
+        let packet_id = self.packet_id.fetch_add(1, Ordering::Relaxed);
+        match self.cipher {
+            ShadowsocksCipher::Blake3Chacha20Poly1305 => self.seal_2022_chacha(payload, packet_id),
+            _ => self.seal_2022_aes(payload, packet_id),
+        }
+    }
+
+    /// Open one Shadowsocks 2022 UDP datagram, dispatching by cipher family.
+    fn open_2022(&self, datagram: &[u8]) -> Result<Vec<u8>> {
+        match self.cipher {
+            ShadowsocksCipher::Blake3Chacha20Poly1305 => self.open_2022_chacha(datagram),
+            _ => self.open_2022_aes(datagram),
+        }
+    }
+
+    /// SIP022 AES-GCM UDP: a 16-byte separate header (`session ID | packet ID`)
+    /// encrypted with the PSK as a single AES-ECB block, followed by an AES-GCM
+    /// body whose nonce is the plaintext header's last 12 bytes.
+    fn seal_2022_aes(&self, payload: &[u8], packet_id: u64) -> Result<Vec<u8>> {
+        let mut separate_header = [0u8; SS2022_SEPARATE_HEADER_LEN];
+        separate_header[..SS2022_SESSION_ID_LEN].copy_from_slice(&self.session_id);
+        separate_header[SS2022_SESSION_ID_LEN..].copy_from_slice(&packet_id.to_be_bytes());
+
+        let subkey = session_subkey(self.cipher, &self.key, &self.session_id);
+        let aead = AeadCipher::new(self.cipher, &subkey)?;
+        let mut nonce = [0u8; 12];
+        nonce.copy_from_slice(&separate_header[4..]);
+        let sealed_body = aead.seal(&nonce, &self.build_request_body(packet_id, false, payload))?;
+
+        let block = Ss2022BlockCipher::new(self.cipher, &self.key)?;
+        let mut encrypted_header = separate_header;
+        block.encrypt_block(&mut encrypted_header);
+
+        let mut packet = Vec::with_capacity(SS2022_SEPARATE_HEADER_LEN + sealed_body.len());
+        packet.extend_from_slice(&encrypted_header);
+        packet.extend_from_slice(&sealed_body);
+        Ok(packet)
+    }
+
+    /// SIP022 XChaCha20-Poly1305 UDP: a random 24-byte nonce, then a body sealed
+    /// with the PSK directly. The session/packet IDs are merged into the body's
+    /// main header rather than a separate header.
+    fn seal_2022_chacha(&self, payload: &[u8], packet_id: u64) -> Result<Vec<u8>> {
+        let mut nonce = [0u8; SS2022_XNONCE_LEN];
+        random_bytes(&mut nonce);
+        let cipher = XChaCha20Poly1305::new_from_slice(&self.key)
+            .map_err(|_| anyhow!("shadowsocks 2022 udp: invalid chacha key"))?;
+        let sealed = cipher
+            .encrypt(
+                XNonce::from_slice(&nonce),
+                Payload {
+                    msg: &self.build_request_body(packet_id, true, payload),
+                    aad: &[],
+                },
+            )
+            .map_err(|_| anyhow!("shadowsocks 2022 udp: seal failed"))?;
+        let mut packet = Vec::with_capacity(SS2022_XNONCE_LEN + sealed.len());
+        packet.extend_from_slice(&nonce);
+        packet.extend_from_slice(&sealed);
+        Ok(packet)
+    }
+
+    /// Build the plaintext body for a client-to-server UDP message. With
+    /// `merged_session` (the chacha construction) the body is prefixed with the
+    /// session ID and packet ID; the AES construction carries those in the
+    /// separate header instead. The remainder is the main header
+    /// (`type | timestamp | padding length(0) | socks_addr`) followed by the
+    /// application payload.
+    fn build_request_body(&self, packet_id: u64, merged_session: bool, payload: &[u8]) -> Vec<u8> {
+        let mut body = Vec::with_capacity(8 + 8 + 1 + 8 + 2 + 1 + 256 + 2 + payload.len());
+        if merged_session {
+            body.extend_from_slice(&self.session_id);
+            body.extend_from_slice(&packet_id.to_be_bytes());
+        }
+        body.push(SS2022_UDP_HEADER_TYPE_CLIENT);
+        body.extend_from_slice(&unix_timestamp().to_be_bytes());
+        body.extend_from_slice(&0u16.to_be_bytes());
+        socks5::encode_address(&mut body, &self.target);
+        body.extend_from_slice(payload);
+        body
+    }
+
+    fn open_2022_aes(&self, datagram: &[u8]) -> Result<Vec<u8>> {
+        if datagram.len() < SS2022_SEPARATE_HEADER_LEN + TAG_LEN {
+            bail!("shadowsocks 2022 udp: datagram too short");
+        }
+        let block = Ss2022BlockCipher::new(self.cipher, &self.key)?;
+        let mut separate_header = [0u8; SS2022_SEPARATE_HEADER_LEN];
+        separate_header.copy_from_slice(&datagram[..SS2022_SEPARATE_HEADER_LEN]);
+        block.decrypt_block(&mut separate_header);
+
+        let server_session_id = &separate_header[..SS2022_SESSION_ID_LEN];
+        let subkey = session_subkey(self.cipher, &self.key, server_session_id);
+        let aead = AeadCipher::new(self.cipher, &subkey)?;
+        let mut nonce = [0u8; 12];
+        nonce.copy_from_slice(&separate_header[4..]);
+        let body = aead.open(&nonce, &datagram[SS2022_SEPARATE_HEADER_LEN..])?;
+        self.parse_response_body(&body)
+    }
+
+    fn open_2022_chacha(&self, datagram: &[u8]) -> Result<Vec<u8>> {
+        if datagram.len() < SS2022_XNONCE_LEN + TAG_LEN {
+            bail!("shadowsocks 2022 udp: datagram too short");
+        }
+        let (nonce, sealed) = datagram.split_at(SS2022_XNONCE_LEN);
+        let cipher = XChaCha20Poly1305::new_from_slice(&self.key)
+            .map_err(|_| anyhow!("shadowsocks 2022 udp: invalid chacha key"))?;
+        let body = cipher
+            .decrypt(XNonce::from_slice(nonce), Payload { msg: sealed, aad: &[] })
+            .map_err(|_| anyhow!("shadowsocks 2022 udp: open failed"))?;
+        // The chacha server-to-client body is prefixed with the server session
+        // ID and packet ID before the shared main header.
+        let header_start = SS2022_SESSION_ID_LEN + 8;
+        if body.len() < header_start {
+            bail!("shadowsocks 2022 udp: response header truncated");
+        }
+        self.parse_response_body(&body[header_start..])
+    }
+
+    /// Validate a server-to-client main header and return the trailing payload.
+    /// `body` must start at the `type` field, i.e. any leading session/packet ID
+    /// has already been stripped:
+    /// `type | timestamp | client session ID | padding length | padding | socks_addr | payload`.
+    fn parse_response_body(&self, body: &[u8]) -> Result<Vec<u8>> {
+        let header_min = 1 + 8 + SS2022_SESSION_ID_LEN + 2;
+        if body.len() < header_min {
+            bail!("shadowsocks 2022 udp: response header truncated");
+        }
+        if body[0] != SS2022_UDP_HEADER_TYPE_SERVER {
+            bail!("shadowsocks 2022 udp: unexpected response header type");
+        }
+        let mut ts = [0u8; 8];
+        ts.copy_from_slice(&body[1..9]);
+        if unix_timestamp().abs_diff(u64::from_be_bytes(ts)) > SS2022_MAX_TIME_DIFF {
+            bail!("shadowsocks 2022 udp: response timestamp outside replay window");
+        }
+        if body[9..9 + SS2022_SESSION_ID_LEN] != self.session_id[..] {
+            bail!("shadowsocks 2022 udp: response client session id mismatch");
+        }
+        let pad_at = 9 + SS2022_SESSION_ID_LEN;
+        let pad_len = u16::from_be_bytes([body[pad_at], body[pad_at + 1]]) as usize;
+        let addr_at = pad_at + 2 + pad_len;
+        if body.len() < addr_at {
+            bail!("shadowsocks 2022 udp: padding exceeds packet");
+        }
+        let (_source, offset) = socks5::decode_address(&body[addr_at..])?;
+        Ok(body[addr_at + offset..].to_vec())
     }
 }
 
@@ -559,6 +754,47 @@ impl AeadCipher {
             AeadCipher::Chacha(c) => c.decrypt(GenericArray::from_slice(nonce), payload),
         };
         result.map_err(|_| anyhow!("shadowsocks: AEAD open failed"))
+    }
+}
+
+/// A keyed AES block cipher used for the Shadowsocks 2022 UDP separate header,
+/// which is encrypted/decrypted with the PSK as a single ECB block (no chaining
+/// or padding). Only the AES 2022 methods use a separate header; the chacha
+/// method has none.
+enum Ss2022BlockCipher {
+    Aes128(Box<Aes128>),
+    Aes256(Box<Aes256>),
+}
+
+impl Ss2022BlockCipher {
+    fn new(cipher: ShadowsocksCipher, key: &[u8]) -> Result<Self> {
+        match cipher {
+            ShadowsocksCipher::Blake3Aes128Gcm => Ok(Ss2022BlockCipher::Aes128(Box::new(
+                Aes128::new_from_slice(key).map_err(|_| anyhow!("shadowsocks 2022 udp: invalid aes-128 key"))?,
+            ))),
+            ShadowsocksCipher::Blake3Aes256Gcm => Ok(Ss2022BlockCipher::Aes256(Box::new(
+                Aes256::new_from_slice(key).map_err(|_| anyhow!("shadowsocks 2022 udp: invalid aes-256 key"))?,
+            ))),
+            other => Err(anyhow!(
+                "shadowsocks 2022 udp: separate header requires an AES method, got {other:?}"
+            )),
+        }
+    }
+
+    fn encrypt_block(&self, block: &mut [u8; SS2022_SEPARATE_HEADER_LEN]) {
+        let ga = GenericArray::from_mut_slice(block);
+        match self {
+            Ss2022BlockCipher::Aes128(c) => c.encrypt_block(ga),
+            Ss2022BlockCipher::Aes256(c) => c.encrypt_block(ga),
+        }
+    }
+
+    fn decrypt_block(&self, block: &mut [u8; SS2022_SEPARATE_HEADER_LEN]) {
+        let ga = GenericArray::from_mut_slice(block);
+        match self {
+            Ss2022BlockCipher::Aes128(c) => c.decrypt_block(ga),
+            Ss2022BlockCipher::Aes256(c) => c.decrypt_block(ga),
+        }
     }
 }
 
