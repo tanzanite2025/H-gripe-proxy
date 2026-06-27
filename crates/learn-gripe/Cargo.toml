@@ -23,6 +23,10 @@ md-5 = { version = "0.10.6" }
 aes = { version = "0.8.4" }
 aes-gcm = { version = "0.10.3" }
 chacha20poly1305 = { version = "0.10.1" }
+# Snell's session-subkey KDF: `argon2id(psk, salt, t=3, m=8 KiB, p=1, 32)` (a
+# deliberately weak parameterization fixed by the Snell wire format). Pure-Rust
+# RustCrypto crate; only the raw key-derivation API is used.
+argon2 = { version = "0.5.3" }
 # RFC 9180 HPKE building blocks for Encrypted Client Hello (ECH). rustls only
 # ships an HPKE backend under aws-lc-rs (C toolchain); we run the pure-Rust ring
 # backend, so the kernel composes its own `Hpke` provider from these vetted
@@ -86,6 +90,8 @@ md-5 = { version = "0.10.6" }
 aes-gcm = { version = "0.10.3" }
 chacha20poly1305 = { version = "0.10.1" }
 blake3 = { version = "1.5.5", default-features = false }
+# Independent Snell KDF for the fake Snell server in tests/snell_outbound.rs.
+argon2 = { version = "0.5.3" }
 # Independent BLAKE2b-256 for the fake Salamander server in tests/hysteria2_obfs.rs.
 blake2 = { version = "0.10.6" }
 crc32fast = { version = "1.5.0" }

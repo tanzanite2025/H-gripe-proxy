@@ -171,6 +171,8 @@ pub struct ProxyOptions {
     pub uuid: Option<String>,
     pub token: Option<String>,
     pub psk: Option<String>,
+    /// Snell protocol version (`version`); defaults to 1 when unset.
+    pub version: Option<u32>,
     pub key: Option<String>,
     pub cipher: Option<String>,
     pub flow: Option<String>,
