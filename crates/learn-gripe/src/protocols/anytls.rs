@@ -21,10 +21,15 @@
 //!    marks EOF. A v2 server answers `cmdSYN` with `cmdSYNACK` (empty = ok, data
 //!    = error text) and `cmdSettings` with `cmdServerSettings`.
 //!
-//! The kernel opens one TLS connection (one session, one stream) per outbound
-//! connection — analogous to Trojan — rather than pooling/reusing sessions; a
-//! fresh session always creating a new stream is conformant (it is just the
-//! "no idle session" branch of the reuse rule).
+//! The kernel pools sessions per server: each outbound connection runs one
+//! logical stream, but when that stream closes cleanly the TLS connection is
+//! returned to a per-server idle pool and the next connection to the same server
+//! reuses it — opening a fresh stream with the next `cmdSYN` instead of a new TLS
+//! handshake + auth (anytls-go's idle-session reuse). Streams are sequential per
+//! connection (one active stream at a time); concurrent multiplexing of several
+//! streams over one connection is left for later. A reused connection is
+//! liveness-probed first and pooled entries expire on an idle TTL, so a server
+//! that dropped an idle connection at most costs one wasted reuse attempt.
 //!
 //! **Padding-scheme traffic shaping** is applied, matching upstream
 //! (`anytls-go` `proxy/session/session.go` `writeConn` + `proxy/padding`). The
@@ -47,10 +52,12 @@
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::future::poll_fn;
 use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, ready};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use md5::Md5;
@@ -77,8 +84,10 @@ const CMD_HEART_RESPONSE: u8 = 9;
 const CMD_SERVER_SETTINGS: u8 = 10;
 
 const FRAME_HEADER_LEN: usize = 7;
-/// The single stream opened per session. anytls stream ids are monotonic within
-/// a session; with one stream per connection it is always the first id.
+/// The first stream id opened on a fresh session. anytls stream ids are
+/// monotonic within a session; reusing a pooled connection opens the next id,
+/// so leftover frames from an earlier (closed) stream carry an older id and are
+/// skipped by the new stream.
 const STREAM_ID: u32 = 1;
 /// Cap on a single `cmdPSH` payload (the frame length field is a `u16`); a
 /// comfortable margin keeps frames small without excessive overhead.
@@ -263,6 +272,82 @@ fn apply_scheme_update(key: &ServerKey, raw: &[u8]) {
     }
 }
 
+/// Per-server pool of idle AnyTLS sessions: live TLS connections whose current
+/// stream has closed cleanly, available for the next connection to that server
+/// to reuse (opening a fresh stream id) instead of doing another TLS handshake +
+/// auth — anytls-go's idle-session reuse. Each entry records when it was returned
+/// so stale ones are evicted on access. Process-wide, like [`SCHEME_STORE`], with
+/// the same lazily-initialised `Mutex<Option<HashMap>>` idiom.
+static SESSION_POOL: Mutex<Option<HashMap<ServerKey, Vec<(Instant, SessionState)>>>> = Mutex::new(None);
+
+/// How long an idle pooled session may live before it is discarded on the next
+/// access. Comfortably under typical anytls server idle timeouts; since a reused
+/// session is also liveness-probed, an over-long TTL costs at most one wasted
+/// reuse attempt, never a relayed connection.
+const SESSION_IDLE_TTL: Duration = Duration::from_secs(30);
+/// Cap on idle sessions pooled per server, bounding memory and fd use.
+const SESSION_POOL_MAX: usize = 8;
+
+/// Take a live idle session for `key` from the pool, or `None` if there is no
+/// reusable one. Entries idle past [`SESSION_IDLE_TTL`] are evicted, and each
+/// candidate is liveness-probed (a closed/broken connection is discarded and the
+/// next one tried) so a returned session is ready for a fresh stream.
+async fn take_pooled(key: &ServerKey) -> Option<SessionState> {
+    loop {
+        let candidate = {
+            let mut guard = SESSION_POOL.lock().expect("anytls session pool");
+            let map = guard.as_mut()?;
+            let list = map.get_mut(key)?;
+            list.retain(|(since, _)| since.elapsed() <= SESSION_IDLE_TTL);
+            // Most-recently returned first: likelier to still be alive.
+            list.pop().map(|(_, session)| session)
+        };
+        let mut session = candidate?;
+        if probe_alive(&mut session).await {
+            return Some(session);
+        }
+        // Dead connection: drop it (closing the transport) and try the next.
+    }
+}
+
+/// Cheap liveness check before committing to reuse: poll the transport once
+/// without blocking. `Pending` (no data) presumes it alive; readable bytes are
+/// stale frames from the prior stream, buffered for the new stream's reader to
+/// skip by id; a clean EOF or error means the server closed the connection.
+async fn probe_alive(session: &mut SessionState) -> bool {
+    let mut scratch = [0u8; 4096];
+    let mut read_buf = ReadBuf::new(&mut scratch);
+    let outcome = poll_fn(|cx| match Pin::new(&mut session.inner).poll_read(cx, &mut read_buf) {
+        Poll::Ready(result) => Poll::Ready(Some(result)),
+        Poll::Pending => Poll::Ready(None),
+    })
+    .await;
+    match outcome {
+        None => true,
+        Some(Ok(())) => {
+            let filled = read_buf.filled();
+            if filled.is_empty() {
+                false
+            } else {
+                session.read_raw.extend_from_slice(filled);
+                true
+            }
+        }
+        Some(Err(_)) => false,
+    }
+}
+
+/// Return a cleanly-closed session to its server's idle pool for reuse, unless
+/// the pool is at capacity (then the session is dropped, closing the connection).
+fn return_to_pool(key: ServerKey, session: SessionState) {
+    let mut guard = SESSION_POOL.lock().expect("anytls session pool");
+    let map = guard.get_or_insert_with(HashMap::new);
+    let list = map.entry(key).or_default();
+    if list.len() < SESSION_POOL_MAX {
+        list.push((Instant::now(), session));
+    }
+}
+
 /// Fully-resolved AnyTLS outbound parameters.
 ///
 /// `security` and `transport` are orthogonal layers (see [`crate::transport`]).
@@ -313,24 +398,44 @@ impl AnyTlsOutboundConfig {
 /// flush of `cmdSettings` + `cmdSYN` + `cmdPSH`(target address), and hand back a
 /// stream that frames relay traffic as `cmdPSH` and decodes the server's frames.
 pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    Ok(Box::new(acquire_stream(config, target).await?))
+}
+
+/// Acquire an AnyTLS stream to `target`: reuse a live pooled session for the
+/// config's server if one is available (opening a fresh stream on it), otherwise
+/// establish a new TLS session (handshake + auth + `cmdSettings`). Either way the
+/// returned stream has its opening `cmdSYN` + `cmdPSH`(target) flushed and is
+/// ready to relay.
+async fn acquire_stream(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<AnyTlsStream> {
     let key = ServerKey {
         server: config.server.clone(),
         port: config.port,
     };
+
+    // Reuse path: a pooled connection just needs a new `cmdSYN` + `cmdPSH`(target)
+    // for its next stream id; the session keeps its own shaper and scheme.
+    if let Some(session) = take_pooled(&key).await {
+        let sid = session.stream_id;
+        let mut anytls = AnyTlsStream::from_pool(session, key);
+        anytls.enqueue_session_unit(build_stream_open(sid, target));
+        anytls.flush().await.context("anytls: open stream on pooled session")?;
+        return Ok(anytls);
+    }
+
+    // New-session path: TLS handshake, auth (packet 0), then the padded packet-1
+    // flush of `cmdSettings` + `cmdSYN` + `cmdPSH`(target), as anytls-go does
+    // after `OpenStream` clears buffering.
     let scheme = current_scheme(&key);
     let mut transport = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
     transport
         .write_all(&build_auth_header(&config.password_sha256, &scheme))
         .await
         .context("anytls: send auth header")?;
-
-    // Packet 1: the buffered `cmdSettings` + `cmdSYN` + `cmdPSH`(target) flush,
-    // shaped together as anytls-go does after `OpenStream` clears buffering.
     let init = build_session_init(&scheme, target);
-    let mut anytls = AnyTlsStream::new(transport, (*scheme).clone(), key);
+    let mut anytls = AnyTlsStream::new(transport, (*scheme).clone(), key, STREAM_ID);
     anytls.enqueue_session_unit(init);
     anytls.flush().await.context("anytls: send settings + open stream")?;
-    Ok(Box::new(anytls))
+    Ok(anytls)
 }
 
 /// Open an AnyTLS outbound for UDP datagrams to `target` via udp-over-tcp v2
@@ -340,22 +445,10 @@ pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Resu
 /// payload` in both directions (connect mode carries no per-packet address).
 /// One stream is opened per destination, matching the relay's per-target model.
 pub async fn connect_udp(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let key = ServerKey {
-        server: config.server.clone(),
-        port: config.port,
-    };
-    let scheme = current_scheme(&key);
+    // Open the session stream to the UoT magic address (new or reused), then send
+    // the UoT connect request as its first application bytes.
     let magic = TargetAddr::Domain(UOT_MAGIC_ADDRESS.to_string(), 0);
-    let mut transport = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
-    transport
-        .write_all(&build_auth_header(&config.password_sha256, &scheme))
-        .await
-        .context("anytls udp: send auth header")?;
-
-    // Packet 1: settings + SYN + PSH(UoT magic address).
-    let init = build_session_init(&scheme, &magic);
-    let mut anytls = AnyTlsStream::new(transport, (*scheme).clone(), key);
-    anytls.enqueue_session_unit(init);
+    let mut anytls = acquire_stream(config, &magic).await?;
     // UoT v2 request: IsConnect (1) + SOCKS5-encoded destination. Sent as the
     // stream's first `cmdPSH` payload.
     let mut request = Vec::with_capacity(1 + 1 + 256 + 2);
@@ -415,6 +508,19 @@ fn build_session_init(scheme: &PaddingScheme, target: &TargetAddr) -> Vec<u8> {
     let mut addr = Vec::with_capacity(1 + 256 + 2);
     socks5::encode_address(&mut addr, target);
     push_frame(&mut buf, CMD_PSH, STREAM_ID, &addr);
+    buf
+}
+
+/// Build the bytes opening a stream on an already-established (pooled) session:
+/// `cmdSYN` with the next stream id, then the `cmdPSH` carrying the SOCKS5-encoded
+/// proxy target. No `cmdSettings` — that is sent once at session creation. The
+/// caller feeds the blob through the session's shaper as one `writeConn` unit.
+fn build_stream_open(stream_id: u32, target: &TargetAddr) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(FRAME_HEADER_LEN * 2 + 64);
+    push_frame(&mut buf, CMD_SYN, stream_id, &[]);
+    let mut addr = Vec::with_capacity(1 + 256 + 2);
+    socks5::encode_address(&mut addr, target);
+    push_frame(&mut buf, CMD_PSH, stream_id, &addr);
     buf
 }
 
@@ -497,12 +603,15 @@ impl PaddingShaper {
     }
 }
 
-/// Session-layer stream over the TLS transport: relay writes become `cmdPSH`
-/// frames; reads strip the framing and surface only this stream's `cmdPSH`
-/// payload, handling the control frames (`cmdSYNACK`/`cmdFIN`/`cmdAlert`/
-/// `cmdHeartRequest`/padding) transparently.
-struct AnyTlsStream<S> {
-    inner: S,
+/// The live IO + shaping state of an AnyTLS session that can outlive a single
+/// logical stream: the TLS transport, the padding shaper (whose `writeConn`
+/// counter is per-connection), the outgoing record queue, the unparsed read
+/// buffer, and the current stream id. It is moved out of a cleanly-closed
+/// [`AnyTlsStream`] back into [`SESSION_POOL`] so the next connection to the same
+/// server reuses the TLS connection (a fresh `cmdSYN` with the next stream id)
+/// instead of handshaking again.
+struct SessionState {
+    inner: BoxedStream,
     /// Outgoing records pending write to the inner transport. Each entry is one
     /// intended inner write (one TLS record) produced by the padding shaper, so
     /// record sizes follow the scheme rather than leaking frame boundaries.
@@ -511,42 +620,15 @@ struct AnyTlsStream<S> {
     out_pos: usize,
     /// Padding-scheme state shaping the outgoing record stream.
     shaper: PaddingShaper,
-    /// Server endpoint, so a `cmdUpdatePaddingScheme` received on this connection
-    /// is stored against the right server for its future connections.
-    server_key: ServerKey,
     /// Raw bytes read from the inner transport not yet parsed into frames.
     read_raw: Vec<u8>,
-    /// Decoded `cmdPSH` payload pending delivery to the reader.
-    plain: Vec<u8>,
-    plain_pos: usize,
-    eof: bool,
-    fin_sent: bool,
+    /// The id of the stream currently open on this connection. Monotonic across
+    /// reuses, so frames left over from a previous (closed) stream carry an
+    /// older id and are skipped.
+    stream_id: u32,
 }
 
-impl<S> AnyTlsStream<S> {
-    fn new(inner: S, scheme: PaddingScheme, server_key: ServerKey) -> Self {
-        Self {
-            inner,
-            out: VecDeque::new(),
-            out_pos: 0,
-            shaper: PaddingShaper::new(scheme),
-            server_key,
-            read_raw: Vec::new(),
-            plain: Vec::new(),
-            plain_pos: 0,
-            eof: false,
-            fin_sent: false,
-        }
-    }
-
-    /// Enqueue a multi-frame `writeConn` unit (e.g. the packet-1 settings + SYN +
-    /// PSH blob) through the padding shaper.
-    fn enqueue_session_unit(&mut self, frame_bytes: Vec<u8>) {
-        self.shaper.shape(&mut self.out, frame_bytes);
-    }
-}
-
-impl<S: AsyncWrite + Unpin> AnyTlsStream<S> {
+impl SessionState {
     /// Flush queued outgoing records to the inner transport, one record per
     /// `poll_write` so each becomes its own TLS record.
     fn poll_drain(&mut self, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
@@ -564,14 +646,118 @@ impl<S: AsyncWrite + Unpin> AnyTlsStream<S> {
         }
         Poll::Ready(Ok(()))
     }
+
+    /// Shape one `writeConn` unit of complete frame bytes into the outgoing queue.
+    fn enqueue(&mut self, frame_bytes: Vec<u8>) {
+        self.shaper.shape(&mut self.out, frame_bytes);
+    }
 }
 
-impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for AnyTlsStream<S> {
+/// Session-layer stream over the TLS transport: relay writes become `cmdPSH`
+/// frames; reads strip the framing and surface only this stream's `cmdPSH`
+/// payload, handling the control frames (`cmdSYNACK`/`cmdFIN`/`cmdAlert`/
+/// `cmdHeartRequest`/padding) transparently. On a clean close (our `cmdFIN` sent
+/// and the server's received, transport intact) the [`SessionState`] is returned
+/// to the per-server pool for reuse; otherwise it is dropped, closing the
+/// connection.
+struct AnyTlsStream {
+    /// `Some` while live; taken on `Drop` to either pool the session (clean
+    /// close) or drop the transport (closing the connection).
+    state: Option<SessionState>,
+    /// Server endpoint: routes a received `cmdUpdatePaddingScheme` to the right
+    /// server's scheme store, and keys the session pool on close.
+    server_key: ServerKey,
+    /// Decoded `cmdPSH` payload pending delivery to the reader.
+    plain: Vec<u8>,
+    plain_pos: usize,
+    /// Reads are exhausted (the server closed this stream, or the transport).
+    eof: bool,
+    /// The server closed this stream with `cmdFIN` (as opposed to the transport
+    /// dying) — a precondition for returning the connection to the pool.
+    stream_finished: bool,
+    /// The transport hit EOF/error, or the server rejected the stream / sent
+    /// `cmdAlert` — the connection is unusable and must not be pooled.
+    broken: bool,
+    /// We have sent our `cmdFIN` for this stream.
+    fin_sent: bool,
+}
+
+impl AnyTlsStream {
+    fn new(inner: BoxedStream, scheme: PaddingScheme, server_key: ServerKey, stream_id: u32) -> Self {
+        Self::with_state(
+            SessionState {
+                inner,
+                out: VecDeque::new(),
+                out_pos: 0,
+                shaper: PaddingShaper::new(scheme),
+                read_raw: Vec::new(),
+                stream_id,
+            },
+            server_key,
+        )
+    }
+
+    /// Build a stream over a session taken from the pool, opening a fresh stream
+    /// on the already-authenticated connection.
+    fn from_pool(session: SessionState, server_key: ServerKey) -> Self {
+        Self::with_state(session, server_key)
+    }
+
+    fn with_state(state: SessionState, server_key: ServerKey) -> Self {
+        Self {
+            state: Some(state),
+            server_key,
+            plain: Vec::new(),
+            plain_pos: 0,
+            eof: false,
+            stream_finished: false,
+            broken: false,
+            fin_sent: false,
+        }
+    }
+
+    /// The current stream id (the id this logical stream's frames carry).
+    fn stream_id(&self) -> u32 {
+        self.state.as_ref().map_or(0, |s| s.stream_id)
+    }
+
+    /// Enqueue a multi-frame `writeConn` unit (the packet-1 settings + SYN + PSH
+    /// blob, or a reused session's SYN + PSH) through the padding shaper.
+    fn enqueue_session_unit(&mut self, frame_bytes: Vec<u8>) {
+        if let Some(state) = self.state.as_mut() {
+            state.enqueue(frame_bytes);
+        }
+    }
+
+    /// Whether the connection can be returned to the pool: our `cmdFIN` was sent,
+    /// the server closed its half with `cmdFIN`, and nothing broke the transport.
+    fn reusable(&self) -> bool {
+        self.fin_sent && self.stream_finished && !self.broken && self.state.is_some()
+    }
+}
+
+impl Drop for AnyTlsStream {
+    fn drop(&mut self) {
+        if !self.reusable() {
+            return;
+        }
+        if let Some(mut session) = self.state.take() {
+            // The next stream on this connection gets the following id; any
+            // leftover frames from the just-closed stream carry the old id and
+            // are skipped by the reusing reader.
+            session.stream_id = session.stream_id.wrapping_add(1);
+            return_to_pool(self.server_key.clone(), session);
+        }
+    }
+}
+
+impl AsyncRead for AnyTlsStream {
     fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
+        let state = this.state.as_mut().expect("anytls stream state present");
         // Best-effort flush of any queued control replies (e.g. heart responses
         // produced while parsing). Errors/pending here do not block the read.
-        let _ = this.poll_drain(cx);
+        let _ = state.poll_drain(cx);
 
         loop {
             if this.plain_pos < this.plain.len() {
@@ -585,48 +771,57 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for AnyTlsStream<S> {
             }
 
             // Need a full frame: a 7-byte header, then its `len` body bytes.
-            let need = if this.read_raw.len() < FRAME_HEADER_LEN {
+            let need = if state.read_raw.len() < FRAME_HEADER_LEN {
                 FRAME_HEADER_LEN
             } else {
-                FRAME_HEADER_LEN + u16::from_be_bytes([this.read_raw[5], this.read_raw[6]]) as usize
+                FRAME_HEADER_LEN + u16::from_be_bytes([state.read_raw[5], state.read_raw[6]]) as usize
             };
-            if this.read_raw.len() < need {
+            if state.read_raw.len() < need {
                 let mut scratch = [0u8; 4096];
                 let mut read_buf = ReadBuf::new(&mut scratch);
-                ready!(Pin::new(&mut this.inner).poll_read(cx, &mut read_buf))?;
+                ready!(Pin::new(&mut state.inner).poll_read(cx, &mut read_buf))?;
                 let filled = read_buf.filled();
                 if filled.is_empty() {
-                    // Peer closed the transport; treat as end of this stream.
+                    // Peer closed the transport; the stream ends but the
+                    // connection is broken and must not be pooled.
                     this.eof = true;
+                    this.broken = true;
                     return Poll::Ready(Ok(()));
                 }
-                this.read_raw.extend_from_slice(filled);
+                state.read_raw.extend_from_slice(filled);
                 continue;
             }
 
-            let cmd = this.read_raw[0];
-            let stream_id =
-                u32::from_be_bytes([this.read_raw[1], this.read_raw[2], this.read_raw[3], this.read_raw[4]]);
-            let len = u16::from_be_bytes([this.read_raw[5], this.read_raw[6]]) as usize;
-            let data: Vec<u8> = this.read_raw[FRAME_HEADER_LEN..FRAME_HEADER_LEN + len].to_vec();
-            this.read_raw.drain(..FRAME_HEADER_LEN + len);
+            let cmd = state.read_raw[0];
+            let stream_id = u32::from_be_bytes([
+                state.read_raw[1],
+                state.read_raw[2],
+                state.read_raw[3],
+                state.read_raw[4],
+            ]);
+            let len = u16::from_be_bytes([state.read_raw[5], state.read_raw[6]]) as usize;
+            let data: Vec<u8> = state.read_raw[FRAME_HEADER_LEN..FRAME_HEADER_LEN + len].to_vec();
+            state.read_raw.drain(..FRAME_HEADER_LEN + len);
 
             match cmd {
-                CMD_PSH if stream_id == STREAM_ID => {
+                CMD_PSH if stream_id == state.stream_id => {
                     this.plain = data;
                     this.plain_pos = 0;
                 }
-                CMD_FIN if stream_id == STREAM_ID => {
+                CMD_FIN if stream_id == state.stream_id => {
                     this.eof = true;
+                    this.stream_finished = true;
                     return Poll::Ready(Ok(()));
                 }
-                CMD_SYNACK if !data.is_empty() => {
+                CMD_SYNACK if stream_id == state.stream_id && !data.is_empty() => {
+                    this.broken = true;
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::ConnectionRefused,
                         format!("anytls: stream rejected: {}", String::from_utf8_lossy(&data)),
                     )));
                 }
                 CMD_ALERT => {
+                    this.broken = true;
                     return Poll::Ready(Err(io::Error::other(format!(
                         "anytls: server alert: {}",
                         String::from_utf8_lossy(&data)
@@ -635,15 +830,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for AnyTlsStream<S> {
                 CMD_HEART_REQUEST => {
                     let mut frame = Vec::with_capacity(FRAME_HEADER_LEN);
                     push_frame(&mut frame, CMD_HEART_RESPONSE, stream_id, &[]);
-                    this.shaper.shape(&mut this.out, frame);
-                    let _ = this.poll_drain(cx);
+                    state.enqueue(frame);
+                    let _ = state.poll_drain(cx);
                 }
                 // Store a server-pushed scheme for this server's future
                 // connections; the current session keeps its own scheme.
                 CMD_UPDATE_PADDING_SCHEME => apply_scheme_update(&this.server_key, &data),
                 // Padding, settings, heart responses, the stream's own
-                // SYN/SYNACK(ok), and frames for other streams carry nothing this
-                // single-stream relay needs: read past them.
+                // SYN/SYNACK(ok), and frames left over from a previous stream (an
+                // older id) carry nothing this stream needs: read past them.
                 CMD_WASTE | CMD_SETTINGS | CMD_SERVER_SETTINGS | CMD_HEART_RESPONSE | CMD_SYN | CMD_SYNACK
                 | CMD_PSH | CMD_FIN => {}
                 _ => {}
@@ -652,18 +847,20 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for AnyTlsStream<S> {
     }
 }
 
-impl<S: AsyncWrite + Unpin> AsyncWrite for AnyTlsStream<S> {
+impl AsyncWrite for AnyTlsStream {
     fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
-        ready!(this.poll_drain(cx))?;
+        let sid = this.stream_id();
+        let state = this.state.as_mut().expect("anytls stream state present");
+        ready!(state.poll_drain(cx))?;
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
         let take = buf.len().min(MAX_PSH_CHUNK);
         let mut frame = Vec::with_capacity(FRAME_HEADER_LEN + take);
-        push_frame(&mut frame, CMD_PSH, STREAM_ID, &buf[..take]);
-        this.shaper.shape(&mut this.out, frame);
-        if let Poll::Ready(Err(e)) = this.poll_drain(cx) {
+        push_frame(&mut frame, CMD_PSH, sid, &buf[..take]);
+        state.enqueue(frame);
+        if let Poll::Ready(Err(e)) = state.poll_drain(cx) {
             return Poll::Ready(Err(e));
         }
         Poll::Ready(Ok(take))
@@ -671,31 +868,41 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for AnyTlsStream<S> {
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        ready!(this.poll_drain(cx))?;
-        Pin::new(&mut this.inner).poll_flush(cx)
+        let state = this.state.as_mut().expect("anytls stream state present");
+        ready!(state.poll_drain(cx))?;
+        Pin::new(&mut state.inner).poll_flush(cx)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        ready!(this.poll_drain(cx))?;
+        let sid = this.stream_id();
+        let state = this.state.as_mut().expect("anytls stream state present");
+        ready!(state.poll_drain(cx))?;
         if !this.fin_sent {
             let mut frame = Vec::with_capacity(FRAME_HEADER_LEN);
-            push_frame(&mut frame, CMD_FIN, STREAM_ID, &[]);
-            this.shaper.shape(&mut this.out, frame);
+            push_frame(&mut frame, CMD_FIN, sid, &[]);
+            state.enqueue(frame);
             this.fin_sent = true;
         }
-        ready!(this.poll_drain(cx))?;
-        Pin::new(&mut this.inner).poll_shutdown(cx)
+        ready!(state.poll_drain(cx))?;
+        // Do not shut down the inner transport: `cmdFIN` closes only this stream,
+        // leaving the TLS connection healthy for reuse. The transport is closed
+        // by dropping the session when it is not returned to the pool.
+        Pin::new(&mut state.inner).poll_flush(cx)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::net::{Ipv4Addr, SocketAddr};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
 
     use super::*;
     use crate::config::outbound_opts::ProxyEntry;
     use crate::transport::tls::ClientFingerprint;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::{TcpListener, TcpStream};
 
     fn parse_entry(yaml: &str) -> ProxyEntry {
         serde_yaml_ng::from_str(yaml).expect("parse proxy entry")
@@ -967,5 +1174,219 @@ mod tests {
         // A scheme without a `stop` line fails to parse and is ignored.
         apply_scheme_update(&key, b"0=10-10");
         assert_eq!(current_scheme(&key).md5_hex, DEFAULT_PADDING_MD5);
+    }
+
+    // ---- Session-pool reuse (PR B) ----------------------------------------
+
+    /// Read one session frame from a server-side socket, or `None` at EOF.
+    async fn read_frame_opt(stream: &mut TcpStream) -> Option<(u8, u32, Vec<u8>)> {
+        let mut header = [0u8; FRAME_HEADER_LEN];
+        stream.read_exact(&mut header).await.ok()?;
+        let cmd = header[0];
+        let sid = u32::from_be_bytes([header[1], header[2], header[3], header[4]]);
+        let len = u16::from_be_bytes([header[5], header[6]]) as usize;
+        let mut data = vec![0u8; len];
+        stream.read_exact(&mut data).await.ok()?;
+        Some((cmd, sid, data))
+    }
+
+    /// Write one session frame to a server-side socket.
+    async fn server_write(stream: &mut TcpStream, cmd: u8, sid: u32, data: &[u8]) {
+        let mut frame = Vec::new();
+        push_frame(&mut frame, cmd, sid, data);
+        stream.write_all(&frame).await.unwrap();
+    }
+
+    /// A minimal anytls server that handles multiple *sequential* streams on one
+    /// connection: it records each `cmdSYN`'s stream id, acks it, treats the
+    /// first `cmdPSH` of a stream as the target address and echoes the rest, and
+    /// answers `cmdFIN` with `cmdFIN` (closing only that stream). If
+    /// `close_after_first_stream` is set it drops the connection after the first
+    /// stream's FIN, simulating a server that reaped an idle connection.
+    async fn pool_test_serve(mut stream: TcpStream, sids: Arc<Mutex<Vec<u32>>>, close_after_first_stream: bool) {
+        // Note: callers set `close_after_first_stream` only for the connection
+        // that is expected to be pooled, so the replacement connection still
+        // closes cleanly.
+        let mut hash = [0u8; 32];
+        if stream.read_exact(&mut hash).await.is_err() {
+            return;
+        }
+        let mut padding_len = [0u8; 2];
+        stream.read_exact(&mut padding_len).await.unwrap();
+        let padding_len = u16::from_be_bytes(padding_len) as usize;
+        if padding_len > 0 {
+            let mut padding = vec![0u8; padding_len];
+            stream.read_exact(&mut padding).await.unwrap();
+        }
+
+        let mut awaiting_addr = false;
+        let mut streams_done = 0u32;
+        while let Some((cmd, sid, data)) = read_frame_opt(&mut stream).await {
+            match cmd {
+                CMD_WASTE => {}
+                CMD_SETTINGS => server_write(&mut stream, CMD_SERVER_SETTINGS, 0, b"v=2").await,
+                CMD_SYN => {
+                    sids.lock().unwrap().push(sid);
+                    server_write(&mut stream, CMD_SYNACK, sid, &[]).await;
+                    awaiting_addr = true;
+                }
+                CMD_PSH => {
+                    if awaiting_addr {
+                        awaiting_addr = false; // target address; not echoed
+                    } else {
+                        server_write(&mut stream, CMD_PSH, sid, &data).await;
+                    }
+                }
+                CMD_FIN => {
+                    server_write(&mut stream, CMD_FIN, sid, &[]).await;
+                    streams_done += 1;
+                    if close_after_first_stream && streams_done == 1 {
+                        // Reap the connection so the pooled session goes dead, but
+                        // do it gracefully: half-close (a clean FIN the client's
+                        // liveness probe reads as EOF), then drain until the client
+                        // closes, so Windows never turns the drop into an RST.
+                        let _ = stream.shutdown().await;
+                        let mut sink = [0u8; 64];
+                        while let Ok(n) = stream.read(&mut sink).await {
+                            if n == 0 {
+                                break;
+                            }
+                        }
+                        return;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Spawn `pool_test_serve` accepting on a fresh port; returns the address, the
+    /// recorded stream ids, and the count of accepted TCP connections.
+    async fn spawn_pool_server(close_first_connection: bool) -> (SocketAddr, Arc<Mutex<Vec<u32>>>, Arc<AtomicUsize>) {
+        let sids = Arc::new(Mutex::new(Vec::<u32>::new()));
+        let conns = Arc::new(AtomicUsize::new(0));
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (sids_task, conns_task) = (sids.clone(), conns.clone());
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let index = conns_task.fetch_add(1, Ordering::SeqCst);
+                // Only the first connection (the one that gets pooled) is reaped.
+                let close = close_first_connection && index == 0;
+                tokio::spawn(pool_test_serve(stream, sids_task.clone(), close));
+            }
+        });
+        (addr, sids, conns)
+    }
+
+    fn pool_test_config(addr: SocketAddr) -> AnyTlsOutboundConfig {
+        AnyTlsOutboundConfig {
+            server: addr.ip().to_string(),
+            port: addr.port(),
+            password_sha256: Sha256::digest(b"password").into(),
+            security: Security::None,
+            transport: Transport::Tcp,
+        }
+    }
+
+    fn pool_len(key: &ServerKey) -> usize {
+        SESSION_POOL
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|map| map.get(key))
+            .map_or(0, |list| list.len())
+    }
+
+    /// Drive a relay-style round trip on `stream`, then close it cleanly (send
+    /// our `cmdFIN`, read the server's `cmdFIN` to EOF) so the session qualifies
+    /// for pooling once the stream is dropped.
+    async fn round_trip_and_close(stream: &mut BoxedStream, payload: &[u8]) {
+        stream.write_all(payload).await.unwrap();
+        stream.flush().await.unwrap();
+        let mut buf = vec![0u8; payload.len()];
+        stream.read_exact(&mut buf).await.unwrap();
+        assert_eq!(buf, payload);
+        stream.shutdown().await.unwrap();
+        let mut tail = Vec::new();
+        stream.read_to_end(&mut tail).await.unwrap();
+        assert!(tail.is_empty(), "no application bytes after the echo");
+    }
+
+    #[tokio::test]
+    async fn pool_reuses_session_and_increments_stream_id() {
+        let (addr, sids, conns) = spawn_pool_server(false).await;
+        let config = pool_test_config(addr);
+        let target = TargetAddr::Domain("example.com".to_string(), 443);
+        let key = ServerKey {
+            server: config.server.clone(),
+            port: config.port,
+        };
+
+        // Stream 1 over a fresh session; a clean close pools the connection.
+        {
+            let mut s1 = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s1, b"first").await;
+        }
+        assert_eq!(pool_len(&key), 1, "clean close returns the session to the pool");
+
+        // Stream 2 must reuse it: no new TCP connection, next stream id.
+        {
+            let mut s2 = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s2, b"second").await;
+        }
+
+        assert_eq!(
+            conns.load(Ordering::SeqCst),
+            1,
+            "second stream reused one TCP connection"
+        );
+        assert_eq!(
+            *sids.lock().unwrap(),
+            vec![1, 2],
+            "sequential stream ids on the reused connection"
+        );
+    }
+
+    #[tokio::test]
+    async fn pool_discards_dead_session_on_reuse() {
+        // The server drops the connection after the first stream, so the pooled
+        // session is dead by the time it is reused.
+        let (addr, sids, conns) = spawn_pool_server(true).await;
+        let config = pool_test_config(addr);
+        let target = TargetAddr::Domain("example.com".to_string(), 443);
+        let key = ServerKey {
+            server: config.server.clone(),
+            port: config.port,
+        };
+
+        {
+            let mut s1 = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s1, b"first").await;
+        }
+        // The session is pooled (we received the stream FIN before the server
+        // closed the transport, which we have not observed yet).
+        assert_eq!(pool_len(&key), 1, "session is pooled before the probe runs");
+
+        // Let the server's transport close propagate so the liveness probe sees
+        // it deterministically (loopback FIN delivery; mirrors relay.rs sleeps).
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Reuse must detect the dead connection, discard it, and dial a new one.
+        {
+            let mut s2 = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s2, b"second").await;
+        }
+
+        assert_eq!(
+            conns.load(Ordering::SeqCst),
+            2,
+            "dead session discarded; a new connection dialled"
+        );
+        assert_eq!(
+            *sids.lock().unwrap(),
+            vec![1, 1],
+            "the replacement session starts a fresh stream id"
+        );
     }
 }
