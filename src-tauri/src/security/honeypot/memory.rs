@@ -178,23 +178,9 @@ pub fn get_global_honeypot_stats() -> HoneypotStats {
 
 /// 内存扫描检测
 pub fn detect_memory_scanning() -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        detect_memory_scanning_windows()
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        detect_memory_scanning_unix()
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-    {
-        false
-    }
+    detect_memory_scanning_windows()
 }
 
-#[cfg(target_os = "windows")]
 fn detect_memory_scanning_windows() -> bool {
     use crate::utils::command::hidden_command;
 
@@ -218,43 +204,6 @@ fn detect_memory_scanning_windows() -> bool {
                     log::warn!("🚨 检测到可疑工具: {}", tool);
                     return true;
                 }
-            }
-        }
-    }
-
-    false
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-fn detect_memory_scanning_unix() -> bool {
-    use std::process::Command;
-
-    // 检查是否有进程在读取我们的内存
-    let pid = std::process::id();
-
-    #[cfg(target_os = "linux")]
-    {
-        // 检查 /proc/[pid]/maps 的访问
-        if let Ok(output) = Command::new("lsof").args(&["-p", &pid.to_string()]).output() {
-            if let Ok(output_str) = String::from_utf8(output.stdout) {
-                // 检查是否有其他进程在访问我们的内存映射
-                let lines: Vec<&str> = output_str.lines().collect();
-                if lines.len() > 50 {
-                    // 异常多的文件描述符可能表示被监控
-                    log::warn!("🚨 检测到异常多的文件描述符");
-                    return true;
-                }
-            }
-        }
-    }
-
-    // 检查可疑工具
-    let suspicious_tools = ["gdb", "lldb", "valgrind", "strace"];
-    for tool in &suspicious_tools {
-        if let Ok(output) = Command::new("pgrep").arg(tool).output() {
-            if !output.stdout.is_empty() {
-                log::warn!("🚨 检测到可疑工具: {}", tool);
-                return true;
             }
         }
     }

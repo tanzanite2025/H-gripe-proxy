@@ -2,19 +2,14 @@
  * 防火墙管理模块
  *
  * 功能：
- * 1. Windows 防火墙配置 - 使用 PowerShell
- * 2. Linux 防火墙配置 - 使用 iptables
- * 3. macOS 防火墙配置 - 使用 pf
+ * Windows 防火墙配置 - 使用 PowerShell
  */
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::local_security::LocalSecurityConfig;
-#[cfg(target_os = "windows")]
 use crate::utils::command::hidden_command;
 
 /// 防火墙规则
@@ -109,15 +104,8 @@ impl FirewallManager {
             allow_rule.action.as_str()
         );
 
-        // 根据平台配置防火墙
-        #[cfg(target_os = "windows")]
+        // 配置防火墙
         self.configure_windows_firewall(port).await?;
-
-        #[cfg(target_os = "linux")]
-        self.configure_linux_firewall(port).await?;
-
-        #[cfg(target_os = "macos")]
-        self.configure_macos_firewall(port).await?;
 
         log::info!("Firewall rules configured successfully for port {}", port);
         Ok(())
@@ -127,14 +115,7 @@ impl FirewallManager {
     pub async fn remove_firewall_rules(&self, port: u16) -> Result<()> {
         log::info!("Removing firewall rules for port {}", port);
 
-        #[cfg(target_os = "windows")]
         self.remove_windows_firewall_rules(port).await?;
-
-        #[cfg(target_os = "linux")]
-        self.remove_linux_firewall_rules(port).await?;
-
-        #[cfg(target_os = "macos")]
-        self.remove_macos_firewall_rules(port).await?;
 
         log::info!("Firewall rules removed successfully for port {}", port);
         Ok(())
@@ -142,45 +123,18 @@ impl FirewallManager {
 
     /// 检查防火墙规则是否生效
     pub async fn check_firewall_rules(&self, port: u16) -> Result<bool> {
-        #[cfg(target_os = "windows")]
-        return self.check_windows_firewall_rules(port).await;
-
-        #[cfg(target_os = "linux")]
-        return self.check_linux_firewall_rules(port).await;
-
-        #[cfg(target_os = "macos")]
-        return self.check_macos_firewall_rules(port).await;
+        self.check_windows_firewall_rules(port).await
     }
 
     /// 检查是否有足够的权限配置防火墙
     async fn check_permissions(&self) -> Result<bool> {
-        #[cfg(target_os = "windows")]
-        {
-            // Windows: 检查是否以管理员身份运行
-            let output = hidden_command("net").args(&["session"]).output()?;
-            Ok(output.status.success())
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            // Linux: 检查是否为 root 或有 sudo 权限
-            let output = Command::new("id").args(&["-u"]).output()?;
-            let uid = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            Ok(uid == "0")
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            // macOS: 检查是否为 root 或有 sudo 权限
-            let output = Command::new("id").args(&["-u"]).output()?;
-            let uid = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            Ok(uid == "0")
-        }
+        // Windows: 检查是否以管理员身份运行
+        let output = hidden_command("net").args(&["session"]).output()?;
+        Ok(output.status.success())
     }
 
     // ==================== Windows 实现 ====================
 
-    #[cfg(target_os = "windows")]
     async fn configure_windows_firewall(&self, port: u16) -> Result<()> {
         let rule_name = format!("ClashVerge-LocalOnly-{}", port);
         let rule_name_block = format!("ClashVerge-LocalOnly-{}-Block", port);
@@ -220,7 +174,6 @@ impl FirewallManager {
         Ok(())
     }
 
-    #[cfg(target_os = "windows")]
     async fn remove_windows_firewall_rules(&self, port: u16) -> Result<()> {
         let rule_name = format!("ClashVerge-LocalOnly-{}", port);
         let rule_name_block = format!("ClashVerge-LocalOnly-{}-Block", port);
@@ -248,7 +201,6 @@ impl FirewallManager {
         Ok(())
     }
 
-    #[cfg(target_os = "windows")]
     async fn check_windows_firewall_rules(&self, port: u16) -> Result<bool> {
         let rule_name = format!("ClashVerge-LocalOnly-{}", port);
 
@@ -263,142 +215,6 @@ impl FirewallManager {
             .map_err(|e| anyhow!("Failed to execute PowerShell: {}", e))?;
 
         Ok(output.status.success() && !output.stdout.is_empty())
-    }
-
-    // ==================== Linux 实现 ====================
-
-    #[cfg(target_os = "linux")]
-    async fn configure_linux_firewall(&self, port: u16) -> Result<()> {
-        // 允许回环接口
-        let allow_loopback = Command::new("iptables")
-            .args(&["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"])
-            .output()
-            .map_err(|e| anyhow!("Failed to execute iptables: {}", e))?;
-
-        if !allow_loopback.status.success() {
-            let stderr = String::from_utf8_lossy(&allow_loopback.stderr);
-            log::warn!("Failed to add loopback rule (may already exist): {}", stderr);
-        }
-
-        // 阻止外部访问指定端口
-        let block_external = Command::new("iptables")
-            .args(&[
-                "-A",
-                "INPUT",
-                "-p",
-                "tcp",
-                "--dport",
-                &port.to_string(),
-                "!",
-                "-i",
-                "lo",
-                "-j",
-                "DROP",
-            ])
-            .output()
-            .map_err(|e| anyhow!("Failed to execute iptables: {}", e))?;
-
-        if !block_external.status.success() {
-            let stderr = String::from_utf8_lossy(&block_external.stderr);
-            return Err(anyhow!("Failed to add block rule: {}", stderr));
-        }
-
-        // 保存规则（Debian/Ubuntu）
-        let _ = Command::new("iptables-save").output();
-
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn remove_linux_firewall_rules(&self, port: u16) -> Result<()> {
-        // 删除阻止规则
-        let _ = Command::new("iptables")
-            .args(&[
-                "-D",
-                "INPUT",
-                "-p",
-                "tcp",
-                "--dport",
-                &port.to_string(),
-                "!",
-                "-i",
-                "lo",
-                "-j",
-                "DROP",
-            ])
-            .output();
-
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn check_linux_firewall_rules(&self, port: u16) -> Result<bool> {
-        let output = Command::new("iptables")
-            .args(&["-L", "INPUT", "-n"])
-            .output()
-            .map_err(|e| anyhow!("Failed to execute iptables: {}", e))?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
-        // 检查是否存在针对该端口的规则
-        Ok(stdout.contains(&format!("dpt:{}", port)))
-    }
-
-    // ==================== macOS 实现 ====================
-
-    #[cfg(target_os = "macos")]
-    async fn configure_macos_firewall(&self, port: u16) -> Result<()> {
-        let rules = format!(
-            "# ClashVerge firewall rules\n\
-             block in proto tcp from any to any port {}\n\
-             pass in proto tcp from 127.0.0.1 to 127.0.0.1 port {}",
-            port, port
-        );
-
-        // 写入规则文件
-        std::fs::write("/etc/pf.anchors/clash_verge", rules).map_err(|e| anyhow!("Failed to write pf rules: {}", e))?;
-
-        // 加载规则
-        let output = Command::new("pfctl")
-            .args(&["-f", "/etc/pf.anchors/clash_verge"])
-            .output()
-            .map_err(|e| anyhow!("Failed to execute pfctl: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("Failed to load pf rules: {}", stderr));
-        }
-
-        // 启用 pf
-        let _ = Command::new("pfctl").args(&["-e"]).output();
-
-        Ok(())
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn remove_macos_firewall_rules(&self, _port: u16) -> Result<()> {
-        // 删除规则文件
-        let _ = std::fs::remove_file("/etc/pf.anchors/clash_verge");
-
-        // 重新加载 pf 配置
-        let _ = Command::new("pfctl").args(&["-f", "/etc/pf.conf"]).output();
-
-        Ok(())
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn check_macos_firewall_rules(&self, port: u16) -> Result<bool> {
-        // 检查规则文件是否存在
-        if !std::path::Path::new("/etc/pf.anchors/clash_verge").exists() {
-            return Ok(false);
-        }
-
-        // 读取规则文件
-        let content = std::fs::read_to_string("/etc/pf.anchors/clash_verge")
-            .map_err(|e| anyhow!("Failed to read pf rules: {}", e))?;
-
-        // 检查是否包含该端口的规则
-        Ok(content.contains(&format!("port {}", port)))
     }
 }
 
