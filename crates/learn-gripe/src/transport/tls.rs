@@ -4,11 +4,12 @@
 //! kind of "do not hand-roll" surface called out in the kernel build-vs-adopt
 //! boundary, so learn-gripe stands on a vetted implementation here.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::{Context, Result, anyhow, bail};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::client::{EchConfig, EchMode, RealityConfig};
+use rustls::client::{ClientSessionMemoryCache, ClientSessionStore, EchConfig, EchMode, RealityConfig, Resumption};
 use rustls::crypto::ring::cipher_suite;
 use rustls::crypto::{CryptoProvider, SecureRandom, ring, verify_tls12_signature, verify_tls13_signature};
 use rustls::pki_types::{CertificateDer, EchConfigListBytes, ServerName, UnixTime};
@@ -437,6 +438,26 @@ fn build_ech_mode(config: &TlsClientConfig) -> Result<Option<EchMode>> {
 /// verification reuses the same roots / `skip-cert-verify` path as the TCP TLS
 /// transport. The returned config is handed to `quinn` via `QuicClientConfig`.
 pub(crate) fn quic_client_config(alpn: &[String], skip_cert_verify: bool) -> Result<rustls::ClientConfig> {
+    // Reuse one config per (verification mode, ALPN) so the `ServerCertVerifier`
+    // / `ResolvesClientCert` `Arc`s keep a stable identity across dials. rustls
+    // only resumes a session (and therefore only offers 0-RTT) when the current
+    // verifier is pointer-equal to the one cached with the ticket
+    // (`ClientSessionCommon::compatible_config`); a fresh config per dial would
+    // defeat resumption entirely. Cloning shares those inner `Arc`s, so quinn
+    // still gets an owned `ClientConfig` without breaking the identity check.
+    let cache = quic_client_config_cache();
+    let key = (skip_cert_verify, alpn.to_vec());
+    let mut configs = cache.lock().expect("QUIC client config cache poisoned");
+    if let Some(config) = configs.get(&key) {
+        return Ok((**config).clone());
+    }
+    let config = Arc::new(build_quic_client_config(alpn, skip_cert_verify)?);
+    configs.insert(key, config.clone());
+    Ok((*config).clone())
+}
+
+/// Build a fresh QUIC client config (see [`quic_client_config`], which caches it).
+fn build_quic_client_config(alpn: &[String], skip_cert_verify: bool) -> Result<rustls::ClientConfig> {
     let provider = Arc::new(ring::default_provider());
     let builder = rustls::ClientConfig::builder_with_provider(provider.clone())
         .with_protocol_versions(&[&rustls::version::TLS13])
@@ -454,7 +475,31 @@ pub(crate) fn quic_client_config(alpn: &[String], skip_cert_verify: bool) -> Res
     };
 
     config.alpn_protocols = alpn.iter().map(|p| p.as_bytes().to_vec()).collect();
+    // Persist TLS 1.3 session tickets in a process-wide cache and advertise
+    // early-data capability, so a ticket obtained on one dial lets a later dial
+    // resume and (when the outbound opts in) send 0-RTT data. This is inert
+    // until a caller actually requests 0-RTT via `Connecting::into_0rtt`.
+    config.resumption = Resumption::store(quic_session_store());
+    config.enable_early_data = true;
     Ok(config)
+}
+
+/// Process-wide cache of QUIC client configs keyed by `(skip_cert_verify, alpn)`,
+/// keeping the verifier `Arc` identity stable so rustls can resume sessions.
+type QuicClientConfigCache = Mutex<HashMap<(bool, Vec<String>), Arc<rustls::ClientConfig>>>;
+fn quic_client_config_cache() -> &'static QuicClientConfigCache {
+    static CACHE: OnceLock<QuicClientConfigCache> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Process-wide TLS 1.3 client session cache shared by every QUIC dial. A single
+/// store (keyed internally by server name) lets a resumption ticket obtained on
+/// one connection enable session resumption / 0-RTT on the next.
+fn quic_session_store() -> Arc<dyn ClientSessionStore> {
+    static STORE: OnceLock<Arc<dyn ClientSessionStore>> = OnceLock::new();
+    STORE
+        .get_or_init(|| Arc::new(ClientSessionMemoryCache::new(256)))
+        .clone()
 }
 
 /// A certificate verifier that accepts any server certificate. Used only when

@@ -312,6 +312,7 @@ fn base_config(port: u16) -> Hysteria2OutboundConfig {
         congestion: Congestion::Bbr,
         obfs: None,
         port_hop: None,
+        reduce_rtt: false,
     }
 }
 
