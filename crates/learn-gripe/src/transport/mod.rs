@@ -189,7 +189,9 @@ pub(crate) fn build_layers(
             let xhttp = opts.xhttp_opts.clone().unwrap_or_default();
             let mode = match xhttp.mode.as_deref() {
                 None | Some("") | Some("auto") | Some("stream-one") => XhttpMode::StreamOne,
-                Some(other) => bail!("{proto}: xhttp mode {other:?} not implemented yet (only stream-one)"),
+                Some("stream-up") => XhttpMode::StreamUp,
+                Some("packet-up") => XhttpMode::PacketUp,
+                Some(other) => bail!("{proto}: xhttp mode {other:?} not implemented yet"),
             };
             Transport::Xhttp(XhttpTransportConfig {
                 path: xhttp.path.unwrap_or_default(),
