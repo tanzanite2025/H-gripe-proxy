@@ -174,6 +174,7 @@ fn snell(server: SocketAddr, version: u8) -> Box<SnellOutboundConfig> {
         port: server.port(),
         psk: TEST_PSK.to_vec(),
         version,
+        obfs: None,
     })
 }
 
