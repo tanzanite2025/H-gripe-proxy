@@ -832,8 +832,6 @@ pub fn build_base_config_from_runtime_config(config: &serde_yaml_ng::Mapping) ->
     BaseConfig {
         port: get_u16("port").unwrap_or_default(),
         socks_port: get_u16("socks-port").unwrap_or_default(),
-        redir_port: get_u16("redir-port").unwrap_or_default(),
-        tproxy_port: get_u16("tproxy-port").unwrap_or_default(),
         mixed_port: get_u16("mixed-port").unwrap_or_default(),
         tun,
         allow_lan: get_bool("allow-lan").unwrap_or_default(),

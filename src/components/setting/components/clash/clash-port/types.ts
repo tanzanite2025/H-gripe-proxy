@@ -9,18 +9,12 @@ export interface ClashPortValues {
   socksEnabled: boolean
   httpPort: number
   httpEnabled: boolean
-  redirPort: number
-  redirEnabled: boolean
-  tproxyPort: number
-  tproxyEnabled: boolean
 }
 
 export type ClashPortNumberKey =
   | 'mixedPort'
   | 'socksPort'
   | 'httpPort'
-  | 'redirPort'
-  | 'tproxyPort'
 
 export interface ClashPortRowConfig {
   key: ClashPortNumberKey

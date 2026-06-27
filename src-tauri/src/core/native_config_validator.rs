@@ -77,7 +77,7 @@ pub async fn validate_native(config_path: &str) -> Result<NativeValidationReport
 }
 
 fn validate_ports(map: &Mapping, report: &mut NativeValidationReport) {
-    for key in &["port", "socks-port", "redir-port", "tproxy-port", "mixed-port"] {
+    for key in &["port", "socks-port", "mixed-port"] {
         if let Some(val) = map.get(*key) {
             match val.as_i64() {
                 Some(p) if (0..=65535).contains(&p) => {}

@@ -2,10 +2,8 @@ use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::HashSet;
 
-pub const HANDLE_FIELDS: [&str; 12] = [
+pub const HANDLE_FIELDS: [&str; 10] = [
     "mode",
-    "redir-port",
-    "tproxy-port",
     "mixed-port",
     "socks-port",
     "port",

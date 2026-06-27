@@ -1163,7 +1163,7 @@ pub async fn mihomo_kernel_isolated_test_listener_smoke_evidence(
 
 fn kernel_runtime_ports(config: &serde_yaml_ng::Mapping) -> BTreeMap<String, u16> {
     let mut ports = BTreeMap::new();
-    for key in ["port", "socks-port", "mixed-port", "redir-port", "tproxy-port"] {
+    for key in ["port", "socks-port", "mixed-port"] {
         if let Some(port) = kernel_runtime_port(config, key) {
             ports.insert(key.into(), port);
         }

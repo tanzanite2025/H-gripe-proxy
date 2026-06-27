@@ -18,8 +18,6 @@ const PORT_KEYS = [
   'port',
   'socks-port',
   'mixed-port',
-  'redir-port',
-  'tproxy-port',
 ] as const
 
 type ClashInfoPatch = Partial<
@@ -28,8 +26,6 @@ type ClashInfoPatch = Partial<
     | 'port'
     | 'socks-port'
     | 'mixed-port'
-    | 'redir-port'
-    | 'tproxy-port'
     | 'external-controller'
     | 'secret'
   >
