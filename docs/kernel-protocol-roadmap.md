@@ -43,7 +43,7 @@
 | ws | ✅ | ws-opts: path / headers / Host |
 | httpupgrade | ✅ | ws + `v2ray-http-upgrade: true` |
 | grpc | ✅ | 自动加 h2 ALPN |
-| xhttp | △ | **仅 stream-one**；packet-up/down 等模式 ❌ |
+| xhttp | ✅ | `stream-one`（全双工单 POST）+ `stream-up`（流式 POST 上 / 独立 GET 下）+ `packet-up`（逐包 POST + seq）；session-id 路径关联、`x_padding` 填充；`auto`/空 → stream-one |
 | h2 | △ | **仅 over TLS/REALITY**（无 TLS 则 ❌） |
 | 其它 network | ❌ | bail "not implemented" |
 
@@ -85,7 +85,7 @@
 | 3 | ~~**SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆）~~ | 中（带混淆的 SS 节点直接断） | 中 | 中 | ✅ **已完成**（simple-obfs http + 伪 TLS、v2ray-plugin websocket + 可选 TLS；复用现有 ws/tls transport）。仅 v2ray-plugin 非 websocket 模式 / mux 仍拒绝 |
 | 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。`query-server-name` 的 DNS 拉取仍未实现 |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
-| 6 | xhttp packet-up/down 模式 | 低（小众） | 低-中 | 中 | 视需求 |
+| 6 | ~~xhttp packet-up/stream-up 模式~~ | 低（小众） | 低-中 | 中 | ✅ **已完成**（`stream-up` + `packet-up`：单 h2 连接上 GET 下行 + POST 上行，对齐 Xray splithttp 线格式；独立 fake h2 server 互通测试 `tests/xhttp_multi.rs`） |
 | 7 | **TUIC（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（引入 QUIC 栈 quinn + 协议层） | 高 | ✅ **TUIC v5 已完成**（TCP relay：TLS keying-material 导出鉴权 + bidi 流；独立 fake QUIC server 互通测试 `tests/tuic_outbound.rs`）。**Hysteria2** + TUIC 的 UDP/0-RTT 仍待做 |
 | 8 | WireGuard / ssr / snell / anytls 数据面 | 视订阅而定 | 大（各自独立工程） | 中-高 | 按实际订阅命中再排 |
 
@@ -93,11 +93,11 @@
 
 ## 6. 结论 & 待定决策
 
-**已接通的主线**：SS(AEAD，含 2022 TCP+UDP) / VMess / VLESS / Trojan × `tcp/ws/grpc/xhttp(stream-one)/h2(over TLS)/httpupgrade` × `none/tls/reality`（+ VLESS Vision，raw TCP）。这套已经覆盖绝大多数现代订阅的 TCP 链路。
+**已接通的主线**：SS(AEAD，含 2022 TCP+UDP) / VMess / VLESS / Trojan × `tcp/ws/grpc/xhttp(stream-one/stream-up/packet-up)/h2(over TLS)/httpupgrade` × `none/tls/reality`（+ VLESS Vision，raw TCP；+ TUIC v5 over QUIC）。这套已经覆盖绝大多数现代订阅的 TCP 链路。
 
 **接下来的岔路口（待 owner 拍板）：**
 1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http/tls 全部完成）。稳、低风险。
 2. **直接上 QUIC 系新协议** → ~~#7 TUIC~~（TUIC v5 TCP relay 已完成，引入 quinn QUIC 栈）；剩 **Hysteria2** + TUIC 的 UDP/0-RTT。价值最高但工作量最大。
-3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成）/ #6 xhttp 其它模式。
+3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成）、~~#6 xhttp stream-up/packet-up~~（已完成）。
 
 > 建议在拍板前先确认**真实订阅里的协议分布**：如果大量是 hysteria2/tuic/reality，则把精力投向 #7 比补 SS-2022 UDP 更划算；如果仍以 SS / VMess / Trojan 为主，则按 #2 → #3 顺序补齐"已有"更稳。
