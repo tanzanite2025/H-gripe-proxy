@@ -38,6 +38,7 @@ pub use protocols::hysteria2::Hysteria2OutboundConfig;
 pub use protocols::salamander::Salamander;
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::snell::SnellOutboundConfig;
+pub use protocols::ssr::{SsrCipher, SsrObfs, SsrOutboundConfig, SsrProtocol};
 pub use protocols::trojan::TrojanOutboundConfig;
 pub use protocols::tuic::TuicOutboundConfig;
 pub use protocols::vless::VlessOutboundConfig;

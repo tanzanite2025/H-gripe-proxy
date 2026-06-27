@@ -7,6 +7,7 @@ use crate::protocols::anytls::AnyTlsOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
+use crate::protocols::ssr::SsrOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::tuic::TuicOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
@@ -50,6 +51,8 @@ pub enum OutboundMode {
     AnyTls(Box<AnyTlsOutboundConfig>),
     /// Forward through a Snell outbound.
     Snell(Box<SnellOutboundConfig>),
+    /// Forward through a ShadowsocksR (SSR) outbound.
+    Ssr(Box<SsrOutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
@@ -86,6 +89,7 @@ impl OutboundMode {
             )?))),
             ProxyType::AnyTls => Ok(OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig::from_proxy(entry)?))),
             ProxyType::Snell => Ok(OutboundMode::Snell(Box::new(SnellOutboundConfig::from_proxy(entry)?))),
+            ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
         }
     }
@@ -111,6 +115,7 @@ impl OutboundMode {
             OutboundMode::Hysteria2(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
                 .flat_map(OutboundMode::direct_dial_endpoints)
@@ -133,6 +138,7 @@ impl OutboundMode {
             OutboundMode::Hysteria2(_) => "hysteria2",
             OutboundMode::AnyTls(_) => "anytls",
             OutboundMode::Snell(_) => "snell",
+            OutboundMode::Ssr(_) => "ssr",
             OutboundMode::Routed(_) => "routed",
         }
     }
@@ -155,6 +161,7 @@ impl OutboundMode {
                 | OutboundMode::Hysteria2(_)
                 | OutboundMode::AnyTls(_)
                 | OutboundMode::Snell(_)
+                | OutboundMode::Ssr(_)
         )
     }
 }

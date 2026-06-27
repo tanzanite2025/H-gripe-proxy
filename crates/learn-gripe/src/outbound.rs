@@ -6,6 +6,7 @@ use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell;
+use crate::protocols::ssr;
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
@@ -59,6 +60,7 @@ pub fn connect<'a>(
             OutboundMode::Hysteria2(config) => hysteria2::connect(config, target).await,
             OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
             OutboundMode::Snell(config) => snell::connect(config, target).await,
+            OutboundMode::Ssr(config) => ssr::connect(config, target).await,
             OutboundMode::Routed(router) => {
                 connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
             }
@@ -123,6 +125,8 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
         // Snell UDP (CommandUDP packet framing) is not implemented yet; TCP only.
         OutboundMode::Snell(_) => None,
+        // SSR is TCP-only in this implementation.
+        OutboundMode::Ssr(_) => None,
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
