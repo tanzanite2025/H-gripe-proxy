@@ -13,6 +13,7 @@
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use learn_gripe::{AnyTlsOutboundConfig, GripeConfig, GripeKernel, OutboundMode, Security, TlsClientConfig, Transport};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -246,6 +247,108 @@ async fn relays_through_tls_anytls_outbound() {
         b"hello anytls over tls",
     )
     .await;
+}
+
+/// Like [`serve_anytls`] but records the `padding0` length and the number of
+/// `cmdWaste` frames seen across the whole session, so a test can prove the
+/// client applied the padding scheme on the wire.
+async fn serve_anytls_observe<S>(mut stream: S, padding0_len: Arc<AtomicUsize>, waste_seen: Arc<AtomicUsize>)
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut hash = [0u8; 32];
+    stream.read_exact(&mut hash).await.unwrap();
+    assert_eq!(hash, TEST_PASSWORD_SHA256, "anytls password hash");
+    let mut padding_len = [0u8; 2];
+    stream.read_exact(&mut padding_len).await.unwrap();
+    let padding_len = u16::from_be_bytes(padding_len) as usize;
+    padding0_len.store(padding_len, Ordering::SeqCst);
+    if padding_len > 0 {
+        let mut padding = vec![0u8; padding_len];
+        stream.read_exact(&mut padding).await.unwrap();
+    }
+
+    // The handshake frames may arrive interleaved with cmdWaste padding; count
+    // every waste frame and otherwise reproduce serve_anytls's control flow.
+    let mut expect = Settings;
+    loop {
+        let (cmd, sid, data) = read_frame(&mut stream).await;
+        if cmd == CMD_WASTE {
+            waste_seen.fetch_add(1, Ordering::SeqCst);
+            continue;
+        }
+        match expect {
+            Settings => {
+                assert_eq!(cmd, CMD_SETTINGS, "first non-waste frame is cmdSettings");
+                assert_eq!(sid, 0);
+                write_frame(&mut stream, CMD_SERVER_SETTINGS, 0, b"v=2").await;
+                expect = Syn;
+            }
+            Syn => {
+                assert_eq!(cmd, CMD_SYN, "expected cmdSYN");
+                assert_eq!(sid, STREAM_ID);
+                write_frame(&mut stream, CMD_SYNACK, STREAM_ID, &[]).await;
+                expect = Addr;
+            }
+            Addr => {
+                assert_eq!(cmd, CMD_PSH, "expected cmdPSH with target address");
+                assert!(!data.is_empty(), "target address present");
+                write_frame(&mut stream, CMD_HEART_REQUEST, 0, &[]).await;
+                expect = Echo;
+            }
+            Echo => match cmd {
+                CMD_PSH if sid == STREAM_ID => write_frame(&mut stream, CMD_PSH, STREAM_ID, &data).await,
+                CMD_FIN => return,
+                _ => {}
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Phase {
+    Settings,
+    Syn,
+    Addr,
+    Echo,
+}
+use Phase::{Addr, Echo, Settings, Syn};
+
+#[tokio::test]
+async fn applies_padding_scheme_on_the_wire() {
+    let padding0_len = Arc::new(AtomicUsize::new(usize::MAX));
+    let waste_seen = Arc::new(AtomicUsize::new(0));
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let server = listener.local_addr().unwrap();
+    {
+        let (p0, ws) = (padding0_len.clone(), waste_seen.clone());
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                serve_anytls_observe(stream, p0, ws).await;
+            }
+        });
+    }
+
+    // A small payload guarantees packet 2 (the first app write, scheme entry
+    // `400-500,c,...`) pads the lone record with a cmdWaste frame.
+    assert_relays(
+        OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig {
+            server: server.ip().to_string(),
+            port: server.port(),
+            password_sha256: TEST_PASSWORD_SHA256,
+            security: Security::None,
+            transport: Transport::Tcp,
+        })),
+        b"ping",
+    )
+    .await;
+
+    // Default scheme: padding0 = 30 bytes; at least one cmdWaste must be emitted.
+    assert_eq!(padding0_len.load(Ordering::SeqCst), 30, "padding0 length");
+    assert!(
+        waste_seen.load(Ordering::SeqCst) >= 1,
+        "expected cmdWaste padding frames"
+    );
 }
 
 #[tokio::test]
