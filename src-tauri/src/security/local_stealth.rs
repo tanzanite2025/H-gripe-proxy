@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[cfg(target_os = "windows")]
 use crate::utils::command::hidden_command;
 
 /// 本地隐蔽配置
@@ -106,23 +105,10 @@ impl ProcessStealthManager {
     }
 
     /// 设置进程标题
-    #[cfg(target_os = "windows")]
     fn set_title(&self, title: &str) {
         use windows::Win32::System::Console::SetConsoleTitleW;
         use windows::core::HSTRING;
         let _ = unsafe { SetConsoleTitleW(&HSTRING::from(title)) };
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    fn set_title(&self, title: &str) {
-        // 非 Windows 平台使用环境变量方式
-        // SAFETY: edition 2024 marks `set_var` unsafe because POSIX `setenv` can
-        // race concurrent `getenv`. `APP_NAME` is a private marker only this
-        // module writes and nothing in-process reads via the C `getenv` path, so
-        // there is no such concurrent reader to race with.
-        unsafe {
-            std::env::set_var("APP_NAME", title);
-        }
     }
 }
 
@@ -354,7 +340,6 @@ impl AntiDiscoveryManager {
 
     // ── Windows 实现 ──
 
-    #[cfg(target_os = "windows")]
     async fn disable_mdns_service(&self) -> Result<(), String> {
         // Windows: 停止 DNS-SD 服务（Bonjour mDNS）并禁用防火墙规则
         let output = hidden_command("netsh")
@@ -398,7 +383,6 @@ impl AntiDiscoveryManager {
         Ok(())
     }
 
-    #[cfg(target_os = "windows")]
     async fn disable_upnp_service(&self) -> Result<(), String> {
         // Windows: 停止 UPnP Device Host 服务
         let output = hidden_command("net").args(&["stop", "upnphost"]).output();
@@ -431,7 +415,6 @@ impl AntiDiscoveryManager {
         Ok(())
     }
 
-    #[cfg(target_os = "windows")]
     async fn disable_llmnr_service(&self) -> Result<(), String> {
         // Windows: 通过注册表禁用 LLMNR
         // HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient
@@ -458,7 +441,6 @@ impl AntiDiscoveryManager {
         Ok(())
     }
 
-    #[cfg(target_os = "windows")]
     async fn disable_netbios_service(&self) -> Result<(), String> {
         // Windows: 通过防火墙阻止 NetBIOS 端口 (137, 138, 139)
         for port in [137, 138, 139] {
@@ -505,7 +487,6 @@ impl AntiDiscoveryManager {
         Ok(())
     }
 
-    #[cfg(target_os = "windows")]
     async fn disable_ssdp_service(&self) -> Result<(), String> {
         // 阻止 SSDP 端口 (1900) 出站
         let output = hidden_command("netsh")
@@ -532,7 +513,6 @@ impl AntiDiscoveryManager {
 
     // ── 恢复方法 (Windows) ──
 
-    #[cfg(target_os = "windows")]
     async fn restore_mdns_service(&self) -> String {
         let output = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_mDNS_In"])
@@ -546,7 +526,6 @@ impl AntiDiscoveryManager {
         }
     }
 
-    #[cfg(target_os = "windows")]
     async fn restore_upnp_service(&self) -> String {
         let _ = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_SSDP_In"])
@@ -554,7 +533,6 @@ impl AntiDiscoveryManager {
         "UPnP 已恢复".to_string()
     }
 
-    #[cfg(target_os = "windows")]
     async fn restore_llmnr_service(&self) -> String {
         let output = hidden_command("reg")
             .args(&[
@@ -571,7 +549,6 @@ impl AntiDiscoveryManager {
         }
     }
 
-    #[cfg(target_os = "windows")]
     async fn restore_netbios_service(&self) -> String {
         for port in [137, 138, 139] {
             let _ = hidden_command("netsh")
@@ -596,179 +573,10 @@ impl AntiDiscoveryManager {
         "NetBIOS 已恢复".to_string()
     }
 
-    #[cfg(target_os = "windows")]
     async fn restore_ssdp_service(&self) -> String {
         let _ = hidden_command("netsh")
             .args(&["advfirewall", "firewall", "delete", "rule", "name=Block_SSDP_Out"])
             .output();
-        "SSDP 已恢复".to_string()
-    }
-
-    // ── Linux 实现 ──
-
-    #[cfg(target_os = "linux")]
-    async fn disable_mdns_service(&self) -> Result<(), String> {
-        // Linux: 阻止 mDNS 端口 5353 via iptables
-        let output = std::process::Command::new("iptables")
-            .args(&["-A", "INPUT", "-p", "udp", "--dport", "5353", "-j", "DROP"])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
-        }
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn disable_upnp_service(&self) -> Result<(), String> {
-        let output = std::process::Command::new("iptables")
-            .args(&["-A", "INPUT", "-p", "udp", "--dport", "1900", "-j", "DROP"])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
-        }
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn disable_llmnr_service(&self) -> Result<(), String> {
-        // Linux: LLMNR 使用端口 5355
-        let output = std::process::Command::new("iptables")
-            .args(&["-A", "INPUT", "-p", "udp", "--dport", "5355", "-j", "DROP"])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
-        }
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn disable_netbios_service(&self) -> Result<(), String> {
-        for port in ["137", "138", "139"] {
-            let _ = std::process::Command::new("iptables")
-                .args(&["-A", "INPUT", "-p", "udp", "--dport", port, "-j", "DROP"])
-                .output();
-            let _ = std::process::Command::new("iptables")
-                .args(&["-A", "INPUT", "-p", "tcp", "--dport", port, "-j", "DROP"])
-                .output();
-        }
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn disable_ssdp_service(&self) -> Result<(), String> {
-        let output = std::process::Command::new("iptables")
-            .args(&["-A", "OUTPUT", "-p", "udp", "--dport", "1900", "-j", "DROP"])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
-        }
-        Ok(())
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn restore_mdns_service(&self) -> String {
-        let _ = std::process::Command::new("iptables")
-            .args(&["-D", "INPUT", "-p", "udp", "--dport", "5353", "-j", "DROP"])
-            .output();
-        "mDNS 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn restore_upnp_service(&self) -> String {
-        let _ = std::process::Command::new("iptables")
-            .args(&["-D", "INPUT", "-p", "udp", "--dport", "1900", "-j", "DROP"])
-            .output();
-        "UPnP 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn restore_llmnr_service(&self) -> String {
-        let _ = std::process::Command::new("iptables")
-            .args(&["-D", "INPUT", "-p", "udp", "--dport", "5355", "-j", "DROP"])
-            .output();
-        "LLMNR 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn restore_netbios_service(&self) -> String {
-        for port in ["137", "138", "139"] {
-            let _ = std::process::Command::new("iptables")
-                .args(&["-D", "INPUT", "-p", "udp", "--dport", port, "-j", "DROP"])
-                .output();
-            let _ = std::process::Command::new("iptables")
-                .args(&["-D", "INPUT", "-p", "tcp", "--dport", port, "-j", "DROP"])
-                .output();
-        }
-        "NetBIOS 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn restore_ssdp_service(&self) -> String {
-        let _ = std::process::Command::new("iptables")
-            .args(&["-D", "OUTPUT", "-p", "udp", "--dport", "1900", "-j", "DROP"])
-            .output();
-        "SSDP 已恢复".to_string()
-    }
-
-    // ── macOS 实现 ──
-
-    #[cfg(target_os = "macos")]
-    async fn disable_mdns_service(&self) -> Result<(), String> {
-        // macOS: 通过 pf 阻止 mDNS
-        let output = std::process::Command::new("pfctl")
-            .args(&["-ef"])
-            .stdin(std::process::Stdio::piped())
-            .output()
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn disable_upnp_service(&self) -> Result<(), String> {
-        Ok(()) // macOS 默认不启用 UPnP 服务
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn disable_llmnr_service(&self) -> Result<(), String> {
-        Ok(()) // macOS 不原生支持 LLMNR
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn disable_netbios_service(&self) -> Result<(), String> {
-        Ok(()) // macOS NetBIOS 默认关闭
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn disable_ssdp_service(&self) -> Result<(), String> {
-        Ok(())
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn restore_mdns_service(&self) -> String {
-        "mDNS 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn restore_upnp_service(&self) -> String {
-        "UPnP 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn restore_llmnr_service(&self) -> String {
-        "LLMNR 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn restore_netbios_service(&self) -> String {
-        "NetBIOS 已恢复".to_string()
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn restore_ssdp_service(&self) -> String {
         "SSDP 已恢复".to_string()
     }
 }

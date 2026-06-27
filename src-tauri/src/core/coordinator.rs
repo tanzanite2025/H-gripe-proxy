@@ -22,9 +22,6 @@ use crate::security::ingress_countermeasure::IngressCountermeasureRuntime;
 use crate::tls_fingerprint::TlsFingerprintService;
 use crate::traffic::TrafficObfuscationConfig;
 
-#[cfg(target_os = "linux")]
-use crate::xdp::XdpManager;
-
 static COORDINATOR: Lazy<Arc<CoreCoordinator>> = Lazy::new(|| Arc::new(CoreCoordinator::new()));
 
 pub fn get_coordinator() -> Arc<CoreCoordinator> {
@@ -42,8 +39,6 @@ pub struct CoreCoordinator {
     multipath_manager: Arc<MultipathManager>,
     ingress_countermeasure: Arc<IngressCountermeasureRuntime>,
     egress_identity_manager: Arc<EgressIdentityManager>,
-    #[cfg(target_os = "linux")]
-    xdp_manager: Arc<XdpManager>,
     advanced_config: Arc<RwLock<AdvancedConfig>>,
 }
 
@@ -57,8 +52,6 @@ impl CoreCoordinator {
                 AdvancedConfig::default().ingress_countermeasure,
             )),
             egress_identity_manager: Arc::new(EgressIdentityManager::new()),
-            #[cfg(target_os = "linux")]
-            xdp_manager: Arc::new(XdpManager::new()),
             advanced_config: Arc::new(RwLock::new(AdvancedConfig::default())),
         }
     }
@@ -136,8 +129,6 @@ impl CoreCoordinator {
         if let Err(error) = egress_monitor().update_config(config.egress_monitor.clone()) {
             log::warn!("[Coordinator] failed to update egress monitor config: {}", error);
         }
-        #[cfg(target_os = "linux")]
-        self.xdp_manager.update_config(config.xdp.clone());
     }
 
     fn apply_runtime_changes(&self, old: &AdvancedConfig, new: &AdvancedConfig) -> Result<()> {
@@ -167,15 +158,6 @@ impl CoreCoordinator {
             }
         }
 
-        #[cfg(target_os = "linux")]
-        if old.xdp.enabled != new.xdp.enabled {
-            if new.xdp.enabled {
-                self.xdp_manager.start()?;
-            } else {
-                self.xdp_manager.stop()?;
-            }
-        }
-
         log::info!("[Coordinator] advanced config updated");
         Ok(())
     }
@@ -201,12 +183,6 @@ impl CoreCoordinator {
             egress_monitor().start();
         }
 
-        #[cfg(target_os = "linux")]
-        if config.xdp.enabled {
-            log::info!("[Coordinator] starting xdp manager");
-            self.xdp_manager.start()?;
-        }
-
         log::info!("[Coordinator] initialized");
         Ok(())
     }
@@ -227,20 +203,10 @@ impl CoreCoordinator {
         self.egress_identity_manager.clone()
     }
 
-    #[cfg(target_os = "linux")]
-    pub fn xdp_manager(&self) -> Arc<XdpManager> {
-        self.xdp_manager.clone()
-    }
-
     pub fn shutdown(&self) -> Result<()> {
         log::info!("[Coordinator] shutting down");
         egress_monitor().stop();
         SecurityMonitor::global().stop();
-
-        #[cfg(target_os = "linux")]
-        if self.advanced_config.read().xdp.enabled {
-            self.xdp_manager.stop()?;
-        }
 
         log::info!("[Coordinator] shutdown complete");
         Ok(())
@@ -295,8 +261,6 @@ pub async fn save_advanced_config(config: &AdvancedConfig) -> Result<()> {
         .update_config(config.blackhole_breaker.clone())
         .await;
     crate::core::security_runtime::apply_local_stealth_config(config.local_stealth.clone()).await;
-    #[cfg(target_os = "linux")]
-    get_coordinator().xdp_manager().update_config(config.xdp.clone());
 
     let obf_config = if config.traffic_obfuscation.enabled {
         config.traffic_obfuscation.clone()
@@ -365,9 +329,5 @@ pub async fn coordinator_get_status() -> Result<CoordinatorStatus> {
         traffic_obfuscation_enabled: config.traffic_obfuscation.enabled,
         honeypot_enabled: config.security.honeypot.enabled,
         self_destruct_enabled: config.security.self_destruct.enabled,
-        #[cfg(target_os = "linux")]
-        xdp_enabled: config.xdp.enabled,
-        #[cfg(target_os = "linux")]
-        xdp_running: coordinator.xdp_manager().is_running(),
     })
 }

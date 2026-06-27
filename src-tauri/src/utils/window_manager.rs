@@ -241,23 +241,13 @@ impl WindowManager {
             operations_successful = false;
         }
 
-        // 4. 平台特定的激活策略
-        #[cfg(target_os = "macos")]
-        {
-            logging!(info, Type::Window, "应用 macOS 特定的激活策略");
-            handle::Handle::global().set_activation_policy_regular();
+        // 4. Windows 尝试额外的激活方法
+        if let Err(e) = window.set_always_on_top(true) {
+            logging!(debug, Type::Window, "设置置顶失败（非关键错误）: {}", e);
         }
-
-        #[cfg(target_os = "windows")]
-        {
-            // Windows 尝试额外的激活方法
-            if let Err(e) = window.set_always_on_top(true) {
-                logging!(debug, Type::Window, "设置置顶失败（非关键错误）: {}", e);
-            }
-            // 立即取消置顶
-            if let Err(e) = window.set_always_on_top(false) {
-                logging!(debug, Type::Window, "取消置顶失败（非关键错误）: {}", e);
-            }
+        // 立即取消置顶
+        if let Err(e) = window.set_always_on_top(false) {
+            logging!(debug, Type::Window, "取消置顶失败（非关键错误）: {}", e);
         }
 
         if operations_successful {
@@ -298,11 +288,6 @@ impl WindowManager {
                 Ok(_) => {
                     logging!(info, Type::Window, "新窗口创建成功，等待前端渲染后显示");
 
-                    #[cfg(target_os = "macos")]
-                    {
-                        handle::Handle::global().set_activation_policy_regular();
-                    }
-
                     true
                 }
                 Err(e) => {
@@ -318,11 +303,6 @@ impl WindowManager {
         if let Some(window) = Self::get_main_window() {
             let _ = window.destroy();
             logging!(info, Type::Window, "窗口已摧毁");
-            #[cfg(target_os = "macos")]
-            {
-                logging!(info, Type::Window, "应用 macOS 特定的激活策略");
-                handle::Handle::global().set_activation_policy_accessory();
-            }
             return WindowOperationResult::Destroyed;
         }
         WindowOperationResult::Failed

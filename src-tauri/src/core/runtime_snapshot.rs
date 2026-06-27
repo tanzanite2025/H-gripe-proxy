@@ -17,7 +17,7 @@ use clash_dtos::{
     DnsServerStats, DnsTrustSummary, EgressStatus, EngineStats, Extra, FindProcessMode, HotReloadStatus, LogLevel,
     MihomoVersion, Network, PerfStats, ProviderType, Proxies, Proxy, ProxyProvider, ProxyProviders, ProxyType, Rule,
     RuleBehavior, RuleFormat, RuleProvider, RuleProviders, RuleTrafficSnapshot, RuleType, Rules, SubScriptionInfo,
-    TLSFingerprintStats, TunConfig, TunStack, VehicleType, XDPStatus,
+    TLSFingerprintStats, TunConfig, TunStack, VehicleType,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,6 @@ pub struct RuntimeSnapshot {
     pub perf_stats: Option<PerfStats>,
     pub buffer_pool_stats: Option<BufferPoolStats>,
     pub hot_reload_status: Option<HotReloadStatus>,
-    pub xdp_status: Option<XDPStatus>,
     pub rule_traffic: Option<HashMap<std::string::String, RuleTrafficSnapshot>>,
     pub tls_fingerprint_stats: Option<TLSFingerprintStats>,
     pub connections: Option<Connections>,
@@ -275,18 +274,6 @@ impl RuntimeSnapshotService {
         snapshot.hot_reload_status = Some(HotReloadStatus {
             rule_version,
             protected_conns: runtime_live_connection_count().await,
-            xdp_loaded: false,
-        });
-        Ok(snapshot)
-    }
-
-    pub async fn refresh_runtime_xdp_status_result(&self) -> Result<RuntimeSnapshot> {
-        let mut snapshot = self.runtime_read_snapshot();
-        // XDP/eBPF is a Linux in-kernel datapath; the userspace Rust kernel never
-        // loads it. `false`/`false` is the genuine state, not a placeholder.
-        snapshot.xdp_status = Some(XDPStatus {
-            loaded: false,
-            enabled: false,
         });
         Ok(snapshot)
     }
@@ -747,13 +734,6 @@ pub async fn read_runtime_hot_reload_status() -> Result<HotReloadStatus> {
         .refresh_runtime_hot_reload_status_result()
         .await?;
     runtime_readback(snapshot.hot_reload_status, "hot reload status")
-}
-
-pub async fn read_runtime_xdp_status() -> Result<XDPStatus> {
-    let snapshot = RuntimeSnapshotService::global()
-        .refresh_runtime_xdp_status_result()
-        .await?;
-    runtime_readback(snapshot.xdp_status, "XDP status")
 }
 
 pub async fn read_runtime_rule_traffic() -> Result<HashMap<std::string::String, RuleTrafficSnapshot>> {

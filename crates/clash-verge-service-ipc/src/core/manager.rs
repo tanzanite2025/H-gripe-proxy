@@ -30,25 +30,11 @@ use tracing::{error, info, warn};
 #[derive(Debug)]
 pub struct CoreExitInfo {
     pub exit_code: Option<i32>,
-    #[cfg(unix)]
-    pub signal: Option<i32>,
     pub uptime: Duration,
 }
 
 impl CoreExitInfo {
     pub fn diagnosis(&self) -> &'static str {
-        #[cfg(unix)]
-        {
-            if let Some(sig) = self.signal {
-                return match sig {
-                    9 => "Killed by OOM killer or admin (SIGKILL)",
-                    11 => "Segmentation fault (SIGSEGV)",
-                    15 => "Graceful shutdown (SIGTERM)",
-                    6 => "Aborted (SIGABRT)",
-                    _ => "Terminated by signal",
-                };
-            }
-        }
         match self.exit_code {
             Some(0) => "Normal exit",
             Some(_) => "Abnormal exit",
@@ -173,11 +159,7 @@ fn core_args(config: &ClashConfig) -> Vec<String> {
         config.core_config.config_dir.clone(),
         "-f".to_string(),
         config.core_config.config_path.clone(),
-        if cfg!(windows) {
-            "-ext-ctl-pipe".to_string()
-        } else {
-            "-ext-ctl-unix".to_string()
-        },
+        "-ext-ctl-pipe".to_string(),
         config.core_config.core_ipc_path.clone(),
     ]
 }
@@ -185,11 +167,6 @@ fn core_args(config: &ClashConfig) -> Vec<String> {
 fn log_core_exit(status: &std::process::ExitStatus, uptime: Duration) -> String {
     let exit_info = CoreExitInfo {
         exit_code: status.code(),
-        #[cfg(unix)]
-        signal: {
-            use std::os::unix::process::ExitStatusExt;
-            status.signal()
-        },
         uptime,
     };
 
@@ -199,11 +176,6 @@ fn log_core_exit(status: &std::process::ExitStatus, uptime: Duration) -> String 
         exit_info.diagnosis(),
         exit_info.uptime.as_secs_f64()
     );
-
-    #[cfg(unix)]
-    if let Some(sig) = exit_info.signal {
-        error!("Core terminated by signal: {}", sig);
-    }
 
     format!("{} (code: {:?})", exit_info.diagnosis(), exit_info.exit_code)
 }
@@ -471,56 +443,11 @@ impl CoreManager {
     }
 
     fn after_start(&self, core_ipc_path: String) {
-        #[cfg(unix)]
-        {
-            use std::fs::Permissions;
-            use std::os::unix::fs::PermissionsExt;
-            use std::path::Path;
-            use tokio::fs;
-
-            tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-                let target = Path::new(&core_ipc_path);
-                info!("Setting permissions for {:?}", target);
-                if !target.exists() {
-                    warn!("{:?} does not exist, skipping permission setting", target);
-                    return;
-                }
-                match fs::set_permissions(target, Permissions::from_mode(0o777)).await {
-                    Ok(_) => info!("Permissions set to 777 for {:?}", target),
-                    Err(e) => warn!("Failed to set permissions for {:?}: {}", target, e),
-                }
-            });
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = core_ipc_path;
-        }
+        let _ = core_ipc_path;
     }
 
     async fn after_stop(&self, core_ipc_path: Option<String>) {
-        #[cfg(unix)]
-        {
-            use std::path::Path;
-            use tokio::fs;
-
-            if let Some(core_ipc_path) = core_ipc_path {
-                let target = Path::new(&core_ipc_path);
-                info!("Removing socket file {:?}", target);
-                if !target.exists() {
-                    info!("{:?} does not exist, no need to remove", target);
-                } else {
-                    match fs::remove_file(target).await {
-                        Ok(_) => info!("Successfully removed {:?}", target),
-                        Err(e) => warn!("Failed to remove {:?}: {}", target, e),
-                    }
-                }
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = core_ipc_path;
-        }
+        let _ = core_ipc_path;
         LOGGER_MANAGER.clear_logs().await;
     }
 }
@@ -528,25 +455,11 @@ impl CoreManager {
 pub async fn run_with_logging(bin_path: &str, args: &[String], writer_config: &WriterConfig) -> Result<ChildGuard> {
     set_or_update_writer(writer_config).await?;
 
-    #[cfg(not(unix))]
     let child = Command::new(bin_path)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-
-    #[cfg(unix)]
-    let child = unsafe {
-        Command::new(bin_path)
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .pre_exec(|| {
-                platform_lib::umask(0o007);
-                Ok(())
-            })
-            .spawn()?
-    };
 
     let mut child_guard = ChildGuard {
         child: Some(child),

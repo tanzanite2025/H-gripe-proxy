@@ -58,4 +58,3 @@ export * from "./TuicServer";
 export * from "./TunConfig";
 export * from "./TunStack";
 export * from "./VehicleType";
-export * from "./XDPStatus";

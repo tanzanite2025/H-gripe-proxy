@@ -5,7 +5,6 @@ use clash_verge_logging::{Type, logging, logging_error};
 use once_cell::sync::Lazy;
 use std::{borrow::Cow, path::Path, process::Command as StdCommand, time::Duration};
 use tokio::sync::Mutex;
-#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::ERROR_PIPE_BUSY;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +21,6 @@ pub enum ServiceStatus {
 #[derive(Clone)]
 pub struct ServiceManager(ServiceStatus);
 
-#[cfg(target_os = "windows")]
 fn uninstall_service() -> Result<()> {
     logging!(info, Type::Service, "uninstall service");
 
@@ -54,7 +52,6 @@ fn uninstall_service() -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
 fn install_service() -> Result<()> {
     use std::process::Output;
     logging!(info, Type::Service, "install service");
@@ -87,193 +84,6 @@ fn install_service() -> Result<()> {
         }
     };
 
-    if let Some((code, err)) = check_output_error(&output) {
-        logging!(
-            error,
-            Type::Service,
-            "failed to install service code: {}, details: {}",
-            code,
-            err
-        );
-        bail!("failed to install service code: {}, details: {}", code, err);
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
-fn uninstall_service() -> Result<()> {
-    logging!(info, Type::Service, "uninstall service");
-
-    let uninstall_path = tauri::utils::platform::current_exe()?.with_file_name("clash-verge-service-uninstall");
-
-    if !uninstall_path.exists() {
-        bail!(format!("uninstaller not found: {uninstall_path:?}"));
-    }
-
-    let uninstall_shell: String = uninstall_path.to_string_lossy().replace(" ", "\\ ");
-
-    let elevator = crate::utils::help::linux_elevator();
-    let status = if linux_running_as_root() {
-        StdCommand::new(&uninstall_path).status()?
-    } else {
-        let result = StdCommand::new(&elevator)
-            .arg("sh")
-            .arg("-c")
-            .arg(&uninstall_shell)
-            .status()?;
-
-        // 如果 pkexec 执行失败，回退到 sudo
-        if !result.success() && elevator.contains("pkexec") {
-            logging!(
-                warn,
-                Type::Service,
-                "pkexec failed with code {}, falling back to sudo",
-                result.code().unwrap_or(-1)
-            );
-            StdCommand::new("sudo")
-                .arg("sh")
-                .arg("-c")
-                .arg(&uninstall_shell)
-                .status()?
-        } else {
-            result
-        }
-    };
-    logging!(
-        info,
-        Type::Service,
-        "uninstall status code:{}",
-        status.code().unwrap_or(-1)
-    );
-
-    if !status.success() {
-        bail!(
-            "failed to uninstall service with status {}",
-            status.code().unwrap_or(-1)
-        );
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
-fn install_service() -> Result<()> {
-    logging!(info, Type::Service, "install service");
-
-    let install_path = tauri::utils::platform::current_exe()?.with_file_name("clash-verge-service-install");
-
-    if !install_path.exists() {
-        bail!(format!("installer not found: {install_path:?}"));
-    }
-
-    let install_shell: String = install_path.to_string_lossy().replace(" ", "\\ ");
-
-    let elevator = crate::utils::help::linux_elevator();
-    let output = if linux_running_as_root() {
-        StdCommand::new(&install_path).output()?
-    } else {
-        let result = StdCommand::new(&elevator)
-            .arg("sh")
-            .arg("-c")
-            .arg(&install_shell)
-            .output()?;
-
-        // 如果 pkexec 执行失败，回退到 sudo
-        if !result.status.success() && elevator.contains("pkexec") {
-            logging!(
-                warn,
-                Type::Service,
-                "pkexec failed with code {}, falling back to sudo",
-                result.status.code().unwrap_or(-1)
-            );
-            StdCommand::new("sudo")
-                .arg("sh")
-                .arg("-c")
-                .arg(&install_shell)
-                .output()?
-        } else {
-            result
-        }
-    };
-
-    if let Some((code, err)) = check_output_error(&output) {
-        logging!(
-            error,
-            Type::Service,
-            "failed to install service code: {}, details: {}",
-            code,
-            err
-        );
-        bail!("failed to install service code: {}, details: {}", code, err);
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
-fn linux_running_as_root() -> bool {
-    use crate::core::handle;
-    use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
-    let app_handle = handle::Handle::app_handle();
-    is_current_app_handle_admin(app_handle)
-}
-
-#[cfg(target_os = "macos")]
-fn uninstall_service() -> Result<()> {
-    logging!(info, Type::Service, "uninstall service");
-
-    let binary_path = dirs::service_path()?;
-    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall");
-
-    if !uninstall_path.exists() {
-        bail!(format!("uninstaller not found: {uninstall_path:?}"));
-    }
-
-    let uninstall_shell: String = uninstall_path.to_string_lossy().into_owned();
-
-    // clash_verge_i18n::sync_locale(Config::verge().await.latest_arc().language.as_deref());
-
-    let prompt = clash_verge_i18n::t!("service.adminUninstallPrompt");
-    let command =
-        format!(r#"do shell script "sudo '{uninstall_shell}'" with administrator privileges with prompt "{prompt}""#);
-
-    // logging!(debug, Type::Service, "uninstall command: {}", command);
-
-    let status = StdCommand::new("osascript").args(vec!["-e", &command]).status()?;
-
-    if !status.success() {
-        bail!(
-            "failed to uninstall service with status {}",
-            status.code().unwrap_or(-1)
-        );
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn install_service() -> Result<()> {
-    logging!(info, Type::Service, "install service");
-
-    let binary_path = dirs::service_path()?;
-    let install_path = binary_path.with_file_name("clash-verge-service-install");
-
-    if !install_path.exists() {
-        bail!(format!("installer not found: {install_path:?}"));
-    }
-
-    let install_shell: String = install_path.to_string_lossy().into_owned();
-
-    // clash_verge_i18n::sync_locale(Config::verge().await.latest_arc().language.as_deref());
-
-    let gid = tauri_plugin_clash_verge_sysinfo::current_gid();
-    let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
-    let command = format!(
-        r#"do shell script "sudo CLASH_VERGE_SERVICE_GID={gid} '{install_shell}'" with administrator privileges with prompt "{prompt}""#
-    );
-
-    let output = StdCommand::new("osascript").args(vec!["-e", &command]).output()?;
     if let Some((code, err)) = check_output_error(&output) {
         logging!(
             error,
@@ -333,7 +143,6 @@ fn force_reinstall_service() -> Result<()> {
 /// 检查服务是否正在运行
 pub async fn is_service_available() -> Result<()> {
     if let Err(e) = Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
-        #[cfg(target_os = "windows")]
         if e.raw_os_error() == Some(ERROR_PIPE_BUSY.0 as i32) {
             logging!(
                 debug,
@@ -341,17 +150,6 @@ pub async fn is_service_available() -> Result<()> {
                 "Service IPC path is busy but available, continuing to connect"
             );
         } else {
-            let verge = Config::verge().await;
-            let verge_last = verge.latest_arc();
-            let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
-            if is_enable {
-                logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
-            }
-            return Err(e.into());
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
             let verge = Config::verge().await;
             let verge_last = verge.latest_arc();
             let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
@@ -410,7 +208,6 @@ async fn wait_for_service_ipc(status: &mut ServiceManager, reason: &str) -> Resu
 pub fn is_service_ipc_path_exists() -> bool {
     match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
         Ok(_) => true,
-        #[cfg(target_os = "windows")]
         Err(err) if err.raw_os_error() == Some(ERROR_PIPE_BUSY.0 as i32) => true,
         Err(_) => false,
     }

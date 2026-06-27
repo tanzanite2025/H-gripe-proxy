@@ -60,10 +60,7 @@ fn mock_binary_path() -> anyhow::Result<String> {
     let current_exe = std::env::current_exe()?;
     let mut path = current_exe;
     path.pop();
-    #[cfg(windows)]
     path.push("mock_binary.exe");
-    #[cfg(not(windows))]
-    path.push("mock_binary");
     if path.exists() {
         return Ok(path.to_string_lossy().to_string());
     }

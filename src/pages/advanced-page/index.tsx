@@ -1,5 +1,5 @@
 import { useLockFn } from 'ahooks'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { BasePage } from '@/components/base'
 import { Alert, Box, Tab, Tabs } from '@/components/tailwind'
@@ -30,7 +30,6 @@ function getErrorMessage(error: unknown) {
 }
 
 export default function AdvancedPage() {
-  const isLinux = window.navigator.platform.toLowerCase().includes('linux')
   const [activeTab, setActiveTab] = useState<AdvancedTabId>(
     ADVANCED_TAB_IDS.security,
   )
@@ -58,10 +57,7 @@ export default function AdvancedPage() {
     successMessage: '配置已保存并应用。',
   })
 
-  const visibleTabs = useMemo(
-    () => ADVANCED_TABS.filter((tab) => !tab.linuxOnly || isLinux),
-    [isLinux],
-  )
+  const visibleTabs = ADVANCED_TABS
 
   const hasUnsavedSecurityPolicies =
     JSON.stringify(localConfig?.security_policies ?? []) !==

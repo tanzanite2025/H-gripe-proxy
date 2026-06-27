@@ -12,7 +12,6 @@ import { SecurityConfigPanel } from '@/components/advanced/security-config-panel
 import { SecurityPolicyPanel } from '@/components/advanced/security-policy-panel'
 import { TelemetryDiagnosticsPanel } from '@/components/advanced/telemetry-diagnostics-panel'
 import { TimezoneSpoofPanel } from '@/components/advanced/timezone-spoof-panel'
-import { XdpConfigPanel } from '@/components/advanced/xdp-config-panel'
 import { IngressCountermeasurePanel } from '@/components/security/ingress-countermeasure-panel'
 import { LocalStealthPanel } from '@/components/security/local-stealth-panel'
 import { SessionAffinityBindings as SessionAffinityBindingsPanel } from '@/components/security/session-affinity-bindings'
@@ -197,15 +196,6 @@ export function AdvancedTabContent({
           onChange={(multipath) => updateConfig('multipath', multipath)}
         />
       </AdvancedTabPanel>
-
-      {config.xdp ? (
-        <AdvancedTabPanel activeTab={activeTab} tabId={ADVANCED_TAB_IDS.xdp}>
-          <XdpConfigPanel
-            config={config.xdp}
-            onChange={(xdp) => updateConfig('xdp', xdp)}
-          />
-        </AdvancedTabPanel>
-      ) : null}
 
       <AdvancedTabPanel
         activeTab={activeTab}

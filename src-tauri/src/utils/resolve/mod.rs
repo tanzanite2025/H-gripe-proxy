@@ -22,7 +22,6 @@ use crate::{
 use clash_verge_logging::{Type, logging, logging_error};
 use clash_verge_signal;
 
-pub mod dns;
 pub mod scheme;
 pub mod window;
 pub mod window_script;
@@ -88,12 +87,6 @@ pub fn resolve_setup_async() {
 pub async fn resolve_reset_async() -> Result<(), anyhow::Error> {
     sysopt::Sysopt::global().reset_sysproxy().await?;
     runtime_lifecycle::stop_runtime_core("resolve-reset").await?;
-
-    #[cfg(target_os = "macos")]
-    {
-        use dns::restore_public_dns;
-        restore_public_dns().await;
-    }
 
     Ok(())
 }
@@ -216,11 +209,6 @@ pub(super) async fn init_window() {
     } else {
         !is_silent_start
     };
-    #[cfg(target_os = "macos")]
-    if !should_create_window {
-        use crate::core::handle::Handle;
-        Handle::global().set_activation_policy_accessory();
-    }
     WindowManager::create_window(should_create_window).await;
 }
 

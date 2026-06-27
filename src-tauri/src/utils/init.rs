@@ -113,7 +113,6 @@ fn validate_startup_script_path(script_path: &Path) -> Result<&'static str> {
     Ok(shell_type)
 }
 
-#[cfg(target_os = "windows")]
 async fn delete_snapshot_logs(log_dir: &Path) -> Result<()> {
     let temp_dirs = [
         log_dir.join("temp"),
@@ -143,7 +142,6 @@ pub async fn delete_log() -> Result<()> {
         return Ok(());
     }
 
-    #[cfg(target_os = "windows")]
     delete_snapshot_logs(&log_dir).await?;
 
     let auto_log_clean = {
@@ -483,7 +481,6 @@ pub async fn init_resources() -> Result<()> {
 }
 
 /// initialize url scheme
-#[cfg(target_os = "windows")]
 pub fn init_scheme() -> Result<()> {
     use tauri::utils::platform::current_exe;
     use winreg::{RegKey, enums::HKEY_CURRENT_USER};
@@ -503,36 +500,6 @@ pub fn init_scheme() -> Result<()> {
 
     Ok(())
 }
-#[cfg(target_os = "linux")]
-pub fn init_scheme() -> Result<()> {
-    const DESKTOP_FILE: &str = "clash-verge.desktop";
-
-    for scheme in DEEP_LINK_SCHEMES {
-        let handler = format!("x-scheme-handler/{scheme}");
-        let output = std::process::Command::new("xdg-mime")
-            .arg("default")
-            .arg(DESKTOP_FILE)
-            .arg(&handler)
-            .output()?;
-        if !output.status.success() {
-            return Err(anyhow::anyhow!(
-                "failed to set {handler}, {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-    }
-
-    crate::utils::linux::mime::ensure_mimeapps_entries(DESKTOP_FILE, DEEP_LINK_SCHEMES)?;
-    Ok(())
-}
-#[cfg(target_os = "macos")]
-pub const fn init_scheme() -> Result<()> {
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
-// Compatibility boundary is documented in `src-tauri/compatibility-boundaries.md`.
-const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clash-verge"];
 
 pub async fn startup_script() -> Result<()> {
     let script_path = {

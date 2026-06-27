@@ -1,9 +1,5 @@
 use serde_yaml_ng::{Mapping, Value};
 
-#[cfg(target_os = "macos")]
-use crate::process::AsyncHandler;
-
-#[cfg(target_os = "windows")]
 use crate::config::{DOMESTIC_DOH_NAMESERVERS, value_sequence};
 use crate::constants::tun as tun_const;
 
@@ -41,10 +37,7 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     if enable {
         append!(tun_val, "stack", tun_const::DEFAULT_STACK);
         append!(tun_val, "auto-route", true);
-        #[cfg(target_os = "windows")]
         append!(tun_val, "strict-route", true);
-        #[cfg(not(target_os = "windows"))]
-        append!(tun_val, "strict-route", false);
         append!(tun_val, "auto-detect-interface", true);
         append!(tun_val, "dns-hijack", tun_const::DNS_HIJACK);
 
@@ -62,10 +55,7 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
             .unwrap_or("fake-ip");
         let has_enhanced_mode = dns_val.contains_key(Value::from("enhanced-mode"));
 
-        #[cfg(target_os = "windows")]
         let force_fake_ip = true;
-        #[cfg(not(target_os = "windows"))]
-        let force_fake_ip = false;
 
         if force_fake_ip || current_mode == "fake-ip" || !has_enhanced_mode {
             revise!(dns_val, "enable", true);
@@ -78,26 +68,12 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
             if !dns_val.contains_key(Value::from("fake-ip-range")) {
                 revise!(dns_val, "fake-ip-range", "198.18.0.1/16");
             }
-
-            #[cfg(target_os = "macos")]
-            {
-                AsyncHandler::spawn(move || async move {
-                    crate::utils::resolve::dns::restore_public_dns().await;
-                    crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
-                });
-            }
         }
 
-        #[cfg(target_os = "windows")]
         normalize_windows_tun_dns(&mut dns_val);
 
         revise!(config, "dns", dns_val);
         ensure_lan_direct_rules_before_match(&mut config);
-    } else {
-        #[cfg(target_os = "macos")]
-        AsyncHandler::spawn(move || async move {
-            crate::utils::resolve::dns::restore_public_dns().await;
-        });
     }
 
     revise!(tun_val, "enable", enable);
@@ -138,7 +114,6 @@ fn is_match_rule(rule: &Value) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(target_os = "windows")]
 fn normalize_windows_tun_dns(dns: &mut Mapping) {
     let respect_rules = dns.get("respect-rules").and_then(Value::as_bool).unwrap_or(false);
 
@@ -161,7 +136,6 @@ fn normalize_windows_tun_dns(dns: &mut Mapping) {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn nested_sequence(mapping: &Mapping, key: &str, nested_key: &str) -> Option<Vec<Value>> {
     mapping
         .get(key)
@@ -171,7 +145,6 @@ fn nested_sequence(mapping: &Mapping, key: &str, nested_key: &str) -> Option<Vec
         .map(|values| values.to_vec())
 }
 
-#[cfg(target_os = "windows")]
 fn has_non_empty_sequence(mapping: &Mapping, key: &str) -> bool {
     mapping
         .get(key)
@@ -180,7 +153,6 @@ fn has_non_empty_sequence(mapping: &Mapping, key: &str) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(target_os = "windows")]
 fn default_domestic_nameservers() -> Vec<Value> {
     value_sequence(DOMESTIC_DOH_NAMESERVERS)
 }
@@ -189,7 +161,6 @@ fn default_domestic_nameservers() -> Vec<Value> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::use_tun;
-    #[cfg(target_os = "windows")]
     use crate::config::DOMESTIC_DOH_NAMESERVERS;
     use serde_yaml_ng::{Mapping, Value};
 
@@ -243,7 +214,6 @@ rules:
         }
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn tun_enabled_on_windows_forces_fake_ip_and_prefers_domestic_nameserver() {
         let config = parse_yaml(

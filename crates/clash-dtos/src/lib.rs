@@ -1298,15 +1298,6 @@ pub struct HotReloadStatus {
     pub rule_version: String,
     #[ts(type = "number")]
     pub protected_conns: i64,
-    pub xdp_loaded: bool,
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase")]
-pub struct XDPStatus {
-    pub loaded: bool,
-    pub enabled: bool,
 }
 
 pub type ConnectionId = u32;

@@ -1,7 +1,7 @@
-//! Clash Verge Service - Cross-platform IPC service daemon
+//! Clash Verge Service - Windows IPC service daemon
 //!
 //! This service can run as a standalone process or as a Windows service.
-//! It listens for shutdown signals (Ctrl+C, SIGTERM, or service stop) to gracefully terminate.
+//! It listens for shutdown signals (Ctrl+C or service stop) to gracefully terminate.
 
 use anyhow::Result;
 use clash_verge_service_ipc::{
@@ -10,7 +10,6 @@ use clash_verge_service_ipc::{
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
-#[cfg(windows)]
 use {
     platform_lib::{
         define_windows_service,
@@ -24,17 +23,8 @@ use {
 
 // --- Main Entry Points ---
 
-/// Main entry point for non-Windows platforms (Linux, macOS).
-#[cfg(not(windows))]
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<()> {
-    init_logger();
-    run_standalone().await
-}
-
 /// Main entry point for Windows.
 /// Tries to run as a service, falls back to standalone mode if that fails.
-#[cfg(windows)]
 fn main() -> Result<()> {
     init_logger();
     if service_dispatcher::start("clash_verge_service", ffi_service_main).is_err() {
@@ -47,11 +37,9 @@ fn main() -> Result<()> {
 
 // --- Windows Service Implementation ---
 
-#[cfg(windows)]
 define_windows_service!(ffi_service_main, my_service_main);
 
 /// The entry point for the Windows service.
-#[cfg(windows)]
 fn my_service_main(_args: Vec<OsString>) {
     if let Err(e) = run_service() {
         info!("Service failed to run: {}", e);
@@ -59,7 +47,6 @@ fn my_service_main(_args: Vec<OsString>) {
 }
 
 /// Contains the core logic for running as a Windows service.
-#[cfg(windows)]
 fn run_service() -> platform_lib::Result<()> {
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
 
@@ -170,23 +157,8 @@ async fn run_standalone() -> Result<()> {
     Ok(())
 }
 
-/// Waits for a shutdown signal appropriate for the current platform.
+/// Waits for a Ctrl+C shutdown signal.
 async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix::{SignalKind, signal};
-        let mut sigint = signal(SignalKind::interrupt()).expect("Failed to install SIGINT handler");
-        let mut sigterm = signal(SignalKind::terminate()).expect("Failed to install SIGTERM handler");
-
-        tokio::select! {
-            _ = sigint.recv() => info!("Received SIGINT (Ctrl+C)"),
-            _ = sigterm.recv() => info!("Received SIGTERM"),
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        tokio::signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
-        info!("Received Ctrl+C");
-    }
+    tokio::signal::ctrl_c().await.expect("Failed to install Ctrl+C handler");
+    info!("Received Ctrl+C");
 }

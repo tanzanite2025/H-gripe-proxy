@@ -58,18 +58,7 @@ pub fn service_paths() -> ServicePaths {
 }
 
 fn runtime_dir() -> PathBuf {
-    #[cfg(unix)]
-    {
-        Path::new(crate::IPC_PATH)
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("/tmp/verge"))
-    }
-
-    #[cfg(windows)]
-    {
-        std::env::temp_dir().join(SERVICE_NAME)
-    }
+    std::env::temp_dir().join(SERVICE_NAME)
 }
 
 fn persistent_state_dir() -> PathBuf {
@@ -78,20 +67,7 @@ fn persistent_state_dir() -> PathBuf {
         std::env::temp_dir().join("clash-verge-service-ipc-test-state")
     }
 
-    #[cfg(all(unix, not(feature = "test")))]
-    {
-        if let Some(path) = std::env::var_os("XDG_STATE_HOME") {
-            return PathBuf::from(path).join(SERVICE_NAME);
-        }
-
-        if let Some(home) = std::env::var_os("HOME") {
-            return PathBuf::from(home).join(".local").join("state").join(SERVICE_NAME);
-        }
-
-        PathBuf::from("/var/lib").join(SERVICE_NAME)
-    }
-
-    #[cfg(all(windows, not(feature = "test")))]
+    #[cfg(not(feature = "test"))]
     {
         if let Some(path) = std::env::var_os("ProgramData") {
             return PathBuf::from(path).join(SERVICE_NAME);

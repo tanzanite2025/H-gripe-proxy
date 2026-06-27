@@ -56,34 +56,13 @@ pub(super) async fn remove_core_runtime_record() {
 }
 
 pub(super) async fn is_core_socket_reachable(path: &str) -> bool {
-    #[cfg(unix)]
-    {
-        tokio::time::timeout(Duration::from_millis(300), tokio::net::UnixStream::connect(path))
-            .await
-            .is_ok_and(|result| result.is_ok())
-    }
-
-    #[cfg(windows)]
-    {
-        tokio::time::timeout(Duration::from_millis(300), async {
-            tokio::net::windows::named_pipe::ClientOptions::new().open(path)
-        })
-        .await
-        .is_ok_and(|result| result.is_ok())
-    }
+    tokio::time::timeout(Duration::from_millis(300), async {
+        tokio::net::windows::named_pipe::ClientOptions::new().open(path)
+    })
+    .await
+    .is_ok_and(|result| result.is_ok())
 }
 
 pub(super) async fn cleanup_core_socket(path: &str) {
-    #[cfg(unix)]
-    {
-        let path = std::path::Path::new(path);
-        if path.exists() {
-            let _ = tokio::fs::remove_file(path).await;
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let _ = path;
-    }
+    let _ = path;
 }

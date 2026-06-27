@@ -188,37 +188,6 @@ export function buildMonitorCards(
     },
   ]
 
-  if (status.xdpEnabled !== undefined) {
-    cards.push({
-      title: 'XDP 代理',
-      badgeLabel: status.xdpEnabled
-        ? status.xdpRunning
-          ? '运行中'
-          : '已启用未运行'
-        : '未启用',
-      badgeColor: status.xdpEnabled
-        ? status.xdpRunning
-          ? 'success'
-          : 'warning'
-        : 'warning',
-      metrics: [
-        {
-          label: '状态',
-          value: status.xdpEnabled
-            ? status.xdpRunning
-              ? '运行中'
-              : '已启用但未运行'
-            : '未启用',
-          color: status.xdpEnabled
-            ? status.xdpRunning
-              ? 'success'
-              : 'warning'
-            : 'warning',
-        },
-      ],
-    })
-  }
-
   return cards
 }
 
@@ -265,13 +234,6 @@ export function buildRecommendations(
   if (!status.trafficObfuscationEnabled) {
     recommendations.push({
       message: '建议按场景启用流量混淆，减少出口特征过于稳定时的识别风险。',
-      tone: 'info',
-    })
-  }
-
-  if (status.xdpEnabled !== undefined && !status.xdpEnabled) {
-    recommendations.push({
-      message: 'Linux 环境可以考虑启用 XDP 代理，进一步降低路径开销并提升性能上限。',
       tone: 'info',
     })
   }

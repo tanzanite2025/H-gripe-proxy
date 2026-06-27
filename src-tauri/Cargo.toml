@@ -120,44 +120,15 @@ hex = "0.4"
 rand = "0.8"
 maxminddb = "0.28.1"
 prost = "0.14.3"
-# OS TUN device for the learn-gripe TUN inbound. Wraps the per-OS syscalls/ioctls
-# (wintun on Windows, /dev/net/tun on Linux, utun on macOS); we only pump its
-# packets into `learn_gripe::serve_tun_device`.
+# OS TUN device for the learn-gripe TUN inbound. Wraps the Windows wintun
+# syscalls/ioctls; we only pump its packets into `learn_gripe::serve_tun_device`.
 tun = { version = "0.7.13", features = ["async"] }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-libc = "0.2"
-objc2 = "0.6.4"
-objc2-foundation = { version = "0.3.2", features = [
-  "NSString",
-  "NSDictionary",
-  "NSAttributedString",
-] }
-objc2-app-kit = { version = "0.3.2", features = [
-  "NSAttributedString",
-  "NSStatusItem",
-  "NSStatusBarButton",
-  "NSButton",
-  "NSControl",
-  "NSResponder",
-  "NSView",
-  "NSFont",
-  "NSFontDescriptor",
-  "NSColor",
-  "NSParagraphStyle",
-  "NSStringDrawing",
-  "NSText",
-] }
-
-[target.'cfg(windows)'.dependencies]
 deelevate = { workspace = true }
 runas = "=1.2.0"
 winreg = "0.56.0"
 webview2-com = "0.38.2"
 windows-core-webview2 = { package = "windows-core", version = "0.61.2" }
 windows = { version = "0.62.2", features = ["Win32_Globalization", "Win32_System_Console"] }
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-global-shortcut = "2.3.1"
 tauri-plugin-updater = "2.10.1"

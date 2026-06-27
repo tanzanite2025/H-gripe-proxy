@@ -5,7 +5,6 @@ import type {
   PerfStats,
   RuleTrafficSnapshot,
   TLSFingerprintStats,
-  XDPStatus,
 } from 'clash-dtos'
 import { Activity, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -21,7 +20,6 @@ import {
   getRuntimePerfStats,
   getRuntimeRuleTraffic,
   getRuntimeTlsFingerprintStats,
-  getRuntimeXdpStatus,
 } from '@/services/core-runtime'
 
 function formatBytes(value: number): string {
@@ -36,7 +34,6 @@ interface TelemetryState {
   perf: PerfStats | null
   buffer: BufferPoolStats | null
   hotReload: HotReloadStatus | null
-  xdp: XDPStatus | null
   ruleTraffic: Record<string, RuleTrafficSnapshot> | null
   tls: TLSFingerprintStats | null
 }
@@ -82,7 +79,6 @@ export function TelemetryDiagnosticsPanel() {
     perf: null,
     buffer: null,
     hotReload: null,
-    xdp: null,
     ruleTraffic: null,
     tls: null,
   })
@@ -91,16 +87,15 @@ export function TelemetryDiagnosticsPanel() {
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    const [engine, perf, buffer, hotReload, xdp, ruleTraffic, tls] = await Promise.all([
+    const [engine, perf, buffer, hotReload, ruleTraffic, tls] = await Promise.all([
       getRuntimeEngineStats().catch(() => null),
       getRuntimePerfStats().catch(() => null),
       getRuntimeBufferPoolStats().catch(() => null),
       getRuntimeHotReloadStatus().catch(() => null),
-      getRuntimeXdpStatus().catch(() => null),
       getRuntimeRuleTraffic().catch(() => null),
       getRuntimeTlsFingerprintStats().catch(() => null),
     ])
-    setState({ engine, perf, buffer, hotReload, xdp, ruleTraffic, tls })
+    setState({ engine, perf, buffer, hotReload, ruleTraffic, tls })
     setLoading(false)
   }, [])
 
@@ -144,7 +139,7 @@ export function TelemetryDiagnosticsPanel() {
               数据面遥测诊断
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              通过 Rust 运行时命令读取数据面遥测（引擎 / 热重载 / XDP / TLS 指纹 / 规则流量）。
+              通过 Rust 运行时命令读取数据面遥测（引擎 / 热重载 / TLS 指纹 / 规则流量）。
               Rust 内核不暴露的指标（性能 / 缓冲池 / DNS 为 Go 内核专属）显示“不可用”。
             </div>
           </div>
@@ -212,18 +207,6 @@ export function TelemetryDiagnosticsPanel() {
               rows={[
                 ['规则版本', state.hotReload.ruleVersion || '-'],
                 ['受保护连接', String(state.hotReload.protectedConns)],
-                ['XDP 已加载', state.hotReload.xdpLoaded ? '是' : '否'],
-              ]}
-            />
-          ) : null}
-        </Section>
-
-        <Section title="XDP" available={state.xdp !== null}>
-          {state.xdp ? (
-            <StatGrid
-              rows={[
-                ['已加载', state.xdp.loaded ? '是' : '否'],
-                ['已启用', state.xdp.enabled ? '是' : '否'],
               ]}
             />
           ) : null}

@@ -4,7 +4,6 @@ use clash_verge_logging::{Type, logging};
 use nanoid::nanoid;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_yaml_ng::Mapping;
-#[cfg(target_os = "windows")]
 use std::path::Path;
 use std::{path::PathBuf, str::FromStr};
 
@@ -203,27 +202,6 @@ pub fn open_file(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
-pub fn linux_elevator() -> String {
-    use std::process::Command;
-    match Command::new("which").arg("pkexec").output() {
-        Ok(output) => {
-            if !output.stdout.is_empty() {
-                // Convert the output to a string slice
-                if let Ok(path) = std::str::from_utf8(&output.stdout) {
-                    path.trim().to_string()
-                } else {
-                    "sudo".to_string()
-                }
-            } else {
-                "sudo".to_string()
-            }
-        }
-        Err(_) => "sudo".to_string(),
-    }
-}
-
-#[cfg(target_os = "windows")]
 /// copy the file to the dist path and return the dist path
 pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
     let temp_dir = original_path

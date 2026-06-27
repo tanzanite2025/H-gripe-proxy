@@ -3,10 +3,9 @@ use std::sync::Arc;
  * 反调试模块
  *
  * 检测：
- * 1. ptrace 注入（Linux/macOS）
- * 2. IsDebuggerPresent（Windows）
- * 3. 父进程异常
- * 4. 调试端口开放
+ * 1. IsDebuggerPresent（Windows）
+ * 2. 父进程异常
+ * 3. 调试端口开放
  */
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -34,29 +33,10 @@ impl Default for AntiDebugConfig {
 
 /// 检测是否被调试
 pub fn is_debugger_present() -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        check_debugger_windows()
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        check_debugger_linux()
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        check_debugger_macos()
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-    {
-        false
-    }
+    check_debugger_windows()
 }
 
 /// Windows 反调试检测
-#[cfg(target_os = "windows")]
 fn check_debugger_windows() -> bool {
     use windows::Win32::System::Diagnostics::Debug::IsDebuggerPresent;
 
@@ -81,7 +61,6 @@ fn check_debugger_windows() -> bool {
     }
 }
 
-#[cfg(target_os = "windows")]
 unsafe fn get_peb() -> *const u8 {
     #[cfg(target_arch = "x86_64")]
     {
@@ -111,7 +90,6 @@ unsafe fn get_peb() -> *const u8 {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn check_debug_port_windows() -> bool {
     use windows::Win32::System::Threading::GetCurrentProcess;
 
@@ -131,7 +109,6 @@ fn check_debug_port_windows() -> bool {
     }
 }
 
-#[cfg(target_os = "windows")]
 unsafe extern "system" {
     fn NtQueryInformationProcess(
         process_handle: *mut std::ffi::c_void,
@@ -141,7 +118,6 @@ unsafe extern "system" {
     ) -> i32;
 }
 
-#[cfg(target_os = "windows")]
 fn ntdll_query_information_process(
     process_handle: *mut std::ffi::c_void,
     process_information_class: u32,
@@ -158,136 +134,11 @@ fn ntdll_query_information_process(
     }
 }
 
-/// Linux 反调试检测
-#[cfg(target_os = "linux")]
-fn check_debugger_linux() -> bool {
-    use std::fs;
-
-    // 检查 /proc/self/status 中的 TracerPid
-    if let Ok(status) = fs::read_to_string("/proc/self/status") {
-        for line in status.lines() {
-            if line.starts_with("TracerPid:") {
-                if let Some(pid_str) = line.split_whitespace().nth(1) {
-                    if let Ok(pid) = pid_str.parse::<i32>() {
-                        if pid != 0 {
-                            return true; // 被 ptrace 追踪
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 检查是否有调试器进程
-    check_debugger_processes_linux()
-}
-
-#[cfg(target_os = "linux")]
-fn check_debugger_processes_linux() -> bool {
-    use std::process::Command;
-
-    // 检查常见调试器进程
-    let debuggers = ["gdb", "lldb", "strace", "ltrace", "radare2"];
-
-    for debugger in &debuggers {
-        if let Ok(output) = Command::new("pgrep").arg(debugger).output() {
-            if !output.stdout.is_empty() {
-                return true;
-            }
-        }
-    }
-
-    false
-}
-
-/// macOS 反调试检测
-#[cfg(target_os = "macos")]
-fn check_debugger_macos() -> bool {
-    use std::ptr;
-
-    // P_TRACED = 0x00000800（进程正被 ptrace 跟踪）
-    const P_TRACED: i32 = 0x0000_0800;
-    // `kinfo_proc.kp_proc`（`struct extern_proc`）的 `p_flag` 字段在 64 位
-    // macOS 上的稳定 ABI 偏移：p_un 联合体(16) + p_vmspace 指针(8) +
-    // p_sigacts 指针(8)。libc crate 并未导出 `kinfo_proc` 类型，故直接按
-    // 偏移读取该 i32 标志位。
-    const P_FLAG_OFFSET: usize = 32;
-
-    // 使用 sysctl 检查 P_TRACED 标志
-    unsafe {
-        let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, libc::getpid()];
-
-        // 先查询所需缓冲区大小（kinfo_proc 的实际长度由内核决定）。
-        let mut size: libc::size_t = 0;
-        let probe = libc::sysctl(
-            mib.as_mut_ptr(),
-            mib.len() as libc::c_uint,
-            ptr::null_mut(),
-            &mut size,
-            ptr::null_mut(),
-            0,
-        );
-
-        if probe == 0 && size > P_FLAG_OFFSET + std::mem::size_of::<i32>() {
-            let mut buf = vec![0u8; size];
-            let result = libc::sysctl(
-                mib.as_mut_ptr(),
-                mib.len() as libc::c_uint,
-                buf.as_mut_ptr() as *mut _,
-                &mut size,
-                ptr::null_mut(),
-                0,
-            );
-
-            if result == 0 {
-                let mut p_flag_bytes = [0u8; 4];
-                p_flag_bytes.copy_from_slice(&buf[P_FLAG_OFFSET..P_FLAG_OFFSET + 4]);
-                let p_flag = i32::from_ne_bytes(p_flag_bytes);
-                return (p_flag & P_TRACED) != 0;
-            }
-        }
-    }
-
-    // 检查调试器进程
-    check_debugger_processes_macos()
-}
-
-#[cfg(target_os = "macos")]
-fn check_debugger_processes_macos() -> bool {
-    use std::process::Command;
-
-    let debuggers = ["lldb", "gdb", "dtrace"];
-
-    for debugger in &debuggers {
-        if let Ok(output) = Command::new("pgrep").arg(debugger).output() {
-            if !output.stdout.is_empty() {
-                return true;
-            }
-        }
-    }
-
-    false
-}
-
 /// 检查父进程是否异常
 pub fn check_parent_process() -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        check_parent_process_windows()
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        check_parent_process_unix()
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-    {
-        false
-    }
+    check_parent_process_windows()
 }
 
-#[cfg(target_os = "windows")]
 fn check_parent_process_windows() -> bool {
     use crate::utils::command::hidden_command;
 
@@ -308,33 +159,6 @@ fn check_parent_process_windows() -> bool {
             for name in &suspicious {
                 if output_str.to_lowercase().contains(name) {
                     return true;
-                }
-            }
-        }
-    }
-
-    false
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-fn check_parent_process_unix() -> bool {
-    use std::fs;
-
-    // 读取 /proc/self/stat 获取父进程 PID
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(stat) = fs::read_to_string("/proc/self/stat") {
-            if let Some(ppid_str) = stat.split_whitespace().nth(3) {
-                if let Ok(ppid) = ppid_str.parse::<i32>() {
-                    // 读取父进程的 cmdline
-                    if let Ok(cmdline) = fs::read_to_string(format!("/proc/{}/cmdline", ppid)) {
-                        let suspicious = ["gdb", "lldb", "strace", "ltrace"];
-                        for name in &suspicious {
-                            if cmdline.contains(name) {
-                                return true;
-                            }
-                        }
-                    }
                 }
             }
         }

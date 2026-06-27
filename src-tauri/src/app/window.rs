@@ -69,10 +69,7 @@ pub async fn clean_async() -> bool {
             crate::app::runtime::toggle_tun_mode(Some(true)).await;
         }
 
-        #[cfg(target_os = "windows")]
         let stop_timeout = Duration::from_secs(2);
-        #[cfg(not(target_os = "windows"))]
-        let stop_timeout = Duration::from_secs(3);
 
         logging!(info, Type::System, "stop core");
         match timeout(stop_timeout, runtime_lifecycle::stop_runtime_core("shutdown-cleanup")).await {
@@ -87,26 +84,7 @@ pub async fn clean_async() -> bool {
         }
     });
 
-    let dns_task = tokio::task::spawn(async {
-        #[cfg(target_os = "macos")]
-        match timeout(
-            Duration::from_millis(1000),
-            crate::utils::resolve::dns::restore_public_dns(),
-        )
-        .await
-        {
-            Ok(_) => {
-                logging!(info, Type::Window, "DNS设置已恢复");
-                true
-            }
-            Err(_) => {
-                logging!(warn, Type::Window, "Warning: 恢复DNS设置超时");
-                false
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
-        true
-    });
+    let dns_task = tokio::task::spawn(async { true });
 
     let (proxy_result, core_result, dns_result) = tokio::join!(proxy_task, core_task, dns_task);
 
@@ -127,14 +105,4 @@ pub async fn clean_async() -> bool {
     );
 
     all_success
-}
-
-#[cfg(target_os = "macos")]
-pub async fn hide() {
-    if let Some(window) = WindowManager::get_main_window()
-        && window.is_visible().unwrap_or(false)
-    {
-        let _ = window.hide();
-    }
-    handle::Handle::global().set_activation_policy_accessory();
 }

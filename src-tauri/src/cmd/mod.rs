@@ -43,8 +43,6 @@ pub mod uwp;
 pub mod validate;
 pub mod verge;
 pub mod webdav;
-#[cfg(target_os = "linux")]
-pub mod xdp;
 
 // Re-export all command functions for backwards compatibility
 pub use anti_probe::*;
@@ -88,8 +86,6 @@ pub use uwp::*;
 pub use validate::*;
 pub use verge::*;
 pub use webdav::*;
-#[cfg(target_os = "linux")]
-pub use xdp::*;
 
 pub trait StringifyErr<T> {
     fn stringify_err(self) -> CmdResult<T>;

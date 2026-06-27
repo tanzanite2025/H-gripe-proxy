@@ -58,8 +58,4 @@ pub struct CoordinatorStatus {
     pub traffic_obfuscation_enabled: bool,
     pub honeypot_enabled: bool,
     pub self_destruct_enabled: bool,
-    #[cfg(target_os = "linux")]
-    pub xdp_enabled: bool,
-    #[cfg(target_os = "linux")]
-    pub xdp_running: bool,
 }

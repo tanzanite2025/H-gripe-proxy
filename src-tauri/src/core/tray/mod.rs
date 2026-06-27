@@ -22,8 +22,6 @@ use tauri::{
 };
 
 mod menu_def;
-#[cfg(target_os = "macos")]
-mod speed_task;
 use menu_def::{MenuIds, MenuTexts};
 
 // TODO: 是否需要将可变菜单抽离存储起来，后续直接更新对应菜单实例，无需重新创建菜单(待考虑)
@@ -43,8 +41,6 @@ enum IconKind {
 
 pub struct Tray {
     limiter: SystemLimiter,
-    #[cfg(target_os = "macos")]
-    speed_controller: speed_task::TraySpeedController,
 }
 
 impl TrayState {
@@ -82,8 +78,6 @@ impl Default for Tray {
     fn default() -> Self {
         Self {
             limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
-            #[cfg(target_os = "macos")]
-            speed_controller: speed_task::TraySpeedController::new(),
         }
     }
 }
@@ -193,11 +187,6 @@ impl Tray {
             tray.set_icon(Some(tauri::image::Image::from_bytes(&icon_bytes)?))
         );
 
-        #[cfg(target_os = "macos")]
-        {
-            logging_error!(Type::Tray, tray.set_icon_as_template(true));
-        }
-
         Ok(())
     }
 
@@ -272,8 +261,6 @@ impl Tray {
         let verge = Config::verge().await.data_arc();
         self.update_menu().await?;
         self.update_icon(&verge).await?;
-        #[cfg(target_os = "macos")]
-        self.update_speed_task(false);
         self.update_tooltip().await?;
         Ok(())
     }
@@ -297,20 +284,10 @@ impl Tray {
         let icon_bytes = TrayState::get_tray_icon(&verge).await.1;
         let icon = tauri::image::Image::from_bytes(&icon_bytes)?;
 
-        #[cfg(target_os = "linux")]
-        let builder = TrayIconBuilder::with_id("main").icon(icon).icon_as_template(false);
-
-        #[cfg(not(target_os = "linux"))]
-        let mut builder = TrayIconBuilder::with_id("main").icon(icon).icon_as_template(false);
-        #[cfg(target_os = "macos")]
-        {
-            builder = builder.icon_as_template(true);
-        }
-
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        {
-            builder = builder.show_menu_on_left_click(false);
-        }
+        let builder = TrayIconBuilder::with_id("main")
+            .icon(icon)
+            .icon_as_template(false)
+            .show_menu_on_left_click(false);
 
         let tray = builder.build(app_handle)?;
         tray.on_tray_icon_event(on_tray_icon_event);
@@ -324,12 +301,6 @@ impl Tray {
             logging!(debug, Type::Tray, "tray click rate limited");
         }
         allow
-    }
-
-    /// 根据配置统一更新托盘速率采集任务状态（macOS）
-    #[cfg(target_os = "macos")]
-    pub fn update_speed_task(&self, enabled: bool) {
-        self.speed_controller.update_task(enabled);
     }
 }
 
@@ -716,9 +687,6 @@ async fn create_tray_menu(
     )?;
 
     let quit_accelerator = hotkeys.get("quit").map(|s| s.as_str());
-
-    #[cfg(target_os = "macos")]
-    let quit_accelerator = quit_accelerator.or(Some("Cmd+Q"));
 
     let quit = &MenuItem::with_id(app_handle, MenuIds::EXIT, &texts.exit, true, quit_accelerator)?;
 

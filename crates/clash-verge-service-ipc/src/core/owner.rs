@@ -29,21 +29,8 @@ impl ServiceOwnerGuard {
 
 impl Drop for ServiceOwnerGuard {
     fn drop(&mut self) {
-        #[cfg(unix)]
-        {
-            use std::os::fd::AsRawFd;
-
-            unsafe {
-                platform_lib::flock(self._file.as_raw_fd(), platform_lib::LOCK_UN);
-            }
-        }
-
         let _ = std::fs::remove_file(self.paths.pid_file_path());
-
-        #[cfg(windows)]
-        {
-            let _ = std::fs::remove_file(self.paths.owner_lock_path());
-        }
+        let _ = std::fs::remove_file(self.paths.owner_lock_path());
 
         info!("Released service owner lock: {:?}", self.paths.owner_lock_path());
     }
@@ -94,52 +81,20 @@ pub async fn acquire_service_owner() -> Result<Option<ServiceOwnerGuard>> {
 }
 
 fn try_acquire_owner_once(paths: &ServicePaths) -> Result<Option<ServiceOwnerGuard>> {
-    #[cfg(unix)]
+    let file = match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(paths.owner_lock_path())
     {
-        use std::os::fd::AsRawFd;
-
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(paths.owner_lock_path())
-            .with_context(|| format!("failed to open owner lock {:?}", paths.owner_lock_path()))?;
-
-        let result = unsafe { platform_lib::flock(file.as_raw_fd(), platform_lib::LOCK_EX | platform_lib::LOCK_NB) };
-
-        if result == 0 {
-            return ServiceOwnerGuard::new(file, paths.clone()).map(Some);
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(None),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to create {:?}", paths.owner_lock_path()));
         }
+    };
 
-        let error = std::io::Error::last_os_error();
-        if matches!(
-            error.kind(),
-            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::PermissionDenied
-        ) {
-            return Ok(None);
-        }
-
-        Err(error).with_context(|| format!("failed to lock {:?}", paths.owner_lock_path()))
-    }
-
-    #[cfg(windows)]
-    {
-        let file = match OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .open(paths.owner_lock_path())
-        {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(None),
-            Err(error) => {
-                return Err(error).with_context(|| format!("failed to create {:?}", paths.owner_lock_path()));
-            }
-        };
-
-        ServiceOwnerGuard::new(file, paths.clone()).map(Some)
-    }
+    ServiceOwnerGuard::new(file, paths.clone()).map(Some)
 }
 
 fn write_owner_metadata(file: &mut File, paths: &ServicePaths, pid: u32) -> Result<()> {
@@ -223,14 +178,5 @@ async fn is_ipc_healthy(paths: &ServicePaths) -> bool {
 
 fn cleanup_runtime_artifacts(paths: &ServicePaths) {
     let _ = std::fs::remove_file(paths.pid_file_path());
-
-    #[cfg(unix)]
-    {
-        let _ = std::fs::remove_file(paths.ipc_path());
-    }
-
-    #[cfg(windows)]
-    {
-        let _ = std::fs::remove_file(paths.owner_lock_path());
-    }
+    let _ = std::fs::remove_file(paths.owner_lock_path());
 }

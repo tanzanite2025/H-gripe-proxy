@@ -9,9 +9,7 @@ async fn open_path(path: PathBuf) -> Result<()> {
 }
 
 async fn open_log_path(path: PathBuf) -> Result<()> {
-    #[cfg(target_os = "windows")]
     let path = crate::utils::help::snapshot_path(path.as_path())?;
-
     open::that(path)?;
     Ok(())
 }

@@ -6,15 +6,11 @@ use tauri_plugin_notification::NotificationExt as _;
 
 pub enum NotificationEvent<'a> {
     DashboardToggled,
-    ClashModeChanged {
-        mode: &'a str,
-    },
+    ClashModeChanged { mode: &'a str },
     SystemProxyToggled(bool),
     TunModeToggled(bool),
     ProfilesReactivated,
     AppQuit,
-    #[cfg(target_os = "macos")]
-    AppHidden,
 }
 
 fn notify(title: Cow<'_, str>, body: Cow<'_, str>) {
@@ -65,12 +61,6 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::AppQuit => {
             let title = clash_verge_i18n::t!("notifications.appQuit.title");
             let body = clash_verge_i18n::t!("notifications.appQuit.body");
-            notify(title, body);
-        }
-        #[cfg(target_os = "macos")]
-        NotificationEvent::AppHidden => {
-            let title = clash_verge_i18n::t!("notifications.appHidden.title");
-            let body = clash_verge_i18n::t!("notifications.appHidden.body");
             notify(title, body);
         }
     }

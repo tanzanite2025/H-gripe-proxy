@@ -138,17 +138,7 @@ pub async fn copy_clash_env() {
 
     let clipboard = app_handle.clipboard();
 
-    let default_env = {
-        #[cfg(not(target_os = "windows"))]
-        {
-            "bash"
-        }
-        #[cfg(target_os = "windows")]
-        {
-            "powershell"
-        }
-    };
-    let env_type = verge_cfg.env_type.as_deref().unwrap_or(default_env);
+    let env_type = verge_cfg.env_type.as_deref().unwrap_or("powershell");
 
     let export_text = match env_type {
         "bash" => format!("export https_proxy={http_proxy} http_proxy={http_proxy} all_proxy={socks5_proxy}"),

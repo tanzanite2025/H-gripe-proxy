@@ -1,9 +1,6 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
-#[cfg(windows)]
 use anyhow::Result;
-#[cfg(unix)]
-use anyhow::{Result, anyhow};
 use compact_str::CompactString;
 use kode_bridge::{ClientConfig, IpcHttpClient};
 use log::{debug, warn};
@@ -43,13 +40,6 @@ pub async fn set_config(config: Option<IpcConfig>) {
 
 pub async fn connect() -> Result<IpcHttpClient> {
     debug!("Connecting to IPC at {}", IPC_PATH);
-
-    #[cfg(unix)]
-    {
-        if let Err(err) = Path::metadata(IPC_PATH.as_ref()) {
-            return Err(anyhow!("IPC path unavailable: {err}"));
-        }
-    }
 
     let c = { CLIENT_CONFIG.read().await.clone() }.unwrap_or_default();
     debug!("Using config: {:?}", c);

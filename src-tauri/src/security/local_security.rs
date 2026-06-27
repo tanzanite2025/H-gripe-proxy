@@ -361,7 +361,6 @@ impl LocalSecurityMonitor {
     }
 
     /// 获取网络连接信息
-    #[cfg(target_os = "windows")]
     async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
         use crate::utils::command::hidden_command;
 
@@ -389,64 +388,6 @@ impl LocalSecurityMonitor {
 
         Ok(connections)
     }
-
-    /// 获取网络连接信息（Linux）
-    #[cfg(target_os = "linux")]
-    async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
-        use std::fs;
-
-        let content =
-            fs::read_to_string("/proc/net/tcp").map_err(|e| anyhow!("Failed to read /proc/net/tcp: {}", e))?;
-
-        let mut connections = Vec::new();
-
-        for line in content.lines().skip(1) {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 4 {
-                if let Some((addr, port)) = parse_hex_socket_addr(parts[1]) {
-                    let state = parse_tcp_state(parts[3]);
-                    connections.push(NetworkConnection {
-                        local_address: addr,
-                        local_port: port,
-                        state,
-                        protocol: "TCP".to_string(),
-                    });
-                }
-            }
-        }
-
-        Ok(connections)
-    }
-
-    /// 获取网络连接信息（macOS）
-    #[cfg(target_os = "macos")]
-    async fn get_network_connections(&self) -> Result<Vec<NetworkConnection>> {
-        use std::process::Command;
-
-        let output = Command::new("lsof")
-            .args(&["-iTCP", "-sTCP:LISTEN", "-n", "-P"])
-            .output()
-            .map_err(|e| anyhow!("Failed to execute lsof: {}", e))?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut connections = Vec::new();
-
-        for line in stdout.lines().skip(1) {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 9 {
-                if let Some((addr, port)) = parse_socket_addr(parts[8]) {
-                    connections.push(NetworkConnection {
-                        local_address: addr,
-                        local_port: port,
-                        state: "LISTEN".to_string(),
-                        protocol: "TCP".to_string(),
-                    });
-                }
-            }
-        }
-
-        Ok(connections)
-    }
 }
 
 /// 解析套接字地址（格式：127.0.0.1:8080）
@@ -458,51 +399,6 @@ fn parse_socket_addr(addr_str: &str) -> Option<(String, u16)> {
         Some((addr, port))
     } else {
         None
-    }
-}
-
-/// 解析十六进制套接字地址（Linux /proc/net/tcp 格式）
-#[cfg(target_os = "linux")]
-fn parse_hex_socket_addr(hex_str: &str) -> Option<(String, u16)> {
-    let parts: Vec<&str> = hex_str.split(':').collect();
-    if parts.len() == 2 {
-        let addr_hex = parts[0];
-        let port_hex = parts[1];
-
-        // 解析端口
-        let port = u16::from_str_radix(port_hex, 16).ok()?;
-
-        // 解析地址（小端序）
-        let addr_num = u32::from_str_radix(addr_hex, 16).ok()?;
-        let addr = format!(
-            "{}.{}.{}.{}",
-            addr_num & 0xFF,
-            (addr_num >> 8) & 0xFF,
-            (addr_num >> 16) & 0xFF,
-            (addr_num >> 24) & 0xFF
-        );
-
-        Some((addr, port))
-    } else {
-        None
-    }
-}
-
-/// 解析 TCP 状态（Linux /proc/net/tcp 格式）
-#[cfg(target_os = "linux")]
-fn parse_tcp_state(state_hex: &str) -> String {
-    match state_hex {
-        "0A" => "LISTEN".to_string(),
-        "01" => "ESTABLISHED".to_string(),
-        "02" => "SYN_SENT".to_string(),
-        "03" => "SYN_RECV".to_string(),
-        "04" => "FIN_WAIT1".to_string(),
-        "05" => "FIN_WAIT2".to_string(),
-        "06" => "TIME_WAIT".to_string(),
-        "07" => "CLOSE".to_string(),
-        "08" => "CLOSE_WAIT".to_string(),
-        "09" => "LAST_ACK".to_string(),
-        _ => "UNKNOWN".to_string(),
     }
 }
 

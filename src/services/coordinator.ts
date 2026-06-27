@@ -68,8 +68,6 @@ export interface CoordinatorStatus {
   runtimeState: CoordinatorRuntimeState
   multipathEnabled: boolean
   trafficObfuscationEnabled: boolean
-  xdpEnabled?: boolean
-  xdpRunning?: boolean
 }
 
 /**
@@ -91,7 +89,6 @@ export interface AdvancedConfig {
   timezone_spoof: TimezoneSpoofConfig
   local_stealth: LocalStealthConfig
   ingress_countermeasure: IngressCountermeasureConfig
-  xdp?: XdpConfig
 }
 
 export interface IngressCountermeasureConfig {
@@ -391,13 +388,6 @@ export interface EgressMonitorStats {
   uptimeSecs: number
 }
 
-export interface XdpConfig {
-  enabled: boolean
-  interface: string
-  mode: XdpMode
-  queue_size: number
-}
-
 function normalizeAdvancedConfig(config: AdvancedConfig): AdvancedConfig {
   return {
     ...config,
@@ -411,8 +401,6 @@ function serializeAdvancedConfig(config: AdvancedConfig) {
     ip_reputation: serializeIpReputationConfig(config.ip_reputation),
   }
 }
-
-export type XdpMode = 'Native' | 'Skb' | 'Generic'
 
 /**
  * 初始化协调器

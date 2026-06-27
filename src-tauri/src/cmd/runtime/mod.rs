@@ -148,7 +148,7 @@ use anyhow::{Context as _, anyhow};
 use clash_dtos::{
     BaseConfig, BufferPoolStats, CoreUpdaterChannel, DnsMetrics, EngineStats, HotReloadStatus, MihomoVersion,
     PerfStats, Proxies, ProxyDelay, ProxyProviders, RuleProviders, RuleTrafficSnapshot, Rules, TLSFingerprintStats,
-    TLSRotationResult, XDPStatus,
+    TLSRotationResult,
 };
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
@@ -264,13 +264,6 @@ pub async fn get_runtime_buffer_pool_stats() -> CmdResult<BufferPoolStats> {
 #[tauri::command]
 pub async fn get_runtime_hot_reload_status() -> CmdResult<HotReloadStatus> {
     crate::core::runtime_snapshot::read_runtime_hot_reload_status()
-        .await
-        .stringify_err()
-}
-
-#[tauri::command]
-pub async fn get_runtime_xdp_status() -> CmdResult<XDPStatus> {
-    crate::core::runtime_snapshot::read_runtime_xdp_status()
         .await
         .stringify_err()
 }
