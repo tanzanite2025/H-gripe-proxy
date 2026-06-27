@@ -15,7 +15,7 @@ concurrency:
 jobs:
   kernel:
     name: learn-gripe kernel (fmt + clippy + test)
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,9 +37,9 @@ jobs:
       - name: Clippy lint
         run: cargo clippy --all-targets -p learn-gripe
 
-      # Pure-logic kernel: 218 unit tests + cross-platform integration tests
-      # (socks5 / http / udp / tun / dns / per-protocol outbound). This locks
-      # down all 12 Router matchers (#412-#423) against silent regressions.
+      # Pure-logic kernel: 218 unit tests + integration tests (socks5 / http /
+      # udp / tun / dns / per-protocol outbound). This locks down all 12 Router
+      # matchers (#412-#423) against silent regressions.
       - name: Run tests
         run: cargo test -p learn-gripe
 
@@ -68,40 +68,6 @@ jobs:
       # builds without `pnpm prebuild`. The test binary cannot be *run* in CI
       # (it needs platform GUI/WinRT bindings at runtime), but compiling it
       # catches breaking changes to the app-side router/parser bridge.
-      - name: Clippy lint (app lib)
-        run: cargo clippy -p clash-verge-optimized --lib --features clippy
-
-      - name: Compile app library tests
-        run: cargo test -p clash-verge-optimized --lib --no-run --features clippy
-
-  app-macos:
-    name: clash-verge-optimized app (macOS datapath compile)
-    runs-on: macos-latest
-    # macOS runners bill at a 10x minute multiplier, so only compile-check the
-    # macOS datapath after merge to main (push), not on every PR. PR-time
-    # changes to that datapath are validated locally / on real hardware.
-    if: github.event_name == 'push'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.95.0
-          components: clippy
-
-      - name: Cache cargo build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: app-macos
-
-      # The Windows `app` job never compiles the `#[cfg(target_os = "macos")]`
-      # global default-route capture (route/networksetup/ifconfig takeover) in
-      # `core::manager::tun_inbound`, so it could rot undetected. Build the app
-      # lib + its test binary natively on macOS to compile-check that datapath
-      # and its `macos_tests`. It still cannot be *run* in CI (it needs root and
-      # a real utun), so real-machine validation remains a manual step.
       - name: Clippy lint (app lib)
         run: cargo clippy -p clash-verge-optimized --lib --features clippy
 

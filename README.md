@@ -49,11 +49,9 @@ Clash Verge Optimized 是一个基于 [Tauri](https://github.com/tauri-apps/taur
 
 ## 系统要求 / System Requirements
 
-当前桌面层基于 Tauri 2。运行环境以 Tauri / WebView2 / 系统 WebKit 的实际支持矩阵为准；本仓库主线重点验证 Windows x64，Linux/macOS 仍保留跨平台构建目标。
+当前桌面层基于 Tauri 2。本仓库已收敛为 Windows-only：后端平台代码、Cargo 依赖与 CI 均只保留 Windows，不再提供 Linux/macOS 构建目标。
 
 - **Windows**: x64；需要 Microsoft WebView2 Runtime
-- **Linux**: x64/arm64；需要系统 WebKitGTK / appindicator 等 Tauri 依赖
-- **macOS**: Intel / Apple Silicon；需要 macOS 11+
 
 ---
 

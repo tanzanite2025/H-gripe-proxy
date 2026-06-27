@@ -17,17 +17,12 @@ const ipv6HostRegex =
 const hostnameRegex =
   /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/
 
-export const createBypassValidator = (isWindows: boolean) => {
-  const ipv4Pattern = isWindows
-    ? String.raw`(?:${ipv4PartPattern}\.){3}${ipv4PartPattern}`
-    : String.raw`(?:${ipv4PartPattern}\.){3}${ipv4PartPattern}(?:\/\d{1,2})?`
-  const ipv6Pattern = isWindows
-    ? String.raw`(?:${ipv6PartPattern}:+)+${ipv6PartPattern}`
-    : String.raw`(?:${ipv6PartPattern}:+)+${ipv6PartPattern}(?:\/\d{1,3})?`
+export const createBypassValidator = () => {
+  const ipv4Pattern = String.raw`(?:${ipv4PartPattern}\.){3}${ipv4PartPattern}`
+  const ipv6Pattern = String.raw`(?:${ipv6PartPattern}:+)+${ipv6PartPattern}`
 
   const validPart = `${domainSimplePattern}|${ipv4Pattern}|${ipv6Pattern}|${localPattern}`
-  const separator = isWindows ? ';' : ','
-  const validPattern = String.raw`^(${validPart})(?:${separator}\s?(${validPart}))*${separator}?$`
+  const validPattern = String.raw`^(${validPart})(?:;\s?(${validPart}))*;?$`
 
   return new RegExp(validPattern)
 }

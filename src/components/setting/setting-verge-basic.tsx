@@ -22,7 +22,6 @@ import {
 import { supportedLanguages } from '@/services/i18n'
 import { showNotice } from '@/services/notice-service'
 import { checkUpdateSafe as checkUpdate } from '@/services/update'
-import getSystem from '@/utils/misc'
 import { version } from '@root/package.json'
 
 import { BackupViewer } from './components/backup/backup-main'
@@ -35,8 +34,6 @@ import { SettingItem, SettingList } from './components/shared/setting-item'
 interface Props {
   onError?: (err: Error) => void
 }
-
-const OS = getSystem()
 
 const languageOptions = supportedLanguages.map((code) => {
   const labels: { [key: string]: string } = {
@@ -135,7 +132,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
-
       <SettingItem
         label={t('settings.components.verge.basic.fields.copyEnvType')}
         extra={
@@ -143,7 +139,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
         }
       >
         <GuardState
-          value={env_type ?? (OS === 'windows' ? 'powershell' : 'bash')}
+          value={env_type ?? 'powershell'}
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
           onChange={(e) => onChangeData({ env_type: e })}
