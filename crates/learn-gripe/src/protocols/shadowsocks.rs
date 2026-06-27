@@ -1,31 +1,41 @@
 //! Shadowsocks outbound (AEAD ciphers).
 //!
-//! Implements the modern Shadowsocks **AEAD** stream (the `aes-128-gcm`,
-//! `aes-256-gcm` and `chacha20-ietf-poly1305` methods) over plain TCP. The
-//! legacy stream ciphers (`aes-*-cfb`, `rc4-md5`, …) and the newer
-//! `2022-blake3-*` methods use different constructions and are rejected by
-//! [`ShadowsocksOutboundConfig::from_proxy`] rather than silently mis-encoded,
-//! as are SIP003 `plugin`s (obfs / v2ray-plugin), which would need their own
-//! transport layer.
+//! Implements two generations of the Shadowsocks **AEAD** stream over plain TCP:
+//! * the 2017 AEAD methods `aes-128-gcm`, `aes-256-gcm`,
+//!   `chacha20-ietf-poly1305`; and
+//! * the Shadowsocks 2022 methods `2022-blake3-aes-128-gcm`,
+//!   `2022-blake3-aes-256-gcm`, `2022-blake3-chacha20-poly1305`.
+//!
+//! The legacy stream ciphers (`aes-*-cfb`, `rc4-md5`, …) use a different
+//! construction and are rejected by [`ShadowsocksOutboundConfig::from_proxy`]
+//! rather than silently mis-encoded, as are SIP003 `plugin`s (obfs /
+//! v2ray-plugin), which would need their own transport layer. The 2022 methods
+//! over UDP are not implemented yet and bail at dial time.
 //!
 //! All cryptographic primitives are delegated to vetted RustCrypto crates
-//! (`aes-gcm`, `chacha20poly1305`, `md-5`, `sha1`); the only things assembled
-//! here are the Shadowsocks key schedule (OpenSSL `EVP_BytesToKey` for the
-//! master key, HKDF-SHA1 for the per-session subkey) and the on-wire framing.
+//! (`aes-gcm`, `chacha20poly1305`, `md-5`, `sha1`, `blake3`); the only things
+//! assembled here are the Shadowsocks key schedule and the on-wire framing.
 //!
-//! Wire format (per direction, RFC-less Shadowsocks AEAD spec):
+//! Both generations share the same body chunk framing:
 //! ```text
-//! salt (key_len bytes, in clear) | chunk | chunk | ...
+//! salt (key_len bytes, in clear) | <header> | chunk | chunk | ...
 //! chunk = AEAD(len)(2+16) | AEAD(payload)(len+16)
 //! ```
-//! `salt` seeds `subkey = HKDF-SHA1(master_key, salt, "ss-subkey")`. Each AEAD
-//! operation uses a 12-byte little-endian counter nonce that starts at 0 and
-//! increments after every seal/open. The first plaintext bytes the client sends
-//! are the SOCKS5-format target address; application data follows.
+//! with a 12-byte little-endian counter nonce that starts at 0 and increments
+//! after every seal/open. They differ in the per-session subkey derivation and
+//! the header that precedes the body:
+//! * **2017**: `subkey = HKDF-SHA1(master_key, salt, "ss-subkey")`; the first
+//!   plaintext bytes are the SOCKS5-format target address, then app data.
+//! * **2022 (SIP022)**: `subkey = BLAKE3-derive_key("shadowsocks 2022 session
+//!   subkey", PSK || salt)`; the request carries a fixed-length header
+//!   (`type | timestamp | varlen`) followed by a variable-length header
+//!   (`socks_addr | padding`), and the response header echoes the request salt
+//!   and a freshness timestamp before the first payload chunk.
 
 use std::io;
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll, ready};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
@@ -51,13 +61,30 @@ const MAX_CHUNK: usize = 0x3fff;
 const TAG_LEN: usize = 16;
 /// Upper bound on a received Shadowsocks UDP packet (salt + sealed payload).
 const MAX_UDP_PACKET: usize = 64 * 1024;
+/// BLAKE3 `derive_key` context that turns a Shadowsocks 2022 PSK + session salt
+/// into the per-session AEAD subkey.
+const SS2022_SUBKEY_CONTEXT: &str = "shadowsocks 2022 session subkey";
+/// Shadowsocks 2022 stream header type for the client request direction.
+const SS2022_HEADER_TYPE_REQUEST: u8 = 0;
+/// Shadowsocks 2022 stream header type for the server response direction.
+const SS2022_HEADER_TYPE_RESPONSE: u8 = 1;
+/// Largest tolerated skew (seconds) between the response header timestamp and
+/// the local clock; mirrors the reference implementations' replay window.
+const SS2022_MAX_TIME_DIFF: u64 = 30;
 
-/// Shadowsocks AEAD method.
+/// Shadowsocks AEAD method. The `Blake3*` variants are the Shadowsocks 2022
+/// (SIP022) methods; the others are the 2017 AEAD methods.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShadowsocksCipher {
     Aes128Gcm,
     Aes256Gcm,
     Chacha20IetfPoly1305,
+    /// `2022-blake3-aes-128-gcm`.
+    Blake3Aes128Gcm,
+    /// `2022-blake3-aes-256-gcm`.
+    Blake3Aes256Gcm,
+    /// `2022-blake3-chacha20-poly1305`.
+    Blake3Chacha20Poly1305,
 }
 
 impl ShadowsocksCipher {
@@ -65,15 +92,30 @@ impl ShadowsocksCipher {
     /// supported AEAD method.
     fn key_size(self) -> usize {
         match self {
-            ShadowsocksCipher::Aes128Gcm => 16,
-            ShadowsocksCipher::Aes256Gcm | ShadowsocksCipher::Chacha20IetfPoly1305 => 32,
+            ShadowsocksCipher::Aes128Gcm | ShadowsocksCipher::Blake3Aes128Gcm => 16,
+            ShadowsocksCipher::Aes256Gcm
+            | ShadowsocksCipher::Chacha20IetfPoly1305
+            | ShadowsocksCipher::Blake3Aes256Gcm
+            | ShadowsocksCipher::Blake3Chacha20Poly1305 => 32,
         }
+    }
+
+    /// Whether this is a Shadowsocks 2022 (`2022-blake3-*`) method, which uses
+    /// BLAKE3 key derivation and the SIP022 stream header.
+    fn is_2022(self) -> bool {
+        matches!(
+            self,
+            ShadowsocksCipher::Blake3Aes128Gcm
+                | ShadowsocksCipher::Blake3Aes256Gcm
+                | ShadowsocksCipher::Blake3Chacha20Poly1305
+        )
     }
 }
 
-/// Fully-resolved Shadowsocks outbound parameters. The password is pre-expanded
-/// into the master `key` via `EVP_BytesToKey`, so the dial path never touches
-/// the raw secret again.
+/// Fully-resolved Shadowsocks outbound parameters. For the 2017 methods the
+/// password is pre-expanded into the master `key` via `EVP_BytesToKey`; for the
+/// 2022 methods `key` holds the raw PSK (the Base64-decoded password). Either
+/// way the dial path never touches the raw secret again.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShadowsocksOutboundConfig {
     pub server: String,
@@ -104,10 +146,14 @@ impl ShadowsocksOutboundConfig {
             Some("aes-128-gcm") => ShadowsocksCipher::Aes128Gcm,
             Some("aes-256-gcm") => ShadowsocksCipher::Aes256Gcm,
             Some("chacha20-ietf-poly1305") | Some("chacha20-poly1305") => ShadowsocksCipher::Chacha20IetfPoly1305,
+            Some("2022-blake3-aes-128-gcm") => ShadowsocksCipher::Blake3Aes128Gcm,
+            Some("2022-blake3-aes-256-gcm") => ShadowsocksCipher::Blake3Aes256Gcm,
+            Some("2022-blake3-chacha20-poly1305") => ShadowsocksCipher::Blake3Chacha20Poly1305,
             None | Some("") => bail!("shadowsocks: missing cipher"),
             Some(other) => bail!(
                 "shadowsocks: cipher {other:?} not supported \
-                 (use aes-128-gcm / aes-256-gcm / chacha20-ietf-poly1305)"
+                 (use aes-128-gcm / aes-256-gcm / chacha20-ietf-poly1305 / 2022-blake3-aes-128-gcm / \
+                 2022-blake3-aes-256-gcm / 2022-blake3-chacha20-poly1305)"
             ),
         };
 
@@ -117,7 +163,22 @@ impl ShadowsocksOutboundConfig {
             bail!("shadowsocks: plugin {plugin:?} not supported");
         }
 
-        let key = evp_bytes_to_key(password.as_bytes(), cipher.key_size());
+        let key = if cipher.is_2022() {
+            // Shadowsocks 2022 PSK: the password is Base64-encoded raw key bytes
+            // used directly (no EVP_BytesToKey expansion) and must be exactly the
+            // cipher key length.
+            let psk = base64_decode(password).context("shadowsocks: invalid 2022 PSK base64")?;
+            if psk.len() != cipher.key_size() {
+                bail!(
+                    "shadowsocks: 2022 PSK must be {} bytes, got {} (check the Base64 password)",
+                    cipher.key_size(),
+                    psk.len()
+                );
+            }
+            psk
+        } else {
+            evp_bytes_to_key(password.as_bytes(), cipher.key_size())
+        };
 
         Ok(Self {
             server,
@@ -141,8 +202,12 @@ pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) ->
     random_bytes(&mut salt);
     tcp.write_all(&salt).await.context("shadowsocks: send salt")?;
 
-    let subkey = hkdf_sha1(&config.key, &salt, SS_SUBKEY_INFO, salt_len);
+    let subkey = session_subkey(config.cipher, &config.key, &salt);
     let write_cipher = AeadCipher::new(config.cipher, &subkey)?;
+
+    if config.cipher.is_2022() {
+        return connect_2022(tcp, config, target, salt, write_cipher).await;
+    }
 
     let mut stream = ShadowsocksStream::new(tcp, config.cipher, config.key.clone(), write_cipher);
 
@@ -154,6 +219,56 @@ pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) ->
         .await
         .context("shadowsocks: send target address")?;
 
+    Ok(Box::new(stream))
+}
+
+/// Send the Shadowsocks 2022 request header on `tcp` (the session salt has
+/// already been written) and return a relay-ready stream. The request is a
+/// fixed-length header (`type | timestamp | variable-header length`) followed by
+/// a variable-length header (`socks_addr | padding length | padding`), each
+/// sealed as its own AEAD chunk; application data then flows as ordinary body
+/// chunks with the write nonce continuing past the two header chunks.
+async fn connect_2022(
+    mut tcp: TcpStream,
+    config: &ShadowsocksOutboundConfig,
+    target: &TargetAddr,
+    request_salt: Vec<u8>,
+    write_cipher: AeadCipher,
+) -> Result<BoxedStream> {
+    // Variable-length header: SOCKS5 target address + a zero-length padding
+    // field (no initial payload).
+    let mut var_header = Vec::with_capacity(1 + 256 + 2 + 2);
+    socks5::encode_address(&mut var_header, target);
+    var_header.extend_from_slice(&0u16.to_be_bytes());
+    let var_len = u16::try_from(var_header.len()).map_err(|_| anyhow!("shadowsocks 2022: header too large"))?;
+
+    // Fixed-length header: request type, timestamp, variable-header length.
+    let mut fixed_header = Vec::with_capacity(1 + 8 + 2);
+    fixed_header.push(SS2022_HEADER_TYPE_REQUEST);
+    fixed_header.extend_from_slice(&unix_timestamp().to_be_bytes());
+    fixed_header.extend_from_slice(&var_len.to_be_bytes());
+
+    let mut write_nonce = [0u8; 12];
+    let sealed_fixed = write_cipher.seal(&write_nonce, &fixed_header)?;
+    increment_nonce(&mut write_nonce);
+    let sealed_var = write_cipher.seal(&write_nonce, &var_header)?;
+    increment_nonce(&mut write_nonce);
+
+    let mut head = Vec::with_capacity(sealed_fixed.len() + sealed_var.len());
+    head.extend_from_slice(&sealed_fixed);
+    head.extend_from_slice(&sealed_var);
+    tcp.write_all(&head)
+        .await
+        .context("shadowsocks 2022: send request header")?;
+
+    let stream = ShadowsocksStream::new_2022(
+        tcp,
+        config.cipher,
+        config.key.clone(),
+        write_cipher,
+        write_nonce,
+        request_salt,
+    );
     Ok(Box::new(stream))
 }
 
@@ -181,6 +296,11 @@ impl ShadowsocksUdp {
     /// Bind a UDP socket and connect it to the Shadowsocks server. `target` is
     /// the eventual destination sealed into every datagram sent on this socket.
     pub async fn connect(config: &ShadowsocksOutboundConfig, target: &TargetAddr) -> Result<Self> {
+        if config.cipher.is_2022() {
+            // SIP022 UDP uses a separate session-keyed packet construction that
+            // is not implemented yet; reject rather than mis-frame datagrams.
+            bail!("shadowsocks: 2022 udp relay not yet implemented");
+        }
         let server = lookup_host((config.server.as_str(), config.port))
             .await
             .with_context(|| format!("shadowsocks udp: resolve {}:{}", config.server, config.port))?
@@ -241,6 +361,63 @@ impl ShadowsocksUdp {
         let (_source, offset) = socks5::decode_address(&plain)?;
         Ok(plain[offset..].to_vec())
     }
+}
+
+/// Current Unix time in whole seconds, used for the Shadowsocks 2022 header
+/// timestamp. A clock before the epoch is clamped to 0.
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Derive the per-session AEAD subkey from the session `salt`. The 2017 methods
+/// run HKDF-SHA1 over the EVP master key; the 2022 methods run BLAKE3
+/// `derive_key` over the raw PSK, taking the leading `key_size` bytes.
+fn session_subkey(cipher: ShadowsocksCipher, key: &[u8], salt: &[u8]) -> Vec<u8> {
+    let key_len = cipher.key_size();
+    if cipher.is_2022() {
+        let mut material = Vec::with_capacity(key.len() + salt.len());
+        material.extend_from_slice(key);
+        material.extend_from_slice(salt);
+        let derived = blake3::derive_key(SS2022_SUBKEY_CONTEXT, &material);
+        derived[..key_len].to_vec()
+    } else {
+        hkdf_sha1(key, salt, SS_SUBKEY_INFO, key_len)
+    }
+}
+
+/// Decode standard or URL-safe Base64 (padding and ASCII whitespace ignored),
+/// used for the Shadowsocks 2022 PSK. Trailing bits that do not complete a byte
+/// are discarded, matching canonical Base64.
+fn base64_decode(input: &str) -> Result<Vec<u8>> {
+    fn sextet(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' | b'-' => Some(62),
+            b'/' | b'_' => Some(63),
+            _ => None,
+        }
+    }
+    let mut out = Vec::with_capacity(input.len() / 4 * 3);
+    let mut acc = 0u32;
+    let mut bits = 0u32;
+    for &c in input.as_bytes() {
+        if c == b'=' || c.is_ascii_whitespace() {
+            continue;
+        }
+        let v = sextet(c).ok_or_else(|| anyhow!("invalid base64 character {:?}", c as char))?;
+        acc = (acc << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Ok(out)
 }
 
 /// Fill `buf` with cryptographically secure random bytes from the OS.
@@ -344,15 +521,17 @@ enum AeadCipher {
 impl AeadCipher {
     fn new(cipher: ShadowsocksCipher, subkey: &[u8]) -> Result<Self> {
         match cipher {
-            ShadowsocksCipher::Aes128Gcm => Ok(AeadCipher::Aes128(Box::new(
+            ShadowsocksCipher::Aes128Gcm | ShadowsocksCipher::Blake3Aes128Gcm => Ok(AeadCipher::Aes128(Box::new(
                 Aes128Gcm::new_from_slice(subkey).map_err(|_| anyhow!("shadowsocks: invalid aes-128 key"))?,
             ))),
-            ShadowsocksCipher::Aes256Gcm => Ok(AeadCipher::Aes256(Box::new(
+            ShadowsocksCipher::Aes256Gcm | ShadowsocksCipher::Blake3Aes256Gcm => Ok(AeadCipher::Aes256(Box::new(
                 Aes256Gcm::new_from_slice(subkey).map_err(|_| anyhow!("shadowsocks: invalid aes-256 key"))?,
             ))),
-            ShadowsocksCipher::Chacha20IetfPoly1305 => Ok(AeadCipher::Chacha(Box::new(
-                ChaCha20Poly1305::new_from_slice(subkey).map_err(|_| anyhow!("shadowsocks: invalid chacha key"))?,
-            ))),
+            ShadowsocksCipher::Chacha20IetfPoly1305 | ShadowsocksCipher::Blake3Chacha20Poly1305 => {
+                Ok(AeadCipher::Chacha(Box::new(
+                    ChaCha20Poly1305::new_from_slice(subkey).map_err(|_| anyhow!("shadowsocks: invalid chacha key"))?,
+                )))
+            }
         }
     }
 
@@ -387,6 +566,12 @@ impl AeadCipher {
 enum ReadState {
     /// Waiting for the peer's `salt_len`-byte salt (derives the read cipher).
     Salt,
+    /// Shadowsocks 2022 only: waiting for the fixed-length response header
+    /// (`type | timestamp | request salt | first-chunk length`).
+    RespHeader,
+    /// Shadowsocks 2022 only: waiting for the first payload chunk, whose length
+    /// (`clen`) was carried in the response header; `clen + 16` bytes.
+    FirstChunk(usize),
     /// Waiting for the 18-byte AEAD-sealed payload length.
     Len,
     /// Waiting for a `clen + 16`-byte sealed payload chunk.
@@ -402,6 +587,12 @@ struct ShadowsocksStream {
     inner: TcpStream,
     cipher: ShadowsocksCipher,
     master_key: Vec<u8>,
+    /// Whether this is a Shadowsocks 2022 session (BLAKE3 subkey + SIP022
+    /// response header). For 2017 sessions `request_salt` is empty.
+    is_2022: bool,
+    /// The client's request salt, echoed back in the 2022 response header and
+    /// validated on read to bind the response to this request.
+    request_salt: Vec<u8>,
     // Write side.
     write_cipher: AeadCipher,
     write_nonce: [u8; 12],
@@ -422,8 +613,40 @@ impl ShadowsocksStream {
             inner,
             cipher,
             master_key,
+            is_2022: false,
+            request_salt: Vec::new(),
             write_cipher,
             write_nonce: [0u8; 12],
+            write_buf: Vec::new(),
+            write_pos: 0,
+            read_cipher: None,
+            read_nonce: [0u8; 12],
+            read_state: ReadState::Salt,
+            read_raw: Vec::new(),
+            plain: Vec::new(),
+            plain_pos: 0,
+        }
+    }
+
+    /// Construct a Shadowsocks 2022 stream. The request header (and salt) have
+    /// already been written, so `write_nonce` continues past the two header
+    /// chunks and `request_salt` is retained to validate the response header.
+    fn new_2022(
+        inner: TcpStream,
+        cipher: ShadowsocksCipher,
+        psk: Vec<u8>,
+        write_cipher: AeadCipher,
+        write_nonce: [u8; 12],
+        request_salt: Vec<u8>,
+    ) -> Self {
+        Self {
+            inner,
+            cipher,
+            master_key: psk,
+            is_2022: true,
+            request_salt,
+            write_cipher,
+            write_nonce,
             write_buf: Vec::new(),
             write_pos: 0,
             read_cipher: None,
@@ -501,6 +724,8 @@ impl AsyncRead for ShadowsocksStream {
 
             let need = match this.read_state {
                 ReadState::Salt => salt_len,
+                ReadState::RespHeader => 1 + 8 + salt_len + 2 + TAG_LEN,
+                ReadState::FirstChunk(clen) => clen + TAG_LEN,
                 ReadState::Len => 2 + TAG_LEN,
                 ReadState::Data(clen) => clen + TAG_LEN,
                 ReadState::Eof => unreachable!(),
@@ -524,9 +749,67 @@ impl AsyncRead for ShadowsocksStream {
             match this.read_state {
                 ReadState::Salt => {
                     let salt: Vec<u8> = this.read_raw.drain(..salt_len).collect();
-                    let subkey = hkdf_sha1(&this.master_key, &salt, SS_SUBKEY_INFO, salt_len);
+                    let subkey = session_subkey(this.cipher, &this.master_key, &salt);
                     let cipher = AeadCipher::new(this.cipher, &subkey).map_err(decrypt_err)?;
                     this.read_cipher = Some(cipher);
+                    this.read_state = if this.is_2022 {
+                        ReadState::RespHeader
+                    } else {
+                        ReadState::Len
+                    };
+                }
+                ReadState::RespHeader => {
+                    let sealed: Vec<u8> = this.read_raw.drain(..1 + 8 + salt_len + 2 + TAG_LEN).collect();
+                    let Some(cipher) = this.read_cipher.as_ref() else {
+                        return Poll::Ready(Err(read_cipher_unset()));
+                    };
+                    let plain = cipher.open(&this.read_nonce, &sealed).map_err(decrypt_err)?;
+                    increment_nonce(&mut this.read_nonce);
+                    if plain.len() != 1 + 8 + salt_len + 2 {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "shadowsocks 2022: malformed response header",
+                        )));
+                    }
+                    if plain[0] != SS2022_HEADER_TYPE_RESPONSE {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "shadowsocks 2022: unexpected response header type",
+                        )));
+                    }
+                    let mut ts_bytes = [0u8; 8];
+                    ts_bytes.copy_from_slice(&plain[1..9]);
+                    let ts = u64::from_be_bytes(ts_bytes);
+                    if unix_timestamp().abs_diff(ts) > SS2022_MAX_TIME_DIFF {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "shadowsocks 2022: response timestamp outside replay window",
+                        )));
+                    }
+                    if plain[9..9 + salt_len] != this.request_salt[..] {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "shadowsocks 2022: response salt does not match request",
+                        )));
+                    }
+                    let clen = u16::from_be_bytes([plain[9 + salt_len], plain[10 + salt_len]]) as usize;
+                    if clen == 0 || clen > MAX_CHUNK {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "shadowsocks 2022: invalid first-chunk length",
+                        )));
+                    }
+                    this.read_state = ReadState::FirstChunk(clen);
+                }
+                ReadState::FirstChunk(clen) => {
+                    let sealed: Vec<u8> = this.read_raw.drain(..clen + TAG_LEN).collect();
+                    let Some(cipher) = this.read_cipher.as_ref() else {
+                        return Poll::Ready(Err(read_cipher_unset()));
+                    };
+                    let plain = cipher.open(&this.read_nonce, &sealed).map_err(decrypt_err)?;
+                    increment_nonce(&mut this.read_nonce);
+                    this.plain = plain;
+                    this.plain_pos = 0;
                     this.read_state = ReadState::Len;
                 }
                 ReadState::Len => {
@@ -684,10 +967,60 @@ mod tests {
     }
 
     #[test]
-    fn ss2022_method_is_rejected() {
-        let yaml = "name: s\ntype: ss\nserver: h\nport: 1\ncipher: 2022-blake3-aes-256-gcm\npassword: p\n";
+    fn parses_2022_aes_256_gcm_entry() {
+        // PSK is Base64 of the 32 bytes 0x00..=0x1f and is used as the key
+        // directly (no EVP_BytesToKey expansion).
+        let yaml = "name: s\ntype: ss\nserver: h\nport: 8388\ncipher: 2022-blake3-aes-256-gcm\npassword: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\n";
+        let cfg = ShadowsocksOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap();
+        assert_eq!(cfg.cipher, ShadowsocksCipher::Blake3Aes256Gcm);
+        assert_eq!(cfg.key, (0u8..32).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn parses_2022_aes_128_gcm_entry() {
+        let yaml = "name: s\ntype: ss\nserver: h\nport: 1\ncipher: 2022-blake3-aes-128-gcm\npassword: AAECAwQFBgcICQoLDA0ODw==\n";
+        let cfg = ShadowsocksOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap();
+        assert_eq!(cfg.cipher, ShadowsocksCipher::Blake3Aes128Gcm);
+        assert_eq!(cfg.key, (0u8..16).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn rejects_2022_psk_with_wrong_length() {
+        // A 16-byte PSK for a 32-byte method must be rejected, not zero-padded.
+        let yaml = "name: s\ntype: ss\nserver: h\nport: 1\ncipher: 2022-blake3-aes-256-gcm\npassword: AAECAwQFBgcICQoLDA0ODw==\n";
         let err = ShadowsocksOutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
-        assert!(err.to_string().contains("not supported"), "got: {err}");
+        assert!(err.to_string().contains("PSK"), "got: {err}");
+    }
+
+    #[test]
+    fn base64_decode_matches_rfc4648_vectors() {
+        assert_eq!(base64_decode("").unwrap(), Vec::<u8>::new());
+        assert_eq!(base64_decode("Zg==").unwrap(), b"f".to_vec());
+        assert_eq!(base64_decode("Zm8=").unwrap(), b"fo".to_vec());
+        assert_eq!(base64_decode("Zm9v").unwrap(), b"foo".to_vec());
+        assert_eq!(base64_decode("Zm9vYmFy").unwrap(), b"foobar".to_vec());
+        // Padding and whitespace are ignored.
+        assert_eq!(base64_decode("Zm9v\nYmFy").unwrap(), b"foobar".to_vec());
+        assert!(base64_decode("not base64!").is_err());
+    }
+
+    #[test]
+    fn session_subkey_2022_is_blake3_derive_key() {
+        let psk: Vec<u8> = (0u8..32).collect();
+        let salt: Vec<u8> = (100u8..132).collect();
+        let expected = blake3::derive_key(SS2022_SUBKEY_CONTEXT, &[psk.clone(), salt.clone()].concat());
+        // 32-byte method uses the full derived key.
+        assert_eq!(
+            session_subkey(ShadowsocksCipher::Blake3Aes256Gcm, &psk, &salt),
+            expected.to_vec()
+        );
+        // 16-byte method takes the leading 16 bytes of the same XOF output.
+        let psk16: Vec<u8> = (0u8..16).collect();
+        let expected16 = blake3::derive_key(SS2022_SUBKEY_CONTEXT, &[psk16.clone(), salt.clone()].concat());
+        assert_eq!(
+            session_subkey(ShadowsocksCipher::Blake3Aes128Gcm, &psk16, &salt),
+            expected16[..16].to_vec()
+        );
     }
 
     #[test]

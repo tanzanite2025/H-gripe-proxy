@@ -32,6 +32,11 @@ fn key_size(cipher: ShadowsocksCipher) -> usize {
     match cipher {
         ShadowsocksCipher::Aes128Gcm => 16,
         ShadowsocksCipher::Aes256Gcm | ShadowsocksCipher::Chacha20IetfPoly1305 => 32,
+        ShadowsocksCipher::Blake3Aes128Gcm
+        | ShadowsocksCipher::Blake3Aes256Gcm
+        | ShadowsocksCipher::Blake3Chacha20Poly1305 => {
+            panic!("2017 fake udp server does not handle Shadowsocks 2022 ciphers")
+        }
     }
 }
 
@@ -108,6 +113,11 @@ impl AeadCipher {
             ShadowsocksCipher::Aes256Gcm => AeadCipher::Aes256(Box::new(Aes256Gcm::new_from_slice(subkey).unwrap())),
             ShadowsocksCipher::Chacha20IetfPoly1305 => {
                 AeadCipher::Chacha(Box::new(ChaCha20Poly1305::new_from_slice(subkey).unwrap()))
+            }
+            ShadowsocksCipher::Blake3Aes128Gcm
+            | ShadowsocksCipher::Blake3Aes256Gcm
+            | ShadowsocksCipher::Blake3Chacha20Poly1305 => {
+                panic!("2017 fake udp server does not handle Shadowsocks 2022 ciphers")
             }
         }
     }
