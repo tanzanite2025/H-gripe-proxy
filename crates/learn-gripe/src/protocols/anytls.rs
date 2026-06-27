@@ -21,15 +21,19 @@
 //!    marks EOF. A v2 server answers `cmdSYN` with `cmdSYNACK` (empty = ok, data
 //!    = error text) and `cmdSettings` with `cmdServerSettings`.
 //!
-//! The kernel pools sessions per server: each outbound connection runs one
-//! logical stream, but when that stream closes cleanly the TLS connection is
-//! returned to a per-server idle pool and the next connection to the same server
-//! reuses it — opening a fresh stream with the next `cmdSYN` instead of a new TLS
-//! handshake + auth (anytls-go's idle-session reuse). Streams are sequential per
-//! connection (one active stream at a time); concurrent multiplexing of several
-//! streams over one connection is left for later. A reused connection is
-//! liveness-probed first and pooled entries expire on an idle TTL, so a server
-//! that dropped an idle connection at most costs one wasted reuse attempt.
+//! The kernel multiplexes streams over per-server sessions: each session is one
+//! live TLS connection driven by a background task that owns the transport,
+//! demultiplexing inbound `cmdPSH`/`cmdFIN` to each logical stream and
+//! serialising every stream's writes through the per-session padding shaper. A
+//! new outbound connection opens another stream on an existing session to the
+//! same server (a fresh `cmdSYN` with the next id) — running concurrently with
+//! that session's other streams — and only does a new TLS handshake + auth when
+//! no session has a free slot (`MAX_STREAMS_PER_SESSION`). A session also stays
+//! registered while idle (no open streams) so a later connection reuses it
+//! instead of handshaking, expiring on an idle TTL; once broken or idle-expired
+//! it is evicted and its connection closed. Because the shared reader stalls all
+//! of a session's streams while one stream's bounded inbound buffer is full,
+//! per-session fan-out is capped (matching anytls-go's bounded per-stream pipe).
 //!
 //! **Padding-scheme traffic shaping** is applied, matching upstream
 //! (`anytls-go` `proxy/session/session.go` `writeConn` + `proxy/padding`). The
@@ -52,17 +56,18 @@
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::future::poll_fn;
 use std::io;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
-use std::task::{Context as TaskContext, Poll, ready};
+use std::task::{Context as TaskContext, Poll, Waker};
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use md5::Md5;
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf, ReadHalf, WriteHalf};
+use tokio::sync::{Notify, mpsc, oneshot};
 
 use crate::address::TargetAddr;
 use crate::config::outbound_opts::ProxyEntry;
@@ -272,80 +277,262 @@ fn apply_scheme_update(key: &ServerKey, raw: &[u8]) {
     }
 }
 
-/// Per-server pool of idle AnyTLS sessions: live TLS connections whose current
-/// stream has closed cleanly, available for the next connection to that server
-/// to reuse (opening a fresh stream id) instead of doing another TLS handshake +
-/// auth — anytls-go's idle-session reuse. Each entry records when it was returned
-/// so stale ones are evicted on access. Process-wide, like [`SCHEME_STORE`], with
-/// the same lazily-initialised `Mutex<Option<HashMap>>` idiom.
-static SESSION_POOL: Mutex<Option<HashMap<ServerKey, Vec<(Instant, SessionState)>>>> = Mutex::new(None);
-
-/// How long an idle pooled session may live before it is discarded on the next
-/// access. Comfortably under typical anytls server idle timeouts; since a reused
-/// session is also liveness-probed, an over-long TTL costs at most one wasted
-/// reuse attempt, never a relayed connection.
+/// Maximum logical streams multiplexed concurrently on one TLS session before a
+/// fresh connection is opened. Because the session's single reader stalls all of
+/// its streams while one stream's bounded inbound buffer is full, this caps the
+/// fan-out (and head-of-line coupling) a slow consumer can impose.
+const MAX_STREAMS_PER_SESSION: u32 = 8;
+/// Bounded depth (frames) of each per-stream inbound channel: caps buffering and
+/// backpressures the shared reader (anytls-go's bounded per-stream pipe).
+const STREAM_RECV_CAP: usize = 16;
+/// Bounded depth of the shared outbound write channel feeding the session
+/// writer; together with the writer awaiting each record it bounds write memory.
+const SESSION_WRITE_CAP: usize = 64;
+/// How long a session with no open streams stays registered for reuse before it
+/// is evicted on the next access and its connection closed.
 const SESSION_IDLE_TTL: Duration = Duration::from_secs(30);
-/// Cap on idle sessions pooled per server, bounding memory and fd use.
+/// Cap on live sessions tracked per server, bounding memory and fd use.
 const SESSION_POOL_MAX: usize = 8;
 
-/// Take a live idle session for `key` from the pool, or `None` if there is no
-/// reusable one. Entries idle past [`SESSION_IDLE_TTL`] are evicted, and each
-/// candidate is liveness-probed (a closed/broken connection is discarded and the
-/// next one tried) so a returned session is ready for a fresh stream.
-async fn take_pooled(key: &ServerKey) -> Option<SessionState> {
-    loop {
-        let candidate = {
-            let mut guard = SESSION_POOL.lock().expect("anytls session pool");
-            let map = guard.as_mut()?;
-            let list = map.get_mut(key)?;
-            list.retain(|(since, _)| since.elapsed() <= SESSION_IDLE_TTL);
-            // Most-recently returned first: likelier to still be alive.
-            list.pop().map(|(_, session)| session)
-        };
-        let mut session = candidate?;
-        if probe_alive(&mut session).await {
-            return Some(session);
+/// Control message from a logical stream to its session driver. Unbounded (low
+/// volume) so `cmdFIN`/close can be queued synchronously from `Drop`.
+enum Ctrl {
+    /// Open a new stream to `target`: the driver allocates the next id, writes
+    /// `cmdSYN` + `cmdPSH`(target) (prefixed with `cmdSettings` on the session's
+    /// first stream), registers `data` for inbound payloads, and replies the id.
+    Open {
+        target: TargetAddr,
+        data: mpsc::Sender<Vec<u8>>,
+        reply: oneshot::Sender<io::Result<u32>>,
+    },
+    /// Send this stream's `cmdFIN` (our half-close); keep routing inbound to it.
+    Fin { sid: u32 },
+    /// The stream was dropped: stop routing inbound to it and free its slot.
+    Close { sid: u32 },
+}
+
+/// One application write on a stream: a `writeConn` unit the driver frames as
+/// `cmdPSH`(s) and shapes. Bounded ([`SESSION_WRITE_CAP`]) for backpressure.
+struct WriteMsg {
+    sid: u32,
+    data: Vec<u8>,
+}
+
+/// State shared between a session's reader task, writer task and streams: the
+/// inbound demux table, liveness flag, writer-backpressure wakers, and the
+/// signal that lets the writer tell the reader to stop.
+struct SessionShared {
+    /// Open streams: id → inbound payload sender, used by the reader to demux
+    /// `cmdPSH` and registered by the writer when it opens a stream. Dropping a
+    /// sender (on `cmdFIN`/close) gives that stream's reader EOF.
+    streams: Mutex<HashMap<u32, mpsc::Sender<Vec<u8>>>>,
+    /// Set when the connection is unusable (transport died / `cmdAlert` / a
+    /// stream rejected): streams fail and the session is never reused.
+    broken: AtomicBool,
+    /// Wakers of streams whose `poll_write` found the bounded write channel full;
+    /// the writer wakes them after it consumes a write (freeing capacity).
+    write_wakers: Mutex<Vec<Waker>>,
+    /// Notified when the writer exits (all handles dropped) so the reader stops
+    /// and the read half is closed, fully tearing down the connection.
+    closing: Notify,
+}
+
+impl SessionShared {
+    fn wake_writers(&self) {
+        for waker in self.write_wakers.lock().expect("anytls write wakers").drain(..) {
+            waker.wake();
         }
-        // Dead connection: drop it (closing the transport) and try the next.
+    }
+
+    fn mark_broken(&self) {
+        self.broken.store(true, Ordering::Release);
+    }
+
+    fn is_broken(&self) -> bool {
+        self.broken.load(Ordering::Acquire)
+    }
+
+    /// Mark broken and drop every stream sender so all readers see EOF.
+    fn tear_down_streams(&self) {
+        self.mark_broken();
+        self.streams.lock().expect("anytls streams").clear();
+        self.wake_writers();
     }
 }
 
-/// Cheap liveness check before committing to reuse: poll the transport once
-/// without blocking. `Pending` (no data) presumes it alive; readable bytes are
-/// stale frames from the prior stream, buffered for the new stream's reader to
-/// skip by id; a clean EOF or error means the server closed the connection.
-async fn probe_alive(session: &mut SessionState) -> bool {
-    let mut scratch = [0u8; 4096];
-    let mut read_buf = ReadBuf::new(&mut scratch);
-    let outcome = poll_fn(|cx| match Pin::new(&mut session.inner).poll_read(cx, &mut read_buf) {
-        Poll::Ready(result) => Poll::Ready(Some(result)),
-        Poll::Pending => Poll::Ready(None),
-    })
-    .await;
-    match outcome {
-        None => true,
-        Some(Ok(())) => {
-            let filled = read_buf.filled();
-            if filled.is_empty() {
-                false
-            } else {
-                session.read_raw.extend_from_slice(filled);
-                true
+/// A handle to a live multiplexed AnyTLS session: the channels into its driver,
+/// shared liveness state, the count of open streams (for capacity + idle
+/// detection) and when it last went idle. Held by every stream on the session
+/// and (for reuse) by the per-server registry; the driver shuts down and the
+/// connection closes once the last handle is dropped.
+struct SessionHandle {
+    ctrl: mpsc::UnboundedSender<Ctrl>,
+    writes: mpsc::Sender<WriteMsg>,
+    shared: Arc<SessionShared>,
+    /// Currently-open streams, capped by [`MAX_STREAMS_PER_SESSION`].
+    active: AtomicU32,
+    /// When `active` last reached zero, for idle-TTL eviction; `None` while busy.
+    idle_since: Mutex<Option<Instant>>,
+}
+
+impl SessionHandle {
+    /// Whether this session is still usable for a new stream: not broken and, if
+    /// idle, still within the idle TTL.
+    fn alive(&self) -> bool {
+        if self.shared.is_broken() {
+            return false;
+        }
+        if self.active.load(Ordering::Acquire) == 0
+            && let Some(since) = *self.idle_since.lock().expect("anytls idle_since")
+        {
+            return since.elapsed() <= SESSION_IDLE_TTL;
+        }
+        true
+    }
+
+    /// Try to reserve a stream slot (`active < MAX` and not broken). Clears the
+    /// idle marker on the idle→busy transition.
+    fn reserve_slot(&self) -> bool {
+        let mut cur = self.active.load(Ordering::Acquire);
+        loop {
+            if cur >= MAX_STREAMS_PER_SESSION || self.shared.is_broken() {
+                return false;
+            }
+            match self
+                .active
+                .compare_exchange_weak(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
+            {
+                Ok(_) => {
+                    *self.idle_since.lock().expect("anytls idle_since") = None;
+                    return true;
+                }
+                Err(actual) => cur = actual,
             }
         }
-        Some(Err(_)) => false,
+    }
+
+    /// Release a stream slot; record the idle instant when the last one closes.
+    fn release_slot(&self) {
+        if self.active.fetch_sub(1, Ordering::AcqRel) == 1 {
+            *self.idle_since.lock().expect("anytls idle_since") = Some(Instant::now());
+        }
     }
 }
 
-/// Return a cleanly-closed session to its server's idle pool for reuse, unless
-/// the pool is at capacity (then the session is dropped, closing the connection).
-fn return_to_pool(key: ServerKey, session: SessionState) {
-    let mut guard = SESSION_POOL.lock().expect("anytls session pool");
+/// Per-server registry of live multiplexed sessions: a new connection first
+/// tries to open another stream on an existing session (concurrent
+/// multiplexing / idle reuse) before a fresh TLS handshake + auth. Broken and
+/// idle-expired sessions are evicted on access. Process-wide, like
+/// [`SCHEME_STORE`], with the same lazily-initialised `Mutex<Option<HashMap>>`.
+static SESSION_REGISTRY: Mutex<Option<HashMap<ServerKey, Vec<Arc<SessionHandle>>>>> = Mutex::new(None);
+
+/// Find a live registered session for `key` with a free stream slot and reserve
+/// it, evicting broken/idle-expired entries. `None` means a new session is
+/// needed.
+fn take_reusable(key: &ServerKey) -> Option<Arc<SessionHandle>> {
+    let mut guard = SESSION_REGISTRY.lock().expect("anytls session registry");
+    let map = guard.as_mut()?;
+    let list = map.get_mut(key)?;
+    list.retain(|handle| handle.alive());
+    let mut chosen = None;
+    for handle in list.iter() {
+        if handle.reserve_slot() {
+            chosen = Some(handle.clone());
+            break;
+        }
+    }
+    if list.is_empty() {
+        map.remove(key);
+    }
+    chosen
+}
+
+/// Register a freshly-created session for reuse, bounded by [`SESSION_POOL_MAX`].
+fn register_session(key: ServerKey, handle: Arc<SessionHandle>) {
+    let mut guard = SESSION_REGISTRY.lock().expect("anytls session registry");
     let map = guard.get_or_insert_with(HashMap::new);
     let list = map.entry(key).or_default();
+    list.retain(|handle| handle.alive());
     if list.len() < SESSION_POOL_MAX {
-        list.push((Instant::now(), session));
+        list.push(handle);
     }
+}
+
+/// Spawn the two background tasks driving a new session over `inner` (auth
+/// header already sent) and return its handle with one stream slot pre-reserved
+/// for the opener. The transport is split so a writer task and a reader task run
+/// independently (a blocked transport write never stalls reads, and vice versa):
+/// the writer owns the write half, the padding shaper and the stream-id counter,
+/// applying control/data commands as shaped records; the reader owns the read
+/// half and demultiplexes inbound `cmdPSH`/`cmdFIN` to each stream's channel.
+fn spawn_session(inner: BoxedStream, scheme: PaddingScheme, key: ServerKey) -> Arc<SessionHandle> {
+    let (ctrl_tx, ctrl_rx) = mpsc::unbounded_channel();
+    let (write_tx, write_rx) = mpsc::channel(SESSION_WRITE_CAP);
+    let (heart_tx, heart_rx) = mpsc::unbounded_channel();
+    let shared = Arc::new(SessionShared {
+        streams: Mutex::new(HashMap::new()),
+        broken: AtomicBool::new(false),
+        write_wakers: Mutex::new(Vec::new()),
+        closing: Notify::new(),
+    });
+    let handle = Arc::new(SessionHandle {
+        ctrl: ctrl_tx,
+        writes: write_tx,
+        shared: shared.clone(),
+        active: AtomicU32::new(1),
+        idle_since: Mutex::new(None),
+    });
+    let (rd, wr) = tokio::io::split(inner);
+    let writer = SessionWriter {
+        wr,
+        shaper: PaddingShaper::new(scheme),
+        out: VecDeque::new(),
+        next_id: STREAM_ID,
+        settings_sent: false,
+        ctrl_rx,
+        write_rx,
+        heart_rx,
+        shared: shared.clone(),
+    };
+    let reader = SessionReader {
+        rd,
+        read_raw: Vec::new(),
+        server_key: key,
+        heart_tx,
+        shared,
+    };
+    tokio::spawn(writer.run());
+    tokio::spawn(reader.run());
+    handle
+}
+
+/// Open a new logical stream to `target` on `handle` (new or reused session).
+async fn open_on(handle: &Arc<SessionHandle>, target: &TargetAddr) -> Result<MuxStream> {
+    if handle.shared.is_broken() {
+        anyhow::bail!("anytls: session broken");
+    }
+    let (data_tx, data_rx) = mpsc::channel(STREAM_RECV_CAP);
+    let (reply_tx, reply_rx) = oneshot::channel();
+    handle
+        .ctrl
+        .send(Ctrl::Open {
+            target: target.clone(),
+            data: data_tx,
+            reply: reply_tx,
+        })
+        .map_err(|_| anyhow!("anytls: session closed"))?;
+    let sid = reply_rx.await.map_err(|_| anyhow!("anytls: session closed"))??;
+    Ok(MuxStream {
+        sid,
+        data_rx,
+        writes: handle.writes.clone(),
+        handle: handle.clone(),
+        shared: handle.shared.clone(),
+        leftover: Vec::new(),
+        leftover_pos: 0,
+        eof: false,
+        fin_sent: false,
+    })
 }
 
 /// Fully-resolved AnyTLS outbound parameters.
@@ -401,41 +588,41 @@ pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Resu
     Ok(Box::new(acquire_stream(config, target).await?))
 }
 
-/// Acquire an AnyTLS stream to `target`: reuse a live pooled session for the
-/// config's server if one is available (opening a fresh stream on it), otherwise
-/// establish a new TLS session (handshake + auth + `cmdSettings`). Either way the
-/// returned stream has its opening `cmdSYN` + `cmdPSH`(target) flushed and is
-/// ready to relay.
-async fn acquire_stream(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<AnyTlsStream> {
+/// Acquire an AnyTLS stream to `target`: open another stream on a live
+/// registered session for the config's server if one has a free slot (concurrent
+/// multiplexing or idle reuse), otherwise establish a new TLS session (handshake
+/// then auth, after which the driver writes `cmdSettings` on its first stream).
+/// Either way the returned stream has its `cmdSYN` + `cmdPSH`(target) queued and
+/// is ready to relay.
+async fn acquire_stream(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<MuxStream> {
     let key = ServerKey {
         server: config.server.clone(),
         port: config.port,
     };
 
-    // Reuse path: a pooled connection just needs a new `cmdSYN` + `cmdPSH`(target)
-    // for its next stream id; the session keeps its own shaper and scheme.
-    if let Some(session) = take_pooled(&key).await {
-        let sid = session.stream_id;
-        let mut anytls = AnyTlsStream::from_pool(session, key);
-        anytls.enqueue_session_unit(build_stream_open(sid, target));
-        anytls.flush().await.context("anytls: open stream on pooled session")?;
-        return Ok(anytls);
+    // Reuse path: open another stream on an existing session (its driver assigns
+    // the next id and writes `cmdSYN` + `cmdPSH`). On failure the session just
+    // broke; release the reserved slot and fall through to a fresh connection.
+    if let Some(handle) = take_reusable(&key) {
+        match open_on(&handle, target).await {
+            Ok(stream) => return Ok(stream),
+            Err(_) => handle.release_slot(),
+        }
     }
 
-    // New-session path: TLS handshake, auth (packet 0), then the padded packet-1
-    // flush of `cmdSettings` + `cmdSYN` + `cmdPSH`(target), as anytls-go does
-    // after `OpenStream` clears buffering.
+    // New-session path: TLS handshake + auth (packet 0). The spawned driver then
+    // writes the padded packet-1 flush of `cmdSettings` + `cmdSYN` +
+    // `cmdPSH`(target) when this first stream is opened, as anytls-go does after
+    // `OpenStream` clears buffering.
     let scheme = current_scheme(&key);
     let mut transport = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
     transport
         .write_all(&build_auth_header(&config.password_sha256, &scheme))
         .await
         .context("anytls: send auth header")?;
-    let init = build_session_init(&scheme, target);
-    let mut anytls = AnyTlsStream::new(transport, (*scheme).clone(), key, STREAM_ID);
-    anytls.enqueue_session_unit(init);
-    anytls.flush().await.context("anytls: send settings + open stream")?;
-    Ok(anytls)
+    let handle = spawn_session(transport, (*scheme).clone(), key.clone());
+    register_session(key, handle.clone());
+    open_on(&handle, target).await.context("anytls: open first stream")
 }
 
 /// Open an AnyTLS outbound for UDP datagrams to `target` via udp-over-tcp v2
@@ -493,21 +680,21 @@ fn build_auth_header(password_sha256: &[u8; 32], scheme: &PaddingScheme) -> Vec<
     buf
 }
 
-/// Build the packet-1 session bytes: `cmdSettings` (advertising the scheme md5),
-/// `cmdSYN` opening the stream, and the `cmdPSH` carrying the SOCKS5-encoded
-/// proxy target. The caller feeds the whole blob through the padding shaper as a
-/// single `writeConn` unit.
-fn build_session_init(scheme: &PaddingScheme, target: &TargetAddr) -> Vec<u8> {
+/// Build the packet-1 session bytes for the session's first stream:
+/// `cmdSettings` (advertising the scheme md5), `cmdSYN` opening stream `sid`, and
+/// the `cmdPSH` carrying the SOCKS5-encoded proxy target. The caller feeds the
+/// whole blob through the padding shaper as a single `writeConn` unit.
+fn build_session_init(scheme: &PaddingScheme, sid: u32, target: &TargetAddr) -> Vec<u8> {
     let mut buf = Vec::with_capacity(64 + FRAME_HEADER_LEN * 2 + 64);
     let settings = format!(
         "v={PROTOCOL_VERSION}\nclient={CLIENT_NAME}\npadding-md5={}",
         scheme.md5_hex
     );
     push_frame(&mut buf, CMD_SETTINGS, 0, settings.as_bytes());
-    push_frame(&mut buf, CMD_SYN, STREAM_ID, &[]);
+    push_frame(&mut buf, CMD_SYN, sid, &[]);
     let mut addr = Vec::with_capacity(1 + 256 + 2);
     socks5::encode_address(&mut addr, target);
-    push_frame(&mut buf, CMD_PSH, STREAM_ID, &addr);
+    push_frame(&mut buf, CMD_PSH, sid, &addr);
     buf
 }
 
@@ -603,300 +790,359 @@ impl PaddingShaper {
     }
 }
 
-/// The live IO + shaping state of an AnyTLS session that can outlive a single
-/// logical stream: the TLS transport, the padding shaper (whose `writeConn`
-/// counter is per-connection), the outgoing record queue, the unparsed read
-/// buffer, and the current stream id. It is moved out of a cleanly-closed
-/// [`AnyTlsStream`] back into [`SESSION_POOL`] so the next connection to the same
-/// server reuses the TLS connection (a fresh `cmdSYN` with the next stream id)
-/// instead of handshaking again.
-struct SessionState {
-    inner: BoxedStream,
-    /// Outgoing records pending write to the inner transport. Each entry is one
-    /// intended inner write (one TLS record) produced by the padding shaper, so
-    /// record sizes follow the scheme rather than leaking frame boundaries.
-    out: VecDeque<Vec<u8>>,
-    /// Bytes already written from `out.front()` (partial-write resume point).
-    out_pos: usize,
-    /// Padding-scheme state shaping the outgoing record stream.
+/// The writer task of one AnyTLS session: it owns the transport's write half,
+/// the per-connection padding shaper and the stream-id counter. It serialises
+/// every stream's writes, control frames (`cmdSYN`/`cmdPSH`/`cmdFIN`) and the
+/// reader's heartbeat responses into shaped records on the transport. It runs
+/// until the transport write dies or the last [`SessionHandle`] is dropped
+/// (closing both command channels), then shuts the write half down, tears the
+/// streams down (readers see EOF) and signals the reader to stop.
+struct SessionWriter {
+    wr: WriteHalf<BoxedStream>,
+    /// Padding-scheme state shaping the outgoing record stream (per session, so
+    /// its `writeConn` counter spans all of this connection's streams).
     shaper: PaddingShaper,
-    /// Raw bytes read from the inner transport not yet parsed into frames.
-    read_raw: Vec<u8>,
-    /// The id of the stream currently open on this connection. Monotonic across
-    /// reuses, so frames left over from a previous (closed) stream carry an
-    /// older id and are skipped.
-    stream_id: u32,
+    /// Shaped records pending write to the transport (each becomes a TLS record).
+    out: VecDeque<Vec<u8>>,
+    /// Next stream id to assign (monotonic across this session's streams).
+    next_id: u32,
+    /// Whether `cmdSettings` has been written (once, on the first stream).
+    settings_sent: bool,
+    ctrl_rx: mpsc::UnboundedReceiver<Ctrl>,
+    write_rx: mpsc::Receiver<WriteMsg>,
+    /// Heartbeat-response requests forwarded by the reader (carries the sid).
+    heart_rx: mpsc::UnboundedReceiver<u32>,
+    shared: Arc<SessionShared>,
 }
 
-impl SessionState {
-    /// Flush queued outgoing records to the inner transport, one record per
-    /// `poll_write` so each becomes its own TLS record.
-    fn poll_drain(&mut self, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
-        while let Some(front) = self.out.front() {
-            if self.out_pos >= front.len() {
-                self.out.pop_front();
-                self.out_pos = 0;
-                continue;
+impl SessionWriter {
+    /// The select loop: flush pending records, then service the next of {control
+    /// message, heartbeat-response request, application write}. Exits on a
+    /// transport write error or once both command channels are closed.
+    async fn run(mut self) {
+        let mut ctrl_open = true;
+        let mut write_open = true;
+        let mut heart_open = true;
+        loop {
+            if self.flush_out().await.is_err() {
+                break;
             }
-            let n = ready!(Pin::new(&mut self.inner).poll_write(cx, &front[self.out_pos..]))?;
-            if n == 0 {
-                return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "anytls: write zero")));
+            if !ctrl_open && !write_open {
+                break;
             }
-            self.out_pos += n;
+            tokio::select! {
+                biased;
+                ctrl = self.ctrl_rx.recv(), if ctrl_open => match ctrl {
+                    Some(c) => self.handle_ctrl(c),
+                    None => ctrl_open = false,
+                },
+                sid = self.heart_rx.recv(), if heart_open => match sid {
+                    Some(sid) => {
+                        let mut frame = Vec::with_capacity(FRAME_HEADER_LEN);
+                        push_frame(&mut frame, CMD_HEART_RESPONSE, sid, &[]);
+                        self.shaper.shape(&mut self.out, frame);
+                    }
+                    None => heart_open = false,
+                },
+                msg = self.write_rx.recv(), if write_open => {
+                    self.shared.wake_writers();
+                    match msg {
+                        Some(m) => self.handle_write(m),
+                        None => write_open = false,
+                    }
+                }
+            }
         }
-        Poll::Ready(Ok(()))
+        let _ = self.wr.shutdown().await;
+        self.shared.tear_down_streams();
+        self.shared.closing.notify_waiters();
     }
 
-    /// Shape one `writeConn` unit of complete frame bytes into the outgoing queue.
-    fn enqueue(&mut self, frame_bytes: Vec<u8>) {
-        self.shaper.shape(&mut self.out, frame_bytes);
-    }
-}
-
-/// Session-layer stream over the TLS transport: relay writes become `cmdPSH`
-/// frames; reads strip the framing and surface only this stream's `cmdPSH`
-/// payload, handling the control frames (`cmdSYNACK`/`cmdFIN`/`cmdAlert`/
-/// `cmdHeartRequest`/padding) transparently. On a clean close (our `cmdFIN` sent
-/// and the server's received, transport intact) the [`SessionState`] is returned
-/// to the per-server pool for reuse; otherwise it is dropped, closing the
-/// connection.
-struct AnyTlsStream {
-    /// `Some` while live; taken on `Drop` to either pool the session (clean
-    /// close) or drop the transport (closing the connection).
-    state: Option<SessionState>,
-    /// Server endpoint: routes a received `cmdUpdatePaddingScheme` to the right
-    /// server's scheme store, and keys the session pool on close.
-    server_key: ServerKey,
-    /// Decoded `cmdPSH` payload pending delivery to the reader.
-    plain: Vec<u8>,
-    plain_pos: usize,
-    /// Reads are exhausted (the server closed this stream, or the transport).
-    eof: bool,
-    /// The server closed this stream with `cmdFIN` (as opposed to the transport
-    /// dying) — a precondition for returning the connection to the pool.
-    stream_finished: bool,
-    /// The transport hit EOF/error, or the server rejected the stream / sent
-    /// `cmdAlert` — the connection is unusable and must not be pooled.
-    broken: bool,
-    /// We have sent our `cmdFIN` for this stream.
-    fin_sent: bool,
-}
-
-impl AnyTlsStream {
-    fn new(inner: BoxedStream, scheme: PaddingScheme, server_key: ServerKey, stream_id: u32) -> Self {
-        Self::with_state(
-            SessionState {
-                inner,
-                out: VecDeque::new(),
-                out_pos: 0,
-                shaper: PaddingShaper::new(scheme),
-                read_raw: Vec::new(),
-                stream_id,
-            },
-            server_key,
-        )
-    }
-
-    /// Build a stream over a session taken from the pool, opening a fresh stream
-    /// on the already-authenticated connection.
-    fn from_pool(session: SessionState, server_key: ServerKey) -> Self {
-        Self::with_state(session, server_key)
-    }
-
-    fn with_state(state: SessionState, server_key: ServerKey) -> Self {
-        Self {
-            state: Some(state),
-            server_key,
-            plain: Vec::new(),
-            plain_pos: 0,
-            eof: false,
-            stream_finished: false,
-            broken: false,
-            fin_sent: false,
+    /// Write all queued shaped records to the transport, one `write_all` each so
+    /// each becomes its own TLS record, then flush. Marks the session broken on
+    /// error.
+    async fn flush_out(&mut self) -> io::Result<()> {
+        if self.out.is_empty() {
+            return Ok(());
         }
+        while let Some(record) = self.out.pop_front() {
+            if let Err(e) = self.wr.write_all(&record).await {
+                self.shared.mark_broken();
+                return Err(e);
+            }
+        }
+        self.wr.flush().await.inspect_err(|_| self.shared.mark_broken())
     }
 
-    /// The current stream id (the id this logical stream's frames carry).
-    fn stream_id(&self) -> u32 {
-        self.state.as_ref().map_or(0, |s| s.stream_id)
-    }
-
-    /// Enqueue a multi-frame `writeConn` unit (the packet-1 settings + SYN + PSH
-    /// blob, or a reused session's SYN + PSH) through the padding shaper.
-    fn enqueue_session_unit(&mut self, frame_bytes: Vec<u8>) {
-        if let Some(state) = self.state.as_mut() {
-            state.enqueue(frame_bytes);
+    /// Apply a control message: open a stream (assign id, write `cmdSYN`+`cmdPSH`,
+    /// register its channel), send a stream's `cmdFIN`, or drop a closed stream.
+    fn handle_ctrl(&mut self, ctrl: Ctrl) {
+        match ctrl {
+            Ctrl::Open { target, data, reply } => {
+                let sid = self.next_id;
+                self.next_id = self.next_id.wrapping_add(1);
+                self.shared.streams.lock().expect("anytls streams").insert(sid, data);
+                let unit = if self.settings_sent {
+                    build_stream_open(sid, &target)
+                } else {
+                    self.settings_sent = true;
+                    build_session_init(&self.shaper.scheme, sid, &target)
+                };
+                self.shaper.shape(&mut self.out, unit);
+                let _ = reply.send(Ok(sid));
+            }
+            Ctrl::Fin { sid } => {
+                if self.shared.streams.lock().expect("anytls streams").contains_key(&sid) {
+                    let mut frame = Vec::with_capacity(FRAME_HEADER_LEN);
+                    push_frame(&mut frame, CMD_FIN, sid, &[]);
+                    self.shaper.shape(&mut self.out, frame);
+                }
+            }
+            Ctrl::Close { sid } => {
+                self.shared.streams.lock().expect("anytls streams").remove(&sid);
+            }
         }
     }
 
-    /// Whether the connection can be returned to the pool: our `cmdFIN` was sent,
-    /// the server closed its half with `cmdFIN`, and nothing broke the transport.
-    fn reusable(&self) -> bool {
-        self.fin_sent && self.stream_finished && !self.broken && self.state.is_some()
-    }
-}
-
-impl Drop for AnyTlsStream {
-    fn drop(&mut self) {
-        if !self.reusable() {
+    /// Frame and shape one application write as `cmdPSH`(s) for its stream,
+    /// dropping it if the stream has since closed.
+    fn handle_write(&mut self, msg: WriteMsg) {
+        if !self
+            .shared
+            .streams
+            .lock()
+            .expect("anytls streams")
+            .contains_key(&msg.sid)
+        {
             return;
         }
-        if let Some(mut session) = self.state.take() {
-            // The next stream on this connection gets the following id; any
-            // leftover frames from the just-closed stream carry the old id and
-            // are skipped by the reusing reader.
-            session.stream_id = session.stream_id.wrapping_add(1);
-            return_to_pool(self.server_key.clone(), session);
+        let mut pos = 0;
+        while pos < msg.data.len() {
+            let take = (msg.data.len() - pos).min(MAX_PSH_CHUNK);
+            let mut frame = Vec::with_capacity(FRAME_HEADER_LEN + take);
+            push_frame(&mut frame, CMD_PSH, msg.sid, &msg.data[pos..pos + take]);
+            self.shaper.shape(&mut self.out, frame);
+            pos += take;
         }
     }
 }
 
-impl AsyncRead for AnyTlsStream {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
-        let this = self.get_mut();
-        let state = this.state.as_mut().expect("anytls stream state present");
-        // Best-effort flush of any queued control replies (e.g. heart responses
-        // produced while parsing). Errors/pending here do not block the read.
-        let _ = state.poll_drain(cx);
+/// The reader task of one AnyTLS session: it owns the transport's read half and
+/// demultiplexes inbound frames, routing each `cmdPSH` payload to its stream's
+/// bounded channel (awaiting capacity, head-of-line, without blocking the writer
+/// task) and dropping a stream's sender on `cmdFIN`/reject so its reader sees
+/// EOF. It exits on transport EOF/error or when the writer signals closing, then
+/// tears down all streams.
+struct SessionReader {
+    rd: ReadHalf<BoxedStream>,
+    /// Raw bytes read from the transport not yet parsed into frames.
+    read_raw: Vec<u8>,
+    /// Server endpoint, to route a received `cmdUpdatePaddingScheme`.
+    server_key: ServerKey,
+    /// Forwards heartbeat-response requests to the writer (only it may write).
+    heart_tx: mpsc::UnboundedSender<u32>,
+    shared: Arc<SessionShared>,
+}
 
+impl SessionReader {
+    async fn run(mut self) {
+        let mut buf = vec![0u8; 16 * 1024];
         loop {
-            if this.plain_pos < this.plain.len() {
-                let n = buf.remaining().min(this.plain.len() - this.plain_pos);
-                buf.put_slice(&this.plain[this.plain_pos..this.plain_pos + n]);
-                this.plain_pos += n;
-                return Poll::Ready(Ok(()));
+            if !self.parse().await {
+                break;
             }
-            if this.eof {
-                return Poll::Ready(Ok(()));
+            tokio::select! {
+                biased;
+                _ = self.shared.closing.notified() => break,
+                res = self.rd.read(&mut buf) => match res {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => self.read_raw.extend_from_slice(&buf[..n]),
+                },
             }
+        }
+        self.shared.tear_down_streams();
+    }
 
-            // Need a full frame: a 7-byte header, then its `len` body bytes.
-            let need = if state.read_raw.len() < FRAME_HEADER_LEN {
-                FRAME_HEADER_LEN
-            } else {
-                FRAME_HEADER_LEN + u16::from_be_bytes([state.read_raw[5], state.read_raw[6]]) as usize
-            };
-            if state.read_raw.len() < need {
-                let mut scratch = [0u8; 4096];
-                let mut read_buf = ReadBuf::new(&mut scratch);
-                ready!(Pin::new(&mut state.inner).poll_read(cx, &mut read_buf))?;
-                let filled = read_buf.filled();
-                if filled.is_empty() {
-                    // Peer closed the transport; the stream ends but the
-                    // connection is broken and must not be pooled.
-                    this.eof = true;
-                    this.broken = true;
-                    return Poll::Ready(Ok(()));
-                }
-                state.read_raw.extend_from_slice(filled);
-                continue;
-            }
+    /// Look up a stream's sender (cloned, without holding the lock across the
+    /// await) and deliver `data`, awaiting capacity. Drops the stream if its
+    /// receiver is gone. Takes `shared` (not `&self`) so the future stays `Send`.
+    async fn deliver(shared: &SessionShared, sid: u32, data: Vec<u8>) {
+        let tx = shared.streams.lock().expect("anytls streams").get(&sid).cloned();
+        let Some(tx) = tx else {
+            return; // stream gone: drop the payload
+        };
+        if tx.reserve().await.map(|p| p.send(data)).is_err() {
+            shared.streams.lock().expect("anytls streams").remove(&sid);
+        }
+    }
 
-            let cmd = state.read_raw[0];
-            let stream_id = u32::from_be_bytes([
-                state.read_raw[1],
-                state.read_raw[2],
-                state.read_raw[3],
-                state.read_raw[4],
-            ]);
-            let len = u16::from_be_bytes([state.read_raw[5], state.read_raw[6]]) as usize;
-            let data: Vec<u8> = state.read_raw[FRAME_HEADER_LEN..FRAME_HEADER_LEN + len].to_vec();
-            state.read_raw.drain(..FRAME_HEADER_LEN + len);
+    /// Parse complete frames from `read_raw`, routing payloads to streams. Awaits
+    /// channel capacity per `cmdPSH` (head-of-line). Returns `false` if the
+    /// session must shut down (`cmdAlert`).
+    async fn parse(&mut self) -> bool {
+        loop {
+            if self.read_raw.len() < FRAME_HEADER_LEN {
+                return true;
+            }
+            let len = u16::from_be_bytes([self.read_raw[5], self.read_raw[6]]) as usize;
+            let need = FRAME_HEADER_LEN + len;
+            if self.read_raw.len() < need {
+                return true;
+            }
+            let cmd = self.read_raw[0];
+            let sid = u32::from_be_bytes([self.read_raw[1], self.read_raw[2], self.read_raw[3], self.read_raw[4]]);
+            let data: Vec<u8> = self.read_raw[FRAME_HEADER_LEN..need].to_vec();
+            self.read_raw.drain(..need);
 
             match cmd {
-                CMD_PSH if stream_id == state.stream_id => {
-                    this.plain = data;
-                    this.plain_pos = 0;
+                CMD_PSH => Self::deliver(&self.shared, sid, data).await,
+                // The server closed this stream (reader sees EOF) — the session
+                // stays up for its other streams.
+                CMD_FIN => {
+                    self.shared.streams.lock().expect("anytls streams").remove(&sid);
                 }
-                CMD_FIN if stream_id == state.stream_id => {
-                    this.eof = true;
-                    this.stream_finished = true;
-                    return Poll::Ready(Ok(()));
+                // A non-empty `cmdSYNACK` rejects the stream; its reader sees EOF.
+                CMD_SYNACK if !data.is_empty() => {
+                    self.shared.streams.lock().expect("anytls streams").remove(&sid);
                 }
-                CMD_SYNACK if stream_id == state.stream_id && !data.is_empty() => {
-                    this.broken = true;
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::ConnectionRefused,
-                        format!("anytls: stream rejected: {}", String::from_utf8_lossy(&data)),
-                    )));
-                }
+                // The connection is unusable: stop and mark broken.
                 CMD_ALERT => {
-                    this.broken = true;
-                    return Poll::Ready(Err(io::Error::other(format!(
-                        "anytls: server alert: {}",
-                        String::from_utf8_lossy(&data)
-                    ))));
+                    self.shared.mark_broken();
+                    return false;
                 }
                 CMD_HEART_REQUEST => {
-                    let mut frame = Vec::with_capacity(FRAME_HEADER_LEN);
-                    push_frame(&mut frame, CMD_HEART_RESPONSE, stream_id, &[]);
-                    state.enqueue(frame);
-                    let _ = state.poll_drain(cx);
+                    let _ = self.heart_tx.send(sid);
                 }
-                // Store a server-pushed scheme for this server's future
-                // connections; the current session keeps its own scheme.
-                CMD_UPDATE_PADDING_SCHEME => apply_scheme_update(&this.server_key, &data),
-                // Padding, settings, heart responses, the stream's own
-                // SYN/SYNACK(ok), and frames left over from a previous stream (an
-                // older id) carry nothing this stream needs: read past them.
-                CMD_WASTE | CMD_SETTINGS | CMD_SERVER_SETTINGS | CMD_HEART_RESPONSE | CMD_SYN | CMD_SYNACK
-                | CMD_PSH | CMD_FIN => {}
+                // Store a server-pushed scheme for this server's future sessions.
+                CMD_UPDATE_PADDING_SCHEME => apply_scheme_update(&self.server_key, &data),
+                // Padding, server settings, heart responses and our own
+                // SYN/SYNACK(ok) carry nothing to deliver.
+                CMD_WASTE | CMD_SETTINGS | CMD_SERVER_SETTINGS | CMD_HEART_RESPONSE | CMD_SYN => {}
                 _ => {}
             }
         }
     }
 }
 
-impl AsyncWrite for AnyTlsStream {
+/// A logical stream multiplexed on an AnyTLS session: a lightweight handle over
+/// the shared session tasks. Reads pull this stream's demultiplexed `cmdPSH`
+/// payloads from a bounded channel filled by the session reader (which handles
+/// all control frames); writes hand `cmdPSH` units to the session writer over a
+/// bounded channel (backpressured); shutdown/drop queue this stream's `cmdFIN`
+/// and free its session slot, leaving the connection up for its other streams.
+struct MuxStream {
+    /// This stream's id (the id its frames carry); fixed for the stream's life.
+    sid: u32,
+    /// Demultiplexed inbound `cmdPSH` payloads from the driver; closed (EOF) when
+    /// the server FINs this stream or the session ends.
+    data_rx: mpsc::Receiver<Vec<u8>>,
+    /// The session's bounded write channel (shared by all its streams).
+    writes: mpsc::Sender<WriteMsg>,
+    /// Keeps the session alive while this stream lives, and carries the control
+    /// channel and slot accounting used on close.
+    handle: Arc<SessionHandle>,
+    /// Shared liveness + writer-wakeup state.
+    shared: Arc<SessionShared>,
+    /// Inbound payload being handed to the reader (front consumed first).
+    leftover: Vec<u8>,
+    leftover_pos: usize,
+    /// Reads are exhausted (server FIN or session ended).
+    eof: bool,
+    /// We have queued this stream's `cmdFIN`.
+    fin_sent: bool,
+}
+
+impl Drop for MuxStream {
+    fn drop(&mut self) {
+        if !self.fin_sent {
+            let _ = self.handle.ctrl.send(Ctrl::Fin { sid: self.sid });
+            self.fin_sent = true;
+        }
+        let _ = self.handle.ctrl.send(Ctrl::Close { sid: self.sid });
+        self.handle.release_slot();
+    }
+}
+
+impl AsyncRead for MuxStream {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        loop {
+            if this.leftover_pos < this.leftover.len() {
+                let n = buf.remaining().min(this.leftover.len() - this.leftover_pos);
+                buf.put_slice(&this.leftover[this.leftover_pos..this.leftover_pos + n]);
+                this.leftover_pos += n;
+                return Poll::Ready(Ok(()));
+            }
+            if this.eof {
+                return Poll::Ready(Ok(()));
+            }
+            match this.data_rx.poll_recv(cx) {
+                // Skip empty payloads rather than spin on a zero-length read.
+                Poll::Ready(Some(data)) => {
+                    this.leftover = data;
+                    this.leftover_pos = 0;
+                }
+                Poll::Ready(None) => {
+                    this.eof = true;
+                    return Poll::Ready(Ok(()));
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
+impl AsyncWrite for MuxStream {
     fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
-        let sid = this.stream_id();
-        let state = this.state.as_mut().expect("anytls stream state present");
-        ready!(state.poll_drain(cx))?;
+        if this.shared.is_broken() {
+            return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()));
+        }
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
         let take = buf.len().min(MAX_PSH_CHUNK);
-        let mut frame = Vec::with_capacity(FRAME_HEADER_LEN + take);
-        push_frame(&mut frame, CMD_PSH, sid, &buf[..take]);
-        state.enqueue(frame);
-        if let Poll::Ready(Err(e)) = state.poll_drain(cx) {
-            return Poll::Ready(Err(e));
+        match this.writes.try_send(WriteMsg {
+            sid: this.sid,
+            data: buf[..take].to_vec(),
+        }) {
+            Ok(()) => Poll::Ready(Ok(take)),
+            // The session writer wakes parked writers after it consumes a write.
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                this.shared
+                    .write_wakers
+                    .lock()
+                    .expect("anytls write wakers")
+                    .push(cx.waker().clone());
+                Poll::Pending
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())),
         }
-        Poll::Ready(Ok(take))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
-        let this = self.get_mut();
-        let state = this.state.as_mut().expect("anytls stream state present");
-        ready!(state.poll_drain(cx))?;
-        Pin::new(&mut state.inner).poll_flush(cx)
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        // Accepted writes are owned by the session writer, which flushes the
+        // transport each loop iteration; the stream itself has nothing to flush.
+        Poll::Ready(Ok(()))
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        let sid = this.stream_id();
-        let state = this.state.as_mut().expect("anytls stream state present");
-        ready!(state.poll_drain(cx))?;
         if !this.fin_sent {
-            let mut frame = Vec::with_capacity(FRAME_HEADER_LEN);
-            push_frame(&mut frame, CMD_FIN, sid, &[]);
-            state.enqueue(frame);
             this.fin_sent = true;
+            // `cmdFIN` half-closes only this stream; the session stays up. Drop
+            // frees the slot and stops inbound routing.
+            let _ = this.handle.ctrl.send(Ctrl::Fin { sid: this.sid });
         }
-        ready!(state.poll_drain(cx))?;
-        // Do not shut down the inner transport: `cmdFIN` closes only this stream,
-        // leaving the TLS connection healthy for reuse. The transport is closed
-        // by dropping the session when it is not returned to the pool.
-        Pin::new(&mut state.inner).poll_flush(cx)
+        Poll::Ready(Ok(()))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::net::{Ipv4Addr, SocketAddr};
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
 
     use super::*;
     use crate::config::outbound_opts::ProxyEntry;
@@ -950,7 +1196,7 @@ mod tests {
     fn session_init_carries_settings_syn_and_target() {
         let target = TargetAddr::Domain("example.com".to_string(), 443);
         let scheme = PaddingScheme::default_scheme();
-        let init = build_session_init(&scheme, &target);
+        let init = build_session_init(&scheme, STREAM_ID, &target);
 
         // cmdSettings frame (sid 0) with v / client / padding-md5.
         let mut pos = 0;
@@ -1197,16 +1443,15 @@ mod tests {
         stream.write_all(&frame).await.unwrap();
     }
 
-    /// A minimal anytls server that handles multiple *sequential* streams on one
-    /// connection: it records each `cmdSYN`'s stream id, acks it, treats the
-    /// first `cmdPSH` of a stream as the target address and echoes the rest, and
-    /// answers `cmdFIN` with `cmdFIN` (closing only that stream). If
-    /// `close_after_first_stream` is set it drops the connection after the first
-    /// stream's FIN, simulating a server that reaped an idle connection.
-    async fn pool_test_serve(mut stream: TcpStream, sids: Arc<Mutex<Vec<u32>>>, close_after_first_stream: bool) {
-        // Note: callers set `close_after_first_stream` only for the connection
-        // that is expected to be pooled, so the replacement connection still
-        // closes cleanly.
+    /// A minimal anytls server multiplexing several streams on one connection: it
+    /// records each `cmdSYN`'s stream id, acks it, treats each stream's first
+    /// `cmdPSH` as the (unechoed) target address and echoes the rest back on the
+    /// same id, and answers `cmdFIN` with `cmdFIN` (closing only that stream). If
+    /// `alert_after_first_stream` is set it sends a `cmdAlert` on the first
+    /// stream's FIN, marking the session broken so it must not be reused.
+    async fn pool_test_serve(mut stream: TcpStream, sids: Arc<Mutex<Vec<u32>>>, alert_after_first_stream: bool) {
+        // Note: callers set `alert_after_first_stream` only for the connection
+        // expected to be pooled, so the replacement connection stays healthy.
         let mut hash = [0u8; 32];
         if stream.read_exact(&mut hash).await.is_err() {
             return;
@@ -1219,7 +1464,8 @@ mod tests {
             stream.read_exact(&mut padding).await.unwrap();
         }
 
-        let mut awaiting_addr = false;
+        // Per-stream: whether the next `cmdPSH` is the (unechoed) target address.
+        let mut awaiting_addr: HashSet<u32> = HashSet::new();
         let mut streams_done = 0u32;
         while let Some((cmd, sid, data)) = read_frame_opt(&mut stream).await {
             match cmd {
@@ -1228,32 +1474,24 @@ mod tests {
                 CMD_SYN => {
                     sids.lock().unwrap().push(sid);
                     server_write(&mut stream, CMD_SYNACK, sid, &[]).await;
-                    awaiting_addr = true;
+                    awaiting_addr.insert(sid);
                 }
-                CMD_PSH => {
-                    if awaiting_addr {
-                        awaiting_addr = false; // target address; not echoed
-                    } else {
-                        server_write(&mut stream, CMD_PSH, sid, &data).await;
-                    }
+                // A stream's first `cmdPSH` is its (unechoed) target address; the
+                // rest are echoed back on the same id.
+                CMD_PSH if !awaiting_addr.remove(&sid) => {
+                    server_write(&mut stream, CMD_PSH, sid, &data).await;
                 }
                 CMD_FIN => {
-                    server_write(&mut stream, CMD_FIN, sid, &[]).await;
                     streams_done += 1;
-                    if close_after_first_stream && streams_done == 1 {
-                        // Reap the connection so the pooled session goes dead, but
-                        // do it gracefully: half-close (a clean FIN the client's
-                        // liveness probe reads as EOF), then drain until the client
-                        // closes, so Windows never turns the drop into an RST.
-                        let _ = stream.shutdown().await;
-                        let mut sink = [0u8; 64];
-                        while let Ok(n) = stream.read(&mut sink).await {
-                            if n == 0 {
-                                break;
-                            }
-                        }
+                    if alert_after_first_stream && streams_done == 1 {
+                        // Mark the session broken (before its FIN) so the client's
+                        // driver tears it down deterministically and never reuses
+                        // it, then drop the connection.
+                        server_write(&mut stream, CMD_ALERT, sid, b"reaped").await;
+                        server_write(&mut stream, CMD_FIN, sid, &[]).await;
                         return;
                     }
+                    server_write(&mut stream, CMD_FIN, sid, &[]).await;
                 }
                 _ => {}
             }
@@ -1262,7 +1500,7 @@ mod tests {
 
     /// Spawn `pool_test_serve` accepting on a fresh port; returns the address, the
     /// recorded stream ids, and the count of accepted TCP connections.
-    async fn spawn_pool_server(close_first_connection: bool) -> (SocketAddr, Arc<Mutex<Vec<u32>>>, Arc<AtomicUsize>) {
+    async fn spawn_pool_server(alert_first_connection: bool) -> (SocketAddr, Arc<Mutex<Vec<u32>>>, Arc<AtomicUsize>) {
         let sids = Arc::new(Mutex::new(Vec::<u32>::new()));
         let conns = Arc::new(AtomicUsize::new(0));
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
@@ -1272,8 +1510,8 @@ mod tests {
             while let Ok((stream, _)) = listener.accept().await {
                 let index = conns_task.fetch_add(1, Ordering::SeqCst);
                 // Only the first connection (the one that gets pooled) is reaped.
-                let close = close_first_connection && index == 0;
-                tokio::spawn(pool_test_serve(stream, sids_task.clone(), close));
+                let alert = alert_first_connection && index == 0;
+                tokio::spawn(pool_test_serve(stream, sids_task.clone(), alert));
             }
         });
         (addr, sids, conns)
@@ -1289,18 +1527,19 @@ mod tests {
         }
     }
 
+    /// Number of live (reusable) registered sessions for `key`.
     fn pool_len(key: &ServerKey) -> usize {
-        SESSION_POOL
+        SESSION_REGISTRY
             .lock()
             .unwrap()
             .as_ref()
             .and_then(|map| map.get(key))
-            .map_or(0, |list| list.len())
+            .map_or(0, |list| list.iter().filter(|h| h.alive()).count())
     }
 
     /// Drive a relay-style round trip on `stream`, then close it cleanly (send
-    /// our `cmdFIN`, read the server's `cmdFIN` to EOF) so the session qualifies
-    /// for pooling once the stream is dropped.
+    /// our `cmdFIN`, read the server's `cmdFIN` to EOF) so the session is left
+    /// idle (and reusable) once the stream is dropped.
     async fn round_trip_and_close(stream: &mut BoxedStream, payload: &[u8]) {
         stream.write_all(payload).await.unwrap();
         stream.flush().await.unwrap();
@@ -1323,12 +1562,12 @@ mod tests {
             port: config.port,
         };
 
-        // Stream 1 over a fresh session; a clean close pools the connection.
+        // Stream 1 over a fresh session; a clean close leaves it idle in the pool.
         {
             let mut s1 = connect(&config, &target).await.unwrap();
             round_trip_and_close(&mut s1, b"first").await;
         }
-        assert_eq!(pool_len(&key), 1, "clean close returns the session to the pool");
+        assert_eq!(pool_len(&key), 1, "clean close leaves the session reusable");
 
         // Stream 2 must reuse it: no new TCP connection, next stream id.
         {
@@ -1349,9 +1588,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn multiplexes_concurrent_streams_on_one_connection() {
+        let (addr, sids, conns) = spawn_pool_server(false).await;
+        let config = pool_test_config(addr);
+        let t1 = TargetAddr::Domain("one.example".to_string(), 443);
+        let t2 = TargetAddr::Domain("two.example".to_string(), 443);
+
+        // Two overlapping streams: the second opens on the first's live session.
+        let mut s1 = connect(&config, &t1).await.unwrap();
+        let mut s2 = connect(&config, &t2).await.unwrap();
+
+        // Interleave writes; demux must route each echo back to its own stream.
+        s1.write_all(b"aaa").await.unwrap();
+        s1.flush().await.unwrap();
+        s2.write_all(b"bbb").await.unwrap();
+        s2.flush().await.unwrap();
+        let (mut r1, mut r2) = ([0u8; 3], [0u8; 3]);
+        s1.read_exact(&mut r1).await.unwrap();
+        s2.read_exact(&mut r2).await.unwrap();
+        assert_eq!(&r1, b"aaa", "stream 1 received its own payload");
+        assert_eq!(&r2, b"bbb", "stream 2 received its own payload");
+
+        assert_eq!(
+            conns.load(Ordering::SeqCst),
+            1,
+            "both concurrent streams shared one TCP connection"
+        );
+        let mut ids = sids.lock().unwrap().clone();
+        ids.sort_unstable();
+        assert_eq!(ids, vec![1, 2], "concurrent streams got distinct incrementing ids");
+
+        round_trip_and_close(&mut s1, b"aaa").await;
+        round_trip_and_close(&mut s2, b"bbb").await;
+    }
+
+    #[tokio::test]
     async fn pool_discards_dead_session_on_reuse() {
-        // The server drops the connection after the first stream, so the pooled
-        // session is dead by the time it is reused.
+        // The server sends a `cmdAlert` on the first stream's FIN, so the pooled
+        // session is marked broken and must not be reused.
         let (addr, sids, conns) = spawn_pool_server(true).await;
         let config = pool_test_config(addr);
         let target = TargetAddr::Domain("example.com".to_string(), 443);
@@ -1364,15 +1638,10 @@ mod tests {
             let mut s1 = connect(&config, &target).await.unwrap();
             round_trip_and_close(&mut s1, b"first").await;
         }
-        // The session is pooled (we received the stream FIN before the server
-        // closed the transport, which we have not observed yet).
-        assert_eq!(pool_len(&key), 1, "session is pooled before the probe runs");
+        // The `cmdAlert` tore the session down, so it is not reusable.
+        assert_eq!(pool_len(&key), 0, "broken session is not pooled for reuse");
 
-        // Let the server's transport close propagate so the liveness probe sees
-        // it deterministically (loopback FIN delivery; mirrors relay.rs sleeps).
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // Reuse must detect the dead connection, discard it, and dial a new one.
+        // Reuse must skip the dead session and dial a new connection.
         {
             let mut s2 = connect(&config, &target).await.unwrap();
             round_trip_and_close(&mut s2, b"second").await;
