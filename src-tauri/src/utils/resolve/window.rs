@@ -6,13 +6,10 @@ use tauri::{Theme, WebviewWindow};
 use crate::{config::Config, core::handle, utils::resolve::window_script::build_window_initial_script};
 use clash_verge_logging::{Type, logging_error};
 
-#[cfg(target_os = "windows")]
 use std::sync::{Arc, Mutex};
 
-#[cfg(target_os = "windows")]
 use windows_core_webview2::Interface;
 
-#[cfg(target_os = "windows")]
 use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings4;
 
 const DARK_BACKGROUND_COLOR: Color = Color(46, 48, 61, 255); // #2E303D
@@ -92,7 +89,6 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
 
     match builder.build() {
         Ok(window) => {
-            #[cfg(target_os = "windows")]
             logging_error!(Type::Window, configure_windows_webview_autofill(&window));
             logging_error!(Type::Window, window.set_background_color(Some(background_color)));
             Ok(window)
@@ -101,7 +97,6 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn configure_windows_webview_autofill(window: &WebviewWindow) -> Result<(), String> {
     let error = Arc::new(Mutex::new(None::<String>));
     let error_ref = Arc::clone(&error);
