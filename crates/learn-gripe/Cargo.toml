@@ -33,6 +33,11 @@ x25519-dalek = { version = "2.0.1", default-features = false, features = ["preco
 # subkey: `derive_key("shadowsocks 2022 session subkey", PSK || salt)`. Pure-Rust
 # build (no C/asm toolchain) for clean cross-compilation.
 blake3 = { version = "1.5.5", default-features = false }
+# BLAKE2b-256 keystream for Hysteria2 Salamander packet obfuscation
+# (`obfs: salamander`): per-datagram key = `BLAKE2b-256(obfs-password || salt)`.
+# Pure-Rust RustCrypto crate sharing the `digest` traits already pulled in by
+# sha2/sha1/md-5.
+blake2 = { version = "0.10.6" }
 crc32fast = { version = "1.5.0" }
 getrandom = { version = "0.3.4" }
 # DNS wire-format parse/serialize for the kernel DNS server. We own the product
@@ -81,6 +86,8 @@ md-5 = { version = "0.10.6" }
 aes-gcm = { version = "0.10.3" }
 chacha20poly1305 = { version = "0.10.1" }
 blake3 = { version = "1.5.5", default-features = false }
+# Independent BLAKE2b-256 for the fake Salamander server in tests/hysteria2_obfs.rs.
+blake2 = { version = "0.10.6" }
 crc32fast = { version = "1.5.0" }
 # DNS message build/parse for the fake upstream DNS server in tests/dns.rs.
 hickory-proto = { version = "0.24", default-features = false }

@@ -36,11 +36,11 @@
 //! A payload too large for one QUIC datagram is split across fragments that
 //! share a packet id; reassembly lives in [`crate::protocols::quic_udp`].
 //!
-//! Scope: TCP relay plus UDP relay over a single connection. Salamander packet
-//! obfuscation (`obfs: salamander`), port hopping (`ports`), and 0-RTT are not
-//! implemented; `obfs` is rejected at config-build time rather than mis-dialed.
-//! `congestion-controller` is honored as a local send-rate choice; `up`/`down`
-//! bandwidth caps are not sent (server-side BBR is used).
+//! Scope: TCP relay plus UDP relay over a single connection. **Salamander
+//! packet obfuscation** (`obfs: salamander`) and **port hopping** (`ports`) are
+//! implemented below QUIC in [`crate::transport::quic_obfs`]. 0-RTT is not
+//! implemented. `congestion-controller` is honored as a local send-rate choice;
+//! `up`/`down` bandwidth caps are not sent (server-side BBR is used).
 
 use std::io;
 use std::pin::Pin;
@@ -58,7 +58,13 @@ use crate::address::TargetAddr;
 use crate::config::outbound_opts::ProxyEntry;
 use crate::outbound::BoxedStream;
 use crate::protocols::quic_udp::{self, Reassembler};
+use crate::protocols::salamander::Salamander;
 use crate::transport::quic::{self, Congestion, QuicClientParams};
+use crate::transport::quic_obfs::PortHopConfig;
+
+/// `obfs` value selecting Salamander packet obfuscation (the only mode mihomo /
+/// Hysteria2 define).
+const OBFS_SALAMANDER: &str = "salamander";
 
 /// Hysteria2 `TCPRequest` frame id.
 const FRAME_TCP_REQUEST: u64 = 0x401;
@@ -82,6 +88,12 @@ pub struct Hysteria2OutboundConfig {
     pub alpn: Vec<String>,
     pub skip_cert_verify: bool,
     pub congestion: Congestion,
+    /// Salamander packet obfuscation derived from `obfs: salamander` +
+    /// `obfs-password`, or `None` when obfuscation is off.
+    pub obfs: Option<Salamander>,
+    /// Port hopping derived from `ports` (+ `hop-interval`), or `None` to always
+    /// dial the configured `port`.
+    pub port_hop: Option<PortHopConfig>,
 }
 
 impl Hysteria2OutboundConfig {
@@ -100,12 +112,28 @@ impl Hysteria2OutboundConfig {
             .filter(|s| !s.is_empty())
             .context("hysteria2: missing password")?;
 
-        // Salamander obfuscation wraps the QUIC datagrams themselves; it needs a
-        // custom UDP socket and is not implemented, so reject rather than dial a
-        // connection the server will silently drop.
-        if let Some(obfs) = opts.obfs.as_deref().filter(|s| !s.is_empty()) {
-            bail!("hysteria2: obfs {obfs:?} not implemented yet (salamander packet obfuscation)");
-        }
+        // Salamander obfuscation XOR-masks every QUIC datagram (see
+        // `transport::quic_obfs`); only the `salamander` mode is defined, and it
+        // requires a non-empty `obfs-password`.
+        let obfs = match opts.obfs.as_deref().filter(|s| !s.is_empty()) {
+            None => None,
+            Some(mode) if mode.eq_ignore_ascii_case(OBFS_SALAMANDER) => {
+                let password = opts
+                    .obfs_password
+                    .clone()
+                    .filter(|s| !s.is_empty())
+                    .context("hysteria2: obfs salamander requires obfs-password")?;
+                Some(Salamander::new(password.into_bytes()))
+            }
+            Some(mode) => bail!("hysteria2: obfs {mode:?} not supported (only \"salamander\")"),
+        };
+
+        // Port hopping spreads datagrams across a range of server ports; the
+        // configured `port` stays the address quinn associates with the peer.
+        let port_hop = match opts.ports.as_deref().filter(|s| !s.is_empty()) {
+            None => None,
+            Some(spec) => Some(PortHopConfig::parse(spec, opts.hop_interval)?),
+        };
 
         // SNI precedence: explicit `sni`, then `servername`, then the dial host.
         let server_name = opts
@@ -135,6 +163,8 @@ impl Hysteria2OutboundConfig {
             alpn,
             skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
             congestion,
+            obfs,
+            port_hop,
         })
     }
 
@@ -146,6 +176,8 @@ impl Hysteria2OutboundConfig {
             alpn: self.alpn.clone(),
             skip_cert_verify: self.skip_cert_verify,
             congestion: self.congestion,
+            obfs: self.obfs.clone(),
+            port_hop: self.port_hop.clone(),
         }
     }
 }
@@ -604,10 +636,42 @@ mod tests {
     }
 
     #[test]
-    fn obfs_is_rejected() {
+    fn salamander_obfs_requires_password() {
         let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\npassword: pw\nobfs: salamander\n";
         let err = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
-        assert!(err.to_string().contains("obfs"), "got: {err}");
+        assert!(err.to_string().contains("obfs-password"), "got: {err}");
+    }
+
+    #[test]
+    fn salamander_obfs_is_accepted_with_password() {
+        let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\npassword: pw\n\
+                    obfs: Salamander\nobfs-password: s3cret\n";
+        let cfg = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap();
+        assert_eq!(cfg.obfs, Some(Salamander::new(b"s3cret".to_vec())));
+        assert!(cfg.port_hop.is_none());
+    }
+
+    #[test]
+    fn unknown_obfs_is_rejected() {
+        let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\npassword: pw\n\
+                    obfs: rprx\nobfs-password: x\n";
+        let err = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("not supported"), "got: {err}");
+    }
+
+    #[test]
+    fn ports_enable_port_hopping() {
+        let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\npassword: pw\n\
+                    ports: \"30000-40000,50000\"\nhop-interval: 20\n";
+        let cfg = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap();
+        assert!(cfg.port_hop.is_some(), "ports should enable hopping");
+    }
+
+    #[test]
+    fn invalid_ports_are_rejected() {
+        let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\npassword: pw\nports: \"abc\"\n";
+        let err = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
+        assert!(err.to_string().contains("port"), "got: {err}");
     }
 
     #[test]
