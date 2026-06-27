@@ -37,16 +37,19 @@
 //! `cmdSYN` + `cmdPSH(target)` flush; packet 2 onward are the relay's data
 //! writes. Padding is byte-level shaping the server discards transparently
 //! (`cmdWaste` is dropped, frame boundaries are recovered from the length
-//! field), so it never affects interop — it only obscures record sizes. Because
-//! the kernel does not pool sessions, a server-pushed `cmdUpdatePaddingScheme`
-//! is read and discarded rather than applied to a future session; a stock
-//! server does not push one anyway since the advertised md5 already matches.
+//! field), so it never affects interop — it only obscures record sizes. A
+//! server-pushed `cmdUpdatePaddingScheme` is parsed and stored per server (keyed
+//! by `server:port`): the current connection keeps shaping by its own scheme,
+//! but subsequent connections to that server advertise and shape by the updated
+//! scheme, exactly as anytls-go's per-server `Client` does. A stock server does
+//! not push one anyway since the advertised md5 already matches the default.
 //! UDP rides sing-box udp-over-tcp v2 (see [`connect_udp`]).
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::io;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, ready};
 
 use anyhow::{Context, Result};
@@ -104,6 +107,11 @@ const DEFAULT_PADDING_SCHEME: &str = "stop=8\n\
 5=500-1000\n\
 6=500-1000\n\
 7=500-1000";
+
+/// Lowercase-hex md5 of [`DEFAULT_PADDING_SCHEME`] — what we advertise in
+/// `cmdSettings`, and the baseline against which a pushed scheme is judged
+/// "different" (so a stock server's matching scheme is a no-op).
+const DEFAULT_PADDING_MD5: &str = "75cff2ad89aadf5e257059ee571ebe11";
 
 /// Sentinel returned by [`PaddingScheme::record_payload_sizes`] for the scheme's
 /// `c` token (anytls `padding.CheckMark`): "if the user payload is exhausted,
@@ -212,6 +220,49 @@ fn random_below(n: u64) -> u64 {
     u64::from_le_bytes(bytes) % n
 }
 
+/// Identifies an AnyTLS server endpoint for the per-server padding-scheme store.
+/// A server-pushed `cmdUpdatePaddingScheme` applies only to connections to that
+/// same server (anytls-go stores it on the per-server `Client`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ServerKey {
+    server: String,
+    port: u16,
+}
+
+/// Per-server override schemes learned from `cmdUpdatePaddingScheme`; a missing
+/// entry means "use the built-in default". Process-wide because outbound
+/// `connect`s are independent calls with no other shared state, matching
+/// anytls-go's per-server `Client` storage. `None` is the lazily-initialised
+/// empty map (the `static Mutex<Option<HashMap>>` idiom used elsewhere in the
+/// crate avoids a separate lazy-init dependency).
+static SCHEME_STORE: Mutex<Option<HashMap<ServerKey, Arc<PaddingScheme>>>> = Mutex::new(None);
+
+/// The padding scheme a new connection to `key` should use: the server's pushed
+/// scheme if one has been learned, else the built-in default.
+fn current_scheme(key: &ServerKey) -> Arc<PaddingScheme> {
+    let store = SCHEME_STORE.lock().expect("anytls scheme store");
+    store
+        .as_ref()
+        .and_then(|map| map.get(key).cloned())
+        .unwrap_or_else(|| Arc::new(PaddingScheme::default_scheme()))
+}
+
+/// Apply a server-pushed `cmdUpdatePaddingScheme` for `key`: parse it and, when
+/// it is valid and its md5 differs from the scheme currently in effect, store it
+/// so subsequent connections to that server advertise and shape by it (anytls-go
+/// `UpdatePaddingScheme`). The connection that received it keeps its own scheme.
+fn apply_scheme_update(key: &ServerKey, raw: &[u8]) {
+    let Some(scheme) = PaddingScheme::parse(raw) else {
+        return;
+    };
+    let mut store = SCHEME_STORE.lock().expect("anytls scheme store");
+    let map = store.get_or_insert_with(HashMap::new);
+    let current_md5 = map.get(key).map_or(DEFAULT_PADDING_MD5, |s| s.md5_hex.as_str());
+    if scheme.md5_hex != current_md5 {
+        map.insert(key.clone(), Arc::new(scheme));
+    }
+}
+
 /// Fully-resolved AnyTLS outbound parameters.
 ///
 /// `security` and `transport` are orthogonal layers (see [`crate::transport`]).
@@ -262,7 +313,11 @@ impl AnyTlsOutboundConfig {
 /// flush of `cmdSettings` + `cmdSYN` + `cmdPSH`(target address), and hand back a
 /// stream that frames relay traffic as `cmdPSH` and decodes the server's frames.
 pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let scheme = PaddingScheme::default_scheme();
+    let key = ServerKey {
+        server: config.server.clone(),
+        port: config.port,
+    };
+    let scheme = current_scheme(&key);
     let mut transport = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
     transport
         .write_all(&build_auth_header(&config.password_sha256, &scheme))
@@ -272,7 +327,7 @@ pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Resu
     // Packet 1: the buffered `cmdSettings` + `cmdSYN` + `cmdPSH`(target) flush,
     // shaped together as anytls-go does after `OpenStream` clears buffering.
     let init = build_session_init(&scheme, target);
-    let mut anytls = AnyTlsStream::new(transport, scheme);
+    let mut anytls = AnyTlsStream::new(transport, (*scheme).clone(), key);
     anytls.enqueue_session_unit(init);
     anytls.flush().await.context("anytls: send settings + open stream")?;
     Ok(Box::new(anytls))
@@ -285,7 +340,11 @@ pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Resu
 /// payload` in both directions (connect mode carries no per-packet address).
 /// One stream is opened per destination, matching the relay's per-target model.
 pub async fn connect_udp(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let scheme = PaddingScheme::default_scheme();
+    let key = ServerKey {
+        server: config.server.clone(),
+        port: config.port,
+    };
+    let scheme = current_scheme(&key);
     let magic = TargetAddr::Domain(UOT_MAGIC_ADDRESS.to_string(), 0);
     let mut transport = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
     transport
@@ -295,7 +354,7 @@ pub async fn connect_udp(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> 
 
     // Packet 1: settings + SYN + PSH(UoT magic address).
     let init = build_session_init(&scheme, &magic);
-    let mut anytls = AnyTlsStream::new(transport, scheme);
+    let mut anytls = AnyTlsStream::new(transport, (*scheme).clone(), key);
     anytls.enqueue_session_unit(init);
     // UoT v2 request: IsConnect (1) + SOCKS5-encoded destination. Sent as the
     // stream's first `cmdPSH` payload.
@@ -452,6 +511,9 @@ struct AnyTlsStream<S> {
     out_pos: usize,
     /// Padding-scheme state shaping the outgoing record stream.
     shaper: PaddingShaper,
+    /// Server endpoint, so a `cmdUpdatePaddingScheme` received on this connection
+    /// is stored against the right server for its future connections.
+    server_key: ServerKey,
     /// Raw bytes read from the inner transport not yet parsed into frames.
     read_raw: Vec<u8>,
     /// Decoded `cmdPSH` payload pending delivery to the reader.
@@ -462,12 +524,13 @@ struct AnyTlsStream<S> {
 }
 
 impl<S> AnyTlsStream<S> {
-    fn new(inner: S, scheme: PaddingScheme) -> Self {
+    fn new(inner: S, scheme: PaddingScheme, server_key: ServerKey) -> Self {
         Self {
             inner,
             out: VecDeque::new(),
             out_pos: 0,
             shaper: PaddingShaper::new(scheme),
+            server_key,
             read_raw: Vec::new(),
             plain: Vec::new(),
             plain_pos: 0,
@@ -575,18 +638,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for AnyTlsStream<S> {
                     this.shaper.shape(&mut this.out, frame);
                     let _ = this.poll_drain(cx);
                 }
-                // Padding, settings, padding-scheme updates, heart responses, the
-                // stream's own SYN/SYNACK(ok), and frames for other streams carry
-                // nothing this single-stream relay needs: read past them.
-                CMD_WASTE
-                | CMD_SETTINGS
-                | CMD_SERVER_SETTINGS
-                | CMD_UPDATE_PADDING_SCHEME
-                | CMD_HEART_RESPONSE
-                | CMD_SYN
-                | CMD_SYNACK
-                | CMD_PSH
-                | CMD_FIN => {}
+                // Store a server-pushed scheme for this server's future
+                // connections; the current session keeps its own scheme.
+                CMD_UPDATE_PADDING_SCHEME => apply_scheme_update(&this.server_key, &data),
+                // Padding, settings, heart responses, the stream's own
+                // SYN/SYNACK(ok), and frames for other streams carry nothing this
+                // single-stream relay needs: read past them.
+                CMD_WASTE | CMD_SETTINGS | CMD_SERVER_SETTINGS | CMD_HEART_RESPONSE | CMD_SYN | CMD_SYNACK
+                | CMD_PSH | CMD_FIN => {}
                 _ => {}
             }
         }
@@ -645,10 +704,8 @@ mod tests {
     #[test]
     fn padding_md5_matches_upstream_default_scheme() {
         // Cross-checked against `md5sum` of anytls-go's default padding scheme.
-        assert_eq!(
-            PaddingScheme::default_scheme().md5_hex,
-            "75cff2ad89aadf5e257059ee571ebe11"
-        );
+        assert_eq!(DEFAULT_PADDING_MD5, "75cff2ad89aadf5e257059ee571ebe11");
+        assert_eq!(PaddingScheme::default_scheme().md5_hex, DEFAULT_PADDING_MD5);
     }
 
     #[test]
@@ -870,5 +927,45 @@ mod tests {
             }
             other => panic!("expected TLS security, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn scheme_update_is_stored_per_server_and_applied_to_new_connections() {
+        let key = ServerKey {
+            server: "scheme-update-apply.invalid".to_string(),
+            port: 443,
+        };
+        // An unknown server falls back to the built-in default scheme.
+        assert_eq!(current_scheme(&key).md5_hex, DEFAULT_PADDING_MD5);
+
+        // A pushed scheme with a different md5 is adopted for future connections.
+        let pushed = b"stop=4\n0=20-20\n1=120-120";
+        apply_scheme_update(&key, pushed);
+        let now = current_scheme(&key);
+        assert_eq!(now.md5_hex, md5_hex(pushed));
+        assert_eq!(now.stop, 4);
+        assert_eq!(now.record_payload_sizes(0), vec![20]);
+
+        // Storage is per server: another endpoint is unaffected.
+        let other = ServerKey {
+            server: "scheme-update-other.invalid".to_string(),
+            port: 443,
+        };
+        assert_eq!(current_scheme(&other).md5_hex, DEFAULT_PADDING_MD5);
+    }
+
+    #[test]
+    fn scheme_update_ignores_unchanged_and_invalid_schemes() {
+        let key = ServerKey {
+            server: "scheme-update-noop.invalid".to_string(),
+            port: 1,
+        };
+        // Re-pushing the default scheme (same md5) is a no-op: still default.
+        apply_scheme_update(&key, DEFAULT_PADDING_SCHEME.as_bytes());
+        assert_eq!(current_scheme(&key).md5_hex, DEFAULT_PADDING_MD5);
+
+        // A scheme without a `stop` line fails to parse and is ignored.
+        apply_scheme_update(&key, b"0=10-10");
+        assert_eq!(current_scheme(&key).md5_hex, DEFAULT_PADDING_MD5);
     }
 }
