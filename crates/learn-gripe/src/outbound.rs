@@ -2,10 +2,10 @@ use crate::address::TargetAddr;
 use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
-use crate::protocols::hysteria2;
+use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
-use crate::protocols::tuic;
+use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
 use crate::protocols::vmess::{self, VmessOutboundConfig};
 use anyhow::{Context, Result, bail};
@@ -72,12 +72,17 @@ pub enum UdpEgress {
     Vless(Box<VlessOutboundConfig>),
     Vmess(Box<VmessOutboundConfig>),
     Shadowsocks(Box<ShadowsocksOutboundConfig>),
+    /// Hysteria2 carries datagrams over QUIC datagram frames, not a proxy stream.
+    Hysteria2(Box<Hysteria2OutboundConfig>),
+    /// TUIC carries datagrams over QUIC `Packet` datagram frames.
+    Tuic(Box<TuicOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
-/// proxy outbounds (Trojan/VLESS/VMess/Shadowsocks), and `Routed` (which resolves
-/// per datagram) accept the association; `Reject` and an upstream SOCKS5 proxy
-/// (which has no UDP relay path here) make the inbound refuse it up front.
+/// proxy outbounds (Trojan/VLESS/VMess/Shadowsocks, plus the QUIC Hysteria2/TUIC
+/// datagram relays), and `Routed` (which resolves per datagram) accept the
+/// association; `Reject` and an upstream SOCKS5 proxy (which has no UDP relay
+/// path here) make the inbound refuse it up front.
 pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
     matches!(
         mode,
@@ -86,6 +91,8 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::Vless(_)
             | OutboundMode::Vmess(_)
             | OutboundMode::Shadowsocks(_)
+            | OutboundMode::Tuic(_)
+            | OutboundMode::Hysteria2(_)
             | OutboundMode::Routed(_)
     )
 }
@@ -103,16 +110,14 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Vless(config) => Some(UdpEgress::Vless(config.clone())),
         OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
+        OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
+        OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
         // Reject blocks the datagram; an upstream SOCKS5 proxy has no UDP relay
-        // path here, so its associations are refused rather than leaked. TUIC
-        // only has a TCP relay so far, so its UDP associations are refused too.
-        OutboundMode::Reject
-        | OutboundMode::Socks5Upstream { .. }
-        | OutboundMode::Tuic(_)
-        | OutboundMode::Hysteria2(_) => None,
+        // path here, so its associations are refused rather than leaked.
+        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
     }
 }
 
@@ -124,8 +129,11 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         UdpEgress::Trojan(config) => trojan::connect_udp(config, target).await,
         UdpEgress::Vless(config) => vless::connect_udp(config, target).await,
         UdpEgress::Vmess(config) => vmess::connect_udp(config, target).await,
-        // Direct and Shadowsocks relay over a UDP socket, not a proxy stream.
-        UdpEgress::Direct | UdpEgress::Shadowsocks(_) => bail!("egress has no proxy tunnel"),
+        // Direct/Shadowsocks relay over a UDP socket and Hysteria2/TUIC over QUIC
+        // datagrams, none of which is a proxy stream.
+        UdpEgress::Direct | UdpEgress::Shadowsocks(_) | UdpEgress::Hysteria2(_) | UdpEgress::Tuic(_) => {
+            bail!("egress has no proxy tunnel")
+        }
     }
 }
 

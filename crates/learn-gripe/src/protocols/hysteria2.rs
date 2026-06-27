@@ -26,17 +26,29 @@
 //!               ; STATUS 0x00 = OK, otherwise the connect failed
 //! ```
 //!
-//! Scope: TCP relay over a single connection. UDP relay (QUIC datagrams),
-//! Salamander packet obfuscation (`obfs: salamander`), port hopping (`ports`),
-//! and 0-RTT are not implemented; `obfs` is rejected at config-build time rather
-//! than mis-dialed. `congestion-controller` is honored as a local send-rate
-//! choice; `up`/`down` bandwidth caps are not sent (server-side BBR is used).
+//! UDP relay reuses the same authenticated connection but carries datagrams as
+//! QUIC datagram frames (the server advertises support with `Hysteria-UDP: true`
+//! in the auth response):
+//! ```text
+//! UDP datagram: SESSION(4) PACKET(2) FRAG_ID(1) FRAG_COUNT(1)
+//!               varint(addr_len) addr  PAYLOAD
+//! ```
+//! A payload too large for one QUIC datagram is split across fragments that
+//! share a packet id; reassembly lives in [`crate::protocols::quic_udp`].
+//!
+//! Scope: TCP relay plus UDP relay over a single connection. Salamander packet
+//! obfuscation (`obfs: salamander`), port hopping (`ports`), and 0-RTT are not
+//! implemented; `obfs` is rejected at config-build time rather than mis-dialed.
+//! `congestion-controller` is honored as a local send-rate choice; `up`/`down`
+//! bandwidth caps are not sent (server-side BBR is used).
 
 use std::io;
 use std::pin::Pin;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::task::{Context as TaskContext, Poll};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use bytes::Bytes;
 use h3::client::SendRequest;
 use quinn::{Connection, Endpoint, RecvStream, SendStream};
@@ -45,6 +57,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 use crate::address::TargetAddr;
 use crate::config::outbound_opts::ProxyEntry;
 use crate::outbound::BoxedStream;
+use crate::protocols::quic_udp::{self, Reassembler};
 use crate::transport::quic::{self, Congestion, QuicClientParams};
 
 /// Hysteria2 `TCPRequest` frame id.
@@ -53,6 +66,8 @@ const FRAME_TCP_REQUEST: u64 = 0x401;
 const STATUS_AUTH_OK: u16 = 233;
 /// Cap on server-sent `TCPResponse` message / padding lengths (defensive).
 const MAX_RESPONSE_FIELD: u64 = 64 * 1024;
+/// Fixed-size prefix of a UDP datagram: SESSION(4) PACKET(2) FRAG_ID(1) FRAG_COUNT(1).
+const UDP_HEADER_PREFIX: usize = 8;
 
 /// Fully-resolved Hysteria2 outbound parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,7 +161,7 @@ pub async fn connect(config: &Hysteria2OutboundConfig, target: &TargetAddr) -> R
     // connection handles are cheap clones over the same connection.
     let connection = quic.connection.clone();
 
-    let h3_send = authenticate(quic.connection, config)
+    let (h3_send, _udp_enabled) = authenticate(quic.connection, config)
         .await
         .context("hysteria2: authenticate")?;
 
@@ -166,13 +181,41 @@ pub async fn connect(config: &Hysteria2OutboundConfig, target: &TargetAddr) -> R
     }))
 }
 
-/// Authenticate over HTTP/3 and return the live `SendRequest` handle, which the
-/// caller must keep alive for the connection's lifetime (dropping the last one
-/// closes the QUIC connection).
+/// Connect a Hysteria2 UDP relay session for `target`. Authenticates over
+/// HTTP/3 (requiring the server to advertise UDP support), then carries each
+/// datagram as one or more QUIC datagram frames addressed to `target`.
+pub async fn connect_udp(config: &Hysteria2OutboundConfig, target: &TargetAddr) -> Result<Hysteria2Udp> {
+    let quic = quic::connect(&config.quic_params())
+        .await
+        .context("hysteria2: QUIC connect")?;
+    let connection = quic.connection.clone();
+
+    let (h3_send, udp_enabled) = authenticate(quic.connection, config)
+        .await
+        .context("hysteria2: authenticate")?;
+    if !udp_enabled {
+        bail!("hysteria2: server does not allow UDP relay (Hysteria-UDP: false)");
+    }
+
+    Ok(Hysteria2Udp {
+        _endpoint: quic.endpoint,
+        connection,
+        _h3_send: h3_send,
+        address: address_string(target),
+        session_id: random_u32(),
+        next_packet_id: AtomicU16::new(0),
+        reassembler: Mutex::new(Reassembler::new()),
+    })
+}
+
+/// Authenticate over HTTP/3 and return the live `SendRequest` handle (which the
+/// caller must keep alive for the connection's lifetime — dropping the last one
+/// closes the QUIC connection) plus whether the server advertised UDP relay
+/// support via the `Hysteria-UDP` response header.
 async fn authenticate(
     connection: Connection,
     config: &Hysteria2OutboundConfig,
-) -> Result<SendRequest<h3_quinn::OpenStreams, Bytes>> {
+) -> Result<(SendRequest<h3_quinn::OpenStreams, Bytes>, bool)> {
     let h3_conn = h3_quinn::Connection::new(connection);
     let (mut driver, mut send_request) = h3::client::new(h3_conn).await.context("hysteria2: HTTP/3 handshake")?;
     // The HTTP/3 connection must be driven for the auth response to arrive; the
@@ -201,7 +244,14 @@ async fn authenticate(
     if status != STATUS_AUTH_OK {
         bail!("hysteria2: authentication rejected (HTTP status {status}, expected {STATUS_AUTH_OK})");
     }
-    Ok(send_request)
+    // The server reports UDP availability with `Hysteria-UDP: true|false`; treat
+    // an absent header as enabled (lenient), only an explicit `false` disables it.
+    let udp_enabled = response
+        .headers()
+        .get("hysteria-udp")
+        .map(|value| !value.as_bytes().eq_ignore_ascii_case(b"false"))
+        .unwrap_or(true);
+    Ok((send_request, udp_enabled))
 }
 
 /// Encode a `TCPRequest`: frame id, target `host:port`, and random padding.
@@ -268,6 +318,35 @@ fn put_varint(buf: &mut Vec<u8>, value: u64) {
     }
 }
 
+/// Number of bytes [`put_varint`] uses to encode `value`.
+fn varint_len(value: u64) -> usize {
+    if value < (1 << 6) {
+        1
+    } else if value < (1 << 14) {
+        2
+    } else if value < (1 << 30) {
+        4
+    } else {
+        8
+    }
+}
+
+/// Read a QUIC variable-length integer from `data` at `*pos`, advancing `*pos`.
+/// Returns `None` if the buffer is truncated.
+fn read_varint_slice(data: &[u8], pos: &mut usize) -> Option<u64> {
+    let first = *data.get(*pos)?;
+    let len = 1usize << (first >> 6);
+    if *pos + len > data.len() {
+        return None;
+    }
+    let mut value = (first & 0x3f) as u64;
+    for &b in &data[*pos + 1..*pos + len] {
+        value = (value << 8) | b as u64;
+    }
+    *pos += len;
+    Some(value)
+}
+
 /// Read a QUIC variable-length integer from an async byte stream.
 async fn read_varint<R: AsyncRead + Unpin>(reader: &mut R) -> io::Result<u64> {
     let mut first = [0u8; 1];
@@ -293,6 +372,65 @@ fn random_padding() -> String {
         .iter()
         .map(|b| CHARSET[*b as usize % CHARSET.len()] as char)
         .collect()
+}
+
+/// A random 32-bit UDP session id.
+fn random_u32() -> u32 {
+    let mut bytes = [0u8; 4];
+    getrandom::fill(&mut bytes).expect("os rng");
+    u32::from_be_bytes(bytes)
+}
+
+/// Encode a UDP payload into one or more Hysteria2 datagram fragments, each
+/// sized to fit within `max_datagram`. Every fragment repeats the session id,
+/// packet id, and address; the payload is split across the `FRAG_COUNT`
+/// fragments.
+fn encode_udp_datagrams(
+    session_id: u32,
+    packet_id: u16,
+    address: &str,
+    payload: &[u8],
+    max_datagram: usize,
+) -> Result<Vec<Bytes>> {
+    let overhead = UDP_HEADER_PREFIX + varint_len(address.len() as u64) + address.len();
+    let chunk_size = max_datagram
+        .checked_sub(overhead)
+        .filter(|n| *n > 0)
+        .ok_or_else(|| anyhow!("hysteria2: QUIC datagram too small for UDP header ({max_datagram} bytes)"))?;
+
+    let chunks = quic_udp::fragments(payload, chunk_size);
+    let frag_count =
+        u8::try_from(chunks.len()).map_err(|_| anyhow!("hysteria2: UDP payload needs too many fragments"))?;
+
+    let mut datagrams = Vec::with_capacity(chunks.len());
+    for (frag_id, chunk) in chunks.into_iter().enumerate() {
+        let mut buf = Vec::with_capacity(overhead + chunk.len());
+        buf.extend_from_slice(&session_id.to_be_bytes());
+        buf.extend_from_slice(&packet_id.to_be_bytes());
+        buf.push(frag_id as u8);
+        buf.push(frag_count);
+        put_varint(&mut buf, address.len() as u64);
+        buf.extend_from_slice(address.as_bytes());
+        buf.extend_from_slice(chunk);
+        datagrams.push(Bytes::from(buf));
+    }
+    Ok(datagrams)
+}
+
+/// Parse an inbound Hysteria2 UDP datagram into `(packet_id, frag_id,
+/// frag_count, payload)`. The session id and address are skipped (a session has
+/// one fixed target here). Returns `None` for a malformed datagram.
+fn parse_udp_datagram(data: &[u8]) -> Option<(u16, u8, u8, Vec<u8>)> {
+    if data.len() < UDP_HEADER_PREFIX {
+        return None;
+    }
+    let packet_id = u16::from_be_bytes([data[4], data[5]]);
+    let frag_id = data[6];
+    let frag_count = data[7];
+    let mut pos = UDP_HEADER_PREFIX;
+    let addr_len = read_varint_slice(data, &mut pos)? as usize;
+    pos = pos.checked_add(addr_len).filter(|p| *p <= data.len())?;
+    Some((packet_id, frag_id, frag_count, data[pos..].to_vec()))
 }
 
 /// A relay-ready stream over a Hysteria2 proxy QUIC stream.
@@ -325,6 +463,62 @@ impl AsyncWrite for Hysteria2Stream {
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         AsyncWrite::poll_shutdown(Pin::new(&mut self.send), cx)
+    }
+}
+
+/// A Hysteria2 UDP relay session bound to a single target. Datagrams to/from the
+/// target are carried as QUIC datagram frames over the authenticated connection.
+///
+/// The owning [`Endpoint`], [`Connection`], and HTTP/3 [`SendRequest`] are held
+/// so the connection stays alive for the session's lifetime.
+pub struct Hysteria2Udp {
+    _endpoint: Endpoint,
+    connection: Connection,
+    _h3_send: SendRequest<h3_quinn::OpenStreams, Bytes>,
+    /// The fixed target address (`host:port`) all datagrams in this session carry.
+    address: String,
+    session_id: u32,
+    next_packet_id: AtomicU16,
+    reassembler: Mutex<Reassembler>,
+}
+
+impl Hysteria2Udp {
+    /// Send one UDP datagram to the session target, fragmenting if it does not
+    /// fit a single QUIC datagram.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        let max = self
+            .connection
+            .max_datagram_size()
+            .ok_or_else(|| anyhow!("hysteria2: peer does not allow QUIC datagrams (UDP relay unavailable)"))?;
+        let packet_id = self.next_packet_id.fetch_add(1, Ordering::Relaxed);
+        for datagram in encode_udp_datagrams(self.session_id, packet_id, &self.address, payload, max)? {
+            self.connection
+                .send_datagram(datagram)
+                .map_err(|e| anyhow!("hysteria2: send UDP datagram: {e}"))?;
+        }
+        Ok(())
+    }
+
+    /// Receive the next fully reassembled UDP datagram from the target.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        loop {
+            let datagram = self
+                .connection
+                .read_datagram()
+                .await
+                .context("hysteria2: read UDP datagram")?;
+            let Some((packet_id, frag_id, frag_count, payload)) = parse_udp_datagram(&datagram) else {
+                continue;
+            };
+            if let Some(full) = self
+                .reassembler
+                .lock()
+                .expect("reassembler mutex poisoned")
+                .accept(packet_id, frag_id, frag_count, payload)
+            {
+                return Ok(full);
+            }
+        }
     }
 }
 
@@ -421,5 +615,48 @@ mod tests {
         let yaml = "name: h\ntype: hysteria2\nserver: example.com\nport: 443\n";
         let err = Hysteria2OutboundConfig::from_proxy(&parse_entry(yaml)).unwrap_err();
         assert!(err.to_string().contains("password"), "got: {err}");
+    }
+
+    #[test]
+    fn udp_datagram_round_trips_single_fragment() {
+        let datagrams = encode_udp_datagrams(0xDEAD_BEEF, 7, "example.com:443", b"hello", 1200).unwrap();
+        assert_eq!(datagrams.len(), 1);
+        // Header: session(4) packet(2) frag_id(1) frag_count(1).
+        let d = &datagrams[0];
+        assert_eq!(&d[0..4], &0xDEAD_BEEFu32.to_be_bytes());
+        assert_eq!(&d[4..6], &7u16.to_be_bytes());
+        assert_eq!(d[6], 0); // frag id
+        assert_eq!(d[7], 1); // frag count
+        let (packet_id, frag_id, frag_count, payload) = parse_udp_datagram(d).unwrap();
+        assert_eq!((packet_id, frag_id, frag_count), (7, 0, 1));
+        assert_eq!(payload, b"hello");
+    }
+
+    #[test]
+    fn udp_datagram_fragments_and_reassembles() {
+        // A small max datagram forces several fragments; every fragment repeats
+        // the address, and reassembly restores the original payload in order.
+        let payload: Vec<u8> = (0..1000u32).map(|i| i as u8).collect();
+        let datagrams = encode_udp_datagrams(1, 42, "1.2.3.4:53", &payload, 64).unwrap();
+        assert!(datagrams.len() > 1, "expected fragmentation");
+
+        let mut reassembler = Reassembler::new();
+        let mut recovered = None;
+        for d in &datagrams {
+            let (packet_id, frag_id, frag_count, frag_payload) = parse_udp_datagram(d).unwrap();
+            assert_eq!(packet_id, 42);
+            assert_eq!(frag_count as usize, datagrams.len());
+            if let Some(full) = reassembler.accept(packet_id, frag_id, frag_count, frag_payload) {
+                recovered = Some(full);
+            }
+        }
+        assert_eq!(recovered, Some(payload));
+    }
+
+    #[test]
+    fn udp_datagram_rejects_oversized_header() {
+        // A max datagram smaller than the header leaves no room for payload.
+        let err = encode_udp_datagrams(1, 0, "example.com:443", b"x", 4).unwrap_err();
+        assert!(err.to_string().contains("too small"), "got: {err}");
     }
 }

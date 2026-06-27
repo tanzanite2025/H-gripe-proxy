@@ -178,6 +178,8 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
     match egress {
         UdpEgress::Direct => run_direct_egress(target, rx, sink, idle).await,
         UdpEgress::Shadowsocks(config) => run_ss_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
     }
 }
@@ -252,6 +254,60 @@ async fn run_ss_egress<S: ReplySink>(
     }
 }
 
+/// Hysteria2 UDP egress: relay datagrams over QUIC datagram frames on the
+/// authenticated Hysteria2 connection, fragmenting/reassembling per packet.
+async fn run_hysteria2_egress<S: ReplySink>(
+    config: Box<crate::protocols::hysteria2::Hysteria2OutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let session = crate::protocols::hysteria2::connect_udp(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => session.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = session.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
+/// TUIC UDP egress: relay datagrams over QUIC `Packet` datagram frames on the
+/// authenticated TUIC connection, fragmenting/reassembling per packet.
+async fn run_tuic_egress<S: ReplySink>(
+    config: Box<crate::protocols::tuic::TuicOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let session = crate::protocols::tuic::connect_udp(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => session.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = session.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
 /// Proxy-tunnel UDP egress: open the protocol's UDP stream and relay datagrams
 /// in both directions, applying the protocol's per-packet framing.
 async fn run_proxy_egress<S: ReplySink>(
@@ -299,9 +355,13 @@ impl ProxyFraming {
         match egress {
             UdpEgress::Trojan(_) => ProxyFraming::Trojan,
             UdpEgress::Vless(_) => ProxyFraming::LengthPrefixed,
-            // Direct and Shadowsocks never reach a proxy egress (they relay over
-            // a UDP socket); treat them as chunked defensively.
-            UdpEgress::Vmess(_) | UdpEgress::Direct | UdpEgress::Shadowsocks(_) => ProxyFraming::Chunked,
+            // Direct/Shadowsocks (UDP socket) and Hysteria2/TUIC (QUIC datagrams)
+            // never reach a proxy-stream egress; treat them as chunked defensively.
+            UdpEgress::Vmess(_)
+            | UdpEgress::Direct
+            | UdpEgress::Shadowsocks(_)
+            | UdpEgress::Hysteria2(_)
+            | UdpEgress::Tuic(_) => ProxyFraming::Chunked,
         }
     }
 }
