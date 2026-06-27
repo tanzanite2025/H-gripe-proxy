@@ -44,6 +44,14 @@ blake3 = { version = "1.5.5", default-features = false }
 blake2 = { version = "0.10.6" }
 crc32fast = { version = "1.5.0" }
 getrandom = { version = "0.3.4" }
+# ShadowsocksR stream ciphers: AES-CFB (128/256), raw ChaCha20 (IETF 96-bit
+# nonce), and HMAC authentication for the auth_aes128 protocol family. These
+# are "legacy" constructions the original SS AEAD kernel deliberately excluded;
+# SSR's data plane requires them. Pure-Rust RustCrypto crates sharing the
+# `cipher` 0.4.x / `digest` 0.10.x trait families already in the tree.
+cfb-mode = { version = "0.8.2", default-features = false }
+chacha20 = { version = "0.9.1", default-features = false }
+hmac = { version = "0.12.1", default-features = false }
 # DNS wire-format parse/serialize for the kernel DNS server. We own the product
 # logic (fake-ip allocation, mapping, upstream selection); message codec is
 # delegated to this vetted crate (already used by src-tauri via hickory 0.24).
@@ -95,6 +103,12 @@ argon2 = { version = "0.5.3" }
 # Independent BLAKE2b-256 for the fake Salamander server in tests/hysteria2_obfs.rs.
 blake2 = { version = "0.10.6" }
 crc32fast = { version = "1.5.0" }
+# Independent SSR stream-cipher crates for the fake SSR server in
+# tests/ssr_outbound.rs.
+cfb-mode = { version = "0.8.2", default-features = false }
+chacha20 = { version = "0.9.1", default-features = false }
+hmac = { version = "0.12.1", default-features = false }
+aes = { version = "0.8.4" }
 # DNS message build/parse for the fake upstream DNS server in tests/dns.rs.
 hickory-proto = { version = "0.24", default-features = false }
 

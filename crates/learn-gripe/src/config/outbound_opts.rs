@@ -55,7 +55,8 @@ impl ProxyEntry {
             | ProxyType::Shadowsocks
             | ProxyType::Trojan
             | ProxyType::Vmess
-            | ProxyType::Vless => ProtocolSupport::Implemented,
+            | ProxyType::Vless
+            | ProxyType::ShadowsocksR => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
             _ => ProtocolSupport::Unsupported,
         }
@@ -237,6 +238,16 @@ pub struct ProxyOptions {
     pub obfs: Option<String>,
     #[serde(rename = "obfs-password")]
     pub obfs_password: Option<String>,
+    /// ShadowsocksR obfs parameter (`obfs-param`).
+    #[serde(rename = "obfs-param")]
+    pub obfs_param: Option<String>,
+
+    // ShadowsocksR specific knobs.
+    /// SSR protocol layer (`protocol`): origin / auth_aes128_sha1 / auth_aes128_md5 / auth_chain_a.
+    pub protocol: Option<String>,
+    /// SSR protocol parameter (`protocol-param`).
+    #[serde(rename = "protocol-param")]
+    pub protocol_param: Option<String>,
     pub cwnd: Option<u32>,
     #[serde(rename = "congestion-controller")]
     pub congestion_controller: Option<String>,

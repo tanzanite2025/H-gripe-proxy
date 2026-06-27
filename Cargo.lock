@@ -1009,6 +1009,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfb-mode"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "738b8d467867f80a71351933f70461f5b56f24d5c93e0cf216e59229c968d330"
+dependencies = [
+ "cipher 0.4.4",
+]
+
+[[package]]
 name = "cfg-expr"
 version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4316,6 +4325,8 @@ dependencies = [
  "blake2",
  "blake3",
  "bytes",
+ "cfb-mode",
+ "chacha20 0.9.1",
  "chacha20poly1305",
  "crc32fast",
  "futures-util",
@@ -4325,6 +4336,7 @@ dependencies = [
  "h3-quinn",
  "hickory-proto",
  "hkdf",
+ "hmac 0.12.1",
  "http 1.4.0",
  "log",
  "md-5",
