@@ -335,7 +335,8 @@ pub struct PluginOpts {
     pub host: Option<String>,
     pub password: Option<String>,
     pub path: Option<String>,
-    pub tls: Option<String>,
+    /// Whether the v2ray-plugin transport runs over TLS (`tls: true`).
+    pub tls: Option<bool>,
     pub fingerprint: Option<String>,
     pub headers: Option<BTreeMap<String, String>>,
     #[serde(rename = "skip-cert-verify")]

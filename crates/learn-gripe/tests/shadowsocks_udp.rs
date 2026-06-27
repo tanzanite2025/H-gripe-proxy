@@ -229,6 +229,7 @@ fn config(server: SocketAddr, cipher: ShadowsocksCipher) -> OutboundMode {
         port: server.port(),
         cipher,
         key: evp_bytes_to_key(PASSWORD.as_bytes(), key_size(cipher)),
+        plugin: None,
     }))
 }
 

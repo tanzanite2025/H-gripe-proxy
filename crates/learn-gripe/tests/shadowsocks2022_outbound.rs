@@ -310,6 +310,7 @@ fn config(server: SocketAddr, cipher: ShadowsocksCipher) -> OutboundMode {
         port: server.port(),
         cipher,
         key: psk(cipher),
+        plugin: None,
     }))
 }
 
