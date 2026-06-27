@@ -95,14 +95,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let proxy_bypass = &patch.system_proxy_bypass;
     let language = &patch.language;
     let mixed_port = patch.verge_mixed_port;
-    #[cfg(not(target_os = "windows"))]
-    let redir_enabled = patch.verge_redir_enabled;
-    #[cfg(not(target_os = "windows"))]
-    let redir_port = patch.verge_redir_port;
-    #[cfg(target_os = "linux")]
-    let tproxy_enabled = patch.verge_tproxy_enabled;
-    #[cfg(target_os = "linux")]
-    let tproxy_port = patch.verge_tproxy_port;
     let socks_enabled = patch.verge_socks_enabled;
     let socks_port = patch.verge_socks_port;
     let http_enabled = patch.verge_http_enabled;
@@ -116,7 +108,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let log_max_size = patch.app_log_max_size;
     let log_max_count = patch.app_log_max_count;
 
-    #[cfg(target_os = "windows")]
     let restart_core_needed = socks_enabled.is_some()
         || http_enabled.is_some()
         || socks_port.is_some()
@@ -124,34 +115,13 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || mixed_port.is_some()
         || enable_external_controller.is_some()
         || tun_mode.is_some();
-    #[cfg(not(target_os = "windows"))]
-    let mut restart_core_needed = socks_enabled.is_some()
-        || http_enabled.is_some()
-        || socks_port.is_some()
-        || http_port.is_some()
-        || mixed_port.is_some()
-        || enable_external_controller.is_some();
-    #[cfg(not(target_os = "windows"))]
-    {
-        restart_core_needed |= redir_enabled.is_some() || redir_port.is_some();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        restart_core_needed |= tproxy_enabled.is_some() || tproxy_port.is_some();
-        restart_core_needed |= tun_mode == Some(true);
-    }
 
     let mut update_flags = UpdateFlags::empty();
     if restart_core_needed {
         update_flags.insert(UpdateFlags::RESTART_CORE);
     }
-    #[cfg(target_os = "windows")]
     if tun_mode.is_some() {
         update_flags.insert(UpdateFlags::GROUP_SYS_TRAY);
-    }
-    #[cfg(not(target_os = "windows"))]
-    if tun_mode.is_some() {
-        update_flags.insert(UpdateFlags::CLASH_CONFIG | UpdateFlags::GROUP_SYS_TRAY);
     }
     if enable_global_hotkey.is_some() || home_cards.is_some() {
         update_flags.insert(UpdateFlags::VERGE_CONFIG);
