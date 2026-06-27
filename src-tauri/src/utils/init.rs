@@ -310,12 +310,7 @@ async fn init_dns_config() -> Result<()> {
 
     if !dns_path.exists() {
         logging!(info, Type::Setup, "Creating default DNS config file");
-        help::save_yaml(
-            &dns_path,
-            &default_dns_config,
-            Some("# H-gripe-proxy DNS Config"),
-        )
-        .await?;
+        help::save_yaml(&dns_path, &default_dns_config, Some("# H-gripe-proxy DNS Config")).await?;
     }
 
     Ok(())
