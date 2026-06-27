@@ -354,7 +354,9 @@ impl ProxyFraming {
     pub(crate) fn for_egress(egress: &UdpEgress) -> Self {
         match egress {
             UdpEgress::Trojan(_) => ProxyFraming::Trojan,
-            UdpEgress::Vless(_) => ProxyFraming::LengthPrefixed,
+            // VLESS UDP and AnyTLS udp-over-tcp v2 (connect mode) both frame each
+            // datagram as `len(u16 BE) | payload`.
+            UdpEgress::Vless(_) | UdpEgress::AnyTls(_) => ProxyFraming::LengthPrefixed,
             // Direct/Shadowsocks (UDP socket) and Hysteria2/TUIC (QUIC datagrams)
             // never reach a proxy-stream egress; treat them as chunked defensively.
             UdpEgress::Vmess(_)

@@ -70,6 +70,11 @@ const MAX_PSH_CHUNK: usize = 8192;
 
 /// Implemented protocol version reported in `cmdSettings` (`v=2`).
 const PROTOCOL_VERSION: u8 = 2;
+
+/// udp-over-tcp v2 magic destination (sing `common/uot`). A `cmdPSH` to this
+/// FQDN tells the server the stream carries UoT-framed datagrams rather than a
+/// raw TCP relay.
+const UOT_MAGIC_ADDRESS: &str = "sp.v2.udp-over-tcp.arpa";
 /// `client` identifier reported in `cmdSettings` (real name, per the spec —
 /// spoofing it is pointless).
 const CLIENT_NAME: &str = concat!("learn-gripe/", env!("CARGO_PKG_VERSION"));
@@ -143,6 +148,35 @@ pub async fn connect(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Resu
         .await
         .context("anytls: send auth + open stream")?;
     Ok(Box::new(AnyTlsStream::new(stream)))
+}
+
+/// Open an AnyTLS outbound for UDP datagrams to `target` via udp-over-tcp v2
+/// (sing `common/uot`). The session stream is opened to the UoT magic address;
+/// the first application bytes are the UoT *connect* request (`IsConnect=1` +
+/// SOCKS5 destination), after which every datagram is framed as `len(u16 BE) |
+/// payload` in both directions (connect mode carries no per-packet address).
+/// One stream is opened per destination, matching the relay's per-target model.
+pub async fn connect_udp(config: &AnyTlsOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    let magic = TargetAddr::Domain(UOT_MAGIC_ADDRESS.to_string(), 0);
+    let mut stream = transport::establish(&config.server, config.port, &config.security, &config.transport).await?;
+    let hello = build_client_hello(&config.password_sha256, &magic);
+    stream
+        .write_all(&hello)
+        .await
+        .context("anytls udp: send auth + open stream")?;
+
+    let mut anytls = AnyTlsStream::new(stream);
+    // UoT v2 request: IsConnect (1) + SOCKS5-encoded destination. Sent as the
+    // stream's first `cmdPSH` payload.
+    let mut request = Vec::with_capacity(1 + 1 + 256 + 2);
+    request.push(1u8); // IsConnect = true (fixed destination per stream)
+    socks5::encode_address(&mut request, target);
+    anytls
+        .write_all(&request)
+        .await
+        .context("anytls udp: send uot request")?;
+    anytls.flush().await.context("anytls udp: flush uot request")?;
+    Ok(Box::new(anytls))
 }
 
 /// The lowercase-hex md5 of the advertised padding scheme, for `cmdSettings`.
