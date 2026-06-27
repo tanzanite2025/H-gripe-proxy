@@ -8,6 +8,7 @@
 pub mod shadowsocks;
 pub mod ss_plugin;
 pub mod trojan;
+pub mod tuic;
 pub mod vision;
 pub mod vless;
 pub mod vmess;

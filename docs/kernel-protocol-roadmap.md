@@ -31,8 +31,9 @@
 | trojan | ✅ | ✅ | 经 `build_layers` 全传输/安全 |
 | vmess | ✅ | ✅ | 仅 alterId 0 (AEAD)；cipher auto / aes-128-gcm / chacha20-poly1305 |
 | vless | ✅ | ✅ | 支持 Vision（仅 raw TCP）；encryption 须 none |
+| tuic | ✅ | ❌ | TUIC v5（QUIC，quinn 栈）；TLS 密钥导出鉴权 + bidi 流 TCP relay；UDP（Packet）/ 0-RTT / 连接池为后续 |
 
-**解析但无数据面（导入显示 OK，跑不通）：** `ssr / snell / http / anytls / hysteria / hysteria2 / tuic / wireguard / ssh / masque / gost-relay / trusttunnel / openvpn / tailscale / mieru / sudoku / dns`。
+**解析但无数据面（导入显示 OK，跑不通）：** `ssr / snell / http / anytls / hysteria / hysteria2 / wireguard / ssh / masque / gost-relay / trusttunnel / openvpn / tailscale / mieru / sudoku / dns`。
 
 ## 2. 传输 × 安全（VMess / VLESS / Trojan 共用 `transport::build_layers`）
 
@@ -85,7 +86,7 @@
 | 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。`query-server-name` 的 DNS 拉取仍未实现 |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | xhttp packet-up/down 模式 | 低（小众） | 低-中 | 中 | 视需求 |
-| 7 | **Hysteria2 / TUIC（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（要引入 QUIC 栈 + 各自协议层） | 高 | 真正的"新协议"增量；建议作为独立大里程碑 |
+| 7 | **TUIC（QUIC 数据面）** | **高（2026 抗封锁前沿）** | **大**（引入 QUIC 栈 quinn + 协议层） | 高 | ✅ **TUIC v5 已完成**（TCP relay：TLS keying-material 导出鉴权 + bidi 流；独立 fake QUIC server 互通测试 `tests/tuic_outbound.rs`）。**Hysteria2** + TUIC 的 UDP/0-RTT 仍待做 |
 | 8 | WireGuard / ssr / snell / anytls 数据面 | 视订阅而定 | 大（各自独立工程） | 中-高 | 按实际订阅命中再排 |
 
 ---
@@ -96,7 +97,7 @@
 
 **接下来的岔路口（待 owner 拍板）：**
 1. **继续补"已有 SS"** → ~~#2 SS-2022 UDP~~（已完成）、~~#3 SIP003 plugin~~（v2ray-plugin ws/tls + simple-obfs http/tls 全部完成）。稳、低风险。
-2. **直接上 QUIC 系新协议** → #7 Hysteria2 / TUIC。价值最高但工作量最大。
+2. **直接上 QUIC 系新协议** → ~~#7 TUIC~~（TUIC v5 TCP relay 已完成，引入 quinn QUIC 栈）；剩 **Hysteria2** + TUIC 的 UDP/0-RTT。价值最高但工作量最大。
 3. **补已有传输的洞** → ~~#4 ECH 接线~~（已完成）/ #6 xhttp 其它模式。
 
 > 建议在拍板前先确认**真实订阅里的协议分布**：如果大量是 hysteria2/tuic/reality，则把精力投向 #7 比补 SS-2022 UDP 更划算；如果仍以 SS / VMess / Trojan 为主，则按 #2 → #3 顺序补齐"已有"更稳。

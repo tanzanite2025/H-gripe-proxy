@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use crate::config::outbound_opts::{ProxyEntry, ProxyType};
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
+use crate::protocols::tuic::TuicOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
 use crate::protocols::vmess::VmessOutboundConfig;
 use crate::routing::Router;
@@ -38,6 +39,8 @@ pub enum OutboundMode {
     Vmess(Box<VmessOutboundConfig>),
     /// Forward through a Shadowsocks (AEAD) outbound.
     Shadowsocks(Box<ShadowsocksOutboundConfig>),
+    /// Forward through a TUIC v5 (QUIC) outbound.
+    Tuic(Box<TuicOutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
@@ -54,7 +57,8 @@ impl OutboundMode {
     /// actually carry its traffic or returns an error the caller can fall back
     /// on. Protocols without a data plane yet (Hysteria, TUIC, …) and the
     /// `select`/`url-test`/… proxy *groups* are reported as errors rather than
-    /// silently mis-routed.
+    /// silently mis-routed. (TUIC now has a TCP data plane; Hysteria/… still do
+    /// not.)
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         match entry.kind {
             ProxyType::Direct => Ok(OutboundMode::Direct),
@@ -68,6 +72,7 @@ impl OutboundMode {
             ProxyType::Trojan => Ok(OutboundMode::Trojan(Box::new(TrojanOutboundConfig::from_proxy(entry)?))),
             ProxyType::Vmess => Ok(OutboundMode::Vmess(Box::new(VmessOutboundConfig::from_proxy(entry)?))),
             ProxyType::Vless => Ok(OutboundMode::Vless(Box::new(VlessOutboundConfig::from_proxy(entry)?))),
+            ProxyType::Tuic => Ok(OutboundMode::Tuic(Box::new(TuicOutboundConfig::from_proxy(entry)?))),
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
         }
     }
@@ -89,6 +94,7 @@ impl OutboundMode {
             OutboundMode::Trojan(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Vmess(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Shadowsocks(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Tuic(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
                 .flat_map(OutboundMode::direct_dial_endpoints)
@@ -107,6 +113,7 @@ impl OutboundMode {
             OutboundMode::Trojan(_) => "trojan",
             OutboundMode::Vmess(_) => "vmess",
             OutboundMode::Shadowsocks(_) => "shadowsocks",
+            OutboundMode::Tuic(_) => "tuic",
             OutboundMode::Routed(_) => "routed",
         }
     }
@@ -125,6 +132,7 @@ impl OutboundMode {
                 | OutboundMode::Trojan(_)
                 | OutboundMode::Vmess(_)
                 | OutboundMode::Shadowsocks(_)
+                | OutboundMode::Tuic(_)
         )
     }
 }
