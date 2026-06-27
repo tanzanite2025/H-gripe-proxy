@@ -179,6 +179,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Direct => run_direct_egress(target, rx, sink, idle).await,
         UdpEgress::Shadowsocks(config) => run_ss_egress(config, target, rx, sink, idle).await,
         UdpEgress::Ssr(config) => run_ssr_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Snell(config) => run_snell_egress(config, target, rx, sink, idle).await,
         UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
@@ -266,6 +267,34 @@ async fn run_ssr_egress<S: ReplySink>(
     idle: Option<Duration>,
 ) -> Result<()> {
     let assoc = crate::protocols::ssr::SsrUdp::connect(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
+/// Snell UDP egress: relay datagrams over a `CommandUDP` UDP-over-TCP session,
+/// sealing/opening each datagram as one AEAD chunk on the shared shadowaead
+/// stream (one chunk == one datagram).
+async fn run_snell_egress<S: ReplySink>(
+    config: Box<crate::protocols::snell::SnellOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let assoc = crate::protocols::snell::SnellUdp::connect(&config, &target).await?;
     loop {
         tokio::select! {
             maybe = rx.recv() => match maybe {
@@ -392,6 +421,7 @@ impl ProxyFraming {
             | UdpEgress::Direct
             | UdpEgress::Shadowsocks(_)
             | UdpEgress::Ssr(_)
+            | UdpEgress::Snell(_)
             | UdpEgress::Hysteria2(_)
             | UdpEgress::Tuic(_) => ProxyFraming::Chunked,
         }
