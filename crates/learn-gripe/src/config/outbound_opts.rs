@@ -226,6 +226,11 @@ pub struct ProxyOptions {
     /// endpoint; inner packets are routed to the peer with the longest matching
     /// `allowed-ips` prefix.
     pub peers: Option<Vec<WireGuardPeer>>,
+    /// AmneziaWG obfuscation parameters (`amnezia-wg-option`). When set, junk
+    /// packets precede each handshake, handshake messages get random prefix
+    /// padding, and the WireGuard message-type header is rewritten (H1-H4).
+    #[serde(rename = "amnezia-wg-option")]
+    pub amnezia_wg_option: Option<AmneziaWgOption>,
     /// Resolve domain targets with DNS sent *through* the tunnel
     /// (`remote-dns-resolve`) using the `dns` resolvers, instead of the host
     /// resolver. Ignored when `dns` is empty.
@@ -315,6 +320,26 @@ pub struct WireGuardPeer {
     pub reserved: Option<Vec<u8>>,
     #[serde(rename = "allowed-ips", alias = "allowed_ips")]
     pub allowed_ips: Option<Vec<String>>,
+}
+
+/// AmneziaWG obfuscation knobs (`amnezia-wg-option`), aligned with mihomo. These
+/// are interface-wide (shared by every peer): `jc` junk packets of random size
+/// in `[jmin, jmax]` are sent before each handshake; `s1`/`s2` random bytes are
+/// prepended to the handshake initiation / response; and `h1`-`h4` replace the
+/// 4-byte message-type header of the initiation / response / cookie / transport
+/// messages respectively.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct AmneziaWgOption {
+    pub jc: Option<u32>,
+    pub jmin: Option<u32>,
+    pub jmax: Option<u32>,
+    pub s1: Option<u32>,
+    pub s2: Option<u32>,
+    pub h1: Option<u32>,
+    pub h2: Option<u32>,
+    pub h3: Option<u32>,
+    pub h4: Option<u32>,
 }
 
 /// WebSocket transport options (`ws-opts`).

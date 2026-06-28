@@ -541,6 +541,7 @@ fn outbound_label(outbound: &OutboundMode) -> &'static str {
         OutboundMode::AnyTls(_) => "anytls",
         OutboundMode::Snell(_) => "snell",
         OutboundMode::Ssr(_) => "ssr",
+        OutboundMode::WireGuard(_) => "wireguard",
         OutboundMode::Routed(_) => "routed",
     }
 }
