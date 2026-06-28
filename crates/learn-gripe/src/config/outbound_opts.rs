@@ -217,6 +217,15 @@ pub struct ProxyOptions {
     /// Keepalive interval in seconds (`persistent-keepalive`); 0/unset disables.
     #[serde(rename = "persistent-keepalive")]
     pub persistent_keepalive: Option<u32>,
+    /// Inner destination prefixes routed to the top-level peer (`allowed-ips`).
+    /// Defaults to a catch-all (`0.0.0.0/0`, `::/0`) when unset, so a single-peer
+    /// tunnel carries everything.
+    #[serde(rename = "allowed-ips", alias = "allowed_ips")]
+    pub allowed_ips: Option<Vec<String>>,
+    /// Additional WireGuard peers (`peers`). Each rides its own Noise session +
+    /// endpoint; inner packets are routed to the peer with the longest matching
+    /// `allowed-ips` prefix.
+    pub peers: Option<Vec<WireGuardPeer>>,
     /// Resolve domain targets with DNS sent *through* the tunnel
     /// (`remote-dns-resolve`) using the `dns` resolvers, instead of the host
     /// resolver. Ignored when `dns` is empty.
@@ -290,6 +299,22 @@ pub struct ProxyOptions {
     /// the relay request as early data once a resumption ticket is cached.
     #[serde(rename = "reduce-rtt")]
     pub reduce_rtt: Option<bool>,
+}
+
+/// One entry of a WireGuard `peers` list: a peer endpoint with its own key
+/// material and the inner prefixes (`allowed-ips`) routed to it.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct WireGuardPeer {
+    pub server: Option<String>,
+    pub port: Option<u16>,
+    #[serde(rename = "public-key")]
+    pub public_key: Option<String>,
+    #[serde(rename = "pre-shared-key")]
+    pub pre_shared_key: Option<String>,
+    pub reserved: Option<Vec<u8>>,
+    #[serde(rename = "allowed-ips", alias = "allowed_ips")]
+    pub allowed_ips: Option<Vec<String>>,
 }
 
 /// WebSocket transport options (`ws-opts`).

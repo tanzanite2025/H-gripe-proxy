@@ -122,7 +122,7 @@ fn now_since(start: Instant) -> SmolInstant {
 /// stack that echoes the inner TCP, and encrypt the stack's output back.
 /// `rx_count` is bumped for every datagram received from the client (including
 /// keepalives), so tests can observe that the client's timers keep firing.
-async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn, rx_count: Arc<AtomicU64>) {
+async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn, rx_count: Arc<AtomicU64>, tag: u8) {
     let start = Instant::now();
     let mut phy = Phy {
         rx: VecDeque::new(),
@@ -176,6 +176,11 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn, rx_count: Arc<AtomicU64
             let data = sock.recv(|b| (b.len(), b.to_vec())).unwrap_or_default();
             if data.is_empty() {
                 break;
+            }
+            // A non-zero `tag` prefixes each echo so multi-peer tests can tell
+            // which server (hence which peer) actually handled the flow.
+            if tag != 0 {
+                let _ = sock.send_slice(&[tag]);
             }
             let _ = sock.send_slice(&data);
         }
@@ -313,7 +318,7 @@ async fn start_server_counting(extra_opts: &str) -> (WireGuardOutboundConfig, Ar
                 _ => break,
             }
         }
-        Box::pin(run_fake_server(server_udp, tunn, rx_count_srv)).await;
+        Box::pin(run_fake_server(server_udp, tunn, rx_count_srv, 0)).await;
     });
 
     let yaml = format!(
@@ -326,6 +331,90 @@ async fn start_server_counting(extra_opts: &str) -> (WireGuardOutboundConfig, Ar
     );
     let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
     (WireGuardOutboundConfig::from_proxy(&entry).unwrap(), rx_count)
+}
+
+/// Stand up a fake server keyed to `client_pub` (the shared interface key) on an
+/// ephemeral port. Its TCP echoes are prefixed with `tag` so a test can tell
+/// which peer carried a flow. Returns the listening port and the server's public
+/// key (the peer's `public-key`).
+async fn start_peer_for(client_pub: [u8; 32], tag: u8) -> (u16, [u8; 32]) {
+    let (_, server_pub, server_secret, _) = keypair();
+    let server_udp = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let port = server_udp.local_addr().unwrap().port();
+    let server_tunn = Tunn::new(server_secret, PublicKey::from(client_pub), None, None, 1, None);
+    tokio::spawn(async move {
+        let mut buf = vec![0u8; 65535];
+        let (n, peer) = server_udp.recv_from(&mut buf).await.unwrap();
+        server_udp.connect(peer).await.unwrap();
+        let mut tunn = server_tunn;
+        let mut scratch = vec![0u8; 65535 + 32];
+        let mut first = true;
+        loop {
+            let datagram: &[u8] = if first { &buf[..n] } else { &[] };
+            match tunn.decapsulate(None, datagram, &mut scratch) {
+                TunnResult::WriteToNetwork(out) => {
+                    let _ = server_udp.send(out).await;
+                    first = false;
+                }
+                _ => break,
+            }
+        }
+        Box::pin(run_fake_server(server_udp, tunn, Arc::new(AtomicU64::new(0)), tag)).await;
+    });
+    (port, server_pub)
+}
+
+#[tokio::test]
+async fn wireguard_routes_to_the_peer_matching_allowed_ips() {
+    // Two peers behind one interface key, each owning a distinct inner /24. The
+    // device must route an inner packet to the peer whose `allowed-ips` matches;
+    // each server tags its echo so we can confirm the right one handled it.
+    let (client_priv, client_pub, _, _) = keypair();
+    let (port_a, pub_a) = start_peer_for(client_pub, 0xA1).await;
+    let (port_b, pub_b) = start_peer_for(client_pub, 0xB2).await;
+
+    let yaml = format!(
+        "{{ name: wg, type: wireguard, server: 127.0.0.1, port: {port_a}, \
+         private-key: {priv_k}, public-key: {pub_a_k}, ip: 10.0.0.2, \
+         allowed-ips: [10.0.1.0/24], \
+         peers: [ {{ server: 127.0.0.1, port: {port_b}, public-key: {pub_b_k}, \
+         allowed-ips: [10.0.2.0/24] }} ] }}",
+        priv_k = b64(&client_priv),
+        pub_a_k = b64(&pub_a),
+        pub_b_k = b64(&pub_b),
+    );
+    let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
+    let config = WireGuardOutboundConfig::from_proxy(&entry).unwrap();
+
+    // 10.0.1.1 is inside peer A's /24 -> tag 0xA1.
+    let target_a = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 1, 1)), INNER_PORT));
+    let mut stream_a = tokio::time::timeout(Duration::from_secs(15), wireguard::connect(&config, &target_a))
+        .await
+        .expect("connect to peer A did not time out")
+        .expect("wireguard connect peer A");
+    stream_a.write_all(b"alpha").await.unwrap();
+    let mut got_a = vec![0u8; 6];
+    stream_a.read_exact(&mut got_a).await.unwrap();
+    assert_eq!(
+        got_a,
+        [0xA1, b'a', b'l', b'p', b'h', b'a'],
+        "flow to 10.0.1.1 must ride peer A"
+    );
+
+    // 10.0.2.1 is inside peer B's /24 -> tag 0xB2.
+    let target_b = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 2, 1)), INNER_PORT));
+    let mut stream_b = tokio::time::timeout(Duration::from_secs(15), wireguard::connect(&config, &target_b))
+        .await
+        .expect("connect to peer B did not time out")
+        .expect("wireguard connect peer B");
+    stream_b.write_all(b"bravo").await.unwrap();
+    let mut got_b = vec![0u8; 6];
+    stream_b.read_exact(&mut got_b).await.unwrap();
+    assert_eq!(
+        got_b,
+        [0xB2, b'b', b'r', b'a', b'v', b'o'],
+        "flow to 10.0.2.1 must ride peer B"
+    );
 }
 
 #[tokio::test]
