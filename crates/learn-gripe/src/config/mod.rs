@@ -4,6 +4,7 @@ use anyhow::{Context, Result, bail};
 
 use crate::config::outbound_opts::{ProxyEntry, ProxyType};
 use crate::protocols::anytls::AnyTlsOutboundConfig;
+use crate::protocols::http::HttpOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
@@ -36,6 +37,8 @@ pub enum OutboundMode {
     Reject,
     /// Forward through an upstream SOCKS5 proxy.
     Socks5Upstream { addr: SocketAddr },
+    /// Forward through an upstream HTTP(S) proxy (the `CONNECT` method).
+    Http(Box<HttpOutboundConfig>),
     /// Forward through a VLESS outbound.
     Vless(Box<VlessOutboundConfig>),
     /// Forward through a Trojan outbound.
@@ -80,6 +83,7 @@ impl OutboundMode {
             ProxyType::Socks5 => Ok(OutboundMode::Socks5Upstream {
                 addr: socks5_upstream_addr(entry)?,
             }),
+            ProxyType::Http => Ok(OutboundMode::Http(Box::new(HttpOutboundConfig::from_proxy(entry)?))),
             ProxyType::Shadowsocks => Ok(OutboundMode::Shadowsocks(Box::new(
                 ShadowsocksOutboundConfig::from_proxy(entry)?,
             ))),
@@ -113,6 +117,7 @@ impl OutboundMode {
         match self {
             OutboundMode::Direct | OutboundMode::Reject => Vec::new(),
             OutboundMode::Socks5Upstream { addr } => vec![(addr.ip().to_string(), addr.port())],
+            OutboundMode::Http(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Vless(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Trojan(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Vmess(c) => vec![(c.server.clone(), c.port)],
@@ -137,6 +142,7 @@ impl OutboundMode {
             OutboundMode::Direct => "DIRECT",
             OutboundMode::Reject => "REJECT",
             OutboundMode::Socks5Upstream { .. } => "socks5",
+            OutboundMode::Http(_) => "http",
             OutboundMode::Vless(_) => "vless",
             OutboundMode::Trojan(_) => "trojan",
             OutboundMode::Vmess(_) => "vmess",
@@ -161,6 +167,7 @@ impl OutboundMode {
         matches!(
             self,
             OutboundMode::Socks5Upstream { .. }
+                | OutboundMode::Http(_)
                 | OutboundMode::Vless(_)
                 | OutboundMode::Trojan(_)
                 | OutboundMode::Vmess(_)

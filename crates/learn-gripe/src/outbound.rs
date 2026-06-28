@@ -3,6 +3,7 @@ use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
 use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
+use crate::protocols::http;
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell::{self, SnellOutboundConfig};
@@ -53,6 +54,7 @@ pub fn connect<'a>(
                     .with_context(|| format!("upstream CONNECT to {target}"))?;
                 Ok(Box::new(stream) as BoxedStream)
             }
+            OutboundMode::Http(config) => http::connect(config, target).await,
             OutboundMode::Vless(config) => vless::connect(config, target).await,
             OutboundMode::Trojan(config) => trojan::connect(config, target).await,
             OutboundMode::Vmess(config) => vmess::connect(config, target).await,
@@ -146,9 +148,9 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
-        // Reject blocks the datagram; an upstream SOCKS5 proxy has no UDP relay
-        // path here, so its associations are refused rather than leaked.
-        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } => None,
+        // Reject blocks the datagram; an upstream SOCKS5/HTTP proxy has no UDP
+        // relay path here, so its associations are refused rather than leaked.
+        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } | OutboundMode::Http(_) => None,
     }
 }
 
