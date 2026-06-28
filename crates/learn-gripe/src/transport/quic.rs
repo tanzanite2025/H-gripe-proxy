@@ -24,7 +24,7 @@ use crate::transport::tls;
 /// QUIC congestion controller selection (`congestion-controller` in clash
 /// configs). This is a purely local send-rate choice; it does not affect wire
 /// interop, so any value dials successfully against any server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Congestion {
     Cubic,
     NewReno,

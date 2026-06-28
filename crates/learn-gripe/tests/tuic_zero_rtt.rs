@@ -12,7 +12,7 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
-use learn_gripe::{Congestion, GripeConfig, GripeKernel, OutboundMode, TuicOutboundConfig};
+use learn_gripe::{Congestion, GripeConfig, GripeKernel, OutboundMode, TuicOutboundConfig, UdpRelayMode};
 use quinn::Endpoint;
 use quinn::crypto::rustls::QuicServerConfig;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -159,6 +159,7 @@ async fn reduce_rtt_relays_across_resumed_dials() {
             skip_cert_verify: true,
             congestion: Congestion::Bbr,
             reduce_rtt: true,
+            udp_relay_mode: UdpRelayMode::Native,
         })),
     })
     .await

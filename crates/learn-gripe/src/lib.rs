@@ -40,7 +40,7 @@ pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::snell::{SnellObfs, SnellOutboundConfig};
 pub use protocols::ssr::{SsrCipher, SsrObfs, SsrOutboundConfig, SsrProtocol};
 pub use protocols::trojan::TrojanOutboundConfig;
-pub use protocols::tuic::TuicOutboundConfig;
+pub use protocols::tuic::{TuicOutboundConfig, UdpRelayMode};
 pub use protocols::vless::VlessOutboundConfig;
 pub use protocols::vmess::{VmessCipher, VmessOutboundConfig};
 pub use protocols::wireguard::{self, WireGuardOutboundConfig};

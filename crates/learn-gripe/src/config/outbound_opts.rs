@@ -304,6 +304,11 @@ pub struct ProxyOptions {
     /// the relay request as early data once a resumption ticket is cached.
     #[serde(rename = "reduce-rtt")]
     pub reduce_rtt: Option<bool>,
+    /// TUIC UDP relay mode (`udp-relay-mode`): `native` carries each datagram as
+    /// a QUIC datagram frame, `quic` carries it on its own unidirectional QUIC
+    /// stream (reliable, no datagram-MTU ceiling). Defaults to `native`.
+    #[serde(rename = "udp-relay-mode")]
+    pub udp_relay_mode: Option<String>,
 }
 
 /// One entry of a WireGuard `peers` list: a peer endpoint with its own key
