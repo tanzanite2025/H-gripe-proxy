@@ -17,13 +17,16 @@
 //! is the same "delegate the wire codec, own the plumbing" split used for
 //! rustls / quinn / smoltcp / hickory elsewhere in the kernel.
 //!
-//! Scope (this module): single peer, **TCP + UDP relay** (IPv4/IPv6 inner
-//! targets). Each relayed UDP association is a userspace smoltcp UDP socket
+//! Scope (this module): **TCP + UDP relay** (IPv4/IPv6 inner targets) over one
+//! or more peers. Each relayed UDP association is a userspace smoltcp UDP socket
 //! bound inside the same per-config device, so its datagrams ride the Noise
 //! tunnel exactly like the TCP flows. Tunnel-side DNS (`remote-dns-resolve`) is
 //! supported: a domain target is resolved by querying the configured `dns`
 //! resolvers over the tunnel (UDP/53) rather than the host resolver. Multi-peer
-//! and amnezia-wg obfuscation are deliberately left to follow-ups.
+//! is supported: the top-level peer plus any `peers` entries each run their own
+//! Noise session + UDP endpoint, and an inner packet is routed to the peer with
+//! the longest matching `allowed-ips` prefix. amnezia-wg obfuscation is
+//! deliberately left to a follow-up.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -76,43 +79,77 @@ const DNS_QUERY_TIMEOUT: Duration = Duration::from_millis(800);
 /// resolver (the first few may be lost while the Noise handshake warms up).
 const DNS_QUERY_RETRIES: usize = 5;
 
-/// Parsed WireGuard outbound configuration (single peer).
-#[derive(Debug, Clone)]
+/// A single inner-destination prefix routed to a peer (one `allowed-ips` entry).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AllowedIp {
+    V4(Ipv4Addr, u8),
+    V6(Ipv6Addr, u8),
+}
+
+impl AllowedIp {
+    /// Prefix length in bits; longer prefixes win when routing an inner packet.
+    fn prefix(&self) -> u8 {
+        match self {
+            AllowedIp::V4(_, p) | AllowedIp::V6(_, p) => *p,
+        }
+    }
+
+    /// Whether `ip` falls inside this prefix.
+    fn contains(&self, ip: IpAddr) -> bool {
+        match (self, ip) {
+            (AllowedIp::V4(net, prefix), IpAddr::V4(ip)) => prefix_match(&net.octets(), &ip.octets(), *prefix),
+            (AllowedIp::V6(net, prefix), IpAddr::V6(ip)) => prefix_match(&net.octets(), &ip.octets(), *prefix),
+            _ => false,
+        }
+    }
+}
+
+/// Compare the leading `prefix` bits of two equal-length addresses.
+fn prefix_match(net: &[u8], ip: &[u8], prefix: u8) -> bool {
+    let prefix = prefix as usize;
+    let full = prefix / 8;
+    if net[..full] != ip[..full] {
+        return false;
+    }
+    let rem = prefix % 8;
+    if rem == 0 {
+        return true;
+    }
+    let mask = 0xffu8 << (8 - rem);
+    (net[full] & mask) == (ip[full] & mask)
+}
+
+/// One WireGuard peer: endpoint, key material, transport `reserved` tag, and the
+/// inner prefixes routed to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PeerConfig {
+    server: String,
+    port: u16,
+    public_key: [u8; 32],
+    preshared_key: Option<[u8; 32]>,
+    reserved: [u8; 3],
+    allowed_ips: Vec<AllowedIp>,
+}
+
+/// Parsed WireGuard outbound configuration. The interface-level fields (key,
+/// assigned address, MTU, DNS) are shared; `peers` lists one or more peers, each
+/// with its own Noise session, endpoint, and `allowed-ips`. Index 0 is the
+/// top-level peer.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WireGuardOutboundConfig {
     pub server: String,
     pub port: u16,
     private_key: [u8; 32],
-    public_key: [u8; 32],
-    preshared_key: Option<[u8; 32]>,
     local_v4: Option<Ipv4Addr>,
     local_v6: Option<Ipv6Addr>,
     mtu: u32,
-    reserved: [u8; 3],
     keepalive: Option<u16>,
     /// Resolve domain targets via DNS sent through the tunnel to `dns_servers`.
     remote_dns_resolve: bool,
     /// Resolver socket addresses reachable inside the tunnel (port 53 default).
     dns_servers: Vec<SocketAddr>,
+    peers: Vec<PeerConfig>,
 }
-
-impl PartialEq for WireGuardOutboundConfig {
-    fn eq(&self, other: &Self) -> bool {
-        self.server == other.server
-            && self.port == other.port
-            && self.private_key == other.private_key
-            && self.public_key == other.public_key
-            && self.preshared_key == other.preshared_key
-            && self.local_v4 == other.local_v4
-            && self.local_v6 == other.local_v6
-            && self.mtu == other.mtu
-            && self.reserved == other.reserved
-            && self.keepalive == other.keepalive
-            && self.remote_dns_resolve == other.remote_dns_resolve
-            && self.dns_servers == other.dns_servers
-    }
-}
-
-impl Eq for WireGuardOutboundConfig {}
 
 impl WireGuardOutboundConfig {
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
@@ -158,15 +195,7 @@ impl WireGuardOutboundConfig {
             bail!("wireguard: at least one of `ip` / `ipv6` (the assigned tunnel address) is required");
         }
 
-        let reserved = match &opts.reserved {
-            Some(bytes) => {
-                if bytes.len() != 3 {
-                    bail!("wireguard: `reserved` must be exactly 3 bytes, got {}", bytes.len());
-                }
-                [bytes[0], bytes[1], bytes[2]]
-            }
-            None => [0u8; 3],
-        };
+        let reserved = parse_reserved(opts.reserved.as_deref())?;
 
         let keepalive = opts.persistent_keepalive.and_then(|k| {
             if k == 0 {
@@ -190,24 +219,83 @@ impl WireGuardOutboundConfig {
             bail!("wireguard: `remote-dns-resolve` requires at least one `dns` resolver");
         }
 
+        // The top-level peer; its `allowed-ips` defaults to a catch-all so a
+        // single-peer tunnel carries everything.
+        let top_allowed = match &opts.allowed_ips {
+            Some(list) => parse_allowed_ips(list)?,
+            None => catch_all(),
+        };
+        let mut peers = vec![PeerConfig {
+            server: server.clone(),
+            port,
+            public_key,
+            preshared_key,
+            reserved,
+            allowed_ips: top_allowed,
+        }];
+
+        // Additional `peers` entries each need an explicit endpoint, key, and
+        // `allowed-ips` (routing across multiple peers must be unambiguous).
+        if let Some(extra) = &opts.peers {
+            for (i, p) in extra.iter().enumerate() {
+                let server = p
+                    .server
+                    .clone()
+                    .ok_or_else(|| anyhow!("wireguard: `peers[{i}]` missing `server`"))?;
+                let port = p
+                    .port
+                    .ok_or_else(|| anyhow!("wireguard: `peers[{i}]` missing `port`"))?;
+                let public_key = parse_key(
+                    p.public_key
+                        .as_deref()
+                        .ok_or_else(|| anyhow!("wireguard: `peers[{i}]` missing `public-key`"))?,
+                )
+                .with_context(|| format!("wireguard: `peers[{i}]` invalid `public-key`"))?;
+                let preshared_key = match p.pre_shared_key.as_deref() {
+                    Some(psk) => Some(
+                        parse_key(psk).with_context(|| format!("wireguard: `peers[{i}]` invalid `pre-shared-key`"))?,
+                    ),
+                    None => None,
+                };
+                let reserved = parse_reserved(p.reserved.as_deref())
+                    .with_context(|| format!("wireguard: `peers[{i}]` invalid `reserved`"))?;
+                let allowed = match &p.allowed_ips {
+                    Some(list) if !list.is_empty() => parse_allowed_ips(list)?,
+                    _ => bail!("wireguard: `peers[{i}]` requires non-empty `allowed-ips`"),
+                };
+                peers.push(PeerConfig {
+                    server,
+                    port,
+                    public_key,
+                    preshared_key,
+                    reserved,
+                    allowed_ips: allowed,
+                });
+            }
+        }
+
         Ok(Self {
             server,
             port,
             private_key,
-            public_key,
-            preshared_key,
             local_v4,
             local_v6,
             mtu,
-            reserved,
             keepalive,
             remote_dns_resolve,
             dns_servers,
+            peers,
         })
     }
 
     fn registry_key(&self) -> WgKey {
-        (self.server.clone(), self.port, self.public_key, self.private_key)
+        let mut peers: Vec<String> = self
+            .peers
+            .iter()
+            .map(|p| format!("{}:{}:{}", p.server, p.port, hex(&p.public_key)))
+            .collect();
+        peers.sort();
+        format!("{}|{}", hex(&self.private_key), peers.join(","))
     }
 }
 
@@ -258,7 +346,10 @@ async fn resolve_target(
     }
 }
 
-type WgKey = (String, u16, [u8; 32], [u8; 32]);
+/// Registry key fingerprinting the interface key plus every peer endpoint/key,
+/// so the same multi-peer config shares one device while a different peer set
+/// gets its own.
+type WgKey = String;
 
 /// Per-config registry of live tunnel devices, so concurrent connections to the
 /// same peer share one Noise session + netstack (mirrors the AnyTLS session
@@ -311,38 +402,48 @@ impl WireGuardDevice {
         Ok(device)
     }
 
-    /// Dial the peer's UDP endpoint, build the Noise tunnel + smoltcp interface,
-    /// and spawn the poll loop.
+    /// Dial every peer's UDP endpoint, build a Noise tunnel per peer plus the
+    /// shared smoltcp interface, and spawn the poll loop.
     async fn spawn(config: &WireGuardOutboundConfig) -> Result<Self> {
-        let peer = tokio::net::lookup_host((config.server.as_str(), config.port))
-            .await
-            .with_context(|| format!("wireguard: resolve peer {}:{}", config.server, config.port))?
-            .next()
-            .ok_or_else(|| anyhow!("wireguard: no addresses for peer {}:{}", config.server, config.port))?;
+        let mut peers = Vec::with_capacity(config.peers.len());
+        for peer in &config.peers {
+            let endpoint = tokio::net::lookup_host((peer.server.as_str(), peer.port))
+                .await
+                .with_context(|| format!("wireguard: resolve peer {}:{}", peer.server, peer.port))?
+                .next()
+                .ok_or_else(|| anyhow!("wireguard: no addresses for peer {}:{}", peer.server, peer.port))?;
 
-        let bind: SocketAddr = if peer.is_ipv4() {
-            (Ipv4Addr::UNSPECIFIED, 0).into()
-        } else {
-            (Ipv6Addr::UNSPECIFIED, 0).into()
-        };
-        let udp = UdpSocket::bind(bind).await.context("wireguard: bind UDP socket")?;
-        udp.connect(peer)
-            .await
-            .with_context(|| format!("wireguard: connect UDP to {peer}"))?;
+            let bind: SocketAddr = if endpoint.is_ipv4() {
+                (Ipv4Addr::UNSPECIFIED, 0).into()
+            } else {
+                (Ipv6Addr::UNSPECIFIED, 0).into()
+            };
+            let udp = UdpSocket::bind(bind).await.context("wireguard: bind UDP socket")?;
+            udp.connect(endpoint)
+                .await
+                .with_context(|| format!("wireguard: connect UDP to {endpoint}"))?;
 
-        let mut index = [0u8; 4];
-        getrandom::fill(&mut index).map_err(|_| anyhow!("wireguard: system RNG unavailable"))?;
-        let tunn = Tunn::new(
-            StaticSecret::from(config.private_key),
-            PublicKey::from(config.public_key),
-            config.preshared_key,
-            config.keepalive,
-            u32::from_le_bytes(index),
-            None,
-        );
+            let mut index = [0u8; 4];
+            getrandom::fill(&mut index).map_err(|_| anyhow!("wireguard: system RNG unavailable"))?;
+            let tunn = Tunn::new(
+                StaticSecret::from(config.private_key),
+                PublicKey::from(peer.public_key),
+                peer.preshared_key,
+                config.keepalive,
+                u32::from_le_bytes(index),
+                None,
+            );
+
+            peers.push(PeerTunn {
+                tunn,
+                udp,
+                reserved: peer.reserved,
+                allowed_ips: peer.allowed_ips.clone(),
+            });
+        }
 
         let (commands_tx, commands_rx) = mpsc::channel::<Command>(CHANNEL_DEPTH);
-        let loop_state = DeviceLoop::new(tunn, udp, config, commands_rx);
+        let loop_state = DeviceLoop::new(peers, config, commands_rx);
         tokio::spawn(loop_state.run());
 
         Ok(Self { commands: commands_tx })
@@ -423,11 +524,19 @@ impl WireGuardDevice {
 /// drained their bytes into the smoltcp sockets.
 type WriterWakers = Arc<Mutex<Vec<Waker>>>;
 
-/// State owned by the per-device poll loop.
-struct DeviceLoop {
+/// One peer's tunnel state owned by the poll loop: its Noise session, dedicated
+/// UDP endpoint, transport `reserved` tag, and the inner prefixes routed to it.
+struct PeerTunn {
     tunn: Tunn,
     udp: UdpSocket,
     reserved: [u8; 3],
+    allowed_ips: Vec<AllowedIp>,
+}
+
+/// State owned by the per-device poll loop.
+struct DeviceLoop {
+    /// One entry per configured peer; index 0 is the top-level peer.
+    peers: Vec<PeerTunn>,
     mtu: usize,
     local_v4: Option<Ipv4Addr>,
     local_v6: Option<Ipv6Addr>,
@@ -474,11 +583,9 @@ struct WgUdpFlow {
 }
 
 impl DeviceLoop {
-    fn new(tunn: Tunn, udp: UdpSocket, config: &WireGuardOutboundConfig, commands: mpsc::Receiver<Command>) -> Self {
+    fn new(peers: Vec<PeerTunn>, config: &WireGuardOutboundConfig, commands: mpsc::Receiver<Command>) -> Self {
         Self {
-            tunn,
-            udp,
-            reserved: config.reserved,
+            peers,
             mtu: config.mtu as usize,
             local_v4: config.local_v4,
             local_v6: config.local_v6,
@@ -496,14 +603,20 @@ impl DeviceLoop {
         let mut phy = WgPhy::new(self.mtu);
         let mut iface = build_interface(&mut phy, smol_now(start), self.local_v4, self.local_v6);
         let mut sockets = SocketSet::new(Vec::new());
-        let mut udp_buf = vec![0u8; 65535];
+        // One receive buffer per peer (each peer has its own UDP socket).
+        let mut udp_bufs: Vec<Vec<u8>> = (0..self.peers.len()).map(|_| vec![0u8; 65535]).collect();
         let mut scratch = vec![0u8; 65535 + 32];
 
-        // Kick the handshake proactively so the first SYN has a session to ride
-        // instead of waiting for smoltcp's first retransmit.
-        if let TunnResult::WriteToNetwork(out) = self.tunn.format_handshake_initiation(&mut scratch, false) {
-            apply_reserved(out, self.reserved);
-            let _ = self.udp.send(out).await;
+        // Kick each peer's handshake proactively so the first SYN has a session
+        // to ride instead of waiting for smoltcp's first retransmit.
+        for idx in 0..self.peers.len() {
+            let reserved = self.peers[idx].reserved;
+            if let TunnResult::WriteToNetwork(out) =
+                self.peers[idx].tunn.format_handshake_initiation(&mut scratch, false)
+            {
+                apply_reserved(out, reserved);
+                let _ = self.peers[idx].udp.send(out).await;
+            }
         }
 
         // Next wall-clock instant at which the WireGuard timers must be driven.
@@ -541,9 +654,9 @@ impl DeviceLoop {
                     Some(cmd) => self.handle_command(cmd, &mut sockets, &mut iface),
                     None => return,
                 },
-                res = self.udp.recv(&mut udp_buf) => {
+                (idx, res) = recv_any(&self.peers, &mut udp_bufs) => {
                     if let Ok(n) = res {
-                        self.decapsulate_rx(&mut udp_buf, n, &mut phy, &mut scratch).await;
+                        self.decapsulate_rx(idx, n, &mut udp_bufs, &mut phy, &mut scratch).await;
                     }
                 }
                 _ = tokio::time::sleep(delay) => {}
@@ -792,13 +905,38 @@ impl DeviceLoop {
         }
     }
 
-    /// Encapsulate every IP packet smoltcp queued and send it to the peer.
+    /// Pick the peer an inner packet destined for `dst` should ride: the one
+    /// whose `allowed-ips` has the longest prefix matching `dst`. Ties keep the
+    /// earlier (lower-index) peer. Returns `None` when no peer claims `dst`.
+    fn route(&self, dst: IpAddr) -> Option<usize> {
+        let mut best: Option<(usize, u8)> = None;
+        for (i, peer) in self.peers.iter().enumerate() {
+            for allowed in &peer.allowed_ips {
+                if allowed.contains(dst) {
+                    let prefix = allowed.prefix();
+                    if best.is_none_or(|(_, b)| prefix > b) {
+                        best = Some((i, prefix));
+                    }
+                }
+            }
+        }
+        best.map(|(i, _)| i)
+    }
+
+    /// Encapsulate every IP packet smoltcp queued and send it to the peer that
+    /// claims the packet's destination (longest `allowed-ips` match). Packets
+    /// claimed by no peer are dropped.
     async fn encapsulate_tx(&mut self, phy: &mut WgPhy, scratch: &mut [u8]) {
         while let Some(pkt) = phy.tx.pop_front() {
-            match self.tunn.encapsulate(&pkt, scratch) {
+            let idx = match packet_dst_ip(&pkt).and_then(|dst| self.route(dst)) {
+                Some(idx) => idx,
+                None => continue,
+            };
+            let reserved = self.peers[idx].reserved;
+            match self.peers[idx].tunn.encapsulate(&pkt, scratch) {
                 TunnResult::WriteToNetwork(out) => {
-                    apply_reserved(out, self.reserved);
-                    let _ = self.udp.send(out).await;
+                    apply_reserved(out, reserved);
+                    let _ = self.peers[idx].udp.send(out).await;
                 }
                 TunnResult::Err(_) | TunnResult::Done => {}
                 // encapsulate only ever yields WriteToNetwork / Done / Err.
@@ -807,19 +945,28 @@ impl DeviceLoop {
         }
     }
 
-    /// Decapsulate one received UDP datagram, feeding decrypted IP packets to
-    /// smoltcp and flushing any handshake/cookie responses back to the peer.
-    async fn decapsulate_rx(&mut self, udp_buf: &mut [u8], n: usize, phy: &mut WgPhy, scratch: &mut [u8]) {
-        clear_reserved(&mut udp_buf[..n]);
+    /// Decapsulate one datagram received on peer `idx`'s socket, feeding
+    /// decrypted IP packets to smoltcp and flushing any handshake/cookie
+    /// responses back to that peer.
+    async fn decapsulate_rx(
+        &mut self,
+        idx: usize,
+        n: usize,
+        udp_bufs: &mut [Vec<u8>],
+        phy: &mut WgPhy,
+        scratch: &mut [u8],
+    ) {
+        let reserved = self.peers[idx].reserved;
+        clear_reserved(&mut udp_bufs[idx][..n]);
         // First call parses the datagram; subsequent calls with an empty slice
         // flush queued network writes until `Done`.
         let mut first = true;
         loop {
-            let datagram: &[u8] = if first { &udp_buf[..n] } else { &[] };
-            match self.tunn.decapsulate(None, datagram, scratch) {
+            let datagram: &[u8] = if first { &udp_bufs[idx][..n] } else { &[] };
+            match self.peers[idx].tunn.decapsulate(None, datagram, scratch) {
                 TunnResult::WriteToNetwork(out) => {
-                    apply_reserved(out, self.reserved);
-                    let _ = self.udp.send(out).await;
+                    apply_reserved(out, reserved);
+                    let _ = self.peers[idx].udp.send(out).await;
                     first = false;
                 }
                 TunnResult::WriteToTunnelV4(pkt, _) | TunnResult::WriteToTunnelV6(pkt, _) => {
@@ -832,21 +979,58 @@ impl DeviceLoop {
         }
     }
 
-    /// Drive rekey / keepalive / handshake retransmit timers, flushing every
-    /// packet `update_timers` wants to emit this tick. boringtun yields at most
-    /// one packet per call, so the bounded drain just covers the case where more
-    /// than one timer is simultaneously due; a repeat call at the same instant
-    /// returns `Done` and ends the loop.
+    /// Drive rekey / keepalive / handshake retransmit timers for every peer,
+    /// flushing each packet `update_timers` wants to emit this tick. boringtun
+    /// yields at most one packet per call, so the bounded drain just covers the
+    /// case where more than one timer is simultaneously due; a repeat call at
+    /// the same instant returns `Done` and ends the loop.
     async fn drive_timers(&mut self, scratch: &mut [u8]) {
-        for _ in 0..4 {
-            match self.tunn.update_timers(scratch) {
-                TunnResult::WriteToNetwork(out) => {
-                    apply_reserved(out, self.reserved);
-                    let _ = self.udp.send(out).await;
+        for idx in 0..self.peers.len() {
+            let reserved = self.peers[idx].reserved;
+            for _ in 0..4 {
+                match self.peers[idx].tunn.update_timers(scratch) {
+                    TunnResult::WriteToNetwork(out) => {
+                        apply_reserved(out, reserved);
+                        let _ = self.peers[idx].udp.send(out).await;
+                    }
+                    _ => break,
                 }
-                _ => break,
             }
         }
+    }
+}
+
+/// Recv on whichever peer socket is ready first, returning `(peer_index,
+/// result)`. Each socket recvs into its own buffer; pending sockets register
+/// their waker so the loop is rescheduled when any becomes readable.
+async fn recv_any(peers: &[PeerTunn], bufs: &mut [Vec<u8>]) -> (usize, std::io::Result<usize>) {
+    std::future::poll_fn(|cx| {
+        for (i, (peer, buf)) in peers.iter().zip(bufs.iter_mut()).enumerate() {
+            let mut rb = ReadBuf::new(&mut buf[..]);
+            match peer.udp.poll_recv(cx, &mut rb) {
+                Poll::Ready(Ok(())) => return Poll::Ready((i, Ok(rb.filled().len()))),
+                Poll::Ready(Err(e)) => return Poll::Ready((i, Err(e))),
+                Poll::Pending => {}
+            }
+        }
+        Poll::Pending
+    })
+    .await
+}
+
+/// Read the destination address of an inner IP packet (IPv4 or IPv6) for
+/// `allowed-ips` routing. Returns `None` for a truncated/unknown packet.
+fn packet_dst_ip(pkt: &[u8]) -> Option<IpAddr> {
+    match pkt.first()? >> 4 {
+        4 if pkt.len() >= 20 => {
+            let octets: [u8; 4] = pkt[16..20].try_into().ok()?;
+            Some(IpAddr::V4(Ipv4Addr::from(octets)))
+        }
+        6 if pkt.len() >= 40 => {
+            let octets: [u8; 16] = pkt[24..40].try_into().ok()?;
+            Some(IpAddr::V6(Ipv6Addr::from(octets)))
+        }
+        _ => None,
     }
 }
 
@@ -1085,6 +1269,77 @@ fn clear_reserved(datagram: &mut [u8]) {
         datagram[1] = 0;
         datagram[2] = 0;
         datagram[3] = 0;
+    }
+}
+
+/// Lowercase hex of a byte slice, used to fingerprint keys in the registry key.
+fn hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+/// Parse the optional 3-byte `reserved` field (defaults to all-zero).
+fn parse_reserved(bytes: Option<&[u8]>) -> Result<[u8; 3]> {
+    match bytes {
+        Some(bytes) => {
+            if bytes.len() != 3 {
+                bail!("wireguard: `reserved` must be exactly 3 bytes, got {}", bytes.len());
+            }
+            Ok([bytes[0], bytes[1], bytes[2]])
+        }
+        None => Ok([0u8; 3]),
+    }
+}
+
+/// The default `allowed-ips` for a lone peer: route every inner destination.
+fn catch_all() -> Vec<AllowedIp> {
+    vec![
+        AllowedIp::V4(Ipv4Addr::UNSPECIFIED, 0),
+        AllowedIp::V6(Ipv6Addr::UNSPECIFIED, 0),
+    ]
+}
+
+/// Parse a list of `allowed-ips` CIDR entries (`10.0.0.0/24`, `::/0`, or a bare
+/// address meaning a host route).
+fn parse_allowed_ips(list: &[String]) -> Result<Vec<AllowedIp>> {
+    let mut out = Vec::with_capacity(list.len());
+    for entry in list {
+        out.push(parse_allowed_ip(entry).with_context(|| format!("wireguard: invalid `allowed-ips` entry {entry:?}"))?);
+    }
+    Ok(out)
+}
+
+fn parse_allowed_ip(entry: &str) -> Result<AllowedIp> {
+    let entry = entry.trim();
+    let (addr, prefix) = match entry.split_once('/') {
+        Some((addr, prefix)) => (addr, Some(prefix)),
+        None => (entry, None),
+    };
+    let ip = addr.parse::<IpAddr>().map_err(|_| anyhow!("not an IP/CIDR"))?;
+    match ip {
+        IpAddr::V4(v4) => {
+            let p = match prefix {
+                Some(p) => p.parse::<u8>().map_err(|_| anyhow!("bad prefix"))?,
+                None => 32,
+            };
+            if p > 32 {
+                bail!("IPv4 prefix {p} > 32");
+            }
+            Ok(AllowedIp::V4(v4, p))
+        }
+        IpAddr::V6(v6) => {
+            let p = match prefix {
+                Some(p) => p.parse::<u8>().map_err(|_| anyhow!("bad prefix"))?,
+                None => 128,
+            };
+            if p > 128 {
+                bail!("IPv6 prefix {p} > 128");
+            }
+            Ok(AllowedIp::V6(v6, p))
+        }
     }
 }
 
