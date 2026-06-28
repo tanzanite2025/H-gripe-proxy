@@ -87,8 +87,9 @@ pub enum UdpEgress {
     /// SSR seals each datagram with a per-packet stream cipher + protocol
     /// framing over a plain UDP socket (no obfs layer for UDP).
     Ssr(Box<SsrOutboundConfig>),
-    /// Snell carries datagrams over a `CommandUDP` UDP-over-TCP session (v3),
-    /// one AEAD chunk per packet on the shared shadowaead stream.
+    /// Snell carries datagrams over a `CommandUDP` UDP-over-TCP session (v3 +
+    /// v4/v5), one transport unit per packet (a shadowaead chunk for v3, a v4
+    /// frame for v4/v5).
     Snell(Box<SnellOutboundConfig>),
 }
 
@@ -130,8 +131,8 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
         OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
         OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
-        // Snell UDP (CommandUDP) is v3-only; v1/v2 carry TCP only, so drop UDP
-        // rather than mis-frame it.
+        // Snell UDP (CommandUDP) is supported on v3 + v4/v5; v1/v2 carry TCP
+        // only, so drop UDP rather than mis-frame it.
         OutboundMode::Snell(config) if config.supports_udp() => Some(UdpEgress::Snell(config.clone())),
         OutboundMode::Snell(_) => None,
         OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),

@@ -284,9 +284,9 @@ async fn run_ssr_egress<S: ReplySink>(
     }
 }
 
-/// Snell UDP egress: relay datagrams over a `CommandUDP` UDP-over-TCP session,
-/// sealing/opening each datagram as one AEAD chunk on the shared shadowaead
-/// stream (one chunk == one datagram).
+/// Snell UDP egress: relay datagrams over a `CommandUDP` UDP-over-TCP session.
+/// v3 seals each datagram as one shadowaead AEAD chunk; v4/v5 seal each as one
+/// v4 frame. Either way, one datagram maps to exactly one transport unit.
 async fn run_snell_egress<S: ReplySink>(
     config: Box<crate::protocols::snell::SnellOutboundConfig>,
     target: TargetAddr,
@@ -294,7 +294,7 @@ async fn run_snell_egress<S: ReplySink>(
     sink: S,
     idle: Option<Duration>,
 ) -> Result<()> {
-    let assoc = crate::protocols::snell::SnellUdp::connect(&config, &target).await?;
+    let assoc = crate::protocols::snell::SnellUdpAssoc::connect(&config, &target).await?;
     loop {
         tokio::select! {
             maybe = rx.recv() => match maybe {

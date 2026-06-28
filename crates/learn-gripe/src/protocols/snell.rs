@@ -236,11 +236,11 @@ impl SnellOutboundConfig {
         }
     }
 
-    /// Whether this outbound can carry UDP. Only the v3 `CommandUDP` shadowaead
-    /// path is implemented, so v1/v2 (no UDP) and v4/v5 (UDP would need the v4
-    /// frame path) reject UDP rather than mis-frame it.
+    /// Whether this outbound can carry UDP. `CommandUDP` UDP-over-TCP is
+    /// implemented for v3 (shadowaead chunk per datagram) and v4/v5 (one v4
+    /// frame per datagram); v1/v2 carry TCP only and reject UDP.
     pub fn supports_udp(&self) -> bool {
-        self.version == 3
+        self.version >= 3
     }
 
     /// Whether this version uses the v4 frame stream instead of shadowaead.
@@ -446,8 +446,8 @@ impl SnellUdp {
     /// `target`. Sends the client salt and the `CommandUDP` handshake header
     /// (one AEAD chunk) before returning. Requires protocol v3.
     pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<Self> {
-        if !config.supports_udp() {
-            bail!("snell udp: requires version 3 (got v{})", config.version);
+        if config.version != 3 {
+            bail!("snell udp (shadowaead): requires version 3 (got v{})", config.version);
         }
         let cipher = config.cipher();
         let transport = connect_transport(config).await?;
@@ -521,6 +521,203 @@ impl SnellUdp {
         let cipher = cipher.as_ref().ok_or_else(|| anyhow!("snell udp: read cipher unset"))?;
         let plain = read_packet_chunk(reader, cipher, nonce).await?;
         decode_udp_reply(&plain)
+    }
+}
+
+/// A Snell **v4/v5** UDP-over-TCP association. The datagram framing (handshake
+/// `CommandUDP` header, per-packet `UDPForward | addr | payload`, reply `addr |
+/// payload`) is identical to v3; only the transport differs: each datagram is
+/// carried as one v4 frame (`AEAD(header) | [padding] | AEAD(payload)`) instead
+/// of a shadowaead chunk, the salt + initial padding ride the handshake frame,
+/// and — unlike v3 — v4 sends a one-byte command response that is consumed
+/// before the first reply datagram (mirroring upstream's `ReadReply`).
+pub struct SnellV4Udp {
+    /// The fixed destination sealed into every packet sent on this association.
+    target: TargetAddr,
+    write: Mutex<UdpV4WriteSide>,
+    read: Mutex<UdpV4ReadSide>,
+}
+
+struct UdpV4WriteSide {
+    writer: WriteHalf<BoxedStream>,
+    cipher: AeadCipher,
+    nonce: [u8; 12],
+}
+
+struct UdpV4ReadSide {
+    reader: ReadHalf<BoxedStream>,
+    psk: Vec<u8>,
+    /// Derived from the server's salt on the first `recv`; `None` until then.
+    cipher: Option<AeadCipher>,
+    nonce: [u8; 12],
+    salt_done: bool,
+    /// Whether the v4 command-response byte has been consumed.
+    reply_done: bool,
+    /// A datagram that shared the reply frame (if the server coalesced the
+    /// command byte with its first response), surfaced by the next `recv`.
+    pending: Option<Vec<u8>>,
+}
+
+impl SnellV4Udp {
+    /// Open a v4/v5 UDP association to `config.server` for datagrams destined to
+    /// `target`. Sends the `CommandUDP` handshake header as the first v4 frame
+    /// (carrying the client salt + initial padding). Requires v4/v5.
+    pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<Self> {
+        if !config.uses_v4_framing() {
+            bail!("snell v4 udp: requires version >= 4 (got v{})", config.version);
+        }
+        let transport = connect_transport(config).await?;
+        let (reader, mut writer) = tokio::io::split(transport);
+
+        // v4 is always AES-128-GCM.
+        let mut salt = [0u8; SALT_LEN];
+        random_bytes(&mut salt);
+        let subkey = snell_kdf(&config.psk, &salt, SnellCipher::Aes128Gcm.key_size());
+        let write_cipher = AeadCipher::new(SnellCipher::Aes128Gcm, &subkey)?;
+        let mut write_nonce = [0u8; 12];
+
+        let mut delta = [0u8; 2];
+        random_bytes(&mut delta);
+        let initial_padding = V4_INITIAL_PADDING_MIN + (u16::from_le_bytes(delta) as usize) % V4_INITIAL_PADDING_SPAN;
+
+        // UDP handshake header `proto | CommandUDP | clientID-len(0)` rides the
+        // first v4 frame, which prepends the salt + initial padding.
+        let header = [SNELL_PROTO_BYTE, COMMAND_UDP, 0];
+        let frame = build_v4_frame(&write_cipher, &mut write_nonce, &header, initial_padding, Some(&salt))?;
+        writer
+            .write_all(&frame)
+            .await
+            .context("snell v4 udp: send handshake header")?;
+        writer.flush().await.context("snell v4 udp: flush handshake header")?;
+
+        Ok(Self {
+            target: target.clone(),
+            write: Mutex::new(UdpV4WriteSide {
+                writer,
+                cipher: write_cipher,
+                nonce: write_nonce,
+            }),
+            read: Mutex::new(UdpV4ReadSide {
+                reader,
+                psk: config.psk.clone(),
+                cipher: None,
+                nonce: [0u8; 12],
+                salt_done: false,
+                reply_done: false,
+                pending: None,
+            }),
+        })
+    }
+
+    /// Seal `payload` as one datagram (`UDPForward | addr | payload`) and send it
+    /// as a single v4 frame (no padding: the salt already rode the handshake).
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        let mut plain = Vec::with_capacity(1 + 1 + 16 + 2 + payload.len());
+        plain.push(UDP_FORWARD);
+        encode_udp_addr(&mut plain, &self.target)?;
+        plain.extend_from_slice(payload);
+        if plain.len() > MAX_CHUNK {
+            bail!(
+                "snell v4 udp: packet too large for one frame ({} > {MAX_CHUNK})",
+                plain.len()
+            );
+        }
+        let mut w = self.write.lock().await;
+        let UdpV4WriteSide { writer, cipher, nonce } = &mut *w;
+        let frame = build_v4_frame(cipher, nonce, &plain, 0, None)?;
+        writer.write_all(&frame).await.context("snell v4 udp: write datagram")?;
+        writer.flush().await.context("snell v4 udp: flush datagram")?;
+        Ok(())
+    }
+
+    /// Receive one reply datagram (one v4 frame), stripping the server's source
+    /// address. Lazily reads the server salt and the one-byte command response
+    /// on the first call.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        let mut r = self.read.lock().await;
+        if !r.salt_done {
+            let mut salt = [0u8; SALT_LEN];
+            r.reader
+                .read_exact(&mut salt)
+                .await
+                .context("snell v4 udp: read salt")?;
+            let subkey = snell_kdf(&r.psk, &salt, SnellCipher::Aes128Gcm.key_size());
+            r.cipher = Some(AeadCipher::new(SnellCipher::Aes128Gcm, &subkey)?);
+            r.salt_done = true;
+        }
+
+        if !r.reply_done {
+            let frame = {
+                let UdpV4ReadSide {
+                    reader, cipher, nonce, ..
+                } = &mut *r;
+                let cipher = cipher
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("snell v4 udp: read cipher unset"))?;
+                read_v4_frame(reader, cipher, nonce).await?
+            };
+            match frame.first().copied() {
+                Some(RESP_TUNNEL) => {}
+                Some(RESP_ERROR) => bail!("snell v4 udp: server reported error"),
+                Some(other) => bail!("snell v4 udp: unexpected command response {other}"),
+                None => bail!("snell v4 udp: empty reply frame"),
+            }
+            if frame.len() > 1 {
+                r.pending = Some(frame[1..].to_vec());
+            }
+            r.reply_done = true;
+        }
+
+        if let Some(pending) = r.pending.take() {
+            return decode_udp_reply(&pending);
+        }
+
+        let frame = {
+            let UdpV4ReadSide {
+                reader, cipher, nonce, ..
+            } = &mut *r;
+            let cipher = cipher
+                .as_ref()
+                .ok_or_else(|| anyhow!("snell v4 udp: read cipher unset"))?;
+            read_v4_frame(reader, cipher, nonce).await?
+        };
+        if frame.is_empty() {
+            bail!("snell v4 udp: server closed the association");
+        }
+        decode_udp_reply(&frame)
+    }
+}
+
+/// A Snell UDP association over either the v3 shadowaead stream or the v4/v5
+/// frame stream, so the UDP egress loop can stay version-agnostic.
+pub enum SnellUdpAssoc {
+    V3(SnellUdp),
+    V4(SnellV4Udp),
+}
+
+impl SnellUdpAssoc {
+    /// Open the association, dispatching on the protocol version: v4/v5 use the
+    /// v4 frame stream, v3 uses the shadowaead chunk stream.
+    pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<Self> {
+        if config.uses_v4_framing() {
+            Ok(Self::V4(SnellV4Udp::connect(config, target).await?))
+        } else {
+            Ok(Self::V3(SnellUdp::connect(config, target).await?))
+        }
+    }
+
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        match self {
+            Self::V3(assoc) => assoc.send(payload).await,
+            Self::V4(assoc) => assoc.send(payload).await,
+        }
+    }
+
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        match self {
+            Self::V3(assoc) => assoc.recv().await,
+            Self::V4(assoc) => assoc.recv().await,
+        }
     }
 }
 
@@ -1012,44 +1209,96 @@ impl SnellV4Stream {
         } else {
             0
         };
-
-        let mut header = [0u8; V4_HEADER_PLAIN];
-        header[0] = V4_FRAME_BYTE;
-        header[3..5].copy_from_slice(&(padding_len as u16).to_be_bytes());
-        header[5..7].copy_from_slice(&(payload.len() as u16).to_be_bytes());
-        let sealed_header = self
-            .write_cipher
-            .seal(&self.write_nonce, &header)
+        let salt = if first { Some(&self.write_salt[..]) } else { None };
+        let frame = build_v4_frame(&self.write_cipher, &mut self.write_nonce, payload, padding_len, salt)
             .map_err(|e| io::Error::other(e.to_string()))?;
-        increment_nonce(&mut self.write_nonce);
-
-        let mut payload_cipher = if payload.is_empty() {
-            Vec::new()
-        } else {
-            let pc = self
-                .write_cipher
-                .seal(&self.write_nonce, payload)
-                .map_err(|e| io::Error::other(e.to_string()))?;
-            increment_nonce(&mut self.write_nonce);
-            pc
-        };
-
-        self.write_buf.clear();
+        self.salt_sent = true;
+        self.write_buf = frame;
         self.write_pos = 0;
-        if first {
-            self.write_buf.extend_from_slice(&self.write_salt);
-            self.salt_sent = true;
-        }
-        self.write_buf.extend_from_slice(&sealed_header);
-        if padding_len > 0 {
-            let mut padding = vec![0u8; padding_len];
-            random_bytes(&mut padding);
-            swap_padding(&mut padding, &mut payload_cipher);
-            self.write_buf.extend_from_slice(&padding);
-        }
-        self.write_buf.extend_from_slice(&payload_cipher);
         Ok(())
     }
+}
+
+/// Serialise one v4 frame `AEAD(header) | [padding] | AEAD(payload)`, advancing
+/// `nonce` once per AEAD seal. When `salt` is `Some` (the first frame on a
+/// stream) it is prepended and `padding_len` random padding bytes are
+/// interleaved with the payload ciphertext via [`swap_padding`]. Shared by the
+/// v4 TCP stream ([`SnellV4Stream`]) and the v4 UDP path ([`SnellV4Udp`]).
+fn build_v4_frame(
+    cipher: &AeadCipher,
+    nonce: &mut [u8; 12],
+    payload: &[u8],
+    padding_len: usize,
+    salt: Option<&[u8]>,
+) -> Result<Vec<u8>> {
+    let mut header = [0u8; V4_HEADER_PLAIN];
+    header[0] = V4_FRAME_BYTE;
+    header[3..5].copy_from_slice(&(padding_len as u16).to_be_bytes());
+    header[5..7].copy_from_slice(&(payload.len() as u16).to_be_bytes());
+    let sealed_header = cipher.seal(nonce, &header)?;
+    increment_nonce(nonce);
+
+    let mut payload_cipher = if payload.is_empty() {
+        Vec::new()
+    } else {
+        let pc = cipher.seal(nonce, payload)?;
+        increment_nonce(nonce);
+        pc
+    };
+
+    let mut out = Vec::new();
+    if let Some(salt) = salt {
+        out.extend_from_slice(salt);
+    }
+    out.extend_from_slice(&sealed_header);
+    if padding_len > 0 {
+        let mut padding = vec![0u8; padding_len];
+        random_bytes(&mut padding);
+        swap_padding(&mut padding, &mut payload_cipher);
+        out.extend_from_slice(&padding);
+    }
+    out.extend_from_slice(&payload_cipher);
+    Ok(out)
+}
+
+/// Read exactly one v4 frame from `reader` and return its decrypted payload,
+/// advancing `nonce` once per AEAD open. A zero-payload frame (Snell's logical
+/// EOF) returns an empty `Vec`.
+async fn read_v4_frame<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    cipher: &AeadCipher,
+    nonce: &mut [u8; 12],
+) -> Result<Vec<u8>> {
+    let mut header_cipher = [0u8; V4_HEADER_CIPHER];
+    reader
+        .read_exact(&mut header_cipher)
+        .await
+        .context("snell v4 udp: read frame header")?;
+    let header = cipher.open(nonce, &header_cipher)?;
+    increment_nonce(nonce);
+    if header.len() != V4_HEADER_PLAIN || header[0] != V4_FRAME_BYTE {
+        bail!("snell v4 udp: invalid frame header");
+    }
+    let padding = u16::from_be_bytes([header[3], header[4]]) as usize;
+    let payload = u16::from_be_bytes([header[5], header[6]]) as usize;
+    if payload == 0 {
+        return Ok(Vec::new());
+    }
+    if payload > MAX_CHUNK || padding > MAX_CHUNK {
+        bail!("snell v4 udp: frame too large");
+    }
+    let mut frame = vec![0u8; padding + payload + TAG_LEN];
+    reader
+        .read_exact(&mut frame)
+        .await
+        .context("snell v4 udp: read frame body")?;
+    if padding > 0 {
+        let (pad_part, pay_part) = frame.split_at_mut(padding);
+        swap_padding(pad_part, pay_part);
+    }
+    let plain = cipher.open(nonce, &frame[padding..])?;
+    increment_nonce(nonce);
+    Ok(plain)
 }
 
 impl AsyncRead for SnellV4Stream {
@@ -1399,8 +1648,8 @@ mod tests {
             assert!(config.uses_v4_framing());
             assert_eq!(config.cipher(), SnellCipher::Aes128Gcm);
             assert_eq!(config.command(), COMMAND_CONNECT);
-            // v4/v5 UDP is not implemented, so it must not advertise support.
-            assert!(!config.supports_udp());
+            // v4/v5 carry UDP over the v4 frame stream.
+            assert!(config.supports_udp());
         }
     }
 
@@ -1423,7 +1672,7 @@ mod tests {
     }
 
     #[test]
-    fn supports_udp_only_on_v3() {
+    fn supports_udp_on_v3_and_v4() {
         let cfg = |v: u8| SnellOutboundConfig {
             server: "h".into(),
             port: 1,
@@ -1434,6 +1683,8 @@ mod tests {
         assert!(!cfg(1).supports_udp());
         assert!(!cfg(2).supports_udp());
         assert!(cfg(3).supports_udp());
+        // v4 (and v5, normalised to 4) carry UDP over the v4 frame stream.
+        assert!(cfg(4).supports_udp());
     }
 
     #[test]
