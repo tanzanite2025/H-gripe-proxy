@@ -199,6 +199,25 @@ pub struct ProxyOptions {
     #[serde(rename = "private-key")]
     pub private_key: Option<String>,
 
+    // WireGuard outbound (`type: wireguard`). `private-key` (above) is the local
+    // static X25519 secret; the rest are WireGuard-specific.
+    #[serde(rename = "public-key")]
+    pub public_key: Option<String>,
+    #[serde(rename = "pre-shared-key")]
+    pub pre_shared_key: Option<String>,
+    /// Local tunnel IPv4 address assigned to this peer (`ip`).
+    pub ip: Option<String>,
+    /// Local tunnel IPv6 address assigned to this peer (`ipv6`).
+    pub ipv6: Option<String>,
+    /// Tunnel MTU (`mtu`); defaults to 1408 when unset.
+    pub mtu: Option<u32>,
+    /// Optional 3-byte `reserved` field placed after the WireGuard message type
+    /// byte (some providers tag transport packets with it).
+    pub reserved: Option<Vec<u8>>,
+    /// Keepalive interval in seconds (`persistent-keepalive`); 0/unset disables.
+    #[serde(rename = "persistent-keepalive")]
+    pub persistent_keepalive: Option<u32>,
+
     // Transport selection + typed option blocks.
     pub network: Option<Network>,
     #[serde(rename = "ws-opts")]

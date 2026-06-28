@@ -18,3 +18,4 @@ pub mod tuic;
 pub mod vision;
 pub mod vless;
 pub mod vmess;
+pub mod wireguard;

@@ -12,6 +12,7 @@ use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::tuic::TuicOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
 use crate::protocols::vmess::VmessOutboundConfig;
+use crate::protocols::wireguard::WireGuardOutboundConfig;
 use crate::routing::Router;
 
 pub mod outbound_opts;
@@ -53,6 +54,8 @@ pub enum OutboundMode {
     Snell(Box<SnellOutboundConfig>),
     /// Forward through a ShadowsocksR (SSR) outbound.
     Ssr(Box<SsrOutboundConfig>),
+    /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
+    WireGuard(Box<WireGuardOutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
@@ -90,6 +93,9 @@ impl OutboundMode {
             ProxyType::AnyTls => Ok(OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig::from_proxy(entry)?))),
             ProxyType::Snell => Ok(OutboundMode::Snell(Box::new(SnellOutboundConfig::from_proxy(entry)?))),
             ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
+            ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
+                entry,
+            )?))),
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
         }
     }
@@ -116,6 +122,7 @@ impl OutboundMode {
             OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::WireGuard(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
                 .flat_map(OutboundMode::direct_dial_endpoints)
@@ -139,6 +146,7 @@ impl OutboundMode {
             OutboundMode::AnyTls(_) => "anytls",
             OutboundMode::Snell(_) => "snell",
             OutboundMode::Ssr(_) => "ssr",
+            OutboundMode::WireGuard(_) => "wireguard",
             OutboundMode::Routed(_) => "routed",
         }
     }
@@ -162,6 +170,7 @@ impl OutboundMode {
                 | OutboundMode::AnyTls(_)
                 | OutboundMode::Snell(_)
                 | OutboundMode::Ssr(_)
+                | OutboundMode::WireGuard(_)
         )
     }
 }

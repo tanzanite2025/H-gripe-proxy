@@ -75,6 +75,14 @@ quinn = { version = "0.11.9", default-features = false, features = ["runtime-tok
 # the Hysteria2 orchestration on top. `h3-quinn` adapts `h3` onto our quinn 0.11.
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
+# WireGuard outbound protocol engine. boringtun (Cloudflare, pure Rust) drives
+# only the Noise_IKpsk2 handshake / transport-data state machine + rekey / cookie
+# / keepalive timers (`noise::Tunn`); it deliberately ships no network or tunnel
+# stack, so the kernel supplies the UDP I/O and a smoltcp userspace netstack on
+# top (same philosophy as quinn/smoltcp/hickory: delegate the error-prone wire
+# state machine, own the orchestration). `default-features = false` drops the
+# `device`/CLI feature set (no tun/sys deps) — only the protocol library is used.
+boringtun = { version = "0.7.1", default-features = false }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread", "sync"] }

@@ -43,6 +43,7 @@ pub use protocols::trojan::TrojanOutboundConfig;
 pub use protocols::tuic::TuicOutboundConfig;
 pub use protocols::vless::VlessOutboundConfig;
 pub use protocols::vmess::{VmessCipher, VmessOutboundConfig};
+pub use protocols::wireguard::{self, WireGuardOutboundConfig};
 pub use routing::delay::measure_delay;
 pub use routing::{
     DIRECT, GeoLookup, IpCidr, LogicalOp, PortRange, ProcessInfo, ProcessLookup, REJECT, Router, Rule, RuleMatcher,
