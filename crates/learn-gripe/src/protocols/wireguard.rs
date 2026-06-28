@@ -20,10 +20,10 @@
 //! Scope (this module): single peer, **TCP + UDP relay** (IPv4/IPv6 inner
 //! targets). Each relayed UDP association is a userspace smoltcp UDP socket
 //! bound inside the same per-config device, so its datagrams ride the Noise
-//! tunnel exactly like the TCP flows. Multi-peer, amnezia-wg obfuscation, and
-//! tunnel-side DNS (`remote-dns-resolve`) are deliberately left to follow-ups; a
-//! domain target is resolved to an IP by the host resolver before it enters the
-//! tunnel.
+//! tunnel exactly like the TCP flows. Tunnel-side DNS (`remote-dns-resolve`) is
+//! supported: a domain target is resolved by querying the configured `dns`
+//! resolvers over the tunnel (UDP/53) rather than the host resolver. Multi-peer
+//! and amnezia-wg obfuscation are deliberately left to follow-ups.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -35,6 +35,9 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, anyhow, bail};
 use boringtun::noise::{Tunn, TunnResult};
 use boringtun::x25519::{PublicKey, StaticSecret};
+use hickory_proto::op::{Message, MessageType, OpCode, Query};
+use hickory_proto::rr::rdata::{A, AAAA};
+use hickory_proto::rr::{Name, RData, RecordType};
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketHandle, SocketSet};
 use smoltcp::socket::{tcp, udp};
 use smoltcp::time::Instant as SmolInstant;
@@ -63,6 +66,11 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Upper bound on how long the device poll loop sleeps between wakeups; also the
 /// cadence at which `Tunn::update_timers` is driven (rekey / keepalive).
 const MAX_POLL_SLEEP: Duration = Duration::from_millis(250);
+/// How long to wait for a tunnel-side DNS reply before retransmitting the query.
+const DNS_QUERY_TIMEOUT: Duration = Duration::from_millis(800);
+/// How many times a tunnel-side DNS query is (re)sent before giving up on a
+/// resolver (the first few may be lost while the Noise handshake warms up).
+const DNS_QUERY_RETRIES: usize = 5;
 
 /// Parsed WireGuard outbound configuration (single peer).
 #[derive(Debug, Clone)]
@@ -77,6 +85,10 @@ pub struct WireGuardOutboundConfig {
     mtu: u32,
     reserved: [u8; 3],
     keepalive: Option<u16>,
+    /// Resolve domain targets via DNS sent through the tunnel to `dns_servers`.
+    remote_dns_resolve: bool,
+    /// Resolver socket addresses reachable inside the tunnel (port 53 default).
+    dns_servers: Vec<SocketAddr>,
 }
 
 impl PartialEq for WireGuardOutboundConfig {
@@ -91,6 +103,8 @@ impl PartialEq for WireGuardOutboundConfig {
             && self.mtu == other.mtu
             && self.reserved == other.reserved
             && self.keepalive == other.keepalive
+            && self.remote_dns_resolve == other.remote_dns_resolve
+            && self.dns_servers == other.dns_servers
     }
 }
 
@@ -160,6 +174,18 @@ impl WireGuardOutboundConfig {
 
         let mtu = opts.mtu.filter(|m| *m >= 576).unwrap_or(DEFAULT_MTU);
 
+        let dns_servers = match &opts.dns {
+            Some(list) => list
+                .iter()
+                .map(|s| parse_dns_server(s).with_context(|| format!("wireguard: invalid `dns` entry {s:?}")))
+                .collect::<Result<Vec<_>>>()?,
+            None => Vec::new(),
+        };
+        let remote_dns_resolve = opts.remote_dns_resolve.unwrap_or(false);
+        if remote_dns_resolve && dns_servers.is_empty() {
+            bail!("wireguard: `remote-dns-resolve` requires at least one `dns` resolver");
+        }
+
         Ok(Self {
             server,
             port,
@@ -171,6 +197,8 @@ impl WireGuardOutboundConfig {
             mtu,
             reserved,
             keepalive,
+            remote_dns_resolve,
+            dns_servers,
         })
     }
 
@@ -182,8 +210,8 @@ impl WireGuardOutboundConfig {
 /// Connect a relayed TCP stream to `target` through the configured WireGuard
 /// tunnel, reusing (or lazily building) the per-config device.
 pub async fn connect(config: &WireGuardOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
-    let dst = resolve_target(target).await?;
     let device = WireGuardDevice::get_or_create(config).await?;
+    let dst = resolve_target(config, &device, target).await?;
     let stream = device.open_tcp(dst).await?;
     Ok(Box::new(stream) as BoxedStream)
 }
@@ -193,21 +221,36 @@ pub async fn connect(config: &WireGuardOutboundConfig, target: &TargetAddr) -> R
 /// is a userspace smoltcp UDP socket; datagrams to the resolved destination ride
 /// the Noise tunnel like the TCP flows.
 pub async fn connect_udp(config: &WireGuardOutboundConfig, target: &TargetAddr) -> Result<WgUdpAssoc> {
-    let dst = resolve_target(target).await?;
     let device = WireGuardDevice::get_or_create(config).await?;
+    let dst = resolve_target(config, &device, target).await?;
     device.open_udp(dst).await
 }
 
-/// Resolve a relayed target to a literal socket address. Domains are resolved by
-/// the host resolver (tunnel-side DNS is a follow-up).
-async fn resolve_target(target: &TargetAddr) -> Result<SocketAddr> {
+/// Resolve a relayed target to a literal socket address. A domain is resolved
+/// over the tunnel (DNS sent to a `dns` resolver through the device) when
+/// `remote-dns-resolve` is set, otherwise by the host resolver.
+async fn resolve_target(
+    config: &WireGuardOutboundConfig,
+    device: &WireGuardDevice,
+    target: &TargetAddr,
+) -> Result<SocketAddr> {
     match target {
         TargetAddr::Ip(addr) => Ok(*addr),
-        TargetAddr::Domain(host, port) => tokio::net::lookup_host((host.as_str(), *port))
-            .await
-            .with_context(|| format!("wireguard: resolve {host}:{port}"))?
-            .next()
-            .ok_or_else(|| anyhow!("wireguard: no addresses for {host}:{port}")),
+        TargetAddr::Domain(host, port) => {
+            if config.remote_dns_resolve && !config.dns_servers.is_empty() {
+                let ip = device
+                    .resolve_remote(host, config)
+                    .await
+                    .with_context(|| format!("wireguard: tunnel DNS resolve {host}"))?;
+                Ok(SocketAddr::new(ip, *port))
+            } else {
+                tokio::net::lookup_host((host.as_str(), *port))
+                    .await
+                    .with_context(|| format!("wireguard: resolve {host}:{port}"))?
+                    .next()
+                    .ok_or_else(|| anyhow!("wireguard: no addresses for {host}:{port}"))
+            }
+        }
     }
 }
 
@@ -321,6 +364,54 @@ impl WireGuardDevice {
         reply_rx
             .await
             .map_err(|_| anyhow!("wireguard: UDP association to {dst} failed"))
+    }
+
+    /// Resolve `host` to an IP by querying the configured `dns` resolvers over
+    /// the tunnel (UDP/53). Tries each resolver in turn, and `A`/`AAAA` in the
+    /// order implied by the assigned tunnel address family. UDP has no
+    /// retransmit, so each query is resent a few times (covering the Noise
+    /// handshake warm-up) before moving on.
+    async fn resolve_remote(&self, host: &str, config: &WireGuardOutboundConfig) -> Result<IpAddr> {
+        let mut rtypes: Vec<RecordType> = Vec::new();
+        if config.local_v4.is_some() {
+            rtypes.push(RecordType::A);
+        }
+        if config.local_v6.is_some() {
+            rtypes.push(RecordType::AAAA);
+        }
+        if rtypes.is_empty() {
+            rtypes.push(RecordType::A);
+        }
+
+        for server in &config.dns_servers {
+            for &rtype in &rtypes {
+                let assoc = match self.open_udp(*server).await {
+                    Ok(assoc) => assoc,
+                    Err(_) => continue,
+                };
+                let id = dns_query_id();
+                let query = build_dns_query(host, rtype, id)?;
+                for _ in 0..DNS_QUERY_RETRIES {
+                    if assoc.send(&query).await.is_err() {
+                        break;
+                    }
+                    match tokio::time::timeout(DNS_QUERY_TIMEOUT, assoc.recv()).await {
+                        // A response for our query: either an answer (done) or a
+                        // negative/empty reply (stop retrying this record type).
+                        Ok(Ok(resp)) => match parse_dns_answer(&resp, id, rtype) {
+                            Some(ip) => return Ok(ip),
+                            None => break,
+                        },
+                        // recv error: association is gone, try the next resolver.
+                        Ok(Err(_)) => break,
+                        // Timed out: fall through to retransmit (handshake may
+                        // still be warming up).
+                        Err(_) => {}
+                    }
+                }
+            }
+        }
+        bail!("wireguard: no DNS answer for {host} from configured resolvers")
     }
 }
 
@@ -991,6 +1082,63 @@ fn parse_local_v4(value: &str) -> Result<Ipv4Addr> {
         .unwrap_or("")
         .parse::<Ipv4Addr>()
         .map_err(|_| anyhow!("not an IPv4 address"))
+}
+
+/// Parse a `dns` resolver entry: a bare IP (port defaults to 53) or `ip:port`
+/// (bracketed for IPv6).
+fn parse_dns_server(value: &str) -> Result<SocketAddr> {
+    let value = value.trim();
+    if let Ok(addr) = value.parse::<SocketAddr>() {
+        return Ok(addr);
+    }
+    let ip = value
+        .parse::<IpAddr>()
+        .map_err(|_| anyhow!("not an IP address or `ip:port`"))?;
+    Ok(SocketAddr::new(ip, 53))
+}
+
+/// A fresh DNS transaction id. Per-query randomness mostly matters for spoofing
+/// resistance; here each query rides a dedicated tunnel UDP socket, so this just
+/// lets us reject a stale datagram from a prior retransmit.
+fn dns_query_id() -> u16 {
+    let mut bytes = [0u8; 2];
+    let _ = getrandom::fill(&mut bytes);
+    u16::from_ne_bytes(bytes)
+}
+
+/// Encode a recursive DNS query for `host` / `rtype` with transaction id `id`.
+fn build_dns_query(host: &str, rtype: RecordType, id: u16) -> Result<Vec<u8>> {
+    let fqdn = if host.ends_with('.') {
+        host.to_string()
+    } else {
+        format!("{host}.")
+    };
+    let name = Name::from_utf8(&fqdn).with_context(|| format!("invalid DNS name {host:?}"))?;
+    let mut msg = Message::new();
+    msg.set_id(id);
+    msg.set_message_type(MessageType::Query);
+    msg.set_op_code(OpCode::Query);
+    msg.set_recursion_desired(true);
+    msg.add_query(Query::query(name, rtype));
+    msg.to_vec().context("encode DNS query")
+}
+
+/// Extract the first address of the requested family from a DNS response, after
+/// checking the transaction id matches. Returns `None` for a mismatched id or a
+/// response with no usable answer (e.g. NODATA / NXDOMAIN).
+fn parse_dns_answer(resp: &[u8], id: u16, rtype: RecordType) -> Option<IpAddr> {
+    let msg = Message::from_vec(resp).ok()?;
+    if msg.id() != id {
+        return None;
+    }
+    for answer in msg.answers() {
+        match (rtype, answer.data()) {
+            (RecordType::A, Some(RData::A(A(ip)))) => return Some(IpAddr::V4(*ip)),
+            (RecordType::AAAA, Some(RData::AAAA(AAAA(ip)))) => return Some(IpAddr::V6(*ip)),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Decode standard or URL-safe Base64 (padding / whitespace ignored).

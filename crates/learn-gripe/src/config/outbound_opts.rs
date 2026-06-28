@@ -217,6 +217,15 @@ pub struct ProxyOptions {
     /// Keepalive interval in seconds (`persistent-keepalive`); 0/unset disables.
     #[serde(rename = "persistent-keepalive")]
     pub persistent_keepalive: Option<u32>,
+    /// Resolve domain targets with DNS sent *through* the tunnel
+    /// (`remote-dns-resolve`) using the `dns` resolvers, instead of the host
+    /// resolver. Ignored when `dns` is empty.
+    #[serde(rename = "remote-dns-resolve")]
+    pub remote_dns_resolve: Option<bool>,
+    /// Resolver addresses reachable inside the tunnel (`dns`), queried over UDP
+    /// when `remote-dns-resolve` is set. Each entry is an IP (port defaults to
+    /// 53) or `ip:port`.
+    pub dns: Option<Vec<String>>,
 
     // Transport selection + typed option blocks.
     pub network: Option<Network>,

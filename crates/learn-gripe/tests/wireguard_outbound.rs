@@ -14,6 +14,9 @@ use std::time::{Duration, Instant};
 
 use boringtun::noise::{Tunn, TunnResult};
 use boringtun::x25519::{PublicKey, StaticSecret};
+use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
+use hickory_proto::rr::rdata::A;
+use hickory_proto::rr::{RData, Record, RecordType};
 use learn_gripe::{ProxyEntry, TargetAddr, WireGuardOutboundConfig, wireguard};
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
@@ -28,6 +31,9 @@ const MTU: usize = 1408;
 /// tunnel that the fake server's stack accepts via `any_ip`).
 const INNER_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 1);
 const INNER_PORT: u16 = 9000;
+/// Inner resolver address the fake server answers `A` queries on (UDP/53), used
+/// by the tunnel-side DNS test. `any_ip` lets the server accept this dest.
+const RESOLVER_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 53);
 
 // --- key helpers --------------------------------------------------------------
 
@@ -144,6 +150,15 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
     udp_echo.bind(INNER_PORT).unwrap();
     let udp_handle = sockets.add(udp_echo);
 
+    // A DNS responder on UDP/53 that answers every `A` query with INNER_IP, so
+    // tunnel-side DNS resolution lands on the echo sockets above.
+    let mut dns_sock = udp::Socket::new(
+        udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; 32], vec![0u8; 64 * 1024]),
+        udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; 32], vec![0u8; 64 * 1024]),
+    );
+    dns_sock.bind(53).unwrap();
+    let dns_handle = sockets.add(dns_sock);
+
     let mut udp_buf = vec![0u8; 65535];
     let mut scratch = vec![0u8; 65535 + 32];
 
@@ -169,6 +184,18 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
                 Err(_) => break,
             };
             let _ = usock.send_slice(&data, endpoint);
+        }
+
+        // Answer DNS `A` queries with INNER_IP.
+        let dsock = sockets.get_mut::<udp::Socket>(dns_handle);
+        while dsock.can_recv() {
+            let (query, endpoint) = match dsock.recv() {
+                Ok((d, meta)) => (d.to_vec(), meta.endpoint),
+                Err(_) => break,
+            };
+            if let Some(reply) = dns_a_reply(&query, INNER_IP) {
+                let _ = dsock.send_slice(&reply, endpoint);
+            }
         }
 
         while let Some(pkt) = phy.tx.pop_front() {
@@ -211,9 +238,36 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
     }
 }
 
+/// Build a DNS response answering each `A` query in `request` with `ip`. Other
+/// query types get an empty NOERROR reply. Returns `None` for a non-query.
+fn dns_a_reply(request: &[u8], ip: Ipv4Addr) -> Option<Vec<u8>> {
+    let request = Message::from_vec(request).ok()?;
+    let mut response = Message::new();
+    response.set_id(request.id());
+    response.set_message_type(MessageType::Response);
+    response.set_op_code(OpCode::Query);
+    response.set_recursion_desired(request.recursion_desired());
+    response.set_recursion_available(true);
+    response.set_response_code(ResponseCode::NoError);
+    for query in request.queries() {
+        response.add_query(query.clone());
+        if query.query_type() == RecordType::A {
+            let record = Record::from_rdata(query.name().clone(), 60, RData::A(A(ip)));
+            response.add_answer(record);
+        }
+    }
+    response.to_vec().ok()
+}
+
 /// Stand up a fake server bound to an ephemeral UDP port and return a parsed
 /// client config pointing at it.
 async fn start_server() -> WireGuardOutboundConfig {
+    start_server_with("").await
+}
+
+/// Like [`start_server`], but splices `extra_opts` (a leading-comma YAML
+/// fragment) into the client config map.
+async fn start_server_with(extra_opts: &str) -> WireGuardOutboundConfig {
     let (client_priv, client_pub, _cs, _cp) = keypair();
     let (server_priv_raw, server_pub, _ss, _sp) = keypair();
     let server_secret = StaticSecret::from(server_priv_raw);
@@ -251,10 +305,11 @@ async fn start_server() -> WireGuardOutboundConfig {
 
     let yaml = format!(
         "{{ name: wg, type: wireguard, server: 127.0.0.1, port: {}, \
-         private-key: {}, public-key: {}, ip: 10.0.0.2 }}",
+         private-key: {}, public-key: {}, ip: 10.0.0.2{} }}",
         server_addr.port(),
         b64(&client_priv),
         b64(&server_pub),
+        extra_opts,
     );
     let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
     WireGuardOutboundConfig::from_proxy(&entry).unwrap()
@@ -343,6 +398,41 @@ async fn wireguard_udp_round_trips_datagrams() {
             .expect("udp echo");
         assert_eq!(got, payload);
     }
+}
+
+#[tokio::test]
+async fn wireguard_resolves_domain_targets_over_the_tunnel() {
+    // `remote-dns-resolve` makes a domain target resolve by querying the `dns`
+    // resolver *through* the tunnel; the fake server answers A=INNER_IP, so the
+    // relayed TCP connection lands on the inner echo listener.
+    let config = start_server_with(&format!(", remote-dns-resolve: true, dns: [\"{RESOLVER_IP}\"]")).await;
+    let target = TargetAddr::Domain("echo.internal".to_string(), INNER_PORT);
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(15), wireguard::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("wireguard connect via tunnel DNS");
+
+    let payload = b"resolved-over-the-tunnel";
+    stream.write_all(payload).await.unwrap();
+    let mut got = vec![0u8; payload.len()];
+    tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut got))
+        .await
+        .expect("echo did not time out")
+        .unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[test]
+fn from_proxy_rejects_remote_dns_resolve_without_dns_servers() {
+    // Valid 32-byte keys so parsing reaches the remote-dns validation.
+    let key = b64(&[0u8; 32]);
+    let yaml = format!(
+        "{{ name: wg, type: wireguard, server: 1.2.3.4, port: 51820, \
+         private-key: {key}, public-key: {key}, ip: 10.0.0.2, remote-dns-resolve: true }}"
+    );
+    let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
+    assert!(WireGuardOutboundConfig::from_proxy(&entry).is_err());
 }
 
 #[test]
