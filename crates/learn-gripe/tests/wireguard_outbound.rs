@@ -565,6 +565,256 @@ async fn wireguard_resolves_domain_targets_over_the_tunnel() {
     assert_eq!(&got, payload);
 }
 
+// --- AmneziaWG obfuscation interop -------------------------------------------
+
+/// Standard WireGuard message sizes (boringtun emits these), used to recover an
+/// obfuscated message's type on the server's RX path.
+const WG_INIT: usize = 148;
+const WG_RESP: usize = 92;
+const WG_COOKIE: usize = 64;
+const WG_TRANSPORT_MIN: usize = 32;
+
+/// AmneziaWG obfuscation parameters mirrored on the test's fake server so the
+/// client's obfuscated handshake/transport packets round-trip. `s1`/`s2` are the
+/// random prefix paddings; `h1`-`h4` rewrite the 4-byte message-type header of
+/// the init / response / cookie / transport messages.
+#[derive(Clone, Copy)]
+struct Obf {
+    s1: usize,
+    s2: usize,
+    h1: u32,
+    h2: u32,
+    h3: u32,
+    h4: u32,
+}
+
+/// Apply obfuscation to a boringtun message (mirrors the kernel TX path): prepend
+/// `S1`/`S2` random padding and write the `H1`-`H4` header over the type field.
+fn obfuscate(o: &Obf, out: &[u8]) -> Vec<u8> {
+    if out.len() < 4 {
+        return out.to_vec();
+    }
+    let (header, pad) = match out[0] {
+        1 => (o.h1, o.s1),
+        2 => (o.h2, o.s2),
+        3 => (o.h3, 0),
+        4 => (o.h4, 0),
+        _ => return out.to_vec(),
+    };
+    let mut buf = vec![0u8; pad + out.len()];
+    if pad > 0 {
+        getrandom::fill(&mut buf[..pad]).unwrap();
+    }
+    buf[pad..].copy_from_slice(out);
+    buf[pad..pad + 4].copy_from_slice(&header.to_le_bytes());
+    buf
+}
+
+/// Reverse obfuscation in place (mirrors the kernel RX path): identify the
+/// message by `(padding + size, header)`, strip the padding, and restore the
+/// standard type byte. Returns the restored length, or `None` to drop (junk).
+fn deobfuscate(o: &Obf, buf: &mut [u8]) -> Option<usize> {
+    let size = buf.len();
+    let hdr = |off: usize| {
+        buf.get(off..off + 4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    };
+    let (pad, ty) = if size == o.s1 + WG_INIT && hdr(o.s1) == Some(o.h1) {
+        (o.s1, 1u8)
+    } else if size == o.s2 + WG_RESP && hdr(o.s2) == Some(o.h2) {
+        (o.s2, 2)
+    } else if size == WG_COOKIE && hdr(0) == Some(o.h3) {
+        (0, 3)
+    } else if size >= WG_TRANSPORT_MIN && hdr(0) == Some(o.h4) {
+        (0, 4)
+    } else {
+        return None;
+    };
+    if pad > 0 {
+        buf.copy_within(pad.., 0);
+    }
+    let n = size - pad;
+    buf[0] = ty;
+    buf[1] = 0;
+    buf[2] = 0;
+    buf[3] = 0;
+    Some(n)
+}
+
+/// A fake WireGuard server that applies the same AmneziaWG obfuscation as the
+/// client: it deobfuscates incoming datagrams (dropping junk packets) before
+/// decapsulation and obfuscates everything it sends. Echoes inner TCP.
+async fn run_fake_server_obf(server_udp: UdpSocket, mut tunn: Tunn, obf: Obf) {
+    let start = Instant::now();
+    let mut phy = Phy {
+        rx: VecDeque::new(),
+        tx: VecDeque::new(),
+    };
+    let mut iface = {
+        let cfg = IfaceConfig::new(HardwareAddress::Ip);
+        let mut iface = Interface::new(cfg, &mut phy, now_since(start));
+        iface.set_any_ip(true);
+        iface.update_ip_addrs(|a| {
+            let _ = a.push(IpCidr::new(IpAddress::Ipv4(Ipv4Address::from(INNER_IP)), 0));
+        });
+        let _ = iface.routes_mut().add_default_ipv4_route(Ipv4Address::from(INNER_IP));
+        iface
+    };
+    let mut sockets = SocketSet::new(Vec::new());
+    let mut listener = tcp::Socket::new(
+        tcp::SocketBuffer::new(vec![0u8; 256 * 1024]),
+        tcp::SocketBuffer::new(vec![0u8; 256 * 1024]),
+    );
+    listener.listen(INNER_PORT).unwrap();
+    let handle = sockets.add(listener);
+
+    let mut udp_buf = vec![0u8; 65535];
+    let mut scratch = vec![0u8; 65535 + 32];
+    let mut connected = false;
+
+    loop {
+        let now = now_since(start);
+        iface.poll(now, &mut phy, &mut sockets);
+
+        let sock = sockets.get_mut::<tcp::Socket>(handle);
+        while sock.can_recv() && sock.can_send() {
+            let data = sock.recv(|b| (b.len(), b.to_vec())).unwrap_or_default();
+            if data.is_empty() {
+                break;
+            }
+            let _ = sock.send_slice(&data);
+        }
+
+        while let Some(pkt) = phy.tx.pop_front() {
+            if let TunnResult::WriteToNetwork(out) = tunn.encapsulate(&pkt, &mut scratch) {
+                let _ = server_udp.send(&obfuscate(&obf, out)).await;
+            }
+        }
+
+        let delay = iface
+            .poll_delay(now_since(start), &sockets)
+            .map(|d| Duration::from_micros(d.total_micros()))
+            .map_or(Duration::from_millis(50), |d| d.min(Duration::from_millis(50)));
+
+        tokio::select! {
+            res = server_udp.recv_from(&mut udp_buf) => {
+                if let Ok((n, peer)) = res {
+                    if !connected {
+                        server_udp.connect(peer).await.unwrap();
+                        connected = true;
+                    }
+                    // Junk packets (and anything unrecognised) deobfuscate to None.
+                    let m = match deobfuscate(&obf, &mut udp_buf[..n]) {
+                        Some(m) => m,
+                        None => continue,
+                    };
+                    let mut first = true;
+                    loop {
+                        let datagram: &[u8] = if first { &udp_buf[..m] } else { &[] };
+                        match tunn.decapsulate(None, datagram, &mut scratch) {
+                            TunnResult::WriteToNetwork(out) => {
+                                let _ = server_udp.send(&obfuscate(&obf, out)).await;
+                                first = false;
+                            }
+                            TunnResult::WriteToTunnelV4(p, _) | TunnResult::WriteToTunnelV6(p, _) => {
+                                phy.rx.push_back(p.to_vec());
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+            _ = tokio::time::sleep(delay) => {
+                if let TunnResult::WriteToNetwork(out) = tunn.update_timers(&mut scratch) {
+                    let _ = server_udp.send(&obfuscate(&obf, out)).await;
+                }
+            }
+        }
+    }
+}
+
+/// Stand up an obfuscating fake server and return a client config carrying the
+/// matching `amnezia-wg-option` block.
+async fn start_amnezia_server(obf: Obf, amnezia_yaml: &str) -> WireGuardOutboundConfig {
+    let (client_priv, client_pub, _, _) = keypair();
+    let (server_priv_raw, server_pub, _, _) = keypair();
+    let server_secret = StaticSecret::from(server_priv_raw);
+
+    let server_udp = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let server_addr = server_udp.local_addr().unwrap();
+    let server_tunn = Tunn::new(server_secret, PublicKey::from(client_pub), None, None, 1, None);
+
+    tokio::spawn(async move {
+        Box::pin(run_fake_server_obf(server_udp, server_tunn, obf)).await;
+    });
+
+    let yaml = format!(
+        "{{ name: wg, type: wireguard, server: 127.0.0.1, port: {}, \
+         private-key: {}, public-key: {}, ip: 10.0.0.2, {} }}",
+        server_addr.port(),
+        b64(&client_priv),
+        b64(&server_pub),
+        amnezia_yaml,
+    );
+    let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
+    WireGuardOutboundConfig::from_proxy(&entry).unwrap()
+}
+
+#[tokio::test]
+async fn wireguard_amnezia_obfuscation_round_trips() {
+    // Client and server both apply junk packets, S1/S2 padding, and H1-H4 header
+    // rewrites; the relayed TCP connection must still round-trip end to end.
+    let obf = Obf {
+        s1: 24,
+        s2: 16,
+        h1: 0x1122_3344,
+        h2: 0x5566_7788,
+        h3: 0x99aa_bbcc,
+        h4: 0xddee_ff00,
+    };
+    let amnezia_yaml = "amnezia-wg-option: { jc: 3, jmin: 40, jmax: 70, s1: 24, s2: 16, \
+         h1: 287454020, h2: 1432778632, h3: 2578103244, h4: 3723427584 }";
+    let config = start_amnezia_server(obf, amnezia_yaml).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(15), wireguard::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("wireguard connect with amnezia obfuscation");
+
+    let payload = b"amnezia-obfuscated-tunnel";
+    stream.write_all(payload).await.unwrap();
+    let mut got = vec![0u8; payload.len()];
+    tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut got))
+        .await
+        .expect("echo did not time out")
+        .unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[test]
+fn from_proxy_rejects_invalid_amnezia_headers() {
+    let key = b64(&[3u8; 32]);
+    // h1 == h2 (headers must be distinct so RX can recover the type).
+    let yaml = format!(
+        "{{ name: wg, type: wireguard, server: 1.2.3.4, port: 51820, \
+         private-key: {key}, public-key: {key}, ip: 10.0.0.2, \
+         amnezia-wg-option: {{ h1: 10, h2: 10, h3: 11, h4: 12 }} }}"
+    );
+    let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
+    assert!(WireGuardOutboundConfig::from_proxy(&entry).is_err());
+
+    // A header colliding with a standard message type (<= 4) is rejected.
+    let yaml = format!(
+        "{{ name: wg, type: wireguard, server: 1.2.3.4, port: 51820, \
+         private-key: {key}, public-key: {key}, ip: 10.0.0.2, \
+         amnezia-wg-option: {{ h1: 4, h2: 10, h3: 11, h4: 12 }} }}"
+    );
+    let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
+    assert!(WireGuardOutboundConfig::from_proxy(&entry).is_err());
+}
+
 #[test]
 fn from_proxy_rejects_remote_dns_resolve_without_dns_servers() {
     // Valid 32-byte keys so parsing reaches the remote-dns validation.
