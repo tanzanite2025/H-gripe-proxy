@@ -21,31 +21,39 @@
 //!                                               0x01 IPv4(4), 0x02 IPv6(16)
 //! ```
 //!
-//! UDP relay uses the `Packet` command in `native` mode: each datagram is sent
-//! as a QUIC datagram frame over the authenticated connection, fragmenting a
-//! payload too large for one frame across fragments that share a packet id (the
-//! target address rides only on fragment 0):
+//! UDP relay uses the `Packet` command, framed identically in both modes:
 //! ```text
 //! Packet: VER(0x05) TYPE(0x02) ASSOC_ID(2) PKT_ID(2) FRAG_TOTAL(1) FRAG_ID(1)
 //!         SIZE(2) [ADDR if FRAG_ID==0] PAYLOAD
 //! ```
-//! Reassembly lives in [`crate::protocols::quic_udp`].
+//! In `native` mode each datagram is a QUIC datagram frame, fragmenting a
+//! payload too large for one frame across fragments that share a packet id (the
+//! target address rides only on fragment 0); reassembly lives in
+//! [`crate::protocols::quic_udp`]. In `quic` mode (`udp-relay-mode: quic`) each
+//! datagram is instead written to its own unidirectional QUIC stream — a
+//! reliable stream has no datagram-MTU ceiling, so one `Packet` (FRAG_TOTAL=1)
+//! carries the whole payload.
 //!
-//! Scope: TCP relay plus UDP relay (`native` datagram mode), with optional 0-RTT
-//! (`reduce-rtt`): once a TLS session ticket is cached, the TCP `Connect`
-//! request is sent as 0-RTT early data while authentication waits for the
-//! handshake (the RFC 5705 token needs the finished exporter). The `quic`
-//! (uni-stream) UDP mode is not yet implemented, and a fresh authenticated QUIC
-//! connection is established per dial (connection pooling is a follow-up).
-//! `congestion-controller` is honored as a local send-rate choice.
+//! Scope: TCP relay plus UDP relay in both `native` (datagram) and `quic`
+//! (uni-stream) modes. Optional 0-RTT (`reduce-rtt`): once a TLS session ticket
+//! is cached, the TCP `Connect` request is sent as 0-RTT early data while
+//! authentication waits for the handshake (the RFC 5705 token needs the finished
+//! exporter). Without `reduce-rtt`, an authenticated QUIC connection is pooled
+//! per server and shared by concurrent relays (each opening its own stream),
+//! collapsing their handshakes/auth onto one connection; the pool holds the
+//! connection by a weak reference, so once the last relay using it finishes the
+//! connection closes rather than lingering idle. With `reduce-rtt` a fresh
+//! connection is dialled per relay so every dial can send its request as early
+//! data. `congestion-controller` is honored as a local send-rate choice.
 //!
 //! [RFC 5705]: https://www.rfc-editor.org/rfc/rfc5705
 
+use std::collections::HashMap;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context as TaskContext, Poll};
 
 use anyhow::{Context, Result, anyhow};
@@ -73,6 +81,31 @@ const ATYP_NONE: u8 = 0xff;
 /// VER(1) TYPE(1) ASSOC_ID(2) PKT_ID(2) FRAG_TOTAL(1) FRAG_ID(1) SIZE(2).
 const PACKET_HEADER_PREFIX: usize = 10;
 
+/// Upper bound on a single `quic`-mode `Packet` stream: the 10-byte prefix, a
+/// maximal domain `Address` (1 type + 1 len + 255 host + 2 port), and the
+/// largest `SIZE` (`u16::MAX`) payload. Bounds [`RecvStream::read_to_end`].
+const MAX_PACKET_STREAM: usize = PACKET_HEADER_PREFIX + 259 + u16::MAX as usize;
+
+/// TUIC UDP relay mode (`udp-relay-mode`). `native` carries each datagram as a
+/// QUIC datagram frame; `quic` carries it on its own unidirectional QUIC stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum UdpRelayMode {
+    #[default]
+    Native,
+    Quic,
+}
+
+impl UdpRelayMode {
+    /// Parse a clash `udp-relay-mode` value (case-insensitive); anything other
+    /// than `quic` (including unknown values) is the `native` datagram mode.
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "quic" => UdpRelayMode::Quic,
+            _ => UdpRelayMode::Native,
+        }
+    }
+}
+
 /// Fully-resolved TUIC v5 outbound parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TuicOutboundConfig {
@@ -89,6 +122,9 @@ pub struct TuicOutboundConfig {
     /// early data on a resumed connection, authenticating concurrently once the
     /// handshake completes (the RFC 5705 token needs the finished exporter).
     pub reduce_rtt: bool,
+    /// UDP relay carriage (`udp-relay-mode`): QUIC datagram frames (`native`) or
+    /// per-datagram unidirectional QUIC streams (`quic`).
+    pub udp_relay_mode: UdpRelayMode,
 }
 
 impl TuicOutboundConfig {
@@ -138,6 +174,11 @@ impl TuicOutboundConfig {
             skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
             congestion,
             reduce_rtt: opts.reduce_rtt.unwrap_or(false),
+            udp_relay_mode: opts
+                .udp_relay_mode
+                .as_deref()
+                .map(UdpRelayMode::parse)
+                .unwrap_or_default(),
         })
     }
 
@@ -157,15 +198,135 @@ impl TuicOutboundConfig {
     }
 }
 
+/// A live, authenticated TUIC QUIC connection together with the endpoint that
+/// owns its UDP socket and driver task. Held behind an [`Arc`] so a pooled
+/// connection and every relay stream / UDP session opened on it keep it (and its
+/// endpoint) alive together; dropping the [`Endpoint`] would tear down the
+/// driver the [`Connection`] depends on.
+struct TuicConnection {
+    _endpoint: Endpoint,
+    connection: Connection,
+}
+
+/// Identity under which an authenticated connection may be shared: everything
+/// that affects which server it reaches and the credentials it was authenticated
+/// with. `reduce-rtt` and `udp-relay-mode` are excluded — they do not change the
+/// connection itself (the latter only chooses how streams ride over it).
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ConnKey {
+    server: String,
+    port: u16,
+    uuid: [u8; 16],
+    password: String,
+    server_name: String,
+    alpn: Vec<String>,
+    skip_cert_verify: bool,
+    congestion: Congestion,
+}
+
+impl ConnKey {
+    fn of(config: &TuicOutboundConfig) -> Self {
+        Self {
+            server: config.server.clone(),
+            port: config.port,
+            uuid: config.uuid,
+            password: config.password.clone(),
+            server_name: config.server_name.clone(),
+            alpn: config.alpn.clone(),
+            skip_cert_verify: config.skip_cert_verify,
+            congestion: config.congestion,
+        }
+    }
+}
+
+/// Process-wide pool of authenticated connections, keyed by [`ConnKey`], using
+/// the lazily-initialised `Mutex<Option<HashMap>>` idiom used elsewhere in the
+/// crate. Entries are *weak*: the connection lives only as long as a relay using
+/// it holds a strong [`Arc`], so the pool coalesces concurrent relays onto one
+/// connection without keeping it open after the last one finishes. A dropped or
+/// closed connection is re-dialled on the next miss.
+static CONNECTION_POOL: Mutex<Option<HashMap<ConnKey, Weak<TuicConnection>>>> = Mutex::new(None);
+
+/// Return a still-open pooled connection for `key`, evicting a stale entry whose
+/// connection has been dropped or closed.
+fn pool_take_live(key: &ConnKey) -> Option<Arc<TuicConnection>> {
+    let mut guard = CONNECTION_POOL.lock().expect("tuic connection pool");
+    let map = guard.as_mut()?;
+    match map.get(key).and_then(Weak::upgrade) {
+        Some(conn) if conn.connection.close_reason().is_none() => Some(conn),
+        _ => {
+            map.remove(key);
+            None
+        }
+    }
+}
+
+/// Register a freshly dialled connection, preferring a live entry another task
+/// may have inserted in the meantime (so racing dials converge on one
+/// connection, the loser's connection dropping and closing).
+fn pool_store(key: ConnKey, conn: Arc<TuicConnection>) -> Arc<TuicConnection> {
+    let mut guard = CONNECTION_POOL.lock().expect("tuic connection pool");
+    let map = guard.get_or_insert_with(HashMap::new);
+    if let Some(existing) = map.get(&key).and_then(Weak::upgrade) {
+        if existing.connection.close_reason().is_none() {
+            return existing;
+        }
+    }
+    map.insert(key, Arc::downgrade(&conn));
+    conn
+}
+
+/// Dial a fresh 1-RTT QUIC connection and authenticate it once.
+async fn dial_authenticated(config: &TuicOutboundConfig) -> Result<TuicConnection> {
+    let mut params = config.quic_params();
+    // The pooled path reuses an established connection rather than racing 0-RTT
+    // early data, so always complete the handshake before authenticating.
+    params.zero_rtt = false;
+    let quic = quic::connect(&params).await.context("tuic: QUIC connect")?;
+    authenticate(&quic.connection, &config.uuid, &config.password)
+        .await
+        .context("tuic: authenticate")?;
+    Ok(TuicConnection {
+        _endpoint: quic.endpoint,
+        connection: quic.connection,
+    })
+}
+
+/// Get a pooled authenticated connection for `config`, dialling one on a miss.
+async fn pooled_connection(config: &TuicOutboundConfig) -> Result<Arc<TuicConnection>> {
+    let key = ConnKey::of(config);
+    if let Some(conn) = pool_take_live(&key) {
+        return Ok(conn);
+    }
+    let conn = Arc::new(dial_authenticated(config).await?);
+    Ok(pool_store(key, conn))
+}
+
 /// Connect a TUIC outbound to `target` and return a relay-ready stream. The
 /// QUIC connection is authenticated and the `Connect` header is already sent,
 /// so the caller relays payload bytes directly over the returned stream.
+///
+/// Without `reduce-rtt` the connection comes from the per-server pool (shared
+/// with any concurrent relay, each opening its own bidirectional stream). With
+/// `reduce-rtt` a fresh connection is dialled so the `Connect` request can be
+/// sent as 0-RTT early data.
 pub async fn connect(config: &TuicOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    let header = encode_connect_header(target);
+
+    if !config.reduce_rtt {
+        let conn = pooled_connection(config).await?;
+        let (send, recv) = open_connect_stream(&conn.connection, &header).await?;
+        return Ok(Box::new(TuicStream {
+            _conn: conn,
+            send,
+            recv,
+        }));
+    }
+
     let quic = quic::connect(&config.quic_params())
         .await
         .context("tuic: QUIC connect")?;
     let connection = quic.connection.clone();
-    let header = encode_connect_header(target);
 
     let (send, recv) = match quic.zero_rtt {
         // 0-RTT (`reduce-rtt`): the `Connect` request carries no secret, so send
@@ -193,8 +354,10 @@ pub async fn connect(config: &TuicOutboundConfig, target: &TargetAddr) -> Result
     };
 
     Ok(Box::new(TuicStream {
-        _endpoint: quic.endpoint,
-        _connection: connection,
+        _conn: Arc::new(TuicConnection {
+            _endpoint: quic.endpoint,
+            connection,
+        }),
         send,
         recv,
     }))
@@ -207,35 +370,44 @@ async fn open_connect_stream(connection: &Connection, header: &[u8]) -> Result<(
     Ok((send, recv))
 }
 
-/// Connect a TUIC UDP relay session for `target` in `native` (QUIC datagram)
-/// mode. Authenticates the connection, then carries each datagram as one or more
-/// `Packet` QUIC datagram frames under a fresh association id.
+/// Connect a TUIC UDP relay session for `target`. Authenticates the connection
+/// (pooled unless `reduce-rtt`), then carries each datagram under a fresh
+/// association id either as `Packet` QUIC datagram frames (`native`) or on
+/// per-datagram unidirectional QUIC streams (`quic`), per `udp-relay-mode`.
 pub async fn connect_udp(config: &TuicOutboundConfig, target: &TargetAddr) -> Result<TuicUdp> {
-    let quic = quic::connect(&config.quic_params())
-        .await
-        .context("tuic: QUIC connect")?;
-    let connection = quic.connection.clone();
-
-    // UDP relay rides QUIC datagrams that need the established 1-RTT keys, and
-    // the auth token needs the finished exporter, so wait out any 0-RTT handshake
-    // before authenticating.
-    if let Some(accepted) = quic.zero_rtt {
-        accepted.await;
-    }
-    authenticate(&quic.connection, &config.uuid, &config.password)
-        .await
-        .context("tuic: authenticate")?;
+    let conn = if config.reduce_rtt {
+        let quic = quic::connect(&config.quic_params())
+            .await
+            .context("tuic: QUIC connect")?;
+        // The auth token needs the finished exporter, so wait out any 0-RTT
+        // handshake before authenticating.
+        if let Some(accepted) = quic.zero_rtt {
+            accepted.await;
+        }
+        authenticate(&quic.connection, &config.uuid, &config.password)
+            .await
+            .context("tuic: authenticate")?;
+        Arc::new(TuicConnection {
+            _endpoint: quic.endpoint,
+            connection: quic.connection,
+        })
+    } else {
+        pooled_connection(config).await?
+    };
 
     let mut address = Vec::new();
     encode_address(&mut address, target);
 
-    Ok(TuicUdp {
-        _endpoint: quic.endpoint,
-        connection,
+    let session = UdpSession {
+        conn,
         address,
         assoc_id: random_u16(),
         next_packet_id: AtomicU16::new(0),
         reassembler: Mutex::new(Reassembler::new()),
+    };
+    Ok(match config.udp_relay_mode {
+        UdpRelayMode::Native => TuicUdp::Native(session),
+        UdpRelayMode::Quic => TuicUdp::Quic(session),
     })
 }
 
@@ -357,6 +529,30 @@ fn encode_packet_datagrams(
     Ok(datagrams)
 }
 
+/// Encode a UDP payload as a single `quic`-mode `Packet` command (FRAG_TOTAL=1):
+/// a reliable unidirectional stream has no datagram-MTU ceiling, so the whole
+/// payload rides one `Packet` carrying the target address. `SIZE` is a `u16`, so
+/// payloads above `u16::MAX` (never produced by UDP, max 65507) are rejected.
+fn encode_packet_stream(assoc_id: u16, packet_id: u16, address: &[u8], payload: &[u8]) -> Result<Vec<u8>> {
+    let size = u16::try_from(payload.len()).map_err(|_| {
+        anyhow!(
+            "tuic: UDP payload too large for a quic-mode Packet ({} bytes)",
+            payload.len()
+        )
+    })?;
+    let mut buf = Vec::with_capacity(PACKET_HEADER_PREFIX + address.len() + payload.len());
+    buf.push(VERSION);
+    buf.push(CMD_PACKET);
+    buf.extend_from_slice(&assoc_id.to_be_bytes());
+    buf.extend_from_slice(&packet_id.to_be_bytes());
+    buf.push(1); // FRAG_TOTAL: the stream carries the whole payload.
+    buf.push(0); // FRAG_ID
+    buf.extend_from_slice(&size.to_be_bytes());
+    buf.extend_from_slice(address);
+    buf.extend_from_slice(payload);
+    Ok(buf)
+}
+
 /// Parse an inbound TUIC `Packet` datagram into `(packet_id, frag_id,
 /// frag_total, payload)`. The association id and (fragment-0) address are
 /// skipped — a session has one fixed target here. Returns `None` for a malformed
@@ -377,13 +573,10 @@ fn parse_packet_datagram(data: &[u8]) -> Option<(u16, u8, u8, Vec<u8>)> {
     Some((packet_id, frag_id, frag_total, data[pos..end].to_vec()))
 }
 
-/// A TUIC UDP relay session bound to a single target. Datagrams to/from the
-/// target are carried as `Packet` QUIC datagram frames over the authenticated
-/// connection. The owning [`Endpoint`] and [`Connection`] are held so the
-/// connection stays alive for the session's lifetime.
-pub struct TuicUdp {
-    _endpoint: Endpoint,
-    connection: Connection,
+/// State shared by both UDP relay modes: the authenticated connection plus the
+/// fixed target and per-packet ids/reassembly for this session.
+pub struct UdpSession {
+    conn: Arc<TuicConnection>,
     /// The pre-encoded TUIC address all datagrams in this session carry.
     address: Vec<u8>,
     assoc_id: u16,
@@ -391,27 +584,41 @@ pub struct TuicUdp {
     reassembler: Mutex<Reassembler>,
 }
 
-impl TuicUdp {
-    /// Send one UDP datagram to the session target, fragmenting if it does not
-    /// fit a single QUIC datagram.
-    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+impl UdpSession {
+    fn next_packet_id(&self) -> u16 {
+        self.next_packet_id.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn reassemble(&self, packet_id: u16, frag_id: u8, frag_total: u8, payload: Vec<u8>) -> Option<Vec<u8>> {
+        self.reassembler
+            .lock()
+            .expect("reassembler mutex poisoned")
+            .accept(packet_id, frag_id, frag_total, payload)
+    }
+
+    /// `native`: send one datagram as `Packet` QUIC datagram frames, fragmenting
+    /// to the link MTU.
+    async fn send_native(&self, payload: &[u8]) -> Result<()> {
         let max = self
+            .conn
             .connection
             .max_datagram_size()
             .ok_or_else(|| anyhow!("tuic: peer does not allow QUIC datagrams (UDP relay unavailable)"))?;
-        let packet_id = self.next_packet_id.fetch_add(1, Ordering::Relaxed);
+        let packet_id = self.next_packet_id();
         for datagram in encode_packet_datagrams(self.assoc_id, packet_id, &self.address, payload, max)? {
-            self.connection
+            self.conn
+                .connection
                 .send_datagram(datagram)
                 .map_err(|e| anyhow!("tuic: send Packet datagram: {e}"))?;
         }
         Ok(())
     }
 
-    /// Receive the next fully reassembled UDP datagram from the target.
-    pub async fn recv(&self) -> Result<Vec<u8>> {
+    /// `native`: receive the next fully reassembled datagram from QUIC datagrams.
+    async fn recv_native(&self) -> Result<Vec<u8>> {
         loop {
             let datagram = self
+                .conn
                 .connection
                 .read_datagram()
                 .await
@@ -419,26 +626,87 @@ impl TuicUdp {
             let Some((packet_id, frag_id, frag_total, payload)) = parse_packet_datagram(&datagram) else {
                 continue;
             };
-            if let Some(full) = self
-                .reassembler
-                .lock()
-                .expect("reassembler mutex poisoned")
-                .accept(packet_id, frag_id, frag_total, payload)
-            {
+            if let Some(full) = self.reassemble(packet_id, frag_id, frag_total, payload) {
+                return Ok(full);
+            }
+        }
+    }
+
+    /// `quic`: send one datagram as a single `Packet` on its own unidirectional
+    /// stream (reliable, no MTU ceiling).
+    async fn send_quic(&self, payload: &[u8]) -> Result<()> {
+        let packet_id = self.next_packet_id();
+        let buf = encode_packet_stream(self.assoc_id, packet_id, &self.address, payload)?;
+        let mut stream = self
+            .conn
+            .connection
+            .open_uni()
+            .await
+            .context("tuic: open Packet uni stream")?;
+        stream.write_all(&buf).await.context("tuic: send Packet stream")?;
+        stream.finish().context("tuic: finish Packet stream")?;
+        Ok(())
+    }
+
+    /// `quic`: receive the next datagram, each arriving on its own unidirectional
+    /// stream. Reassembly still applies for a server that fragments across
+    /// streams sharing a packet id, though one `Packet` per stream is the norm.
+    async fn recv_quic(&self) -> Result<Vec<u8>> {
+        loop {
+            let mut stream = self
+                .conn
+                .connection
+                .accept_uni()
+                .await
+                .context("tuic: accept Packet uni stream")?;
+            let data = stream
+                .read_to_end(MAX_PACKET_STREAM)
+                .await
+                .context("tuic: read Packet stream")?;
+            let Some((packet_id, frag_id, frag_total, payload)) = parse_packet_datagram(&data) else {
+                continue;
+            };
+            if let Some(full) = self.reassemble(packet_id, frag_id, frag_total, payload) {
                 return Ok(full);
             }
         }
     }
 }
 
+/// A TUIC UDP relay session bound to a single target, carrying datagrams either
+/// as QUIC datagram frames (`native`) or on per-datagram unidirectional QUIC
+/// streams (`quic`). The held [`Arc<TuicConnection>`] keeps the connection (and
+/// its endpoint) alive for the session's lifetime.
+pub enum TuicUdp {
+    Native(UdpSession),
+    Quic(UdpSession),
+}
+
+impl TuicUdp {
+    /// Send one UDP datagram to the session target.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        match self {
+            TuicUdp::Native(session) => session.send_native(payload).await,
+            TuicUdp::Quic(session) => session.send_quic(payload).await,
+        }
+    }
+
+    /// Receive the next fully reassembled UDP datagram from the target.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        match self {
+            TuicUdp::Native(session) => session.recv_native().await,
+            TuicUdp::Quic(session) => session.recv_quic().await,
+        }
+    }
+}
+
 /// A relay-ready stream over a TUIC `Connect` bidirectional QUIC stream.
 ///
-/// The owning [`Endpoint`] and [`Connection`] are held so their background
-/// driver/keep-alive stay alive for the lifetime of the relay; reads and writes
-/// delegate to the QUIC stream halves.
+/// The held [`Arc<TuicConnection>`] keeps the connection and its endpoint (and
+/// thus the background driver/keep-alive) alive for the lifetime of the relay;
+/// reads and writes delegate to the QUIC stream halves.
 struct TuicStream {
-    _endpoint: Endpoint,
-    _connection: Connection,
+    _conn: Arc<TuicConnection>,
     send: SendStream,
     recv: RecvStream,
 }

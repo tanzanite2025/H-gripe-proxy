@@ -1,20 +1,18 @@
-//! End-to-end proof that UDP rides a TUIC v5 (QUIC) outbound:
-//! SOCKS5 UDP ASSOCIATE -> gripe inbound -> TUIC UDP tunnel -> fake server.
+//! End-to-end proof that UDP rides a TUIC v5 outbound in `quic` (uni-stream)
+//! mode: SOCKS5 UDP ASSOCIATE -> gripe inbound -> TUIC UDP tunnel -> fake server.
 //!
-//! The fake server runs on a real QUIC endpoint (quinn, the same vendored rustls
-//! fork). It validates the `Authenticate` token by re-deriving it from its own
-//! TLS session, then relays UDP over QUIC datagram frames: it parses each
-//! `Packet` datagram (`VER(0x05) TYPE(0x02) ASSOC(2) PKT(2) FRAG_TOTAL(1)
-//! FRAG_ID(1) SIZE(2) [ADDR on frag 0] payload`), reassembles fragments by
-//! packet id, and echoes the whole payload back (re-fragmenting to fit the link
-//! MTU). We cover a single-datagram payload and a large payload that forces
-//! fragmentation in both directions.
+//! Unlike `native` mode (QUIC datagram frames, see `tuic_udp_outbound.rs`),
+//! `quic` mode (`udp-relay-mode: quic`) carries each datagram on its own
+//! unidirectional QUIC stream. The fake server validates the `Authenticate`
+//! token, then for every inbound uni stream parses the `Packet` command
+//! (`VER(0x05) TYPE(0x02) ASSOC(2) PKT(2) FRAG_TOTAL(1) FRAG_ID(1) SIZE(2) ADDR
+//! payload`) and echoes the payload back on a fresh uni stream. A reliable
+//! stream has no datagram-MTU ceiling, so we also cover a payload far larger
+//! than a QUIC datagram to prove it rides a single stream without fragmentation.
 
-use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
-use bytes::Bytes;
 use learn_gripe::{Congestion, GripeConfig, GripeKernel, OutboundMode, TuicOutboundConfig, UdpRelayMode};
 use quinn::Endpoint;
 use quinn::crypto::rustls::QuicServerConfig;
@@ -33,10 +31,12 @@ const PASSWORD: &str = "correct horse battery staple";
 const VERSION: u8 = 0x05;
 const CMD_AUTHENTICATE: u8 = 0x00;
 const CMD_PACKET: u8 = 0x02;
-const ATYP_DOMAIN: u8 = 0x00;
 const ATYP_IPV4: u8 = 0x01;
 const ATYP_IPV6: u8 = 0x02;
+const ATYP_DOMAIN: u8 = 0x00;
 const PACKET_HEADER_PREFIX: usize = 10;
+/// 10-byte prefix + maximal domain address + max u16 payload.
+const MAX_PACKET_STREAM: usize = PACKET_HEADER_PREFIX + 259 + u16::MAX as usize;
 
 fn server_config() -> quinn::ServerConfig {
     let certs = rustls_pemfile::certs(&mut TEST_CERT.as_bytes())
@@ -72,65 +72,42 @@ fn decode_ipv4(addr: &[u8]) -> SocketAddr {
     SocketAddr::from((ip, port))
 }
 
-/// Parse a `Packet` datagram into `(packet_id, frag_id, frag_total, addr_bytes, chunk)`.
-fn parse_packet(data: &[u8]) -> Option<(u16, u8, u8, Option<Vec<u8>>, Vec<u8>)> {
-    if data.len() < PACKET_HEADER_PREFIX || data[0] != VERSION || data[1] != CMD_PACKET {
-        return None;
-    }
-    let packet_id = u16::from_be_bytes([data[4], data[5]]);
-    let frag_total = data[6];
-    let frag_id = data[7];
+/// Parse a uni-stream `Packet` into `(addr_bytes, payload)`. `quic` mode always
+/// sends a whole datagram in one packet (FRAG_TOTAL=1), so there is no
+/// cross-stream reassembly to do here.
+fn parse_packet(data: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    assert!(data.len() >= PACKET_HEADER_PREFIX, "short packet");
+    assert_eq!(data[0], VERSION, "packet version");
+    assert_eq!(data[1], CMD_PACKET, "packet command");
+    assert_eq!(data[6], 1, "quic mode carries one fragment per stream");
+    assert_eq!(data[7], 0, "fragment id");
     let size = u16::from_be_bytes([data[8], data[9]]) as usize;
-    let mut pos = PACKET_HEADER_PREFIX;
-    let addr = if frag_id == 0 {
-        let len = address_len(data, pos);
-        let bytes = data[pos..pos + len].to_vec();
-        pos += len;
-        Some(bytes)
-    } else {
-        None
-    };
-    Some((packet_id, frag_id, frag_total, addr, data[pos..pos + size].to_vec()))
+    let addr_len = address_len(data, PACKET_HEADER_PREFIX);
+    let addr = data[PACKET_HEADER_PREFIX..PACKET_HEADER_PREFIX + addr_len].to_vec();
+    let start = PACKET_HEADER_PREFIX + addr_len;
+    (addr, data[start..start + size].to_vec())
 }
 
-/// Encode a payload into `Packet` datagram fragments (mirrors the client).
-fn encode_packets(assoc: u16, packet_id: u16, addr: &[u8], payload: &[u8], max: usize) -> Vec<Bytes> {
-    let overhead = PACKET_HEADER_PREFIX + addr.len();
-    let chunk_size = max - overhead;
-    let chunks: Vec<&[u8]> = if payload.is_empty() {
-        vec![&[]]
-    } else {
-        payload.chunks(chunk_size).collect()
-    };
-    let frag_total = chunks.len() as u8;
-    chunks
-        .into_iter()
-        .enumerate()
-        .map(|(frag_id, chunk)| {
-            let mut buf = Vec::new();
-            buf.push(VERSION);
-            buf.push(CMD_PACKET);
-            buf.extend_from_slice(&assoc.to_be_bytes());
-            buf.extend_from_slice(&packet_id.to_be_bytes());
-            buf.push(frag_total);
-            buf.push(frag_id as u8);
-            buf.extend_from_slice(&(chunk.len() as u16).to_be_bytes());
-            if frag_id == 0 {
-                buf.extend_from_slice(addr);
-            }
-            buf.extend_from_slice(chunk);
-            Bytes::from(buf)
-        })
-        .collect()
+/// Encode a single uni-stream `Packet` (FRAG_TOTAL=1) carrying `payload`.
+fn encode_packet(assoc: u16, packet_id: u16, addr: &[u8], payload: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(PACKET_HEADER_PREFIX + addr.len() + payload.len());
+    buf.push(VERSION);
+    buf.push(CMD_PACKET);
+    buf.extend_from_slice(&assoc.to_be_bytes());
+    buf.extend_from_slice(&packet_id.to_be_bytes());
+    buf.push(1);
+    buf.push(0);
+    buf.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+    buf.extend_from_slice(addr);
+    buf.extend_from_slice(payload);
+    buf
 }
 
-/// Run the fake TUIC server: verify auth, then echo each UDP payload over QUIC
-/// `Packet` datagrams (reassembling and re-fragmenting). Reports the first
-/// parsed target address.
+/// Run the fake server: verify auth, then echo each uni-stream `Packet` back on
+/// a fresh uni stream. Reports the first parsed target address.
 async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<SocketAddr>) {
     let conn = endpoint.accept().await.unwrap().await.unwrap();
 
-    // Authenticate arrives on a unidirectional stream.
     let mut auth_stream = conn.accept_uni().await.unwrap();
     let auth = auth_stream.read_to_end(2 + 16 + 32).await.unwrap();
     assert_eq!(auth[0], VERSION, "auth version");
@@ -141,38 +118,23 @@ async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<SocketAddr>) 
         .unwrap();
     assert_eq!(&auth[18..50], &expected_token, "auth token (server-side re-derivation)");
 
-    // UDP datagram echo: reassemble inbound fragments, echo whole payloads.
     let mut target_tx = Some(target_tx);
-    let mut pending: HashMap<u16, HashMap<u8, Vec<u8>>> = HashMap::new();
-    let mut addrs: HashMap<u16, Vec<u8>> = HashMap::new();
+    let mut packet_id = 0u16;
     loop {
-        let datagram = match conn.read_datagram().await {
-            Ok(d) => d,
+        let mut stream = match conn.accept_uni().await {
+            Ok(s) => s,
             Err(_) => break,
         };
-        let Some((packet_id, frag_id, frag_total, addr, chunk)) = parse_packet(&datagram) else {
-            continue;
-        };
-        if let Some(bytes) = addr {
-            if let Some(tx) = target_tx.take() {
-                tx.send(decode_ipv4(&bytes)).unwrap();
-            }
-            addrs.insert(packet_id, bytes);
+        let data = stream.read_to_end(MAX_PACKET_STREAM).await.unwrap();
+        let (addr, payload) = parse_packet(&data);
+        if let Some(tx) = target_tx.take() {
+            tx.send(decode_ipv4(&addr)).unwrap();
         }
-        pending.entry(packet_id).or_default().insert(frag_id, chunk);
-        if pending[&packet_id].len() as u8 != frag_total {
-            continue;
-        }
-        let parts = pending.remove(&packet_id).unwrap();
-        let addr_bytes = addrs.remove(&packet_id).unwrap();
-        let mut payload = Vec::new();
-        for i in 0..frag_total {
-            payload.extend_from_slice(&parts[&i]);
-        }
-        let max = conn.max_datagram_size().unwrap();
-        for d in encode_packets(0x9999, packet_id, &addr_bytes, &payload, max) {
-            conn.send_datagram(d).unwrap();
-        }
+        let echo = encode_packet(0x9999, packet_id, &addr, &payload);
+        packet_id = packet_id.wrapping_add(1);
+        let mut out = conn.open_uni().await.unwrap();
+        out.write_all(&echo).await.unwrap();
+        out.finish().unwrap();
     }
 }
 
@@ -225,7 +187,7 @@ async fn run_relay_test(payload: Vec<u8>) {
             skip_cert_verify: true,
             congestion: Congestion::Bbr,
             reduce_rtt: false,
-            udp_relay_mode: UdpRelayMode::Native,
+            udp_relay_mode: UdpRelayMode::Quic,
         })),
     })
     .await
@@ -239,14 +201,14 @@ async fn run_relay_test(payload: Vec<u8>) {
         .await
         .unwrap();
 
-    let mut buf = vec![0u8; 16 * 1024];
+    let mut buf = vec![0u8; 128 * 1024];
     let (n, from) = client.recv_from(&mut buf).await.unwrap();
     assert_eq!(from, relay, "reply must come from the relay socket");
     let offset = 3 + 1 + 4 + 2;
     assert_eq!(
         &buf[offset..n],
         &payload[..],
-        "payload echoed verbatim through TUIC UDP"
+        "payload echoed verbatim through TUIC quic-mode UDP"
     );
 
     let parsed = target_rx.await.unwrap();
@@ -257,14 +219,14 @@ async fn run_relay_test(payload: Vec<u8>) {
 }
 
 #[tokio::test]
-async fn udp_relays_single_datagram() {
-    run_relay_test(b"tuic udp ping".to_vec()).await;
+async fn quic_mode_relays_single_datagram() {
+    run_relay_test(b"tuic quic-mode udp ping".to_vec()).await;
 }
 
 #[tokio::test]
-async fn udp_relays_fragmented_datagram() {
-    // A payload well above the QUIC datagram MTU forces fragmentation and
-    // reassembly in both directions.
-    let payload: Vec<u8> = (0..4000u32).map(|i| (i % 251) as u8).collect();
+async fn quic_mode_relays_large_datagram() {
+    // Far larger than a QUIC datagram MTU: in `native` mode this fragments, but
+    // `quic` mode carries it on a single reliable stream as one Packet.
+    let payload: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
     run_relay_test(payload).await;
 }
