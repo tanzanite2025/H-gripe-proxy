@@ -83,6 +83,13 @@ h3-quinn = "0.0.10"
 # state machine, own the orchestration). `default-features = false` drops the
 # `device`/CLI feature set (no tun/sys deps) — only the protocol library is used.
 boringtun = { version = "0.7.1", default-features = false }
+# SSH outbound (`direct-tcpip` tunnel). russh drives the SSH transport / key
+# exchange / cipher+MAC negotiation / channel windowing state machine; the kernel
+# owns only the orchestration (auth selection, host-key pinning, channel open,
+# stream hand-off) — same philosophy as quinn/boringtun/smoltcp. The default
+# `aws-lc-rs` backend pulls a C toolchain, so select the pure-Rust `ring` backend
+# to match the rest of the workspace's crypto.
+russh = { version = "0.61.2", default-features = false, features = ["ring"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread", "sync"] }

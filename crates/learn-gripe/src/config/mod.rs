@@ -8,6 +8,7 @@ use crate::protocols::http::HttpOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
+use crate::protocols::ssh::SshOutboundConfig;
 use crate::protocols::ssr::SsrOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::tuic::TuicOutboundConfig;
@@ -55,6 +56,8 @@ pub enum OutboundMode {
     AnyTls(Box<AnyTlsOutboundConfig>),
     /// Forward through a Snell outbound.
     Snell(Box<SnellOutboundConfig>),
+    /// Forward through an SSH `direct-tcpip` tunnel.
+    Ssh(Box<SshOutboundConfig>),
     /// Forward through a ShadowsocksR (SSR) outbound.
     Ssr(Box<SsrOutboundConfig>),
     /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
@@ -96,6 +99,7 @@ impl OutboundMode {
             )?))),
             ProxyType::AnyTls => Ok(OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig::from_proxy(entry)?))),
             ProxyType::Snell => Ok(OutboundMode::Snell(Box::new(SnellOutboundConfig::from_proxy(entry)?))),
+            ProxyType::Ssh => Ok(OutboundMode::Ssh(Box::new(SshOutboundConfig::from_proxy(entry)?))),
             ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
             ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
                 entry,
@@ -126,6 +130,7 @@ impl OutboundMode {
             OutboundMode::Hysteria2(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Ssh(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::WireGuard(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
@@ -151,6 +156,7 @@ impl OutboundMode {
             OutboundMode::Hysteria2(_) => "hysteria2",
             OutboundMode::AnyTls(_) => "anytls",
             OutboundMode::Snell(_) => "snell",
+            OutboundMode::Ssh(_) => "ssh",
             OutboundMode::Ssr(_) => "ssr",
             OutboundMode::WireGuard(_) => "wireguard",
             OutboundMode::Routed(_) => "routed",
@@ -176,6 +182,7 @@ impl OutboundMode {
                 | OutboundMode::Hysteria2(_)
                 | OutboundMode::AnyTls(_)
                 | OutboundMode::Snell(_)
+                | OutboundMode::Ssh(_)
                 | OutboundMode::Ssr(_)
                 | OutboundMode::WireGuard(_)
         )

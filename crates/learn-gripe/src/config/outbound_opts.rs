@@ -57,6 +57,7 @@ impl ProxyEntry {
             | ProxyType::Trojan
             | ProxyType::Vmess
             | ProxyType::Vless
+            | ProxyType::Ssh
             | ProxyType::ShadowsocksR => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
             _ => ProtocolSupport::Unsupported,
@@ -199,6 +200,17 @@ pub struct ProxyOptions {
     pub certificate: Option<String>,
     #[serde(rename = "private-key")]
     pub private_key: Option<String>,
+
+    // SSH outbound (`type: ssh`). `private-key` (above) carries the OpenSSH /
+    // PKCS#8 / PuTTY private key text; the rest are SSH-specific.
+    #[serde(rename = "private-key-passphrase")]
+    pub private_key_passphrase: Option<String>,
+    /// Accepted server host keys in `authorized_keys` text form (`host-key`).
+    #[serde(rename = "host-key")]
+    pub host_key: Option<Vec<String>>,
+    /// Accepted server host-key algorithm names (`host-key-algorithms`).
+    #[serde(rename = "host-key-algorithms")]
+    pub host_key_algorithms: Option<Vec<String>>,
 
     // WireGuard outbound (`type: wireguard`). `private-key` (above) is the local
     // static X25519 secret; the rest are WireGuard-specific.
