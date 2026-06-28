@@ -17,10 +17,13 @@
 //! is the same "delegate the wire codec, own the plumbing" split used for
 //! rustls / quinn / smoltcp / hickory elsewhere in the kernel.
 //!
-//! Scope (this module): single peer, **TCP relay** (IPv4/IPv6 inner targets).
-//! UDP relay, multi-peer, amnezia-wg obfuscation, and tunnel-side DNS
-//! (`remote-dns-resolve`) are deliberately left to follow-ups; a domain target
-//! is resolved to an IP by the host resolver before it enters the tunnel.
+//! Scope (this module): single peer, **TCP + UDP relay** (IPv4/IPv6 inner
+//! targets). Each relayed UDP association is a userspace smoltcp UDP socket
+//! bound inside the same per-config device, so its datagrams ride the Noise
+//! tunnel exactly like the TCP flows. Multi-peer, amnezia-wg obfuscation, and
+//! tunnel-side DNS (`remote-dns-resolve`) are deliberately left to follow-ups; a
+//! domain target is resolved to an IP by the host resolver before it enters the
+//! tunnel.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -33,7 +36,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use boringtun::noise::{Tunn, TunnResult};
 use boringtun::x25519::{PublicKey, StaticSecret};
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketHandle, SocketSet};
-use smoltcp::socket::tcp;
+use smoltcp::socket::{tcp, udp};
 use smoltcp::time::Instant as SmolInstant;
 use smoltcp::wire::{HardwareAddress, IpAddress, IpCidr, IpEndpoint};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -51,6 +54,9 @@ const DEFAULT_MTU: u32 = 1408;
 const CHANNEL_DEPTH: usize = 64;
 /// Per-flow smoltcp socket buffer size (each direction).
 const FLOW_BUFFER: usize = 64 * 1024;
+/// Number of in-flight datagram slots per direction for a UDP flow's smoltcp
+/// packet buffer (each datagram needs one metadata slot).
+const UDP_META_SLOTS: usize = 64;
 /// How long to wait for a relayed TCP connection to reach `Established` (covers
 /// the WireGuard handshake plus the inner TCP handshake).
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -182,6 +188,16 @@ pub async fn connect(config: &WireGuardOutboundConfig, target: &TargetAddr) -> R
     Ok(Box::new(stream) as BoxedStream)
 }
 
+/// Open a relayed UDP association to `target` through the configured WireGuard
+/// tunnel, reusing (or lazily building) the per-config device. Each association
+/// is a userspace smoltcp UDP socket; datagrams to the resolved destination ride
+/// the Noise tunnel like the TCP flows.
+pub async fn connect_udp(config: &WireGuardOutboundConfig, target: &TargetAddr) -> Result<WgUdpAssoc> {
+    let dst = resolve_target(target).await?;
+    let device = WireGuardDevice::get_or_create(config).await?;
+    device.open_udp(dst).await
+}
+
 /// Resolve a relayed target to a literal socket address. Domains are resolved by
 /// the host resolver (tunnel-side DNS is a follow-up).
 async fn resolve_target(target: &TargetAddr) -> Result<SocketAddr> {
@@ -208,6 +224,10 @@ enum Command {
     OpenTcp {
         dst: SocketAddr,
         reply: oneshot::Sender<WgTcpStream>,
+    },
+    OpenUdp {
+        dst: SocketAddr,
+        reply: oneshot::Sender<WgUdpAssoc>,
     },
 }
 
@@ -291,6 +311,17 @@ impl WireGuardDevice {
             .await
             .map_err(|_| anyhow!("wireguard: connection to {dst} failed (handshake/connect timeout)"))
     }
+
+    async fn open_udp(&self, dst: SocketAddr) -> Result<WgUdpAssoc> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.commands
+            .send(Command::OpenUdp { dst, reply: reply_tx })
+            .await
+            .map_err(|_| anyhow!("wireguard: device loop is gone"))?;
+        reply_rx
+            .await
+            .map_err(|_| anyhow!("wireguard: UDP association to {dst} failed"))
+    }
 }
 
 /// Wakers parked by streams whose write channel filled, woken once the loop has
@@ -307,6 +338,7 @@ struct DeviceLoop {
     local_v6: Option<Ipv6Addr>,
     commands: mpsc::Receiver<Command>,
     flows: Vec<WgFlow>,
+    udp_flows: Vec<WgUdpFlow>,
     next_port: u16,
     wake: Arc<Notify>,
     writer_wakers: WriterWakers,
@@ -331,6 +363,21 @@ struct WgFlow {
     deadline: Instant,
 }
 
+/// Bridge state for one relayed UDP association, owned by the poll loop. Unlike
+/// TCP there is no connection state: datagrams flow to a fixed `remote` and one
+/// datagram maps to one inner UDP packet.
+struct WgUdpFlow {
+    handle: SocketHandle,
+    /// Fixed inner destination for this association.
+    remote: IpEndpoint,
+    /// Caller -> socket datagrams.
+    write_rx: mpsc::Receiver<Vec<u8>>,
+    /// Socket -> caller datagrams.
+    read_tx: mpsc::Sender<Vec<u8>>,
+    /// A datagram accepted from the caller but not yet handed to the send buffer.
+    pending: Option<Vec<u8>>,
+}
+
 impl DeviceLoop {
     fn new(tunn: Tunn, udp: UdpSocket, config: &WireGuardOutboundConfig, commands: mpsc::Receiver<Command>) -> Self {
         Self {
@@ -342,6 +389,7 @@ impl DeviceLoop {
             local_v6: config.local_v6,
             commands,
             flows: Vec::new(),
+            udp_flows: Vec::new(),
             next_port: 1024,
             wake: Arc::new(Notify::new()),
             writer_wakers: Arc::new(Mutex::new(Vec::new())),
@@ -367,6 +415,7 @@ impl DeviceLoop {
             let now = smol_now(start);
             iface.poll(now, &mut phy, &mut sockets);
             self.service_flows(&mut sockets, &mut iface);
+            self.service_udp_flows(&mut sockets);
             self.wake_writers();
             self.encapsulate_tx(&mut phy, &mut scratch).await;
 
@@ -396,7 +445,10 @@ impl DeviceLoop {
     /// Open a smoltcp client socket to `dst`, wire its bridge channels, and stash
     /// the caller's stream to hand over once it connects.
     fn handle_command(&mut self, cmd: Command, sockets: &mut SocketSet, iface: &mut Interface) {
-        let Command::OpenTcp { dst, reply } = cmd;
+        let (dst, reply) = match cmd {
+            Command::OpenTcp { dst, reply } => (dst, reply),
+            Command::OpenUdp { dst, reply } => return self.handle_open_udp(dst, reply, sockets),
+        };
         let remote = IpEndpoint::new(ip_address(dst.ip()), dst.port());
         let mut sock = tcp::Socket::new(
             tcp::SocketBuffer::new(vec![0u8; FLOW_BUFFER]),
@@ -432,10 +484,110 @@ impl DeviceLoop {
         });
     }
 
+    /// Open a smoltcp UDP socket bound to a local port for datagrams destined to
+    /// `dst`, wire its bridge channels, and hand the association back. Unlike
+    /// TCP there is no connect handshake, so the association is returned
+    /// immediately; datagrams sent before the Noise handshake completes are
+    /// dropped (UDP is lossy).
+    fn handle_open_udp(&mut self, dst: SocketAddr, reply: oneshot::Sender<WgUdpAssoc>, sockets: &mut SocketSet) {
+        let remote = IpEndpoint::new(ip_address(dst.ip()), dst.port());
+        let mut sock = udp::Socket::new(
+            udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; UDP_META_SLOTS], vec![0u8; FLOW_BUFFER]),
+            udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; UDP_META_SLOTS], vec![0u8; FLOW_BUFFER]),
+        );
+        let local_port = self.alloc_port();
+        if sock.bind(local_port).is_err() {
+            return; // dropping `reply` reports the failure to the caller
+        }
+        let handle = sockets.add(sock);
+
+        let (write_tx, write_rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
+        let (read_tx, read_rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
+        let assoc = WgUdpAssoc {
+            write_tx,
+            read_rx: tokio::sync::Mutex::new(read_rx),
+            wake: self.wake.clone(),
+        };
+        self.udp_flows.push(WgUdpFlow {
+            handle,
+            remote,
+            write_rx,
+            read_tx,
+            pending: None,
+        });
+        let _ = reply.send(assoc);
+    }
+
     fn alloc_port(&mut self) -> u16 {
         let port = self.next_port;
         self.next_port = self.next_port.checked_add(1).unwrap_or(1024);
         port
+    }
+
+    /// Move datagrams between each UDP flow's smoltcp socket and its bridge
+    /// channels, dropping (rather than stalling) when a buffer is full, and reap
+    /// flows whose caller association has been dropped.
+    fn service_udp_flows(&mut self, sockets: &mut SocketSet) {
+        let mut done: Vec<usize> = Vec::new();
+        for (idx, flow) in self.udp_flows.iter_mut().enumerate() {
+            let sock = sockets.get_mut::<udp::Socket>(flow.handle);
+            let mut reap = false;
+
+            // caller -> socket
+            loop {
+                if flow.pending.is_none() {
+                    match flow.write_rx.try_recv() {
+                        Ok(buf) => flow.pending = Some(buf),
+                        Err(mpsc::error::TryRecvError::Empty) => break,
+                        Err(mpsc::error::TryRecvError::Disconnected) => {
+                            reap = true;
+                            break;
+                        }
+                    }
+                }
+                if !sock.can_send() {
+                    break;
+                }
+                let Some(buf) = flow.pending.take() else { break };
+                match sock.send_slice(&buf, flow.remote) {
+                    Ok(()) => {}
+                    // Send buffer is full: retry this datagram next turn.
+                    Err(udp::SendError::BufferFull) => {
+                        flow.pending = Some(buf);
+                        break;
+                    }
+                    // No route to the destination: drop the datagram.
+                    Err(udp::SendError::Unaddressable) => {}
+                }
+            }
+
+            // socket -> caller
+            while sock.can_recv() {
+                let payload = match sock.recv() {
+                    Ok((data, _meta)) => data.to_vec(),
+                    Err(_) => break,
+                };
+                match flow.read_tx.try_send(payload) {
+                    Ok(()) => {}
+                    // Caller is draining slowly: drop this reply (UDP is lossy).
+                    Err(mpsc::error::TrySendError::Full(_)) => break,
+                    // Caller association dropped: reap the flow.
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        reap = true;
+                        break;
+                    }
+                }
+            }
+
+            if reap {
+                done.push(idx);
+            }
+        }
+
+        for idx in done.into_iter().rev() {
+            let flow = self.udp_flows.swap_remove(idx);
+            sockets.remove(flow.handle);
+        }
     }
 
     /// Move bytes between each flow's smoltcp socket and its bridge channels,
@@ -654,6 +806,40 @@ impl AsyncWrite for WgTcpStream {
             this.wake.notify_one();
         }
         Poll::Ready(Ok(()))
+    }
+}
+
+/// A relayed UDP association over the tunnel: a channel pair bridged to a
+/// smoltcp UDP socket inside the device loop, sending to one fixed destination.
+/// `send`/`recv` mirror the other protocols' UDP associations so the shared UDP
+/// egress loop can drive it.
+pub struct WgUdpAssoc {
+    /// Caller -> loop datagrams.
+    write_tx: mpsc::Sender<Vec<u8>>,
+    /// Loop -> caller datagrams.
+    read_rx: tokio::sync::Mutex<mpsc::Receiver<Vec<u8>>>,
+    wake: Arc<Notify>,
+}
+
+impl WgUdpAssoc {
+    /// Queue `payload` as one datagram to the association's destination. A full
+    /// queue drops the datagram (UDP is lossy) rather than blocking the relay.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        match self.write_tx.try_send(payload.to_vec()) {
+            Ok(()) | Err(mpsc::error::TrySendError::Full(_)) => {
+                self.wake.notify_one();
+                Ok(())
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => bail!("wireguard udp: device loop is gone"),
+        }
+    }
+
+    /// Receive the next reply datagram from the destination.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        let mut rx = self.read_rx.lock().await;
+        rx.recv()
+            .await
+            .ok_or_else(|| anyhow!("wireguard udp: device loop closed"))
     }
 }
 

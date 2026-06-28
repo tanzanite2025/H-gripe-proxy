@@ -182,6 +182,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Snell(config) => run_snell_egress(config, target, rx, sink, idle).await,
         UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
+        UdpEgress::WireGuard(config) => run_wireguard_egress(config, target, rx, sink, idle).await,
         proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
     }
 }
@@ -366,6 +367,34 @@ async fn run_tuic_egress<S: ReplySink>(
     }
 }
 
+/// WireGuard UDP egress: relay datagrams through a userspace smoltcp UDP socket
+/// inside the tunnel device, sealing each IP packet over the Noise tunnel. One
+/// datagram maps to one inner UDP packet to the resolved destination.
+async fn run_wireguard_egress<S: ReplySink>(
+    config: Box<crate::protocols::wireguard::WireGuardOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let assoc = crate::protocols::wireguard::connect_udp(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
 /// Proxy-tunnel UDP egress: open the protocol's UDP stream and relay datagrams
 /// in both directions, applying the protocol's per-packet framing.
 async fn run_proxy_egress<S: ReplySink>(
@@ -423,7 +452,8 @@ impl ProxyFraming {
             | UdpEgress::Ssr(_)
             | UdpEgress::Snell(_)
             | UdpEgress::Hysteria2(_)
-            | UdpEgress::Tuic(_) => ProxyFraming::Chunked,
+            | UdpEgress::Tuic(_)
+            | UdpEgress::WireGuard(_) => ProxyFraming::Chunked,
         }
     }
 }
