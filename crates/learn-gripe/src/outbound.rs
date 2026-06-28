@@ -11,7 +11,7 @@ use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
 use crate::protocols::vmess::{self, VmessOutboundConfig};
-use crate::protocols::wireguard;
+use crate::protocols::wireguard::{self, WireGuardOutboundConfig};
 use anyhow::{Context, Result, bail};
 use std::future::Future;
 use std::net::SocketAddr;
@@ -93,6 +93,9 @@ pub enum UdpEgress {
     /// v4/v5), one transport unit per packet (a shadowaead chunk for v3, a v4
     /// frame for v4/v5).
     Snell(Box<SnellOutboundConfig>),
+    /// WireGuard relays each datagram through a userspace smoltcp UDP socket
+    /// whose IP packets ride the Noise tunnel (no proxy stream).
+    WireGuard(Box<WireGuardOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
@@ -113,6 +116,7 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::Hysteria2(_)
             | OutboundMode::AnyTls(_)
             | OutboundMode::Ssr(_)
+            | OutboundMode::WireGuard(_)
             | OutboundMode::Routed(_)
     ) || matches!(mode, OutboundMode::Snell(config) if config.supports_udp())
 }
@@ -138,8 +142,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Snell(config) if config.supports_udp() => Some(UdpEgress::Snell(config.clone())),
         OutboundMode::Snell(_) => None,
         OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),
-        // WireGuard UDP relay is a follow-up (PR8b); TCP-only for now.
-        OutboundMode::WireGuard(_) => None,
+        OutboundMode::WireGuard(config) => Some(UdpEgress::WireGuard(config.clone())),
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
@@ -165,7 +168,8 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Ssr(_)
         | UdpEgress::Snell(_)
         | UdpEgress::Hysteria2(_)
-        | UdpEgress::Tuic(_) => {
+        | UdpEgress::Tuic(_)
+        | UdpEgress::WireGuard(_) => {
             bail!("egress has no proxy tunnel")
         }
     }

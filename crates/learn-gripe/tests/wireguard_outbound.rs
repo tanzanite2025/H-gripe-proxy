@@ -17,7 +17,7 @@ use boringtun::x25519::{PublicKey, StaticSecret};
 use learn_gripe::{ProxyEntry, TargetAddr, WireGuardOutboundConfig, wireguard};
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
-use smoltcp::socket::tcp;
+use smoltcp::socket::{tcp, udp};
 use smoltcp::time::Instant as SmolInstant;
 use smoltcp::wire::{HardwareAddress, IpAddress, IpCidr, Ipv4Address};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -136,6 +136,14 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
     listener.listen(INNER_PORT).unwrap();
     let handle = sockets.add(listener);
 
+    // A UDP echo socket on the same inner port, so UDP-relay tests round-trip.
+    let mut udp_echo = udp::Socket::new(
+        udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; 32], vec![0u8; 256 * 1024]),
+        udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; 32], vec![0u8; 256 * 1024]),
+    );
+    udp_echo.bind(INNER_PORT).unwrap();
+    let udp_handle = sockets.add(udp_echo);
+
     let mut udp_buf = vec![0u8; 65535];
     let mut scratch = vec![0u8; 65535 + 32];
 
@@ -151,6 +159,16 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
                 break;
             }
             let _ = sock.send_slice(&data);
+        }
+
+        // Echo any received UDP datagram back to its sender.
+        let usock = sockets.get_mut::<udp::Socket>(udp_handle);
+        while usock.can_recv() {
+            let (data, endpoint) = match usock.recv() {
+                Ok((d, meta)) => (d.to_vec(), meta.endpoint),
+                Err(_) => break,
+            };
+            let _ = usock.send_slice(&data, endpoint);
         }
 
         while let Some(pkt) = phy.tx.pop_front() {
@@ -283,6 +301,48 @@ async fn wireguard_tcp_round_trips_a_large_payload() {
     rd.read_exact(&mut got).await.unwrap();
     writer.await.unwrap();
     assert_eq!(got, payload);
+}
+
+#[tokio::test]
+async fn wireguard_udp_round_trips_datagrams() {
+    let config = start_server().await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let assoc = tokio::time::timeout(Duration::from_secs(15), wireguard::connect_udp(&config, &target))
+        .await
+        .expect("connect_udp did not time out")
+        .expect("wireguard connect_udp");
+
+    // UDP has no retransmit, so datagrams sent before the Noise handshake
+    // completes are lost. Retransmit a probe (as a real UDP client would) until
+    // the tunnel is up and we see its echo, then drain any duplicate echoes.
+    let probe = b"wg-udp-probe";
+    let mut warmed = false;
+    for _ in 0..50 {
+        assoc.send(probe).await.unwrap();
+        if let Ok(Ok(got)) = tokio::time::timeout(Duration::from_millis(300), assoc.recv()).await {
+            assert_eq!(got, probe);
+            warmed = true;
+            break;
+        }
+    }
+    assert!(warmed, "wireguard udp tunnel did not warm up");
+    while tokio::time::timeout(Duration::from_millis(100), assoc.recv())
+        .await
+        .is_ok()
+    {}
+
+    // With the tunnel established, distinct datagrams (including a multi-hundred
+    // byte one) round-trip 1:1 over localhost.
+    for i in 0..5u8 {
+        let payload: Vec<u8> = (0..(64 + usize::from(i) * 200)).map(|b| (b as u8) ^ i).collect();
+        assoc.send(&payload).await.unwrap();
+        let got = tokio::time::timeout(Duration::from_secs(5), assoc.recv())
+            .await
+            .expect("udp echo did not time out")
+            .expect("udp echo");
+        assert_eq!(got, payload);
+    }
 }
 
 #[test]
