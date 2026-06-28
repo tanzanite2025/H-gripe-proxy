@@ -4,6 +4,7 @@ use anyhow::{Context, Result, bail};
 
 use crate::config::outbound_opts::{ProxyEntry, ProxyType};
 use crate::protocols::anytls::AnyTlsOutboundConfig;
+use crate::protocols::gost_relay::GostRelayOutboundConfig;
 use crate::protocols::http::HttpOutboundConfig;
 use crate::protocols::hysteria::HysteriaOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
@@ -61,6 +62,8 @@ pub enum OutboundMode {
     Snell(Box<SnellOutboundConfig>),
     /// Forward through an SSH `direct-tcpip` tunnel.
     Ssh(Box<SshOutboundConfig>),
+    /// Forward through a GOST relay (relay protocol v1) outbound.
+    GostRelay(Box<GostRelayOutboundConfig>),
     /// Forward through a ShadowsocksR (SSR) outbound.
     Ssr(Box<SsrOutboundConfig>),
     /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
@@ -106,6 +109,9 @@ impl OutboundMode {
             ProxyType::AnyTls => Ok(OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig::from_proxy(entry)?))),
             ProxyType::Snell => Ok(OutboundMode::Snell(Box::new(SnellOutboundConfig::from_proxy(entry)?))),
             ProxyType::Ssh => Ok(OutboundMode::Ssh(Box::new(SshOutboundConfig::from_proxy(entry)?))),
+            ProxyType::GostRelay => Ok(OutboundMode::GostRelay(Box::new(GostRelayOutboundConfig::from_proxy(
+                entry,
+            )?))),
             ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
             ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
                 entry,
@@ -138,6 +144,7 @@ impl OutboundMode {
             OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssh(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::GostRelay(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::WireGuard(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
@@ -165,6 +172,7 @@ impl OutboundMode {
             OutboundMode::AnyTls(_) => "anytls",
             OutboundMode::Snell(_) => "snell",
             OutboundMode::Ssh(_) => "ssh",
+            OutboundMode::GostRelay(_) => "gost-relay",
             OutboundMode::Ssr(_) => "ssr",
             OutboundMode::WireGuard(_) => "wireguard",
             OutboundMode::Routed(_) => "routed",
@@ -192,6 +200,7 @@ impl OutboundMode {
                 | OutboundMode::AnyTls(_)
                 | OutboundMode::Snell(_)
                 | OutboundMode::Ssh(_)
+                | OutboundMode::GostRelay(_)
                 | OutboundMode::Ssr(_)
                 | OutboundMode::WireGuard(_)
         )
