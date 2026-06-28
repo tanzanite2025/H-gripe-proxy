@@ -492,6 +492,7 @@ fn snell(server: SocketAddr, mode: ObfsMode) -> Box<SnellOutboundConfig> {
         psk: TEST_PSK.to_vec(),
         version: 3,
         obfs: Some(obfs),
+        reuse: false,
     })
 }
 
