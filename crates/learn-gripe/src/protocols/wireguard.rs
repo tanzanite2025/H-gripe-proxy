@@ -63,9 +63,13 @@ const UDP_META_SLOTS: usize = 64;
 /// How long to wait for a relayed TCP connection to reach `Established` (covers
 /// the WireGuard handshake plus the inner TCP handshake).
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// Upper bound on how long the device poll loop sleeps between wakeups; also the
-/// cadence at which `Tunn::update_timers` is driven (rekey / keepalive).
+/// Upper bound on how long the device poll loop sleeps between wakeups.
 const MAX_POLL_SLEEP: Duration = Duration::from_millis(250);
+/// Wall-clock cadence at which `Tunn::update_timers` is driven (rekey / keepalive
+/// / handshake retransmit). boringtun expects this every ~100-250ms; we tick it
+/// from the loop top rather than only the timeout arm so steady relay traffic
+/// cannot starve it.
+const TIMER_TICK: Duration = Duration::from_millis(120);
 /// How long to wait for a tunnel-side DNS reply before retransmitting the query.
 const DNS_QUERY_TIMEOUT: Duration = Duration::from_millis(800);
 /// How many times a tunnel-side DNS query is (re)sent before giving up on a
@@ -502,6 +506,9 @@ impl DeviceLoop {
             let _ = self.udp.send(out).await;
         }
 
+        // Next wall-clock instant at which the WireGuard timers must be driven.
+        let mut next_timer = Instant::now() + TIMER_TICK;
+
         loop {
             let now = smol_now(start);
             iface.poll(now, &mut phy, &mut sockets);
@@ -510,10 +517,23 @@ impl DeviceLoop {
             self.wake_writers();
             self.encapsulate_tx(&mut phy, &mut scratch).await;
 
+            // Drive rekey / keepalive / handshake-retransmit on a steady cadence
+            // regardless of `select!` readiness. Folding this into the timeout
+            // arm alone lets a busy tunnel (the `udp.recv`/`wake` arms always
+            // ready) starve the timers, so a long-lived but bursty session could
+            // miss its rekey and die; this gate fires on schedule under load.
+            if Instant::now() >= next_timer {
+                self.drive_timers(&mut scratch).await;
+                next_timer = Instant::now() + TIMER_TICK;
+            }
+
+            // Wake by `next_timer` at the latest so the gate above runs on time.
+            let timer_wait = next_timer.saturating_duration_since(Instant::now());
             let delay = iface
                 .poll_delay(smol_now(start), &sockets)
                 .map(|d| Duration::from_micros(d.total_micros()))
-                .map_or(MAX_POLL_SLEEP, |d| d.min(MAX_POLL_SLEEP));
+                .map_or(MAX_POLL_SLEEP, |d| d.min(MAX_POLL_SLEEP))
+                .min(timer_wait);
 
             tokio::select! {
                 _ = self.wake.notified() => {}
@@ -526,9 +546,7 @@ impl DeviceLoop {
                         self.decapsulate_rx(&mut udp_buf, n, &mut phy, &mut scratch).await;
                     }
                 }
-                _ = tokio::time::sleep(delay) => {
-                    self.drive_timers(&mut scratch).await;
-                }
+                _ = tokio::time::sleep(delay) => {}
             }
         }
     }
@@ -814,11 +832,20 @@ impl DeviceLoop {
         }
     }
 
-    /// Drive rekey / keepalive / handshake retransmit timers.
+    /// Drive rekey / keepalive / handshake retransmit timers, flushing every
+    /// packet `update_timers` wants to emit this tick. boringtun yields at most
+    /// one packet per call, so the bounded drain just covers the case where more
+    /// than one timer is simultaneously due; a repeat call at the same instant
+    /// returns `Done` and ends the loop.
     async fn drive_timers(&mut self, scratch: &mut [u8]) {
-        if let TunnResult::WriteToNetwork(out) = self.tunn.update_timers(scratch) {
-            apply_reserved(out, self.reserved);
-            let _ = self.udp.send(out).await;
+        for _ in 0..4 {
+            match self.tunn.update_timers(scratch) {
+                TunnResult::WriteToNetwork(out) => {
+                    apply_reserved(out, self.reserved);
+                    let _ = self.udp.send(out).await;
+                }
+                _ => break,
+            }
         }
     }
 }

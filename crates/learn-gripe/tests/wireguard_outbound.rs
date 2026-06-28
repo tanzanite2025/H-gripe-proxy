@@ -10,6 +10,8 @@
 
 use std::collections::VecDeque;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use boringtun::noise::{Tunn, TunnResult};
@@ -118,7 +120,9 @@ fn now_since(start: Instant) -> SmolInstant {
 
 /// Run the fake WireGuard server: decrypt UDP from the client into a smoltcp
 /// stack that echoes the inner TCP, and encrypt the stack's output back.
-async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
+/// `rx_count` is bumped for every datagram received from the client (including
+/// keepalives), so tests can observe that the client's timers keep firing.
+async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn, rx_count: Arc<AtomicU64>) {
     let start = Instant::now();
     let mut phy = Phy {
         rx: VecDeque::new(),
@@ -212,6 +216,7 @@ async fn run_fake_server(udp: UdpSocket, mut tunn: Tunn) {
         tokio::select! {
             res = udp.recv(&mut udp_buf) => {
                 if let Ok(n) = res {
+                    rx_count.fetch_add(1, Ordering::Relaxed);
                     let mut first = true;
                     loop {
                         let datagram: &[u8] = if first { &udp_buf[..n] } else { &[] };
@@ -268,6 +273,14 @@ async fn start_server() -> WireGuardOutboundConfig {
 /// Like [`start_server`], but splices `extra_opts` (a leading-comma YAML
 /// fragment) into the client config map.
 async fn start_server_with(extra_opts: &str) -> WireGuardOutboundConfig {
+    start_server_counting(extra_opts).await.0
+}
+
+/// Like [`start_server_with`], but also returns a counter of datagrams the
+/// server has received from the client (for observing keepalive / timer ticks).
+async fn start_server_counting(extra_opts: &str) -> (WireGuardOutboundConfig, Arc<AtomicU64>) {
+    let rx_count = Arc::new(AtomicU64::new(0));
+    let rx_count_srv = rx_count.clone();
     let (client_priv, client_pub, _cs, _cp) = keypair();
     let (server_priv_raw, server_pub, _ss, _sp) = keypair();
     let server_secret = StaticSecret::from(server_priv_raw);
@@ -300,7 +313,7 @@ async fn start_server_with(extra_opts: &str) -> WireGuardOutboundConfig {
                 _ => break,
             }
         }
-        Box::pin(run_fake_server(server_udp, tunn)).await;
+        Box::pin(run_fake_server(server_udp, tunn, rx_count_srv)).await;
     });
 
     let yaml = format!(
@@ -312,7 +325,7 @@ async fn start_server_with(extra_opts: &str) -> WireGuardOutboundConfig {
         extra_opts,
     );
     let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
-    WireGuardOutboundConfig::from_proxy(&entry).unwrap()
+    (WireGuardOutboundConfig::from_proxy(&entry).unwrap(), rx_count)
 }
 
 #[tokio::test]
@@ -398,6 +411,46 @@ async fn wireguard_udp_round_trips_datagrams() {
             .expect("udp echo");
         assert_eq!(got, payload);
     }
+}
+
+#[tokio::test]
+async fn wireguard_keepalive_keeps_a_long_idle_session_alive() {
+    // `persistent-keepalive: 1` makes the client emit a keepalive every second
+    // while idle. The device loop must keep driving `Tunn::update_timers` for
+    // these to flow; we observe them via the server's receive counter and then
+    // confirm the long-lived connection still relays after the idle gap.
+    let (config, rx_count) = start_server_counting(", persistent-keepalive: 1").await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(15), wireguard::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("wireguard connect");
+    stream.write_all(b"warmup").await.unwrap();
+    let mut got = [0u8; 6];
+    tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut got))
+        .await
+        .expect("warmup echo did not time out")
+        .unwrap();
+    assert_eq!(&got, b"warmup");
+
+    // Stay idle past several keepalive intervals; the client must keep sending.
+    let before = rx_count.load(Ordering::Relaxed);
+    tokio::time::sleep(Duration::from_millis(3200)).await;
+    let after = rx_count.load(Ordering::Relaxed);
+    assert!(
+        after >= before + 2,
+        "expected keepalive datagrams during idle (before={before}, after={after})"
+    );
+
+    // The connection survived the idle window and still round-trips.
+    stream.write_all(b"after-idle").await.unwrap();
+    let mut got = [0u8; 10];
+    tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut got))
+        .await
+        .expect("post-idle echo did not time out")
+        .unwrap();
+    assert_eq!(&got, b"after-idle");
 }
 
 #[tokio::test]
