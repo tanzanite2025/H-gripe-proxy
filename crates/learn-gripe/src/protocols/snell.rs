@@ -31,8 +31,20 @@
 //! shadowaead nonces). Such connections are parked in a per-server pool and
 //! preferred over a fresh dial, mirroring the AnyTLS session registry.
 //!
-//! Scoped out for follow-up (kept explicit so traffic is never mis-framed): the
-//! v4/v5 connection types (a different, non-shadowaead encryption).
+//! **v4/v5** replace the shadowaead chunk framing with a distinct framed
+//! stream ([`SnellV4Stream`]) — v5 is identical on the wire (upstream maps a v5
+//! config to a v4 client, since v5 servers are backward-compatible with v4
+//! clients). It keeps the same Argon2id KDF / AES-128-GCM / counter nonce and
+//! the same request-header + command-response handshake, but each frame is
+//! `AEAD(7-byte header) | [padding] | AEAD(payload)` where the header is
+//! `0x04 | 0 | 0 | padding-len(u16 BE) | payload-len(u16 BE)`. The first frame
+//! is preceded by the 16-byte salt and carries an initial random padding block
+//! (length in `[0x100, 0x200)`) byte-interleaved ("swapped") with the payload
+//! ciphertext for traffic obfuscation; a `payload-len == 0` frame is the
+//! logical EOF (`ErrZeroChunk`).
+//!
+//! Scoped out for follow-up (kept explicit so traffic is never mis-framed): v4
+//! UDP and v4 session reuse (v4/v5 here are TCP-only; UDP is v3-only).
 
 use std::collections::HashMap;
 use std::io;
@@ -82,6 +94,17 @@ const TAG_LEN: usize = 16;
 /// Largest plaintext carried in a single AEAD chunk (length field is capped at
 /// 0x3FFF, matching the Shadowsocks framing Snell reuses).
 const MAX_CHUNK: usize = 0x3fff;
+
+/// v4 frame header plaintext: `0x04 | 0 | 0 | padding-len(u16 BE) | payload-len(u16 BE)`.
+const V4_HEADER_PLAIN: usize = 7;
+/// v4 sealed header is the 7-byte plaintext plus the AEAD tag.
+const V4_HEADER_CIPHER: usize = V4_HEADER_PLAIN + TAG_LEN;
+/// Marker byte at the start of every v4 frame header.
+const V4_FRAME_BYTE: u8 = 4;
+/// Inclusive lower bound for the random initial-padding block on the first frame.
+const V4_INITIAL_PADDING_MIN: usize = 0x100;
+/// Width of the initial-padding range; the length is `MIN + rand(0..SPAN)`.
+const V4_INITIAL_PADDING_SPAN: usize = 0x100;
 
 /// AEAD cipher selected by Snell protocol version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,7 +176,8 @@ pub struct SnellOutboundConfig {
     pub port: u16,
     /// Pre-shared key bytes (the `psk` string used verbatim as Argon2 input).
     pub psk: Vec<u8>,
-    /// Protocol version (1, 2 or 3).
+    /// Protocol version (1..=5). v5 is normalised to v4 (identical on the wire;
+    /// v5 servers are backward-compatible with v4 clients).
     pub version: u8,
     /// simple-obfs transport (`obfs-opts`), if any. `None` dials the raw socket.
     pub obfs: Option<SnellObfs>,
@@ -178,10 +202,12 @@ impl SnellOutboundConfig {
             .context("snell: missing psk")?
             .as_bytes()
             .to_vec();
-        // mihomo defaults an unset `version` to 1.
+        // mihomo defaults an unset `version` to 1, and normalises v5 to v4
+        // (v5 servers accept v4 clients, so the wire framing is identical).
         let version = match opts.version.unwrap_or(1) {
-            v @ 1..=3 => v as u8,
-            other => bail!("snell: version {other} not supported (use 1, 2 or 3)"),
+            5 => 4,
+            v @ 1..=4 => v as u8,
+            other => bail!("snell: version {other} not supported (use 1..=5)"),
         };
         let obfs = SnellObfs::parse(opts.obfs_opts.as_ref())?;
         Ok(Self {
@@ -210,10 +236,16 @@ impl SnellOutboundConfig {
         }
     }
 
-    /// Whether this outbound can carry UDP. Snell's `CommandUDP` framing is only
-    /// defined for protocol v3, so v1/v2 reject UDP rather than mis-frame it.
+    /// Whether this outbound can carry UDP. Only the v3 `CommandUDP` shadowaead
+    /// path is implemented, so v1/v2 (no UDP) and v4/v5 (UDP would need the v4
+    /// frame path) reject UDP rather than mis-frame it.
     pub fn supports_udp(&self) -> bool {
-        self.version >= 3
+        self.version == 3
+    }
+
+    /// Whether this version uses the v4 frame stream instead of shadowaead.
+    fn uses_v4_framing(&self) -> bool {
+        self.version >= 4
     }
 }
 
@@ -224,6 +256,19 @@ impl SnellOutboundConfig {
 /// AEAD-sealed request header are sent before the stream is handed back; the
 /// server's command response is consumed transparently on first read.
 pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    // v4/v5 use a distinct frame stream; the salt + initial padding ride the
+    // first frame, so the request header is just the first write.
+    if config.uses_v4_framing() {
+        let transport = connect_transport(config).await?;
+        let mut stream = SnellV4Stream::new(transport, config.psk.clone())?;
+        let header = build_request_header(config.command(), target)?;
+        stream
+            .write_all(&header)
+            .await
+            .context("snell v4: send request header")?;
+        return Ok(Box::new(stream));
+    }
+
     // v2 is the only reuse-capable version (CommandConnectV2 + half-close).
     if config.version == 2 {
         let key = SnellServerKey::from_config(config);
@@ -823,31 +868,316 @@ impl SnellStream {
         if self.plain_pos >= self.plain.len() {
             return Ok(());
         }
-        match self.plain[self.plain_pos] {
-            RESP_TUNNEL => {
-                self.plain_pos += 1;
-                self.reply_done = true;
-                Ok(())
-            }
-            RESP_ERROR => {
-                // `code | msg-len | msg`; best-effort decode for diagnostics
-                // (the connection fails regardless of how much is buffered).
-                let rest = &self.plain[self.plain_pos + 1..];
-                let code = rest.first().copied().unwrap_or(0);
-                let msg = rest
-                    .get(2..)
-                    .map(|m| String::from_utf8_lossy(m).into_owned())
-                    .unwrap_or_default();
-                Err(io::Error::new(
-                    io::ErrorKind::ConnectionRefused,
-                    format!("snell: server error code {code}: {msg}"),
-                ))
-            }
-            other => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("snell: unexpected command response {other}"),
-            )),
+        self.plain_pos += consume_command_reply(&self.plain[self.plain_pos..])?;
+        self.reply_done = true;
+        Ok(())
+    }
+}
+
+/// Inspect the server's leading command-response byte and return the offset of
+/// the application data that follows it (`Tunnel` = 1), or an error if the
+/// server reported `RESP_ERROR` / an unknown command. Shared by the shadowaead
+/// ([`SnellStream`]) and v4 ([`SnellV4Stream`]) read paths.
+fn consume_command_reply(plain: &[u8]) -> io::Result<usize> {
+    match plain.first() {
+        None => Ok(0),
+        Some(&RESP_TUNNEL) => Ok(1),
+        Some(&RESP_ERROR) => {
+            // `code | msg-len | msg`; best-effort decode for diagnostics
+            // (the connection fails regardless of how much is buffered).
+            let rest = &plain[1..];
+            let code = rest.first().copied().unwrap_or(0);
+            let msg = rest
+                .get(2..)
+                .map(|m| String::from_utf8_lossy(m).into_owned())
+                .unwrap_or_default();
+            Err(io::Error::new(
+                io::ErrorKind::ConnectionRefused,
+                format!("snell: server error code {code}: {msg}"),
+            ))
         }
+        Some(&other) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("snell: unexpected command response {other}"),
+        )),
+    }
+}
+
+/// v4's initial-padding obfuscation: swap every even-indexed byte between the
+/// padding block and the payload ciphertext, up to the shorter of the two. It
+/// is its own inverse, so the reader applies the same swap to recover the
+/// payload ciphertext before decrypting.
+fn swap_padding(padding: &mut [u8], payload_cipher: &mut [u8]) {
+    let limit = padding.len().min(payload_cipher.len());
+    let mut i = 0;
+    while i < limit {
+        std::mem::swap(&mut padding[i], &mut payload_cipher[i]);
+        i += 2;
+    }
+}
+
+/// Read-side framing state for the v4 frame stream.
+enum V4ReadState {
+    /// Waiting for the server's 16-byte salt (derives the read cipher).
+    Salt,
+    /// Waiting for the 23-byte AEAD-sealed frame header.
+    Header,
+    /// Waiting for `padding + payload + TAG_LEN` bytes of frame body.
+    Body { padding: usize, payload: usize },
+    /// Clean EOF (a zero-payload frame or a transport close).
+    Eof,
+}
+
+/// Wraps the raw transport in the Snell **v4** frame stream (v4/v5). Like
+/// [`SnellStream`] it carries the request header / command response and uses
+/// Argon2id + AES-128-GCM + a counter nonce, but each frame is
+/// `AEAD(header) | [padding] | AEAD(payload)`; the first frame is prefixed with
+/// the client salt and an initial random padding block (see the module docs).
+struct SnellV4Stream {
+    inner: BoxedStream,
+    psk: Vec<u8>,
+    // Write side.
+    write_cipher: AeadCipher,
+    write_salt: [u8; SALT_LEN],
+    write_nonce: [u8; 12],
+    /// Whether the salt (and, with it, the first frame's initial padding) has
+    /// been emitted; gates the one-time salt prefix and initial padding.
+    salt_sent: bool,
+    initial_padding: usize,
+    write_buf: Vec<u8>,
+    write_pos: usize,
+    // Read side.
+    read_cipher: Option<AeadCipher>,
+    read_nonce: [u8; 12],
+    read_state: V4ReadState,
+    read_raw: Vec<u8>,
+    reply_done: bool,
+    plain: Vec<u8>,
+    plain_pos: usize,
+}
+
+impl SnellV4Stream {
+    fn new(inner: BoxedStream, psk: Vec<u8>) -> Result<Self> {
+        // v4 is always AES-128-GCM.
+        let mut salt = [0u8; SALT_LEN];
+        random_bytes(&mut salt);
+        let subkey = snell_kdf(&psk, &salt, SnellCipher::Aes128Gcm.key_size());
+        let write_cipher = AeadCipher::new(SnellCipher::Aes128Gcm, &subkey)?;
+
+        let mut delta = [0u8; 2];
+        random_bytes(&mut delta);
+        let initial_padding = V4_INITIAL_PADDING_MIN + (u16::from_le_bytes(delta) as usize) % V4_INITIAL_PADDING_SPAN;
+
+        Ok(Self {
+            inner,
+            psk,
+            write_cipher,
+            write_salt: salt,
+            write_nonce: [0u8; 12],
+            salt_sent: false,
+            initial_padding,
+            write_buf: Vec::new(),
+            write_pos: 0,
+            read_cipher: None,
+            read_nonce: [0u8; 12],
+            read_state: V4ReadState::Salt,
+            read_raw: Vec::new(),
+            reply_done: false,
+            plain: Vec::new(),
+            plain_pos: 0,
+        })
+    }
+
+    /// Flush any pending sealed bytes to the inner stream.
+    fn poll_drain(&mut self, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        while self.write_pos < self.write_buf.len() {
+            let n = ready!(Pin::new(&mut self.inner).poll_write(cx, &self.write_buf[self.write_pos..]))?;
+            if n == 0 {
+                return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "snell v4: write zero")));
+            }
+            self.write_pos += n;
+        }
+        self.write_buf.clear();
+        self.write_pos = 0;
+        Poll::Ready(Ok(()))
+    }
+
+    /// Seal `payload` (at most [`MAX_CHUNK`] bytes) into one v4 frame queued for
+    /// writing. The first frame prepends the salt and an initial padding block
+    /// (interleaved with the payload ciphertext via [`swap_padding`]).
+    fn queue_frame(&mut self, payload: &[u8]) -> io::Result<()> {
+        let first = !self.salt_sent;
+        let padding_len = if first && !payload.is_empty() {
+            self.initial_padding
+        } else {
+            0
+        };
+
+        let mut header = [0u8; V4_HEADER_PLAIN];
+        header[0] = V4_FRAME_BYTE;
+        header[3..5].copy_from_slice(&(padding_len as u16).to_be_bytes());
+        header[5..7].copy_from_slice(&(payload.len() as u16).to_be_bytes());
+        let sealed_header = self
+            .write_cipher
+            .seal(&self.write_nonce, &header)
+            .map_err(|e| io::Error::other(e.to_string()))?;
+        increment_nonce(&mut self.write_nonce);
+
+        let mut payload_cipher = if payload.is_empty() {
+            Vec::new()
+        } else {
+            let pc = self
+                .write_cipher
+                .seal(&self.write_nonce, payload)
+                .map_err(|e| io::Error::other(e.to_string()))?;
+            increment_nonce(&mut self.write_nonce);
+            pc
+        };
+
+        self.write_buf.clear();
+        self.write_pos = 0;
+        if first {
+            self.write_buf.extend_from_slice(&self.write_salt);
+            self.salt_sent = true;
+        }
+        self.write_buf.extend_from_slice(&sealed_header);
+        if padding_len > 0 {
+            let mut padding = vec![0u8; padding_len];
+            random_bytes(&mut padding);
+            swap_padding(&mut padding, &mut payload_cipher);
+            self.write_buf.extend_from_slice(&padding);
+        }
+        self.write_buf.extend_from_slice(&payload_cipher);
+        Ok(())
+    }
+}
+
+impl AsyncRead for SnellV4Stream {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        loop {
+            if this.plain_pos < this.plain.len() {
+                let n = buf.remaining().min(this.plain.len() - this.plain_pos);
+                buf.put_slice(&this.plain[this.plain_pos..this.plain_pos + n]);
+                this.plain_pos += n;
+                return Poll::Ready(Ok(()));
+            }
+            if matches!(this.read_state, V4ReadState::Eof) {
+                return Poll::Ready(Ok(()));
+            }
+
+            let need = match this.read_state {
+                V4ReadState::Salt => SALT_LEN,
+                V4ReadState::Header => V4_HEADER_CIPHER,
+                V4ReadState::Body { padding, payload } => padding + payload + TAG_LEN,
+                V4ReadState::Eof => unreachable!(),
+            };
+
+            if this.read_raw.len() < need {
+                let mut scratch = [0u8; 4096];
+                let mut read_buf = ReadBuf::new(&mut scratch);
+                ready!(Pin::new(&mut this.inner).poll_read(cx, &mut read_buf))?;
+                let filled = read_buf.filled();
+                if filled.is_empty() {
+                    this.read_state = V4ReadState::Eof;
+                    return Poll::Ready(Ok(()));
+                }
+                this.read_raw.extend_from_slice(filled);
+                continue;
+            }
+
+            match this.read_state {
+                V4ReadState::Salt => {
+                    let salt: Vec<u8> = this.read_raw.drain(..SALT_LEN).collect();
+                    let subkey = snell_kdf(&this.psk, &salt, SnellCipher::Aes128Gcm.key_size());
+                    let cipher = AeadCipher::new(SnellCipher::Aes128Gcm, &subkey).map_err(decrypt_err)?;
+                    this.read_cipher = Some(cipher);
+                    this.read_state = V4ReadState::Header;
+                }
+                V4ReadState::Header => {
+                    let sealed: Vec<u8> = this.read_raw.drain(..V4_HEADER_CIPHER).collect();
+                    let Some(cipher) = this.read_cipher.as_ref() else {
+                        return Poll::Ready(Err(read_cipher_unset()));
+                    };
+                    let header = cipher.open(&this.read_nonce, &sealed).map_err(decrypt_err)?;
+                    increment_nonce(&mut this.read_nonce);
+                    if header.len() != V4_HEADER_PLAIN || header[0] != V4_FRAME_BYTE {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "snell v4: invalid frame header",
+                        )));
+                    }
+                    let padding = u16::from_be_bytes([header[3], header[4]]) as usize;
+                    let payload = u16::from_be_bytes([header[5], header[6]]) as usize;
+                    if payload == 0 {
+                        if padding != 0 {
+                            return Poll::Ready(Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "snell v4: zero chunk with padding",
+                            )));
+                        }
+                        // Zero-payload frame = Snell's logical EOF (ErrZeroChunk).
+                        this.read_state = V4ReadState::Eof;
+                        return Poll::Ready(Ok(()));
+                    }
+                    if payload > MAX_CHUNK || padding > MAX_CHUNK {
+                        return Poll::Ready(Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "snell v4: frame too large",
+                        )));
+                    }
+                    this.read_state = V4ReadState::Body { padding, payload };
+                }
+                V4ReadState::Body { padding, payload } => {
+                    let mut frame: Vec<u8> = this.read_raw.drain(..padding + payload + TAG_LEN).collect();
+                    if padding > 0 {
+                        let (pad_part, pay_part) = frame.split_at_mut(padding);
+                        swap_padding(pad_part, pay_part);
+                    }
+                    let Some(cipher) = this.read_cipher.as_ref() else {
+                        return Poll::Ready(Err(read_cipher_unset()));
+                    };
+                    let plain = cipher.open(&this.read_nonce, &frame[padding..]).map_err(decrypt_err)?;
+                    increment_nonce(&mut this.read_nonce);
+                    this.plain = plain;
+                    this.plain_pos = 0;
+                    this.read_state = V4ReadState::Header;
+                    if !this.reply_done {
+                        this.plain_pos = consume_command_reply(&this.plain)?;
+                        this.reply_done = true;
+                    }
+                }
+                V4ReadState::Eof => unreachable!(),
+            }
+        }
+    }
+}
+
+impl AsyncWrite for SnellV4Stream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+        let take = buf.len().min(MAX_CHUNK);
+        this.queue_frame(&buf[..take])?;
+        if let Poll::Ready(Err(e)) = this.poll_drain(cx) {
+            return Poll::Ready(Err(e));
+        }
+        Poll::Ready(Ok(take))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        Pin::new(&mut this.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        ready!(this.poll_drain(cx))?;
+        Pin::new(&mut this.inner).poll_shutdown(cx)
     }
 }
 
@@ -1058,10 +1388,27 @@ mod tests {
     }
 
     #[test]
+    fn v4_and_v5_select_frame_path_and_v5_normalises_to_v4() {
+        for version in [4, 5] {
+            let entry = parse_entry(&format!(
+                "name: s\ntype: snell\nserver: h\nport: 1\npsk: p\nversion: {version}\n"
+            ));
+            let config = SnellOutboundConfig::from_proxy(&entry).unwrap();
+            // v5 dials as v4 (identical on the wire).
+            assert_eq!(config.version, 4);
+            assert!(config.uses_v4_framing());
+            assert_eq!(config.cipher(), SnellCipher::Aes128Gcm);
+            assert_eq!(config.command(), COMMAND_CONNECT);
+            // v4/v5 UDP is not implemented, so it must not advertise support.
+            assert!(!config.supports_udp());
+        }
+    }
+
+    #[test]
     fn rejects_missing_psk_and_bad_version() {
         let no_psk = parse_entry("name: s\ntype: snell\nserver: h\nport: 1\n");
         assert!(SnellOutboundConfig::from_proxy(&no_psk).is_err());
-        let bad_version = parse_entry("name: s\ntype: snell\nserver: h\nport: 1\npsk: p\nversion: 4\n");
+        let bad_version = parse_entry("name: s\ntype: snell\nserver: h\nport: 1\npsk: p\nversion: 6\n");
         assert!(SnellOutboundConfig::from_proxy(&bad_version).is_err());
     }
 
