@@ -188,7 +188,7 @@ impl Amnezia {
             h4: o.h4.unwrap_or(0),
         };
         let headers = [am.h1, am.h2, am.h3, am.h4];
-        if headers.iter().any(|h| *h == 0) {
+        if headers.contains(&0) {
             bail!("wireguard: `amnezia-wg-option` requires h1, h2, h3 and h4 to all be set");
         }
         for (i, h) in headers.iter().enumerate() {
