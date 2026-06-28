@@ -105,6 +105,10 @@ fn support_classification() {
         parse("name: s\ntype: socks5\nserver: a\nport: 1\n").support(),
         ProtocolSupport::Implemented
     );
+    assert_eq!(
+        parse("name: h\ntype: http\nserver: a\nport: 8080\n").support(),
+        ProtocolSupport::Implemented
+    );
     // Proxy protocols with an outbound data plane wired into `OutboundMode`.
     assert_eq!(
         parse("name: v\ntype: vless\nserver: a\nport: 443\nuuid: u\n").support(),

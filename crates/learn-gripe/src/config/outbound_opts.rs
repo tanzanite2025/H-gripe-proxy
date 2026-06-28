@@ -52,6 +52,7 @@ impl ProxyEntry {
             ProxyType::Direct
             | ProxyType::Reject
             | ProxyType::Socks5
+            | ProxyType::Http
             | ProxyType::Shadowsocks
             | ProxyType::Trojan
             | ProxyType::Vmess
