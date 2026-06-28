@@ -6,6 +6,7 @@
 //! stream in when the Vision flow is negotiated.
 
 pub mod anytls;
+pub mod gost_relay;
 pub mod http;
 pub mod hysteria;
 pub mod hysteria2;

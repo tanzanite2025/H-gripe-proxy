@@ -3,6 +3,7 @@ use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
 use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
+use crate::protocols::gost_relay;
 use crate::protocols::http;
 use crate::protocols::hysteria;
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
@@ -67,6 +68,7 @@ pub fn connect<'a>(
             OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
             OutboundMode::Snell(config) => snell::connect(config, target).await,
             OutboundMode::Ssh(config) => ssh::connect(config, target).await,
+            OutboundMode::GostRelay(config) => gost_relay::connect(config, target).await,
             OutboundMode::Ssr(config) => ssr::connect(config, target).await,
             OutboundMode::WireGuard(config) => wireguard::connect(config, target).await,
             OutboundMode::Routed(router) => {
@@ -160,6 +162,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         | OutboundMode::Socks5Upstream { .. }
         | OutboundMode::Http(_)
         | OutboundMode::Ssh(_)
+        | OutboundMode::GostRelay(_)
         | OutboundMode::Hysteria(_) => None,
     }
 }

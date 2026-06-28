@@ -59,6 +59,7 @@ impl ProxyEntry {
             | ProxyType::Vless
             | ProxyType::Ssh
             | ProxyType::Hysteria
+            | ProxyType::GostRelay
             | ProxyType::ShadowsocksR => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
             _ => ProtocolSupport::Unsupported,
@@ -275,6 +276,13 @@ pub struct ProxyOptions {
     #[serde(rename = "anti-dpi-opts")]
     pub anti_dpi_opts: Option<AntiDpiOpts>,
     pub smux: Option<bool>,
+
+    // GOST relay outbound (`type: gost-relay`).
+    /// Forward mode: send the relay request with an empty target address so the
+    /// server routes to its own preconfigured upstream (`forward`).
+    pub forward: Option<bool>,
+    /// Multiplex relay streams over one connection with smux (`mux`).
+    pub mux: Option<bool>,
 
     // Shadowsocks plugin transport.
     pub plugin: Option<String>,
