@@ -38,6 +38,7 @@ pub use protocols::gost_relay::GostRelayOutboundConfig;
 pub use protocols::http::HttpOutboundConfig;
 pub use protocols::hysteria::HysteriaOutboundConfig;
 pub use protocols::hysteria2::Hysteria2OutboundConfig;
+pub use protocols::mieru::MieruOutboundConfig;
 pub use protocols::salamander::Salamander;
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::snell::{SnellObfs, SnellOutboundConfig};

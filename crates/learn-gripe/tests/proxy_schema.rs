@@ -138,6 +138,10 @@ fn support_classification() {
         parse("name: gr\ntype: gost-relay\nserver: a\nport: 8443\n").support(),
         ProtocolSupport::Implemented
     );
+    assert_eq!(
+        parse("name: mr\ntype: mieru\nserver: a\nport: 2999\nusername: u\npassword: p\n").support(),
+        ProtocolSupport::Implemented
+    );
     // Parsed and typed, but no outbound data plane yet.
     assert_eq!(
         parse("name: h\ntype: hysteria2\nserver: a\nport: 443\npassword: p\n").support(),
