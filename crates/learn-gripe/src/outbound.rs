@@ -11,6 +11,7 @@ use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
 use crate::protocols::vmess::{self, VmessOutboundConfig};
+use crate::protocols::wireguard;
 use anyhow::{Context, Result, bail};
 use std::future::Future;
 use std::net::SocketAddr;
@@ -61,6 +62,7 @@ pub fn connect<'a>(
             OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
             OutboundMode::Snell(config) => snell::connect(config, target).await,
             OutboundMode::Ssr(config) => ssr::connect(config, target).await,
+            OutboundMode::WireGuard(config) => wireguard::connect(config, target).await,
             OutboundMode::Routed(router) => {
                 connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
             }
@@ -136,6 +138,8 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Snell(config) if config.supports_udp() => Some(UdpEgress::Snell(config.clone())),
         OutboundMode::Snell(_) => None,
         OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),
+        // WireGuard UDP relay is a follow-up (PR8b); TCP-only for now.
+        OutboundMode::WireGuard(_) => None,
         OutboundMode::Routed(router) => {
             resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
         }
