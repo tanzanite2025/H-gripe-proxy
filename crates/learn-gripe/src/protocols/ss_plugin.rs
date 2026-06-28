@@ -11,18 +11,22 @@
 //! - `obfs` (simple-obfs) **http** and **tls** (fake-TLS) modes.
 //! - `v2ray-plugin` **websocket** mode, optionally over TLS — reuses the
 //!   kernel's vetted [`ws`](crate::transport::ws) and [`tls`](crate::transport::tls)
-//!   transports.
-//!
-//! Not implemented (rejected rather than mis-framed): v2ray-plugin
-//! non-websocket modes / `mux`.
+//!   transports — plus its `v2ray-http-upgrade` variant
+//!   ([`httpupgrade`](crate::transport::httpupgrade)) and `mux` framing
+//!   ([`v2ray_mux`](crate::transport::v2ray_mux)).
+//! - `v2ray-plugin` **quic** mode over standard QUIC + TLS
+//!   ([`v2ray_quic`](crate::transport::v2ray_quic)).
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpStream;
 
 use crate::config::outbound_opts::PluginOpts;
 use crate::outbound::BoxedStream;
+use crate::transport::httpupgrade::HttpUpgradeTransportConfig;
 use crate::transport::simple_obfs;
 use crate::transport::tls::{ClientFingerprint, TlsClientConfig};
+use crate::transport::v2ray_mux::V2rayMux;
+use crate::transport::v2ray_quic::V2rayQuicConfig;
 use crate::transport::ws::WsTransportConfig;
 
 /// A resolved SIP003 plugin transport for a Shadowsocks outbound.
@@ -34,11 +38,30 @@ pub enum SsPlugin {
     /// simple-obfs (obfs-local) TLS mode: a fake TLS 1.2 handshake frames the
     /// stream; `host` is sent as the SNI.
     ObfsTls { host: String },
-    /// v2ray-plugin websocket mode, optionally over TLS.
-    V2rayWebsocket {
-        ws: WsTransportConfig,
+    /// v2ray-plugin, optionally over TLS and/or wrapped in mux.cool framing.
+    /// The concrete transport (`websocket` / `v2ray-http-upgrade` / `quic`) is
+    /// chosen by [`V2rayStream`].
+    V2ray {
+        stream: V2rayStream,
+        /// Outer TLS for the TCP-based transports. Always `None` for
+        /// [`V2rayStream::Quic`], which carries TLS inside the QUIC handshake.
         tls: Option<TlsClientConfig>,
+        /// Wrap the stream in mux.cool framing (`mux: true`). Never set for
+        /// [`V2rayStream::Quic`] (QUIC multiplexes natively).
+        mux: bool,
     },
+}
+
+/// The concrete v2ray-plugin transport carrying the Shadowsocks stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum V2rayStream {
+    /// `mode: websocket` (the default): a WebSocket handshake.
+    Websocket(WsTransportConfig),
+    /// `mode: websocket` with `v2ray-http-upgrade: true`: V2Ray's leaner
+    /// HTTP-Upgrade handshake instead of a full WebSocket one.
+    HttpUpgrade(HttpUpgradeTransportConfig),
+    /// `mode: quic`: standard QUIC + TLS.
+    Quic(V2rayQuicConfig),
 }
 
 impl SsPlugin {
@@ -86,22 +109,51 @@ impl SsPlugin {
     }
 
     fn parse_v2ray(opts: &PluginOpts) -> Result<Self> {
+        let mux = opts.mux == Some(true);
         match opts.mode.as_deref().unwrap_or("websocket") {
-            "websocket" => {}
-            other => bail!("shadowsocks: v2ray-plugin mode {other:?} not implemented yet (only websocket)"),
+            "websocket" => Self::parse_v2ray_websocket(opts, mux),
+            "quic" => {
+                // `mux` multiplexes several Shadowsocks streams onto one TCP
+                // transport; QUIC already multiplexes natively, so the upstream
+                // plugin only offers `mux` in websocket mode.
+                if mux {
+                    bail!("shadowsocks: v2ray-plugin mux is websocket-only (quic multiplexes natively)");
+                }
+                let quic = V2rayQuicConfig {
+                    // Empty falls back to the dial server at connect time.
+                    server_name: opts.host.clone().filter(|s| !s.is_empty()).unwrap_or_default(),
+                    // v2ray-core's TLS layer offers these by default when no ALPN
+                    // is configured, which is what the plugin presents.
+                    alpn: vec!["h2".to_string(), "http/1.1".to_string()],
+                    skip_cert_verify: opts.skip_cert_verify.unwrap_or(false),
+                };
+                Ok(SsPlugin::V2ray {
+                    stream: V2rayStream::Quic(quic),
+                    tls: None,
+                    mux: false,
+                })
+            }
+            other => bail!("shadowsocks: v2ray-plugin mode {other:?} not supported (use websocket or quic)"),
         }
-        if opts.mux == Some(true) {
-            bail!("shadowsocks: v2ray-plugin mux not implemented yet");
-        }
+    }
 
-        let ws = WsTransportConfig {
-            path: opts
-                .path
-                .clone()
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| "/".to_string()),
-            host: opts.host.clone().filter(|s| !s.is_empty()),
-            headers: opts.headers.clone().unwrap_or_default(),
+    fn parse_v2ray_websocket(opts: &PluginOpts, mux: bool) -> Result<Self> {
+        let path = opts
+            .path
+            .clone()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "/".to_string());
+        let host = opts.host.clone().filter(|s| !s.is_empty());
+        let headers = opts.headers.clone().unwrap_or_default();
+
+        // `v2ray-http-upgrade` swaps the WebSocket handshake for V2Ray's leaner
+        // HTTP-Upgrade one over the same (optionally TLS-secured) socket. The
+        // `*-fast-open` payload-piggyback optimization is wire-compatible to
+        // omit, so we accept the flag and simply send the request first.
+        let stream = if opts.v2ray_http_upgrade == Some(true) {
+            V2rayStream::HttpUpgrade(HttpUpgradeTransportConfig { path, host, headers })
+        } else {
+            V2rayStream::Websocket(WsTransportConfig { path, host, headers })
         };
 
         let tls = if opts.tls == Some(true) {
@@ -122,12 +174,21 @@ impl SsPlugin {
             None
         };
 
-        Ok(SsPlugin::V2rayWebsocket { ws, tls })
+        Ok(SsPlugin::V2ray { stream, tls, mux })
     }
 
     /// Dial the plugin transport to `server:port` and return a relay-ready byte
     /// stream onto which the Shadowsocks layer writes its salt + AEAD chunks.
     pub async fn connect(&self, server: &str, port: u16) -> Result<BoxedStream> {
+        // QUIC dials its own UDP socket; every other transport rides a TCP one.
+        if let SsPlugin::V2ray {
+            stream: V2rayStream::Quic(cfg),
+            ..
+        } = self
+        {
+            return crate::transport::v2ray_quic::connect(cfg, server, port).await;
+        }
+
         let tcp = TcpStream::connect((server, port))
             .await
             .with_context(|| format!("shadowsocks plugin: dial {server}:{port}"))?;
@@ -141,13 +202,24 @@ impl SsPlugin {
                 let stream = simple_obfs::connect_tls(tcp, host).await?;
                 Ok(Box::new(stream))
             }
-            SsPlugin::V2rayWebsocket { ws, tls } => {
+            SsPlugin::V2ray { stream, tls, mux } => {
                 let secured: BoxedStream = match tls {
                     None => Box::new(tcp),
                     Some(cfg) => Box::new(crate::transport::tls::connect(cfg, server, tcp).await?),
                 };
-                let stream = crate::transport::ws::connect(secured, server, ws).await?;
-                Ok(Box::new(stream))
+                let framed: BoxedStream = match stream {
+                    V2rayStream::Websocket(ws) => Box::new(crate::transport::ws::connect(secured, server, ws).await?),
+                    V2rayStream::HttpUpgrade(hu) => {
+                        Box::new(crate::transport::httpupgrade::connect(secured, server, hu).await?)
+                    }
+                    // Handled above; never dialed over TCP.
+                    V2rayStream::Quic(_) => unreachable!("quic dialed before the TCP path"),
+                };
+                if *mux {
+                    Ok(Box::new(V2rayMux::new(framed)))
+                } else {
+                    Ok(framed)
+                }
             }
         }
     }
@@ -228,10 +300,15 @@ mod tests {
         };
         let plugin = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap().unwrap();
         match plugin {
-            SsPlugin::V2rayWebsocket { ws, tls } => {
+            SsPlugin::V2ray {
+                stream: V2rayStream::Websocket(ws),
+                tls,
+                mux,
+            } => {
                 assert_eq!(ws.path, "/v2");
                 assert_eq!(ws.host.as_deref(), Some("cdn.example.com"));
                 assert!(tls.is_none());
+                assert!(!mux);
             }
             other => panic!("expected websocket, got {other:?}"),
         }
@@ -247,7 +324,7 @@ mod tests {
         };
         let plugin = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap().unwrap();
         match plugin {
-            SsPlugin::V2rayWebsocket { tls, .. } => {
+            SsPlugin::V2ray { tls, .. } => {
                 let tls = tls.expect("tls enabled");
                 assert_eq!(tls.server_name.as_deref(), Some("cdn.example.com"));
                 assert!(tls.skip_cert_verify);
@@ -257,13 +334,87 @@ mod tests {
     }
 
     #[test]
-    fn v2ray_mux_is_rejected() {
+    fn v2ray_mux_is_accepted() {
         let opts = PluginOpts {
             mux: Some(true),
             ..Default::default()
         };
+        let plugin = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap().unwrap();
+        match plugin {
+            SsPlugin::V2ray {
+                stream: V2rayStream::Websocket(_),
+                mux,
+                ..
+            } => assert!(mux),
+            other => panic!("expected websocket+mux, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn v2ray_http_upgrade_is_parsed() {
+        let opts = PluginOpts {
+            host: Some("cdn.example.com".to_string()),
+            path: Some("/up".to_string()),
+            v2ray_http_upgrade: Some(true),
+            ..Default::default()
+        };
+        let plugin = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap().unwrap();
+        match plugin {
+            SsPlugin::V2ray {
+                stream: V2rayStream::HttpUpgrade(hu),
+                ..
+            } => {
+                assert_eq!(hu.path, "/up");
+                assert_eq!(hu.host.as_deref(), Some("cdn.example.com"));
+            }
+            other => panic!("expected http-upgrade, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn v2ray_quic_is_parsed() {
+        let opts = PluginOpts {
+            mode: Some("quic".to_string()),
+            host: Some("cdn.example.com".to_string()),
+            skip_cert_verify: Some(true),
+            ..Default::default()
+        };
+        let plugin = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap().unwrap();
+        match plugin {
+            SsPlugin::V2ray {
+                stream: V2rayStream::Quic(quic),
+                tls,
+                mux,
+            } => {
+                assert_eq!(quic.server_name, "cdn.example.com");
+                assert_eq!(quic.alpn, vec!["h2".to_string(), "http/1.1".to_string()]);
+                assert!(quic.skip_cert_verify);
+                assert!(tls.is_none());
+                assert!(!mux);
+            }
+            other => panic!("expected quic, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn v2ray_quic_with_mux_is_rejected() {
+        let opts = PluginOpts {
+            mode: Some("quic".to_string()),
+            mux: Some(true),
+            ..Default::default()
+        };
         let err = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap_err();
-        assert!(err.to_string().contains("mux"), "got: {err}");
+        assert!(err.to_string().contains("websocket-only"), "got: {err}");
+    }
+
+    #[test]
+    fn v2ray_unknown_mode_is_rejected() {
+        let opts = PluginOpts {
+            mode: Some("grpc".to_string()),
+            ..Default::default()
+        };
+        let err = SsPlugin::parse(Some("v2ray-plugin"), Some(&opts)).unwrap_err();
+        assert!(err.to_string().contains("not supported"), "got: {err}");
     }
 
     #[test]

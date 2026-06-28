@@ -5,7 +5,7 @@
 > 来源：逐行核对 `crates/learn-gripe/src/{outbound,transport,protocols,udp,inbound}`。
 > 图例：✅ 已实现并接通　❌ 显式 bail 拒绝（不会静默乱编码）　△ 部分　— 不适用
 >
-> 最近更新：SS SIP003 plugin 全部完成（simple-obfs http/伪 TLS、v2ray-plugin ws±tls，PR #449/#450）；**ECH（Encrypted Client Hello）已接线**——内置 RFC 9180 HPKE provider（DHKEM-X25519-HKDF-SHA256 + AES-128/256-GCM、ChaCha20Poly1305），`ech-opts` 现已驱动真实握手。
+> 最近更新：**v2ray-plugin 非 websocket / mux 已补**——`v2ray-http-upgrade`（复用 httpupgrade transport）、`mux: true`（mux.cool 单子连接帧封装）、`mode: quic`（标准 QUIC + 强制 TLS + 按 server 连接池复用，ALPN 默认 `[h2,http/1.1]`），互通测试见 `tests/shadowsocks_plugin.rs`；SS SIP003 plugin 全部完成（simple-obfs http/伪 TLS、v2ray-plugin ws±tls，PR #449/#450）；**ECH（Encrypted Client Hello）已接线**——内置 RFC 9180 HPKE provider（DHKEM-X25519-HKDF-SHA256 + AES-128/256-GCM、ChaCha20Poly1305），`ech-opts` 现已驱动真实握手。
 
 ---
 
@@ -27,7 +27,7 @@
 | direct | ✅ | ✅ | UDP 走 OS socket |
 | reject | ✅ | — | 阻断 |
 | socks5（上游代理） | ✅ | ❌ | 仅 CONNECT；上游 SOCKS5 无 UDP relay |
-| shadowsocks (ss) | ✅ | ✅ | cipher 限制见 §3；2017 系与 2022 系均 TCP+UDP；SIP003 plugin: simple-obfs(http/tls)、v2ray-plugin(ws±tls) |
+| shadowsocks (ss) | ✅ | ✅ | cipher 限制见 §3；2017 系与 2022 系均 TCP+UDP；SIP003 plugin: simple-obfs(http/tls)、v2ray-plugin(ws±tls / http-upgrade / mux / quic) |
 | trojan | ✅ | ✅ | 经 `build_layers` 全传输/安全 |
 | vmess | ✅ | ✅ | 仅 alterId 0 (AEAD)；cipher auto / aes-128-gcm / chacha20-poly1305 |
 | vless | ✅ | ✅ | 支持 Vision（仅 raw TCP）；encryption 须 none |
@@ -70,7 +70,7 @@
 | chacha20-ietf-poly1305（别名 chacha20-poly1305） | ✅ | ✅ |
 | **2022-blake3-aes-128-gcm / -aes-256-gcm / -chacha20-poly1305** | ✅ (PR #446) | ✅ (SIP022 UDP) |
 | 老式流密码 aes-*-cfb / rc4-md5 等 | ❌（SS）/ ✅（SSR） | ❌ | SSR 数据面专用（见 §1 ssr 行）；SS 出站仍拒绝 |
-| SIP003 plugin（simple-obfs http/tls、v2ray-plugin ws±tls） | ✅ | — | v2ray-plugin 非 websocket 模式 / mux 仍拒绝 |
+| SIP003 plugin（simple-obfs http/tls、v2ray-plugin ws±tls / http-upgrade / mux / quic） | ✅ | — | v2ray-plugin 全模式已接：`websocket`（±tls）、`v2ray-http-upgrade`（复用 httpupgrade transport）、`mux`（mux.cool 单子连接帧封装）、`mode: quic`（标准 QUIC + 强制 TLS，ALPN `[h2,http/1.1]`，按 server 进程级连接池复用、每 relay 一条 bi-stream）；其余 mode（grpc 等）仍拒绝 |
 
 ## 4. 入站
 
@@ -87,7 +87,7 @@
 |---|---|---|---|---|---|
 | 1 | ~~SS `2022-blake3-*` TCP~~ | 高（现代 SS 主流） | 中 | 低 | ✅ **已完成 (PR #446)** |
 | 2 | ~~SS `2022-blake3-*` UDP~~ | 中（UDP-over-SS：节点内跑 QUIC/HTTP3、游戏、WebRTC、DNS；full-cone NAT） | 中 | 中（separate-header：gcm 用 AES-ECB 头加密、chacha 用 XChaCha20，跟 TCP 完全不同的封装） | ✅ **已完成**（SIP022 UDP：AES separate-header + XChaCha20-Poly1305） |
-| 3 | ~~**SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆）~~ | 中（带混淆的 SS 节点直接断） | 中 | 中 | ✅ **已完成**（simple-obfs http + 伪 TLS、v2ray-plugin websocket + 可选 TLS；复用现有 ws/tls transport）。仅 v2ray-plugin 非 websocket 模式 / mux 仍拒绝 |
+| 3 | ~~**SS SIP003 plugin**（obfs / v2ray-plugin 的 ws/tls 混淆）~~ | 中（带混淆的 SS 节点直接断） | 中 | 中 | ✅ **已完成**（simple-obfs http + 伪 TLS、v2ray-plugin websocket + 可选 TLS；复用现有 ws/tls transport）。✅ **v2ray-plugin 非 websocket / mux 已补**：`v2ray-http-upgrade`（复用 httpupgrade transport）、`mux: true`（mux.cool 单子连接 New/Keep-Data/End 帧封装，对齐 mihomo `mux.go` 线格式）、`mode: quic`（复用 quinn QUIC transport + 强制 TLS + 按 server 连接池复用 + 每 relay bi-stream，ALPN 默认 `[h2,http/1.1]`）；互通测试见 `tests/shadowsocks_plugin.rs`（mux / http-upgrade / quic / quic 连接池）|
 | 4 | ~~**ECH 接线**（`ech-opts` → 实际握手）~~ | 低-中（少量启用 ECH 的节点） | 中 | 中 | ✅ **已完成**（自实现 RFC 9180 HPKE provider 桥接 rustls `with_ech`；ring 后端无 HPKE，故用 x25519-dalek+hkdf+aes-gcm/chacha20poly1305 手搓 base 模式并过 RFC 测试向量）。✅ **`query-server-name` DNS 拉取已完成**（缺 `config` 时握手前查 `HTTPS` 记录的 `ech` SvcParam，连接时异步 UDP 查询默认 `1.1.1.1:53`；fake resolver 单测覆盖解析/拉取/无记录报错/端到端 SNI 隐藏） |
 | 5 | VMess 老式 alterId(MD5) | 低（旧 VMess，已淘汰） | 低 | 低 | **不建议补** |
 | 6 | ~~xhttp packet-up/stream-up 模式~~ | 低（小众） | 低-中 | 中 | ✅ **已完成**（`stream-up` + `packet-up`：单 h2 连接上 GET 下行 + POST 上行，对齐 Xray splithttp 线格式；独立 fake h2 server 互通测试 `tests/xhttp_multi.rs`） |

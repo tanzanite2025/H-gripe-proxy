@@ -34,6 +34,8 @@ pub mod quic;
 pub mod quic_obfs;
 pub mod simple_obfs;
 pub mod tls;
+pub mod v2ray_mux;
+pub mod v2ray_quic;
 pub mod ws;
 pub mod xhttp;
 

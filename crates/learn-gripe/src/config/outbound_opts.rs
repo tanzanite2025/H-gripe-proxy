@@ -458,7 +458,16 @@ pub struct PluginOpts {
     #[serde(rename = "skip-cert-verify")]
     pub skip_cert_verify: Option<bool>,
     pub version: Option<u32>,
+    /// Multiplex the Shadowsocks stream over a single v2ray-plugin connection
+    /// using the mux.cool framing (websocket / http-upgrade modes only).
     pub mux: Option<bool>,
+    /// Use V2Ray's HTTP-Upgrade handshake instead of a standard WebSocket one
+    /// (websocket mode only).
+    #[serde(rename = "v2ray-http-upgrade")]
+    pub v2ray_http_upgrade: Option<bool>,
+    /// Piggyback the first payload write onto the HTTP-Upgrade request.
+    #[serde(rename = "v2ray-http-upgrade-fast-open")]
+    pub v2ray_http_upgrade_fast_open: Option<bool>,
 }
 
 /// Parse a canonical hyphenated UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
