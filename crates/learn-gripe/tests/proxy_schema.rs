@@ -126,6 +126,10 @@ fn support_classification() {
         parse("name: ss\ntype: ss\nserver: a\nport: 8388\ncipher: aes-256-gcm\npassword: p\n").support(),
         ProtocolSupport::Implemented
     );
+    assert_eq!(
+        parse("name: sh\ntype: ssh\nserver: a\nport: 22\nusername: u\npassword: p\n").support(),
+        ProtocolSupport::Implemented
+    );
     // Parsed and typed, but no outbound data plane yet.
     assert_eq!(
         parse("name: h\ntype: hysteria2\nserver: a\nport: 443\npassword: p\n").support(),

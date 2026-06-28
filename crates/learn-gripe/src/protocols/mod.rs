@@ -13,6 +13,7 @@ pub mod salamander;
 pub mod shadowsocks;
 pub mod snell;
 pub mod ss_plugin;
+pub mod ssh;
 pub mod ssr;
 pub mod trojan;
 pub mod tuic;
