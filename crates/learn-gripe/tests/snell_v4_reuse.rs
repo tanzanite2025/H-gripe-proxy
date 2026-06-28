@@ -1,20 +1,23 @@
-//! End-to-end proof that the Snell v4/v5 frame stream interoperates: a SOCKS5
-//! client -> gripe inbound -> Snell v4 outbound -> fake v4 server.
+//! End-to-end proof that Snell v4/v5 reuses one TCP connection for several
+//! sequential streams when `reuse` is enabled: a SOCKS5 client -> gripe inbound
+//! -> Snell v4 outbound (`reuse: true`) -> fake reuse-capable v4 server.
 //!
-//! The fake server is an independent re-implementation of the Snell v4 wire
-//! format (distinct from the shadowaead chunk framing used by v1/v2/v3): the
-//! same Argon2id subkey + AES-128-GCM + counter nonce, but each frame is
-//! `AEAD(7-byte header) | [padding] | AEAD(payload)` and the first frame is
-//! prefixed with the salt and an initial random padding block byte-interleaved
-//! ("swapped") with the payload ciphertext. It decodes the client's request
-//! header, replies `Tunnel`, then echoes payload frames until the client
-//! closes. We assert a SOCKS5 round trip (small and large) works and that the
-//! client's first frame carried the salt + an in-range initial padding block.
+//! The fake server is an independent re-implementation of the Snell v4 frame
+//! wire format (distinct from the shadowaead chunk framing) *with* session
+//! reuse (CommandConnectV2 + zero-payload-frame half-close): after the one salt
+//! exchange it loops, serving one logical stream at a time on the same frame
+//! stream (continuous Argon2id subkey + counter nonces). Each stream is echoed
+//! until the client's zero-payload frame (its half-close); the server then sends
+//! its own zero-payload frame (a clean logical EOF) and reads the next request
+//! header on the same connection. We assert several SOCKS5 round trips share a
+//! single accepted TCP connection, each used CommandConnectV2, and that with
+//! `reuse: false` every stream dials a fresh connection instead.
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use aes_gcm::Aes128Gcm;
 use aes_gcm::aead::generic_array::GenericArray;
@@ -24,7 +27,7 @@ use learn_gripe::{GripeConfig, GripeKernel, OutboundMode, SnellOutboundConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-const TEST_PSK: &[u8] = b"snell-v4-e2e-psk";
+const TEST_PSK: &[u8] = b"snell-v4-reuse-e2e-psk";
 const SALT_LEN: usize = 16;
 const TAG_LEN: usize = 16;
 const HEADER_PLAIN: usize = 7;
@@ -32,10 +35,9 @@ const HEADER_CIPHER: usize = HEADER_PLAIN + TAG_LEN;
 const FRAME_BYTE: u8 = 4;
 const RESP_TUNNEL: u8 = 0;
 const COMMAND_CONNECT: u8 = 1;
-const INITIAL_PADDING_MIN: usize = 0x100;
-const INITIAL_PADDING_SPAN: usize = 0x100;
+const COMMAND_CONNECT_V2: u8 = 5;
 /// The fake server's own first-frame padding length (any value the client must
-/// tolerate); kept in range to mirror a real peer.
+/// tolerate); kept in a plausible range to mirror a real peer.
 const SERVER_INITIAL_PADDING: usize = 0x180;
 
 /// Snell's session-subkey KDF (independent of the kernel's copy); v4 is always
@@ -100,14 +102,16 @@ impl Cipher {
 }
 
 enum Frame {
-    /// A decrypted payload plus the frame's padding length.
-    Data { plain: Vec<u8>, padding: usize },
-    /// A zero-payload frame (logical EOF) or a transport close.
+    /// A decrypted payload.
+    Data(Vec<u8>),
+    /// A zero-payload frame: the client's half-close (logical EOF).
+    Zero,
+    /// The transport closed.
     Eof,
 }
 
-/// Read one v4 frame from the client. The first call must read the leading salt
-/// (the caller passes `None` for `cipher` until then).
+/// Read one v4 frame from the client, advancing the read nonce. A zero-payload
+/// frame is reported as `Zero` (half-close) and a transport close as `Eof`.
 async fn read_frame(stream: &mut TcpStream, cipher: &Cipher, nonce: &mut [u8; 12]) -> Frame {
     let mut header_cipher = [0u8; HEADER_CIPHER];
     if stream.read_exact(&mut header_cipher).await.is_err() {
@@ -120,7 +124,7 @@ async fn read_frame(stream: &mut TcpStream, cipher: &Cipher, nonce: &mut [u8; 12
     let padding = u16::from_be_bytes([header[3], header[4]]) as usize;
     let payload = u16::from_be_bytes([header[5], header[6]]) as usize;
     if payload == 0 {
-        return Frame::Eof;
+        return Frame::Zero;
     }
     let mut frame = vec![0u8; padding + payload + TAG_LEN];
     stream.read_exact(&mut frame).await.expect("read frame body");
@@ -130,11 +134,11 @@ async fn read_frame(stream: &mut TcpStream, cipher: &Cipher, nonce: &mut [u8; 12
     }
     let plain = cipher.open(nonce, &frame[padding..]);
     increment_nonce(nonce);
-    Frame::Data { plain, padding }
+    Frame::Data(plain)
 }
 
 /// Write one v4 frame to the client, prefixing the salt + initial padding on the
-/// first frame.
+/// first frame of the whole connection.
 async fn write_frame(
     stream: &mut TcpStream,
     cipher: &Cipher,
@@ -183,9 +187,22 @@ async fn write_frame(
     stream.flush().await.unwrap();
 }
 
-/// Serve one v4 connection: read the salt + request header, reply `Tunnel`,
-/// then echo payload frames until the client closes.
-async fn serve_v4(mut stream: TcpStream, first_padding: Arc<Mutex<Option<usize>>>, commands: Arc<Mutex<Vec<u8>>>) {
+/// The v4 half-close: a single zero-payload frame (sealed header with
+/// `payLen == 0`, no padding, one nonce step). Never carries the salt — by the
+/// time the server half-closes it has already emitted its salt on the reply.
+async fn write_zero_frame(stream: &mut TcpStream, cipher: &Cipher, nonce: &mut [u8; 12]) {
+    let mut header = [0u8; HEADER_PLAIN];
+    header[0] = FRAME_BYTE;
+    // padding-len and payload-len both 0.
+    let sealed_header = cipher.seal(nonce, &header);
+    increment_nonce(nonce);
+    stream.write_all(&sealed_header).await.unwrap();
+    stream.flush().await.unwrap();
+}
+
+/// Serve sequential reused streams on one v4 connection, recording each
+/// request's command byte.
+async fn serve_v4_reuse(mut stream: TcpStream, commands: Arc<Mutex<Vec<u8>>>) {
     let mut salt = [0u8; SALT_LEN];
     if stream.read_exact(&mut salt).await.is_err() {
         return;
@@ -193,7 +210,8 @@ async fn serve_v4(mut stream: TcpStream, first_padding: Arc<Mutex<Option<usize>>
     let read_cipher = Cipher::new(&snell_kdf(TEST_PSK, &salt));
     let mut read_nonce = [0u8; 12];
 
-    // The server's own salt for the reply direction.
+    // The server's own salt for the reply direction, sent once on its first
+    // frame and reused (continuous nonces) across every logical stream.
     let mut salt_w = [0u8; SALT_LEN];
     for (i, b) in salt_w.iter_mut().enumerate() {
         *b = (i as u8).wrapping_mul(17).wrapping_add(3);
@@ -202,74 +220,73 @@ async fn serve_v4(mut stream: TcpStream, first_padding: Arc<Mutex<Option<usize>>
     let mut write_nonce = [0u8; 12];
     let mut write_salt_sent = false;
 
-    // First frame is the request header (carrying the client's initial padding).
-    let (header, padding) = match read_frame(&mut stream, &read_cipher, &mut read_nonce).await {
-        Frame::Data { plain, padding } => (plain, padding),
-        Frame::Eof => return,
-    };
-    *first_padding.lock().unwrap() = Some(padding);
-    assert_eq!(header[0], 1, "snell proto byte");
-    commands.lock().unwrap().push(header[1]);
-
-    write_frame(
-        &mut stream,
-        &write_cipher,
-        &mut write_nonce,
-        &salt_w,
-        &mut write_salt_sent,
-        &[RESP_TUNNEL],
-    )
-    .await;
-
     loop {
-        match read_frame(&mut stream, &read_cipher, &mut read_nonce).await {
-            Frame::Data { plain, .. } => {
-                write_frame(
-                    &mut stream,
-                    &write_cipher,
-                    &mut write_nonce,
-                    &salt_w,
-                    &mut write_salt_sent,
-                    &plain,
-                )
-                .await;
+        // The first frame of each logical stream is its request header.
+        let header = match read_frame(&mut stream, &read_cipher, &mut read_nonce).await {
+            Frame::Data(h) => h,
+            Frame::Zero | Frame::Eof => return,
+        };
+        assert_eq!(header[0], 1, "snell proto byte");
+        commands.lock().unwrap().push(header[1]);
+        write_frame(
+            &mut stream,
+            &write_cipher,
+            &mut write_nonce,
+            &salt_w,
+            &mut write_salt_sent,
+            &[RESP_TUNNEL],
+        )
+        .await;
+
+        loop {
+            match read_frame(&mut stream, &read_cipher, &mut read_nonce).await {
+                Frame::Data(d) => {
+                    write_frame(
+                        &mut stream,
+                        &write_cipher,
+                        &mut write_nonce,
+                        &salt_w,
+                        &mut write_salt_sent,
+                        &d,
+                    )
+                    .await;
+                }
+                Frame::Zero => {
+                    // Client half-closed; reply with our own zero frame and
+                    // serve the next logical stream on this same connection.
+                    write_zero_frame(&mut stream, &write_cipher, &mut write_nonce).await;
+                    break;
+                }
+                Frame::Eof => return,
             }
-            Frame::Eof => return,
         }
     }
 }
 
-async fn spawn_v4_server() -> (
-    SocketAddr,
-    Arc<AtomicUsize>,
-    Arc<Mutex<Option<usize>>>,
-    Arc<Mutex<Vec<u8>>>,
-) {
+async fn spawn_v4_reuse_server() -> (SocketAddr, Arc<AtomicUsize>, Arc<Mutex<Vec<u8>>>) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
     let conns = Arc::new(AtomicUsize::new(0));
-    let first_padding = Arc::new(Mutex::new(None));
     let commands = Arc::new(Mutex::new(Vec::new()));
     let conns_task = conns.clone();
-    let padding_task = first_padding.clone();
     let commands_task = commands.clone();
     tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
             conns_task.fetch_add(1, Ordering::SeqCst);
-            tokio::spawn(serve_v4(stream, padding_task.clone(), commands_task.clone()));
+            tokio::spawn(serve_v4_reuse(stream, commands_task.clone()));
         }
     });
-    (addr, conns, first_padding, commands)
+    (addr, conns, commands)
 }
 
-fn snell_v4(server: SocketAddr, version: u8) -> Box<SnellOutboundConfig> {
+fn snell_v4(server: SocketAddr, version: u8, reuse: bool) -> Box<SnellOutboundConfig> {
     Box::new(SnellOutboundConfig {
         server: server.ip().to_string(),
         port: server.port(),
         psk: TEST_PSK.to_vec(),
         version,
         obfs: None,
-        reuse: false,
+        reuse,
     })
 }
 
@@ -296,6 +313,10 @@ async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
     stream
 }
 
+/// One SOCKS5 round trip: send `payload`, half-close the upload, read the echo
+/// back to EOF. Half-closing the client's write drives the kernel to send the
+/// Snell zero-payload frame, ending the logical stream so the connection can be
+/// pooled for reuse.
 async fn socks5_round_trip(proxy: SocketAddr, target: SocketAddr, payload: &[u8]) {
     let mut conn = socks5_connect(proxy, target).await;
     let (mut reader, mut writer) = conn.split();
@@ -307,71 +328,125 @@ async fn socks5_round_trip(proxy: SocketAddr, target: SocketAddr, payload: &[u8]
 }
 
 #[tokio::test]
-async fn v4_round_trips_through_the_frame_stream() {
-    let (server, _conns, first_padding, commands) = spawn_v4_server().await;
+async fn v4_reuses_one_connection_across_sequential_streams() {
+    let (server, conns, commands) = spawn_v4_reuse_server().await;
     let handle = GripeKernel::start(GripeConfig {
         socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
-        outbound: OutboundMode::Snell(snell_v4(server, 4)),
+        outbound: OutboundMode::Snell(snell_v4(server, 4, true)),
     })
     .await
     .unwrap();
     let proxy = handle.local_addr();
     let target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
 
-    socks5_round_trip(proxy, target, b"hello snell v4").await;
+    let payloads: [&[u8]; 3] = [b"first stream", b"second stream", b"third stream"];
+    for payload in payloads {
+        socks5_round_trip(proxy, target, payload).await;
+        // Let the relay's stream drop (which parks the session) land before the
+        // next connect tries to reuse it.
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
 
     assert_eq!(
-        *commands.lock().unwrap(),
-        vec![COMMAND_CONNECT],
-        "v4 uses the plain connect command"
+        conns.load(Ordering::SeqCst),
+        1,
+        "all three sequential streams shared a single TCP connection",
     );
-    let padding = first_padding
-        .lock()
-        .unwrap()
-        .expect("server saw the client's first frame");
-    assert!(
-        (INITIAL_PADDING_MIN..INITIAL_PADDING_MIN + INITIAL_PADDING_SPAN).contains(&padding),
-        "first frame carried an in-range initial padding block (got {padding})",
+    assert_eq!(
+        *commands.lock().unwrap(),
+        vec![COMMAND_CONNECT_V2, COMMAND_CONNECT_V2, COMMAND_CONNECT_V2],
+        "every reused request used CommandConnectV2",
     );
 
     handle.shutdown().await;
 }
 
 #[tokio::test]
-async fn v4_round_trips_a_large_multi_frame_payload() {
-    let (server, _conns, _first_padding, _commands) = spawn_v4_server().await;
+async fn v4_reuse_round_trips_a_large_payload() {
+    let (server, conns, _commands) = spawn_v4_reuse_server().await;
     let handle = GripeKernel::start(GripeConfig {
         socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
-        outbound: OutboundMode::Snell(snell_v4(server, 4)),
+        outbound: OutboundMode::Snell(snell_v4(server, 4, true)),
     })
     .await
     .unwrap();
     let proxy = handle.local_addr();
     let target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
 
-    // Spans many frames (each capped at 0x3FFF), exercising continuous nonces.
+    // First (small) stream parks the session; the second rides it with a payload
+    // spanning many frames (each capped at 0x3FFF), exercising continuous nonces
+    // across reuse.
+    socks5_round_trip(proxy, target, b"warmup").await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
     let big: Vec<u8> = (0..50_000u32).map(|i| (i % 251) as u8).collect();
     socks5_round_trip(proxy, target, &big).await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    assert_eq!(
+        conns.load(Ordering::SeqCst),
+        1,
+        "the large second stream reused the first connection",
+    );
 
     handle.shutdown().await;
 }
 
 #[tokio::test]
-async fn v5_config_dials_as_v4() {
-    let (server, _conns, _first_padding, commands) = spawn_v4_server().await;
+async fn v5_config_with_reuse_reuses_one_connection() {
+    let (server, conns, commands) = spawn_v4_reuse_server().await;
     let handle = GripeKernel::start(GripeConfig {
         socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
-        // v5 is normalised to v4 by `from_proxy`; constructing the config with
-        // version 5 directly still exercises the v4 frame path (version >= 4).
-        outbound: OutboundMode::Snell(snell_v4(server, 5)),
+        // v5 dials as v4 on the wire (version >= 4); with `reuse` it pools just
+        // like v4.
+        outbound: OutboundMode::Snell(snell_v4(server, 5, true)),
     })
     .await
     .unwrap();
     let proxy = handle.local_addr();
     let target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
 
-    socks5_round_trip(proxy, target, b"hello snell v5").await;
-    assert_eq!(*commands.lock().unwrap(), vec![COMMAND_CONNECT]);
+    socks5_round_trip(proxy, target, b"first").await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    socks5_round_trip(proxy, target, b"second").await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    assert_eq!(
+        conns.load(Ordering::SeqCst),
+        1,
+        "v5 + reuse shares a single TCP connection",
+    );
+    assert_eq!(*commands.lock().unwrap(), vec![COMMAND_CONNECT_V2, COMMAND_CONNECT_V2],);
+
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn v4_without_reuse_dials_a_fresh_connection_per_stream() {
+    let (server, conns, commands) = spawn_v4_reuse_server().await;
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Snell(snell_v4(server, 4, false)),
+    })
+    .await
+    .unwrap();
+    let proxy = handle.local_addr();
+    let target = SocketAddr::from((Ipv4Addr::new(1, 2, 3, 4), 443));
+
+    for payload in [b"alpha".as_slice(), b"bravo".as_slice(), b"charlie".as_slice()] {
+        socks5_round_trip(proxy, target, payload).await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+
+    assert_eq!(
+        conns.load(Ordering::SeqCst),
+        3,
+        "without `reuse` each stream dials its own connection",
+    );
+    assert_eq!(
+        *commands.lock().unwrap(),
+        vec![COMMAND_CONNECT, COMMAND_CONNECT, COMMAND_CONNECT],
+        "one-shot v4 uses the plain connect command",
+    );
 
     handle.shutdown().await;
 }

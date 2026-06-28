@@ -174,6 +174,10 @@ pub struct ProxyOptions {
     pub psk: Option<String>,
     /// Snell protocol version (`version`); defaults to 1 when unset.
     pub version: Option<u32>,
+    /// Snell v4/v5 session reuse (`reuse`); when true, v4/v5 negotiate
+    /// `CommandConnectV2` and ride the per-server connection pool. Defaults to
+    /// false.
+    pub reuse: Option<bool>,
     pub key: Option<String>,
     pub cipher: Option<String>,
     pub flow: Option<String>,

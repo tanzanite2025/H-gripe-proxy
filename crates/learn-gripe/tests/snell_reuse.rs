@@ -191,6 +191,7 @@ fn snell_v2(server: SocketAddr) -> Box<SnellOutboundConfig> {
         psk: TEST_PSK.to_vec(),
         version: 2,
         obfs: None,
+        reuse: false,
     })
 }
 
